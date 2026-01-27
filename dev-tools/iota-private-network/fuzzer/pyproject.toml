@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "net-fuzz"
+version = "0.1.0"
+description = "Network fuzzing helpers for the IOTA private network."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "IOTA Stiftung" }]
+dependencies = [
+  "docker>=6.0.0",
+]
+keywords = ["iota", "fuzzing", "network"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: POSIX :: Linux",
+]
+
+[project.urls]
+Repository = "https://github.com/iotaledger/iota"
+
+[tool.setuptools.packages.find]
+where = ["src"]

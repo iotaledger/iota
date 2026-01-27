@@ -11,9 +11,9 @@ use std::{
 
 use bytes::Bytes;
 use fastcrypto::hash::{Digest, HashFunction};
+use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use rs_merkle::{MerkleProof, MerkleTree};
 use serde::{Deserialize, Serialize};
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use starfish_config::{
     AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction, DefaultHashFunctionWrapper, Epoch,
     ProtocolKeyPair, ProtocolKeySignature, ProtocolPublicKey,
@@ -430,12 +430,6 @@ impl AsRef<[u8]> for BlockHeaderDigest {
     }
 }
 
-// TODO: https://github.com/iotaledger/iota/issues/8220
-// We might need to join TransactionDigest with BlockDigest since we use
-// the same parameters for both structures. TransactionDigest is used for
-// including a commitment for a transaction data to a block header. This digest
-// is used for BlockDigest computations of BlockHeader does not include
-// explicitly the transaction data.
 #[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TransactionsCommitment([u8; starfish_config::DIGEST_LENGTH]);
 pub type MerkleProofBytes = Vec<u8>;
@@ -1072,7 +1066,6 @@ pub(crate) fn genesis_block_headers(context: &Context) -> Vec<VerifiedBlockHeade
 }
 
 /// This struct is public for testing in other crates.
-#[cfg(test)]
 #[derive(Clone)]
 pub struct TestBlockHeader {
     ancestors: Vec<BlockRef>,
@@ -1080,12 +1073,11 @@ pub struct TestBlockHeader {
     block_header: BlockHeaderV1,
 }
 
-#[cfg(test)]
 impl TestBlockHeader {
     /// Creates a simple block with no transactions and without real computation
     /// of transactions commitment. Use it when you don't need to check the
     /// commitment and don't want to create and pass the encoder.
-    pub(crate) fn new(round: Round, author: u8) -> Self {
+    pub fn new(round: Round, author: u8) -> Self {
         Self {
             block_header: BlockHeaderV1 {
                 round,
@@ -1097,6 +1089,8 @@ impl TestBlockHeader {
             acknowledgments: vec![],
         }
     }
+
+    #[cfg(test)]
     pub(crate) fn new_with_commitment(
         round: Round,
         author: u8,
@@ -1123,6 +1117,7 @@ impl TestBlockHeader {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn new_with_transaction(
         round: Round,
         author: u8,
@@ -1323,7 +1318,7 @@ mod tests {
                 acknowledgments.clone(),
             );
 
-        let expected = vec![ref_a, ref_b, ref_c, ref_d, ref_e, ref_a];
+        let expected = [ref_a, ref_b, ref_c, ref_d, ref_e, ref_a];
         assert_eq!(references.len(), expected.len());
         for r in references.iter() {
             assert!(expected.contains(r));

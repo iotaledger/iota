@@ -350,7 +350,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
             for certified_commit in commits.commits() {
                 // Collect committed_transactions from the TrustedCommit
                 for block_ref in certified_commit.committed_transactions() {
-                    expected_transactions.insert(block_ref);
+                    expected_transactions.insert(*block_ref);
                 }
 
                 // Collect available transactions from VerifiedTransactions
@@ -619,6 +619,10 @@ impl<C: NetworkClient> CommitSyncer<C> {
         commit_range: CommitRange,
         timeout: Duration,
     ) -> ConsensusResult<CertifiedCommits> {
+        // Maximum delay between consecutive pipelined requests, to avoid
+        // overwhelming the peer while still maintaining reasonable throughput.
+        const MAX_PIPELINE_DELAY: Duration = Duration::from_secs(1);
+
         let _timer = inner
             .context
             .metrics
@@ -658,6 +662,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
         let committed_tx_refs: Vec<BlockRef> = commits
             .iter()
             .flat_map(|c| c.committed_transactions())
+            .copied()
             .collect();
 
         // 3b. Identify which committed transaction blocks are NOT in the committed
@@ -684,7 +689,8 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 async move {
                     // 4. Send out pipelined fetch requests to avoid overloading the target
                     //    authority.
-                    sleep(timeout * i as u32 / num_chunks).await;
+                    let individual_delay = (timeout / num_chunks).min(MAX_PIPELINE_DELAY);
+                    sleep(individual_delay * i as u32).await;
                     // TODO: add some retries.
                     let serialized_block_headers = inner
                         .network_client
@@ -754,8 +760,10 @@ impl<C: NetworkClient> CommitSyncer<C> {
                     let inner = inner.clone();
                     async move {
                         // 9. Send out pipelined fetch requests to avoid overloading the target
-                        //    authority.
-                        sleep(timeout * i as u32 / num_tx_chunks.max(1)).await;
+                        //    authority. Offset by half delay to interleave with header requests.
+                        let individual_delay =
+                            (timeout / num_tx_chunks.max(1)).min(MAX_PIPELINE_DELAY);
+                        sleep(individual_delay * i as u32 + individual_delay / 2).await;
                         let serialized_transactions = inner
                             .network_client
                             .fetch_transactions(

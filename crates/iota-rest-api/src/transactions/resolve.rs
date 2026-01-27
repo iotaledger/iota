@@ -9,10 +9,7 @@ use axum::{
     extract::{Query, State},
 };
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk2::types::{
-    Argument, Command, ObjectId, Transaction, UnresolvedInputArgument, UnresolvedObjectReference,
-    UnresolvedProgrammableTransaction, UnresolvedTransaction,
-};
+use iota_sdk_types::{Argument, Command, ObjectId, Transaction};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef},
     effects::TransactionEffectsAPI,
@@ -29,7 +26,14 @@ use move_binary_format::normalized;
 use schemars::JsonSchema;
 use tap::Pipe;
 
-use super::{TransactionSimulationResponse, execution::SimulateTransactionQueryParameters};
+use super::{
+    TransactionSimulationResponse,
+    execution::SimulateTransactionQueryParameters,
+    unresolved::{
+        UnresolvedInputArgument, UnresolvedObjectReference, UnresolvedProgrammableTransaction,
+        UnresolvedTransaction,
+    },
+};
 use crate::{
     RestError, RestService, Result,
     accept::AcceptFormat,
@@ -535,6 +539,7 @@ fn find_arg_uses(
                 .position(|elem| matches_input_arg(*elem, arg_idx))
                 .map(Some),
             Command::Upgrade(upgrade) => matches_input_arg(upgrade.ticket, arg_idx).then_some(None),
+            _ => unreachable!("a new enum variant was added and needs to be handled"),
         }
         .map(|x| (command, x))
     })
@@ -577,6 +582,7 @@ fn select_gas(
         .indexes()
         .ok_or_else(RestError::not_found)?
         .account_owned_objects_info_iter(owner, None)?
+        .filter_map(|result| result.ok())
         .filter(|info| info.type_.is_gas_coin())
         .filter(|info| !input_objects.contains(&info.object_id))
         .filter_map(|info| {

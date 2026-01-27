@@ -23,6 +23,7 @@ use iota_config::{
     verifier_signing_config::VerifierSigningConfig,
 };
 use iota_names::config::IotaNamesConfig;
+use iota_protocol_config::Chain;
 use iota_types::{
     crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair},
     multiaddr::Multiaddr,
@@ -53,6 +54,7 @@ pub struct ValidatorConfigBuilder {
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
     discovery_config: Option<DiscoveryConfig>,
+    chain_override: Option<Chain>,
 }
 
 impl ValidatorConfigBuilder {
@@ -60,6 +62,12 @@ impl ValidatorConfigBuilder {
         Self {
             ..Default::default()
         }
+    }
+
+    pub fn with_chain_override(mut self, chain: Chain) -> Self {
+        assert!(self.chain_override.is_none(), "Chain override already set");
+        self.chain_override = Some(chain);
+        self
     }
 
     pub fn with_config_directory(mut self, config_directory: PathBuf) -> Self {
@@ -200,9 +208,7 @@ impl ValidatorConfigBuilder {
             db_path,
             network_address,
             metrics_address: validator.metrics_address,
-            admin_interface_address: local_ip_utils::new_tcp_address_for_testing(&localhost)
-                .to_socket_addr()
-                .unwrap(),
+            admin_interface_address: validator.admin_interface_address,
             json_rpc_address: local_ip_utils::new_tcp_address_for_testing(&localhost)
                 .to_socket_addr()
                 .unwrap(),
@@ -256,6 +262,7 @@ impl ValidatorConfigBuilder {
             iota_names_config: None,
             enable_grpc_api: false,
             grpc_api_config: None,
+            chain_override_for_testing: self.chain_override,
         }
     }
 
@@ -305,11 +312,18 @@ pub struct FullnodeConfigBuilder {
     iota_names_config: Option<IotaNamesConfig>,
     grpc_api_config: Option<GrpcApiConfig>,
     discovery_config: Option<DiscoveryConfig>,
+    chain_override: Option<Chain>,
 }
 
 impl FullnodeConfigBuilder {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn with_chain_override(mut self, chain: Chain) -> Self {
+        assert!(self.chain_override.is_none(), "Chain override already set");
+        self.chain_override = Some(chain);
+        self
     }
 
     pub fn with_config_directory(mut self, config_directory: PathBuf) -> Self {
@@ -374,9 +388,9 @@ impl FullnodeConfigBuilder {
 
     pub fn with_admin_interface_address(
         mut self,
-        admin_interface_address: impl Into<SocketAddr>,
+        admin_interface_address: Option<impl Into<SocketAddr>>,
     ) -> Self {
-        self.admin_interface_address = Some(admin_interface_address.into());
+        self.admin_interface_address = admin_interface_address.map(|addr| addr.into());
         self
     }
 
@@ -589,6 +603,7 @@ impl FullnodeConfigBuilder {
             iota_names_config: self.iota_names_config,
             enable_grpc_api: self.grpc_api_config.is_some(),
             grpc_api_config: self.grpc_api_config,
+            chain_override_for_testing: self.chain_override,
         }
     }
 

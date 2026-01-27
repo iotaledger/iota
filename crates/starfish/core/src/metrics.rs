@@ -117,6 +117,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) block_proposal_leader_wait_ms: IntCounterVec,
     pub(crate) block_proposal_leader_wait_count: IntCounterVec,
     pub(crate) block_timestamp_drift_ms: IntCounterVec,
+    pub(crate) latency_to_process_stream: HistogramVec,
     pub(crate) blocks_per_commit_count: Histogram,
     pub(crate) core_add_blocks_batch_size: Histogram,
     pub(crate) core_add_block_headers_batch_size: Histogram,
@@ -134,6 +135,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) highest_accepted_round: IntGauge,
     pub(crate) accepted_block_header_time_drift_ms: IntCounterVec,
     pub(crate) accepted_block_headers: IntCounterVec,
+    pub(crate) accepted_block_headers_source: IntCounterVec,
     pub(crate) cordial_knowledge_useful_headers_authors: IntCounterVec,
     pub(crate) cordial_knowledge_useful_shards_authors: IntCounterVec,
     pub(crate) dag_state_recent_transactions: IntGauge,
@@ -147,6 +149,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) synchronizer_fetch_block_headers_scheduler_inflight: IntGauge,
     pub(crate) synchronizer_fetch_block_headers_scheduler_skipped: IntCounterVec,
     pub(crate) synchronizer_fetched_block_headers_by_peer: IntCounterVec,
+    pub(crate) synchronizer_skipped_block_headers_by_peer: IntCounterVec,
     pub(crate) synchronizer_requested_block_headers_by_peer: IntCounterVec,
     pub(crate) synchronizer_missing_block_headers_by_authority: IntCounterVec,
     pub(crate) synchronizer_current_missing_block_headers_by_authority: IntGaugeVec,
@@ -307,6 +310,13 @@ impl NodeMetrics {
                 exponential_buckets(1.0, 2.0, 14).unwrap(),
                 registry,
             ).unwrap(),
+            latency_to_process_stream: register_histogram_vec_with_registry!(
+                "latency_to_process_stream",
+                "The latency between block creation and processing stream from peer",
+                &["peer"],
+                exponential_buckets(1.0, 2.0, 14).unwrap(),
+                registry,
+            ).unwrap(),
             highest_verified_authority_round: register_int_gauge_vec_with_registry!(
                 "highest_verified_authority_round",
                 "The highest round of received verified block for the corresponding authority",
@@ -432,6 +442,12 @@ impl NodeMetrics {
                 &["source"],
                 registry,
             ).unwrap(),
+            accepted_block_headers_source: register_int_counter_vec_with_registry!(
+                "accepted_block_headers_source",
+                "Number of accepted block headers by ingestion source",
+                &["source"],
+                registry,
+            ).unwrap(),
             shard_accumulators: register_int_gauge_with_registry!(
                 "shard_accumulators",
                 "The number of shard accumulators currently in memory",
@@ -469,7 +485,7 @@ impl NodeMetrics {
             ).unwrap(),
             cordial_knowledge_message_batch_size: register_histogram_with_registry!(
                 "cordial_knowledge_message_batch_size",
-                "Size of the batch of messages sent to cordial connections",
+                "Size of the batch of messages sent to connections in cordial knowledge",
                 vec![0.0, 1.0, 2.0, 5.0, 10.0, 20.0, 40.0, 80.0, 100.0, 200.0, 400.0, 800.0, 1000.0],
                 registry,
             ).unwrap(),
@@ -505,6 +521,12 @@ impl NodeMetrics {
                 "synchronizer_fetched_block_headers_by_peer",
                 "Number of fetched block headers per peer authority via the synchronizer and also by block authority",
                 &["peer", "type"],
+                registry,
+            ).unwrap(),
+            synchronizer_skipped_block_headers_by_peer: register_int_counter_vec_with_registry!(
+                "synchronizer_skipped_block_headers_by_peer",
+                "Number of skipped block headers per peer due to already being verified, by sync method",
+                &["peer", "method"],
                 registry,
             ).unwrap(),
             cordial_knowledge_useful_headers_authors: register_int_counter_vec_with_registry!(

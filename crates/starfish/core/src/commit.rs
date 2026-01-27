@@ -94,7 +94,7 @@ pub(crate) trait CommitAPI {
     fn timestamp_ms(&self) -> BlockTimestampMs;
     fn leader(&self) -> BlockRef;
     fn blocks(&self) -> &[BlockRef];
-    fn committed_transactions(&self) -> Vec<BlockRef>;
+    fn committed_transactions(&self) -> &[BlockRef];
 }
 
 /// Specifies one consensus commit.
@@ -146,10 +146,8 @@ impl CommitAPI for CommitV1 {
         &self.blocks
     }
 
-    // TODO: https://github.com/iotaledger/iota/issues/8375
-    // Does this need to be a vector? block refs are a slice == less cloning?
-    fn committed_transactions(&self) -> Vec<BlockRef> {
-        self.committed_transactions.clone()
+    fn committed_transactions(&self) -> &[BlockRef] {
+        &self.committed_transactions
     }
 }
 
@@ -647,7 +645,7 @@ pub fn load_pending_subdag_from_store(
     PendingSubDag::new(
         leader_block_ref,
         block_headers,
-        commit.committed_transactions().clone(),
+        commit.committed_transactions().to_vec(),
         commit.timestamp_ms(),
         commit.reference(),
         reputation_scores_desc,

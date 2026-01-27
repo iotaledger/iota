@@ -238,11 +238,12 @@ impl AwsClient {
 
     /// Return the command to mount the first (standard) NVMe drive.
     fn nvme_mount_command(&self) -> Vec<String> {
-        const DRIVE: &str = "nvme1n1";
         let directory = self.settings.working_dir.display();
         vec![
-            format!("(sudo mkfs.ext4 -E nodiscard /dev/{DRIVE} || true)"),
-            format!("(sudo mount /dev/{DRIVE} {directory} || true)"),
+            "export NVME_DRIVE=$(nvme list | awk '/NVMe Instance Storage/ {print $1; exit}')"
+                .to_string(),
+            "(sudo mkfs.ext4 -E nodiscard $NVME_DRIVE || true)".to_string(),
+            format!("(sudo mount $NVME_DRIVE {directory} || true)"),
             format!("sudo chmod 777 -R {directory}"),
         ]
     }
@@ -338,6 +339,7 @@ impl ServerProviderClient for AwsClient {
                 }
             }
         }
+        instances.sort_by_key(|i| i.main_ip);
 
         Ok(instances)
     }
@@ -421,6 +423,7 @@ impl ServerProviderClient for AwsClient {
         role: InstanceRole,
         quantity: usize,
         use_spot_instances: bool,
+        id: String,
     ) -> CloudProviderResult<Vec<Instance>>
     where
         S: Into<String> + Serialize + Send,
@@ -444,6 +447,7 @@ impl ServerProviderClient for AwsClient {
             .resource_type(ResourceType::Instance)
             .tags(Tag::builder().key("Name").value(testbed_id).build())
             .tags(Tag::builder().key("Role").value(role.to_string()).build())
+            .tags(Tag::builder().key("Id").value(id).build())
             .build();
 
         let storage = BlockDeviceMapping::builder()
@@ -462,14 +466,18 @@ impl ServerProviderClient for AwsClient {
             InstanceRole::Client => &self.settings.client_specs,
         };
 
-        let base_request = client
+        let mut base_request = client
             .run_instances()
             .image_id(image_id)
             .instance_type(instance_type.as_str().into())
             .key_name(testbed_id)
             .security_groups(&self.settings.testbed_id)
-            .block_device_mappings(storage)
             .tag_specifications(tags);
+
+        // Only the monitoring device should be EBS backed.
+        if role == InstanceRole::Metrics {
+            base_request = base_request.block_device_mappings(storage);
+        }
         let mut collected_instances = Vec::new();
         if use_spot_instances && role == InstanceRole::Node {
             let start = tokio::time::Instant::now();

@@ -33,7 +33,7 @@ use crate::{
     context::Context,
     cordial_knowledge::CordialKnowledgeHandle,
     core_thread::CoreThreadDispatcher,
-    dag_state::DagState,
+    dag_state::{BlockHeaderSource, DagState},
     encoder::ShardEncoder,
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
@@ -458,6 +458,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
     ) -> ConsensusResult<()> {
         fail_point_async!("consensus-rpc-response");
+        let _s = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["AuthorityService::handle_stream"])
+            .start_timer();
 
         let peer_hostname = &self.context.committee.authority(peer).hostname;
         let mut serialized_block_bundle_parts =
@@ -481,6 +488,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .block_timestamp_drift_ms
             .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
             .inc_by(forward_time_drift.as_millis() as u64);
+        let latency_to_process_stream =
+            Duration::from_millis(now.saturating_sub(verified_block.timestamp_ms()));
+        self.context
+            .metrics
+            .node_metrics
+            .latency_to_process_stream
+            .with_label_values(&[peer_hostname.as_str()])
+            .observe(latency_to_process_stream.as_secs_f64());
 
         // 3. Create block headers from bytes from a bundle
 
@@ -545,7 +560,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // sent in order of increasing rounds.
         let (mut missing_ancestors, mut missing_committed_txns) = self
             .core_dispatcher
-            .add_block_headers(additional_block_headers.clone())
+            .add_block_headers(
+                additional_block_headers.clone(),
+                BlockHeaderSource::BlockHeaderBundleStream,
+            )
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
         self.context
@@ -581,8 +599,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // 11. Add our shard from the received block and its proof to the dag_state
         // only if it contains transactions
-        if shard_for_core.is_some() {
-            let shard_for_core = shard_for_core.unwrap();
+        if let Some(shard_for_core) = shard_for_core {
             let serialized_shard_for_core: Bytes = bcs::to_bytes(&shard_for_core)
                 .map_err(ConsensusError::SerializationFailure)?
                 .into();
@@ -754,13 +771,40 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // Get requested block headers from store.
         let serialized_headers = if commit_sync_handle {
-            // For commit sync, we respond with all blocks from the store
-            self.dag_state
-                .read()
-                .get_serialized_block_headers(&block_refs)
-                .into_iter()
-                .flatten()
-                .collect()
+            // For commit sync, optimize by fetching from store for headers below GC round
+            let gc_round = self.dag_state.read().gc_round_for_last_solid_commit();
+
+            // Partition block_refs into those below and at-or-above GC round
+            let (below_gc, above_gc): (Vec<_>, Vec<_>) = block_refs
+                .iter()
+                .partition(|block_ref| block_ref.round < gc_round);
+
+            let mut headers = Vec::new();
+
+            // Read headers below GC from store
+            if !below_gc.is_empty() {
+                let store_headers = self
+                    .store
+                    .read_serialized_block_headers(&below_gc)?
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>();
+                headers.extend(store_headers);
+            }
+
+            // Read headers at-or-above GC from dag_state
+            if !above_gc.is_empty() {
+                let dag_headers = self
+                    .dag_state
+                    .read()
+                    .get_serialized_block_headers(&above_gc)
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>();
+                headers.extend(dag_headers);
+            }
+
+            headers
         } else {
             // For periodic or live synchronizer, we respond with requested blocks from the
             // store and with additional blocks from the cache
@@ -976,21 +1020,46 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             &self.context.committee,
         )?;
 
-        // Get the transactions from the dag state
-        let transactions = self
-            .dag_state
-            .read()
-            .get_serialized_transactions(&block_refs);
+        // Optimize by reading from store for transactions below GC round
+        let gc_round = self.dag_state.read().gc_round_for_last_solid_commit();
 
-        // Return the serialized transactions
-        let result: Vec<_> = transactions
+        // Partition block_refs into those below and at-or-above GC round
+        let (below_gc, above_gc): (Vec<_>, Vec<_>) = block_refs
+            .iter()
+            .partition(|block_ref| block_ref.round < gc_round);
+
+        // Fetch transactions below GC from store
+        let store_transactions = if !below_gc.is_empty() {
+            self.store
+                .read_serialized_transactions(&below_gc)?
+                .into_iter()
+                .zip(below_gc.iter())
+                .collect::<Vec<_>>()
+        } else {
+            vec![]
+        };
+
+        // Fetch transactions at-or-above GC from dag_state
+        let dag_transactions = if !above_gc.is_empty() {
+            self.dag_state
+                .read()
+                .get_serialized_transactions(&above_gc)
+                .into_iter()
+                .zip(above_gc.iter())
+                .collect::<Vec<_>>()
+        } else {
+            vec![]
+        };
+
+        // Combine and serialize the results
+        let result: Vec<_> = store_transactions
             .into_iter()
-            .zip(block_refs)
+            .chain(dag_transactions.into_iter())
             .filter_map(|(opt_serialized_tx, block_ref)| {
                 opt_serialized_tx.map(|serialized_tx| {
                     Bytes::from(
                         bcs::to_bytes(&SerializedTransactions {
-                            block_ref,
+                            block_ref: *block_ref,
                             serialized_transactions: serialized_tx,
                         })
                         .map_err(ConsensusError::SerializationFailure)
@@ -1258,7 +1327,7 @@ mod tests {
         cordial_knowledge::{ConnectionKnowledgeMessage, CordialKnowledge},
         core::{Core, CoreSignals, ReasonToCreateBlock},
         core_thread::{CoreError, CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
-        dag_state::{DagState, TransactionSource},
+        dag_state::{BlockHeaderSource, DagState, TransactionSource},
         encoder::create_encoder,
         error::{ConsensusError, ConsensusResult},
         header_synchronizer::HeaderSynchronizer,
@@ -1895,7 +1964,10 @@ mod tests {
 
         for round in 1..=rounds / 2 {
             core_dispatcher
-                .add_block_headers(all_block_headers[round as usize].clone())
+                .add_block_headers(
+                    all_block_headers[round as usize].clone(),
+                    BlockHeaderSource::Test,
+                )
                 .await
                 .expect("block headers are expected to be added successfully");
         }
@@ -1918,7 +1990,7 @@ mod tests {
         for round in rounds / 2 + 1..=rounds {
             let headers = &all_block_headers[round as usize];
             core_dispatcher
-                .add_block_headers(headers[..2].to_vec())
+                .add_block_headers(headers[..2].to_vec(), BlockHeaderSource::Test)
                 .await
                 .expect("block headers are expected to be added successfully");
         }
@@ -1938,7 +2010,7 @@ mod tests {
         for round in rounds / 2 + 1..=rounds {
             let headers = &all_block_headers[round as usize];
             core_dispatcher
-                .add_block_headers(headers[2..].to_vec())
+                .add_block_headers(headers[2..].to_vec(), BlockHeaderSource::Test)
                 .await
                 .expect("block headers are expected to be added successfully");
         }
@@ -1981,6 +2053,7 @@ mod tests {
         async fn add_block_headers(
             &self,
             block_headers: Vec<VerifiedBlockHeader>,
+            source: BlockHeaderSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
@@ -1994,7 +2067,7 @@ mod tests {
                 let entry = &mut vec[block_header.author()];
                 *entry = max(*entry, block_header.round());
             }
-            let _ = guard.add_block_headers(block_headers);
+            let _ = guard.add_block_headers(block_headers, source);
             Ok((BTreeSet::new(), BTreeMap::new()))
         }
 
@@ -2159,7 +2232,10 @@ mod tests {
         }
         for round in 1..=rounds {
             core_dispatcher
-                .add_block_headers(vec![all_headers[round as usize][0].clone()])
+                .add_block_headers(
+                    vec![all_headers[round as usize][0].clone()],
+                    BlockHeaderSource::Test,
+                )
                 .await
                 .expect("blocks header is expected to be added successfully");
             for peer in 1..validators {
@@ -2314,7 +2390,10 @@ mod tests {
         }
         for round in 1..=rounds {
             core_dispatcher
-                .add_block_headers(vec![all_headers[round as usize][0].clone()])
+                .add_block_headers(
+                    vec![all_headers[round as usize][0].clone()],
+                    BlockHeaderSource::Test,
+                )
                 .await
                 .expect("blocks header is expected to be added successfully");
             for peer in 1..validators {
@@ -3105,7 +3184,10 @@ mod tests {
 
         for round in 1..=rounds {
             core_dispatcher
-                .add_block_headers(all_block_headers[round as usize].clone())
+                .add_block_headers(
+                    all_block_headers[round as usize].clone(),
+                    BlockHeaderSource::Test,
+                )
                 .await
                 .expect("block headers are expected to be added successfully");
         }
@@ -3136,7 +3218,7 @@ mod tests {
         }
         all_block_headers.push(new_block_headers.clone());
         core_dispatcher
-            .add_block_headers(new_block_headers.clone())
+            .add_block_headers(new_block_headers.clone(), BlockHeaderSource::Test)
             .await
             .expect("block headers are expected to be added successfully");
 
@@ -3158,7 +3240,7 @@ mod tests {
             }
             all_block_headers.push(new_block_headers.clone());
             core_dispatcher
-                .add_block_headers(new_block_headers.clone())
+                .add_block_headers(new_block_headers.clone(), BlockHeaderSource::Test)
                 .await
                 .expect("block headers are expected to be added successfully");
         }

@@ -3,11 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module examples::move_random {
-    use std::vector;
-    use iota::object::{Self, UID};
-    use iota::transfer;
-    use iota::tx_context::TxContext;
-
     public struct Object has key, store {
         id: UID,
         data: vector<u64>,

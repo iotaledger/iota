@@ -31,6 +31,7 @@ use iota_keys::{
     keystore::{AccountKeystore, StoredKey},
 };
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
+use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_types::{
     IOTA_SYSTEM_PACKAGE_ID, TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
@@ -51,7 +52,6 @@ use iota_types::{
 };
 use move_core_types::ident_str;
 use serde::Serialize;
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use tabled::{
     builder::Builder,
     settings::{

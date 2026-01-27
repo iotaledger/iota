@@ -205,9 +205,13 @@ export function TokenDetails() {
     if (!activeAccountAddress) {
         return null;
     }
-    if (isError) {
-        toast.error('Error updating balance');
-    }
+
+    useEffect(() => {
+        if (isError) {
+            toast.error('Error updating balance');
+        }
+    }, [isError]);
+
     return (
         <>
             {isMainnet && data?.degraded && (

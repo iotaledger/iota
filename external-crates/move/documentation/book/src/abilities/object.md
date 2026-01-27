@@ -5,9 +5,9 @@ the data to persist between transactions.
 
 For more details, see the IOTA documentation on
 
-- [The Object Model](https://docs.iota.org/concepts/object-model)
-- [Move Rules for Objects](https://docs.iota.org/concepts/iota-move-concepts#global-unique)
-- [Transferring Objects](https://docs.iota.org/concepts/transfers)
+- [The Object Model](https://docs.iota.org/developer/iota-101/objects/object-model)
+- [Move Rules for Objects](https://docs.iota.org/developer/iota-101/move-overview/#objects-with-key-ability-and-globally-unique-ids)
+- [Transferring Objects](https://docs.iota.org/developer/iota-101/objects/transfers/)
 
 ## Object Rules
 

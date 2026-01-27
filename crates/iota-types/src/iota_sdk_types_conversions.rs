@@ -11,10 +11,40 @@
 //! directly to avoid going through the BCS machinery.
 
 use fastcrypto::traits::ToFromBytes;
-use iota_sdk2::types::{
-    object::{MovePackage, MoveStruct},
-    transaction::{ChangeEpoch, ChangeEpochV2, ChangeEpochV3},
-    *,
+use iota_sdk_types::{
+    address::Address,
+    checkpoint::{
+        CheckpointCommitment, CheckpointContents, CheckpointData, CheckpointSummary,
+        CheckpointTransaction, CheckpointTransactionInfo, EndOfEpochData, SignedCheckpointSummary,
+    },
+    crypto::{Bls12381PublicKey, Bls12381Signature, Jwk, JwkId, UserSignature},
+    digest::Digest,
+    effects::{
+        ChangedObject, IdOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsV1,
+        UnchangedSharedKind, UnchangedSharedObject,
+    },
+    events::{Event, TransactionEvents},
+    execution_status::{
+        CommandArgumentError, ExecutionError, ExecutionStatus, MoveLocation, PackageUpgradeError,
+        TypeArgumentError,
+    },
+    gas::GasCostSummary,
+    object::{
+        GenesisObject, MovePackage, MoveStruct, Object, ObjectData, ObjectReference, Owner,
+        TypeOrigin, UpgradeInfo,
+    },
+    object_id::ObjectId,
+    transaction::{
+        ActiveJwk, Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1,
+        CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, Command,
+        ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
+        EndOfEpochTransactionKind, GasPayment, GenesisTransaction, Input, MakeMoveVector,
+        MergeCoins, MoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate,
+        SignedTransaction, SplitCoins, SystemPackage, Transaction, TransactionExpiration,
+        TransactionKind, TransactionV1, TransferObjects, Upgrade, VersionAssignment,
+    },
+    type_tag::{Identifier, StructTag, TypeParseError, TypeTag},
+    validator::{ValidatorAggregatedSignature, ValidatorCommittee, ValidatorCommitteeMember},
 };
 use move_core_types::language_storage::ModuleId;
 use tap::Pipe;
@@ -123,16 +153,15 @@ fn move_type_tag_to_sdk(tt: move_core_types::language_storage::TypeTag) -> TypeT
 }
 
 fn move_struct_tag_to_sdk(st: move_core_types::language_storage::StructTag) -> StructTag {
-    StructTag {
-        address: Address::new(st.address.into_bytes()),
-        module: Identifier::new(st.module.as_str()).expect("module identifier conversion failed"),
-        name: Identifier::new(st.name.as_str()).expect("struct name identifier conversion failed"),
-        type_params: st
-            .type_params
+    StructTag::new(
+        Address::new(st.address.into_bytes()),
+        Identifier::new(st.module.as_str()).expect("module identifier conversion failed"),
+        Identifier::new(st.name.as_str()).expect("struct name identifier conversion failed"),
+        st.type_params
             .into_iter()
             .map(move_type_tag_to_sdk)
             .collect(),
-    }
+    )
 }
 
 fn move_package_to_sdk(package: crate::move_package::MovePackage) -> MovePackage {
@@ -216,12 +245,14 @@ fn sdk_object_type_to_move(
     type_: StructTag,
 ) -> Result<crate::base_types::MoveObjectType, SdkTypeConversionError> {
     crate::base_types::MoveObjectType::from(move_core_types::language_storage::StructTag {
-        address: move_core_types::account_address::AccountAddress::new(type_.address.into_inner()),
-        module: crate::Identifier::new(type_.module.as_str())?,
-        name: crate::Identifier::new(type_.name.as_str())?,
+        address: move_core_types::account_address::AccountAddress::new(
+            type_.address().into_inner(),
+        ),
+        module: crate::Identifier::new(type_.module().as_str())?,
+        name: crate::Identifier::new(type_.name().as_str())?,
         type_params: type_
-            .type_params
-            .into_iter()
+            .type_params()
+            .iter()
             .map(type_tag_sdk_to_core)
             .collect::<Result<_, _>>()?,
     })
@@ -260,10 +291,49 @@ fn sdk_upgrade_info_to_move(info: UpgradeInfo) -> crate::move_package::UpgradeIn
     }
 }
 
+impl TryFrom<crate::transaction::TransactionData> for TransactionV1 {
+    type Error = SdkTypeConversionError;
+
+    fn try_from(value: crate::transaction::TransactionData) -> Result<Self, Self::Error> {
+        match value {
+            crate::transaction::TransactionData::V1(value) => value.try_into(),
+        }
+    }
+}
+
+impl TryFrom<TransactionV1> for crate::transaction::TransactionData {
+    type Error = SdkTypeConversionError;
+
+    fn try_from(value: TransactionV1) -> Result<Self, Self::Error> {
+        Ok(Self::V1(value.try_into()?))
+    }
+}
+
 impl TryFrom<crate::transaction::TransactionData> for Transaction {
     type Error = SdkTypeConversionError;
 
     fn try_from(value: crate::transaction::TransactionData) -> Result<Self, Self::Error> {
+        match value {
+            crate::transaction::TransactionData::V1(value) => Ok(Self::V1(value.try_into()?)),
+        }
+    }
+}
+
+impl TryFrom<Transaction> for crate::transaction::TransactionData {
+    type Error = SdkTypeConversionError;
+
+    fn try_from(value: Transaction) -> Result<Self, Self::Error> {
+        match value {
+            Transaction::V1(value) => value.try_into(),
+            _ => unreachable!("a new enum variant was added and needs to be handled"),
+        }
+    }
+}
+
+impl TryFrom<crate::transaction::TransactionDataV1> for TransactionV1 {
+    type Error = SdkTypeConversionError;
+
+    fn try_from(value: crate::transaction::TransactionDataV1) -> Result<Self, Self::Error> {
         Self {
             sender: Address::new(value.sender().to_inner()),
             gas_payment: GasPayment {
@@ -290,14 +360,14 @@ impl TryFrom<crate::transaction::TransactionData> for Transaction {
     }
 }
 
-impl TryFrom<Transaction> for crate::transaction::TransactionData {
+impl TryFrom<TransactionV1> for crate::transaction::TransactionDataV1 {
     type Error = SdkTypeConversionError;
 
-    fn try_from(value: Transaction) -> Result<Self, Self::Error> {
-        Self::new_with_gas_data(
-            value.kind.try_into()?,
-            value.sender.into(),
-            crate::transaction::GasData {
+    fn try_from(value: TransactionV1) -> Result<Self, Self::Error> {
+        Self {
+            kind: value.kind.try_into()?,
+            sender: value.sender.into(),
+            gas_data: crate::transaction::GasData {
                 payment: value
                     .gas_payment
                     .objects
@@ -309,7 +379,14 @@ impl TryFrom<Transaction> for crate::transaction::TransactionData {
                 price: value.gas_payment.price,
                 budget: value.gas_payment.budget,
             },
-        )
+            expiration: match value.expiration {
+                TransactionExpiration::None => crate::transaction::TransactionExpiration::None,
+                TransactionExpiration::Epoch(e) => {
+                    crate::transaction::TransactionExpiration::Epoch(e)
+                }
+                _ => unreachable!("a new enum variant was added and needs to be handled"),
+            },
+        }
         .pipe(Ok)
     }
 }
@@ -484,7 +561,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                         .into_iter()
                         .map(|event| {
                             let transaction_module = crate::Identifier::new(event.module.as_str());
-                            let type_ = struct_tag_sdk_to_core(event.type_);
+                            let type_ = struct_tag_sdk_to_core(&event.type_);
 
                             match (transaction_module, type_) {
                                 (Ok(transaction_module), Ok(type_)) => Ok(crate::event::Event {
@@ -517,6 +594,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                             )
                         ).collect()
                     ),
+                    _ => unreachable!("a new enum variant was added and needs to be handled")
                 };
                 Self::ConsensusCommitPrologueV1(
                     crate::messages_consensus::ConsensusCommitPrologueV1 {
@@ -572,6 +650,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                         .into(),
                 })
             }
+            _ => unreachable!("a new enum variant was added and needs to be handled")
         }
         .pipe(Ok)
     }
@@ -739,11 +818,12 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                         .into(),
                 })
             }
+            _ => unreachable!("a new enum variant was added and needs to be handled"),
         }
     }
 }
 
-impl From<crate::transaction::CallArg> for InputArgument {
+impl From<crate::transaction::CallArg> for Input {
     fn from(value: crate::transaction::CallArg) -> Self {
         match value {
             crate::transaction::CallArg::Pure(vec) => Self::Pure { value: vec },
@@ -768,15 +848,15 @@ impl From<crate::transaction::CallArg> for InputArgument {
     }
 }
 
-impl From<InputArgument> for crate::transaction::CallArg {
-    fn from(value: InputArgument) -> Self {
+impl From<Input> for crate::transaction::CallArg {
+    fn from(value: Input) -> Self {
         use crate::transaction::ObjectArg;
         match value {
-            InputArgument::Pure { value } => Self::Pure(value),
-            InputArgument::ImmutableOrOwned(object_reference) => Self::Object(
-                ObjectArg::ImmOrOwnedObject(sdk_obj_ref_to_core(object_reference)),
-            ),
-            InputArgument::Shared {
+            Input::Pure { value } => Self::Pure(value),
+            Input::ImmutableOrOwned(object_reference) => Self::Object(ObjectArg::ImmOrOwnedObject(
+                sdk_obj_ref_to_core(object_reference),
+            )),
+            Input::Shared {
                 object_id,
                 initial_shared_version,
                 mutable,
@@ -785,9 +865,10 @@ impl From<InputArgument> for crate::transaction::CallArg {
                 initial_shared_version: initial_shared_version.into(),
                 mutable,
             }),
-            InputArgument::Receiving(object_reference) => {
+            Input::Receiving(object_reference) => {
                 Self::Object(ObjectArg::Receiving(sdk_obj_ref_to_core(object_reference)))
             }
+            _ => unreachable!("a new enum variant was added and needs to be handled"),
         }
     }
 }
@@ -826,37 +907,35 @@ impl TryFrom<crate::effects::TransactionEffects> for TransactionEffects {
                         .into_iter()
                         .map(|(id, change)| ChangedObject {
                             object_id: id.into(),
-                            change: EffectsObjectChange {
-                                input_state: match change.input_state {
-                                    crate::effects::ObjectIn::NotExist => ObjectIn::NotExist,
-                                    crate::effects::ObjectIn::Exist(((version, digest), owner)) => {
-                                        ObjectIn::Exist {
-                                            version: version.value(),
-                                            digest: digest.into(),
-                                            owner: owner.into(),
-                                        }
+                            input_state: match change.input_state {
+                                crate::effects::ObjectIn::NotExist => ObjectIn::Missing,
+                                crate::effects::ObjectIn::Exist(((version, digest), owner)) => {
+                                    ObjectIn::Data {
+                                        version: version.value(),
+                                        digest: digest.into(),
+                                        owner: owner.into(),
                                     }
-                                },
-                                output_state: match change.output_state {
-                                    crate::effects::ObjectOut::NotExist => ObjectOut::NotExist,
-                                    crate::effects::ObjectOut::ObjectWrite((digest, owner)) => {
-                                        ObjectOut::ObjectWrite {
-                                            digest: digest.into(),
-                                            owner: owner.into(),
-                                        }
+                                }
+                            },
+                            output_state: match change.output_state {
+                                crate::effects::ObjectOut::NotExist => ObjectOut::Missing,
+                                crate::effects::ObjectOut::ObjectWrite((digest, owner)) => {
+                                    ObjectOut::ObjectWrite {
+                                        digest: digest.into(),
+                                        owner: owner.into(),
                                     }
-                                    crate::effects::ObjectOut::PackageWrite((seq, digest)) => {
-                                        ObjectOut::PackageWrite {
-                                            version: seq.value(),
-                                            digest: digest.into(),
-                                        }
+                                }
+                                crate::effects::ObjectOut::PackageWrite((seq, digest)) => {
+                                    ObjectOut::PackageWrite {
+                                        version: seq.value(),
+                                        digest: digest.into(),
                                     }
-                                },
-                                id_operation: match change.id_operation {
-                                    crate::effects::IDOperation::None => IdOperation::None,
-                                    crate::effects::IDOperation::Created => IdOperation::Created,
-                                    crate::effects::IDOperation::Deleted => IdOperation::Deleted,
-                                },
+                                }
+                            },
+                            id_operation: match change.id_operation {
+                                crate::effects::IDOperation::None => IdOperation::None,
+                                crate::effects::IDOperation::Created => IdOperation::Created,
+                                crate::effects::IDOperation::Deleted => IdOperation::Deleted,
                             },
                         })
                         .collect(),
@@ -936,11 +1015,9 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                                 (
                                     obj.object_id.into(),
                                     crate::effects::EffectsObjectChange {
-                                        input_state: match obj.change.input_state {
-                                            ObjectIn::NotExist => {
-                                                crate::effects::ObjectIn::NotExist
-                                            }
-                                            ObjectIn::Exist {
+                                        input_state: match obj.input_state {
+                                            ObjectIn::Missing => crate::effects::ObjectIn::NotExist,
+                                            ObjectIn::Data {
                                                 version,
                                                 digest,
                                                 owner,
@@ -948,9 +1025,10 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                                                 (version.into(), digest.into()),
                                                 owner.into(),
                                             )),
+                                            _ => unreachable!("a new enum variant was added and needs to be handled")
                                         },
-                                        output_state: match obj.change.output_state {
-                                            ObjectOut::NotExist => {
+                                        output_state: match obj.output_state {
+                                            ObjectOut::Missing => {
                                                 crate::effects::ObjectOut::NotExist
                                             }
                                             ObjectOut::ObjectWrite { digest, owner } => {
@@ -965,8 +1043,9 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                                                     digest.into(),
                                                 ))
                                             }
+                                            _ => unreachable!("a new enum variant was added and needs to be handled")
                                         },
-                                        id_operation: match obj.change.id_operation {
+                                        id_operation: match obj.id_operation {
                                             IdOperation::None => crate::effects::IDOperation::None,
                                             IdOperation::Created => {
                                                 crate::effects::IDOperation::Created
@@ -974,6 +1053,7 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                                             IdOperation::Deleted => {
                                                 crate::effects::IDOperation::Deleted
                                             }
+                                            _ => unreachable!("a new enum variant was added and needs to be handled")
                                         },
                                     },
                                 )
@@ -1010,6 +1090,7 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                                         UnchangedSharedKind::PerEpochConfig => {
                                             crate::effects::UnchangedSharedKind::PerEpochConfig
                                         }
+                                        _ => unreachable!("a new enum variant was added and needs to be handled")
                                     },
                                 )
                             })
@@ -1022,20 +1103,21 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
 
                 Ok(effects)
             }
+            _ => unreachable!("a new enum variant was added and needs to be handled"),
         }
     }
 }
 
 macro_rules! impl_convert_digest {
     ($name:ident) => {
-        impl From<crate::digests::$name> for $name {
+        impl From<crate::digests::$name> for Digest {
             fn from(value: crate::digests::$name) -> Self {
                 Self::new(value.into_inner())
             }
         }
 
-        impl From<$name> for crate::digests::$name {
-            fn from(value: $name) -> Self {
+        impl From<Digest> for crate::digests::$name {
+            fn from(value: Digest) -> Self {
                 Self::new(value.into_inner())
             }
         }
@@ -1050,18 +1132,7 @@ impl_convert_digest!(TransactionEffectsDigest);
 impl_convert_digest!(TransactionEventsDigest);
 impl_convert_digest!(CheckpointContentsDigest);
 impl_convert_digest!(ConsensusCommitDigest);
-
-impl From<crate::digests::EffectsAuxDataDigest> for EffectsAuxiliaryDataDigest {
-    fn from(value: crate::digests::EffectsAuxDataDigest) -> Self {
-        Self::new(value.into_inner())
-    }
-}
-
-impl From<EffectsAuxiliaryDataDigest> for crate::digests::EffectsAuxDataDigest {
-    fn from(value: EffectsAuxiliaryDataDigest) -> Self {
-        Self::new(value.into_inner())
-    }
-}
+impl_convert_digest!(EffectsAuxDataDigest);
 
 impl From<crate::execution_status::ExecutionStatus> for ExecutionStatus {
     fn from(value: crate::execution_status::ExecutionStatus) -> Self {
@@ -1083,6 +1154,7 @@ impl From<ExecutionStatus> for crate::execution_status::ExecutionStatus {
                 error: error.into(),
                 command: command.map(|v| v as usize),
             },
+            _ => unreachable!("a new enum variant was added and needs to be handled"),
         }
     }
 }
@@ -1382,6 +1454,7 @@ impl From<ExecutionError> for crate::execution_status::ExecutionFailureStatus {
                         CommandArgumentError::InvalidArgumentArity => {
                             InternalCmdArgErr::InvalidArgumentArity
                         }
+                        _ => unreachable!("a new enum variant was added and needs to be handled"),
                     },
                 }
             }
@@ -1397,6 +1470,7 @@ impl From<ExecutionError> for crate::execution_status::ExecutionFailureStatus {
                         TypeArgumentError::ConstraintNotSatisfied => {
                             InternalTypeArgErr::ConstraintNotSatisfied
                         }
+                        _ => unreachable!("a new enum variant was added and needs to be handled"),
                     },
                 }
             }
@@ -1455,6 +1529,7 @@ impl From<ExecutionError> for crate::execution_status::ExecutionFailureStatus {
                             package_id: package_id.into(),
                             ticket_id: ticket_id.into(),
                         },
+                        _ => unreachable!("a new enum variant was added and needs to be handled"),
                     },
                 }
             }
@@ -1500,6 +1575,7 @@ impl From<ExecutionError> for crate::execution_status::ExecutionFailureStatus {
                 suggested_gas_price,
             },
             ExecutionError::InvalidLinkage => Self::InvalidLinkage,
+            _ => unreachable!("a new enum variant was added and needs to be handled"),
         }
     }
 }
@@ -1752,7 +1828,7 @@ impl TryFrom<Event> for crate::event::Event {
             package_id: value.package_id.into(),
             transaction_module: crate::Identifier::new(value.module.as_str())?,
             sender: value.sender.into(),
-            type_: struct_tag_sdk_to_core(value.type_)?,
+            type_: struct_tag_sdk_to_core(&value.type_)?,
             contents: value.contents,
         }
         .pipe(Ok)
@@ -1840,7 +1916,7 @@ impl TryFrom<Command> for crate::transaction::Command {
                     .expect("invalid move call function identifier"),
                 move_call
                     .type_arguments
-                    .into_iter()
+                    .iter()
                     .map(type_tag_sdk_to_core)
                     .collect::<Result<_, _>>()?,
                 move_call.arguments.into_iter().map(Into::into).collect(),
@@ -1872,6 +1948,7 @@ impl TryFrom<Command> for crate::transaction::Command {
             Command::MakeMoveVector(make_move_vector) => Self::make_move_vec(
                 make_move_vector
                     .type_
+                    .as_ref()
                     .map(type_tag_sdk_to_core)
                     .transpose()?,
                 make_move_vector
@@ -1886,6 +1963,7 @@ impl TryFrom<Command> for crate::transaction::Command {
                 upgrade.package.into(),
                 upgrade.ticket.into(),
             ),
+            _ => unreachable!("a new enum variant was added and needs to be handled"),
         }
         .pipe(Ok)
     }
@@ -1911,6 +1989,7 @@ impl From<Argument> for crate::transaction::Argument {
             Argument::Input(idx) => Self::Input(idx),
             Argument::Result(idx) => Self::Result(idx),
             Argument::NestedResult(idx1, idx2) => Self::NestedResult(idx1, idx2),
+            _ => unreachable!("a new enum variant was added and needs to be handled"),
         }
     }
 }
@@ -1992,7 +2071,9 @@ impl From<crate::messages_checkpoint::CheckpointCommitment> for CheckpointCommit
 
 impl From<CheckpointCommitment> for crate::messages_checkpoint::CheckpointCommitment {
     fn from(value: CheckpointCommitment) -> Self {
-        let CheckpointCommitment::EcmhLiveObjectSet { digest } = value;
+        let CheckpointCommitment::EcmhLiveObjectSet { digest } = value else {
+            unreachable!("a new enum variant was added and needs to be handled");
+        };
         Self::ECMHLiveObjectSetDigest(crate::messages_checkpoint::ECMHLiveObjectSetDigest {
             digest: crate::digests::Digest::new(digest.into_inner()),
         })
@@ -2133,6 +2214,7 @@ impl From<Owner> for crate::object::Owner {
                 initial_shared_version: initial_shared_version.into(),
             },
             Owner::Immutable => crate::object::Owner::Immutable,
+            _ => unreachable!("a new enum variant was added and needs to be handled"),
         }
     }
 }
@@ -2253,7 +2335,7 @@ pub fn type_tag_core_to_sdk(
 }
 
 pub fn type_tag_sdk_to_core(
-    value: TypeTag,
+    value: &TypeTag,
 ) -> Result<move_core_types::language_storage::TypeTag, SdkTypeConversionError> {
     match value {
         TypeTag::Bool => move_core_types::language_storage::TypeTag::Bool,
@@ -2263,10 +2345,10 @@ pub fn type_tag_sdk_to_core(
         TypeTag::Address => move_core_types::language_storage::TypeTag::Address,
         TypeTag::Signer => move_core_types::language_storage::TypeTag::Signer,
         TypeTag::Vector(type_tag) => move_core_types::language_storage::TypeTag::Vector(Box::new(
-            type_tag_sdk_to_core(*type_tag)?,
+            type_tag_sdk_to_core(type_tag)?,
         )),
         TypeTag::Struct(struct_tag) => move_core_types::language_storage::TypeTag::Struct(
-            Box::new(struct_tag_sdk_to_core(*struct_tag)?),
+            Box::new(struct_tag_sdk_to_core(struct_tag)?),
         ),
         TypeTag::U16 => move_core_types::language_storage::TypeTag::U16,
         TypeTag::U32 => move_core_types::language_storage::TypeTag::U32,
@@ -2292,30 +2374,19 @@ pub fn struct_tag_core_to_sdk(
         .into_iter()
         .map(type_tag_core_to_sdk)
         .collect::<Result<_, _>>()?;
-    StructTag {
-        address,
-        module,
-        name,
-        type_params,
-    }
-    .pipe(Ok)
+    StructTag::new(address, module, name, type_params).pipe(Ok)
 }
 
 pub fn struct_tag_sdk_to_core(
-    value: StructTag,
+    value: &StructTag,
 ) -> Result<move_core_types::language_storage::StructTag, SdkTypeConversionError> {
-    let StructTag {
-        address,
-        module,
-        name,
-        type_params,
-    } = value;
-
-    let address = move_core_types::account_address::AccountAddress::new(address.into_inner());
-    let module = move_core_types::identifier::Identifier::new(module.into_inner())?;
-    let name = move_core_types::identifier::Identifier::new(name.into_inner())?;
-    let type_params = type_params
-        .into_iter()
+    let address =
+        move_core_types::account_address::AccountAddress::new(value.address().into_inner());
+    let module = move_core_types::identifier::Identifier::new(value.module().clone().into_inner())?;
+    let name = move_core_types::identifier::Identifier::new(value.name().clone().into_inner())?;
+    let type_params = value
+        .type_params()
+        .iter()
         .map(type_tag_sdk_to_core)
         .collect::<Result<_, _>>()?;
     move_core_types::language_storage::StructTag {
@@ -2379,6 +2450,7 @@ impl From<UnchangedSharedKind> for crate::effects::UnchangedSharedKind {
             UnchangedSharedKind::ReadDeleted { version } => Self::ReadDeleted(version.into()),
             UnchangedSharedKind::Cancelled { version } => Self::Cancelled(version.into()),
             UnchangedSharedKind::PerEpochConfig => Self::PerEpochConfig,
+            _ => unreachable!("a new enum variant was added and needs to be handled"),
         }
     }
 }
@@ -2420,6 +2492,7 @@ impl From<TransactionExpiration> for crate::transaction::TransactionExpiration {
         match value {
             TransactionExpiration::None => Self::None,
             TransactionExpiration::Epoch(epoch) => Self::Epoch(epoch),
+            _ => unreachable!("a new enum variant was added and needs to be handled"),
         }
     }
 }

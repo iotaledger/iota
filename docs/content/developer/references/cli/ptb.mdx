@@ -105,6 +105,18 @@ Double-quoted string literals tend to also be valid syntax for shells (like `bas
 
 :::
 
+### Vectors
+
+CLI PTBs support vectors of serializable types as input (which includes all the primitive types, IDs, and Options). Vectors are represented as a comma-separated list of values in square brackets prefixed with vector.
+
+```bash
+iota client ptb --move-call "$PKG::m::f" vector"[1, 2, 3]"
+
+--assign address_vec vector"[@0x1, @0x2, @0x3]"   # vector<address>
+--assign option_vec vector"[none, none]"          # vector<Option<T>>
+--assign string_vec vector"['"1"', '"2"', '"3"']" # vector<String>
+```
+
 ### Addresses and Object IDs
 
 <AddressPrefix />

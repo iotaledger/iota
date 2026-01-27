@@ -17,9 +17,9 @@ use fastcrypto_zkp::bn254::{
     zk_login_api::ZkLoginEnv,
 };
 use im::hashmap::HashMap as ImHashMap;
+use iota_sdk_types::crypto::IntentMessage;
 use schemars::JsonSchema;
 use serde::Serialize;
-use shared_crypto::intent::IntentMessage;
 
 use crate::{
     base_types::IotaAddress,

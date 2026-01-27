@@ -1,6 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+export { default as Passkey } from './Passkey';
 export { default as Activity } from './Activity';
 export { default as Add } from './Add';
 export { default as Apps } from './Apps';
@@ -35,6 +36,7 @@ export { default as Exclamation } from './Exclamation';
 export { default as Expand } from './Expand';
 export { default as Export } from './Export';
 export { default as FilterList } from './FilterList';
+export { default as Firefly } from './Firefly';
 export { default as Flag } from './Flag';
 export { default as GasStation } from './GasStation';
 export { default as Globe } from './Globe';
@@ -74,7 +76,6 @@ export { default as Play } from './Play';
 export { default as Profile } from './Profile';
 export { default as QrCode } from './QrCode';
 export { default as QuestionMarkFilled } from './QuestionMarkFilled';
-export { default as Passkey } from './Passkey';
 export { default as RadioOff } from './RadioOff';
 export { default as RadioOn } from './RadioOn';
 export { default as RecognizedBadge } from './RecognizedBadge';
@@ -104,4 +105,5 @@ export { default as Vest } from './Vest';
 export { default as Vesting } from './Vesting';
 export { default as VisibilityOff } from './VisibilityOff';
 export { default as VisibilityOn } from './VisibilityOn';
+export { default as Wallet } from './Wallet';
 export { default as Warning } from './Warning';

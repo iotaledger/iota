@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 16;
+pub const MAX_PROTOCOL_VERSION: u64 = 19;
 
 // Record history of protocol version allocations here:
 //
@@ -89,6 +89,14 @@ pub const MAX_PROTOCOL_VERSION: u64 = 16;
 // Version 16: Enable selecting committee only from active validators that
 //             support the next epoch's version and issued valid
 //             AuthorityCapabilities notification.
+//             Enable committing transactions only for traversed headers in
+//             Starfish.
+// Version 17: Increase the committee size to 100 on all networks.
+// Version 18: Enable passkey authentication support in testnet.
+// Version 19: Enable congestion limit overshoot in the gas price feedback
+//             mechanism on devnet.
+//             Enable a separate gas price feedback mechanism for transactions
+//             using randomness on devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -145,17 +153,14 @@ impl std::ops::Add<u64> for ProtocolVersion {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Copy, PartialOrd, Ord, Eq, ValueEnum)]
+#[derive(
+    Clone, Serialize, Deserialize, Debug, PartialEq, Copy, PartialOrd, Ord, Eq, ValueEnum, Default,
+)]
 pub enum Chain {
     Mainnet,
     Testnet,
+    #[default]
     Unknown,
-}
-
-impl Default for Chain {
-    fn default() -> Self {
-        Self::Unknown
-    }
 }
 
 impl Chain {
@@ -367,6 +372,19 @@ struct FeatureFlags {
     // leader's ancestors, and (3) enforces checkpoint timestamps are non-decreasing.
     #[serde(skip_serializing_if = "is_false")]
     consensus_median_timestamp_with_checkpoint_enforcement: bool,
+
+    // If true, then transactions are committed only for traversed headers
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_commit_transactions_only_for_traversed_headers: bool,
+
+    // To enable/disable congestion limit overshoot in the gas price feedback mechanism.
+    #[serde(skip_serializing_if = "is_false")]
+    congestion_limit_overshoot_in_gas_price_feedback_mechanism: bool,
+
+    // To enable/disable a separate gas price feedback mechanism for transactions using
+    // randomness.
+    #[serde(skip_serializing_if = "is_false")]
+    separate_gas_price_feedback_mechanism_for_randomness: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1436,6 +1454,25 @@ impl ProtocolConfig {
         );
         res
     }
+
+    pub fn consensus_commit_transactions_only_for_traversed_headers(&self) -> bool {
+        self.feature_flags
+            .consensus_commit_transactions_only_for_traversed_headers
+    }
+
+    /// Check whether congestion limit overshoot is enabled in the gas price
+    /// feedback mechanism.
+    pub fn congestion_limit_overshoot_in_gas_price_feedback_mechanism(&self) -> bool {
+        self.feature_flags
+            .congestion_limit_overshoot_in_gas_price_feedback_mechanism
+    }
+
+    /// Check whether a separate gas price feedback mechanism is used for
+    /// randomness transactions.
+    pub fn separate_gas_price_feedback_mechanism_for_randomness(&self) -> bool {
+        self.feature_flags
+            .separate_gas_price_feedback_mechanism_for_randomness
+    }
 }
 
 #[cfg(not(msim))]
@@ -2302,6 +2339,31 @@ impl ProtocolConfig {
                     // next epoch's version and issued valid AuthorityCapabilities notification.
                     cfg.feature_flags
                         .select_committee_supporting_next_epoch_version = true;
+                    // Enable committing transactions only for traversed headers in Starfish
+                    cfg.feature_flags
+                        .consensus_commit_transactions_only_for_traversed_headers = true;
+                }
+                17 => {
+                    // Increase the committee size to 100 on all networks.
+                    cfg.max_committee_members_count = Some(100);
+                }
+                18 => {
+                    if chain != Chain::Mainnet {
+                        // Enable passkey authentication support in testnet.
+                        cfg.feature_flags.passkey_auth = true;
+                    }
+                }
+                19 => {
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable congestion limit overshoot in the gas price feedback
+                        // mechanism on devnet.
+                        cfg.feature_flags
+                            .congestion_limit_overshoot_in_gas_price_feedback_mechanism = true;
+                        // Enable a separate gas price feedback mechanism for transactions using
+                        // randomness on devnet.
+                        cfg.feature_flags
+                            .separate_gas_price_feedback_mechanism_for_randomness = true;
+                    }
                 }
                 // Use this template when making changes:
                 //
@@ -2463,6 +2525,7 @@ impl ProtocolConfig {
         self.feature_flags
             .congestion_control_gas_price_feedback_mechanism = val;
     }
+
     pub fn set_select_committee_from_eligible_validators_for_testing(&mut self, val: bool) {
         self.feature_flags.select_committee_from_eligible_validators = val;
     }
@@ -2482,6 +2545,30 @@ impl ProtocolConfig {
     ) {
         self.feature_flags
             .consensus_median_timestamp_with_checkpoint_enforcement = val;
+    }
+
+    pub fn set_consensus_commit_transactions_only_for_traversed_headers_for_testing(
+        &mut self,
+        val: bool,
+    ) {
+        self.feature_flags
+            .consensus_commit_transactions_only_for_traversed_headers = val;
+    }
+
+    pub fn set_congestion_limit_overshoot_in_gas_price_feedback_mechanism_for_testing(
+        &mut self,
+        val: bool,
+    ) {
+        self.feature_flags
+            .congestion_limit_overshoot_in_gas_price_feedback_mechanism = val;
+    }
+
+    pub fn set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(
+        &mut self,
+        val: bool,
+    ) {
+        self.feature_flags
+            .separate_gas_price_feedback_mechanism_for_randomness = val;
     }
 }
 

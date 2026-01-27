@@ -9,6 +9,9 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+flamegraph-alloc = ["telemetry-subscribers/flamegraph-alloc"]
+
 [dependencies]
 # external dependencies
 anemo.workspace = true
@@ -37,7 +40,7 @@ url.workspace = true
 # internal dependencies
 bin-version.workspace = true
 iota-archival.workspace = true
-iota-common.workspace = true
+iota-common = { workspace = true, features = ["metrics"] }
 iota-config.workspace = true
 iota-core.workspace = true
 iota-grpc-server.workspace = true
@@ -51,14 +54,17 @@ iota-network.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
 iota-rest-api.workspace = true
+iota-sdk-types.workspace = true
 iota-snapshot.workspace = true
 iota-storage.workspace = true
 iota-tls.workspace = true
 iota-types.workspace = true
 move-vm-profiler.workspace = true
-shared-crypto.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
+
+[build-dependencies]
+rustc_version_runtime = "0.3"
 
 [target.'cfg(msim)'.dependencies]
 iota-simulator.workspace = true

@@ -13,9 +13,13 @@ use std::{
 };
 
 use bytes::Bytes;
+use iota_metrics::monitored_mpsc::Sender;
 use itertools::Itertools as _;
 use starfish_config::AuthorityIndex;
-use tokio::{sync::mpsc::UnboundedSender, time::Instant};
+use tokio::{
+    sync::{mpsc::error::TrySendError, watch},
+    time::Instant,
+};
 use tracing::{debug, error, info, trace, warn};
 
 use crate::{
@@ -81,6 +85,47 @@ impl TransactionSource {
 impl std::fmt::Display for TransactionSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
+    }
+}
+
+/// Represents the source from which block headers were received and added to
+/// the DAG state. This is used for metrics tracking and debugging.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum BlockHeaderSource {
+    /// Block headers from full blocks received via bundle streaming.
+    BlockStreaming,
+
+    /// Block headers received in bundles via block bundle streaming.
+    BlockHeaderBundleStream,
+
+    /// Block headers extracted from certified commits during commit syncing.
+    CommitSyncer,
+
+    /// Block headers fetched by the live/periodic header synchronizer
+    /// component.
+    HeaderSynchronizer,
+
+    /// Block headers loaded from persistent storage during node recovery.
+    Recover,
+
+    /// Only used in test code.
+    #[cfg(test)]
+    Test,
+}
+
+impl BlockHeaderSource {
+    /// Returns the string label used for metrics reporting.
+    /// This ensures consistency with existing metrics that may be monitored.
+    pub(crate) fn as_str(&self) -> &'static str {
+        match self {
+            BlockHeaderSource::HeaderSynchronizer => "Header synchronizer",
+            BlockHeaderSource::BlockHeaderBundleStream => "Block headers in streaming",
+            BlockHeaderSource::BlockStreaming => "Full blocks in streaming",
+            BlockHeaderSource::CommitSyncer => "Commit syncer",
+            BlockHeaderSource::Recover => "Recover",
+            #[cfg(test)]
+            BlockHeaderSource::Test => "Test",
+        }
     }
 }
 
@@ -177,8 +222,8 @@ pub(crate) struct DagState {
     /// The number of cached rounds
     cached_rounds: Round,
 
-    /// Cordial Knowledge sender
-    cordial_knowledge_sender: Option<UnboundedSender<CordialKnowledgeMessage>>,
+    /// Cordial Knowledge senders (main updates, eviction rounds).
+    cordial_knowledge_senders: Option<(Sender<CordialKnowledgeMessage>, watch::Sender<Vec<Round>>)>,
 }
 
 impl DagState {
@@ -262,7 +307,7 @@ impl DagState {
             store: store.clone(),
             cached_rounds,
             evicted_rounds: vec![0; num_authorities],
-            cordial_knowledge_sender: None,
+            cordial_knowledge_senders: None,
         };
 
         for (i, round) in last_committed_rounds.into_iter().enumerate() {
@@ -284,7 +329,7 @@ impl DagState {
 
             // Update the block metadata for the authority.
             for block_header in &block_headers {
-                state.update_block_header_metadata(block_header);
+                state.update_block_header_metadata(block_header, BlockHeaderSource::Recover);
             }
             for transactions in &transactions_by_author {
                 state.update_transaction_metadata(transactions);
@@ -302,15 +347,20 @@ impl DagState {
         state
     }
 
-    pub fn set_cordial_knowledge_sender(
+    pub fn set_cordial_knowledge_senders(
         &mut self,
-        sender: UnboundedSender<CordialKnowledgeMessage>,
+        sender: Sender<CordialKnowledgeMessage>,
+        eviction_sender: watch::Sender<Vec<Round>>,
     ) {
-        self.cordial_knowledge_sender = Some(sender);
+        self.cordial_knowledge_senders = Some((sender, eviction_sender));
     }
 
     /// Accepts a block header into DagState and keeps it in memory.
-    pub(crate) fn accept_block_header(&mut self, block_header: VerifiedBlockHeader) {
+    pub(crate) fn accept_block_header(
+        &mut self,
+        block_header: VerifiedBlockHeader,
+        source: BlockHeaderSource,
+    ) {
         assert_ne!(
             block_header.round(),
             GENESIS_ROUND,
@@ -349,13 +399,13 @@ impl DagState {
                 block header(s) {existing_blocks:#?} already exists."
             );
         }
-        self.update_block_header_metadata(&block_header);
+        self.update_block_header_metadata(&block_header, source);
         debug!(
             "block header {} pushed to write to store batch by {}",
             block_header, self.context.own_index
         );
         self.block_headers_to_write.push(block_header);
-        let source = if self.context.own_index == block_ref.author {
+        let author_label = if self.context.own_index == block_ref.author {
             "own"
         } else {
             "others"
@@ -365,7 +415,7 @@ impl DagState {
             .metrics
             .node_metrics
             .accepted_block_headers
-            .with_label_values(&[source])
+            .with_label_values(&[author_label])
             .inc();
     }
 
@@ -422,10 +472,10 @@ impl DagState {
             .is_none()
         {
             debug!("Adding shard for block ref: {block_ref}");
-            if let Some(sender) = &self.cordial_knowledge_sender {
+            if let Some((sender, _)) = &self.cordial_knowledge_senders {
                 let cordial_message = CordialKnowledgeMessage::NewShard(block_ref);
-                if let Err(e) = sender.send(cordial_message) {
-                    warn!("Failed to send cordial knowledge update: {e}");
+                if let Err(TrySendError::Closed(_)) = sender.try_send(cordial_message) {
+                    warn!("Failed to send cordial knowledge update: channel closed");
                 }
             }
         }
@@ -461,12 +511,16 @@ impl DagState {
     }
 
     /// Updates internal metadata for accepted block header.
-    fn update_block_header_metadata(&mut self, block_header: &VerifiedBlockHeader) {
+    fn update_block_header_metadata(
+        &mut self,
+        block_header: &VerifiedBlockHeader,
+        source: BlockHeaderSource,
+    ) {
         let block_ref = block_header.reference();
         self.recent_block_headers
             .insert(block_ref, block_header.clone());
         self.recent_headers_refs_by_authority[block_ref.author].insert(block_ref);
-        self.threshold_clock.add_block(block_ref);
+        self.threshold_clock.add_block_header(block_ref);
         self.highest_accepted_round = max(self.highest_accepted_round, block_header.round());
         self.context
             .metrics
@@ -486,10 +540,18 @@ impl DagState {
             .highest_accepted_authority_round
             .with_label_values(&[hostname])
             .set(highest_accepted_round_for_author as i64);
-        if let Some(sender) = &self.cordial_knowledge_sender {
-            let cordial_message = CordialKnowledgeMessage::NewHeader(block_header.clone());
-            if let Err(e) = sender.send(cordial_message) {
-                warn!("Failed to send cordial knowledge update: {e}");
+        self.context
+            .metrics
+            .node_metrics
+            .accepted_block_headers_source
+            .with_label_values(&[source.as_str()])
+            .inc();
+        if source != BlockHeaderSource::CommitSyncer && source != BlockHeaderSource::Recover {
+            if let Some((sender, _)) = &self.cordial_knowledge_senders {
+                let cordial_message = CordialKnowledgeMessage::NewHeader(block_header.clone());
+                if let Err(TrySendError::Closed(_)) = sender.try_send(cordial_message) {
+                    warn!("Failed to send cordial knowledge update: channel closed");
+                }
             }
         }
     }
@@ -500,7 +562,11 @@ impl DagState {
     }
 
     /// Accepts block headers into DagState and keeps it in memory.
-    pub(crate) fn accept_block_headers(&mut self, block_headers: Vec<VerifiedBlockHeader>) {
+    pub(crate) fn accept_block_headers(
+        &mut self,
+        block_headers: Vec<VerifiedBlockHeader>,
+        source: BlockHeaderSource,
+    ) {
         debug!(
             "Accepting block headers: {}",
             block_headers
@@ -509,7 +575,7 @@ impl DagState {
                 .join(",")
         );
         for block_header in block_headers {
-            self.accept_block_header(block_header);
+            self.accept_block_header(block_header, source);
         }
     }
 
@@ -867,29 +933,25 @@ impl DagState {
             .collect()
     }
 
-    /// Gets the last proposed block from this authority.
-    /// If no block is proposed yet, returns Genesis block.
-    /// NOTE: the method panics if transactions or headers are not found in DAG
-    /// State for the most recent header, as that should not happen for
-    /// correct initialization
-    pub(crate) fn recover_last_own_block(&self) -> VerifiedBlock {
+    /// Gets the last proposed (non-genesis) block from this authority.
+    /// NOTE: the method will not panic if transactions or headers are not found
+    /// in DAG State for the most recent header, as that could happen for
+    /// instance when own header is synced and the node is restarted.
+    pub(crate) fn get_last_own_non_genesis_block(&self) -> Option<VerifiedBlock> {
         if let Some(last) = self.recent_headers_refs_by_authority[self.context.own_index].last() {
-            let header = self
-                .recent_block_headers
-                .get(last)
-                .expect("Block header should exist for the most recent blocks");
-            let transactions = self.recent_transactions_by_authority[last.author]
-                .get(last)
-                .expect("Transactions should exist for the most recent blocks");
-            return VerifiedBlock::new(header.clone(), transactions.clone());
+            if last.round > GENESIS_ROUND {
+                if let (Some(last_header), Some(last_transactions)) = (
+                    self.recent_block_headers.get(last),
+                    self.recent_transactions_by_authority[last.author].get(last),
+                ) {
+                    return Some(VerifiedBlock::new(
+                        last_header.clone(),
+                        last_transactions.clone(),
+                    ));
+                }
+            }
         }
-
-        let (_, genesis_block) = self
-            .genesis
-            .iter()
-            .find(|(block_ref, _)| block_ref.author == self.context.own_index)
-            .expect("Genesis should be found for authority {authority_index}");
-        genesis_block.clone()
+        None
     }
 
     /// Gets the last proposed block header from this authority.
@@ -1471,15 +1533,14 @@ impl DagState {
     /// with the eviction method, thereby should be called every time the
     /// eviction happens.
     pub(crate) fn evict_cordial_knowledge(&mut self) {
-        if let Some(cordial_knowledge_sender) = &self.cordial_knowledge_sender {
+        if let Some((_, eviction_sender)) = &self.cordial_knowledge_senders {
             let mut eviction_rounds = vec![];
             for (authority_index, _) in self.context.committee.authorities() {
                 let eviction_round = self.calculate_authority_eviction_round(authority_index);
                 eviction_rounds.push(eviction_round);
             }
-            let cordial_message = CordialKnowledgeMessage::EvictBelow(eviction_rounds);
-            if let Err(e) = cordial_knowledge_sender.send(cordial_message) {
-                warn!("Failed to send cordial knowledge eviction message: {e}");
+            if eviction_sender.send(eviction_rounds).is_err() {
+                warn!("Failed to send cordial knowledge eviction message: channel closed");
             }
         }
     }
@@ -1817,7 +1878,7 @@ mod test {
                             .set_timestamp_ms(timestamp)
                             .build(),
                     );
-                    dag_state.accept_block_header(block_header.clone());
+                    dag_state.accept_block_header(block_header.clone(), BlockHeaderSource::Test);
                     block_headers.insert(block_header.reference(), block_header);
 
                     // Only write one block header per slot for own index
@@ -1931,7 +1992,7 @@ mod test {
             .collect();
 
         // Round 11 block headers.
-        let round_11_headers = vec![
+        let round_11_headers = [
             // This will connect to round 12.
             VerifiedBlockHeader::new_for_test(
                 TestBlockHeader::new(11, 0)
@@ -1983,7 +2044,7 @@ mod test {
             round_11_headers[1].reference(),
             round_11_headers[5].reference(),
         ];
-        let round_12_headers = vec![
+        let round_12_headers = [
             VerifiedBlockHeader::new_for_test(
                 TestBlockHeader::new(12, 0)
                     .set_timestamp_ms(1200)
@@ -2011,7 +2072,7 @@ mod test {
             round_12_headers[2].reference(),
             round_11_headers[2].reference(),
         ];
-        let round_13_headers = vec![
+        let round_13_headers = [
             VerifiedBlockHeader::new_for_test(
                 TestBlockHeader::new(12, 1)
                     .set_timestamp_ms(1300)
@@ -2048,7 +2109,7 @@ mod test {
             .chain(round_13_headers.iter())
             .chain([anchor.clone()].iter())
         {
-            dag_state.accept_block_header(bh.clone());
+            dag_state.accept_block_header(bh.clone(), BlockHeaderSource::Test);
         }
 
         // Check ancestors connected to anchor.
@@ -2102,7 +2163,7 @@ mod test {
                     .write(WriteBatch::default().block_headers(vec![block_header]))
                     .unwrap();
             } else {
-                dag_state.accept_block_headers(vec![block_header]);
+                dag_state.accept_block_headers(vec![block_header], BlockHeaderSource::Test);
             }
         });
 
@@ -2157,7 +2218,7 @@ mod test {
                 let block_header =
                     VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, author).build());
                 block_headers.push(block_header.clone());
-                dag_state.accept_block_header(block_header);
+                dag_state.accept_block_header(block_header, BlockHeaderSource::Test);
             }
         }
 
@@ -2225,7 +2286,7 @@ mod test {
             let block_header =
                 VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build());
             block_headers.push(block_header.clone());
-            dag_state.accept_block_header(block_header);
+            dag_state.accept_block_header(block_header, BlockHeaderSource::Test);
         }
 
         // Now add a commit and flush to trigger an eviction
@@ -2278,7 +2339,7 @@ mod test {
                     .write(WriteBatch::default().block_headers(vec![block_header]))
                     .unwrap();
             } else {
-                dag_state.accept_block_headers(vec![block_header]);
+                dag_state.accept_block_headers(vec![block_header], BlockHeaderSource::Test);
             }
         });
 
@@ -2366,7 +2427,7 @@ mod test {
         // 5 commits to the dag state; also add commit info after the second
         // commit.
         let later_commits = commits.split_off(5);
-        dag_state.accept_block_headers(dag_builder.block_headers(1..=5));
+        dag_state.accept_block_headers(dag_builder.block_headers(1..=5), BlockHeaderSource::Test);
         for verified_transactions in dag_builder.transactions(1..=5).into_iter() {
             dag_state.add_transactions(verified_transactions, TransactionSource::Test);
         }
@@ -2387,7 +2448,10 @@ mod test {
         assert_eq!(commit_info.committed_rounds, [1, 1, 2, 1]);
 
         // Add the rest of the block headers, transaction, and commits to the dag state
-        dag_state.accept_block_headers(dag_builder.block_headers(6..=num_rounds));
+        dag_state.accept_block_headers(
+            dag_builder.block_headers(6..=num_rounds),
+            BlockHeaderSource::Test,
+        );
         for verified_transactions in dag_builder.transactions(6..=num_rounds).into_iter() {
             dag_state.add_transactions(verified_transactions, TransactionSource::Test);
         }
@@ -2439,8 +2503,8 @@ mod test {
 
         // Check the last proposed block
         assert_eq!(
-            dag_state.recover_last_own_block(),
-            dag_builder.blocks(num_rounds..=num_rounds)[0].clone()
+            dag_state.get_last_own_non_genesis_block(),
+            Some(dag_builder.blocks(num_rounds..=num_rounds)[0].clone())
         );
 
         // Destroy the dag state.
@@ -2472,8 +2536,8 @@ mod test {
 
         // The last proposed block should be from the round 5
         assert_eq!(
-            dag_state.recover_last_own_block(),
-            dag_builder.blocks(5..=5)[0].clone()
+            dag_state.get_last_own_non_genesis_block(),
+            Some(dag_builder.blocks(5..=5)[0].clone())
         );
 
         // Block headers and transactions above round 5 should not be in DagState,
@@ -2530,7 +2594,7 @@ mod test {
                     TestBlockHeader::new(round, author as u8).build(),
                 );
                 all_block_headers.push(block_header.clone());
-                dag_state.accept_block_header(block_header);
+                dag_state.accept_block_header(block_header, BlockHeaderSource::Test);
             }
         }
 
@@ -2692,7 +2756,7 @@ mod test {
             .into_iter()
             .chain(std::iter::once(block_header))
         {
-            dag_state.accept_block_header(block_header);
+            dag_state.accept_block_header(block_header, BlockHeaderSource::Test);
         }
 
         dag_state.add_commit(TrustedCommit::new_for_test(
@@ -2814,7 +2878,7 @@ mod test {
                     TestBlockHeader::new(round, author as u8).build(),
                 );
                 all_blocks_headers.push(block_header.clone());
-                dag_state.accept_block_header(block_header);
+                dag_state.accept_block_header(block_header, BlockHeaderSource::Test);
             }
         }
 
@@ -2885,7 +2949,9 @@ mod test {
         {
             let block_header =
                 VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 0).build());
-            dag_state.write().accept_block_header(block_header);
+            dag_state
+                .write()
+                .accept_block_header(block_header, BlockHeaderSource::Test);
 
             let round_4_block_headers = dag_state.read().get_uncommitted_block_headers_at_round(4);
 
@@ -2920,7 +2986,10 @@ mod test {
                 .into_iter()
                 .find(|block| block.author() == context.own_index)
                 .unwrap();
-            assert_eq!(dag_state.read().recover_last_own_block(), my_genesis_block);
+            assert_eq!(
+                dag_state.read().get_last_proposed_block_header(),
+                my_genesis_block.verified_block_header
+            );
         }
 
         // WHEN adding some block headers for authorities, only the last ones should be
@@ -2936,7 +3005,9 @@ mod test {
             // add block header 5 for authority 0
             let block_header =
                 VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 0).build());
-            dag_state.write().accept_block_header(block_header);
+            dag_state
+                .write()
+                .accept_block_header(block_header, BlockHeaderSource::Test);
 
             for (authority_index, _) in context.committee.authorities() {
                 let block_header = dag_state
@@ -3050,7 +3121,7 @@ mod test {
                 .set_timestamp_ms(future_timestamp)
                 .build(),
         );
-        dag_state.accept_block_header(block_header.clone());
+        dag_state.accept_block_header(block_header.clone(), BlockHeaderSource::Test);
 
         let accepted_header = dag_state
             .recent_block_headers
@@ -3080,7 +3151,10 @@ mod test {
             commits.push(commit);
         }
 
-        dag_state.accept_block_headers(dag_builder.block_headers(1..=num_rounds));
+        dag_state.accept_block_headers(
+            dag_builder.block_headers(1..=num_rounds),
+            BlockHeaderSource::Test,
+        );
         for verified_transactions in dag_builder.transactions(1..=num_rounds).into_iter() {
             dag_state.add_transactions(verified_transactions, TransactionSource::Test);
         }
@@ -3229,7 +3303,7 @@ mod test {
                 .build(),
         );
         // Try to accept the block - it should not panic
-        dag_state.accept_block_header(block);
+        dag_state.accept_block_header(block, BlockHeaderSource::Test);
     }
 
     #[tokio::test]

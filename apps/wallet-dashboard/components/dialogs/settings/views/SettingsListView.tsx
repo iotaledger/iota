@@ -15,8 +15,9 @@ import { DialogLayout, DialogLayoutBody } from '../../layout';
 import { SettingsDialogView } from '../enums';
 import { Globe } from '@iota/apps-ui-icons';
 import { usePersistedNetwork } from '@/hooks';
-import { ToS_LINK, toTitleCase } from '@iota/core';
+import { toTitleCase } from '@iota/core';
 import Link from 'next/link';
+import { LEGAL_LINKS } from '@/lib/constants/routes.constants';
 
 interface SettingsListViewProps {
     handleClose: () => void;
@@ -54,14 +55,19 @@ export function SettingsListView({ handleClose, setView }: SettingsListViewProps
                     </div>
                     <div className="flex flex-col items-center gap-y-1 text-center">
                         <p>{process.env.NEXT_PUBLIC_DASHBOARD_REV}</p>
-                        <Link
-                            href={ToS_LINK}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-label-sm text-iota-primary-30 dark:text-iota-primary-80"
-                        >
-                            Terms of Service
-                        </Link>
+                        <div className="flex gap-md">
+                            {LEGAL_LINKS.map(({ title, href }) => (
+                                <Link
+                                    key={href}
+                                    href={href}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-label-sm text-iota-primary-30 dark:text-iota-primary-80"
+                                >
+                                    {title}
+                                </Link>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </DialogLayoutBody>

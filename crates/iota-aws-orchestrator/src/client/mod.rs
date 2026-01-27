@@ -49,6 +49,7 @@ impl Display for InstanceLifecycle {
         write!(f, "{self:?}")
     }
 }
+
 /// Represents a cloud provider instance.
 #[derive(Debug, Deserialize, Clone, Eq, PartialEq, Hash)]
 pub struct Instance {
@@ -70,6 +71,12 @@ pub struct Instance {
     pub role: InstanceRole,
     // The lifecycle of the instance. "Spot" | "OnDemand"
     pub lifecycle: InstanceLifecycle,
+}
+
+impl Display for Instance {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}-{}", self.role, self.main_ip)
+    }
 }
 
 impl Instance {
@@ -150,6 +157,7 @@ pub trait ServerProviderClient: Display {
         role: InstanceRole,
         quantity: usize,
         use_spot_instances: bool,
+        id: String,
     ) -> CloudProviderResult<Vec<Instance>>
     where
         S: Into<String> + Serialize + Send;
@@ -259,6 +267,7 @@ pub mod test_client {
             role: InstanceRole,
             quantity: usize,
             use_spot_instances: bool,
+            _id: String,
         ) -> CloudProviderResult<Vec<Instance>>
         where
             S: Into<String> + Serialize + Send,

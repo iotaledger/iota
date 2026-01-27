@@ -14,16 +14,9 @@ Response: {
       "asMovePackage": {
         "coin": {
           "datatype": {
-            "name": "Coin",
             "abilities": [
               "STORE",
               "KEY"
-            ],
-            "typeParameters": [
-              {
-                "constraints": [],
-                "isPhantom": true
-              }
             ],
             "asMoveStruct": {
               "fields": [
@@ -32,15 +25,15 @@ Response: {
                   "type": {
                     "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::object::UID",
                     "signature": {
-                      "ref": null,
                       "body": {
                         "datatype": {
-                          "package": "0x0000000000000000000000000000000000000000000000000000000000000002",
                           "module": "object",
+                          "package": "0x0000000000000000000000000000000000000000000000000000000000000002",
                           "type": "UID",
                           "typeParameters": []
                         }
-                      }
+                      },
+                      "ref": null
                     }
                   }
                 },
@@ -49,11 +42,10 @@ Response: {
                   "type": {
                     "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::balance::Balance<$0>",
                     "signature": {
-                      "ref": null,
                       "body": {
                         "datatype": {
-                          "package": "0x0000000000000000000000000000000000000000000000000000000000000002",
                           "module": "balance",
+                          "package": "0x0000000000000000000000000000000000000000000000000000000000000002",
                           "type": "Balance",
                           "typeParameters": [
                             {
@@ -61,21 +53,27 @@ Response: {
                             }
                           ]
                         }
-                      }
+                      },
+                      "ref": null
                     }
                   }
                 }
               ]
-            }
+            },
+            "name": "Coin",
+            "typeParameters": [
+              {
+                "constraints": [],
+                "isPhantom": true
+              }
+            ]
           }
         },
         "tx_context": {
           "datatype": {
-            "name": "TxContext",
             "abilities": [
               "DROP"
             ],
-            "typeParameters": [],
             "asMoveStruct": {
               "fields": [
                 {
@@ -83,8 +81,8 @@ Response: {
                   "type": {
                     "repr": "address",
                     "signature": {
-                      "ref": null,
-                      "body": "address"
+                      "body": "address",
+                      "ref": null
                     }
                   }
                 },
@@ -93,10 +91,10 @@ Response: {
                   "type": {
                     "repr": "vector<u8>",
                     "signature": {
-                      "ref": null,
                       "body": {
                         "vector": "u8"
-                      }
+                      },
+                      "ref": null
                     }
                   }
                 },
@@ -105,8 +103,8 @@ Response: {
                   "type": {
                     "repr": "u64",
                     "signature": {
-                      "ref": null,
-                      "body": "u64"
+                      "body": "u64",
+                      "ref": null
                     }
                   }
                 },
@@ -115,8 +113,8 @@ Response: {
                   "type": {
                     "repr": "u64",
                     "signature": {
-                      "ref": null,
-                      "body": "u64"
+                      "body": "u64",
+                      "ref": null
                     }
                   }
                 },
@@ -125,13 +123,15 @@ Response: {
                   "type": {
                     "repr": "u64",
                     "signature": {
-                      "ref": null,
-                      "body": "u64"
+                      "body": "u64",
+                      "ref": null
                     }
                   }
                 }
               ]
-            }
+            },
+            "name": "TxContext",
+            "typeParameters": []
           }
         }
       }
@@ -164,16 +164,16 @@ Response: {
           "datatypes": {
             "nodes": [
               {
-                "name": "IsAStruct",
                 "abilities": [],
+                "name": "IsAStruct",
                 "typeParameters": []
               },
               {
-                "name": "IsAnEnum",
                 "abilities": [
                   "COPY",
                   "DROP"
                 ],
+                "name": "IsAnEnum",
                 "typeParameters": []
               }
             ],
@@ -199,9 +199,7 @@ Response: {
           "datatypes": {
             "nodes": [
               {
-                "name": "IsAStruct",
                 "abilities": [],
-                "typeParameters": [],
                 "asMoveEnum": null,
                 "asMoveStruct": {
                   "fields": [
@@ -210,8 +208,8 @@ Response: {
                       "type": {
                         "repr": "u64",
                         "signature": {
-                          "ref": null,
-                          "body": "u64"
+                          "body": "u64",
+                          "ref": null
                         }
                       }
                     },
@@ -220,48 +218,47 @@ Response: {
                       "type": {
                         "repr": "bool",
                         "signature": {
-                          "ref": null,
-                          "body": "bool"
+                          "body": "bool",
+                          "ref": null
                         }
                       }
                     }
                   ]
-                }
+                },
+                "name": "IsAStruct",
+                "typeParameters": []
               },
               {
-                "name": "IsAnEnum",
                 "abilities": [
                   "COPY",
                   "DROP"
                 ],
-                "typeParameters": [],
                 "asMoveEnum": {
                   "variants": [
                     {
-                      "name": "V1",
                       "fields": [
                         {
                           "name": "pos0",
                           "type": {
                             "repr": "u64",
                             "signature": {
-                              "ref": null,
-                              "body": "u64"
+                              "body": "u64",
+                              "ref": null
                             }
                           }
                         }
-                      ]
+                      ],
+                      "name": "V1"
                     },
                     {
-                      "name": "V2",
                       "fields": [
                         {
                           "name": "x",
                           "type": {
                             "repr": "bool",
                             "signature": {
-                              "ref": null,
-                              "body": "bool"
+                              "body": "bool",
+                              "ref": null
                             }
                           }
                         },
@@ -270,16 +267,19 @@ Response: {
                           "type": {
                             "repr": "u64",
                             "signature": {
-                              "ref": null,
-                              "body": "u64"
+                              "body": "u64",
+                              "ref": null
                             }
                           }
                         }
-                      ]
+                      ],
+                      "name": "V2"
                     }
                   ]
                 },
-                "asMoveStruct": null
+                "asMoveStruct": null,
+                "name": "IsAnEnum",
+                "typeParameters": []
               }
             ],
             "pageInfo": {
@@ -301,39 +301,36 @@ Response: {
       "asMovePackage": {
         "module": {
           "datatype": {
-            "name": "IsAnEnum",
             "abilities": [
               "COPY",
               "DROP"
             ],
-            "typeParameters": [],
             "asMoveEnum": {
               "variants": [
                 {
-                  "name": "V1",
                   "fields": [
                     {
                       "name": "pos0",
                       "type": {
                         "repr": "u64",
                         "signature": {
-                          "ref": null,
-                          "body": "u64"
+                          "body": "u64",
+                          "ref": null
                         }
                       }
                     }
-                  ]
+                  ],
+                  "name": "V1"
                 },
                 {
-                  "name": "V2",
                   "fields": [
                     {
                       "name": "x",
                       "type": {
                         "repr": "bool",
                         "signature": {
-                          "ref": null,
-                          "body": "bool"
+                          "body": "bool",
+                          "ref": null
                         }
                       }
                     },
@@ -342,15 +339,18 @@ Response: {
                       "type": {
                         "repr": "u64",
                         "signature": {
-                          "ref": null,
-                          "body": "u64"
+                          "body": "u64",
+                          "ref": null
                         }
                       }
                     }
-                  ]
+                  ],
+                  "name": "V2"
                 }
               ]
-            }
+            },
+            "name": "IsAnEnum",
+            "typeParameters": []
           }
         }
       }
@@ -366,10 +366,10 @@ Response: {
       "asMovePackage": {
         "module": {
           "datatype": {
-            "name": "IsAStruct",
             "abilities": [],
-            "typeParameters": [],
-            "asMoveEnum": null
+            "asMoveEnum": null,
+            "name": "IsAStruct",
+            "typeParameters": []
           }
         }
       }

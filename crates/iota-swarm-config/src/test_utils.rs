@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 
+use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_types::{
     base_types::AuthorityName,
     committee::{Committee, EpochId, StakeUnit},
@@ -17,7 +18,6 @@ use iota_types::{
         VerifiedCheckpointContents,
     },
 };
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 
 use crate::network_config::NetworkConfig;
 
