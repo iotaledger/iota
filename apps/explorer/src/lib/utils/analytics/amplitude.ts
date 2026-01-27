@@ -28,10 +28,17 @@ export async function initAmplitude() {
             configuration: {
                 optOut: false,
                 autocapture: {
+                    attribution: false,
                     pageViews: IS_ENABLED,
                     sessions: IS_ENABLED,
+                    formInteractions: false,
+                    fileDownloads: false,
+                    elementInteractions: false,
+                    pageUrlEnrichment: false,
+                    webVitals: false,
                 },
-                logLevel: IS_ENABLED ? LogLevel.Warn : LogLevel.None,
+                // set LogLevel to Debug for more verbose logging during development
+                logLevel: LogLevel.None,
             },
         },
     }).promise;
