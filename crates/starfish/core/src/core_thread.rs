@@ -29,7 +29,7 @@ use crate::{
     context::Context,
     core::{Core, ReasonToCreateBlock},
     core_thread::CoreError::Shutdown,
-    dag_state::{DagState, TransactionSource},
+    dag_state::{BlockHeaderSource, DagState, TransactionSource},
     error::{ConsensusError, ConsensusResult},
 };
 
@@ -47,6 +47,7 @@ enum CoreThreadCommand {
     /// Add block headers to be processed and accepted
     AddBlockHeaders(
         Vec<VerifiedBlockHeader>,
+        BlockHeaderSource,
         oneshot::Sender<(
             BTreeSet<BlockRef>,
             BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
@@ -109,6 +110,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     async fn add_block_headers(
         &self,
         blocks: Vec<VerifiedBlockHeader>,
+        source: BlockHeaderSource,
     ) -> Result<
         (
             BTreeSet<BlockRef>,
@@ -201,9 +203,10 @@ impl CoreThread {
                             let (missing_block_refs, missing_committed_txns) = self.core.add_blocks(blocks)?;
                             sender.send((missing_block_refs, missing_committed_txns)).ok();
                         }
-                        CoreThreadCommand::AddBlockHeaders(block_headers, sender) => {
+                        CoreThreadCommand::AddBlockHeaders(block_headers, source, sender) => {
                             let _scope = monitored_scope("CoreThread::loop::add_block_headers");
-                            let (missing_block_refs, missing_committed_txns) = self.core.add_block_headers(block_headers)?;
+                            let (missing_block_refs, missing_committed_txns) =
+                                self.core.add_block_headers(block_headers, source)?;
                             sender.send((missing_block_refs, missing_committed_txns)).ok();
                         }
                         CoreThreadCommand::AddCertifiedCommits(commits, sender) => {
@@ -370,6 +373,7 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
     async fn add_block_headers(
         &self,
         block_headers: Vec<VerifiedBlockHeader>,
+        source: BlockHeaderSource,
     ) -> Result<
         (
             BTreeSet<BlockRef>,
@@ -378,8 +382,12 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         CoreError,
     > {
         let (sender, receiver) = oneshot::channel();
-        self.send(CoreThreadCommand::AddBlockHeaders(block_headers, sender))
-            .await;
+        self.send(CoreThreadCommand::AddBlockHeaders(
+            block_headers,
+            source,
+            sender,
+        ))
+        .await;
         Ok(receiver.await.map_err(|e| Shutdown(e.to_string()))?)
     }
 
@@ -564,6 +572,7 @@ pub(crate) mod tests {
         async fn add_block_headers(
             &self,
             block_headers: Vec<VerifiedBlockHeader>,
+            _source: BlockHeaderSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
@@ -698,8 +707,18 @@ pub(crate) mod tests {
         assert!(dispatcher_1.add_blocks(vec![]).await.is_ok());
         assert!(dispatcher_2.add_blocks(vec![]).await.is_ok());
 
-        assert!(dispatcher_1.add_block_headers(vec![]).await.is_ok());
-        assert!(dispatcher_2.add_block_headers(vec![]).await.is_ok());
+        assert!(
+            dispatcher_1
+                .add_block_headers(vec![], BlockHeaderSource::Test)
+                .await
+                .is_ok()
+        );
+        assert!(
+            dispatcher_2
+                .add_block_headers(vec![], BlockHeaderSource::Test)
+                .await
+                .is_ok()
+        );
 
         // Now shutdown the dispatcher
         handle.stop().await;
@@ -707,7 +726,17 @@ pub(crate) mod tests {
         // Try to send some commands
         assert!(dispatcher_1.add_blocks(vec![]).await.is_err());
         assert!(dispatcher_2.add_blocks(vec![]).await.is_err());
-        assert!(dispatcher_1.add_block_headers(vec![]).await.is_err());
-        assert!(dispatcher_2.add_block_headers(vec![]).await.is_err());
+        assert!(
+            dispatcher_1
+                .add_block_headers(vec![], BlockHeaderSource::Test)
+                .await
+                .is_err()
+        );
+        assert!(
+            dispatcher_2
+                .add_block_headers(vec![], BlockHeaderSource::Test)
+                .await
+                .is_err()
+        );
     }
 }

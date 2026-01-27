@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { expect, test } from './fixtures';
-import { createWallet } from './utils/auth';
+import { expect, test } from './utils/fixtures';
+import { createWallet } from './utils/wallet';
 
 test('Assets tab', async ({ page, extensionUrl }) => {
     await createWallet(page, extensionUrl);
