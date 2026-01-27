@@ -43,11 +43,11 @@ export async function initAmplitude() {
             configuration: {
                 optOut: false,
                 autocapture: {
-                    attribution: false,
+                    attribution: IS_ENABLED,
                     pageViews: IS_ENABLED,
                     sessions: IS_ENABLED,
-                    formInteractions: false,
-                    fileDownloads: false,
+                    formInteractions: IS_ENABLED,
+                    fileDownloads: IS_ENABLED,
                     elementInteractions: false,
                     pageUrlEnrichment: false,
                     webVitals: false,
