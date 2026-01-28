@@ -220,7 +220,7 @@ async fn list_dynamic_fields(
     let start = parameters.start();
 
     let mut dynamic_fields = indexes
-        .dynamic_field_iter(parent.into(), start)?
+        .dynamic_field_iter(parent, start)?
         .take(limit + 1)
         .map(|result| {
             result
@@ -266,8 +266,7 @@ impl ListDynamicFieldsQueryParameters {
     }
 
     pub fn start(&self) -> Option<iota_types::base_types::ObjectID> {
-        self.start.map(Into::into)
-    }
+        self.start}
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug, schemars::JsonSchema)]
@@ -297,12 +296,12 @@ impl TryFrom<(DynamicFieldKey, DynamicFieldIndexInfo)> for DynamicFieldInfo {
         } = value.1;
 
         Self {
-            parent: parent.into(),
-            field_id: field_id.into(),
+            parent,
+            field_id,
             dynamic_field_type: dynamic_field_type.into(),
             name_type: type_tag_core_to_sdk(name_type)?,
             name_value,
-            dynamic_object_id: dynamic_object_id.map(Into::into),
+            dynamic_object_id,
         }
         .pipe(Ok)
     }

@@ -68,9 +68,8 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // This object id was fetched manually. It refers to a Basic Output object that
     // contains some Native Tokens.
-    let basic_output_object_id = ObjectID::from_hex(
-        "0xd0ed7f2c50366202585ebd52a38cde6a7a7282ef3f52db52c3ba87042bca6fba",
-    )?;
+    let basic_output_object_id =
+        ObjectID::from_hex("0xd0ed7f2c50366202585ebd52a38cde6a7a7282ef3f52db52c3ba87042bca6fba")?;
     // Get Basic Output object
     let basic_output_object = iota_client
         .read_api()

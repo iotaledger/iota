@@ -85,7 +85,7 @@ impl Client {
 
     pub async fn get_object(&self, object_id: ObjectID) -> Result<Object> {
         self.inner
-            .get_object(object_id.into())
+            .get_object(object_id)
             .await
             .map(Response::into_inner)
             .and_then(|object| object.try_into().map_err(Into::into))
@@ -97,7 +97,7 @@ impl Client {
         version: SequenceNumber,
     ) -> Result<Object> {
         self.inner
-            .get_object_with_version(object_id.into(), version)
+            .get_object_with_version(object_id, version)
             .await
             .map(Response::into_inner)
             .and_then(|object| object.try_into().map_err(Into::into))

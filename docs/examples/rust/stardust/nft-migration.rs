@@ -57,9 +57,8 @@ async fn main() -> Result<(), anyhow::Error> {
         .ok_or(anyhow!("No coins found"))?;
 
     // Get an NftOutput object id
-    let nft_output_object_id = ObjectID::from_hex(
-        "0x6445847625cec7d1265ebb9d0da8050a2e43d2856c2746d3579df499a1a64226",
-    )?;
+    let nft_output_object_id =
+        ObjectID::from_hex("0x6445847625cec7d1265ebb9d0da8050a2e43d2856c2746d3579df499a1a64226")?;
 
     // Get an NftOutput object
     let nft_output_object = iota_client

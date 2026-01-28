@@ -236,7 +236,7 @@ fn called_packages(
     {
         let package = reader
             .inner()
-            .try_get_object(&(move_call.package.into()))?
+            .try_get_object(&move_call.package)?
             .ok_or_else(|| ObjectNotFoundError::new(move_call.package))?
             .data
             .try_as_package()
@@ -332,7 +332,7 @@ fn resolve_object_reference(
         digest,
     } = unresolved_object_reference;
 
-    let id = object_id.into();
+    let id = object_id;
     let (v, d) = if let Some(version) = version {
         let object = reader
             .inner()
@@ -405,7 +405,7 @@ fn resolve_arg(
             initial_shared_version: _,
             mutable: _,
         } => {
-            let id = object_id.into();
+            let id = object_id;
             let object = reader
                 .inner()
                 .try_get_object(&id)?

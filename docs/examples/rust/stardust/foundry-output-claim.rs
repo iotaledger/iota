@@ -59,9 +59,8 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // This object id was fetched manually. It refers to an Alias Output object that
     // contains a CoinManagerTreasuryCap (i.e., a Foundry representation).
-    let alias_output_object_id = ObjectID::from_hex(
-        "0xa58e9b6b85863e2fa50710c4594f701b2f5e2c6ff5e3c2b10cf09e6b18d740da",
-    )?;
+    let alias_output_object_id =
+        ObjectID::from_hex("0xa58e9b6b85863e2fa50710c4594f701b2f5e2c6ff5e3c2b10cf09e6b18d740da")?;
     let alias_output_object = iota_client
         .read_api()
         .get_object_with_options(
