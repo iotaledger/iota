@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_stardust_sdk::types::block::address::Address;
+use iota_stardust_types::block::address::Address;
 
 use crate::{base_types::IotaAddress, object::Owner};
 

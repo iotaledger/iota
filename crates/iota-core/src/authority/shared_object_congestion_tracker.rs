@@ -387,12 +387,7 @@ impl SharedObjectCongestionTracker {
             return SequencingResult::Schedule(0);
         }
 
-        let shared_input_objects = cert
-            .data()
-            .inner()
-            .intent_message()
-            .value
-            .shared_input_objects();
+        let shared_input_objects = cert.shared_input_objects();
         if shared_input_objects.is_empty() {
             // This is an owned object only transaction. No need to defer.
             return SequencingResult::Schedule(0);
@@ -496,6 +491,7 @@ impl SharedObjectCongestionTracker {
         // Find IDs of shared objects for which execution slots should be bumped.
         let object_ids = cert
             .shared_input_objects()
+            .into_iter()
             .filter_map(|obj| obj.mutable.then_some(obj.id))
             .collect::<Vec<_>>();
 
@@ -827,14 +823,8 @@ pub mod shared_object_test_utils {
         previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
         commit_round: CommitRound,
     ) -> SequencingResult {
-        shared_object_congestion_tracker.initialize_object_execution_slots(
-            &cert
-                .data()
-                .inner()
-                .intent_message()
-                .value
-                .shared_input_objects(),
-        );
+        let shared_input_objects = cert.shared_input_objects();
+        shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects);
         shared_object_congestion_tracker.try_schedule(
             cert,
             previously_deferred_tx_digests,
@@ -1387,12 +1377,7 @@ mod object_cost_tests {
             .get_estimated_execution_duration(&cert);
         let start_time = initialize_tracker_and_compute_tx_start_time(
             &mut shared_object_congestion_tracker,
-            &cert
-                .data()
-                .inner()
-                .intent_message()
-                .value
-                .shared_input_objects(),
+            &cert.shared_input_objects(),
             cert_duration,
         )
         .expect("start time should be computable");
@@ -1422,12 +1407,7 @@ mod object_cost_tests {
             .get_estimated_execution_duration(&cert);
         let start_time = initialize_tracker_and_compute_tx_start_time(
             &mut shared_object_congestion_tracker,
-            &cert
-                .data()
-                .inner()
-                .intent_message()
-                .value
-                .shared_input_objects(),
+            &cert.shared_input_objects(),
             cert_duration,
         )
         .expect("start time should be computable");
@@ -1479,12 +1459,7 @@ mod object_cost_tests {
             .get_estimated_execution_duration(&cert);
         let start_time = initialize_tracker_and_compute_tx_start_time(
             &mut shared_object_congestion_tracker,
-            &cert
-                .data()
-                .inner()
-                .intent_message()
-                .value
-                .shared_input_objects(),
+            &cert.shared_input_objects(),
             cert_duration,
         )
         .expect("start time should be computable");
@@ -1618,11 +1593,7 @@ mod object_cost_tests {
         assert!(
             initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,
-                &tx.data()
-                    .inner()
-                    .intent_message()
-                    .value
-                    .shared_input_objects(),
+                &tx.shared_input_objects(),
                 cert_duration,
             )
             .is_none()
@@ -1676,11 +1647,7 @@ mod object_cost_tests {
         assert!(
             initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,
-                &tx.data()
-                    .inner()
-                    .intent_message()
-                    .value
-                    .shared_input_objects(),
+                &tx.shared_input_objects(),
                 cert_duration,
             )
             .is_none()
@@ -1718,11 +1685,7 @@ mod object_cost_tests {
         assert!(
             initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,
-                &tx.data()
-                    .inner()
-                    .intent_message()
-                    .value
-                    .shared_input_objects(),
+                &tx.shared_input_objects(),
                 cert_duration,
             )
             .is_none()

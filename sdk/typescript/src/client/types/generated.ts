@@ -41,6 +41,13 @@ export interface BalanceChange {
     /** Owner of the balance change */
     owner: ObjectOwner;
 }
+export type CallArg =
+    | {
+          Pure: number[];
+      }
+    | {
+          Object: ObjectArg;
+      };
 export interface Checkpoint {
     /** Commitments to checkpoint state */
     checkpointCommitments: CheckpointCommitment[];
@@ -110,6 +117,9 @@ export type CompressedSignature =
       }
     | {
           Passkey: string;
+      }
+    | {
+          Move: string;
       };
 /** Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments. */
 export type ConsensusDeterminedVersionAssignments = {
@@ -1082,6 +1092,19 @@ export interface IotaValidatorSummary {
     stakingPoolIotaBalance: string;
     votingPower: string;
 }
+/**
+ * MoveAuthenticator is a GenericSignature variant that enables a new method of authentication through
+ * Move code. This function represents the data received by the Move authenticate function during the
+ * Account Abstraction authentication flow.
+ */
+export interface MoveAuthenticator {
+    /** Input objects or primitive values */
+    call_args: CallArg[];
+    /** The object that is authenticated. Represents the account being the sender of the transaction. */
+    object_to_authenticate: CallArg;
+    /** Type arguments for the Move authenticate function */
+    type_arguments: string[];
+}
 export interface MoveCallMetrics {
     /** The count of calls of each function in the last 30 days. */
     rank30Days: [MoveFunctionName, string][];
@@ -1179,6 +1202,20 @@ export interface NetworkMetrics {
     /** Peak TPS in the past 30 days */
     tps30Days: number;
 }
+export type ObjectArg =
+    | {
+          ImmOrOwnedObject: [string, string, string];
+      }
+    | {
+          SharedObject: {
+              id: string;
+              initial_shared_version: string;
+              mutable: boolean;
+          };
+      }
+    | {
+          Receiving: [string, string, string];
+      };
 /**
  * ObjectChange are derived from the object mutations in the TransactionEffect to provide richer object
  * information.
@@ -1868,17 +1905,38 @@ export interface TransferObjectParams {
     objectId: string;
     recipient: string;
 }
-/** Identifies a struct and the module it was defined in */
+/**
+ * Store the origin of a data type where it first appeared in the version chain.
+ *
+ * A data type is identified by the name of the module and the name of the struct/enum in combination.
+ *
+ * # Undefined behavior
+ *
+ * Directly modifying any field is undefined behavior. The fields are only public for read-only access.
+ */
 export interface TypeOrigin {
+    /**
+     * The name of the data type.
+     *
+     * Here this either refers to an enum or a struct identifier.
+     */
     datatype_name: string;
+    /** The name of the module the data type resides in. */
     module_name: string;
+    /** `Storage ID` of the package, where the given type first appeared. */
     package: string;
 }
-/** Upgraded package info for the linkage table */
+/**
+ * Value for the [MovePackage]'s linkage_table.
+ *
+ * # Undefined behavior
+ *
+ * Directly modifying any field is undefined behavior. The fields are only public for read-only access.
+ */
 export interface UpgradeInfo {
-    /** ID of the upgraded packages */
+    /** `Storage ID`/`Package ID` of the referred package. */
     upgraded_id: string;
-    /** Version of the upgraded package */
+    /** The version of the package at `upgraded_id`. */
     upgraded_version: string;
 }
 export interface ValidatorApy {

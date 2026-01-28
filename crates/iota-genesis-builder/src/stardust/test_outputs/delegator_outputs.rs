@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk::types::block::{
+use iota_stardust_types::block::{
     address::Ed25519Address,
     output::{
         BasicOutputBuilder, Output,

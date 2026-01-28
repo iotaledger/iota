@@ -282,7 +282,7 @@ impl HistoricalFallbackReader {
         };
 
         HistoricalFallbackEvents::new(events, summary)
-            .into_iota_events(self.package_resolver.clone(), tx_digest)
+            .into_iota_events(&self.package_resolver, tx_digest)
             .await
     }
 
