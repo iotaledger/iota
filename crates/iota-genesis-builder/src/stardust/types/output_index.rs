@@ -4,7 +4,7 @@
 //! Verification type for output indexes that confines the value to the range
 //! [0..128)
 
-use iota_sdk::types::block::output::OUTPUT_INDEX_RANGE;
+use iota_stardust_types::block::output::OUTPUT_INDEX_RANGE;
 use rand::{Rng, rngs::StdRng};
 
 #[derive(Copy, Clone, Debug, Default)]

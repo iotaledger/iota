@@ -921,7 +921,12 @@ async fn test_dev_inspect_uses_unbound_object() {
         )
         .await;
     let Err(err) = result else { panic!() };
-    assert!(err.to_string().contains("ObjectNotFound"));
+    assert!(matches!(
+        err,
+        IotaError::UserInput {
+            error: UserInputError::ObjectNotFound { .. }
+        }
+    ));
 }
 
 #[tokio::test]
@@ -1819,10 +1824,12 @@ async fn test_publish_non_existing_dependent_module() {
     let response = authority
         .handle_transaction(&epoch_store, transaction)
         .await;
-    assert!(
-        std::string::ToString::to_string(&response.unwrap_err())
-            .contains("DependentPackageNotFound")
-    );
+    assert!(matches!(
+        response.unwrap_err(),
+        IotaError::UserInput {
+            error: UserInputError::DependentPackageNotFound { .. }
+        }
+    ));
     // Check that gas was not charged.
     assert_eq!(
         authority
@@ -3232,7 +3239,7 @@ async fn test_invalid_object_ownership() {
         UserInputError::try_from(e).unwrap(),
         UserInputError::IncorrectUserSignature {
             error: format!(
-                "Object {invalid_ownership_object_id:?} is owned by account address {invalid_owner:?}, but given owner/signer address is {sender:?}"
+                "Object {invalid_ownership_object_id:?} is owned by account address {invalid_owner}, but given owner/signer address is {sender}"
             )
         }
     );

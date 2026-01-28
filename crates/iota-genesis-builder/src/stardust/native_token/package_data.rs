@@ -6,9 +6,9 @@
 //! package.
 
 use anyhow::Result;
-use iota_sdk::types::block::{
+use iota_stardust_types::block::{
     address::AliasAddress,
-    output::{FoundryId, FoundryOutput},
+    output::{FoundryId, FoundryOutput, feature::Irc30Metadata},
 };
 use iota_types::stardust::error::StardustError;
 use move_compiler::parser::keywords;
@@ -16,7 +16,6 @@ use rand::distributions::{Alphanumeric, DistString};
 use rand_pcg::Pcg64;
 use rand_seeder::{Seeder, SipRng, rand_core::RngCore};
 use regex::Regex;
-use serde::{Deserialize, Serialize};
 
 use crate::stardust::types::token_scheme::SimpleTokenSchemeU64;
 
@@ -107,13 +106,13 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
         // Derive a valid, lowercase move identifier from the symbol field in the irc30
         // metadata
         let identifier = derive_foundry_package_lowercase_identifier(
-            irc_30_metadata.symbol.as_str(),
+            irc_30_metadata.symbol(),
             output.id().as_slice(),
         );
 
         // Any decimal value that exceeds a u8 is set to zero, as we cannot infer a good
         // alternative.
-        let decimals = u8::try_from(irc_30_metadata.decimals).unwrap_or_default();
+        let decimals = u8::try_from(*irc_30_metadata.decimals()).unwrap_or_default();
 
         let token_scheme_u64: SimpleTokenSchemeU64 =
             output.token_scheme().as_simple().try_into()?;
@@ -128,9 +127,9 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
                 symbol: identifier,
                 circulating_supply: token_scheme_u64.circulating_supply(),
                 maximum_supply: token_scheme_u64.maximum_supply(),
-                coin_name: irc_30_metadata.name,
-                coin_description: irc_30_metadata.description.unwrap_or_default(),
-                icon_url: irc_30_metadata.logo_url,
+                coin_name: irc_30_metadata.name().clone(),
+                coin_description: irc_30_metadata.description().clone().unwrap_or_default(),
+                icon_url: irc_30_metadata.logo_url().clone(),
                 alias_address: *output.alias_address(),
             },
         };
@@ -139,65 +138,22 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-#[serde(tag = "standard", rename = "IRC30")]
-pub struct Irc30MetadataAlternative {
-    /// The human-readable name of the native token.
-    name: String,
-    /// The symbol/ticker of the token.
-    symbol: String,
-    /// Number of decimals the token uses (divide the token amount by
-    /// `10^decimals` to get its user representation).
-    decimals: u32,
-    /// The human-readable description of the token.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    description: Option<String>,
-    /// URL pointing to more resources about the token.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    url: Option<String>,
-    /// URL pointing to an image resource of the token logo.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    logo_url: Option<String>,
-    /// The svg logo of the token encoded as a byte string.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    logo: Option<String>,
-}
-
-impl Irc30MetadataAlternative {
-    fn new_compact(name: String) -> Self {
-        Irc30MetadataAlternative {
-            name: name.clone(),
-            symbol: name,
-            decimals: 0,
-            description: None,
-            url: None,
-            logo_url: None,
-            logo: None,
-        }
-    }
-}
-
-fn extract_irc30_metadata(output: &FoundryOutput) -> Irc30MetadataAlternative {
+fn extract_irc30_metadata(output: &FoundryOutput) -> Irc30Metadata {
     output
         .immutable_features()
         .metadata()
-        .and_then(|metadata| {
-            serde_json::from_slice::<Irc30MetadataAlternative>(metadata.data()).ok()
-        })
+        .and_then(|metadata| serde_json::from_slice::<Irc30Metadata>(metadata.data()).ok())
         .and_then(|metadata| {
             metadata
-                .logo_url
+                .logo_url()
                 .as_ref()
                 .map(|url| url.is_ascii())
                 .unwrap_or(true)
                 .then_some(metadata)
         })
         .unwrap_or_else(|| {
-            Irc30MetadataAlternative::new_compact(derive_foundry_package_lowercase_identifier(
-                "",
-                output.id().as_slice(),
-            ))
+            let name = derive_foundry_package_lowercase_identifier("", output.id().as_slice());
+            Irc30Metadata::new(name.clone(), name, 0)
         })
 }
 
@@ -249,17 +205,16 @@ fn derive_foundry_package_lowercase_identifier(input: &str, seed: &[u8]) -> Stri
 mod tests {
     use std::ops::{Add, Sub};
 
-    use iota_sdk::{
-        U256, Url,
-        types::block::{
-            address::AliasAddress,
-            output::{
-                AliasId, Feature, FoundryOutputBuilder, SimpleTokenScheme, TokenScheme,
-                feature::{Irc30Metadata, MetadataFeature},
-                unlock_condition::ImmutableAliasAddressUnlockCondition,
-            },
+    use iota_stardust_types::block::{
+        address::AliasAddress,
+        output::{
+            AliasId, Feature, FoundryOutputBuilder, SimpleTokenScheme, TokenScheme,
+            feature::{Irc30Metadata, MetadataFeature},
+            unlock_condition::ImmutableAliasAddressUnlockCondition,
         },
     };
+    use primitive_types::U256;
+    use url::Url;
 
     use super::*;
     use crate::stardust::{

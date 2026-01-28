@@ -40,4 +40,4 @@ Contents: simple_abstract_account::abstract_account::AbstractAccount {
 
 task 5, lines 23-24:
 //# abstract --account object(4,2) --ptb-inputs 100 @A
-Error: Error checking transaction input objects: Unsupported("MoveAuthenticator cannot authenticate mutable shared objects")
+Error: Error checking transaction input objects: Feature is not supported: MoveAuthenticator cannot authenticate mutable shared objects

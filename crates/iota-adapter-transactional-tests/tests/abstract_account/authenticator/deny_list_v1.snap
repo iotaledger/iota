@@ -63,7 +63,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 9, lines 67-71:
 //# abstract --account immshared(6,2) --auth-inputs immshared(1,0) --ptb-inputs 100 @A
-Error: Error checking transaction input objects: AddressDeniedForCoin { address: object(6,2), coin_type: "object(1,5)::regulated_coin::REGULATED_COIN" }
+Error: Error checking transaction input objects: Address object(6,2) is denied for coin object(1,5)::regulated_coin::REGULATED_COIN
 
 task 10, lines 72-74:
 //# run iota::coin::deny_list_v1_remove --args object(0x403) object(1,2) @account_addr --type-args test_coin::regulated_coin::REGULATED_COIN --sender C
