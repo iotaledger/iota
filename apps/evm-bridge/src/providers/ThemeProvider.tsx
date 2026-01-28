@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useState, useEffect, useCallback } from 'react';
 import { Theme, ThemePreference } from '../lib/enums';
 import { ThemeContext } from '../contexts';

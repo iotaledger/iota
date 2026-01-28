@@ -120,6 +120,22 @@ pub fn to_sender_signed_transaction(
     to_sender_signed_transaction_with_multi_signers(data, vec![signer])
 }
 
+pub fn to_sender_signed_transaction_with_optional_sponsor(
+    data: TransactionData,
+    sender_signature: GenericSignature,
+    sponsor_signer_opt: Option<&dyn Signer<Signature>>,
+) -> Transaction {
+    let mut signatures = vec![sender_signature];
+    if let Some(sponsor) = sponsor_signer_opt {
+        let sponsor_sig =
+            Transaction::signature_from_signer(data.clone(), Intent::iota_transaction(), sponsor)
+                .into();
+        signatures.push(sponsor_sig);
+    };
+
+    Transaction::from_generic_sig_data(data, signatures)
+}
+
 pub fn to_sender_signed_transaction_with_multi_signers(
     data: TransactionData,
     signers: Vec<&dyn Signer<Signature>>,
@@ -288,4 +304,39 @@ mod zk_login {
         ))
     }
 }
+
+mod move_authenticator {
+    pub use crate::move_authenticator::MoveAuthenticator;
+    use crate::{
+        base_types::IotaAddress,
+        object::OBJECT_START_VERSION,
+        signature::GenericSignature,
+        transaction::{CallArg, ObjectArg, SenderSignedData, Transaction},
+        utils::make_transaction_data,
+    };
+
+    /// Make a transaction signed with `MoveAuthenticator` for testing.
+    pub fn make_move_authenticator_tx(address: IotaAddress) -> Transaction {
+        let data = make_transaction_data(address);
+
+        // There is no a real Move account behind this address.
+        //
+        // TODO: if it is necessary, AA accounts need to be supported properly in the
+        // `AuthorityState` used for testing.
+        let self_call_arg = CallArg::Object(ObjectArg::SharedObject {
+            id: address.into(),
+            initial_shared_version: OBJECT_START_VERSION,
+            mutable: false,
+        });
+        let authenticator = GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
+            vec![],
+            vec![],
+            self_call_arg,
+        ));
+
+        Transaction::new(SenderSignedData::new(data, vec![authenticator]))
+    }
+}
+
+pub use move_authenticator::*;
 pub use zk_login::*;

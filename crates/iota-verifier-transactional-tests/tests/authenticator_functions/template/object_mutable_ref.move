@@ -1,0 +1,20 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+//# publish
+module 0x0::template;
+
+use iota::auth_context::AuthContext;
+
+public struct Account has key {
+    id: UID,
+}
+
+// FAIL
+#[authenticator]
+public fun object_mutable_ref<T: key>(
+    _account: &Account,
+    _object: &mut T,
+    _actx: &AuthContext,
+    _ctx: &TxContext,
+) {}

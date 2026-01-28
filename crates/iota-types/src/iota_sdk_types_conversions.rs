@@ -581,7 +581,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
             }
             TransactionKind::ConsensusCommitPrologueV1(consensus_commit_prologue_v1) => {
                 let consensus_determined_version_assignments = match consensus_commit_prologue_v1.consensus_determined_version_assignments {
-                    ConsensusDeterminedVersionAssignments::CancelledTransactions{ cancelled_transactions } =>
+                    ConsensusDeterminedVersionAssignments::CancelledTransactions { cancelled_transactions } =>
                     crate::messages_consensus::ConsensusDeterminedVersionAssignments::CancelledTransactions(
                         cancelled_transactions.into_iter().map(|value|
                             (
@@ -808,6 +808,9 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                         .collect(),
                     eligible_active_validators: change_epoch_v3.eligible_active_validators,
                 })
+            }
+            EndOfEpochTransactionKind::ChangeEpochV4(_change_epoch_v4) => {
+                todo!()
             }
             EndOfEpochTransactionKind::AuthenticatorStateCreate => Self::AuthenticatorStateCreate,
             EndOfEpochTransactionKind::AuthenticatorStateExpire(authenticator_state_expire) => {

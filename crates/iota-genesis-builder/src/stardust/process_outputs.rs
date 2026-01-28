@@ -8,17 +8,14 @@ use std::{
 
 use anyhow::{Result, anyhow};
 use fastcrypto::{encoding::Hex, hash::HashFunction};
-use iota_sdk::types::{
-    api::plugins::participation::types::PARTICIPATION_TAG,
-    block::{
-        address::{Address, Ed25519Address},
-        output::{
-            AliasOutputBuilder, BasicOutput, BasicOutputBuilder, FoundryOutputBuilder,
-            NftOutputBuilder, OUTPUT_INDEX_MAX, Output, OutputId,
-            feature::SenderFeature,
-            unlock_condition::{AddressUnlockCondition, StorageDepositReturnUnlockCondition},
-        },
-        payload::transaction::TransactionId,
+use iota_stardust_types::block::{
+    TransactionId,
+    address::{Address, Ed25519Address},
+    output::{
+        AliasOutputBuilder, BasicOutput, BasicOutputBuilder, FoundryOutputBuilder,
+        NftOutputBuilder, OUTPUT_INDEX_MAX, Output, OutputId,
+        feature::SenderFeature,
+        unlock_condition::{AddressUnlockCondition, StorageDepositReturnUnlockCondition},
     },
 };
 use iota_types::{
@@ -32,6 +29,10 @@ use super::types::{
     address_swap_split_map::AddressSwapSplitMap, output_header::OutputHeader,
     output_index::OutputIndex,
 };
+
+/// Participation tag bytes used in the IOTA community participation plugin.
+/// https://github.com/iota-community/treasury/blob/main/specifications/hornet-participation-plugin.md
+const PARTICIPATION_TAG: &[u8] = b"PARTICIPATE";
 
 /// Processes an iterator of outputs coming from a Hornet snapshot chaining some
 /// filters:

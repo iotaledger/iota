@@ -1137,6 +1137,9 @@ importers:
       react:
         specifier: ^18.3.1
         version: 18.3.1
+      react-error-boundary:
+        specifier: ^4.0.10
+        version: 4.0.13(react@18.3.1)
       zustand:
         specifier: ^4.4.1
         version: 4.5.5(@types/react@18.3.9)(immer@9.0.21)(react@18.3.1)

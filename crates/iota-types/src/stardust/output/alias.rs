@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolConfig;
-use iota_stardust_sdk::types::block::output::AliasOutput as StardustAlias;
+use iota_stardust_types::block::output::AliasOutput as StardustAlias;
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;

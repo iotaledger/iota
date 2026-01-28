@@ -4,12 +4,9 @@
 use std::collections::HashMap;
 
 use anyhow::{Result, anyhow, bail, ensure};
-use iota_sdk::{
-    U256,
-    types::block::{
-        address::Address,
-        output::{self as sdk_output, NativeTokens, OutputId, TokenId},
-    },
+use iota_stardust_types::block::{
+    address::Address,
+    output::{self as sdk_output, NativeTokens, OutputId, TokenId},
 };
 use iota_types::{
     TypeTag,
@@ -25,6 +22,7 @@ use iota_types::{
         stardust_to_iota_address,
     },
 };
+use primitive_types::U256;
 use tracing::warn;
 
 use crate::stardust::{
