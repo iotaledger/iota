@@ -1528,28 +1528,43 @@ impl Display for CommandOutput {
                         threshold,
                         participating_signatures,
                     } => {
-                        let parsed = json!({
-                            "threshold": threshold,
-                            "participating_signatures": participating_signatures
-                        });
-                        let parsed_str = serde_json::to_string_pretty(&parsed).unwrap();
                         builder
                             .set_header(["field", "value"])
                             .push_record(["type", "MultiSig"])
-                            .push_record(["multisig", multisig_address.as_str()])
-                            .push_record(["parsed", parsed_str.as_str()])
-                            .push_record(["address", multisig_address.as_str()]);
+                            .push_record(["address", multisig_address.as_str()])
+                            .push_record(["threshold", &threshold.to_string()])
+                            .push_record([
+                                "participating_signatures",
+                                &serde_json::to_string(&participating_signatures).unwrap(),
+                            ]);
                     }
                     DecodedSigOutput::ZkLogin(z) => {
+                        let address = z
+                            .get_pk()
+                            .map(|pk| IotaAddress::from(&pk).to_string())
+                            .unwrap_or_else(|_| "unknown".to_string());
                         builder
                             .set_header(["field", "value"])
                             .push_record(["type", "ZkLogin"])
-                            .push_record(["iss", z.inputs.get_iss()]);
+                            .push_record(["address", &address])
+                            .push_record(["iss", z.inputs.get_iss()])
+                            .push_record(["maxEpoch", &z.get_max_epoch().to_string()])
+                            .push_record(["addressSeed", &z.inputs.get_address_seed().to_string()]);
                     }
-                    DecodedSigOutput::Passkey(_p) => {
+                    DecodedSigOutput::Passkey(p) => {
+                        let address = p
+                            .get_pk()
+                            .map(|pk| IotaAddress::from(&pk).to_string())
+                            .unwrap_or_else(|_| "unknown".to_string());
+                        let client_data_json = p.client_data_json();
+                        let authenticator_data_hex =
+                            format!("0x{}", Hex::encode(p.authenticator_data()));
                         builder
                             .set_header(["field", "value"])
-                            .push_record(["type", "Passkey"]);
+                            .push_record(["type", "Passkey"])
+                            .push_record(["address", &address])
+                            .push_record(["clientDataJson", client_data_json])
+                            .push_record(["authenticatorData", &authenticator_data_hex]);
                     }
                     DecodedSigOutput::MoveAuthenticator {
                         call_arguments,
