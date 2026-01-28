@@ -104,6 +104,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 19;
 //             Enable Move-based account authentication in devnet.
 //             Increase the base cost for transfer receive object in devnet.
 //             Switch consensus protocol to Starfish in testnet.
+//             Enable passkey authentication support in mainnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2417,6 +2418,9 @@ impl ProtocolConfig {
                         // Switch consensus protocol to Starfish in testnet.
                         cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
                     }
+
+                    // Enable passkey authentication support in mainnet
+                    cfg.feature_flags.passkey_auth = true;
                 }
                 // Use this template when making changes:
                 //
