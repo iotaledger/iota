@@ -50,12 +50,12 @@ pub fn derive_id(
     // unwrap safe because all digests in Move are serialized from the Rust
     // `TransactionDigest`
     let digest = TransactionDigest::try_from(tx_hash.as_slice()).unwrap();
-    let address = ObjectID::derive_id(digest.into(), ids_created);
+    let object_id = ObjectID::derive_id(digest.into(), ids_created);
     let obj_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
-    obj_runtime.new_id(address.into())?;
+    obj_runtime.new_id(object_id.into())?;
 
     Ok(NativeResult::ok(
         context.gas_used(),
-        smallvec![Value::address(AccountAddress::new(address.into_bytes()))],
+        smallvec![Value::address(AccountAddress::new(object_id.into_bytes()))],
     ))
 }
