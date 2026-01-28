@@ -102,7 +102,7 @@ export async function createPasskeyWallet(
         await page.getByTestId('passkey-radio-platform').click();
     }
 
-    await page.getByRole('button', { name: /Create/ }).click();
+    await page.getByRole('button', { name: /Continue/ }).click();
 
     await page.getByTestId('password.input').fill('iotae2etests');
     await page.getByTestId('password.confirmation').fill('iotae2etests');
