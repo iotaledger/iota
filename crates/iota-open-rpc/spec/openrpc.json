@@ -28,7 +28,7 @@
           "name": "sender_address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -3322,7 +3322,7 @@
           "description": "the owner's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         }
       ],
@@ -3372,7 +3372,7 @@
           "description": "the owner's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -3493,7 +3493,7 @@
           "description": "the owner's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -3640,7 +3640,7 @@
           "description": "the owner's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -4222,7 +4222,7 @@
           "description": "the owner's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -4408,7 +4408,7 @@
           "name": "owner",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         }
       ],
@@ -4555,7 +4555,7 @@
           "name": "owner",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         }
       ],
@@ -4717,7 +4717,7 @@
           "name": "address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -4788,7 +4788,7 @@
           "description": "The address to resolve.",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         }
       ],
@@ -5118,7 +5118,7 @@
           "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -5177,7 +5177,7 @@
           "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -5234,7 +5234,7 @@
           "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -5328,7 +5328,7 @@
           "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -5349,7 +5349,7 @@
           "schema": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/IotaAddress"
+              "$ref": "#/components/schemas/Address"
             }
           }
         },
@@ -5402,7 +5402,7 @@
           "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -5421,7 +5421,7 @@
           "description": "the recipient address,",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -5455,7 +5455,7 @@
           "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -5476,7 +5476,7 @@
           "schema": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/IotaAddress"
+              "$ref": "#/components/schemas/Address"
             }
           }
         },
@@ -5522,7 +5522,7 @@
           "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -5585,7 +5585,7 @@
           "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -5611,7 +5611,7 @@
           "description": "the validator's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -5652,7 +5652,7 @@
           "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -5668,7 +5668,7 @@
           "description": "the validator's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -5710,7 +5710,7 @@
           "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -5759,7 +5759,7 @@
           "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -5809,7 +5809,7 @@
           "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -5869,7 +5869,7 @@
           "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -5926,7 +5926,7 @@
           "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -5950,7 +5950,7 @@
           "description": "the recipient's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -5983,7 +5983,7 @@
           "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         },
         {
@@ -6014,7 +6014,7 @@
           "description": "the recipient's IOTA address",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         }
       ],
@@ -6029,6 +6029,17 @@
   ],
   "components": {
     "schemas": {
+      "Address": {
+        "title": "Address",
+        "description": "A 32-byte IOTA address, encoded as a hex string.",
+        "examples": [
+          "0x0000000000000000000000000000000000000000000000000000000000000002"
+        ],
+        "type": "string",
+        "format": "hex",
+        "maxLength": 66,
+        "pattern": "0x[a-z0-9]{1,64}"
+      },
       "AddressMetrics": {
         "description": "Provides metrics about the addresses.",
         "type": "object",
@@ -6612,7 +6623,7 @@
             "description": "Validator's Address.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/IotaAddress"
+                "$ref": "#/components/schemas/Address"
               }
             ]
           }
@@ -6636,7 +6647,7 @@
             "$ref": "#/components/schemas/ObjectID"
           },
           "validatorAddress": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         }
       },
@@ -6684,7 +6695,7 @@
             "description": "The sponsor of the gas for the transaction, might be different from the sender.",
             "anyOf": [
               {
-                "$ref": "#/components/schemas/IotaAddress"
+                "$ref": "#/components/schemas/Address"
               },
               {
                 "type": "null"
@@ -7278,7 +7289,7 @@
             "description": "Sender's IOTA address.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/IotaAddress"
+                "$ref": "#/components/schemas/Address"
               }
             ]
           },
@@ -7313,7 +7324,7 @@
             ],
             "properties": {
               "Sender": {
-                "$ref": "#/components/schemas/IotaAddress"
+                "$ref": "#/components/schemas/Address"
               }
             },
             "additionalProperties": false
@@ -7677,7 +7688,7 @@
             "$ref": "#/components/schemas/BigInt_for_uint64"
           },
           "owner": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           },
           "payment": {
             "type": "array",
@@ -7858,9 +7869,6 @@
             "$ref": "#/components/schemas/IotaJwkId"
           }
         }
-      },
-      "IotaAddress": {
-        "$ref": "#/components/schemas/Hex"
       },
       "IotaArgument": {
         "description": "An argument to a transaction in a programmable transaction block",
@@ -8736,7 +8744,7 @@
             "description": "The target address that this name points to",
             "anyOf": [
               {
-                "$ref": "#/components/schemas/IotaAddress"
+                "$ref": "#/components/schemas/Address"
               },
               {
                 "type": "null"
@@ -8856,7 +8864,7 @@
             ],
             "properties": {
               "AddressOwner": {
-                "$ref": "#/components/schemas/IotaAddress"
+                "$ref": "#/components/schemas/Address"
               }
             },
             "additionalProperties": false
@@ -9063,7 +9071,7 @@
               "type": "array",
               "items": [
                 {
-                  "$ref": "#/components/schemas/IotaAddress"
+                  "$ref": "#/components/schemas/Address"
                 },
                 {
                   "$ref": "#/components/schemas/BigInt_for_uint64"
@@ -9315,12 +9323,12 @@
               "type": "array",
               "items": [
                 {
-                  "$ref": "#/components/schemas/IotaAddress"
+                  "$ref": "#/components/schemas/Address"
                 },
                 {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/IotaAddress"
+                    "$ref": "#/components/schemas/Address"
                   }
                 }
               ],
@@ -9394,7 +9402,7 @@
               "type": "array",
               "items": [
                 {
-                  "$ref": "#/components/schemas/IotaAddress"
+                  "$ref": "#/components/schemas/Address"
                 },
                 {
                   "$ref": "#/components/schemas/BigInt_for_uint64"
@@ -9661,12 +9669,12 @@
               "type": "array",
               "items": [
                 {
-                  "$ref": "#/components/schemas/IotaAddress"
+                  "$ref": "#/components/schemas/Address"
                 },
                 {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/IotaAddress"
+                    "$ref": "#/components/schemas/Address"
                   }
                 }
               ],
@@ -9961,7 +9969,7 @@
             "type": "string"
           },
           "iotaAddress": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           },
           "name": {
             "type": "string"
@@ -10370,7 +10378,7 @@
             "type": "boolean"
           },
           {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           },
           {
             "type": "array",
@@ -10708,7 +10716,7 @@
                 "$ref": "#/components/schemas/Owner"
               },
               "sender": {
-                "$ref": "#/components/schemas/IotaAddress"
+                "$ref": "#/components/schemas/Address"
               },
               "type": {
                 "type": "string",
@@ -10751,7 +10759,7 @@
                 "$ref": "#/components/schemas/SequenceNumber"
               },
               "sender": {
-                "$ref": "#/components/schemas/IotaAddress"
+                "$ref": "#/components/schemas/Address"
               },
               "type": {
                 "type": "string",
@@ -10782,7 +10790,7 @@
                 "type": "string"
               },
               "sender": {
-                "$ref": "#/components/schemas/IotaAddress"
+                "$ref": "#/components/schemas/Address"
               },
               "type": {
                 "type": "string",
@@ -10813,7 +10821,7 @@
                 "type": "string"
               },
               "sender": {
-                "$ref": "#/components/schemas/IotaAddress"
+                "$ref": "#/components/schemas/Address"
               },
               "type": {
                 "type": "string",
@@ -10852,7 +10860,7 @@
                 "$ref": "#/components/schemas/Owner"
               },
               "sender": {
-                "$ref": "#/components/schemas/IotaAddress"
+                "$ref": "#/components/schemas/Address"
               },
               "type": {
                 "type": "string",
@@ -11346,7 +11354,7 @@
             ],
             "properties": {
               "AddressOwner": {
-                "$ref": "#/components/schemas/IotaAddress"
+                "$ref": "#/components/schemas/Address"
               }
             },
             "additionalProperties": false
@@ -11359,7 +11367,7 @@
             ],
             "properties": {
               "ObjectOwner": {
-                "$ref": "#/components/schemas/IotaAddress"
+                "$ref": "#/components/schemas/Address"
               }
             },
             "additionalProperties": false
@@ -12244,7 +12252,7 @@
                 ]
               },
               "sender": {
-                "$ref": "#/components/schemas/IotaAddress"
+                "$ref": "#/components/schemas/Address"
               },
               "transaction": {
                 "$ref": "#/components/schemas/TransactionBlockKind"
@@ -12865,7 +12873,7 @@
             ],
             "properties": {
               "FromAddress": {
-                "$ref": "#/components/schemas/IotaAddress"
+                "$ref": "#/components/schemas/Address"
               }
             },
             "additionalProperties": false
@@ -12878,7 +12886,7 @@
             ],
             "properties": {
               "ToAddress": {
-                "$ref": "#/components/schemas/IotaAddress"
+                "$ref": "#/components/schemas/Address"
               }
             },
             "additionalProperties": false
@@ -12898,10 +12906,10 @@
                 ],
                 "properties": {
                   "from": {
-                    "$ref": "#/components/schemas/IotaAddress"
+                    "$ref": "#/components/schemas/Address"
                   },
                   "to": {
-                    "$ref": "#/components/schemas/IotaAddress"
+                    "$ref": "#/components/schemas/Address"
                   }
                 }
               }
@@ -12922,7 +12930,7 @@
                 ],
                 "properties": {
                   "addr": {
-                    "$ref": "#/components/schemas/IotaAddress"
+                    "$ref": "#/components/schemas/Address"
                   }
                 }
               }
@@ -13055,7 +13063,7 @@
             ],
             "properties": {
               "FromAddress": {
-                "$ref": "#/components/schemas/IotaAddress"
+                "$ref": "#/components/schemas/Address"
               }
             },
             "additionalProperties": false
@@ -13068,7 +13076,7 @@
             ],
             "properties": {
               "ToAddress": {
-                "$ref": "#/components/schemas/IotaAddress"
+                "$ref": "#/components/schemas/Address"
               }
             },
             "additionalProperties": false
@@ -13088,10 +13096,10 @@
                 ],
                 "properties": {
                   "from": {
-                    "$ref": "#/components/schemas/IotaAddress"
+                    "$ref": "#/components/schemas/Address"
                   },
                   "to": {
-                    "$ref": "#/components/schemas/IotaAddress"
+                    "$ref": "#/components/schemas/Address"
                   }
                 }
               }
@@ -13112,7 +13120,7 @@
                 ],
                 "properties": {
                   "addr": {
-                    "$ref": "#/components/schemas/IotaAddress"
+                    "$ref": "#/components/schemas/Address"
                   }
                 }
               }
@@ -13161,7 +13169,7 @@
             "$ref": "#/components/schemas/ObjectID"
           },
           "recipient": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           }
         }
       },
@@ -13227,7 +13235,7 @@
         ],
         "properties": {
           "address": {
-            "$ref": "#/components/schemas/IotaAddress"
+            "$ref": "#/components/schemas/Address"
           },
           "apy": {
             "type": "number",

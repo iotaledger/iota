@@ -126,7 +126,7 @@ fn test_serde() {
             id: ObjectID::random(),
         },
         IotaMoveValue::String("some test string".to_string()),
-        IotaMoveValue::Address(IotaAddress::random_for_testing_only()),
+        IotaMoveValue::Address(IotaAddress::random()),
         IotaMoveValue::Bool(true),
         IotaMoveValue::Option(Box::new(None)),
         IotaMoveValue::Vector(vec![
@@ -186,7 +186,7 @@ fn test_type_tag_struct_tag_devnet_inc_222() {
 
     for tag in offending_tags {
         let oc = ObjectChange::Created {
-            sender: Default::default(),
+            sender: IotaAddress::ZERO,
             owner: Owner::Immutable,
             object_type: parse_iota_struct_tag(tag).unwrap(),
             object_id: ObjectID::random(),

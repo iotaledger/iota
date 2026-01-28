@@ -18,6 +18,7 @@ use fastcrypto_zkp::bn254::{
 use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
 use iota_keys::keystore::{AccountKeystore, Keystore};
 use iota_sdk::IotaClientBuilder;
+use iota_sdk_types::crypto::Intent;
 use iota_types::{
     base_types::IotaAddress,
     committee::EpochId,
@@ -27,11 +28,10 @@ use iota_types::{
     transaction::Transaction,
     zk_login_authenticator::ZkLoginAuthenticator,
 };
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use regex::Regex;
 use reqwest::Client;
 use serde_json::json;
-use iota_sdk_types::crypto::Intent;
 
 /// Read a line from stdin, parse the id_token field and return.
 pub fn read_cli_line() -> Result<String, anyhow::Error> {
@@ -121,7 +121,7 @@ pub async fn perform_zk_login_test_tx(
         IotaAddress::from(&multisig_pk)
     } else {
         println!("Use single zklogin address as sender");
-        IotaAddress::try_from_unpadded(&zk_login_inputs)?
+        address_from_unpadded_zklogin_inputs(&zk_login_inputs)?
     };
     println!("Sender: {:?}", sender);
 

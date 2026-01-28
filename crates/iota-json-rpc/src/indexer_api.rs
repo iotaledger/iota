@@ -39,7 +39,7 @@ use jsonrpsee::{
     core::{RpcResult, SubscriptionResult},
 };
 use move_bytecode_utils::layout::TypeLayoutBuilder;
-use move_core_types::language_storage::TypeTag;
+use move_core_types::{account_address::AccountAddress, language_storage::TypeTag};
 use serde::Serialize;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tracing::{debug, instrument};
@@ -603,7 +603,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
     ) -> RpcResult<ObjectsPage> {
         let query = IotaObjectResponseQuery {
             filter: Some(IotaObjectDataFilter::StructType(NameRegistration::type_(
-                self.iota_names_config.package_address.into(),
+                AccountAddress::new(self.iota_names_config.package_address.into_bytes()),
             ))),
             options,
         };

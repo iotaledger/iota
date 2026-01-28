@@ -52,7 +52,7 @@ async fn execute_transaction_readmask_scenarios() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = iota_types::base_types::IotaAddress::random();
     let amount = 9;
 
     // Tests for readmask scenarios
@@ -139,7 +139,7 @@ async fn execute_transaction_invalid_bcs() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = iota_types::base_types::IotaAddress::random();
     let amount = 9;
 
     // Create a valid transaction to get real signatures
@@ -183,7 +183,7 @@ async fn execute_transaction_invalid_signatures() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = iota_types::base_types::IotaAddress::random();
     let amount = 9;
 
     let txn =
@@ -219,7 +219,7 @@ async fn execute_transaction_empty_request() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = iota_types::base_types::IotaAddress::random();
     let amount = 9;
 
     // Create a valid transaction to get real signatures
