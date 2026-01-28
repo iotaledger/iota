@@ -282,7 +282,7 @@ fn resolve_unresolved_transaction(
     max_gas_budget: u64,
     unresolved_transaction: UnresolvedTransaction,
 ) -> Result<TransactionData> {
-    let sender = unresolved_transaction.sender.into();
+    let sender = unresolved_transaction.sender;
     let gas_data = if let Some(unresolved_gas_payment) = unresolved_transaction.gas_payment {
         let payment = unresolved_gas_payment
             .objects
@@ -291,7 +291,7 @@ fn resolve_unresolved_transaction(
             .collect::<Result<Vec<_>>>()?;
         GasData {
             payment,
-            owner: unresolved_gas_payment.owner.into(),
+            owner: unresolved_gas_payment.owner,
             price: unresolved_gas_payment.price.unwrap_or(reference_gas_price),
             budget: unresolved_gas_payment.budget.unwrap_or(max_gas_budget),
         }

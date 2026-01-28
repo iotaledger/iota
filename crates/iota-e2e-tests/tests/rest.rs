@@ -27,7 +27,7 @@ async fn execute_transaction_transfer() {
     let test_cluster = TestClusterBuilder::new().build().await;
 
     let client = Client::new(test_cluster.rpc_url());
-    let address = IotaAddress::random_for_testing_only();
+    let address = IotaAddress::random();
     let amount = 9;
 
     let txn =
@@ -70,7 +70,7 @@ async fn resolve_transaction_simple_transfer() {
     let test_cluster = TestClusterBuilder::new().build().await;
 
     let client = Client::new(test_cluster.rpc_url());
-    let recipient = IotaAddress::random_for_testing_only();
+    let recipient = IotaAddress::random();
 
     let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
     gas.sort_by_key(|object_ref| object_ref.0);
@@ -93,7 +93,7 @@ async fn resolve_transaction_simple_transfer() {
                 address: Argument::Input(1),
             })],
         },
-        sender: sender.into(),
+        sender,
         gas_payment: None,
         expiration: TransactionExpiration::None,
     };
@@ -135,7 +135,7 @@ async fn resolve_transaction_transfer_with_sponsor() {
     let test_cluster = TestClusterBuilder::new().build().await;
 
     let client = Client::new(test_cluster.rpc_url());
-    let recipient = IotaAddress::random_for_testing_only();
+    let recipient = IotaAddress::random();
 
     let (sender, gas) = test_cluster.wallet.get_one_account().await.unwrap();
     let obj_to_send = gas.first().unwrap().0;
@@ -158,10 +158,10 @@ async fn resolve_transaction_transfer_with_sponsor() {
                 address: Argument::Input(1),
             })],
         },
-        sender: sender.into(),
+        sender,
         gas_payment: Some(UnresolvedGasPayment {
             objects: vec![],
-            owner: sponsor.into(),
+            owner: sponsor,
             price: None,
             budget: None,
         }),
@@ -238,7 +238,7 @@ async fn resolve_transaction_borrowed_shared_object() {
                 arguments: vec![Argument::Input(0)],
             })],
         },
-        sender: sender.into(),
+        sender,
         gas_payment: None,
         expiration: TransactionExpiration::None,
     };
@@ -316,7 +316,7 @@ async fn resolve_transaction_mutable_shared_object() {
                 arguments: vec![Argument::Input(0), Argument::Input(1), Argument::Input(2)],
             })],
         },
-        sender: sender.into(),
+        sender,
         gas_payment: None,
         expiration: TransactionExpiration::None,
     };
@@ -374,7 +374,7 @@ async fn resolve_transaction_insufficient_gas() {
                 arguments: vec![Argument::Input(0)],
             })],
         },
-        sender: IotaAddress::random_for_testing_only().into(), // random account with no gas
+        sender: IotaAddress::random(), // random account with no gas
         gas_payment: None,
         expiration: TransactionExpiration::None,
     };

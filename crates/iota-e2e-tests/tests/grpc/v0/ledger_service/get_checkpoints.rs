@@ -152,7 +152,7 @@ async fn test_event_filtering() {
         filter: Some(grpc_filter::event_filter::Filter::Sender(
             grpc_filter::AddressFilter {
                 address: Some(grpc_types::Address {
-                    address: sender_1.to_vec().into(),
+                    address: sender_1.as_bytes().to_vec().into(),
                 }),
             },
         )),
