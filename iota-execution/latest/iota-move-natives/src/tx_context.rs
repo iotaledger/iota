@@ -131,7 +131,7 @@ pub fn sender(
 
     Ok(NativeResult::ok(
         context.gas_used(),
-        smallvec![Value::address(sender.into())],
+        smallvec![Value::address(AccountAddress::new(sender.into_bytes()))],
     ))
 }
 
@@ -270,7 +270,7 @@ pub fn sponsor(
     let transaction_context: &mut TransactionContext = context.extensions_mut().get_mut()?;
     let sponsor = transaction_context
         .sponsor()
-        .map(|addr| addr.into())
+        .map(|addr| AccountAddress::new(addr.into_bytes()))
         .into_iter();
     let sponsor = Value::vector_address(sponsor);
     Ok(NativeResult::ok(context.gas_used(), smallvec![sponsor]))

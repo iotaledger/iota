@@ -473,7 +473,7 @@ async fn execute_move_fn(cluster: &TestCluster) -> Result<(), anyhow::Error> {
 }
 
 fn execute_simulacrum_transaction(sim: &mut Simulacrum) {
-    let transfer_recipient = IotaAddress::random_for_testing_only();
+    let transfer_recipient = IotaAddress::random();
     let (transaction, _) = sim.transfer_txn(transfer_recipient);
     sim.execute_transaction(transaction).unwrap();
 }

@@ -451,7 +451,7 @@ pub(super) fn create_migration_context(
     protocol_config: &ProtocolConfig,
 ) -> Rc<RefCell<TxContext>> {
     let tx_ctx = TxContext::new(
-        &IotaAddress::default(),
+        &IotaAddress::ZERO,
         &target_network.migration_transaction_digest(coin_type),
         &EpochData::new_genesis(0),
         0,
@@ -481,8 +481,8 @@ mod tests {
 
     #[test]
     fn migration_objects_get_timelocks() {
-        let owner = IotaAddress::random_for_testing_only();
-        let address = IotaAddress::random_for_testing_only();
+        let owner = IotaAddress::random();
+        let address = IotaAddress::random();
         let tx_context = TxContext::random_for_testing_only();
         let expected_timelocks = (0..4)
             .map(|_| TimeLock::new(UID::new(ObjectID::random()), Balance::new(0), 0, None))
@@ -538,8 +538,8 @@ mod tests {
 
     #[test]
     fn migration_objects_get_gas_coins() {
-        let owner = IotaAddress::random_for_testing_only();
-        let address = IotaAddress::random_for_testing_only();
+        let owner = IotaAddress::random();
+        let address = IotaAddress::random();
         let tx_context = TxContext::random_for_testing_only();
         let non_matching_timelocks = (0..8)
             .map(|_| TimeLock::new(UID::new(ObjectID::random()), Balance::new(0), 0, None))

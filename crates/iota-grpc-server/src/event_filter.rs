@@ -258,13 +258,13 @@ mod tests {
     #[test]
     fn test_event_filter_depth_validation() {
         // Simple atomic filter should pass
-        let simple_filter = EventFilter::Sender(IotaAddress::random_for_testing_only());
+        let simple_filter = EventFilter::Sender(IotaAddress::random());
         assert!(simple_filter.validate_depth().is_ok());
         assert_eq!(simple_filter.max_depth(), 0);
 
         // Nested filter within limits should pass
         let nested_filter = EventFilter::All(vec![
-            EventFilter::Sender(IotaAddress::random_for_testing_only()),
+            EventFilter::Sender(IotaAddress::random()),
             EventFilter::Any(vec![
                 EventFilter::MovePackageAndModule {
                     package: ObjectID::random(),
@@ -282,7 +282,7 @@ mod tests {
         assert_eq!(nested_filter.max_depth(), 3); // All -> Any -> Not = 3 levels
 
         // Deeply nested filter should fail
-        let mut deep_filter = EventFilter::Sender(IotaAddress::random_for_testing_only());
+        let mut deep_filter = EventFilter::Sender(IotaAddress::random());
         for _ in 0..=10 {
             // MAX_FILTER_DEPTH
             deep_filter = EventFilter::Not(Box::new(deep_filter));

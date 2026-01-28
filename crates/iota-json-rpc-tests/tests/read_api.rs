@@ -1564,7 +1564,7 @@ async fn try_get_past_object_deleted() {
                     package_id,
                     "object_basics",
                     "create",
-                    vec![1u64.into(), CallArg::Pure(address.to_vec())],
+                    vec![1u64.into(), CallArg::Pure(address.as_bytes().to_vec())],
                 )
                 .build(),
         )

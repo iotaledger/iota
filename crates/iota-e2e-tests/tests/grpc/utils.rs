@@ -79,7 +79,7 @@ pub fn object_id_from_hex(hex: &str) -> ProtoObjectId {
 
 /// Helper to create a proto `Address` from an `IotaAddress`.
 pub fn address_proto(addr: IotaAddress) -> ProtoAddress {
-    ProtoAddress::default().with_address(addr.to_vec())
+    ProtoAddress::default().with_address(addr.into_bytes().to_vec())
 }
 
 /// Publish an example Move package from the `iota-test-transaction-builder`

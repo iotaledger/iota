@@ -460,7 +460,7 @@ fn test_basic_args_linter_top_level() {
     let foo_id = ObjectID::random();
     let bar_id = ObjectID::random();
     let baz_id = ObjectID::random();
-    let recipient_addr = IotaAddress::random_for_testing_only();
+    let recipient_addr = IotaAddress::random();
 
     let foo = json!(foo_id.to_canonical_string(/* with_prefix */ true));
     let bar = json!([

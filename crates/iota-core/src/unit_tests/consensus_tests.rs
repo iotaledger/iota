@@ -86,7 +86,7 @@ pub async fn test_certificates(
             vec![
                 CallArg::Object(shared_object_arg),
                 CallArg::Pure(16u64.to_le_bytes().to_vec()),
-                CallArg::Pure(bcs::to_bytes(&AccountAddress::from(sender)).unwrap()),
+                CallArg::Pure(bcs::to_bytes(&AccountAddress::new(sender.into_bytes())).unwrap()),
             ],
             rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
             rgp,

@@ -842,7 +842,7 @@ async fn test_zklogin_caching_scenarios() {
     let zklogin_json_string =
         &get_one_zklogin_inputs("../iota-types/src/unit_tests/zklogin_test_vectors.json");
     let bad_zklogin_inputs = ZkLoginInputs::from_json(zklogin_json_string, "111").unwrap();
-    let sender = IotaAddress::try_from_unpadded(&bad_zklogin_inputs).unwrap();
+    let sender = address_from_unpadded_zklogin_inputs(&bad_zklogin_inputs).unwrap();
 
     let mut txn4 = init_zklogin_transfer(
         &authority_state,
@@ -962,7 +962,7 @@ async fn setup_zklogin_network(
     };
 
     // a single zklogin address.
-    let sender = IotaAddress::try_from_unpadded(zklogin)?;
+    let sender = address_from_unpadded_zklogin_inputs(zklogin)?;
 
     // a 1-out-2 multisig address.
     let zklogin_pk = PublicKey::ZkLogin(ZkLoginPublicIdentifier::new(
@@ -1154,7 +1154,7 @@ async fn test_zklogin_txn_fail_if_missing_jwk() {
         IotaKeyPair::Ed25519(kp) => kp,
         _ => panic!(),
     };
-    let sender = IotaAddress::try_from_unpadded(zklogin).unwrap();
+    let sender = address_from_unpadded_zklogin_inputs(zklogin).unwrap();
     let recipient = dbg_addr(2);
     let objects: Vec<_> = (0..10).map(|_| (sender, ObjectID::random())).collect();
     let gas_objects: Vec<_> = (0..10).map(|_| (sender, ObjectID::random())).collect();
@@ -2257,9 +2257,9 @@ async fn test_handle_soft_bundle_certificates_errors() {
 fn sender_signed_data_serialized_intent() {
     let mut txn = SenderSignedData::new(
         TransactionData::new_transfer(
-            IotaAddress::default(),
+            IotaAddress::ZERO,
             random_object_ref(),
-            IotaAddress::default(),
+            IotaAddress::ZERO,
             random_object_ref(),
             0,
             0,

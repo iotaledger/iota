@@ -8,8 +8,7 @@ use super::super::utils::setup_grpc_test;
 
 /// Get the first wallet address from a test cluster.
 fn first_sender(cluster: &test_cluster::TestCluster) -> Address {
-    let iota_addr = cluster.wallet.get_addresses().first().copied().unwrap();
-    Address::new(iota_addr.to_inner())
+    cluster.wallet.get_addresses().first().copied().unwrap()
 }
 
 // ==========================================================================

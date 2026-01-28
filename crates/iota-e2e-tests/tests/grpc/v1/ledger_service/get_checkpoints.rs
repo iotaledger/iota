@@ -116,8 +116,9 @@ async fn test_event_filtering() {
 
     // Define event filters for later use
     let sender_filter = grpc_filter::EventFilter::default().with_sender(
-        grpc_filter::AddressFilter::default()
-            .with_address(grpc_types::Address::default().with_address(sender_1.to_vec())),
+        grpc_filter::AddressFilter::default().with_address(
+            grpc_types::Address::default().with_address(sender_1.as_bytes().to_vec()),
+        ),
     );
 
     let nft_filter = grpc_filter::EventFilter::default().with_move_event_type(
@@ -201,7 +202,7 @@ async fn test_event_filtering() {
                         // Verify sender filter logic: only events from sender_1
                         assert_eq!(
                             event.sender.as_ref().unwrap().address.as_ref(),
-                            sender_1.as_ref(),
+                            sender_1.as_bytes(),
                             "SenderFilter should only match sender_1 events"
                         );
 
@@ -289,11 +290,18 @@ async fn test_event_filtering() {
                         assert!(event.bcs_contents.is_some());
 
                         // Verify AnyEventFilter logic: events from sender_1 and NFT events
+                        let sender_matches = event
+                            .sender
+                            .as_ref()
+                            .map(|s| s.address.as_ref() == sender_1.as_bytes())
+                            .unwrap_or(false);
+                        let nft_package_matches = event
+                            .package_id
+                            .as_ref()
+                            .map(|p| p.object_id.as_ref() == nft_package_id.as_ref())
+                            .unwrap_or(false);
                         assert!(
-                            (event.sender.as_ref().map(|s| &s.address)
-                                == Some(&sender_1.as_ref().to_vec().into()))
-                                || (event.package_id.as_ref().map(|p| &p.object_id)
-                                    == Some(&nft_package_id.as_ref().to_vec().into())),
+                            sender_matches || nft_package_matches,
                             "AnyEventFilter should receive events from both events: {:?}",
                             event.package_id.as_ref().map(|p| &p.object_id)
                         );

@@ -255,8 +255,8 @@ mod tests {
 
     fn random_request(coin: ObjectRef) -> (IotaAddress, TransactionData) {
         let gas_price = 1;
-        let send = IotaAddress::random_for_testing_only();
-        let recv = IotaAddress::random_for_testing_only();
+        let send = IotaAddress::random();
+        let recv = IotaAddress::random();
         (
             recv,
             TransactionData::new_pay_iota(

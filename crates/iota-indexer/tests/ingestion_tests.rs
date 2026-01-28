@@ -86,7 +86,7 @@ mod ingestion_tests {
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random_for_testing_only();
+        let transfer_recipient = IotaAddress::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -137,7 +137,7 @@ mod ingestion_tests {
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random_for_testing_only();
+        let transfer_recipient = IotaAddress::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -193,7 +193,7 @@ mod ingestion_tests {
         let mut last_transaction = None;
         let total_checkpoint_sequence_number = 7usize;
         for _ in 0..total_checkpoint_sequence_number {
-            let transfer_recipient = IotaAddress::random_for_testing_only();
+            let transfer_recipient = IotaAddress::random();
             let (transaction, _) = sim.transfer_txn(transfer_recipient);
             let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
             assert!(err.is_none());
@@ -255,7 +255,10 @@ mod ingestion_tests {
             max_expected_checkpoint_sequence_number as i64
         );
         assert_eq!(snapshot_object.owner_type, Some(1));
-        assert_eq!(snapshot_object.owner_id, Some(gas_owner_id.to_vec()));
+        assert_eq!(
+            snapshot_object.owner_id.as_deref(),
+            Some(gas_owner_id.as_bytes())
+        );
         Ok(())
     }
 
@@ -266,7 +269,7 @@ mod ingestion_tests {
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random_for_testing_only();
+        let transfer_recipient = IotaAddress::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -322,7 +325,7 @@ mod ingestion_tests {
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random_for_testing_only();
+        let transfer_recipient = IotaAddress::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -461,7 +464,7 @@ mod ingestion_tests {
         let data_ingestion_path = tempdir().unwrap().keep();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
-        let transfer_recipient = IotaAddress::random_for_testing_only();
+        let transfer_recipient = IotaAddress::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -508,7 +511,7 @@ mod ingestion_tests {
         let data_ingestion_path = tempdir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
-        let transfer_recipient = IotaAddress::random_for_testing_only();
+        let transfer_recipient = IotaAddress::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());

@@ -132,7 +132,7 @@ async fn simulate_transaction_zero_gas_budget_uses_max() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = iota_types::base_types::IotaAddress::random();
 
     let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
     gas.sort_by_key(|object_ref| object_ref.0);
@@ -192,7 +192,7 @@ async fn simulate_transaction_below_min_gas_budget_returns_error() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = iota_types::base_types::IotaAddress::random();
 
     let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
     gas.sort_by_key(|object_ref| object_ref.0);
@@ -639,7 +639,7 @@ async fn simulate_transaction_batch() {
 
     // Build two distinct simulation transactions
     let tx_data1 = TransactionData::new_transfer(
-        iota_types::base_types::IotaAddress::random_for_testing_only(),
+        iota_types::base_types::IotaAddress::random(),
         *obj,
         sender,
         *gas_obj,
@@ -647,7 +647,7 @@ async fn simulate_transaction_batch() {
         1000,
     );
     let tx_data2 = TransactionData::new_transfer(
-        iota_types::base_types::IotaAddress::random_for_testing_only(),
+        iota_types::base_types::IotaAddress::random(),
         *obj,
         sender,
         *gas_obj,
@@ -701,7 +701,7 @@ async fn simulate_transaction_batch_partial_failure() {
 
     // First item: valid transaction
     let tx_data = TransactionData::new_transfer(
-        iota_types::base_types::IotaAddress::random_for_testing_only(),
+        iota_types::base_types::IotaAddress::random(),
         *obj,
         sender,
         *gas_obj,

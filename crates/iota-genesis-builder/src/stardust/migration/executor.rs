@@ -252,7 +252,7 @@ impl Executor {
                 // not have the drop ability.
                 //
                 // We ignore it in the genesis, to render the package immutable.
-                builder.transfer_arg(Default::default(), upgrade_cap);
+                builder.transfer_arg(IotaAddress::ZERO, upgrade_cap);
                 builder.finish()
             };
             let InnerTemporaryStore { written, .. } = self.execute_pt_unmetered(deps, pt)?;
@@ -454,7 +454,7 @@ impl Executor {
             // Nevertheless, we only store the contents of the object, and thus the
             // ownership metadata are irrelevant to us. This is a dummy transfer
             // then to satisfy the VM.
-            builder.transfer_arg(Default::default(), bag);
+            builder.transfer_arg(IotaAddress::ZERO, bag);
             builder.finish()
         };
         let checked_input_objects = CheckedInputObjects::new_for_genesis(

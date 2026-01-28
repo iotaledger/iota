@@ -112,7 +112,7 @@ impl TryFrom<IndexedObject> for StoredObjectSnapshot {
             object_digest: Some(object.digest().into_inner().to_vec()),
             checkpoint_sequence_number,
             owner_type: Some(owner_type as i16),
-            owner_id: owner_id.map(|id| id.to_vec()),
+            owner_id: owner_id.map(|id| id.as_bytes().to_vec()),
             object_type: object
                 .type_()
                 .map(|t| t.to_canonical_string(/* with_prefix */ true)),
@@ -279,7 +279,7 @@ impl TryFrom<IndexedObject> for StoredHistoryObject {
             object_digest: Some(object.digest().into_inner().to_vec()),
             checkpoint_sequence_number,
             owner_type: Some(owner_type as i16),
-            owner_id: owner_id.map(|id| id.to_vec()),
+            owner_id: owner_id.map(|id| id.as_bytes().to_vec()),
             object_type: object
                 .type_()
                 .map(|t| t.to_canonical_string(/* with_prefix */ true)),
@@ -365,7 +365,7 @@ impl From<IndexedObject> for StoredObject {
             object_version: object.version().as_u64() as i64,
             object_digest: object.digest().into_inner().to_vec(),
             owner_type: owner_type as i16,
-            owner_id: owner_id.map(|id| id.to_vec()),
+            owner_id: owner_id.map(|id| id.as_bytes().to_vec()),
             object_type: object
                 .type_()
                 .map(|t| t.to_canonical_string(/* with_prefix */ true)),
@@ -602,6 +602,7 @@ impl TryFrom<CoinBalance> for Balance {
 mod tests {
     use iota_types::{
         Identifier, TypeTag,
+        base_types::IotaAddress,
         coin::Coin,
         digests::TransactionDigest,
         gas_coin::{GAS, GasCoin},
@@ -686,10 +687,10 @@ mod tests {
             .unwrap(),
         );
 
-        let owner = AccountAddress::from_hex_literal("0x1").unwrap();
+        let owner = IotaAddress::STD;
 
         let object = ObjectInner {
-            owner: Owner::AddressOwner(owner.into()),
+            owner: Owner::AddressOwner(owner),
             data,
             previous_transaction: TransactionDigest::genesis_marker(),
             storage_rebate: 0,
