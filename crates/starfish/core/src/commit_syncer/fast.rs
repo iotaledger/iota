@@ -867,7 +867,6 @@ mod tests {
                 protocol_config.clone(),
                 parameters,
                 0,
-                vec![],
             )
             .await;
             boot_counters[index] += 1;
@@ -969,7 +968,6 @@ mod tests {
             protocol_config.clone(),
             parameters,
             last_processed_a,
-            vec![],
         )
         .await;
         boot_counters[validator_a_index] += 1;
@@ -1040,7 +1038,6 @@ mod tests {
             protocol_config.clone(),
             parameters,
             last_processed_b,
-            vec![],
         )
         .await;
         output_receivers[validator_b_index] = receiver;
@@ -1246,7 +1243,6 @@ async fn test_fast_sync_with_pending_subdags() {
                 protocol_config.clone(),
                 parameters,
                 0,
-                vec![],
             )
             .await;
             boot_counters[index] += 1;
@@ -1255,10 +1251,19 @@ async fn test_fast_sync_with_pending_subdags() {
             consumer_monitors.push(monitor);
         }
 
-        // Let all authorities run and commit transactions
+        // Phase 1: Let all authorities run, submit transactions, and commit
+        info!("Phase 1: Running all authorities for initial commits with transactions");
+        let mut txn_counter = 0u64;
         let start_time = Instant::now();
         let mut committed_index = [0u32; NUM_AUTHORITIES];
         while start_time.elapsed() < stable_work_duration {
+            // Submit transactions to all validators to ensure blocks have content
+            for authority in authorities.iter() {
+                let txn = vec![txn_counter as u8; 16];
+                let _ = authority.transaction_client().submit(vec![txn]).await;
+                txn_counter += 1;
+            }
+
             for (index, receiver) in output_receivers.iter_mut().enumerate() {
                 while let Ok(committed_subdag) = receiver.try_recv() {
                     let commit_index = committed_subdag.commit_ref.index;
@@ -1305,39 +1310,68 @@ async fn test_fast_sync_with_pending_subdags() {
         {
             info!("Failed to stop shard reconstructor: {:?}", e);
         }
+        // Also stop commit syncers to prevent fetching transactions via RPC
+        authorities[test_validator_index]
+            .stop_regular_commit_syncer_for_test()
+            .await;
+        authorities[test_validator_index]
+            .stop_fast_commit_syncer_for_test()
+            .await;
 
         // Phase 3: Wait for headers to arrive via cordial dissemination and commits to
-        // be created This should create pending subdags (gap between
+        // be created. Submit transactions to validators 2 & 3 (not 1, which is blocked)
+        // This should create pending subdags (gap between
         // last_commit and last_solid_commit_leader_round)
         info!("Phase 3: Waiting for headers and commits (creating pending subdags)");
 
         // Track commits before the wait
         let commits_before = committed_index[test_validator_index];
 
-        sleep(Duration::from_secs(5)).await;
+        // Submit transactions continuously during Phase 3 to the blocked validator
+        // Validator 0 won't be able to fetch these transactions because:
+        // - It's unsubscribed from validator 1
+        // - Transaction synchronizer is stopped
+        // - Shard reconstructor is stopped
+        // - Commit syncers are stopped
+        let phase3_start = Instant::now();
+        while phase3_start.elapsed() < stable_work_duration {
+            // Submit transactions only to the blocked validator (1)
+            // These will end up in validator 1's blocks, which validator 0 can't fetch
+            let txn = vec![txn_counter as u8; 16];
+            let _ = authorities[blocked_validator_index].transaction_client().submit(vec![txn]).await;
+            txn_counter += 1;
 
-        // Drain receivers to process any commits that arrived
-        for (index, receiver) in output_receivers.iter_mut().enumerate() {
-            while let Ok(committed_subdag) = receiver.try_recv() {
-                let commit_index = committed_subdag.commit_ref.index;
-                if commit_index > committed_index[index] {
-                    committed_index[index] = commit_index;
-                    consumer_monitors[index].set_highest_handled_commit(commit_index);
+            // Drain receivers
+            for (index, receiver) in output_receivers.iter_mut().enumerate() {
+                while let Ok(committed_subdag) = receiver.try_recv() {
+                    let commit_index = committed_subdag.commit_ref.index;
+                    if commit_index > committed_index[index] {
+                        committed_index[index] = commit_index;
+                        consumer_monitors[index].set_highest_handled_commit(commit_index);
+                    }
                 }
             }
+            sleep(Duration::from_millis(50)).await;
         }
 
         let commits_after = committed_index[test_validator_index];
-        info!(
-            "Phase 3: Validator {} commits: before={}, after={}, new_commits={}",
-            test_validator_index, commits_before, commits_after, commits_after - commits_before
+        let new_commits = commits_after - commits_before;
+        assert!(
+            new_commits > 0,
+            "Expected new commits during Phase 3, got 0"
         );
+        info!("Phase 3: new_commits={}", new_commits);
 
         // Verify pending subdags gap exists
         let dag_state = authorities[test_validator_index].dag_state_for_test();
         let last_commit = dag_state.read().last_commit_round();
         let last_solid = dag_state.read().last_solid_commit_leader_round();
         let last_commit_index = dag_state.read().last_commit_index();
+        let dag_round = dag_state.read().threshold_clock_round();
+        info!(
+            "Phase 3: DAG round = {}, commits = {}, last_solid = {:?}",
+            dag_round, last_commit, last_solid
+        );
 
         // Check metrics for pending subdags
         let metrics = authorities[test_validator_index].context();
@@ -1355,18 +1389,13 @@ async fn test_fast_sync_with_pending_subdags() {
 
         // Verify gap exists - we expect pending subdags
         let has_gap = last_commit > last_solid.unwrap_or(0);
-
-        if !has_gap {
-            info!(
-                "⚠️  WARNING: No pending subdags gap created (last_commit={}, last_solid={:?}). This likely means transactions are still being obtained despite blocking validator {} and stopping txn sync/shard reconstructor. The test will continue to verify fast sync behavior without pre-existing pending subdags.",
-                last_commit, last_solid, blocked_validator_index
-            );
-    } else {
-            info!(
-                "✓ Pending subdags gap verified: last_commit={} > last_solid={:?}",
-                last_commit, last_solid
-            );
-        }
+        assert!(
+            has_gap,
+            "Expected pending subdags gap: last_commit={}, last_solid={:?}. \
+             DAG round={}, new_commits={}. \
+             Validator 1's new blocks should have missing transactions.",
+            last_commit, last_solid, dag_round, new_commits
+        );
 
         // Record where validator is now (with pending subdags)
         let last_processed_with_pending =
@@ -1446,7 +1475,6 @@ async fn test_fast_sync_with_pending_subdags() {
             protocol_config.clone(),
             parameters,
             last_processed_with_pending,
-            vec![], // Full connectivity now
         )
         .await;
         boot_counters[test_validator_index] += 1;

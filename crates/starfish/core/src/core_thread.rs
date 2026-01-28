@@ -777,8 +777,4 @@ pub(crate) mod tests {
     }
 }
 
-#[cfg(test)]
-use parking_lot::RwLock;
-#[cfg(test)]
-use crate::dag_state::DagState;
 
