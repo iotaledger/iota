@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { z } from 'zod';
 
 const HEX_REGEX = /^0x[0-9a-fA-F]+$/;

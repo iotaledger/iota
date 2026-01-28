@@ -143,6 +143,7 @@ members = [
   "crates/iota-snapshot",
   "crates/iota-source-validation",
   "crates/iota-source-validation-service",
+  "crates/iota-stardust-types",
   "crates/iota-storage",
   "crates/iota-surfer",
   "crates/iota-swarm",
@@ -266,7 +267,7 @@ crossterm = "0.25.0"
 csv = "1.2.1"
 dashmap = "5.5.3"
 datatest-stable = { git = "https://github.com/nextest-rs/datatest-stable.git", rev = "72db7f6d1bbe36a5407e96b9488a581f763e106f" }
-derive_more = "1.0"
+derive_more = { version = "1.0", default-features = false }
 diesel = "2.3.5"
 diffy = { version = "0.3" }
 dirs = "5.0"
@@ -283,6 +284,7 @@ fastcrypto-zkp = { git = "https://github.com/MystenLabs/fastcrypto", rev = "69d4
 flate2 = "1.0.28"
 fs_extra = "1.3.0"
 futures = "0.3.28"
+getset = "0.1"
 git-version = "0.3.5"
 hdrhistogram = "7.5.1"
 hex = "0.4.3"
@@ -315,13 +317,15 @@ num_enum = "0.7"
 object_store = { version = "0.10", features = ["aws", "gcp", "azure", "http"] }
 once_cell = "1.18.0"
 p256 = { version = "0.13.2", features = ["ecdsa"] }
-packable = { version = "0.8", features = ["io"], default-features = false }
+packable = { version = "0.8.3", features = ["io"], default-features = false }
 parking_lot = { version = "0.12.3", features = ["arc_lock"] }
 passkey-authenticator = "0.4.0"
 passkey-client = "0.4.0"
 passkey-types = "0.4.0"
 pin-project-lite = "0.2.15"
-pretty_assertions = "1.3.0"
+prefix-hex = { version = "0.7.1", default-features = false }
+pretty_assertions = { version = "1.4.0" }
+primitive-types = { version = "0.12.2", default-features = false }
 proc-macro2 = "1.0.95"
 prometheus = "0.14.0"
 proptest = "1.6.0"
@@ -457,6 +461,7 @@ iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
 iota-source-validation-service = { path = "crates/iota-source-validation-service" }
+iota-stardust-types = { path = "crates/iota-stardust-types" }
 iota-storage = { path = "crates/iota-storage" }
 iota-surfer = { path = "crates/iota-surfer" }
 iota-swarm = { path = "crates/iota-swarm" }

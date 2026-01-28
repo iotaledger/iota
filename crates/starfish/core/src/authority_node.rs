@@ -792,6 +792,7 @@ mod tests {
         //   which will make authority 1 retry during amnesia recovery until it has
         //   finally managed to successfully get back 2f+1 responses, once authority 2
         //   is up and running again.
+        sleep(Duration::from_secs(1)).await;
         authorities.remove(&index_1).unwrap().stop().await;
         // We wait for the rest of the authorities to create some blocks without
         // authority 1.
@@ -805,10 +806,11 @@ mod tests {
         // Authority 1: create a new directory to simulate amnesia. The node will
         // attempt to synchronize the last own block and recover from there. It
         // won't be able to do that successfully as authority 2 is still down.
+        // We don't expect any output while there is no quorum.
         let dir = TempDir::new().unwrap();
         // We do reset the boot counter for this one to simulate a "binary" restart
         boot_counters[index_1] = 0;
-        let (authority, mut receiver_1, _) = make_authority(
+        let (authority, receiver_1, _) = make_authority(
             index_1,
             &dir,
             committee.clone(),
@@ -821,6 +823,7 @@ mod tests {
             authority.sync_last_known_own_block_enabled(),
             "Authority should have the sync of last own block enabled"
         );
+        output_receivers[index_1] = receiver_1;
         boot_counters[index_1] += 1;
         authorities.insert(index_1, authority);
         temp_dirs.insert(index_1, dir);
@@ -858,7 +861,7 @@ mod tests {
         // We wait until we see at least one committed block authored from this
         // authority
         let received_from_authority_1 = timeout(Duration::from_secs(10), async {
-            'outer: while let Some(result) = receiver_1.recv().await {
+            'outer: while let Some(result) = output_receivers[index_1].recv().await {
                 for header in &result.headers {
                     if header.round() > GENESIS_ROUND && header.author() == index_1 {
                         break 'outer;
