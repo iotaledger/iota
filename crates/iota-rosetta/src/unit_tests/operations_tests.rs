@@ -20,12 +20,12 @@ async fn test_operation_data_parsing() -> Result<(), anyhow::Error> {
         ObjectDigest::random(),
     );
 
-    let sender = IotaAddress::random_for_testing_only();
+    let sender = IotaAddress::random();
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
-            .pay_iota(vec![IotaAddress::random_for_testing_only()], vec![10000])
+            .pay_iota(vec![IotaAddress::random()], vec![10000])
             .unwrap();
         builder.finish()
     };

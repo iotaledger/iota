@@ -98,7 +98,7 @@ pub fn create_object_move_transaction(
     // which will own the object
     let arguments = vec![
         CallArg::Pure(value.to_le_bytes().to_vec()),
-        CallArg::Pure(bcs::to_bytes(&AccountAddress::from(dest)).unwrap()),
+        CallArg::Pure(bcs::to_bytes(&AccountAddress::new(dest.into_bytes())).unwrap()),
     ];
 
     to_sender_signed_transaction(
@@ -751,7 +751,7 @@ async fn test_handle_transaction_fork() {
     let gas_object = random_object_ref();
     let tx = make_transfer_iota_transaction(
         gas_object,
-        IotaAddress::default(),
+        IotaAddress::ZERO,
         None,
         sender,
         &sender_kp,
@@ -823,7 +823,7 @@ async fn test_handle_certificate_response() {
     let gas_object = random_object_ref();
     let tx = VerifiedTransaction::new_unchecked(make_transfer_iota_transaction(
         gas_object,
-        IotaAddress::default(),
+        IotaAddress::ZERO,
         None,
         sender,
         &sender_kp,
@@ -892,7 +892,7 @@ async fn test_handle_transaction_response() {
     let gas_object = random_object_ref();
     let tx = VerifiedTransaction::new_unchecked(make_transfer_iota_transaction(
         gas_object,
-        IotaAddress::default(),
+        IotaAddress::ZERO,
         None,
         sender,
         &sender_kp,
@@ -900,7 +900,7 @@ async fn test_handle_transaction_response() {
     ));
     let tx2 = VerifiedTransaction::new_unchecked(make_transfer_iota_transaction(
         gas_object,
-        IotaAddress::default(),
+        IotaAddress::ZERO,
         Some(1),
         sender,
         &sender_kp,
@@ -1504,7 +1504,7 @@ async fn test_handle_conflicting_transaction_response() {
     let conflicting_object = random_object_ref();
     let tx1 = VerifiedTransaction::new_unchecked(make_transfer_iota_transaction(
         conflicting_object,
-        IotaAddress::default(),
+        IotaAddress::ZERO,
         Some(1),
         sender,
         &sender_kp,
@@ -1512,7 +1512,7 @@ async fn test_handle_conflicting_transaction_response() {
     ));
     let conflicting_tx2 = VerifiedTransaction::new_unchecked(make_transfer_iota_transaction(
         conflicting_object,
-        IotaAddress::default(),
+        IotaAddress::ZERO,
         Some(2),
         sender,
         &sender_kp,
@@ -1651,7 +1651,7 @@ async fn test_handle_conflicting_transaction_response() {
     // Validator 3 returns a conflicting tx3
     let conflicting_tx3 = make_transfer_iota_transaction(
         conflicting_object,
-        IotaAddress::default(),
+        IotaAddress::ZERO,
         Some(3),
         sender,
         &sender_kp,
@@ -1707,7 +1707,7 @@ async fn test_handle_conflicting_transaction_response() {
     // Validator 3 returns a conflicting tx3
     let conflicting_tx3 = make_transfer_iota_transaction(
         conflicting_object,
-        IotaAddress::default(),
+        IotaAddress::ZERO,
         Some(3),
         sender,
         &sender_kp,
@@ -1931,7 +1931,7 @@ async fn test_handle_overload_response() {
     let gas_object = random_object_ref();
     let txn = make_transfer_iota_transaction(
         gas_object,
-        IotaAddress::default(),
+        IotaAddress::ZERO,
         None,
         sender,
         &sender_kp,
@@ -2010,7 +2010,7 @@ async fn test_handle_overload_retry_response() {
     let gas_object = random_object_ref();
     let txn = make_transfer_iota_transaction(
         gas_object,
-        IotaAddress::default(),
+        IotaAddress::ZERO,
         None,
         sender,
         &sender_kp,
@@ -2116,7 +2116,7 @@ async fn test_early_exit_with_too_many_conflicts() {
     let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
     let txn = make_transfer_iota_transaction(
         random_object_ref(),
-        IotaAddress::default(),
+        IotaAddress::ZERO,
         None,
         sender,
         &sender_kp,
@@ -2244,7 +2244,7 @@ async fn test_process_transaction_again() {
     let gas_object = random_object_ref();
     let tx = make_transfer_iota_transaction(
         gas_object,
-        IotaAddress::default(),
+        IotaAddress::ZERO,
         None,
         sender,
         &sender_kp,

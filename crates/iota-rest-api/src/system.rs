@@ -382,7 +382,7 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaValidato
         } = value;
 
         Self {
-            address: iota_address.into(),
+            address: iota_address,
             authority_public_key: iota_sdk_types::Bls12381PublicKey::from_bytes(
                 authority_pubkey_bytes,
             )
@@ -513,18 +513,10 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaSystemSt
             inactive_pools_size,
             validator_candidates_id: validator_candidates_id.into(),
             validator_candidates_size,
-            at_risk_validators: at_risk_validators
-                .into_iter()
-                .map(|(address, idx)| (address.into(), idx))
-                .collect(),
+            at_risk_validators: at_risk_validators.into_iter().collect(),
             validator_report_records: validator_report_records
                 .into_iter()
-                .map(|(address, reports)| {
-                    (
-                        address.into(),
-                        reports.into_iter().map(Into::into).collect(),
-                    )
-                })
+                .map(|(address, reports)| (address, reports.into_iter().collect()))
                 .collect(),
         }
     }
