@@ -174,7 +174,7 @@ async fn test_iota_operations_config() {
     let read = FileBasedKeystore::new(&path1);
     assert!(read.is_ok());
     assert_eq!(
-        IotaAddress::from_str("0xbc14937ffd5874a57afa10edf2d267d8eaaaf61081d718d9ba19cae85c00c6e8")
+        IotaAddress::from_str("bc14937ffd5874a57afa10edf2d267d8eaaaf61081d718d9ba19cae85c00c6e8")
             .unwrap(),
         read.unwrap().addresses()[0]
     );
@@ -193,7 +193,7 @@ async fn test_iota_operations_config() {
     assert!(res.is_ok());
     let read = FileBasedKeystore::new(&path3);
     assert_eq!(
-        IotaAddress::from_str("0xe988a8fb85944173237d287e98e542ae50c119c02644856ed8db17fe9f528b13")
+        IotaAddress::from_str("e988a8fb85944173237d287e98e542ae50c119c02644856ed8db17fe9f528b13")
             .unwrap(),
         read.unwrap().addresses()[0]
     );
