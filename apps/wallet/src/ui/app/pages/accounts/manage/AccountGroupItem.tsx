@@ -13,7 +13,6 @@ import { Account, BadgeType, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { IotaLogoMark, Keystone, Ledger, Passkey } from '@iota/apps-ui-icons';
 import { RemoveDialog } from './RemoveDialog';
-import { isMainAccount } from '_src/background/accounts/isMainAccount';
 import { Portal } from '_app/shared/Portal';
 import { formatAccountName } from '_src/ui/app/helpers';
 import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
@@ -109,23 +108,17 @@ export function AccountGroupItem({
         setDropdownOpen(true);
     }
 
-    const isMain = isMainAccount(account);
     const isLegacy = isLegacyAccount(account);
 
-    const badgeConfig = isMain
+    const badgeConfig = isLegacy
         ? {
-              type: BadgeType.PrimarySoft,
-              text: 'Main',
+              type: BadgeType.Neutral,
+              text: 'Legacy',
           }
-        : isLegacy
-          ? {
-                type: BadgeType.Neutral,
-                text: 'Legacy',
-            }
-          : {
-                type: undefined,
-                text: undefined,
-            };
+        : {
+              type: undefined,
+              text: undefined,
+          };
     return (
         <div className="relative overflow-visible [&_span]:whitespace-nowrap">
             <div onClick={handleSelectAccount} ref={anchorRef}>
@@ -159,7 +152,7 @@ export function AccountGroupItem({
                             top: dropdownPosition.y,
                         }}
                         className={clsx(
-                            `absolute right-0 z-[99] rounded-lg bg-iota-neutral-100 shadow-md dark:bg-iota-neutral-6`,
+                            `dark:bg-iota-neutral-6 absolute right-0 z-[99] rounded-lg bg-iota-neutral-100 shadow-md`,
                             showDropdownOptionsBottom ? '-translate-y-full' : '',
                         )}
                     >
@@ -209,7 +202,7 @@ function AccountAvatar({ account }: { account: SerializedUIAccount }) {
     }
     return (
         <div
-            className={`flex h-8 w-8 items-center justify-center rounded-full [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-iota-neutral-100 ${account.isLocked ? 'bg-iota-neutral-90 dark:bg-iota-neutral-20 [&_svg]:dark:text-iota-neutral-50' : 'bg-iota-primary-30 '}`}
+            className={`flex h-8 w-8 items-center justify-center rounded-full [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-iota-neutral-100 ${account.isLocked ? 'dark:bg-iota-neutral-20 [&_svg]:dark:text-iota-neutral-50 bg-iota-neutral-90' : 'bg-iota-primary-30 '}`}
         >
             {logo}
         </div>
