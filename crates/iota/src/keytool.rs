@@ -357,7 +357,7 @@ pub struct DecodedMultiSigOutput {
 
 #[derive(Serialize)]
 #[serde(untagged)]
-pub enum DecodedSig {
+pub enum DecodedSigOutput {
     Signature {
         scheme: String,
         public_key_base64: String,
@@ -509,7 +509,7 @@ pub enum CommandOutput {
     Convert(ConvertOutput),
     DecodeMultiSig(DecodedMultiSigOutput),
     DecodeOrVerifyTx(DecodeOrVerifyTxOutput),
-    DecodeSig(DecodedSig),
+    DecodeSig(DecodedSigOutput),
     Error(String),
     Export(ExportedKey),
     Generate(Key),
@@ -623,7 +623,7 @@ impl KeyToolCommand {
                         let address = IotaAddress::from(&pk);
                         let public_key_base64 = pk.encode_base64();
                         let signature_hex = format!("0x{}", Hex::encode(s.signature_bytes()));
-                        DecodedSig::Signature {
+                        DecodedSigOutput::Signature {
                             scheme: s.scheme().to_string(),
                             public_key_base64,
                             address: address.to_string(),
@@ -649,14 +649,14 @@ impl KeyToolCommand {
                             })
                         }
 
-                        DecodedSig::MultiSig {
+                        DecodedSigOutput::MultiSig {
                             multisig_address: address.to_string(),
                             threshold: *multisig.get_pk().threshold() as usize,
                             participating_signatures,
                         }
                     }
-                    GenericSignature::ZkLoginAuthenticator(zk) => DecodedSig::ZkLogin(zk),
-                    GenericSignature::PasskeyAuthenticator(passkey) => DecodedSig::Passkey(passkey),
+                    GenericSignature::ZkLoginAuthenticator(zk) => DecodedSigOutput::ZkLogin(zk),
+                    GenericSignature::PasskeyAuthenticator(passkey) => DecodedSigOutput::Passkey(passkey),
                     GenericSignature::MoveAuthenticator(move_auth) => {
                         let call_args: Vec<String> = move_auth.call_args().iter().map(|arg| {
                             match arg {
@@ -668,7 +668,7 @@ impl KeyToolCommand {
                             .map_err(|e| anyhow!("Failed to serialize type_arguments: {e}"))?;
                         let object_to_authenticate = serde_json::to_value(move_auth.object_to_authenticate())
                             .map_err(|e| anyhow!("Failed to serialize object_to_authenticate: {e}"))?;
-                        DecodedSig::MoveAuthenticator {
+                        DecodedSigOutput::MoveAuthenticator {
                             call_args,
                             type_arguments,
                             object_to_authenticate,
@@ -1509,7 +1509,7 @@ impl Display for CommandOutput {
             CommandOutput::DecodeSig(decoded_sig) => {
                 let mut builder = Builder::default();
                 match decoded_sig {
-                    DecodedSig::Signature {
+                    DecodedSigOutput::Signature {
                         scheme,
                         public_key_base64,
                         address,
@@ -1522,7 +1522,7 @@ impl Display for CommandOutput {
                             .push_record(["address", address.as_str()])
                             .push_record(["signature", signature_hex.as_str()]);
                     }
-                    DecodedSig::MultiSig {
+                    DecodedSigOutput::MultiSig {
                         multisig_address,
                         threshold,
                         participating_signatures,
@@ -1538,18 +1538,18 @@ impl Display for CommandOutput {
                             .push_record(["parsed", parsed_str.as_str()])
                             .push_record(["address", multisig_address.as_str()]);
                     }
-                    DecodedSig::ZkLogin(z) => {
+                    DecodedSigOutput::ZkLogin(z) => {
                         builder
                             .set_header(["field", "value"])
                             .push_record(["type", "ZkLogin"])
                             .push_record(["iss", z.inputs.get_iss()]);
                     }
-                    DecodedSig::Passkey(_p) => {
+                    DecodedSigOutput::Passkey(_p) => {
                         builder
                             .set_header(["field", "value"])
                             .push_record(["type", "Passkey"]);
                     }
-                    DecodedSig::MoveAuthenticator {
+                    DecodedSigOutput::MoveAuthenticator {
                         call_args,
                         type_arguments,
                         object_to_authenticate,

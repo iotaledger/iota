@@ -845,7 +845,7 @@ async fn test_tx_digest() -> Result<(), anyhow::Error> {
 
 #[test]
 async fn test_decode_sig() -> Result<(), anyhow::Error> {
-    use crate::keytool::DecodedSig;
+    use crate::keytool::DecodedSigOutput;
 
     let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
 
@@ -860,7 +860,7 @@ async fn test_decode_sig() -> Result<(), anyhow::Error> {
         panic!("unexpected output: {output:?}");
     };
     match decoded {
-        DecodedSig::Signature { scheme, .. } => {
+        DecodedSigOutput::Signature { scheme, .. } => {
             assert_eq!(scheme, "ed25519");
         }
         _ => panic!("Expected Signature variant"),
@@ -876,7 +876,10 @@ async fn test_decode_sig() -> Result<(), anyhow::Error> {
     let CommandOutput::DecodeSig(decoded) = output else {
         panic!("unexpected output: {output:?}");
     };
-    assert!(matches!(decoded, DecodedSig::MoveAuthenticator { .. }));
+    assert!(matches!(
+        decoded,
+        DecodedSigOutput::MoveAuthenticator { .. }
+    ));
 
     // Test 3: Decode signature from a full SenderSignedData (transaction with
     // signature) The fallback decodes the transaction and extracts the first
@@ -892,7 +895,7 @@ async fn test_decode_sig() -> Result<(), anyhow::Error> {
     };
     // Verify we successfully decoded an ed25519 signature from the transaction
     match decoded {
-        DecodedSig::Signature { scheme, .. } => {
+        DecodedSigOutput::Signature { scheme, .. } => {
             assert_eq!(scheme, "ed25519");
         }
         _ => panic!("Expected Signature variant"),
