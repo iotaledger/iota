@@ -22,7 +22,7 @@ export async function initAmplitude() {
                 // Explicitly use cookie storage to persist data across popup sessions
                 identityStorage: 'cookie',
                 autocapture: {
-                    attribution: false,
+                    attribution: IS_ENABLED,
                     fileDownloads: IS_ENABLED,
                     formInteractions: IS_ENABLED,
                     pageViews: IS_ENABLED,
