@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 export const MAX_DEPOSIT_INPUT_LENGTH = 20;
 export const PLACEHOLDER_VALUE_DISPLAY = '--';
 export const IOTA_EVM_DECIMALS = 18;

@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 type PickedLinkProps = Pick<React.ComponentProps<'a'>, 'href' | 'children'>;
 
 interface LinkProps extends PickedLinkProps {

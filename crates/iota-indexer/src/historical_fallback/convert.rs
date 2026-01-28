@@ -90,7 +90,7 @@ impl HistoricalFallbackEvents {
     /// [`IotaEvent`]s.
     pub(crate) async fn into_iota_events(
         self,
-        package_resolver: Arc<Resolver<impl PackageStore>>,
+        package_resolver: &Arc<Resolver<impl PackageStore>>,
         tx_digest: TransactionDigest,
     ) -> IndexerResult<Vec<IotaEvent>> {
         tx_events_to_iota_tx_events(

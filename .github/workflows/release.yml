@@ -38,6 +38,7 @@ env:
   # from transient network timeouts or other issues.
   CARGO_NET_RETRY: 10
   RUSTUP_MAX_RETRIES: 10
+  # Path to temporary build directory. If this gets changed the chocolatey nuspec files needs to be updated
   TMP_BUILD_DIR: "./tmp/release"
   RELEASE_NOTES_FILE: "release_notes.txt"
 
@@ -191,27 +192,6 @@ jobs:
 
           tar -cvzf ./tmp/${{ steps.create-artifact.outputs.artifact_name }}.tgz -C ${{ env.TMP_BUILD_DIR }} .
 
-      #      - name: Publish Windows iota binary to Chocolatey
-      #        if: ${{ matrix.os == 'windows-latest' && github.event_name == 'release' &&  && contains(env.iota_ref, '-rc') }}
-      #        shell: bash
-      #        run: |
-      #          choco install checksum
-      #          export iota_sha=$(checksum -t sha256 ${{ env.TMP_BUILD_DIR }}/iota.exe)
-      #          cd chocolatey
-      #
-      #          cat <<EOF >>VERIFICATION.txt
-      #          IOTA Binary verification steps
-      #          1. Download https://github.com/iotaledger/iota/releases/download/${{ env.iota_ref }}/${{ env.artifact_name }}.tgz
-      #          2. Extract iota.exe
-      #          3. Verify binary: checksum.exe -t sha256 iota.exe: ${iota_sha}
-      #
-      #          File 'LICENSE.txt' is obtained from: https://github.com/iotaledger/iota/blob/develop/LICENSE
-      #          EOF
-      #
-      #          choco pack --version ${{ env.iota_ref }} configuration=release
-      #          choco apikey --api-key ${{ secrets.CHOCO_API_KEY }} --source https://push.chocolatey.org/
-      #          choco push iota.${{ env.iota_ref }}.nupkg --source https://push.chocolatey.org/
-
       - name: Upload artifacts for ${{ matrix.os_type }} platform
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
@@ -313,3 +293,52 @@ jobs:
           # Recommended "classic" token scopes: repo & workflow.
           # https://github.com/settings/tokens/new?scopes=public_repo,workflow
           GH_TOKEN: ${{ secrets.HOMEBREW_GH_FORMULA_BUMP }}
+
+  publish-chocolatey:
+    name: Publish Chocolatey package
+    needs: [release-build, generate-tag]
+    runs-on: windows-latest
+    if: ${{ github.event_name == 'release' && !contains(github.ref, '-alpha') && !contains(github.ref, '-beta')}}
+    steps:
+      - name: Set artifact name
+        id: artifact
+        shell: bash
+        run: echo "artifact_name=iota-${{ needs.generate-tag.outputs.iota_ref }}-windows-x86_64" >> $GITHUB_OUTPUT
+
+      - name: Check out ${{ needs.generate-tag.outputs.iota_ref }}
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.generate-tag.outputs.iota_ref }}
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: ${{ steps.artifact.outputs.artifact_name }}
+          path: ./tmp
+
+      - name: Extract Windows artifact
+        shell: bash
+        run: |
+          mkdir -p ${{ env.TMP_BUILD_DIR }}
+          tar -xvzf ./tmp/${{ steps.artifact.outputs.artifact_name }}.tgz -C ${{ env.TMP_BUILD_DIR }}
+
+      - name: Publish Windows iota binary to Chocolatey
+        shell: bash
+        run: |
+          choco install checksum
+          export iota_sha=$(checksum -t sha256 ${{ env.TMP_BUILD_DIR }}/iota.exe)
+          # It is not allowed to have a 'v' in the choco version
+          export choco_version=$(echo "${{ needs.generate-tag.outputs.iota_ref }}" | sed s/'^v'//)
+          cd chocolatey
+
+          cat <<EOF >>VERIFICATION.txt
+          IOTA Binary verification steps
+          1. Download https://github.com/iotaledger/iota/releases/download/${{ needs.generate-tag.outputs.iota_ref }}/${{ env.artifact_name }}.tgz
+          2. Extract iota.exe
+          3. Verify binary: checksum.exe -t sha256 iota.exe: ${iota_sha}
+          4. Verify file 'LICENSE.txt': https://github.com/iotaledger/iota/blob/develop/LICENSE
+          EOF
+
+          choco pack --version ${choco_version} configuration=release
+          choco push --source https://push.chocolatey.org/ --api-key ${{ secrets.CHOCO_API_KEY }}
