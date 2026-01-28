@@ -54,6 +54,8 @@ impl Url {
 
 impl TryFrom<String> for Url {
     type Error = anyhow::Error;
+
+    /// Creates a new `Url` ensuring that it only consists of ascii characters.
     fn try_from(url: String) -> Result<Self, Self::Error> {
         if !url.is_ascii() {
             anyhow::bail!("url `{url}` does not consist of only ascii characters")
