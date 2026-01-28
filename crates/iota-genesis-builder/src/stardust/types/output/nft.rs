@@ -70,22 +70,6 @@ impl FixedPoint32Ext for FixedPoint32 {
     }
 }
 
-/// Extension trait for Url to support creation from String.
-pub trait UrlExt: Sized {
-    fn try_from_string(url: String) -> anyhow::Result<Self>;
-}
-
-impl UrlExt for Url {
-    fn try_from_string(url: String) -> anyhow::Result<Self> {
-        if !url.is_ascii() {
-            anyhow::bail!("url `{url}` does not consist of only ascii characters")
-        }
-        // Url contains a private `url: String` field. We serialize/deserialize to
-        // construct it.
-        Ok(bcs::from_bytes(&bcs::to_bytes(&url)?)?)
-    }
-}
-
 /// Creates the default placeholder Irc27Metadata for NFTs without valid
 /// metadata.
 pub fn default_irc27_metadata() -> Irc27Metadata {
@@ -94,7 +78,7 @@ pub fn default_irc27_metadata() -> Irc27Metadata {
     // Matches the media type of the URI below.
     let media_type = "image/png".to_owned();
     // A placeholder for NFTs without metadata from which we can extract a URI.
-    let uri = Url::try_from_string("https://opensea.io/static/images/placeholder.png".to_string())
+    let uri = Url::try_from("https://opensea.io/static/images/placeholder.png".to_string())
         .expect("url should only contain ascii characters");
     let name = "NFT".to_owned();
 
@@ -128,7 +112,7 @@ impl Irc27MetadataExt for Irc27Metadata {
         Ok(Irc27Metadata {
             version: irc27.version().to_string(),
             media_type: irc27.media_type().to_string(),
-            uri: Url::try_from_string(irc27.uri().clone())?,
+            uri: Url::try_from(irc27.uri().clone())?,
             name: irc27.name().to_string(),
             collection_name: irc27.collection_name().clone(),
             royalties: VecMap {

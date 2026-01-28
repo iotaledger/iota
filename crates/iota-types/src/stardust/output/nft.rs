@@ -52,6 +52,16 @@ impl Url {
     }
 }
 
+impl TryFrom<String> for Url {
+    type Error = anyhow::Error;
+    fn try_from(url: String) -> Result<Self, Self::Error> {
+        if !url.is_ascii() {
+            anyhow::bail!("url `{url}` does not consist of only ascii characters")
+        }
+        Ok(Self { url })
+    }
+}
+
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct Irc27Metadata {
