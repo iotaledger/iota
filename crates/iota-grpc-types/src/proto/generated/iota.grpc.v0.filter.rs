@@ -43,18 +43,10 @@ pub struct MoveEventTypeFilter {
     #[prost(string, tag = "1")]
     pub struct_tag: ::prost::alloc::string::String,
 }
-/// Filter by Move event field (JSON pointer as defined in RFC 6901 + value (optional)).
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct MoveEventFieldFilter {
-    #[prost(string, tag = "1")]
-    pub json_pointer: ::prost::alloc::string::String,
-    #[prost(string, optional, tag = "2")]
-    pub value: ::core::option::Option<::prost::alloc::string::String>,
-}
 /// Filter for events.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct EventFilter {
-    #[prost(oneof = "event_filter::Filter", tags = "1, 2, 3, 4, 5, 6, 7, 8")]
+    #[prost(oneof = "event_filter::Filter", tags = "1, 2, 3, 4, 5, 6, 7")]
     pub filter: ::core::option::Option<event_filter::Filter>,
 }
 /// Nested message and enum types in `EventFilter`.
@@ -90,11 +82,6 @@ pub mod event_filter {
         /// `Foo`, then the struct tag is `0xabcd::MyModule::Foo`.
         #[prost(message, tag = "7")]
         MoveEventType(super::MoveEventTypeFilter),
-        /// Return events whose JSON representation contains the given field path
-        /// with the specified value (optional). The path should be a JSON pointer as
-        /// defined in RFC 6901.
-        #[prost(message, tag = "8")]
-        MoveEventField(super::MoveEventFieldFilter),
     }
 }
 /// Logical AND of several filters.
@@ -140,10 +127,7 @@ pub struct MoveCallFilter {
 /// Filter for transactions.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TransactionFilter {
-    #[prost(
-        oneof = "transaction_filter::Filter",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12"
-    )]
+    #[prost(oneof = "transaction_filter::Filter", tags = "1, 2, 3, 4, 5, 6, 7, 8, 9")]
     pub filter: ::core::option::Option<transaction_filter::Filter>,
 }
 /// Nested message and enum types in `TransactionFilter`.
@@ -169,38 +153,27 @@ pub mod transaction_filter {
         /// checking the owners of mutated and unwrapped objects.
         #[prost(message, tag = "6")]
         Receiver(super::AddressFilter),
-        /// Filter by input object.
-        #[prost(message, tag = "7")]
-        InputObject(super::ObjectIdFilter),
-        /// Filter by changed object, including created, mutated and unwrapped
-        /// objects.
-        #[prost(message, tag = "8")]
-        ChangedObject(super::ObjectIdFilter),
-        /// Filter transactions that wrapped or deleted the specified object.
-        /// Includes transactions that either created and immediately wrapped
-        /// the object or unwrapped and immediately deleted it.
-        #[prost(message, tag = "9")]
-        WrappedOrDeletedObject(super::ObjectIdFilter),
         /// Filter for transactions that touch this object.
-        #[prost(message, tag = "10")]
+        #[prost(message, tag = "7")]
         AffectedObject(super::ObjectIdFilter),
         /// Filter by move package, module (optional) and function (optional).
-        #[prost(message, tag = "11")]
+        #[prost(message, tag = "8")]
         MoveCall(super::MoveCallFilter),
         /// Filter transactions that contain events matching the given event filter.
-        #[prost(message, tag = "12")]
+        #[prost(message, tag = "9")]
         Event(super::EventFilter),
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum TransactionKind {
-    KindUnknown = 0,
+    /// `SYSTEM_TRANSACTION` can be used to filter for all types of system transactions.
+    SystemTransaction = 0,
     ProgrammableTransaction = 1,
     Genesis = 2,
     ConsensusCommitPrologueV1 = 3,
-    AuthenticatorStateUpdate = 4,
-    EndOfEpoch = 5,
+    AuthenticatorStateUpdateV1 = 4,
+    EndOfEpochTransaction = 5,
     RandomnessStateUpdate = 6,
 }
 impl TransactionKind {
@@ -210,24 +183,24 @@ impl TransactionKind {
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
     pub fn as_str_name(&self) -> &'static str {
         match self {
-            Self::KindUnknown => "KIND_UNKNOWN",
+            Self::SystemTransaction => "SYSTEM_TRANSACTION",
             Self::ProgrammableTransaction => "PROGRAMMABLE_TRANSACTION",
             Self::Genesis => "GENESIS",
             Self::ConsensusCommitPrologueV1 => "CONSENSUS_COMMIT_PROLOGUE_V1",
-            Self::AuthenticatorStateUpdate => "AUTHENTICATOR_STATE_UPDATE",
-            Self::EndOfEpoch => "END_OF_EPOCH",
+            Self::AuthenticatorStateUpdateV1 => "AUTHENTICATOR_STATE_UPDATE_V1",
+            Self::EndOfEpochTransaction => "END_OF_EPOCH_TRANSACTION",
             Self::RandomnessStateUpdate => "RANDOMNESS_STATE_UPDATE",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
-            "KIND_UNKNOWN" => Some(Self::KindUnknown),
+            "SYSTEM_TRANSACTION" => Some(Self::SystemTransaction),
             "PROGRAMMABLE_TRANSACTION" => Some(Self::ProgrammableTransaction),
             "GENESIS" => Some(Self::Genesis),
             "CONSENSUS_COMMIT_PROLOGUE_V1" => Some(Self::ConsensusCommitPrologueV1),
-            "AUTHENTICATOR_STATE_UPDATE" => Some(Self::AuthenticatorStateUpdate),
-            "END_OF_EPOCH" => Some(Self::EndOfEpoch),
+            "AUTHENTICATOR_STATE_UPDATE_V1" => Some(Self::AuthenticatorStateUpdateV1),
+            "END_OF_EPOCH_TRANSACTION" => Some(Self::EndOfEpochTransaction),
             "RANDOMNESS_STATE_UPDATE" => Some(Self::RandomnessStateUpdate),
             _ => None,
         }

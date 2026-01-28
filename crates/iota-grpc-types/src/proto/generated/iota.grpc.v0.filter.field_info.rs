@@ -251,57 +251,6 @@ mod _field_impls {
             self.finish()
         }
     }
-    impl MoveEventFieldFilter {
-        pub const JSON_POINTER_FIELD: &'static MessageField = &MessageField {
-            name: "json_pointer",
-            json_name: "jsonPointer",
-            number: 1i32,
-            is_optional: false,
-            message_fields: None,
-        };
-        pub const VALUE_FIELD: &'static MessageField = &MessageField {
-            name: "value",
-            json_name: "value",
-            number: 2i32,
-            is_optional: true,
-            message_fields: None,
-        };
-    }
-    impl MessageFields for MoveEventFieldFilter {
-        const FIELDS: &'static [&'static MessageField] = &[
-            Self::JSON_POINTER_FIELD,
-            Self::VALUE_FIELD,
-        ];
-    }
-    impl MoveEventFieldFilter {
-        pub fn path_builder() -> MoveEventFieldFilterFieldPathBuilder {
-            MoveEventFieldFilterFieldPathBuilder::new()
-        }
-    }
-    pub struct MoveEventFieldFilterFieldPathBuilder {
-        path: Vec<&'static str>,
-    }
-    impl MoveEventFieldFilterFieldPathBuilder {
-        #[allow(clippy::new_without_default)]
-        pub fn new() -> Self {
-            Self { path: Default::default() }
-        }
-        #[doc(hidden)]
-        pub fn new_with_base(base: Vec<&'static str>) -> Self {
-            Self { path: base }
-        }
-        pub fn finish(self) -> String {
-            self.path.join(".")
-        }
-        pub fn json_pointer(mut self) -> String {
-            self.path.push(MoveEventFieldFilter::JSON_POINTER_FIELD.name);
-            self.finish()
-        }
-        pub fn value(mut self) -> String {
-            self.path.push(MoveEventFieldFilter::VALUE_FIELD.name);
-            self.finish()
-        }
-    }
     impl EventFilter {
         pub const ALL_FIELD: &'static MessageField = &MessageField {
             name: "all",
@@ -352,13 +301,6 @@ mod _field_impls {
             is_optional: false,
             message_fields: Some(MoveEventTypeFilter::FIELDS),
         };
-        pub const MOVE_EVENT_FIELD_FIELD: &'static MessageField = &MessageField {
-            name: "move_event_field",
-            json_name: "moveEventField",
-            number: 8i32,
-            is_optional: false,
-            message_fields: Some(MoveEventFieldFilter::FIELDS),
-        };
     }
     impl MessageFields for EventFilter {
         const FIELDS: &'static [&'static MessageField] = &[
@@ -369,7 +311,6 @@ mod _field_impls {
             Self::MOVE_PACKAGE_AND_MODULE_FIELD,
             Self::MOVE_EVENT_PACKAGE_AND_MODULE_FIELD,
             Self::MOVE_EVENT_TYPE_FIELD,
-            Self::MOVE_EVENT_FIELD_FIELD,
         ];
     }
     impl EventFilter {
@@ -423,10 +364,6 @@ mod _field_impls {
         pub fn move_event_type(mut self) -> MoveEventTypeFilterFieldPathBuilder {
             self.path.push(EventFilter::MOVE_EVENT_TYPE_FIELD.name);
             MoveEventTypeFilterFieldPathBuilder::new_with_base(self.path)
-        }
-        pub fn move_event_field(mut self) -> MoveEventFieldFilterFieldPathBuilder {
-            self.path.push(EventFilter::MOVE_EVENT_FIELD_FIELD.name);
-            MoveEventFieldFilterFieldPathBuilder::new_with_base(self.path)
         }
     }
     impl AllTransactionFilter {
@@ -720,45 +657,24 @@ mod _field_impls {
             is_optional: false,
             message_fields: Some(AddressFilter::FIELDS),
         };
-        pub const INPUT_OBJECT_FIELD: &'static MessageField = &MessageField {
-            name: "input_object",
-            json_name: "inputObject",
-            number: 7i32,
-            is_optional: false,
-            message_fields: Some(ObjectIdFilter::FIELDS),
-        };
-        pub const CHANGED_OBJECT_FIELD: &'static MessageField = &MessageField {
-            name: "changed_object",
-            json_name: "changedObject",
-            number: 8i32,
-            is_optional: false,
-            message_fields: Some(ObjectIdFilter::FIELDS),
-        };
-        pub const WRAPPED_OR_DELETED_OBJECT_FIELD: &'static MessageField = &MessageField {
-            name: "wrapped_or_deleted_object",
-            json_name: "wrappedOrDeletedObject",
-            number: 9i32,
-            is_optional: false,
-            message_fields: Some(ObjectIdFilter::FIELDS),
-        };
         pub const AFFECTED_OBJECT_FIELD: &'static MessageField = &MessageField {
             name: "affected_object",
             json_name: "affectedObject",
-            number: 10i32,
+            number: 7i32,
             is_optional: false,
             message_fields: Some(ObjectIdFilter::FIELDS),
         };
         pub const MOVE_CALL_FIELD: &'static MessageField = &MessageField {
             name: "move_call",
             json_name: "moveCall",
-            number: 11i32,
+            number: 8i32,
             is_optional: false,
             message_fields: Some(MoveCallFilter::FIELDS),
         };
         pub const EVENT_FIELD: &'static MessageField = &MessageField {
             name: "event",
             json_name: "event",
-            number: 12i32,
+            number: 9i32,
             is_optional: false,
             message_fields: Some(EventFilter::FIELDS),
         };
@@ -771,9 +687,6 @@ mod _field_impls {
             Self::TRANSACTION_KINDS_FIELD,
             Self::SENDER_FIELD,
             Self::RECEIVER_FIELD,
-            Self::INPUT_OBJECT_FIELD,
-            Self::CHANGED_OBJECT_FIELD,
-            Self::WRAPPED_OR_DELETED_OBJECT_FIELD,
             Self::AFFECTED_OBJECT_FIELD,
             Self::MOVE_CALL_FIELD,
             Self::EVENT_FIELD,
@@ -822,18 +735,6 @@ mod _field_impls {
         pub fn receiver(mut self) -> AddressFilterFieldPathBuilder {
             self.path.push(TransactionFilter::RECEIVER_FIELD.name);
             AddressFilterFieldPathBuilder::new_with_base(self.path)
-        }
-        pub fn input_object(mut self) -> ObjectIdFilterFieldPathBuilder {
-            self.path.push(TransactionFilter::INPUT_OBJECT_FIELD.name);
-            ObjectIdFilterFieldPathBuilder::new_with_base(self.path)
-        }
-        pub fn changed_object(mut self) -> ObjectIdFilterFieldPathBuilder {
-            self.path.push(TransactionFilter::CHANGED_OBJECT_FIELD.name);
-            ObjectIdFilterFieldPathBuilder::new_with_base(self.path)
-        }
-        pub fn wrapped_or_deleted_object(mut self) -> ObjectIdFilterFieldPathBuilder {
-            self.path.push(TransactionFilter::WRAPPED_OR_DELETED_OBJECT_FIELD.name);
-            ObjectIdFilterFieldPathBuilder::new_with_base(self.path)
         }
         pub fn affected_object(mut self) -> ObjectIdFilterFieldPathBuilder {
             self.path.push(TransactionFilter::AFFECTED_OBJECT_FIELD.name);

@@ -41,12 +41,6 @@ message MoveEventTypeFilter {
   string struct_tag = 1;
 }
 
-// Filter by Move event field (JSON pointer as defined in RFC 6901 + value (optional)).
-message MoveEventFieldFilter {
-  string json_pointer = 1;
-  optional string value = 2;
-}
-
 // Filter for events.
 message EventFilter {
   oneof filter {
@@ -74,10 +68,6 @@ message EventFilter {
     // For example, if the event is defined in `0xabcd::MyModule`, and named
     // `Foo`, then the struct tag is `0xabcd::MyModule::Foo`.
     MoveEventTypeFilter move_event_type = 7;
-    // Return events whose JSON representation contains the given field path
-    // with the specified value (optional). The path should be a JSON pointer as
-    // defined in RFC 6901.
-    MoveEventFieldFilter move_event_field = 8;
   }
 }
 
@@ -97,12 +87,13 @@ message NotTransactionFilter {
 }
 
 enum TransactionKind {
-  KIND_UNKNOWN = 0;
+  // `SYSTEM_TRANSACTION` can be used to filter for all types of system transactions.
+  SYSTEM_TRANSACTION = 0;
   PROGRAMMABLE_TRANSACTION = 1;
   GENESIS = 2;
   CONSENSUS_COMMIT_PROLOGUE_V1 = 3;
-  AUTHENTICATOR_STATE_UPDATE = 4;
-  END_OF_EPOCH = 5;
+  AUTHENTICATOR_STATE_UPDATE_V1 = 4;
+  END_OF_EPOCH_TRANSACTION = 5;
   RANDOMNESS_STATE_UPDATE = 6;
 }
 
@@ -142,22 +133,13 @@ message TransactionFilter {
     // checking the owners of mutated and unwrapped objects.
     AddressFilter receiver = 6;
 
-    // Filter by input object.
-    ObjectIdFilter input_object = 7;
-    // Filter by changed object, including created, mutated and unwrapped
-    // objects.
-    ObjectIdFilter changed_object = 8;
-    // Filter transactions that wrapped or deleted the specified object.
-    // Includes transactions that either created and immediately wrapped
-    // the object or unwrapped and immediately deleted it.
-    ObjectIdFilter wrapped_or_deleted_object = 9;
     // Filter for transactions that touch this object.
-    ObjectIdFilter affected_object = 10;
+    ObjectIdFilter affected_object = 7;
 
     // Filter by move package, module (optional) and function (optional).
-    MoveCallFilter move_call = 11;
+    MoveCallFilter move_call = 8;
 
     // Filter transactions that contain events matching the given event filter.
-    EventFilter event = 12;
+    EventFilter event = 9;
   }
 }
