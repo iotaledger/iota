@@ -114,7 +114,7 @@ export function PasskeyAccountPage() {
                             </p>
 
                             {RADIO_BUTTONS.map((radio) => (
-                                <div key={radio.label} data-testId={`passkey-radio-${radio.name}`}>
+                                <div key={radio.label} data-testid={`passkey-radio-${radio.name}`}>
                                     <RadioButton {...radio} />
                                 </div>
                             ))}
