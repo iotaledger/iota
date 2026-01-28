@@ -7,24 +7,20 @@ use futures::{Stream, StreamExt};
 use iota_grpc_types::{
     field::FieldMask,
     v0::{
-        filter as grpc_filter,
+        checkpoint, event, filter as grpc_filter,
         ledger_service::{
             CheckpointDataStreamRequest, GetCheckpointDataRequest, checkpoint_data,
             get_checkpoint_data_request,
         },
+        signatures::ValidatorAggregatedSignature as ProtoValidatorAggregatedSignature,
+        transaction::ExecutedTransaction,
     },
 };
-use iota_sdk_types::{
-    CheckpointContents, CheckpointSequenceNumber, CheckpointSummary, Digest, Event,
-    SignedCheckpointSummary,
-};
+use iota_sdk_types::{CheckpointSequenceNumber, Digest, SignedCheckpointSummary};
 
 use crate::{
     Client, Error,
-    api::{
-        CheckpointResponse, Result, TransactionResponse, TryFromProtoError,
-        field_mask_with_default, ledger::transactions::convert_to_transaction_response,
-    },
+    api::{CheckpointResponse, Result, TryFromProtoError, field_mask_with_default},
 };
 
 impl Client {
@@ -346,11 +342,11 @@ impl Client {
 
             // State for accumulating checkpoint data
             let mut current_sequence_number: Option<CheckpointSequenceNumber> = None;
-            let mut current_summary: Option<CheckpointSummary> = None;
-            let mut current_signature: Option<iota_sdk_types::ValidatorAggregatedSignature> = None;
-            let mut current_contents: Option<CheckpointContents> = None;
-            let mut current_transactions: Vec<TransactionResponse> = Vec::new();
-            let mut current_events: Vec<Event> = Vec::new();
+            let mut current_summary: Option<checkpoint::CheckpointSummary> = None;
+            let mut current_signature: Option<ProtoValidatorAggregatedSignature> = None;
+            let mut current_contents: Option<checkpoint::CheckpointContents> = None;
+            let mut current_transactions: Vec<Box<ExecutedTransaction>> = Vec::new();
+            let mut current_events: Vec<event::Event> = Vec::new();
 
             while let Some(data) = stream.next().await {
                 let data = data.map_err(|e| e.into())?;
@@ -367,47 +363,14 @@ impl Client {
                         }
                         current_sequence_number = checkpoint.sequence_number;
 
-                        // Deserialize summary (optional)
-                        if let Some(summary_proto) = checkpoint.summary {
-                            let summary_bcs = summary_proto
-                                .bcs
-                                .as_ref()
-                                .ok_or_else(|| TryFromProtoError::missing("summary.bcs"))?;
+                        // Store proto summary (optional, no deserialization)
+                        current_summary = checkpoint.summary;
 
-                            let summary: CheckpointSummary = summary_bcs
-                                .deserialize()
-                                .map_err(|e| TryFromProtoError::invalid("summary.bcs", e))?;
+                        // Store proto signature (optional, no deserialization)
+                        current_signature = checkpoint.signature;
 
-                            current_summary = Some(summary);
-                        }
-
-                        // Deserialize signatures (optional)
-                        if let Some(signature_proto) = checkpoint.signature {
-                            let signatures_bcs = signature_proto
-                                .bcs
-                                .as_ref()
-                                .ok_or_else(|| TryFromProtoError::missing("signature.bcs"))?;
-
-                            let signature: iota_sdk_types::ValidatorAggregatedSignature = signatures_bcs
-                                .deserialize()
-                                .map_err(|e| TryFromProtoError::invalid("signature.bcs", e))?;
-
-                            current_signature = Some(signature);
-                        }
-
-                        // Deserialize contents (optional)
-                        if let Some(contents_proto) = checkpoint.contents {
-                            let contents_bcs = contents_proto
-                                .bcs
-                                .as_ref()
-                                .ok_or_else(|| TryFromProtoError::missing("contents.bcs"))?;
-
-                            let contents: CheckpointContents = contents_bcs
-                                .deserialize()
-                                .map_err(|e| TryFromProtoError::invalid("contents.bcs", e))?;
-
-                            current_contents = Some(contents);
-                        }
+                        // Store proto contents (optional, no deserialization)
+                        current_contents = checkpoint.contents;
 
                         // Reset accumulators for new checkpoint (in case Transactions or Events
                         // arrived between endmarker and Checkpoint)
@@ -420,11 +383,8 @@ impl Client {
                             Err(Error::server("Received new chunked checkpoint transactions before receiving checkpoint header"))?;
                         }
 
-                        // Accumulate transactions
-                        for executed_tx in txs.transactions {
-                            let tx_response = convert_to_transaction_response(executed_tx)?;
-                            current_transactions.push(tx_response);
-                        }
+                        // Accumulate proto transactions (no deserialization)
+                        current_transactions.extend(txs.transactions.into_iter().map(Box::new));
                     }
 
                     Some(checkpoint_data::Payload::Events(events)) => {
@@ -432,19 +392,8 @@ impl Client {
                             Err(Error::server("Received new chunked checkpoint events before receiving checkpoint header"))?;
                         }
 
-                        // Accumulate events
-                        for event_proto in events.events {
-                            let event_bcs = event_proto
-                                .bcs
-                                .as_ref()
-                                .ok_or_else(|| TryFromProtoError::missing("event.bcs"))?;
-
-                            let event: Event = event_bcs
-                                .deserialize()
-                                .map_err(|e| TryFromProtoError::invalid("event.bcs", e))?;
-
-                            current_events.push(event);
-                        }
+                        // Accumulate proto events (no deserialization)
+                        current_events.extend(events.events);
                     }
 
                     Some(checkpoint_data::Payload::EndMarker(marker)) => {
@@ -465,7 +414,7 @@ impl Client {
                         let response = CheckpointResponse {
                             sequence_number,
                             summary: current_summary.take(),
-                            summary_signature: current_signature.take(),
+                            signature: current_signature.take(),
                             contents: current_contents.take(),
                             transactions: std::mem::take(&mut current_transactions),
                             events: std::mem::take(&mut current_events),

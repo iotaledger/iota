@@ -79,3 +79,55 @@ impl Merge<&iota_sdk_types::Event> for grpc_event::Event {
         // json_contents is needed.
     }
 }
+
+// TryFrom implementations for Event
+impl TryFrom<&grpc_event::Event> for iota_sdk_types::Event {
+    type Error = crate::proto::TryFromProtoError;
+
+    fn try_from(value: &grpc_event::Event) -> Result<Self, Self::Error> {
+        let bcs = value.bcs.as_ref().ok_or_else(|| {
+            crate::proto::TryFromProtoError::missing(grpc_event::Event::BCS_FIELD.name)
+        })?;
+
+        bcs.deserialize().map_err(|e| {
+            crate::proto::TryFromProtoError::invalid(grpc_event::Event::BCS_FIELD.name, e)
+        })
+    }
+}
+
+impl TryFrom<&grpc_event::Events> for Vec<iota_sdk_types::Event> {
+    type Error = crate::proto::TryFromProtoError;
+
+    fn try_from(value: &grpc_event::Events) -> Result<Self, Self::Error> {
+        value
+            .events
+            .iter()
+            .enumerate()
+            .map(|(i, event)| {
+                <&grpc_event::Event as TryInto<iota_sdk_types::Event>>::try_into(event).map_err(
+                    |e: crate::proto::TryFromProtoError| {
+                        e.nested_at(grpc_event::Events::EVENTS_FIELD.name, i)
+                    },
+                )
+            })
+            .collect()
+    }
+}
+
+// Convenience methods for Event (delegate to TryFrom)
+impl grpc_event::Event {
+    /// Deserialize the event from BCS.
+    pub fn deserialize(&self) -> Result<iota_sdk_types::Event, crate::proto::TryFromProtoError> {
+        self.try_into()
+    }
+}
+
+// Convenience methods for Events (delegate to TryFrom)
+impl grpc_event::Events {
+    /// Deserialize all events.
+    pub fn deserialize(
+        &self,
+    ) -> Result<Vec<iota_sdk_types::Event>, crate::proto::TryFromProtoError> {
+        self.try_into()
+    }
+}

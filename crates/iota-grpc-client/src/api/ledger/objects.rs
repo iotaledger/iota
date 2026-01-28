@@ -5,17 +5,22 @@
 
 use iota_grpc_types::v0::{
     ledger_service::{GetObjectsRequest, ObjectRequest, ObjectRequests},
+    object::Object,
     types::ObjectReference,
 };
-use iota_sdk_types::{Object, ObjectId, Version};
+use iota_sdk_types::{ObjectId, Version};
 
 use crate::{
     Client,
-    api::{OBJECTS_READ_MASK, ProtoResult, Result, convert_object, field_mask_with_default},
+    api::{OBJECTS_READ_MASK, ProtoResult, Result, field_mask_with_default},
 };
 
 impl Client {
     /// Get objects by their IDs and optional versions.
+    ///
+    /// Returns proto `Object` types. Use `obj.deserialize()` to convert to SDK
+    /// type, or use `obj.sdk_object_id()` / `obj.version()` to access
+    /// metadata without full deserialization.
     ///
     /// Each tuple contains `(ObjectId, Option<Version>)`. If version is None,
     /// the latest version is returned.
@@ -26,11 +31,11 @@ impl Client {
     /// # Field Mask
     ///
     /// The optional `read_mask` parameter controls which fields the server
-    /// returns. If `None`, uses [`OBJECTS_READ_MASK`] which includes all
-    /// fields needed for `Object` deserialization.
+    /// returns. If `None`, uses [`OBJECTS_READ_MASK`].
     ///
-    /// **Required fields** (must be included in custom masks):
-    /// - `bcs` - Object BCS data
+    /// **Optional fields:**
+    /// - `bcs` - Object BCS data (for full deserialization)
+    /// - `reference` - Object metadata (ID, version, digest)
     ///
     /// # Example
     ///
@@ -41,13 +46,17 @@ impl Client {
     /// let client = Client::connect("http://localhost:9000").await?;
     /// let object_id: ObjectId = "0x2".parse()?;
     ///
-    /// // Default: get BCS data
+    /// // Get proto objects
     /// let objs = client.get_objects(&[(object_id, None)], None).await?;
     ///
-    /// // With reference info (if you also want object metadata)
-    /// let objs = client
-    ///     .get_objects(&[(object_id, None)], Some("bcs,reference"))
-    ///     .await?;
+    /// for obj in objs {
+    ///     // Lazy conversion - only deserialize if needed
+    ///     let sdk_obj = obj.deserialize()?;
+    ///
+    ///     // Or access metadata without full deserialization
+    ///     let id = obj.sdk_object_id()?;
+    ///     let version = obj.version();
+    /// }
     /// # Ok(())
     /// # }
     /// ```
@@ -88,8 +97,7 @@ impl Client {
 
         while let Some(response) = stream.message().await? {
             for result in response.objects {
-                let proto_obj = result.into_result()?;
-                results.push(convert_object(&proto_obj, "object.bcs")?);
+                results.push(result.into_result()?);
             }
         }
 

@@ -3,16 +3,19 @@
 
 //! High-level API for transaction simulation.
 
-use iota_grpc_types::v0::transaction_execution_service::{
-    SimulateTransactionRequest, simulate_transaction_request::TransactionCheckModes,
+use iota_grpc_types::v0::{
+    transaction::ExecutedTransaction,
+    transaction_execution_service::{
+        SimulateTransactionRequest, simulate_transaction_request::TransactionCheckModes,
+    },
 };
 use iota_sdk_types::Transaction;
 
 use crate::{
     Client,
     api::{
-        EXECUTION_READ_MASK, Result, TransactionSimulationResponse, build_proto_transaction,
-        extract_execution_response, field_mask_with_default,
+        EXECUTION_READ_MASK, Result, TryFromProtoError, build_proto_transaction,
+        field_mask_with_default,
     },
 };
 
@@ -25,8 +28,12 @@ impl Client {
     /// Set `dev_inspect` to true for relaxed Move VM checks (useful for
     /// debugging and development).
     ///
-    /// Returns `TransactionSimulationResponse` containing the simulated
-    /// effects, events, and input/output objects.
+    /// Returns proto `ExecutedTransaction`. Use lazy conversion methods to
+    /// extract data:
+    /// - `result.sdk_effects()` - Get simulated effects
+    /// - `result.sdk_events()` - Get simulated events (if available)
+    /// - `result.sdk_input_objects()` - Get input objects (if requested)
+    /// - `result.sdk_output_objects()` - Get output objects (if requested)
     ///
     /// # Field Mask
     ///
@@ -34,10 +41,8 @@ impl Client {
     /// returns. If `None`, uses [`EXECUTION_READ_MASK`] which includes effects,
     /// events, and input/output objects.
     ///
-    /// **Required fields** (must be included in custom masks):
-    /// - `transaction.effects` - Transaction effects
-    ///
     /// **Optional fields:**
+    /// - `transaction.effects` - Transaction effects
     /// - `transaction.events` - Transaction events
     /// - `transaction.input_objects` - Input objects used
     /// - `transaction.output_objects` - Output objects created/modified
@@ -52,14 +57,16 @@ impl Client {
     ///
     /// let tx: Transaction = todo!();
     ///
-    /// // Standard simulation with all fields
-    /// let result = client.simulate_transaction(tx.clone(), false, None).await?;
-    /// println!("Simulation status: {:?}", result.effects.status());
+    /// // Simulate transaction - returns proto type
+    /// let result = client.simulate_transaction(tx, false, None).await?;
     ///
-    /// // Dev-inspect mode with minimal fields
-    /// let result = client
-    ///     .simulate_transaction(tx, true, Some("transaction.effects"))
-    ///     .await?;
+    /// // Lazy conversion - only deserialize what you need
+    /// let effects = result.sdk_effects()?;
+    /// println!("Simulation status: {:?}", effects.status());
+    ///
+    /// if let Some(output_objs) = result.sdk_output_objects()? {
+    ///     println!("Would create {} objects", output_objs.len());
+    /// }
     /// # Ok(())
     /// # }
     /// ```
@@ -68,7 +75,7 @@ impl Client {
         transaction: Transaction,
         dev_inspect: bool,
         read_mask: Option<&str>,
-    ) -> Result<TransactionSimulationResponse> {
+    ) -> Result<Box<ExecutedTransaction>> {
         // Build proto transaction directly from SDK types
         let proto_transaction = build_proto_transaction(&transaction, transaction.digest())?;
 
@@ -91,6 +98,9 @@ impl Client {
             .await?
             .into_inner();
 
-        Ok(extract_execution_response(response.transaction)?.into())
+        response
+            .transaction
+            .map(Box::new)
+            .ok_or_else(|| TryFromProtoError::missing("transaction").into())
     }
 }

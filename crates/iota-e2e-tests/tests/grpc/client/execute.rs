@@ -18,13 +18,17 @@ async fn execute_transaction_transfer() {
         .await
         .expect("Failed to execute transaction");
 
+    let effects = result
+        .sdk_effects()
+        .expect("Failed to get SDK effects from execution result");
+
     assert!(
-        is_success(result.effects.status()),
+        is_success(effects.status()),
         "Transaction should have succeeded"
     );
 
     // Verify gas was charged
-    let gas_summary = result.effects.gas_summary();
+    let gas_summary = effects.gas_summary();
     assert!(
         gas_summary.computation_cost > 0 || gas_summary.storage_cost > 0,
         "Some gas should have been charged"
@@ -53,7 +57,12 @@ async fn execute_transaction_minimal_mask() {
         .expect("Failed to execute transaction");
 
     assert!(
-        is_success(result.effects.status()),
+        is_success(
+            result
+                .sdk_effects()
+                .expect("Failed to get SDK effects from execution result with minimal mask")
+                .status()
+        ),
         "Effects should show successful execution"
     );
     assert!(
@@ -112,7 +121,12 @@ async fn execute_transaction_idempotency() {
         .expect("First execution should succeed");
 
     assert!(
-        is_success(result1.effects.status()),
+        is_success(
+            result1
+                .sdk_effects()
+                .expect("Failed to get SDK effects from first execution result")
+                .status()
+        ),
         "First execution should succeed"
     );
 
@@ -125,7 +139,12 @@ async fn execute_transaction_idempotency() {
         .expect("Re-execution should return cached result");
 
     assert!(
-        is_success(result2.effects.status()),
+        is_success(
+            result2
+                .sdk_effects()
+                .expect("Failed to get SDK effects from re-execution result")
+                .status()
+        ),
         "Re-execution should show success (cached result)"
     );
 }

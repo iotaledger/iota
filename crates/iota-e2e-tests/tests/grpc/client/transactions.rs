@@ -1,6 +1,8 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::panic;
+
 use iota_macros::sim_test;
 use iota_sdk_types::Digest;
 
@@ -25,11 +27,17 @@ async fn get_transactions_scenarios() {
         .expect("Failed to get transaction");
     assert_eq!(transactions.len(), 1, "Expected exactly one transaction");
     assert_eq!(
-        transactions[0].digest, digest1,
+        transactions[0]
+            .sdk_digest()
+            .unwrap_or_else(|_| panic!("Failed to get digest from transaction")),
+        digest1,
         "Transaction digest should match requested digest"
     );
     assert!(
-        !transactions[0].signatures.is_empty(),
+        !transactions[0]
+            .sdk_signatures()
+            .expect("Failed to get signatures from transaction")
+            .is_empty(),
         "Signatures should be present"
     );
 
@@ -40,11 +48,17 @@ async fn get_transactions_scenarios() {
         .expect("Failed to get transactions");
     assert_eq!(transactions.len(), 2, "Expected exactly two transactions");
     assert_eq!(
-        transactions[0].digest, digest1,
+        transactions[0]
+            .sdk_digest()
+            .expect("Failed to get digest from first transaction"),
+        digest1,
         "First transaction should match first digest"
     );
     assert_eq!(
-        transactions[1].digest, digest2,
+        transactions[1]
+            .sdk_digest()
+            .expect("Failed to get digest from second transaction"),
+        digest2,
         "Second transaction should match second digest"
     );
 
@@ -77,10 +91,24 @@ async fn get_transactions_scenarios() {
         .await
         .expect("Failed to get transaction");
     let tx = &transactions[0];
-    assert_eq!(tx.digest, digest1, "Digest should match");
-    assert!(!tx.signatures.is_empty(), "Signatures should be present");
+    assert_eq!(
+        tx.sdk_digest()
+            .expect("Failed to get digest from transaction"),
+        digest1,
+        "Digest should match"
+    );
     assert!(
-        is_success(tx.effects.status()),
+        !tx.sdk_signatures()
+            .expect("Failed to get signatures from transaction")
+            .is_empty(),
+        "Signatures should be present"
+    );
+    assert!(
+        is_success(
+            tx.sdk_effects()
+                .expect("Failed to get effects from transaction")
+                .status()
+        ),
         "Transaction should have succeeded"
     );
     assert!(
@@ -88,7 +116,9 @@ async fn get_transactions_scenarios() {
         "Checkpoint should be present after finalization"
     );
     assert!(
-        tx.timestamp_ms.is_some(),
+        tx.timestamp_ms()
+            .expect("Failed to get timestamp from transaction")
+            .is_some(),
         "Timestamp should be present after finalization"
     );
 

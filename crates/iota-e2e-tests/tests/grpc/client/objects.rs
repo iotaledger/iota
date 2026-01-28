@@ -21,7 +21,7 @@ async fn get_objects_scenarios() {
         .expect("Failed to get object");
     assert_eq!(objects.len(), 1, "Expected exactly one object");
     assert!(
-        objects[0].version() > 0,
+        objects[0].version().expect("Failed to get object version") > 0,
         "Object should have a valid version"
     );
 
@@ -42,11 +42,15 @@ async fn get_objects_scenarios() {
     );
     for object in &objects {
         assert!(
-            object.version() > 0,
+            object.version().expect("Failed to get object version") > 0,
             "Each object should have a valid version"
         );
         assert!(
-            object.data.is_package(),
+            object
+                .deserialize()
+                .expect("Failed to deserialize object")
+                .data
+                .is_package(),
             "System object should be a package"
         );
     }
@@ -64,13 +68,15 @@ async fn get_objects_scenarios() {
         .get_objects(&[(object_id, None)], None)
         .await
         .expect("Failed to get object");
-    let current_version = objects[0].version();
+    let current_version = objects[0].version().expect("Failed to get object version");
     let objects_with_version = client
         .get_objects(&[(object_id, Some(current_version))], None)
         .await
         .expect("Failed to get object with specific version");
     assert_eq!(
-        objects_with_version[0].version(),
+        objects_with_version[0]
+            .version()
+            .expect("Failed to get object version"),
         current_version,
         "Object version should match requested version"
     );

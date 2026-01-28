@@ -5,6 +5,7 @@
 
 use iota_grpc_types::v0::{
     signatures::{UserSignature as ProtoUserSignature, UserSignatures},
+    transaction::ExecutedTransaction,
     transaction_execution_service::ExecuteTransactionRequest,
 };
 use iota_sdk_types::SignedTransaction;
@@ -12,8 +13,8 @@ use iota_sdk_types::SignedTransaction;
 use crate::{
     Client,
     api::{
-        EXECUTION_READ_MASK, Error, Result, TransactionExecutionResponse, build_proto_transaction,
-        extract_execution_response, field_mask_with_default,
+        EXECUTION_READ_MASK, Error, Result, TryFromProtoError, build_proto_transaction,
+        field_mask_with_default,
     },
 };
 
@@ -23,8 +24,12 @@ impl Client {
     /// This submits the transaction to the network for execution and waits for
     /// the result. The transaction must be signed with valid signatures.
     ///
-    /// Returns `TransactionExecutionResponse` containing the transaction
-    /// effects, events, and optionally input/output objects.
+    /// Returns proto `ExecutedTransaction`. Use lazy conversion methods to
+    /// extract data:
+    /// - `result.sdk_effects()` - Get transaction effects
+    /// - `result.sdk_events()` - Get transaction events (if available)
+    /// - `result.sdk_input_objects()` - Get input objects (if requested)
+    /// - `result.sdk_output_objects()` - Get output objects (if requested)
     ///
     /// # Field Mask
     ///
@@ -32,10 +37,8 @@ impl Client {
     /// returns. If `None`, uses [`EXECUTION_READ_MASK`] which includes effects,
     /// events, and input/output objects.
     ///
-    /// **Required fields** (must be included in custom masks):
-    /// - `transaction.effects` - Transaction effects
-    ///
     /// **Optional fields:**
+    /// - `transaction.effects` - Transaction effects
     /// - `transaction.events` - Transaction events
     /// - `transaction.input_objects` - Input objects used
     /// - `transaction.output_objects` - Output objects created/modified
@@ -50,13 +53,16 @@ impl Client {
     ///
     /// let signed_tx: SignedTransaction = todo!();
     ///
-    /// // Default: get effects, events, and objects
-    /// let result = client.execute_transaction(signed_tx.clone(), None).await?;
+    /// // Execute transaction - returns proto type
+    /// let result = client.execute_transaction(signed_tx, None).await?;
     ///
-    /// // Minimal: only effects (smaller response)
-    /// let result = client
-    ///     .execute_transaction(signed_tx, Some("transaction.effects"))
-    ///     .await?;
+    /// // Lazy conversion - only deserialize what you need
+    /// let effects = result.sdk_effects()?;
+    /// println!("Status: {:?}", effects.status());
+    ///
+    /// if let Some(events) = result.sdk_events()? {
+    ///     println!("Events: {}", events.0.len());
+    /// }
     /// # Ok(())
     /// # }
     /// ```
@@ -64,7 +70,7 @@ impl Client {
         &self,
         signed_transaction: SignedTransaction,
         read_mask: Option<&str>,
-    ) -> Result<TransactionExecutionResponse> {
+    ) -> Result<Box<ExecutedTransaction>> {
         // Build proto transaction directly from SDK types
         let tx_digest = signed_transaction.transaction.digest();
         let proto_transaction =
@@ -93,6 +99,9 @@ impl Client {
             .await?
             .into_inner();
 
-        extract_execution_response(response.transaction)
+        response
+            .transaction
+            .map(Box::new)
+            .ok_or_else(|| TryFromProtoError::missing("transaction").into())
     }
 }

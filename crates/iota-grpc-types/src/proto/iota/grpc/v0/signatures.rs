@@ -142,3 +142,33 @@ impl Merge<&UserSignatures> for UserSignatures {
         Ok(())
     }
 }
+
+// TryFrom implementation for UserSignatures
+impl TryFrom<&UserSignatures> for Vec<iota_sdk_types::UserSignature> {
+    type Error = crate::proto::TryFromProtoError;
+
+    fn try_from(value: &UserSignatures) -> Result<Self, Self::Error> {
+        value
+            .signatures
+            .iter()
+            .enumerate()
+            .map(|(i, sig)| {
+                <&UserSignature as TryInto<iota_sdk_types::UserSignature>>::try_into(sig).map_err(
+                    |e: crate::proto::TryFromProtoError| {
+                        e.nested_at(UserSignatures::SIGNATURES_FIELD.name, i)
+                    },
+                )
+            })
+            .collect()
+    }
+}
+
+// Convenience methods for UserSignatures (delegate to TryFrom)
+impl UserSignatures {
+    /// Deserialize all user signatures.
+    pub fn deserialize(
+        &self,
+    ) -> Result<Vec<iota_sdk_types::UserSignature>, crate::proto::TryFromProtoError> {
+        self.try_into()
+    }
+}

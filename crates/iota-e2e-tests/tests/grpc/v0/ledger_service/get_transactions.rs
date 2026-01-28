@@ -17,8 +17,6 @@ use test_cluster::{TestCluster, TestClusterBuilder};
 
 use crate::utils::assert_field_presence;
 
-// Note: impl_field_presence_checker! for ExecutedTransaction is already defined
-
 /// Helper to create a test transaction and return its digest
 async fn create_test_transaction(test_cluster: &TestCluster) -> TransactionDigest {
     let (sender, gas) = test_cluster

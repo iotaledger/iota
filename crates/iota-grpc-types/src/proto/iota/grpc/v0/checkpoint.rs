@@ -71,6 +71,14 @@ impl TryFrom<&CheckpointSummary> for iota_sdk_types::CheckpointSummary {
     }
 }
 
+// Lazy conversion methods for CheckpointSummary
+impl CheckpointSummary {
+    /// Deserialize checkpoint summary.
+    pub fn deserialize(&self) -> Result<iota_sdk_types::CheckpointSummary, TryFromProtoError> {
+        self.try_into()
+    }
+}
+
 // CheckpointContents
 //
 
@@ -132,6 +140,14 @@ impl TryFrom<&CheckpointContents> for iota_sdk_types::CheckpointContents {
         // TODO: add version
         BcsData::deserialize(bcs)
             .map_err(|e| TryFromProtoError::invalid(CheckpointContents::BCS_FIELD, e))
+    }
+}
+
+// Lazy conversion methods for CheckpointContents
+impl CheckpointContents {
+    /// Deserialize checkpoint contents.
+    pub fn deserialize(&self) -> Result<iota_sdk_types::CheckpointContents, TryFromProtoError> {
+        self.try_into()
     }
 }
 
@@ -220,6 +236,50 @@ impl Merge<&Checkpoint> for Checkpoint {
         }
 
         Ok(())
+    }
+}
+
+// Lazy conversion methods for Checkpoint
+impl Checkpoint {
+    /// Deserialize checkpoint summary.
+    pub fn sdk_summary(
+        &self,
+    ) -> Result<Option<iota_sdk_types::CheckpointSummary>, TryFromProtoError> {
+        self.summary
+            .as_ref()
+            .map(|s| {
+                s.deserialize()
+                    .map_err(|e| e.nested(Self::SUMMARY_FIELD.name))
+            })
+            .transpose()
+    }
+
+    /// Deserialize checkpoint contents.
+    pub fn sdk_contents(
+        &self,
+    ) -> Result<Option<iota_sdk_types::CheckpointContents>, TryFromProtoError> {
+        self.contents
+            .as_ref()
+            .map(|c| {
+                c.deserialize()
+                    .map_err(|e| e.nested(Self::CONTENTS_FIELD.name))
+            })
+            .transpose()
+    }
+
+    /// Deserialize validator signature.
+    pub fn sdk_signature(
+        &self,
+    ) -> Result<Option<iota_sdk_types::ValidatorAggregatedSignature>, TryFromProtoError> {
+        self.signature
+            .as_ref()
+            .map(|s| {
+                <&super::signatures::ValidatorAggregatedSignature as TryInto<
+                    iota_sdk_types::ValidatorAggregatedSignature,
+                >>::try_into(s)
+                .map_err(|e: TryFromProtoError| e.nested(Self::SIGNATURE_FIELD.name))
+            })
+            .transpose()
     }
 }
 

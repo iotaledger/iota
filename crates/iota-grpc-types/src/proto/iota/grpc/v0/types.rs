@@ -21,3 +21,12 @@ impl From<iota_types::digests::TransactionDigest> for Digest {
         }
     }
 }
+
+impl TryFrom<&Digest> for iota_sdk_types::Digest {
+    type Error = crate::proto::TryFromProtoError;
+
+    fn try_from(value: &Digest) -> Result<Self, Self::Error> {
+        iota_sdk_types::Digest::from_bytes(&value.digest)
+            .map_err(|e| crate::proto::TryFromProtoError::invalid("digest", e))
+    }
+}

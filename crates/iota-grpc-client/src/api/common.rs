@@ -6,16 +6,13 @@
 use iota_grpc_types::v0::{
     bcs::BcsData,
     ledger_service::{ObjectResult, TransactionResult, object_result, transaction_result},
-    transaction::{
-        ExecutedTransaction, Transaction as ProtoTransaction,
-        TransactionEvents as ProtoTransactionEvents,
-    },
+    transaction::{ExecutedTransaction, Transaction as ProtoTransaction},
 };
 pub use iota_grpc_types::{
     field::{FieldMask, FieldMaskUtil},
     proto::TryFromProtoError,
 };
-use iota_sdk_types::{Digest, Event, Object, TransactionEffects, TransactionEvents};
+use iota_sdk_types::Digest;
 use serde::Serialize;
 
 /// Errors that can occur during gRPC client API operations.
@@ -179,143 +176,10 @@ pub fn build_proto_transaction<T: Serialize>(data: &T, digest: Digest) -> Result
     })
 }
 
-/// Convert proto TransactionEffects BCS to SDK TransactionEffects.
-fn convert_effects(
-    proto: &iota_grpc_types::v0::transaction::TransactionEffects,
-) -> Result<TransactionEffects> {
-    let bcs = proto
-        .bcs
-        .as_ref()
-        .ok_or(TryFromProtoError::missing("effects.bcs"))?;
-
-    bcs.deserialize()
-        .map_err(|e| TryFromProtoError::invalid("effects.bcs", e).into())
-}
-
-/// Convert proto TransactionEvents to SDK TransactionEvents.
-fn convert_events(proto: &ProtoTransactionEvents) -> Result<Option<TransactionEvents>> {
-    let Some(events) = proto.events.as_ref() else {
-        return Ok(None);
-    };
-
-    let sdk_events: Vec<Event> = events
-        .events
-        .iter()
-        .map(|e| {
-            let bcs = e
-                .bcs
-                .as_ref()
-                .ok_or(TryFromProtoError::missing("event.bcs"))?;
-            bcs.deserialize()
-                .map_err(|e| TryFromProtoError::invalid("event.bcs", e).into())
-        })
-        .collect::<Result<Vec<_>>>()?;
-
-    Ok(Some(TransactionEvents(sdk_events)))
-}
-
-/// Convert a single proto Object to SDK Object.
-pub fn convert_object(
-    proto: &iota_grpc_types::v0::object::Object,
-    field_name: &str,
-) -> Result<Object> {
-    let bcs = proto
-        .bcs
-        .as_ref()
-        .ok_or(TryFromProtoError::missing(field_name))?;
-
-    bcs.deserialize()
-        .map_err(|e| TryFromProtoError::invalid(field_name, e).into())
-}
-
-/// Extract only effects and events from a proto ExecutedTransaction.
-///
-/// This is a lighter alternative to [`extract_execution_data`] for cases
-/// where input/output objects are not needed (e.g., transaction queries).
-pub fn extract_effects_and_events(
-    proto: &ExecutedTransaction,
-) -> Result<(TransactionEffects, Option<TransactionEvents>)> {
-    let effects = proto
-        .effects
-        .as_ref()
-        .map(convert_effects)
-        .transpose()?
-        .ok_or(TryFromProtoError::missing("effects"))?;
-
-    let events = proto
-        .events
-        .as_ref()
-        .map(convert_events)
-        .transpose()?
-        .flatten();
-
-    Ok((effects, events))
-}
-
-/// Response for transaction execution.
-///
-/// Contains the effects, optional events, and optional objects.
-#[derive(Debug, Clone)]
-pub struct TransactionExecutionResponse {
-    /// The effects of executing this transaction.
-    pub effects: TransactionEffects,
-    /// Events emitted during execution (if requested).
-    pub events: Option<TransactionEvents>,
-    /// Input objects used by the transaction (if requested).
-    pub input_objects: Option<Vec<Object>>,
-    /// Output objects created/modified by the transaction (if requested).
-    pub output_objects: Option<Vec<Object>>,
-}
-
 /// Build a field mask with a custom value or default.
 ///
 /// This is a convenience helper that handles the common pattern of using
 /// a user-provided field mask or falling back to a default.
 pub fn field_mask_with_default(custom: Option<&str>, default: &str) -> FieldMask {
     FieldMask::from_str(custom.unwrap_or(default))
-}
-
-/// Extract execution data from an optional ExecutedTransaction response.
-///
-/// This is a convenience wrapper that handles the common pattern of extracting
-/// the transaction from a response and converting it to SDK types.
-pub fn extract_execution_response(
-    transaction: Option<ExecutedTransaction>,
-) -> Result<TransactionExecutionResponse> {
-    let executed = transaction.ok_or(TryFromProtoError::missing("transaction"))?;
-    extract_execution_data(&executed)
-}
-
-/// Extract execution data from a proto ExecutedTransaction.
-pub fn extract_execution_data(proto: &ExecutedTransaction) -> Result<TransactionExecutionResponse> {
-    let (effects, events) = extract_effects_and_events(proto)?;
-
-    let input_objects = proto
-        .input_objects
-        .as_ref()
-        .map(|objs| {
-            objs.objects
-                .iter()
-                .map(|o| convert_object(o, "input_object"))
-                .collect::<Result<Vec<_>>>()
-        })
-        .transpose()?;
-
-    let output_objects = proto
-        .output_objects
-        .as_ref()
-        .map(|objs| {
-            objs.objects
-                .iter()
-                .map(|o| convert_object(o, "output_object"))
-                .collect::<Result<Vec<_>>>()
-        })
-        .transpose()?;
-
-    Ok(TransactionExecutionResponse {
-        effects,
-        events,
-        input_objects,
-        output_objects,
-    })
 }
