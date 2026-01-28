@@ -52,6 +52,10 @@ pub trait ExecutionMode {
         argument_updates: Self::ArgumentUpdates,
         command_result: &[Value],
     ) -> Result<(), ExecutionError>;
+
+    /// Whether to allow passing in `AuthContext` as an argument to Move
+    /// functions.
+    fn allow_auth_context() -> bool;
 }
 
 #[derive(Copy, Clone)]
@@ -98,6 +102,10 @@ impl ExecutionMode for Normal {
     ) -> Result<(), ExecutionError> {
         Ok(())
     }
+
+    fn allow_auth_context() -> bool {
+        false
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -143,6 +151,10 @@ impl ExecutionMode for Genesis {
         _command_result: &[Value],
     ) -> Result<(), ExecutionError> {
         Ok(())
+    }
+
+    fn allow_auth_context() -> bool {
+        false
     }
 }
 
@@ -195,6 +207,60 @@ impl ExecutionMode for System {
         _command_result: &[Value],
     ) -> Result<(), ExecutionError> {
         Ok(())
+    }
+
+    fn allow_auth_context() -> bool {
+        false
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct Authentication;
+
+impl ExecutionMode for Authentication {
+    type ArgumentUpdates = ();
+    type ExecutionResults = ();
+
+    fn allow_arbitrary_function_calls() -> bool {
+        false
+    }
+
+    fn allow_arbitrary_values() -> bool {
+        false
+    }
+
+    fn skip_conservation_checks() -> bool {
+        false
+    }
+
+    fn packages_are_predefined() -> bool {
+        false
+    }
+
+    fn empty_arguments() -> Self::ArgumentUpdates {}
+
+    fn empty_results() -> Self::ExecutionResults {}
+
+    fn add_argument_update(
+        _resolver: &impl TypeTagResolver,
+        _acc: &mut Self::ArgumentUpdates,
+        _arg: Argument,
+        _new_value: &Value,
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
+    fn finish_command(
+        _resolver: &impl TypeTagResolver,
+        _acc: &mut Self::ExecutionResults,
+        _argument_updates: Self::ArgumentUpdates,
+        _command_result: &[Value],
+    ) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
+    fn allow_auth_context() -> bool {
+        true
     }
 }
 
@@ -254,6 +320,10 @@ impl<const SKIP_ALL_CHECKS: bool> ExecutionMode for DevInspect<SKIP_ALL_CHECKS> 
             .collect::<Result<_, _>>()?;
         acc.push((argument_updates, command_bytes));
         Ok(())
+    }
+
+    fn allow_auth_context() -> bool {
+        false
     }
 }
 

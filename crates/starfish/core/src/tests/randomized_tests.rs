@@ -13,7 +13,7 @@ use crate::{
     block_manager::{BlockManager, block_suspender::tests::evaluate_block_headers},
     commit::DecidedLeader,
     context::Context,
-    dag_state::{BlockHeaderSource, DagState},
+    dag_state::{DagState, DataSource},
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
     storage::mem_store::MemStore,
     test_dag::create_random_dag,
@@ -127,7 +127,7 @@ async fn test_randomized_dag_and_decision_sequence() {
             seen_so_far.extend(chunk.iter().cloned());
             let _ = authority_1
                 .block_manager
-                .try_accept_block_headers(chunk.to_vec(), BlockHeaderSource::Test);
+                .try_accept_block_headers(chunk.to_vec(), DataSource::Test);
             let sequence = authority_1.committer.try_decide(last_decided);
 
             if !sequence.is_empty() {
@@ -170,7 +170,7 @@ async fn test_randomized_dag_and_decision_sequence() {
 
             let _ = authority_2
                 .block_manager
-                .try_accept_block_headers(chunk.to_vec(), BlockHeaderSource::Test);
+                .try_accept_block_headers(chunk.to_vec(), DataSource::Test);
             let sequence = authority_2.committer.try_decide(last_decided);
 
             if !sequence.is_empty() {

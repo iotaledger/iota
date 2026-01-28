@@ -17,7 +17,7 @@ use iota_json_rpc_types::{
 use iota_open_rpc::Module;
 use iota_transaction_builder::{DataReader, TransactionBuilder};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectInfo},
+    base_types::{IotaAddress, ObjectID},
     iota_serde::BigInt,
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
@@ -52,15 +52,38 @@ impl DataReader for AuthorityStateDataReader {
         &self,
         address: IotaAddress,
         object_type: StructTag,
-    ) -> Result<Vec<ObjectInfo>, anyhow::Error> {
-        Ok(self
+        cursor: Option<ObjectID>,
+        limit: Option<usize>,
+        options: IotaObjectDataOptions,
+    ) -> Result<iota_json_rpc_types::ObjectsPage, anyhow::Error> {
+        let limit = limit.unwrap_or(50);
+        let mut result = self
             .0
-            // DataReader is used internally, don't need a limit
-            .get_owner_objects(
+            .get_owner_objects_with_limit(
                 address,
-                None,
+                cursor,
+                limit + 1,
                 Some(IotaObjectDataFilter::StructType(object_type)),
-            )?)
+            )?
+            .into_iter()
+            .map(|info| {
+                let read = self.0.get_object_read(&info.object_id)?;
+                IotaObjectResponse::try_from_object_read_and_options(read, &options)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let next_cursor = if result.len() > limit {
+            // Here the cursor is the first object id of the next page
+            result.pop().unwrap().object_id().ok()
+        } else {
+            None
+        };
+
+        Ok(iota_json_rpc_types::ObjectsPage {
+            data: result,
+            next_cursor,
+            has_next_page: next_cursor.is_some(),
+        })
     }
 
     async fn get_object_with_options(
@@ -69,7 +92,7 @@ impl DataReader for AuthorityStateDataReader {
         options: IotaObjectDataOptions,
     ) -> Result<IotaObjectResponse, anyhow::Error> {
         let result = self.0.get_object_read(&object_id)?;
-        Ok((result, options).try_into()?)
+        IotaObjectResponse::try_from_object_read_and_options(result, &options)
     }
 
     async fn get_reference_gas_price(&self) -> Result<u64, anyhow::Error> {

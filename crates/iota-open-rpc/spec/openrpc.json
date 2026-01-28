@@ -1325,15 +1325,18 @@
                 "disallow_new_modules_in_deps_only_packages": true,
                 "enable_group_ops_native_function_msm": true,
                 "enable_jwk_consensus_updates": false,
+                "enable_move_authentication": false,
                 "enable_poseidon": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
+                "metadata_in_module_bytes": false,
                 "minimize_child_object_mutations": false,
                 "native_charging_v2": true,
                 "no_extraneous_module_bytes": true,
                 "normalize_ptb_arguments": false,
                 "passkey_auth": true,
                 "protocol_defined_base_fee": true,
+                "publish_package_metadata": false,
                 "relocate_event_module": true,
                 "rethrow_serialization_type_layout_errors": true,
                 "select_committee_from_eligible_validators": false,
@@ -1829,6 +1832,7 @@
                 "max_arguments": {
                   "u32": "512"
                 },
+                "max_auth_gas": null,
                 "max_back_edges_per_function": {
                   "u64": "10000"
                 },
@@ -6152,6 +6156,39 @@
         "description": "A struct that stores a Bn254 Fr field element as 32 bytes.",
         "type": "string"
       },
+      "CallArg": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "Pure"
+            ],
+            "properties": {
+              "Pure": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "uint8",
+                  "minimum": 0.0
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "Object"
+            ],
+            "properties": {
+              "Object": {
+                "$ref": "#/components/schemas/ObjectArg"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
       "Checkpoint": {
         "type": "object",
         "required": [
@@ -6431,6 +6468,18 @@
             "properties": {
               "Passkey": {
                 "$ref": "#/components/schemas/PasskeyAuthenticatorAsBytes"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "Move"
+            ],
+            "properties": {
+              "Move": {
+                "$ref": "#/components/schemas/MoveAuthenticatorAsBytes"
               }
             },
             "additionalProperties": false
@@ -7675,6 +7724,18 @@
             "properties": {
               "PasskeyAuthenticator": {
                 "$ref": "#/components/schemas/PasskeyAuthenticator"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "MoveAuthenticator"
+            ],
+            "properties": {
+              "MoveAuthenticator": {
+                "$ref": "#/components/schemas/MoveAuthenticator"
               }
             },
             "additionalProperties": false
@@ -10063,6 +10124,42 @@
           }
         }
       },
+      "MoveAuthenticator": {
+        "description": "MoveAuthenticator is a GenericSignature variant that enables a new method of authentication through Move code. This function represents the data received by the Move authenticate function during the Account Abstraction authentication flow.",
+        "type": "object",
+        "required": [
+          "call_args",
+          "object_to_authenticate",
+          "type_arguments"
+        ],
+        "properties": {
+          "call_args": {
+            "description": "Input objects or primitive values",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CallArg"
+            }
+          },
+          "object_to_authenticate": {
+            "description": "The object that is authenticated. Represents the account being the sender of the transaction.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CallArg"
+              }
+            ]
+          },
+          "type_arguments": {
+            "description": "Type arguments for the Move authenticate function",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "MoveAuthenticatorAsBytes": {
+        "$ref": "#/components/schemas/Base64"
+      },
       "MoveCallMetrics": {
         "type": "object",
         "required": [
@@ -10443,6 +10540,88 @@
             "format": "double"
           }
         }
+      },
+      "ObjectArg": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "ImmOrOwnedObject"
+            ],
+            "properties": {
+              "ImmOrOwnedObject": {
+                "type": "array",
+                "items": [
+                  {
+                    "$ref": "#/components/schemas/ObjectID"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SequenceNumber"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ObjectDigest"
+                  }
+                ],
+                "maxItems": 3,
+                "minItems": 3
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "SharedObject"
+            ],
+            "properties": {
+              "SharedObject": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "initial_shared_version",
+                  "mutable"
+                ],
+                "properties": {
+                  "id": {
+                    "$ref": "#/components/schemas/ObjectID"
+                  },
+                  "initial_shared_version": {
+                    "$ref": "#/components/schemas/SequenceNumber"
+                  },
+                  "mutable": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "Receiving"
+            ],
+            "properties": {
+              "Receiving": {
+                "type": "array",
+                "items": [
+                  {
+                    "$ref": "#/components/schemas/ObjectID"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SequenceNumber"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ObjectDigest"
+                  }
+                ],
+                "maxItems": 3,
+                "minItems": 3
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
       },
       "ObjectChange": {
         "description": "ObjectChange are derived from the object mutations in the TransactionEffect to provide richer object information.",
@@ -12966,7 +13145,7 @@
         }
       },
       "TypeOrigin": {
-        "description": "Identifies a struct and the module it was defined in",
+        "description": "Store the origin of a data type where it first appeared in the version chain.\n\nA data type is identified by the name of the module and the name of the struct/enum in combination.\n\n# Undefined behavior\n\nDirectly modifying any field is undefined behavior. The fields are only public for read-only access.",
         "type": "object",
         "required": [
           "datatype_name",
@@ -12975,13 +13154,20 @@
         ],
         "properties": {
           "datatype_name": {
+            "description": "The name of the data type.\n\nHere this either refers to an enum or a struct identifier.",
             "type": "string"
           },
           "module_name": {
+            "description": "The name of the module the data type resides in.",
             "type": "string"
           },
           "package": {
-            "$ref": "#/components/schemas/ObjectID"
+            "description": "`Storage ID` of the package, where the given type first appeared.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            ]
           }
         }
       },
@@ -12989,7 +13175,7 @@
         "type": "string"
       },
       "UpgradeInfo": {
-        "description": "Upgraded package info for the linkage table",
+        "description": "Value for the [MovePackage]'s linkage_table.\n\n# Undefined behavior\n\nDirectly modifying any field is undefined behavior. The fields are only public for read-only access.",
         "type": "object",
         "required": [
           "upgraded_id",
@@ -12997,7 +13183,7 @@
         ],
         "properties": {
           "upgraded_id": {
-            "description": "ID of the upgraded packages",
+            "description": "`Storage ID`/`Package ID` of the referred package.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/ObjectID"
@@ -13005,7 +13191,7 @@
             ]
           },
           "upgraded_version": {
-            "description": "Version of the upgraded package",
+            "description": "The version of the package at `upgraded_id`.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/SequenceNumber2"

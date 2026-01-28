@@ -4,7 +4,7 @@
 //! Error types pertaining to deserializing Stardust snapshots
 use std::convert::Infallible;
 
-use iota_stardust_sdk::types::block::output::FoundryId;
+use iota_stardust_types::block::output::FoundryId;
 use packable::error::UnknownTagError;
 use thiserror::Error;
 
@@ -17,7 +17,7 @@ pub enum StardustError {
     #[error("invalid Hornet genesis snapshot: milestone diff count must be 0, but was {0}")]
     InvalidHornetGenesisSnapshot(u32),
     #[error("block error: {0}")]
-    Block(#[from] iota_stardust_sdk::types::block::Error),
+    Block(#[from] iota_stardust_types::block::Error),
     #[error("{0}")]
     UnknownTag(#[from] UnknownTagError<u8>),
     #[error(
@@ -39,6 +39,12 @@ pub enum StardustError {
     CirculatingSupplyMustNotBeGreaterThanMaximumSupply,
     #[error("Hornet Stardust snapshot parameters not found")]
     HornetSnapshotParametersNotFound,
+    #[error("invalid network name")]
+    InvalidNetworkName,
+    #[error("invalid bech32 hrp")]
+    InvalidBech32Hrp,
+    #[error("invalid milestone option kind: {0}")]
+    InvalidMilestoneOptionKind(u8),
 }
 
 impl From<Infallible> for StardustError {

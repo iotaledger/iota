@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { IotaLogoWeb } from '@iota/apps-ui-icons';
 import { Divider } from '@iota/apps-ui-kit';
 import { Link } from '../link';

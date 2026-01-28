@@ -16,7 +16,7 @@ use iota_json_rpc_types::{
 };
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectID, ObjectInfo},
+    base_types::{IotaAddress, ObjectID},
     coin,
     error::UserInputError,
     fp_ensure,
@@ -32,7 +32,10 @@ pub trait DataReader {
         &self,
         address: IotaAddress,
         object_type: StructTag,
-    ) -> Result<Vec<ObjectInfo>, anyhow::Error>;
+        cursor: Option<ObjectID>,
+        limit: Option<usize>,
+        options: IotaObjectDataOptions,
+    ) -> Result<iota_json_rpc_types::ObjectsPage, anyhow::Error>;
 
     async fn get_object_with_options(
         &self,

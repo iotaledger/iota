@@ -67,7 +67,7 @@ use crate::{
     key_identity::{
         KeyIdentity, get_identity_address_from_keystore, get_identity_alias_from_keystore,
     },
-    signing::{ExternalKeySource, sign_secure},
+    signing::{ExternalKeySource, SignData, sign_secure},
 };
 
 #[derive(Subcommand)]
@@ -362,15 +362,19 @@ pub struct Key {
     #[serde(skip_serializing_if = "Option::is_none")]
     alias: Option<String>,
     pub(crate) iota_address: IotaAddress,
-    pub(crate) public_base64_key: String,
-    pub(crate) public_base64_key_with_flag: String,
-    key_scheme: String,
-    flag: u8,
+    source: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) public_base64_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) public_base64_key_with_flag: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    key_scheme: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    flag: Option<u8>,
     #[serde(skip_serializing_if = "Option::is_none")]
     mnemonic: Option<String>,
-    peer_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    external_source: Option<String>,
+    peer_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     derivation_path: Option<String>,
 }
@@ -418,24 +422,6 @@ pub struct ConvertOutput {
 #[serde(rename_all = "camelCase")]
 pub struct SerializedSig {
     serialized_sig_base64: String,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SignData {
-    iota_address: IotaAddress,
-    // Base64 encoded string of serialized transaction data.
-    raw_tx_data: String,
-    // Intent struct used, see [struct Intent] for field definitions.
-    intent: Intent,
-    // Base64 encoded [struct IntentMessage] consisting of (intent || message)
-    // where message can be `TransactionData` etc.
-    raw_intent_msg: String,
-    // Base64 encoded blake2b hash of the intent message, this is what the signature commits to.
-    digest: String,
-    // Base64 encoded `flag || signature || pubkey` for a complete
-    // serialized IOTA signature to be send for executing the transaction.
-    iota_signature: String,
 }
 
 #[derive(Serialize)]
@@ -643,6 +629,9 @@ impl KeyToolCommand {
 
                         CommandOutput::Export(key)
                     }
+                    StoredKey::Account(_) => {
+                        bail!("Cannot export: account addresses are not backed by private keys");
+                    }
                     StoredKey::External { source, .. } => {
                         bail!("Cannot export external keys from {source}");
                     }
@@ -664,13 +653,13 @@ impl KeyToolCommand {
                     CommandOutput::Generate(Key {
                         alias: None,
                         iota_address,
-                        public_base64_key: kp.public().encode_base64(),
-                        public_base64_key_with_flag,
-                        key_scheme: key_scheme.to_string(),
-                        flag: SignatureScheme::BLS12381.flag(),
+                        source: "keypair".to_string(),
+                        public_base64_key: Some(kp.public().encode_base64()),
+                        public_base64_key_with_flag: Some(public_base64_key_with_flag),
+                        key_scheme: Some(key_scheme.to_string()),
+                        flag: Some(SignatureScheme::BLS12381.flag()),
                         mnemonic: None,
                         peer_id: None,
-                        external_source: None,
                         derivation_path: None,
                     })
                 }
@@ -822,13 +811,13 @@ impl KeyToolCommand {
                             CommandOutput::Show(Key {
                                 alias: None, // alias does not get stored in key files
                                 iota_address: (keypair.public()).into(),
-                                public_base64_key,
-                                public_base64_key_with_flag,
-                                key_scheme: SignatureScheme::BLS12381.to_string(),
-                                flag: SignatureScheme::BLS12381.flag(),
+                                source: "keypair".to_string(),
+                                public_base64_key: Some(public_base64_key),
+                                public_base64_key_with_flag: Some(public_base64_key_with_flag),
+                                key_scheme: Some(SignatureScheme::BLS12381.to_string()),
+                                flag: Some(SignatureScheme::BLS12381.flag()),
                                 peer_id: None,
                                 mnemonic: None,
-                                external_source: None,
                                 derivation_path: None,
                             })
                         }
@@ -1320,18 +1309,34 @@ impl From<IotaKeyPair> for Key {
 
 impl From<&StoredKey> for Key {
     fn from(stored: &StoredKey) -> Self {
-        let pk = stored.public();
-        Self {
-            alias: None, // this is retrieved later
-            iota_address: stored.address(),
-            public_base64_key: Base64::encode(pk.as_ref()),
-            public_base64_key_with_flag: pk.encode_base64(),
-            key_scheme: pk.scheme().to_string(),
-            mnemonic: None,
-            flag: pk.flag(),
-            peer_id: anemo_styling(&pk),
-            external_source: stored.external_source(),
-            derivation_path: stored.derivation_path().map(|d| d.to_string()),
+        if matches!(stored, StoredKey::Account { .. }) {
+            Self {
+                alias: None, // this is retrieved later
+                iota_address: stored.address(),
+                source: stored.source().to_string(),
+                public_base64_key: None,
+                public_base64_key_with_flag: None,
+                key_scheme: None,
+                mnemonic: None,
+                flag: None,
+                peer_id: None,
+                derivation_path: None,
+            }
+        } else {
+            let pk = stored.public();
+
+            Self {
+                alias: None, // this is retrieved later
+                iota_address: stored.address(),
+                source: stored.source().to_string(),
+                public_base64_key: Some(Base64::encode(pk.as_ref())),
+                public_base64_key_with_flag: Some(pk.encode_base64()),
+                key_scheme: Some(pk.scheme().to_string()),
+                mnemonic: None,
+                flag: Some(pk.flag()),
+                peer_id: anemo_styling(&pk),
+                derivation_path: stored.derivation_path().map(|d| d.to_string()),
+            }
         }
     }
 }

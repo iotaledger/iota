@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_stardust_sdk::types::block::address::Address;
+use iota_stardust_types::block::address::Address;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -25,7 +25,7 @@ pub struct ExpirationUnlockCondition {
 impl ExpirationUnlockCondition {
     pub(crate) fn new(
         owner_address: &Address,
-        expiration_unlock_condition: &iota_stardust_sdk::types::block::output::unlock_condition::ExpirationUnlockCondition,
+        expiration_unlock_condition: &iota_stardust_types::block::output::unlock_condition::ExpirationUnlockCondition,
     ) -> anyhow::Result<Self> {
         let owner = stardust_to_iota_address(owner_address)?;
         let return_address =
@@ -52,13 +52,15 @@ pub struct StorageDepositReturnUnlockCondition {
     pub return_amount: u64,
 }
 
-impl TryFrom<&iota_stardust_sdk::types::block::output::unlock_condition::StorageDepositReturnUnlockCondition>
-    for StorageDepositReturnUnlockCondition
+impl
+    TryFrom<
+        &iota_stardust_types::block::output::unlock_condition::StorageDepositReturnUnlockCondition,
+    > for StorageDepositReturnUnlockCondition
 {
     type Error = anyhow::Error;
 
     fn try_from(
-        unlock: &iota_stardust_sdk::types::block::output::unlock_condition::StorageDepositReturnUnlockCondition,
+        unlock: &iota_stardust_types::block::output::unlock_condition::StorageDepositReturnUnlockCondition,
     ) -> Result<Self, Self::Error> {
         let return_address = unlock.return_address().to_string().parse()?;
         let return_amount = unlock.amount();
@@ -78,11 +80,11 @@ pub struct TimelockUnlockCondition {
     pub unix_time: u32,
 }
 
-impl From<&iota_stardust_sdk::types::block::output::unlock_condition::TimelockUnlockCondition>
+impl From<&iota_stardust_types::block::output::unlock_condition::TimelockUnlockCondition>
     for TimelockUnlockCondition
 {
     fn from(
-        unlock: &iota_stardust_sdk::types::block::output::unlock_condition::TimelockUnlockCondition,
+        unlock: &iota_stardust_types::block::output::unlock_condition::TimelockUnlockCondition,
     ) -> Self {
         Self {
             unix_time: unlock.timestamp(),

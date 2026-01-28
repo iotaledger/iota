@@ -1165,7 +1165,8 @@ fn gate_known_attribute(context: &mut Context, loc: Loc, known: &KnownAttribute)
         | KnownAttribute::DefinesPrimitive(_)
         | KnownAttribute::External(_)
         | KnownAttribute::Syntax(_)
-        | KnownAttribute::Deprecation(_) => (),
+        | KnownAttribute::Deprecation(_)
+        | KnownAttribute::Flavored(_) => (),
         KnownAttribute::Error(_) => {
             let pkg = context.current_package();
             context.check_feature(pkg, FeatureGate::CleverAssertions, loc);
@@ -1186,7 +1187,9 @@ fn unique_attributes(
             | E::Attribute_::Assigned(n, _)
             | E::Attribute_::Parameterized(n, _) => *n,
         };
-        let name_ = match known_attributes::KnownAttribute::resolve(sym) {
+        let current_package = context.current_package();
+        let flavor = context.env().flavor(current_package);
+        let name_ = match known_attributes::KnownAttribute::resolve(sym, flavor) {
             None => E::AttributeName_::Unknown(sym),
             Some(known) => {
                 debug_assert!(known.name() == sym.as_str());
