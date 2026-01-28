@@ -6494,7 +6494,6 @@ dependencies = [
  "prost 0.14.1",
  "prost-types 0.14.1",
  "serde",
- "serde_json",
  "tap",
  "test-cluster",
  "tokio",
@@ -6509,7 +6508,6 @@ name = "iota-grpc-types"
 version = "1.16.0-alpha"
 dependencies = [
  "bcs",
- "iota-json-rpc-types",
  "iota-sdk-types",
  "iota-types",
  "move-core-types",

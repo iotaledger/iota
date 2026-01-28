@@ -2,15 +2,17 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_json_rpc_types::{Filter, IotaEvent};
+use std::sync::Arc;
+
 use iota_metrics::monitored_scope;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
-    error::IotaResult,
+    event::Event,
 };
 use move_core_types::{identifier::Identifier, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+
+use crate::GrpcStateReader;
 
 const MAX_FILTER_DEPTH: usize = 10;
 
@@ -53,44 +55,112 @@ pub enum EventFilter {
     /// For example, if the event is defined in `0xabcd::MyModule`, and named
     /// `Foo`, then the struct tag is `0xabcd::MyModule::Foo`.
     MoveEventType(StructTag),
-    /// Return events whose JSON representation contains the given field path
-    /// with the specified value (optional). The path should be a JSON pointer
-    /// as defined in RFC 6901.
-    MoveEventField {
-        path: String,
-        value: Option<Value>,
-    },
+}
+
+// Proto-to-internal filter conversion
+impl TryFrom<iota_grpc_types::v0::filter::EventFilter> for EventFilter {
+    type Error = String;
+
+    fn try_from(proto: iota_grpc_types::v0::filter::EventFilter) -> Result<Self, Self::Error> {
+        use iota_grpc_types::v0::filter::event_filter::Filter as ProtoFilter;
+
+        let filter = proto.filter.ok_or("event filter is missing")?;
+
+        match filter {
+            ProtoFilter::All(all) => {
+                let filters = all
+                    .filters
+                    .into_iter()
+                    .map(EventFilter::try_from)
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(EventFilter::All(filters))
+            }
+            ProtoFilter::Any(any) => {
+                let filters = any
+                    .filters
+                    .into_iter()
+                    .map(EventFilter::try_from)
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(EventFilter::Any(filters))
+            }
+            ProtoFilter::Negation(not) => {
+                let inner = not.filter.ok_or("negation filter is missing")?;
+                Ok(EventFilter::Not(Box::new(EventFilter::try_from(*inner)?)))
+            }
+            ProtoFilter::Sender(addr_filter) => {
+                let address = addr_filter
+                    .address
+                    .ok_or("sender address is missing")?
+                    .address;
+                let iota_address = IotaAddress::from_bytes(&address)
+                    .map_err(|e| format!("invalid sender address: {}", e))?;
+                Ok(EventFilter::Sender(iota_address))
+            }
+            ProtoFilter::MovePackageAndModule(filter) => {
+                // TODO: add a function to parse the package and the module name
+                let package_bytes = filter.package_id.ok_or("package_id is missing")?.address;
+                let package = ObjectID::from_bytes(&package_bytes)
+                    .map_err(|e| format!("invalid package_id: {}", e))?;
+                let module = filter
+                    .module
+                    .map(|m| {
+                        Identifier::new(m.as_str())
+                            .map_err(|e| format!("invalid module name: {}", e))
+                    })
+                    .transpose()?;
+                Ok(EventFilter::MovePackageAndModule { package, module })
+            }
+            ProtoFilter::MoveEventPackageAndModule(filter) => {
+                // TODO: add a function to parse the package and the module name
+                let package_bytes = filter.package_id.ok_or("package_id is missing")?.address;
+                let package = ObjectID::from_bytes(&package_bytes)
+                    .map_err(|e| format!("invalid package_id: {}", e))?;
+                let module = filter
+                    .module
+                    .map(|m| {
+                        Identifier::new(m.as_str())
+                            .map_err(|e| format!("invalid module name: {}", e))
+                    })
+                    .transpose()?;
+                Ok(EventFilter::MoveEventPackageAndModule { package, module })
+            }
+            ProtoFilter::MoveEventType(filter) => {
+                let tag: StructTag = filter
+                    .struct_tag
+                    .parse()
+                    .map_err(|e| format!("invalid struct tag: {}", e))?;
+                Ok(EventFilter::MoveEventType(tag))
+            }
+        }
+    }
 }
 
 impl EventFilter {
-    fn try_matches(&self, item: &IotaEvent) -> IotaResult<bool> {
-        Ok(match self {
-            EventFilter::All(filters) => filters.iter().all(|f| f.matches(item)),
-            EventFilter::Any(filters) => filters.iter().any(|f| f.matches(item)),
-            EventFilter::Not(filter) => !filter.matches(item),
+    pub fn matches_event(&self, state_reader: Arc<dyn GrpcStateReader>, item: &Event) -> bool {
+        let _scope = monitored_scope("EventFilter::matches_event");
 
-            EventFilter::Sender(sender) => &item.sender == sender,
+        match self {
+            EventFilter::All(filters) => filters
+                .iter()
+                .all(|f| f.matches_event(state_reader.clone(), item)),
+            EventFilter::Any(filters) => filters
+                .iter()
+                .any(|f| f.matches_event(state_reader.clone(), item)),
+            EventFilter::Not(filter) => !filter.matches_event(state_reader.clone(), item),
+
+            EventFilter::Sender(sender) => item.sender == *sender,
 
             EventFilter::MovePackageAndModule { package, module } => {
-                &item.package_id == package
+                item.package_id == *package
                     && (module.is_none()
                         || matches!(module,  Some(m2) if m2 == &item.transaction_module))
             }
             EventFilter::MoveEventPackageAndModule { package, module } => {
-                &ObjectID::from(item.type_.address) == package
+                ObjectID::from(item.type_.address) == *package
                     && (module.is_none() || matches!(module,  Some(m2) if m2 == &item.type_.module))
             }
-            EventFilter::MoveEventType(event_type) => &item.type_ == event_type,
-            EventFilter::MoveEventField { path, value } => {
-                let json_ptr_value = item.parsed_json.pointer(path);
-                if value.is_none() {
-                    // If no value is specified, just check for the existence of the field.
-                    json_ptr_value.is_some()
-                } else {
-                    matches!(json_ptr_value, Some(v) if v == value.as_ref().unwrap())
-                }
-            }
-        })
+            EventFilter::MoveEventType(event_type) => item.type_ == *event_type,
+        }
     }
 
     pub fn and(self, other_filter: EventFilter) -> Self {
@@ -188,13 +258,6 @@ impl EventFilter {
     }
 }
 
-impl Filter<IotaEvent> for EventFilter {
-    fn matches(&self, item: &IotaEvent) -> bool {
-        let _scope = monitored_scope("EventFilter::matches");
-        self.try_matches(item).unwrap_or_default()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -223,7 +286,7 @@ mod tests {
             ]),
         ]);
         assert!(nested_filter.validate_depth().is_ok());
-        assert_eq!(nested_filter.max_depth(), 2);
+        assert_eq!(nested_filter.max_depth(), 3); // All -> Any -> Not = 3 levels
 
         // Deeply nested filter should fail
         let mut deep_filter = EventFilter::Sender(IotaAddress::random_for_testing_only());

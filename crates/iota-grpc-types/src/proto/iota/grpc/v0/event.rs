@@ -6,34 +6,11 @@ include!("../../../generated/iota.grpc.v0.event.rs");
 include!("../../../generated/iota.grpc.v0.event.field_info.rs");
 include!("../../../generated/iota.grpc.v0.event.accessors.rs");
 
-use iota_json_rpc_types::IotaEvent;
-
 use crate::{
     field::FieldMaskTree,
     merge::Merge,
     v0::{bcs as grpc_bcs, event as grpc_event, types as grpc_types},
 };
-
-// Convert IotaEvent to protobuf Event
-impl From<&IotaEvent> for grpc_event::Event {
-    fn from(event: &IotaEvent) -> Self {
-        grpc_event::Event {
-            bcs: grpc_bcs::BcsData::serialize(&event).ok(),
-            package_id: Some(grpc_types::Address {
-                address: event.package_id.into_bytes().to_vec().into(),
-            }),
-            module: Some(event.transaction_module.to_string()),
-            sender: Some(grpc_types::Address {
-                address: event.sender.to_vec().into(),
-            }),
-            event_type: Some(event.type_.to_canonical_string(true)),
-            bcs_contents: Some(grpc_bcs::BcsData {
-                data: event.bcs.clone().into_bytes().into(),
-            }),
-            json_contents: None, // TODO: fill in JSON contents
-        }
-    }
-}
 
 // Merge implementation for Events from iota_sdk_types::TransactionEvents
 impl Merge<&iota_sdk_types::TransactionEvents> for grpc_event::Events {
