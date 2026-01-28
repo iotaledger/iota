@@ -1,3 +1,6 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { SIDE_PANEL_QUERY_KEY } from './useSidePanel';
 import { SidePanel } from '_src/polyfills/sidepanel';
