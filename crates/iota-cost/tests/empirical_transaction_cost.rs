@@ -119,11 +119,11 @@ async fn create_txes(
     //
     let whole_iota_coin_tx =
         TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price)
-            .transfer_iota(None, IotaAddress::default())
+            .transfer_iota(None, IotaAddress::ZERO)
             .build();
     let partial_iota_coin_tx =
         TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price)
-            .transfer_iota(Some(10), IotaAddress::default())
+            .transfer_iota(Some(10), IotaAddress::ZERO)
             .build();
     ret.insert(
         CommonTransactionCosts::TransferWholeIotaCoin,
@@ -137,7 +137,7 @@ async fn create_txes(
     // Transfer Whole Coin Object
     //
     let whole_coin_tx = TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price)
-        .transfer(gas_objects.pop().unwrap(), IotaAddress::default())
+        .transfer(gas_objects.pop().unwrap(), IotaAddress::ZERO)
         .build();
 
     ret.insert(CommonTransactionCosts::TransferWholeCoin, whole_coin_tx);

@@ -884,8 +884,8 @@ fn test_query_transaction_blocks_from_and_to_address() -> Result<(), anyhow::Err
 
     runtime.block_on(async move {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let recipient_1 = IotaAddress::random_for_testing_only();
-        let recipient_2 = IotaAddress::random_for_testing_only();
+        let recipient_1 = IotaAddress::random();
+        let recipient_2 = IotaAddress::random();
 
         let gas = cluster
             .fund_address_and_return_gas(
@@ -947,7 +947,7 @@ fn test_query_by_recently_executed_tx_cursor() -> Result<(), anyhow::Error> {
 
     runtime.block_on(async move {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let recipient = IotaAddress::random_for_testing_only();
+        let recipient = IotaAddress::random();
         let gas = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -1026,8 +1026,8 @@ fn test_query_transaction_blocks_from_or_to_address() -> Result<(), anyhow::Erro
 
     runtime.block_on(async move {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let recipient_1 = IotaAddress::random_for_testing_only();
-        let recipient_2 = IotaAddress::random_for_testing_only();
+        let recipient_1 = IotaAddress::random();
+        let recipient_2 = IotaAddress::random();
 
         let gas = cluster
             .fund_address_and_return_gas(

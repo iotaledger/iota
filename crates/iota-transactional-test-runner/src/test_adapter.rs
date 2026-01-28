@@ -2776,11 +2776,11 @@ async fn update_named_address_mapping(
     let additional_mapping = additional_mapping
         .into_iter()
         .chain(accounts.iter().map(|(n, test_account)| {
-            let addr = NumericalAddress::new(test_account.address.to_inner(), NumberFormat::Hex);
+            let addr = NumericalAddress::new(test_account.address.into_bytes(), NumberFormat::Hex);
             (n.clone(), addr)
         }))
         .chain(active_val_addrs.iter().map(|(n, addr)| {
-            let addr = NumericalAddress::new(addr.to_inner(), NumberFormat::Hex);
+            let addr = NumericalAddress::new(addr.into_bytes(), NumberFormat::Hex);
             (n.clone(), addr)
         }));
     // Extend the mappings of all named addresses with values

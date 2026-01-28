@@ -896,7 +896,7 @@ mod tests {
         let exchange_rates = rates
             .into_iter()
             .map(|(validator, rates_vec)| {
-                let address = IotaAddress::random_for_testing_only();
+                let address = IotaAddress::random();
                 address_map.insert(address, validator);
                 ValidatorExchangeRates {
                     address,
@@ -928,7 +928,7 @@ mod tests {
         let exchange_rates = rates
             .into_iter()
             .map(|(validator, rates_vec)| {
-                let address = IotaAddress::random_for_testing_only();
+                let address = IotaAddress::random();
                 address_map.insert(address, validator);
                 ValidatorExchangeRates {
                     address,

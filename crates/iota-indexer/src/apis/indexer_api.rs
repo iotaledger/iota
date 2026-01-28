@@ -31,6 +31,7 @@ use jsonrpsee::{
     PendingSubscriptionSink, RpcModule,
     core::{RpcResult, SubscriptionResult, client::Error as RpcClientError},
 };
+use move_core_types::account_address::AccountAddress;
 use tap::TapFallible;
 
 use crate::{errors::IndexerError, read::IndexerReader};
@@ -491,7 +492,7 @@ impl IndexerApiServer for IndexerApi {
     ) -> RpcResult<ObjectsPage> {
         let query = IotaObjectResponseQuery {
             filter: Some(IotaObjectDataFilter::StructType(NameRegistration::type_(
-                self.iota_names_config.package_address.into(),
+                AccountAddress::new(self.iota_names_config.package_address.into_bytes()),
             ))),
             options,
         };

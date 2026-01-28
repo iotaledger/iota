@@ -104,7 +104,7 @@ fn make_owned_entry(
 }
 
 fn owner_proto(addr: IotaAddress) -> ProtoAddress {
-    ProtoAddress::default().with_address(addr.to_vec())
+    ProtoAddress::default().with_address(addr.into_bytes().to_vec())
 }
 
 /// Connect a state-service client to the test server.

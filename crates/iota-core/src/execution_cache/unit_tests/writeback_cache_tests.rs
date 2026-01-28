@@ -1203,7 +1203,7 @@ async fn latest_object_cache_race_test() {
     ));
 
     let object_id = ObjectID::random();
-    let owner = IotaAddress::random_for_testing_only();
+    let owner = IotaAddress::random();
 
     // a writer thread that keeps writing new versions
     let writer = {
@@ -1389,7 +1389,7 @@ async fn concurrent_latest_object_cache_race_test() {
     ));
 
     let object_id = ObjectID::random();
-    let owner = IotaAddress::random_for_testing_only();
+    let owner = IotaAddress::random();
 
     // write a new version on request
     let mut write_version = OBJECT_START_VERSION;
@@ -1504,8 +1504,8 @@ async fn concurrent_latest_object_cache_collision_test() {
         key_generation_hash(&object2_id)
     );
 
-    let owner1 = IotaAddress::random_for_testing_only();
-    let owner2 = IotaAddress::random_for_testing_only();
+    let owner1 = IotaAddress::random();
+    let owner2 = IotaAddress::random();
 
     // write a new version on request
     let mut write1_version = OBJECT_START_VERSION;
