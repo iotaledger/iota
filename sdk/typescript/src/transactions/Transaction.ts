@@ -3,12 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { SerializedBcs } from '@iota/bcs';
-import { fromBase64, isSerializedBcs } from '@iota/bcs';
+import { fromBase64, isSerializedBcs, toHex } from '@iota/bcs';
 import type { InferInput } from 'valibot';
 import { is, parse } from 'valibot';
 
 import type { IotaClient } from '../client/index.js';
-import type { SignatureWithBytes, Signer } from '../cryptography/index.js';
+import { Signer } from '../cryptography/index.js';
+import type { SignatureWithBytes } from '../cryptography/index.js';
 import { normalizeIotaAddress } from '../utils/iota-types.js';
 import type { TransactionArgument } from './Commands.js';
 import { Commands } from './Commands.js';
@@ -568,6 +569,16 @@ export class Transaction {
     ): Promise<string> {
         await this.#prepareBuild(options);
         return this.#data.getDigest();
+    }
+
+    /**
+     * Get the signing digest for transaction bytes.
+     * This is the Blake2b hash of the intent message that Ledger displays.
+     */
+    async getSigningDigest(): Promise<string> {
+        const transactionBytes = await this.build();
+        const digest = Signer.signingDigest(transactionBytes, 'TransactionData');
+        return '0x' + toHex(digest);
     }
 
     /**

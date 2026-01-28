@@ -1,4 +1,4 @@
-FROM node:20-alpine AS base
+FROM node:24-alpine AS base
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ RUN pnpm config set auto-install-peers=false \
 RUN pnpm apps-backend build
 
 # ---------- Runtime image ----------
-FROM node:20-alpine AS runner
+FROM node:24-alpine AS runner
 
 WORKDIR /app
 RUN corepack enable
