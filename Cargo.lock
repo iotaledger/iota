@@ -8145,7 +8145,6 @@ dependencies = [
  "num-traits",
  "once_cell",
  "p256",
- "packable",
  "parking_lot 0.12.3",
  "passkey-authenticator",
  "passkey-client",
