@@ -23,7 +23,7 @@ pnpm install @iota/apps-ui-kit
 @tailwind utilities;
 ```
 
-2. Configure your Tailwind CSS setup to include the UI Kit styles. Update your `tailwind.config.js` file:
+2. Configure your Tailwind CSS setup to include the UI Kit styles. Update your `tailwind.config.ts` file:
 
 ```js
 import { uiKitResponsivePreset } from '@iota/apps-ui-kit';
@@ -31,7 +31,7 @@ import type { Config } from 'tailwindcss';
 
 export default {
   presets: [uiKitResponsivePreset],
-  content: ['./src/**/*.{js,ts,jsx,tsx,mdx}', 'mdx-components.tsx'],
+  content: ['./src/**/*.{js,ts,jsx,tsx,mdx}'],
   darkMode: 'class', // configure as needed ('selector' or 'class')
   theme: {
     extend: {},
