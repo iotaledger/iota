@@ -103,6 +103,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 19;
 //             devnet.
 //             Enable Move-based account authentication in devnet.
 //             Increase the base cost for transfer receive object in devnet.
+//             Switch consensus protocol to Starfish in testnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2410,6 +2411,11 @@ impl ProtocolConfig {
                         // Increase the base cost for transfer receive object in devnet, since the
                         // implementation now does check if parent is not an account.
                         cfg.transfer_receive_object_cost_base = Some(100);
+                    }
+
+                    if chain != Chain::Mainnet {
+                        // Switch consensus protocol to Starfish in testnet.
+                        cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
                     }
                 }
                 // Use this template when making changes:
