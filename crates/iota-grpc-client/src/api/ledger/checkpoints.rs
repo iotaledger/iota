@@ -6,9 +6,12 @@
 use futures::{Stream, StreamExt};
 use iota_grpc_types::{
     field::FieldMask,
-    v0::ledger_service::{
-        CheckpointDataStreamRequest, GetCheckpointDataRequest, checkpoint_data,
-        get_checkpoint_data_request,
+    v0::{
+        filter as grpc_filter,
+        ledger_service::{
+            CheckpointDataStreamRequest, GetCheckpointDataRequest, checkpoint_data,
+            get_checkpoint_data_request,
+        },
     },
 };
 use iota_sdk_types::{
@@ -147,6 +150,8 @@ impl Client {
     /// * `sequence_number` - The checkpoint sequence number to fetch
     /// * `read_mask` - Optional field mask specifying which fields to include.
     ///   If `None`, uses [`crate::api::CHECKPOINT_DATA_READ_MASK`] as default.
+    /// * `transactions_filter` - Optional filter to apply to transactions
+    /// * `events_filter` - Optional filter to apply to events
     ///
     /// # Example
     ///
@@ -154,7 +159,9 @@ impl Client {
     /// # use iota_grpc_client::Client;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::connect("http://localhost:9000").await?;
-    /// let checkpoint = client.get_full_checkpoint_data(100, None).await?;
+    /// let checkpoint = client
+    ///     .get_full_checkpoint_data(100, None, None, None)
+    ///     .await?;
     /// println!(
     ///     "Checkpoint {} has {} transactions",
     ///     checkpoint.sequence_number,
@@ -167,10 +174,14 @@ impl Client {
         &self,
         sequence_number: CheckpointSequenceNumber,
         read_mask: Option<&str>,
+        transactions_filter: Option<grpc_filter::TransactionFilter>,
+        events_filter: Option<grpc_filter::EventFilter>,
     ) -> Result<CheckpointResponse> {
         self.get_full_checkpoint_data_internal(
             get_checkpoint_data_request::CheckpointId::SequenceNumber(sequence_number),
             read_mask,
+            transactions_filter,
+            events_filter,
         )
         .await
     }
@@ -184,6 +195,8 @@ impl Client {
     ///
     /// * `read_mask` - Optional field mask specifying which fields to include.
     ///   If `None`, uses [`crate::api::CHECKPOINT_DATA_READ_MASK`] as default.
+    /// * `transactions_filter` - Optional filter to apply to transactions
+    /// * `events_filter` - Optional filter to apply to events
     ///
     /// # Example
     ///
@@ -191,7 +204,9 @@ impl Client {
     /// # use iota_grpc_client::Client;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::connect("http://localhost:9000").await?;
-    /// let checkpoint = client.get_latest_full_checkpoint_data(None).await?;
+    /// let checkpoint = client
+    ///     .get_latest_full_checkpoint_data(None, None, None)
+    ///     .await?;
     /// println!("Latest checkpoint: {}", checkpoint.sequence_number);
     /// # Ok(())
     /// # }
@@ -199,10 +214,14 @@ impl Client {
     pub async fn get_latest_full_checkpoint_data(
         &self,
         read_mask: Option<&str>,
+        transactions_filter: Option<grpc_filter::TransactionFilter>,
+        events_filter: Option<grpc_filter::EventFilter>,
     ) -> Result<CheckpointResponse> {
         self.get_full_checkpoint_data_internal(
             get_checkpoint_data_request::CheckpointId::Latest(true),
             read_mask,
+            transactions_filter,
+            events_filter,
         )
         .await
     }
@@ -212,6 +231,8 @@ impl Client {
         &self,
         checkpoint_id: get_checkpoint_data_request::CheckpointId,
         read_mask: Option<&str>,
+        transactions_filter: Option<grpc_filter::TransactionFilter>,
+        events_filter: Option<grpc_filter::EventFilter>,
     ) -> Result<CheckpointResponse> {
         use crate::api::CHECKPOINT_DATA_READ_MASK;
 
@@ -221,8 +242,8 @@ impl Client {
                 read_mask,
                 CHECKPOINT_DATA_READ_MASK,
             )),
-            transactions_filter: None,
-            events_filter: None,
+            transactions_filter,
+            events_filter,
             max_message_size_bytes: self.max_decoding_message_size().map(|s| s as u32),
         };
 
@@ -252,6 +273,8 @@ impl Client {
     ///   indefinitely.
     /// * `read_mask` - Optional field mask specifying which fields to include.
     ///   If `None`, uses [`crate::api::CHECKPOINT_DATA_READ_MASK`] as default.
+    /// * `transactions_filter` - Optional filter to apply to transactions
+    /// * `events_filter` - Optional filter to apply to events
     ///
     /// # Example
     ///
@@ -261,7 +284,7 @@ impl Client {
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::connect("http://localhost:9000").await?;
     /// let mut stream = client
-    ///     .stream_checkpoint_data(Some(0), Some(10), None)
+    ///     .stream_checkpoint_data(Some(0), Some(10), None, None, None)
     ///     .await?;
     ///
     /// while let Some(checkpoint) = stream.next().await {
@@ -276,6 +299,8 @@ impl Client {
         start_sequence_number: Option<CheckpointSequenceNumber>,
         end_sequence_number: Option<CheckpointSequenceNumber>,
         read_mask: Option<&str>,
+        transactions_filter: Option<grpc_filter::TransactionFilter>,
+        events_filter: Option<grpc_filter::EventFilter>,
     ) -> Result<impl Stream<Item = Result<CheckpointResponse>>> {
         use crate::api::CHECKPOINT_DATA_READ_MASK;
 
@@ -286,8 +311,8 @@ impl Client {
                 read_mask,
                 CHECKPOINT_DATA_READ_MASK,
             )),
-            transactions_filter: None,
-            events_filter: None,
+            transactions_filter,
+            events_filter,
             max_message_size_bytes: self.max_decoding_message_size().map(|s| s as u32),
         };
 

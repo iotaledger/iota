@@ -7,11 +7,46 @@ use tonic::{Request, Status};
 use tracing::debug;
 
 use super::LedgerGrpcService;
-use crate::{error::RpcError, types::CheckpointStreamResult};
+use crate::{
+    error::RpcError, event_filter::EventFilter, transaction_filter::TransactionFilter,
+    types::CheckpointStreamResult,
+};
 
 /// Default read_mask value when none is provided.
 /// As per proto comment: "If no mask is specified, defaults to `summary`."
 pub const CHECKPOINT_READ_MASK_DEFAULT: &str = "summary";
+
+/// Helper function to convert proto filters to internal filters and validate
+/// their complexity
+fn convert_and_validate_filters(
+    transactions_filter: Option<iota_grpc_types::v0::filter::TransactionFilter>,
+    events_filter: Option<iota_grpc_types::v0::filter::EventFilter>,
+) -> Result<(Option<TransactionFilter>, Option<EventFilter>), Status> {
+    // Convert proto filters to internal filters
+    let transaction_filter = transactions_filter
+        .map(TransactionFilter::try_from)
+        .transpose()
+        .map_err(|e| Status::invalid_argument(format!("invalid transaction filter: {e}")))?;
+
+    let event_filter = events_filter
+        .map(EventFilter::try_from)
+        .transpose()
+        .map_err(|e| Status::invalid_argument(format!("invalid event filter: {e}")))?;
+
+    // Validate filter complexity
+    if let Some(ref filter) = transaction_filter {
+        filter
+            .validate_complexity()
+            .map_err(Status::invalid_argument)?;
+    }
+    if let Some(ref filter) = event_filter {
+        filter
+            .validate_complexity()
+            .map_err(Status::invalid_argument)?;
+    }
+
+    Ok((transaction_filter, event_filter))
+}
 
 /// Parse read_mask from request and extract component masks for checkpoint,
 /// transactions, and events.
@@ -111,12 +146,18 @@ pub(crate) fn get_checkpoint_data(
         events_mask.is_some()
     );
 
+    // Convert proto filters to internal filters and validate complexity
+    let (transaction_filter, event_filter) =
+        convert_and_validate_filters(req.transactions_filter, req.events_filter)?;
+
     Ok(service.reader.get_checkpoint_data(
         sequence_number,
         checkpoint_mask,
         transactions_mask,
         events_mask,
         max_message_size_bytes,
+        transaction_filter,
+        event_filter,
     ))
 }
 
@@ -148,6 +189,10 @@ pub(crate) fn stream_checkpoint_data(
         events_mask.is_some()
     );
 
+    // Convert proto filters to internal filters and validate complexity
+    let (transaction_filter, event_filter) =
+        convert_and_validate_filters(req.transactions_filter, req.events_filter)?;
+
     let rx = service.checkpoint_data_broadcaster.subscribe();
     let stream = Box::pin(service.reader.create_checkpoint_data_stream(
         rx,
@@ -158,6 +203,8 @@ pub(crate) fn stream_checkpoint_data(
         events_mask,
         max_message_size_bytes,
         service.cancellation_token.clone(),
+        transaction_filter,
+        event_filter,
     ));
     Ok(stream)
 }
