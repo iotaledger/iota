@@ -107,7 +107,8 @@ impl ListAccountOwnedObjectsQueryParameters {
     }
 
     pub fn start(&self) -> Option<iota_types::base_types::ObjectID> {
-        self.start}
+        self.start
+    }
 }
 
 #[serde_with::serde_as]

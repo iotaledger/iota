@@ -266,7 +266,8 @@ impl ListDynamicFieldsQueryParameters {
     }
 
     pub fn start(&self) -> Option<iota_types::base_types::ObjectID> {
-        self.start}
+        self.start
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug, schemars::JsonSchema)]

@@ -340,9 +340,7 @@ impl TryFrom<crate::transaction::TransactionDataV1> for TransactionV1 {
                 objects: value
                     .gas()
                     .iter()
-                    .map(|(id, seq, digest)| {
-                        ObjectReference::new(*id, *seq, (*digest).into())
-                    })
+                    .map(|(id, seq, digest)| ObjectReference::new(*id, *seq, (*digest).into()))
                     .collect(),
                 owner: value.gas_data().owner,
                 price: value.gas_data().price,
@@ -1177,9 +1175,7 @@ impl From<crate::execution_status::ExecutionFailureStatus> for ExecutionError {
                 max_object_size,
             },
             ExecutionFailureStatus::CircularObjectOwnership { object } => {
-                Self::CircularObjectOwnership {
-                    object,
-                }
+                Self::CircularObjectOwnership { object }
             }
             ExecutionFailureStatus::InsufficientCoinBalance => Self::InsufficientCoinBalance,
             ExecutionFailureStatus::CoinBalanceOverflow => Self::CoinBalanceOverflow,
@@ -1290,14 +1286,10 @@ impl From<crate::execution_status::ExecutionFailureStatus> for ExecutionError {
                 Self::PackageUpgradeError {
                     kind: match upgrade_error {
                         InternalPkgUpgradeErr::UnableToFetchPackage { package_id } => {
-                            PackageUpgradeError::UnableToFetchPackage {
-                                package_id,
-                            }
+                            PackageUpgradeError::UnableToFetchPackage { package_id }
                         }
                         InternalPkgUpgradeErr::NotAPackage { object_id } => {
-                            PackageUpgradeError::NotAPackage {
-                                object_id,
-                            }
+                            PackageUpgradeError::NotAPackage { object_id }
                         }
                         InternalPkgUpgradeErr::IncompatibleUpgrade => {
                             PackageUpgradeError::IncompatibleUpgrade
@@ -1382,9 +1374,9 @@ impl From<ExecutionError> for crate::execution_status::ExecutionFailureStatus {
                 object_size,
                 max_object_size,
             },
-            ExecutionError::CircularObjectOwnership { object } => Self::CircularObjectOwnership {
-                object,
-            },
+            ExecutionError::CircularObjectOwnership { object } => {
+                Self::CircularObjectOwnership { object }
+            }
             ExecutionError::InsufficientCoinBalance => Self::InsufficientCoinBalance,
             ExecutionError::CoinBalanceOverflow => Self::CoinBalanceOverflow,
             ExecutionError::PublishErrorNonZeroAddress => Self::PublishErrorNonZeroAddress,
@@ -1494,14 +1486,10 @@ impl From<ExecutionError> for crate::execution_status::ExecutionFailureStatus {
                 Self::PackageUpgradeError {
                     upgrade_error: match kind {
                         PackageUpgradeError::UnableToFetchPackage { package_id } => {
-                            InternalPkgUpgradeErr::UnableToFetchPackage {
-                                package_id,
-                            }
+                            InternalPkgUpgradeErr::UnableToFetchPackage { package_id }
                         }
                         PackageUpgradeError::NotAPackage { object_id } => {
-                            InternalPkgUpgradeErr::NotAPackage {
-                                object_id,
-                            }
+                            InternalPkgUpgradeErr::NotAPackage { object_id }
                         }
                         PackageUpgradeError::IncompatibleUpgrade => {
                             InternalPkgUpgradeErr::IncompatibleUpgrade
@@ -1930,10 +1918,9 @@ impl TryFrom<Command> for crate::transaction::Command {
                     .map(Into::into)
                     .collect(),
             ),
-            Command::Publish(publish) => Self::Publish(
-                publish.modules,
-                publish.dependencies.into_iter().collect(),
-            ),
+            Command::Publish(publish) => {
+                Self::Publish(publish.modules, publish.dependencies.into_iter().collect())
+            }
             Command::MakeMoveVector(make_move_vector) => Self::make_move_vec(
                 make_move_vector
                     .type_
