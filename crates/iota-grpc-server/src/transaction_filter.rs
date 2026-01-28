@@ -498,13 +498,13 @@ mod tests {
     #[test]
     fn test_filter_depth_validation() {
         // Simple atomic filter should pass
-        let simple_filter = TransactionFilter::Sender(IotaAddress::random_for_testing_only());
+        let simple_filter = TransactionFilter::Sender(IotaAddress::random());
         assert!(simple_filter.validate_depth().is_ok());
         assert_eq!(simple_filter.max_depth(), 0);
 
         // Nested filter within limits should pass
         let nested_filter = TransactionFilter::All(vec![
-            TransactionFilter::Sender(IotaAddress::random_for_testing_only()),
+            TransactionFilter::Sender(IotaAddress::random()),
             TransactionFilter::Any(vec![
                 TransactionFilter::AffectedObject(ObjectID::random()),
                 TransactionFilter::Not(Box::new(TransactionFilter::AffectedObject(
@@ -516,7 +516,7 @@ mod tests {
         assert_eq!(nested_filter.max_depth(), 3); // All -> Any -> Not = 3 levels
 
         // Deeply nested filter should fail
-        let mut deep_filter = TransactionFilter::Sender(IotaAddress::random_for_testing_only());
+        let mut deep_filter = TransactionFilter::Sender(IotaAddress::random());
         for _ in 0..=MAX_FILTER_DEPTH {
             deep_filter = TransactionFilter::Not(Box::new(deep_filter));
         }
@@ -527,15 +527,15 @@ mod tests {
     #[test]
     fn test_filter_complexity_validation() {
         // Simple filter should pass complexity validation
-        let simple_filter = TransactionFilter::Sender(IotaAddress::random_for_testing_only());
+        let simple_filter = TransactionFilter::Sender(IotaAddress::random());
         assert!(simple_filter.validate_complexity().is_ok());
         assert_eq!(simple_filter.count_nodes(), 1);
 
         // Moderately complex filter should pass
         let complex_filter = TransactionFilter::All(vec![
-            TransactionFilter::Sender(IotaAddress::random_for_testing_only()),
+            TransactionFilter::Sender(IotaAddress::random()),
             TransactionFilter::Any(vec![
-                TransactionFilter::Receiver(IotaAddress::random_for_testing_only()),
+                TransactionFilter::Receiver(IotaAddress::random()),
                 TransactionFilter::AffectedObject(ObjectID::random()),
             ]),
         ]);
@@ -545,11 +545,11 @@ mod tests {
 
     #[test]
     fn test_new_validated() {
-        let valid_filter = TransactionFilter::Sender(IotaAddress::random_for_testing_only());
+        let valid_filter = TransactionFilter::Sender(IotaAddress::random());
         assert!(TransactionFilter::new_validated(valid_filter).is_ok());
 
         // Create an invalid deeply nested filter
-        let mut invalid_filter = TransactionFilter::Sender(IotaAddress::random_for_testing_only());
+        let mut invalid_filter = TransactionFilter::Sender(IotaAddress::random());
         for _ in 0..=MAX_FILTER_DEPTH {
             invalid_filter = TransactionFilter::Not(Box::new(invalid_filter));
         }
@@ -574,11 +574,11 @@ mod tests {
         // Create a complex but valid nested structure
         let complex_filter = TransactionFilter::All(vec![
             TransactionFilter::Any(vec![
-                TransactionFilter::Sender(IotaAddress::random_for_testing_only()),
-                TransactionFilter::Receiver(IotaAddress::random_for_testing_only()),
+                TransactionFilter::Sender(IotaAddress::random()),
+                TransactionFilter::Receiver(IotaAddress::random()),
             ]),
             TransactionFilter::Not(Box::new(TransactionFilter::All(vec![
-                TransactionFilter::Sender(IotaAddress::random_for_testing_only()),
+                TransactionFilter::Sender(IotaAddress::random()),
                 TransactionFilter::AffectedObject(ObjectID::random()),
             ]))),
         ]);

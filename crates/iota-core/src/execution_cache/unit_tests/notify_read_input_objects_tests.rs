@@ -338,7 +338,7 @@ async fn test_receiving_object_higher_version_impl(cache: &impl NotifyReadTestCa
     let object = Object::with_id_owner_version_for_testing(
         object_id,
         higher_version,
-        Owner::AddressOwner(IotaAddress::default()),
+        Owner::AddressOwner(IotaAddress::ZERO),
     );
 
     // Write higher version to cache

@@ -54,7 +54,7 @@ use strum::EnumString;
 use tracing::{instrument, warn};
 
 use crate::{
-    base_types::{AuthorityName, ConciseableName, IotaAddress},
+    base_types::{AuthorityName, ConciseableName, IotaAddress, address_from_iota_pub_key},
     committee::{Committee, CommitteeTrait, EpochId, StakeUnit},
     error::{IotaError, IotaResult},
     iota_serde::{IotaBitmap, Readable},
@@ -633,7 +633,7 @@ where
     <KP as KeypairTraits>::PubKey: IotaPublicKey,
 {
     let kp = KP::generate(&mut StdRng::from_rng(csprng).unwrap());
-    (kp.public().into(), kp)
+    (address_from_iota_pub_key(kp.public()), kp)
 }
 
 // TODO: C-GETTER
@@ -657,7 +657,7 @@ where
     )
     .map_err(|_| IotaError::InvalidPrivateKey)?;
     let kp: KP = sk.into();
-    Ok((kp.public().into(), kp))
+    Ok((address_from_iota_pub_key(kp.public()), kp))
 }
 
 // Account Signatures
@@ -990,7 +990,7 @@ impl<S: IotaSignatureInner + Sized> IotaSignature for S {
         let digest = hasher.finalize().digest;
 
         let (sig, pk) = &self.get_verification_inputs()?;
-        let address = IotaAddress::from(pk);
+        let address = address_from_iota_pub_key(pk);
         if author != address {
             return Err(IotaError::IncorrectSigner {
                 error: format!("Incorrect signer, expected {author:?}, got {address:?}"),

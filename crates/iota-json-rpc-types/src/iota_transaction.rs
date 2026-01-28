@@ -995,7 +995,7 @@ impl IotaTransactionBlockEffects {
             transaction_digest,
             status,
             gas_object: OwnedObjectRef {
-                owner: Owner::AddressOwner(IotaAddress::random_for_testing_only()),
+                owner: Owner::AddressOwner(IotaAddress::random()),
                 reference: iota_types::base_types::random_object_ref(),
             },
             executed_epoch: 0,

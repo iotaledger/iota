@@ -157,7 +157,7 @@ async fn list_owned_objects_nonexistent_owner() {
     let mut state_client = client.state_service_client();
 
     // Random address that owns nothing
-    let random_addr = IotaAddress::random_for_testing_only();
+    let random_addr = IotaAddress::random();
     let request = ListOwnedObjectsRequest::default().with_owner(address_proto(random_addr));
 
     let response = list_and_validate(

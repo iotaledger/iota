@@ -12,7 +12,7 @@ use fastcrypto::{
     traits::{KeyPair, ToFromBytes},
 };
 use iota_types::{
-    base_types::IotaAddress,
+    base_types::{IotaAddress, address_from_iota_pub_key},
     crypto::{IotaKeyPair, SignatureScheme},
     error::IotaError,
 };
@@ -41,7 +41,10 @@ pub fn derive_key_pair_from_path(
             let sk = Ed25519PrivateKey::from_bytes(&derived)
                 .map_err(|e| IotaError::SignatureKeyGen(e.to_string()))?;
             let kp: Ed25519KeyPair = sk.into();
-            Ok((kp.public().into(), IotaKeyPair::Ed25519(kp)))
+            Ok((
+                address_from_iota_pub_key(kp.public()),
+                IotaKeyPair::Ed25519(kp),
+            ))
         }
         SignatureScheme::Secp256k1 => {
             let child_xprv = XPrv::derive_from_path(seed, &path)
@@ -50,7 +53,10 @@ pub fn derive_key_pair_from_path(
                 Secp256k1PrivateKey::from_bytes(child_xprv.private_key().to_bytes().as_slice())
                     .map_err(|e| IotaError::SignatureKeyGen(e.to_string()))?,
             );
-            Ok((kp.public().into(), IotaKeyPair::Secp256k1(kp)))
+            Ok((
+                address_from_iota_pub_key(kp.public()),
+                IotaKeyPair::Secp256k1(kp),
+            ))
         }
         SignatureScheme::Secp256r1 => {
             let child_xprv = XPrv::derive_from_path(seed, &path)
@@ -59,7 +65,10 @@ pub fn derive_key_pair_from_path(
                 Secp256r1PrivateKey::from_bytes(child_xprv.private_key().to_bytes().as_slice())
                     .map_err(|e| IotaError::SignatureKeyGen(e.to_string()))?,
             );
-            Ok((kp.public().into(), IotaKeyPair::Secp256r1(kp)))
+            Ok((
+                address_from_iota_pub_key(kp.public()),
+                IotaKeyPair::Secp256r1(kp),
+            ))
         }
         #[allow(deprecated)]
         SignatureScheme::BLS12381

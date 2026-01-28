@@ -332,7 +332,7 @@ fn get_all_balances_with_zero_iotas() {
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         let (owner, keypair, _) = create_addr_and_custom_coins(cluster, client).await;
-        let coins_dump_address = IotaAddress::random_for_testing_only();
+        let coins_dump_address = IotaAddress::random();
 
         // first call is to make node and potentially the indexer cache the result
         // and increase chance of producing wrong result on the second call

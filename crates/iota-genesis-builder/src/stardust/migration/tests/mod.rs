@@ -183,7 +183,7 @@ fn object_migration_with_object_owner(
         );
 
         // Transfer the coin to the zero address since we have to move it somewhere.
-        builder.transfer_arg(IotaAddress::default(), coin_arg);
+        builder.transfer_arg(IotaAddress::ZERO, coin_arg);
 
         // We have to use extracted object as we cannot transfer it (since it lacks the
         // `store` ability), so we extract its assets.
@@ -222,12 +222,12 @@ fn object_migration_with_object_owner(
         );
 
         // Transfer the coin to the zero address since we have to move it somewhere.
-        builder.transfer_arg(IotaAddress::default(), coin_arg);
+        builder.transfer_arg(IotaAddress::ZERO, coin_arg);
 
         // We have successfully extracted the owned objects which is what we want to
         // test. Transfer to the zero address so the PTB doesn't fail.
-        builder.transfer_arg(IotaAddress::default(), owned_arg);
-        builder.transfer_arg(IotaAddress::default(), inner_owned_arg);
+        builder.transfer_arg(IotaAddress::ZERO, owned_arg);
+        builder.transfer_arg(IotaAddress::ZERO, inner_owned_arg);
 
         builder.finish()
     };
@@ -305,7 +305,7 @@ fn extract_native_tokens_from_bag(
             // This is the inner object, i.e. the Alias extracted from an Alias Output
             // or NFT extracted from an NFT Output.
             let object_arg = Argument::NestedResult(result_idx, 2);
-            builder.transfer_arg(IotaAddress::default(), object_arg);
+            builder.transfer_arg(IotaAddress::ZERO, object_arg);
         }
 
         let gas_coin_arg = builder.programmable_move_call(
@@ -316,7 +316,7 @@ fn extract_native_tokens_from_bag(
             vec![balance_arg],
         );
 
-        builder.transfer_arg(IotaAddress::default(), gas_coin_arg);
+        builder.transfer_arg(IotaAddress::ZERO, gas_coin_arg);
 
         for (_, bag_key, token_type_tag) in &native_tokens {
             let bag_key_arg = builder.pure(bag_key.clone())?;
@@ -341,7 +341,7 @@ fn extract_native_tokens_from_bag(
                 vec![token_balance_arg],
             );
 
-            builder.transfer_arg(IotaAddress::default(), minted_coin_arg);
+            builder.transfer_arg(IotaAddress::ZERO, minted_coin_arg);
         }
 
         // Destroying the bag only works if it's empty, hence asserting that it is in

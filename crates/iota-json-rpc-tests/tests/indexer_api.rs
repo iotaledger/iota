@@ -154,7 +154,7 @@ async fn query_events_no_events_descending() {
 
     let indexer_events = client
         .query_events(
-            EventFilter::Sender(IotaAddress::random_for_testing_only()),
+            EventFilter::Sender(IotaAddress::random()),
             None,
             None,
             Some(true),
@@ -172,12 +172,7 @@ async fn query_events_no_events_ascending() {
     let client = cluster.rpc_client();
 
     let indexer_events = client
-        .query_events(
-            EventFilter::Sender(IotaAddress::random_for_testing_only()),
-            None,
-            None,
-            None,
-        )
+        .query_events(EventFilter::Sender(IotaAddress::random()), None, None, None)
         .await
         .unwrap();
 

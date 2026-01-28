@@ -28,7 +28,7 @@ async fn test_response_headers() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let recipient = iota_types::base_types::IotaAddress::random();
     let amount = 9;
 
     // Test execute_transactions

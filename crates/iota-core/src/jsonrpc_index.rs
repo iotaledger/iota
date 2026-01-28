@@ -1706,7 +1706,6 @@ mod tests {
         object,
         object::Owner,
     };
-    use move_core_types::account_address::AccountAddress;
     use prometheus::Registry;
 
     use super::{IndexStore, ObjectIndexChanges};
@@ -1726,7 +1725,7 @@ mod tests {
             &Registry::default(),
             Some(128),
         );
-        let address: IotaAddress = AccountAddress::random().into();
+        let address = IotaAddress::random();
         let mut written_objects = BTreeMap::new();
         let mut object_map = BTreeMap::new();
 

@@ -385,7 +385,7 @@ pub fn take_from_address_by_id(
 ) -> PartialVMResult<NativeResult> {
     let specified_ty = get_specified_ty(ty_args);
     let id = pop_id(&mut args)?;
-    let account: IotaAddress = pop_arg!(args, AccountAddress).into();
+    let account = IotaAddress::new(pop_arg!(args, AccountAddress).into_bytes());
     pop_arg!(args, StructRef);
     assert!(args.is_empty());
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
@@ -418,7 +418,7 @@ pub fn ids_for_address(
     mut args: VecDeque<Value>,
 ) -> PartialVMResult<NativeResult> {
     let specified_ty = get_specified_ty(ty_args);
-    let account: IotaAddress = pop_arg!(args, AccountAddress).into();
+    let account: IotaAddress = IotaAddress::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     let inventories = &mut object_runtime.test_inventories;
@@ -439,7 +439,7 @@ pub fn most_recent_id_for_address(
     mut args: VecDeque<Value>,
 ) -> PartialVMResult<NativeResult> {
     let specified_ty = get_specified_ty(ty_args);
-    let account: IotaAddress = pop_arg!(args, AccountAddress).into();
+    let account: IotaAddress = IotaAddress::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     let inventories = &mut object_runtime.test_inventories;
@@ -461,7 +461,7 @@ pub fn was_taken_from_address(
 ) -> PartialVMResult<NativeResult> {
     assert!(ty_args.is_empty());
     let id = pop_id(&mut args)?;
-    let account: IotaAddress = pop_arg!(args, AccountAddress).into();
+    let account: IotaAddress = IotaAddress::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     let inventories = &mut object_runtime.test_inventories;
@@ -838,10 +838,12 @@ fn transaction_effects(
     let mut frozen = vec![];
     for (id, owner) in transferred {
         match owner {
-            Owner::AddressOwner(a) => {
-                transferred_to_account.push((pack_id(id), Value::address(a.into())))
-            }
-            Owner::ObjectOwner(o) => transferred_to_object.push((pack_id(id), pack_id(o))),
+            Owner::AddressOwner(a) => transferred_to_account.push((
+                pack_id(id),
+                Value::address(AccountAddress::new(a.into_bytes())),
+            )),
+            Owner::ObjectOwner(o) => transferred_to_object
+                .push((pack_id(id), pack_id(AccountAddress::new(o.into_bytes())))),
             Owner::Shared { .. } => shared.push(id),
             Owner::Immutable => frozen.push(id),
         }

@@ -520,7 +520,7 @@ impl TokenDistributionSchedule {
 
         let pre_minted_supply = allocations.pop().unwrap();
         assert_eq!(
-            IotaAddress::default(),
+            IotaAddress::ZERO,
             pre_minted_supply.recipient_address,
             "final allocation must be for the pre-minted supply amount",
         );
@@ -546,7 +546,7 @@ impl TokenDistributionSchedule {
         }
 
         writer.serialize(TokenAllocation {
-            recipient_address: IotaAddress::default(),
+            recipient_address: IotaAddress::ZERO,
             amount_nanos: self.pre_minted_supply,
             staked_with_validator: None,
             staked_with_timelock_expiration: None,

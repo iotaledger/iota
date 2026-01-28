@@ -596,7 +596,7 @@ async fn test_filter_checkpoints_validation() {
 
     // tx filter without transactions in read_mask should fail
     let (sender, _): (IotaAddress, AccountKeyPair) = get_key_pair();
-    let sender_bytes = sender.to_inner();
+    let sender_bytes = sender.into_bytes();
     let tx_filter = filter::TransactionFilter::default().with_sender(
         filter::AddressFilter::default().with_address(
             iota_grpc_types::v1::types::Address::default().with_address(sender_bytes.to_vec()),
@@ -629,7 +629,7 @@ async fn test_filter_checkpoints_streaming() {
     let (server_handle, client, _) = test_server_and_client_setup(0..=0, |_| {}, None, None).await;
 
     let (sender, key): (IotaAddress, AccountKeyPair) = get_key_pair();
-    let sender_bytes = sender.to_inner();
+    let sender_bytes = sender.into_bytes();
 
     // Create a sender filter matching our known sender
     let make_tx_filter = || {

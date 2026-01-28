@@ -4,7 +4,10 @@
 
 use std::collections::VecDeque;
 
-use iota_types::{base_types::MoveObjectType, dynamic_field::derive_dynamic_field_id};
+use iota_types::{
+    base_types::{IotaAddress, MoveObjectType},
+    dynamic_field::derive_dynamic_field_id,
+};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
     account_address::AccountAddress,
@@ -143,7 +146,8 @@ pub fn hash_type_and_key(
     let Some(k_bytes) = k.simple_serialize(&k_layout) else {
         return Ok(NativeResult::err(cost, E_BCS_SERIALIZATION_FAILURE));
     };
-    let Ok(id) = derive_dynamic_field_id(parent, &k_tag, &k_bytes) else {
+    let Ok(id) = derive_dynamic_field_id(IotaAddress::new(parent.into_bytes()), &k_tag, &k_bytes)
+    else {
         return Ok(NativeResult::err(cost, E_BCS_SERIALIZATION_FAILURE));
     };
 
