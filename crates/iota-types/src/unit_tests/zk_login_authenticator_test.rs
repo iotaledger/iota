@@ -16,7 +16,9 @@ use im::hashmap::HashMap as ImHashMap;
 use iota_sdk_types::crypto::{Intent, IntentMessage, PersonalMessage};
 
 use crate::{
-    base_types::IotaAddress,
+    base_types::{
+        IotaAddress, address_from_padded_zklogin_inputs, address_from_unpadded_zklogin_inputs,
+    },
     crypto::{PublicKey, SignatureScheme, ZkLoginPublicIdentifier},
     signature::{GenericSignature, VerifyParams},
     signature_verification::VerifiedDigestCache,
@@ -70,7 +72,7 @@ fn test_serde_zklogin_public_identifier() {
     let deserialized: PublicKey = bcs::from_bytes(&serialized).unwrap();
     assert_eq!(deserialized, pk1);
     assert_eq!(
-        IotaAddress::try_from_unpadded(&modified_inputs).unwrap(),
+        address_from_unpadded_zklogin_inputs(&modified_inputs).unwrap(),
         IotaAddress::from(&pk1)
     );
 
@@ -89,7 +91,7 @@ fn test_serde_zklogin_public_identifier() {
     let deserialized2: PublicKey = bcs::from_bytes(&serialized2).unwrap();
     assert_eq!(deserialized2, pk2);
     assert_eq!(
-        IotaAddress::try_from_padded(&modified_inputs).unwrap(),
+        address_from_padded_zklogin_inputs(&modified_inputs).unwrap(),
         IotaAddress::from(&pk2)
     );
 

@@ -9,7 +9,7 @@ use std::{
 
 use iota_config::genesis;
 use iota_types::{
-    base_types::{AuthorityName, IotaAddress, ObjectID, SequenceNumber},
+    base_types::{AuthorityName, IotaAddress, ObjectID, SequenceNumber, address_from_iota_pub_key},
     committee::{Committee, EpochId},
     crypto::{AccountKeyPair, AuthorityKeyPair},
     digests::{ObjectDigest, TransactionDigest},
@@ -555,7 +555,7 @@ impl KeyStore {
         let account_keys = network_config
             .account_keys
             .iter()
-            .map(|key| (key.public().into(), key.copy()))
+            .map(|key| (address_from_iota_pub_key(key.public()), key.copy()))
             .collect();
         Self {
             validator_keys,

@@ -57,7 +57,7 @@ async fn execute_transaction_transfer() {
 #[sim_test]
 async fn execute_transaction_transfer_outputs() {
     let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
-    let recipient = IotaAddress::random_for_testing_only();
+    let recipient = IotaAddress::random();
     let amount = 9;
 
     let tx =

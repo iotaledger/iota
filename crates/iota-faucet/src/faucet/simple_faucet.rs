@@ -1326,13 +1326,10 @@ mod tests {
 
         let number_of_coins = gas_coins.len();
         let amounts = &vec![1; number_of_coins];
-        let _ = futures::future::join_all((0..number_of_coins).map(|_| {
-            faucet.send(
-                Uuid::new_v4(),
-                IotaAddress::random_for_testing_only(),
-                amounts,
-            )
-        }))
+        let _ = futures::future::join_all(
+            (0..number_of_coins)
+                .map(|_| faucet.send(Uuid::new_v4(), IotaAddress::random(), amounts)),
+        )
         .await
         .into_iter()
         .map(|res| res.unwrap())
@@ -1396,9 +1393,7 @@ mod tests {
         let amounts = &[coin_amount];
 
         // Create a vector containing five randomly generated addresses
-        let target_addresses: Vec<IotaAddress> = (0..5)
-            .map(|_| IotaAddress::random_for_testing_only())
-            .collect();
+        let target_addresses: Vec<IotaAddress> = (0..5).map(|_| IotaAddress::random()).collect();
 
         let response = futures::future::join_all(
             target_addresses
@@ -1476,9 +1471,7 @@ mod tests {
 
         let amounts = &[1; 1];
         // Create a vector containing five randomly generated addresses
-        let target_addresses: Vec<IotaAddress> = (0..5)
-            .map(|_| IotaAddress::random_for_testing_only())
-            .collect();
+        let target_addresses: Vec<IotaAddress> = (0..5).map(|_| IotaAddress::random()).collect();
 
         let response = futures::future::join_all(
             target_addresses
@@ -1537,12 +1530,7 @@ mod tests {
         let gas_budget = 50_000_000;
         let tx_data = client
             .transaction_builder()
-            .pay_all_iota(
-                address,
-                vec![bad_gas.0],
-                IotaAddress::random_for_testing_only(),
-                gas_budget,
-            )
+            .pay_all_iota(address, vec![bad_gas.0], IotaAddress::random(), gas_budget)
             .await
             .unwrap();
         execute_tx(faucet.wallet_mut(), tx_data).await.unwrap();
@@ -1551,13 +1539,9 @@ mod tests {
         let amounts = &vec![1; number_of_coins];
         // We traverse the list twice, which must trigger the transferred gas to be
         // kicked out
-        futures::future::join_all((0..2).map(|_| {
-            faucet.send(
-                Uuid::new_v4(),
-                IotaAddress::random_for_testing_only(),
-                amounts,
-            )
-        }))
+        futures::future::join_all(
+            (0..2).map(|_| faucet.send(Uuid::new_v4(), IotaAddress::random(), amounts)),
+        )
         .await;
 
         // Verify that the bad gas is no longer in the queue.
@@ -1593,7 +1577,7 @@ mod tests {
         let original_available = faucet.metrics.total_available_coins.get();
         let original_discarded = faucet.metrics.total_discarded_coins.get();
 
-        let recipient = IotaAddress::random_for_testing_only();
+        let recipient = IotaAddress::random();
         let faucet_address = faucet.active_address;
         let uuid = Uuid::new_v4();
 
@@ -1704,13 +1688,9 @@ mod tests {
         let amounts = &vec![tiny_value + 1; number_of_coins];
         // We traverse the list ten times, which must trigger the tiny gas to be
         // examined and then discarded
-        futures::future::join_all((0..10).map(|_| {
-            faucet.send(
-                Uuid::new_v4(),
-                IotaAddress::random_for_testing_only(),
-                amounts,
-            )
-        }))
+        futures::future::join_all(
+            (0..10).map(|_| faucet.send(Uuid::new_v4(), IotaAddress::random(), amounts)),
+        )
         .await;
         info!(
             ?number_of_coins,
@@ -1763,7 +1743,7 @@ mod tests {
             .unwrap();
         execute_tx(&mut context, tx_data).await.unwrap();
 
-        let destination_address = IotaAddress::random_for_testing_only();
+        let destination_address = IotaAddress::random();
         // Transfer all valid gases away except for 1
         for gas in gas_coins.iter().take(gas_coins.len() - 1) {
             let tx_data = client
@@ -1795,13 +1775,9 @@ mod tests {
         .unwrap();
 
         // We traverse the list twice, which must trigger the split gas to be kicked out
-        futures::future::join_all((0..2).map(|_| {
-            faucet.send(
-                Uuid::new_v4(),
-                IotaAddress::random_for_testing_only(),
-                &[30000000000],
-            )
-        }))
+        futures::future::join_all(
+            (0..2).map(|_| faucet.send(Uuid::new_v4(), IotaAddress::random(), &[30000000000])),
+        )
         .await;
 
         // Check that the gas was discarded for being too small
@@ -1843,7 +1819,7 @@ mod tests {
 
         execute_tx(&mut context, tx_data).await.unwrap();
 
-        let destination_address = IotaAddress::random_for_testing_only();
+        let destination_address = IotaAddress::random();
 
         // Transfer all valid gases away
         for gas in gas_coins {
@@ -1874,7 +1850,7 @@ mod tests {
         .await
         .unwrap();
 
-        let destination_address = IotaAddress::random_for_testing_only();
+        let destination_address = IotaAddress::random();
         // Assert that faucet will discard and also terminate
         let res = faucet
             .send(Uuid::new_v4(), destination_address, &[30000000000])
@@ -1901,7 +1877,7 @@ mod tests {
         .await
         .unwrap();
 
-        let recipient = IotaAddress::random_for_testing_only();
+        let recipient = IotaAddress::random();
         let faucet_address = faucet.active_address;
         let uuid = Uuid::new_v4();
 
@@ -1998,9 +1974,7 @@ mod tests {
         .unwrap();
 
         // Create a vector containing two randomly generated addresses
-        let target_addresses: Vec<IotaAddress> = (0..2)
-            .map(|_| IotaAddress::random_for_testing_only())
-            .collect();
+        let target_addresses: Vec<IotaAddress> = (0..2).map(|_| IotaAddress::random()).collect();
 
         // Send 2 coins of 1 iota each. We
         let coins_sent = 2;
@@ -2051,7 +2025,7 @@ mod tests {
     }
 
     async fn test_send_interface_has_success_status(faucet: &impl Faucet) {
-        let recipient = IotaAddress::random_for_testing_only();
+        let recipient = IotaAddress::random();
         let amounts = vec![1, 2, 3];
         let uuid_test = Uuid::new_v4();
 
@@ -2072,7 +2046,7 @@ mod tests {
     }
 
     async fn test_basic_interface(faucet: &impl Faucet) {
-        let recipient = IotaAddress::random_for_testing_only();
+        let recipient = IotaAddress::random();
         let amounts = vec![1, 2, 3];
 
         let FaucetReceipt { sent } = faucet
