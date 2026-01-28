@@ -197,7 +197,7 @@ pub enum ExecutionFailureStatus {
     #[error("Certificate is cancelled due to congestion on shared objects: {congested_objects}.")]
     ExecutionCancelledDueToSharedObjectCongestion { congested_objects: CongestedObjects },
 
-    #[error("Address {address:?} is denied for coin {coin_type}")]
+    #[error("Address {address} is denied for coin {coin_type}")]
     AddressDeniedForCoin {
         address: IotaAddress,
         coin_type: String,

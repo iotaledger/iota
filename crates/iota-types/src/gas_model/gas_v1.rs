@@ -257,12 +257,7 @@ mod checked {
             config: &ProtocolConfig,
         ) -> IotaGasStatus {
             let storage_gas_price = config.storage_gas_price();
-            let max_computation_budget = config.max_gas_computation_bucket() * gas_price;
-            let computation_budget = if gas_budget > max_computation_budget {
-                max_computation_budget
-            } else {
-                gas_budget
-            };
+            let computation_budget = computation_budget(gas_budget, gas_price, config);
             let iota_cost_table = IotaCostTable::new(config, gas_price);
             let gas_rounding_step = config.gas_rounding_step_as_option();
             Self::new(
@@ -439,6 +434,10 @@ mod checked {
             self.gas_budget
         }
 
+        fn gas_price(&self) -> u64 {
+            self.gas_price
+        }
+
         fn storage_gas_units(&self) -> u64 {
             self.per_object_storage
                 .iter()
@@ -545,6 +544,16 @@ mod checked {
         fn adjust_computation_on_out_of_gas(&mut self) {
             self.per_object_storage = Vec::new();
             self.computation_cost = self.gas_budget;
+        }
+    }
+
+    pub fn computation_budget(gas_budget: u64, gas_price: u64, config: &ProtocolConfig) -> u64 {
+        let max_computation_budget = config.max_gas_computation_bucket() * gas_price;
+
+        if gas_budget > max_computation_budget {
+            max_computation_budget
+        } else {
+            gas_budget
         }
     }
 }

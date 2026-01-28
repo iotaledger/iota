@@ -16,6 +16,7 @@ interface TransactionSummaryProps {
     isError?: boolean;
     isDryRun?: boolean;
     transaction?: Transaction;
+    chain?: string;
 }
 
 export function TransactionSummary({
@@ -23,6 +24,7 @@ export function TransactionSummary({
     isLoading,
     isError,
     isDryRun = false,
+    chain,
     renderExplorerLink,
     transaction,
 }: TransactionSummaryProps) {
@@ -59,6 +61,7 @@ export function TransactionSummary({
                     <BalanceChanges
                         changes={summary?.balanceChanges}
                         renderExplorerLink={renderExplorerLink}
+                        chain={chain}
                     />
                     <ObjectChanges
                         changes={summary?.objectSummary}

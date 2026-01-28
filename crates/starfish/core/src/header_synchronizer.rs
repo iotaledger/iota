@@ -46,7 +46,7 @@ use crate::{
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     core_thread::CoreThreadDispatcher,
-    dag_state::{BlockHeaderSource, DagState},
+    dag_state::{DagState, DataSource},
     error::{ConsensusError, ConsensusResult},
     network::NetworkClient,
     transactions_synchronizer::TransactionsSynchronizerHandle,
@@ -715,7 +715,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         // we don't want this mechanism to keep feedback looping on fetching
         // more blocks. The periodic synchronization will take care of that.
         let (missing_blocks, missing_committed_txns) = core_dispatcher
-            .add_block_headers(block_headers, BlockHeaderSource::HeaderSynchronizer)
+            .add_block_headers(block_headers, DataSource::HeaderSynchronizer)
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
 
@@ -1531,7 +1531,7 @@ mod tests {
         context::Context,
         core::ReasonToCreateBlock,
         core_thread::{CoreError, CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
-        dag_state::{BlockHeaderSource, DagState, TransactionSource},
+        dag_state::{DagState, DataSource},
         error::{ConsensusError, ConsensusResult},
         header_synchronizer::{
             FETCH_BLOCK_HEADERS_CONCURRENCY, FETCH_REQUEST_TIMEOUT, HeaderSynchronizer,
@@ -2706,6 +2706,7 @@ mod tests {
         async fn add_blocks(
             &self,
             blocks: Vec<VerifiedBlock>,
+            _source: DataSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
@@ -2723,7 +2724,7 @@ mod tests {
         async fn add_block_headers(
             &self,
             _blocks: Vec<VerifiedBlockHeader>,
-            _source: BlockHeaderSource,
+            _source: DataSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
@@ -2737,7 +2738,7 @@ mod tests {
         async fn add_transactions(
             &self,
             _transactions: Vec<VerifiedTransactions>,
-            _source: TransactionSource,
+            _source: DataSource,
         ) -> Result<(), CoreError> {
             unimplemented!("Unimplemented")
         }

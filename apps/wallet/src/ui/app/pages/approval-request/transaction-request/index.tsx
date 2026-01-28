@@ -141,6 +141,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
                         isLoading={isDryRunLoading}
                         isError={isDryRunError}
                         summary={summary}
+                        chain={chain}
                         renderExplorerLink={ExplorerLinkHelper}
                         transaction={signer instanceof LedgerSigner ? transaction : undefined}
                     />

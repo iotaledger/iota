@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolConfig;
-use iota_stardust_sdk::types::block::output::{FoundryOutput, OutputId};
+use iota_stardust_types::block::output::{FoundryOutput, OutputId};
 
 use crate::{
     base_types::{ObjectID, SequenceNumber, TxContext},

@@ -4,7 +4,7 @@
 
 import type { BrowserContext, Page } from '@playwright/test';
 
-import { expect } from '../fixtures';
+import { expect } from './fixtures';
 import { SHORT_TIMEOUT } from '../constants/timeout.constants';
 
 export async function demoDappConnect(page: Page, demoPageUrl: string, context: BrowserContext) {

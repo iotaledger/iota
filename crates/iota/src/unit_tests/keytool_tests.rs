@@ -706,15 +706,15 @@ async fn test_show() -> Result<(), anyhow::Error> {
                 "0x5f60f23c01486c6af8540144cf9fa74c167257b93c08fc33b74b8f173a885038"
             );
             assert_eq!(
-                &key.public_base64_key,
+                key.public_base64_key.unwrap(),
                 "svUb1I94/15y2k6LKaEWqNLFf1rNMHq0hcWFAJynu0g="
             );
             assert_eq!(
-                &key.public_base64_key_with_flag,
+                key.public_base64_key_with_flag.unwrap(),
                 "ALL1G9SPeP9ectpOiymhFqjSxX9azTB6tIXFhQCcp7tI"
             );
-            assert_eq!(&key.key_scheme, "ed25519");
-            assert_eq!(key.flag, 0);
+            assert_eq!(key.key_scheme.unwrap(), "ed25519");
+            assert_eq!(key.flag.unwrap(), 0);
             assert_eq!(
                 &key.peer_id.unwrap(),
                 "b2f51bd48f78ff5e72da4e8b29a116a8d2c57f5acd307ab485c585009ca7bb48"
