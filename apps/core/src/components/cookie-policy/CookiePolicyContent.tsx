@@ -41,7 +41,7 @@ export function CookiePolicyContent({
 
     return (
         <div className="flex flex-col gap-md mb-lg min-h-screen">
-            <h1 className="text-iota-neutral-10 dark:text-iota-primary-90 text-headline-lg mb-md">
+            <h1 className="text-iota-neutral-10 dark:text-iota-neutral-92 text-headline-lg mb-md">
                 Cookie Policy
             </h1>
             <CookiePolicyContentSection>
@@ -136,7 +136,7 @@ function CookiePolicyContentSection({
 
 function CookiePolicyContentTitle({ children }: { children: React.ReactNode }): React.JSX.Element {
     return (
-        <h2 className="text-iota-neutral-10 dark:text-iota-primary-90 text-title-lg mb-md">
+        <h2 className="text-iota-neutral-10 dark:text-iota-neutral-92 text-title-lg mb-md">
             {children}
         </h2>
     );
@@ -148,7 +148,7 @@ function CookiePolicyContentDescription({
     children: React.ReactNode;
 }): React.JSX.Element {
     return (
-        <div className="text-iota-neutral-40 text-body-md [&_p:not(:last-child)]:mb-sm">
+        <div className="text-iota-neutral-10 dark:text-iota-neutral-92 text-body-md [&_p:not(:last-child)]:mb-sm">
             {children}
         </div>
     );
@@ -190,7 +190,11 @@ function CookiesTable({
                         <TableRow key={rowIndex}>
                             {columns.map((column) => (
                                 <TableCellBase key={column.columnKey}>
-                                    <TableCellText>{cookie[column.field] || '-'}</TableCellText>
+                                    <TableCellText>
+                                        <span className="text-iota-neutral-10 dark:text-iota-neutral-92">
+                                            {cookie[column.field] || '-'}
+                                        </span>
+                                    </TableCellText>
                                 </TableCellBase>
                             ))}
                         </TableRow>

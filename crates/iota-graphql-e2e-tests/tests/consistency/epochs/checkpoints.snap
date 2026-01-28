@@ -26,7 +26,6 @@ Response: {
       "sequenceNumber": 3
     },
     "epoch": {
-      "epochId": 0,
       "checkpoints": {
         "nodes": [
           {
@@ -42,7 +41,8 @@ Response: {
             "sequenceNumber": 3
           }
         ]
-      }
+      },
+      "epochId": 0
     }
   }
 }
@@ -79,7 +79,6 @@ Response: {
       "sequenceNumber": 9
     },
     "epoch_0": {
-      "epochId": 0,
       "checkpoints": {
         "edges": [
           {
@@ -107,10 +106,10 @@ Response: {
             }
           }
         ]
-      }
+      },
+      "epochId": 0
     },
     "epoch_1": {
-      "epochId": 1,
       "checkpoints": {
         "edges": [
           {
@@ -138,10 +137,10 @@ Response: {
             }
           }
         ]
-      }
+      },
+      "epochId": 1
     },
     "epoch_2": {
-      "epochId": 2,
       "checkpoints": {
         "edges": [
           {
@@ -157,7 +156,8 @@ Response: {
             }
           }
         ]
-      }
+      },
+      "epochId": 2
     }
   }
 }
@@ -174,7 +174,6 @@ Response: {
       "sequenceNumber": 10
     },
     "epoch_0": {
-      "epochId": 0,
       "checkpoints": {
         "nodes": [
           {
@@ -187,10 +186,10 @@ Response: {
             "sequenceNumber": 2
           }
         ]
-      }
+      },
+      "epochId": 0
     },
     "epoch_1": {
-      "epochId": 1,
       "checkpoints": {
         "nodes": [
           {
@@ -203,17 +202,18 @@ Response: {
             "sequenceNumber": 6
           }
         ]
-      }
+      },
+      "epochId": 1
     },
     "epoch_2": {
-      "epochId": 2,
       "checkpoints": {
         "nodes": [
           {
             "sequenceNumber": 8
           }
         ]
-      }
+      },
+      "epochId": 2
     }
   }
 }
@@ -226,7 +226,6 @@ Response: {
       "sequenceNumber": 10
     },
     "epoch_0": {
-      "epochId": 0,
       "checkpoints": {
         "nodes": [
           {
@@ -239,10 +238,10 @@ Response: {
             "sequenceNumber": 3
           }
         ]
-      }
+      },
+      "epochId": 0
     },
     "epoch_1": {
-      "epochId": 1,
       "checkpoints": {
         "nodes": [
           {
@@ -255,17 +254,18 @@ Response: {
             "sequenceNumber": 7
           }
         ]
-      }
+      },
+      "epochId": 1
     },
     "epoch_2": {
-      "epochId": 2,
       "checkpoints": {
         "nodes": [
           {
             "sequenceNumber": 9
           }
         ]
-      }
+      },
+      "epochId": 2
     }
   }
 }
@@ -278,30 +278,30 @@ Response: {
       "sequenceNumber": 10
     },
     "epoch_0": {
-      "epochId": 0,
       "checkpoints": {
         "nodes": [
           {
             "sequenceNumber": 2
           }
         ]
-      }
+      },
+      "epochId": 0
     },
     "epoch_1": {
-      "epochId": 1,
       "checkpoints": {
         "nodes": [
           {
             "sequenceNumber": 6
           }
         ]
-      }
+      },
+      "epochId": 1
     },
     "epoch_2": {
-      "epochId": 2,
       "checkpoints": {
         "nodes": []
-      }
+      },
+      "epochId": 2
     }
   }
 }

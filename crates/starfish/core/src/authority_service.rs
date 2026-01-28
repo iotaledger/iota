@@ -596,8 +596,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // 11. Add our shard from the received block and its proof to the dag_state
         // only if it contains transactions
-        if shard_for_core.is_some() {
-            let shard_for_core = shard_for_core.unwrap();
+        if let Some(shard_for_core) = shard_for_core {
             let serialized_shard_for_core: Bytes = bcs::to_bytes(&shard_for_core)
                 .map_err(ConsensusError::SerializationFailure)?
                 .into();

@@ -17,7 +17,7 @@ import {
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
 import { type SourceStrategyToFind } from '_src/shared/messaging/messages/payloads/accounts-finder';
 import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
-import { getKey, getLedgerConnectionErrorMessage } from '_src/ui/app/helpers';
+import { getSourceId, getLedgerConnectionErrorMessage } from '_src/ui/app/helpers';
 import {
     useAccountSources,
     useAccounts,
@@ -116,7 +116,7 @@ export function AccountsFinderView(): JSX.Element {
         }
     }
 
-    const persistedAccounts = accounts?.filter((acc) => getKey(acc) === accountSourceId);
+    const persistedAccounts = accounts?.filter((acc) => getSourceId(acc) === accountSourceId);
     const isLocked =
         accountSource?.isLocked || (accountSourceId === AccountType.LedgerDerived && !password);
     const isLedgerLocked =
