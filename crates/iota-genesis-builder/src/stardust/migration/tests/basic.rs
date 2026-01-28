@@ -17,7 +17,10 @@ use iota_stardust_types::block::{
         },
     },
 };
-use iota_types::base_types::{IotaAddress, ObjectID};
+use iota_types::{
+    base_types::{IotaAddress, ObjectID},
+    stardust::{coin_type::CoinType, output::BASIC_OUTPUT_MODULE_NAME},
+};
 
 use crate::stardust::{
     migration::{
@@ -28,8 +31,8 @@ use crate::stardust::{
         },
     },
     types::{
-        address::stardust_to_iota_address, address_swap_map::AddressSwapMap, coin_type::CoinType,
-        output::basic::BASIC_OUTPUT_MODULE_NAME, output_header::OutputHeader,
+        address::stardust_to_iota_address, address_swap_map::AddressSwapMap,
+        output_header::OutputHeader,
     },
 };
 

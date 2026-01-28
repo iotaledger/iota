@@ -29,7 +29,7 @@ use crate::stardust::{
         },
     },
     types::{
-        address_swap_map::AddressSwapMap, output::BasicOutput as MoveBasicOutput,
+        address_swap_map::AddressSwapMap, output::basic::BasicOutput as MoveBasicOutput,
         vested_reward::is_timelocked_vested_reward,
     },
 };

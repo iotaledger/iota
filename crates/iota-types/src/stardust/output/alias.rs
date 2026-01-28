@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_protocol_config::ProtocolConfig;
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -9,12 +8,11 @@ use serde_with::serde_as;
 use crate::{
     STARDUST_ADDRESS, TypeTag,
     balance::Balance,
-    base_types::{IotaAddress, SequenceNumber, TxContext},
+    base_types::IotaAddress,
     collection_types::Bag,
     error::IotaError,
     id::UID,
-    object::{Data, MoveObject, Object, Owner},
-    stardust::coin_type::CoinType,
+    object::{Data, Object},
 };
 
 pub const ALIAS_MODULE_NAME: &IdentStr = ident_str!("alias");
@@ -60,34 +58,6 @@ impl Alias {
             type_params: Vec::new(),
         }
     }
-
-    pub fn to_genesis_object(
-        &self,
-        owner: Owner,
-        protocol_config: &ProtocolConfig,
-        tx_context: &TxContext,
-        version: SequenceNumber,
-    ) -> anyhow::Result<Object> {
-        // Construct the Alias object.
-        let move_alias_object = {
-            MoveObject::new_from_execution(
-                Self::tag().into(),
-                version,
-                bcs::to_bytes(&self)?,
-                protocol_config,
-            )?
-        };
-
-        let move_alias_object = Object::new_from_genesis(
-            Data::Move(move_alias_object),
-            // We will later overwrite the owner we set here since this object will be added
-            // as a dynamic field on the alias output object.
-            owner,
-            tx_context.digest(),
-        );
-
-        Ok(move_alias_object)
-    }
 }
 
 #[serde_as]
@@ -114,33 +84,6 @@ impl AliasOutput {
             name: ALIAS_OUTPUT_STRUCT_NAME.to_owned(),
             type_params: vec![type_param],
         }
-    }
-
-    pub fn to_genesis_object(
-        &self,
-        owner: Owner,
-        protocol_config: &ProtocolConfig,
-        tx_context: &TxContext,
-        version: SequenceNumber,
-        coin_type: CoinType,
-    ) -> anyhow::Result<Object> {
-        // Construct the Alias Output object.
-        let move_alias_output_object = {
-            MoveObject::new_from_execution(
-                AliasOutput::tag(coin_type.to_type_tag()).into(),
-                version,
-                bcs::to_bytes(&self)?,
-                protocol_config,
-            )?
-        };
-
-        let move_alias_output_object = Object::new_from_genesis(
-            Data::Move(move_alias_output_object),
-            owner,
-            tx_context.digest(),
-        );
-
-        Ok(move_alias_output_object)
     }
 
     /// Create an `AliasOutput` from BCS bytes.

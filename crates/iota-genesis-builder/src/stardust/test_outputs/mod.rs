@@ -22,10 +22,7 @@ use iota_stardust_types::block::{
     address::Ed25519Address,
     output::{BasicOutputBuilder, Output, OutputId},
 };
-use iota_types::{
-    gas_coin::STARDUST_TOTAL_SUPPLY_IOTA,
-    timelock::timelock::{self},
-};
+use iota_types::{gas_coin::STARDUST_TOTAL_SUPPLY_IOTA, stardust::coin_type::CoinType};
 use packable::{
     Packable,
     packer::{IoPacker, Packer},
@@ -34,7 +31,7 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 
 use crate::stardust::{
     parse::HornetSnapshotParser,
-    types::{coin_type::CoinType, output_header::OutputHeader},
+    types::{output_header::OutputHeader, vested_reward::is_timelocked_vested_reward},
 };
 
 pub const IOTA_COIN_TYPE: u32 = 4218;
@@ -229,7 +226,7 @@ fn with_sampling<R: Read>(
     for (output_header, output) in parser.outputs().filter_map(|o| o.ok()) {
         match output {
             Output::Basic(ref basic) => {
-                if !timelock::is_timelocked_vested_reward(
+                if !is_timelocked_vested_reward(
                     output_header.output_id(),
                     basic,
                     target_milestone_timestamp,

@@ -1,39 +1,38 @@
-// Copyright (c) 2026 IOTA Stiftung
+// Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+//! Extension traits for creating unlock conditions from Stardust types during
+//! migration.
 
 use iota_stardust_types::block::address::Address;
 use iota_types::base_types::IotaAddress;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
+// Re-export the canonical types from iota-types
+pub use iota_types::stardust::output::unlock_conditions::{
+    ExpirationUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
+};
 
 use super::super::address::stardust_to_iota_address;
 
-/// Rust version of the stardust expiration unlock condition.
-#[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
-pub struct ExpirationUnlockCondition {
-    /// The address who owns the output before the timestamp has passed.
-    pub owner: IotaAddress,
-    /// The address that is allowed to spend the locked funds after the
-    /// timestamp has passed.
-    pub return_address: IotaAddress,
-    /// Before this unix time, Address Unlock Condition is allowed to unlock the
-    /// output, after that only the address defined in Return Address.
-    pub unix_time: u32,
-}
-
-impl ExpirationUnlockCondition {
-    pub(crate) fn new(
+/// Extension trait for creating `ExpirationUnlockCondition` from Stardust
+/// types.
+pub trait ExpirationUnlockConditionExt {
+    fn new_from_stardust(
         owner_address: &Address,
         expiration_unlock_condition: &iota_stardust_types::block::output::unlock_condition::ExpirationUnlockCondition,
-    ) -> anyhow::Result<Self> {
+    ) -> anyhow::Result<ExpirationUnlockCondition>;
+}
+
+impl ExpirationUnlockConditionExt for ExpirationUnlockCondition {
+    fn new_from_stardust(
+        owner_address: &Address,
+        expiration_unlock_condition: &iota_stardust_types::block::output::unlock_condition::ExpirationUnlockCondition,
+    ) -> anyhow::Result<ExpirationUnlockCondition> {
         let owner = stardust_to_iota_address(owner_address)?;
         let return_address =
             stardust_to_iota_address(expiration_unlock_condition.return_address())?;
         let unix_time = expiration_unlock_condition.timestamp();
 
-        Ok(Self {
+        Ok(ExpirationUnlockCondition {
             owner,
             return_address,
             unix_time,
@@ -41,53 +40,39 @@ impl ExpirationUnlockCondition {
     }
 }
 
-/// Rust version of the stardust storage deposit return unlock condition.
-#[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
-pub struct StorageDepositReturnUnlockCondition {
-    /// The address to which the consuming transaction should deposit the amount
-    /// defined in Return Amount.
-    pub return_address: IotaAddress,
-    /// The amount of IOTA coins the consuming transaction should deposit to the
-    /// address defined in Return Address.
-    pub return_amount: u64,
+/// Extension trait for creating `StorageDepositReturnUnlockCondition` from
+/// Stardust types.
+pub trait StorageDepositReturnUnlockConditionExt {
+    fn try_from_stardust(
+        unlock: &iota_stardust_types::block::output::unlock_condition::StorageDepositReturnUnlockCondition,
+    ) -> anyhow::Result<StorageDepositReturnUnlockCondition>;
 }
 
-impl
-    TryFrom<
-        &iota_stardust_types::block::output::unlock_condition::StorageDepositReturnUnlockCondition,
-    > for StorageDepositReturnUnlockCondition
-{
-    type Error = anyhow::Error;
-
-    fn try_from(
+impl StorageDepositReturnUnlockConditionExt for StorageDepositReturnUnlockCondition {
+    fn try_from_stardust(
         unlock: &iota_stardust_types::block::output::unlock_condition::StorageDepositReturnUnlockCondition,
-    ) -> Result<Self, Self::Error> {
-        let return_address = unlock.return_address().to_string().parse()?;
+    ) -> anyhow::Result<StorageDepositReturnUnlockCondition> {
+        let return_address: IotaAddress = unlock.return_address().to_string().parse()?;
         let return_amount = unlock.amount();
-        Ok(Self {
+        Ok(StorageDepositReturnUnlockCondition {
             return_address,
             return_amount,
         })
     }
 }
 
-/// Rust version of the stardust timelock unlock condition.
-#[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
-pub struct TimelockUnlockCondition {
-    /// The unix time (seconds since Unix epoch) starting from which the output
-    /// can be consumed.
-    pub unix_time: u32,
+/// Extension trait for creating `TimelockUnlockCondition` from Stardust types.
+pub trait TimelockUnlockConditionExt {
+    fn from_stardust(
+        unlock: &iota_stardust_types::block::output::unlock_condition::TimelockUnlockCondition,
+    ) -> TimelockUnlockCondition;
 }
 
-impl From<&iota_stardust_types::block::output::unlock_condition::TimelockUnlockCondition>
-    for TimelockUnlockCondition
-{
-    fn from(
+impl TimelockUnlockConditionExt for TimelockUnlockCondition {
+    fn from_stardust(
         unlock: &iota_stardust_types::block::output::unlock_condition::TimelockUnlockCondition,
-    ) -> Self {
-        Self {
+    ) -> TimelockUnlockCondition {
+        TimelockUnlockCondition {
             unix_time: unlock.timestamp(),
         }
     }

@@ -21,6 +21,13 @@ use iota_types::{
     dynamic_field::{DynamicFieldInfo, derive_dynamic_field_id},
     id::UID,
     object::{Object, Owner},
+    stardust::{
+        coin_type::CoinType,
+        output::{
+            ALIAS_DYNAMIC_OBJECT_FIELD_KEY, ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE,
+            ALIAS_OUTPUT_MODULE_NAME, Alias, AliasOutput, NFT_OUTPUT_MODULE_NAME,
+        },
+    },
 };
 use move_core_types::ident_str;
 
@@ -30,13 +37,7 @@ use crate::stardust::{
         random_output_header, run_migration,
     },
     types::{
-        address::stardust_to_iota_address,
-        coin_type::CoinType,
-        output::{
-            ALIAS_DYNAMIC_OBJECT_FIELD_KEY, ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE,
-            ALIAS_OUTPUT_MODULE_NAME, Alias, AliasOutput, NFT_OUTPUT_MODULE_NAME,
-        },
-        output_header::OutputHeader,
+        address::stardust_to_iota_address, output::alias::AliasExt, output_header::OutputHeader,
     },
 };
 

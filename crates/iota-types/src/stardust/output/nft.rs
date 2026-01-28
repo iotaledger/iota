@@ -1,10 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::anyhow;
-use iota_protocol_config::ProtocolConfig;
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
-use num_rational::Ratio;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -14,12 +11,11 @@ use super::unlock_conditions::{
 use crate::{
     STARDUST_ADDRESS, TypeTag,
     balance::Balance,
-    base_types::{IotaAddress, SequenceNumber, TxContext},
+    base_types::IotaAddress,
     collection_types::{Bag, VecMap},
     error::IotaError,
     id::UID,
-    object::{Data, MoveObject, Object, Owner},
-    stardust::coin_type::CoinType,
+    object::{Data, Object},
 };
 
 pub const IRC27_MODULE_NAME: &IdentStr = ident_str!("irc27");
@@ -35,45 +31,6 @@ pub const NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE: &str = "vector<u8>";
 #[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct FixedPoint32 {
     pub value: u64,
-}
-
-impl FixedPoint32 {
-    /// Create a fixed-point value from a rational number specified by its
-    /// numerator and denominator. Imported from Move std lib.
-    /// This will panic if the denominator is zero. It will also
-    /// abort if the numerator is nonzero and the ratio is not in the range
-    /// 2^-32 .. 2^32-1. When specifying decimal fractions, be careful about
-    /// rounding errors: if you round to display N digits after the decimal
-    /// point, you can use a denominator of 10^N to avoid numbers where the
-    /// very small imprecision in the binary representation could change the
-    /// rounding, e.g., 0.0125 will round down to 0.012 instead of up to 0.013.
-    fn create_from_rational(numerator: u64, denominator: u64) -> Self {
-        // If the denominator is zero, this will abort.
-        // Scale the numerator to have 64 fractional bits and the denominator
-        // to have 32 fractional bits, so that the quotient will have 32
-        // fractional bits.
-        let scaled_numerator = (numerator as u128) << 64;
-        let scaled_denominator = (denominator as u128) << 32;
-        assert!(scaled_denominator != 0);
-        let quotient = scaled_numerator / scaled_denominator;
-        assert!(quotient != 0 || numerator == 0);
-        // Return the quotient as a fixed-point number. We first need to check whether
-        // the cast can succeed.
-        assert!(quotient <= u64::MAX as u128);
-        FixedPoint32 {
-            value: quotient as u64,
-        }
-    }
-}
-
-impl TryFrom<f64> for FixedPoint32 {
-    type Error = anyhow::Error;
-    fn try_from(value: f64) -> Result<Self, Self::Error> {
-        let value = Ratio::from_float(value).ok_or(anyhow!("Missing attribute"))?;
-        let numerator = value.numer().clone().try_into()?;
-        let denominator = value.denom().clone().try_into()?;
-        Ok(FixedPoint32::create_from_rational(numerator, denominator))
-    }
 }
 
 /// Rust version of the Move iota::url::Url type.
@@ -92,18 +49,6 @@ pub struct Url {
 impl Url {
     pub fn url(&self) -> &str {
         &self.url
-    }
-}
-
-impl TryFrom<String> for Url {
-    type Error = anyhow::Error;
-
-    /// Creates a new `Url` ensuring that it only consists of ascii characters.
-    fn try_from(url: String) -> Result<Self, Self::Error> {
-        if !url.is_ascii() {
-            anyhow::bail!("url `{url}` does not consist of only ascii characters")
-        }
-        Ok(Url { url })
     }
 }
 
@@ -152,38 +97,6 @@ pub struct Irc27Metadata {
     pub non_standard_fields: VecMap<String, String>,
 }
 
-impl Default for Irc27Metadata {
-    fn default() -> Self {
-        // The currently supported version per <https://github.com/iotaledger/tips/blob/main/tips/TIP-0027/tip-0027.md#nft-schema>.
-        let version = "v1.0".to_owned();
-        // Matches the media type of the URI below.
-        let media_type = "image/png".to_owned();
-        // A placeholder for NFTs without metadata from which we can extract a URI.
-        let uri = Url::try_from("https://opensea.io/static/images/placeholder.png".to_string())
-            .expect("url should only contain ascii characters");
-        let name = "NFT".to_owned();
-
-        Self {
-            version,
-            media_type,
-            uri,
-            name,
-            collection_name: Default::default(),
-            royalties: VecMap {
-                contents: Vec::new(),
-            },
-            issuer_name: Default::default(),
-            description: Default::default(),
-            attributes: VecMap {
-                contents: Vec::new(),
-            },
-            non_standard_fields: VecMap {
-                contents: Vec::new(),
-            },
-        }
-    }
-}
-
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct Nft {
@@ -215,34 +128,6 @@ impl Nft {
             name: NFT_STRUCT_NAME.to_owned(),
             type_params: Vec::new(),
         }
-    }
-
-    pub fn to_genesis_object(
-        &self,
-        owner: Owner,
-        protocol_config: &ProtocolConfig,
-        tx_context: &TxContext,
-        version: SequenceNumber,
-    ) -> anyhow::Result<Object> {
-        // Construct the Nft object.
-        let move_nft_object = {
-            MoveObject::new_from_execution(
-                Self::tag().into(),
-                version,
-                bcs::to_bytes(&self)?,
-                protocol_config,
-            )?
-        };
-
-        let move_nft_object = Object::new_from_genesis(
-            Data::Move(move_nft_object),
-            // We will later overwrite the owner we set here since this object will be added
-            // as a dynamic field on the nft output object.
-            owner,
-            tx_context.digest(),
-        );
-
-        Ok(move_nft_object)
     }
 }
 
@@ -277,41 +162,6 @@ impl NftOutput {
             name: NFT_OUTPUT_STRUCT_NAME.to_owned(),
             type_params: vec![type_param],
         }
-    }
-
-    pub fn to_genesis_object(
-        &self,
-        owner: IotaAddress,
-        protocol_config: &ProtocolConfig,
-        tx_context: &TxContext,
-        version: SequenceNumber,
-        coin_type: CoinType,
-    ) -> anyhow::Result<Object> {
-        // Construct the Nft Output object.
-        let move_nft_output_object = {
-            MoveObject::new_from_execution(
-                NftOutput::tag(coin_type.to_type_tag()).into(),
-                version,
-                bcs::to_bytes(&self)?,
-                protocol_config,
-            )?
-        };
-
-        let owner = if self.expiration.is_some() {
-            Owner::Shared {
-                initial_shared_version: version,
-            }
-        } else {
-            Owner::AddressOwner(owner)
-        };
-
-        let move_nft_output_object = Object::new_from_genesis(
-            Data::Move(move_nft_output_object),
-            owner,
-            tx_context.digest(),
-        );
-
-        Ok(move_nft_output_object)
     }
 
     /// Create an `NftOutput` from BCS bytes.

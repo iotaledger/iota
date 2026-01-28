@@ -13,6 +13,7 @@ use iota_types::{
     balance::Balance,
     dynamic_field::{Field, derive_dynamic_field_id},
     object::Owner,
+    stardust::coin_type::CoinType,
 };
 
 use crate::stardust::{
@@ -24,7 +25,6 @@ use crate::stardust::{
         package_builder,
         package_data::{NativeTokenModuleData, NativeTokenPackageData},
     },
-    types::coin_type::CoinType,
 };
 
 #[test]

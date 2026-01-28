@@ -1,4 +1,4 @@
-// Copyright (c) 2026 IOTA Stiftung
+// Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolConfig;
@@ -6,9 +6,10 @@ use iota_stardust_types::block::output::{FoundryOutput, OutputId};
 use iota_types::{
     base_types::{ObjectID, SequenceNumber, TxContext},
     object::Object,
+    stardust::coin_type::CoinType,
 };
 
-use super::super::{address::stardust_to_iota_address, coin_type::CoinType};
+use super::super::address::stardust_to_iota_address;
 
 pub fn create_foundry_amount_coin(
     output_id: &OutputId,

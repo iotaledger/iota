@@ -12,6 +12,10 @@ use iota_types::{
     dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
     in_memory_storage::InMemoryStorage,
     object::Owner,
+    stardust::output::{
+        NFT_DYNAMIC_OBJECT_FIELD_KEY, NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE, Nft as MoveNft,
+        NftOutput as MoveNftOutput,
+    },
 };
 
 use crate::stardust::{
@@ -27,13 +31,7 @@ use crate::stardust::{
             },
         },
     },
-    types::{
-        address_swap_map::AddressSwapMap,
-        output::{
-            NFT_DYNAMIC_OBJECT_FIELD_KEY, NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE, Nft as MoveNft,
-            NftOutput as MoveNftOutput,
-        },
-    },
+    types::{address_swap_map::AddressSwapMap, output::nft::NftExt},
 };
 
 pub(super) fn verify_nft_output(

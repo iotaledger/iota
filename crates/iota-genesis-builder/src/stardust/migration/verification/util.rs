@@ -17,6 +17,7 @@ use iota_types::{
     dynamic_field::Field,
     in_memory_storage::InMemoryStorage,
     object::{Object, Owner},
+    stardust::output::{Alias, Nft},
 };
 use primitive_types::U256;
 use tracing::warn;
@@ -24,10 +25,8 @@ use tracing::warn;
 use crate::stardust::{
     migration::executor::FoundryLedgerData,
     types::{
-        address::stardust_to_iota_address,
-        address_swap_map::AddressSwapMap,
-        output::{Alias, Nft, unlock_conditions},
-        token_scheme::MAX_ALLOWED_U64_SUPPLY,
+        address::stardust_to_iota_address, address_swap_map::AddressSwapMap,
+        output::unlock_conditions, token_scheme::MAX_ALLOWED_U64_SUPPLY,
     },
 };
 

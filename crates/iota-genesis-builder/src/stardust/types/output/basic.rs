@@ -1,88 +1,124 @@
-// Copyright (c) 2026 IOTA Stiftung
+// Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Rust types and logic for the Move counterparts in the `stardust` system
-//! package.
+//! Extension trait for creating `BasicOutput` from Stardust types during
+//! migration.
 
 use anyhow::Result;
 use iota_protocol_config::ProtocolConfig;
+// Re-export the canonical type from iota-types
+pub use iota_types::stardust::output::basic::BasicOutput;
 use iota_types::{
-    STARDUST_ADDRESS, TypeTag,
     balance::Balance,
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
     coin::Coin,
     collection_types::Bag,
-    error::IotaError,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
-};
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
-
-use super::{
-    super::{address::stardust_to_iota_address, coin_type::CoinType},
-    unlock_conditions::{
-        ExpirationUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
+    stardust::{
+        coin_type::CoinType,
+        output::unlock_conditions::{
+            ExpirationUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
+        },
     },
 };
 
-pub const BASIC_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("basic_output");
-pub const BASIC_OUTPUT_STRUCT_NAME: &IdentStr = ident_str!("BasicOutput");
+use super::{
+    super::address::stardust_to_iota_address,
+    unlock_conditions::{
+        ExpirationUnlockConditionExt, StorageDepositReturnUnlockConditionExt,
+        TimelockUnlockConditionExt,
+    },
+};
 
-/// Rust version of the stardust basic output.
-#[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct BasicOutput {
-    /// Hash of the `OutputId` that was migrated.
-    pub id: UID,
-
-    /// The amount of coins held by the output.
-    pub balance: Balance,
-
-    /// The `Bag` holds native tokens, key-ed by the stringified type of the
-    /// asset. Example: key: "0xabcded::soon::SOON", value:
-    /// Balance<0xabcded::soon::SOON>.
-    pub native_tokens: Bag,
-
-    /// The storage deposit return unlock condition.
-    pub storage_deposit_return: Option<StorageDepositReturnUnlockCondition>,
-    /// The timelock unlock condition.
-    pub timelock: Option<TimelockUnlockCondition>,
-    /// The expiration unlock condition.
-    pub expiration: Option<ExpirationUnlockCondition>,
-
-    // Possible features, they have no effect and only here to hold data until the object is
-    // deleted.
-    /// The metadata feature.
-    pub metadata: Option<Vec<u8>>,
-    /// The tag feature.
-    pub tag: Option<Vec<u8>>,
-    /// The sender feature.
-    pub sender: Option<IotaAddress>,
+/// Creates a genesis coin object.
+pub fn create_coin(
+    object_id: ObjectID,
+    owner: IotaAddress,
+    amount: u64,
+    tx_context: &TxContext,
+    version: SequenceNumber,
+    protocol_config: &ProtocolConfig,
+    coin_type: &CoinType,
+) -> Result<Object> {
+    let coin = Coin::new(object_id, amount);
+    let move_object = {
+        MoveObject::new_from_execution(
+            MoveObjectType::from(Coin::type_(coin_type.to_type_tag())),
+            version,
+            bcs::to_bytes(&coin)?,
+            protocol_config,
+        )?
+    };
+    // Resolve ownership
+    let owner = Owner::AddressOwner(owner);
+    Ok(Object::new_from_genesis(
+        Data::Move(move_object),
+        owner,
+        tx_context.digest(),
+    ))
 }
 
-impl BasicOutput {
+/// Extension trait for creating `BasicOutput` from Stardust types.
+pub trait BasicOutputExt {
     /// Construct the basic output with an empty [`Bag`] using the
     /// Output Header ID and Stardust
     /// [`BasicOutput`][iota_stardust_types::block::output::BasicOutput].
-    pub fn new(
+    fn new_from_stardust(
         header_object_id: ObjectID,
         output: &iota_stardust_types::block::output::BasicOutput,
-    ) -> Result<Self> {
+    ) -> Result<BasicOutput>;
+
+    /// Creates a genesis object from this basic output.
+    fn to_genesis_object(
+        &self,
+        owner: IotaAddress,
+        protocol_config: &ProtocolConfig,
+        tx_context: &TxContext,
+        version: SequenceNumber,
+        coin_type: &CoinType,
+    ) -> Result<Object>;
+
+    /// Converts this basic output into a genesis coin object.
+    fn into_genesis_coin_object(
+        self,
+        owner: IotaAddress,
+        protocol_config: &ProtocolConfig,
+        tx_context: &TxContext,
+        version: SequenceNumber,
+        coin_type: &CoinType,
+    ) -> Result<Object>;
+
+    /// Infer whether this object can resolve into a simple coin.
+    ///
+    /// Returns `true` in particular when the given milestone timestamp is equal
+    /// or past the unix timestamp in a present timelock and no other unlock
+    /// condition or metadata, tag, sender feature is present.
+    fn is_simple_coin(&self, target_milestone_timestamp_sec: u32) -> bool;
+}
+
+impl BasicOutputExt for BasicOutput {
+    fn new_from_stardust(
+        header_object_id: ObjectID,
+        output: &iota_stardust_types::block::output::BasicOutput,
+    ) -> Result<BasicOutput> {
         let id = UID::new(header_object_id);
         let balance = Balance::new(output.amount());
-        let native_tokens = Default::default();
+        let native_tokens: Bag = Default::default();
         let unlock_conditions = output.unlock_conditions();
         let storage_deposit_return = unlock_conditions
             .storage_deposit_return()
-            .map(|unlock| unlock.try_into())
+            .map(StorageDepositReturnUnlockCondition::try_from_stardust)
             .transpose()?;
-        let timelock = unlock_conditions.timelock().map(|unlock| unlock.into());
+        let timelock = unlock_conditions
+            .timelock()
+            .map(TimelockUnlockCondition::from_stardust);
         let expiration = output
             .unlock_conditions()
             .expiration()
-            .map(|expiration| ExpirationUnlockCondition::new(output.address(), expiration))
+            .map(|expiration| {
+                ExpirationUnlockCondition::new_from_stardust(output.address(), expiration)
+            })
             .transpose()?;
         let metadata = output
             .features()
@@ -108,34 +144,7 @@ impl BasicOutput {
         })
     }
 
-    /// Returns the struct tag of the BasicOutput struct
-    pub fn tag(type_param: TypeTag) -> StructTag {
-        StructTag {
-            address: STARDUST_ADDRESS,
-            module: BASIC_OUTPUT_MODULE_NAME.to_owned(),
-            name: BASIC_OUTPUT_STRUCT_NAME.to_owned(),
-            type_params: vec![type_param],
-        }
-    }
-
-    /// Infer whether this object can resolve into a simple coin.
-    ///
-    /// Returns `true` in particular when the given milestone timestamp is equal
-    /// or past the unix timestamp in a present timelock and no other unlock
-    /// condition or metadata, tag, sender feature is present.
-    pub fn is_simple_coin(&self, target_milestone_timestamp_sec: u32) -> bool {
-        !(self.expiration.is_some()
-            || self.storage_deposit_return.is_some()
-            || self
-                .timelock
-                .as_ref()
-                .is_some_and(|timelock| target_milestone_timestamp_sec < timelock.unix_time)
-            || self.metadata.is_some()
-            || self.tag.is_some()
-            || self.sender.is_some())
-    }
-
-    pub fn to_genesis_object(
+    fn to_genesis_object(
         &self,
         owner: IotaAddress,
         protocol_config: &ProtocolConfig,
@@ -166,7 +175,7 @@ impl BasicOutput {
         ))
     }
 
-    pub fn into_genesis_coin_object(
+    fn into_genesis_coin_object(
         self,
         owner: IotaAddress,
         protocol_config: &ProtocolConfig,
@@ -185,62 +194,15 @@ impl BasicOutput {
         )
     }
 
-    /// Create a `BasicOutput` from BCS bytes.
-    pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
-        bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
-            error: format!("Unable to deserialize BasicOutput object: {err:?}"),
-        })
-    }
-
-    /// Whether the given `StructTag` represents a `BasicOutput`.
-    pub fn is_basic_output(s: &StructTag) -> bool {
-        s.address == STARDUST_ADDRESS
-            && s.module.as_ident_str() == BASIC_OUTPUT_MODULE_NAME
-            && s.name.as_ident_str() == BASIC_OUTPUT_STRUCT_NAME
-    }
-}
-
-pub(crate) fn create_coin(
-    object_id: ObjectID,
-    owner: IotaAddress,
-    amount: u64,
-    tx_context: &TxContext,
-    version: SequenceNumber,
-    protocol_config: &ProtocolConfig,
-    coin_type: &CoinType,
-) -> Result<Object> {
-    let coin = Coin::new(object_id, amount);
-    let move_object = {
-        MoveObject::new_from_execution(
-            MoveObjectType::from(Coin::type_(coin_type.to_type_tag())),
-            version,
-            bcs::to_bytes(&coin)?,
-            protocol_config,
-        )?
-    };
-    // Resolve ownership
-    let owner = Owner::AddressOwner(owner);
-    Ok(Object::new_from_genesis(
-        Data::Move(move_object),
-        owner,
-        tx_context.digest(),
-    ))
-}
-
-impl TryFrom<&Object> for BasicOutput {
-    type Error = IotaError;
-    fn try_from(object: &Object) -> Result<Self, Self::Error> {
-        match &object.data {
-            Data::Move(o) => {
-                if o.type_().is_basic_output() {
-                    return BasicOutput::from_bcs_bytes(o.contents());
-                }
-            }
-            Data::Package(_) => {}
-        }
-
-        Err(IotaError::Type {
-            error: format!("Object type is not a BasicOutput: {object:?}"),
-        })
+    fn is_simple_coin(&self, target_milestone_timestamp_sec: u32) -> bool {
+        !(self.expiration.is_some()
+            || self.storage_deposit_return.is_some()
+            || self
+                .timelock
+                .as_ref()
+                .is_some_and(|timelock| target_milestone_timestamp_sec < timelock.unix_time)
+            || self.metadata.is_some()
+            || self.tag.is_some()
+            || self.sender.is_some())
     }
 }

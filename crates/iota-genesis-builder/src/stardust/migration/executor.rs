@@ -33,6 +33,10 @@ use iota_types::{
     move_package::{MovePackage, TypeOrigin, UpgradeCap},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
+    stardust::{
+        coin_type::CoinType,
+        output::{Alias, AliasOutput, BasicOutput, Nft, NftOutput},
+    },
     transaction::{
         Argument, CheckedInputObjects, Command, InputObjectKind, InputObjects, ObjectArg,
         ObjectReadResult, ProgrammableTransaction,
@@ -50,10 +54,11 @@ use crate::{
         },
         types::{
             address_swap_map::AddressSwapMap,
-            coin_type::CoinType,
             output::{
-                Alias, AliasOutput, BasicOutput, Nft, NftOutput,
+                alias::{AliasExt, AliasOutputExt},
+                basic::BasicOutputExt,
                 foundry::create_foundry_amount_coin,
+                nft::{NftExt, NftOutputExt},
             },
             output_header::OutputHeader,
             token_scheme::SimpleTokenSchemeU64,
@@ -565,7 +570,7 @@ impl Executor {
         coin_type: &CoinType,
         address_swap_map: &mut AddressSwapMap,
     ) -> Result<CreatedObjects> {
-        let mut basic = BasicOutput::new(header.new_object_id(), basic_output)?;
+        let mut basic = BasicOutput::new_from_stardust(header.new_object_id(), basic_output)?;
 
         let basic_objects_owner =
             address_swap_map.swap_stardust_to_iota_address(basic_output.address())?;

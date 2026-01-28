@@ -19,6 +19,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, TxContext},
     epoch_data::EpochData,
     object::Object,
+    stardust::coin_type::CoinType,
     timelock::timelock::{TimeLock, is_timelocked_balance},
 };
 use move_binary_format::file_format_common::VERSION_MAX;
@@ -34,8 +35,7 @@ use crate::stardust::{
     process_outputs::process_outputs_for_iota,
     types::{
         address_swap_map::AddressSwapMap, address_swap_split_map::AddressSwapSplitMap,
-        coin_type::CoinType, output_header::OutputHeader,
-        vested_reward::is_timelocked_vested_reward,
+        output_header::OutputHeader, vested_reward::is_timelocked_vested_reward,
     },
 };
 

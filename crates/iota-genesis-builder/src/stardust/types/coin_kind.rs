@@ -1,4 +1,4 @@
-// Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Coin kinds introduced with the stardust models.
@@ -16,7 +16,7 @@
 
 use std::mem::size_of;
 
-use crate::{
+use iota_types::{
     balance::Balance,
     gas_coin::GAS,
     object::{ID_END_INDEX, Object},
@@ -50,40 +50,23 @@ pub fn get_gas_balance_maybe(object: &Object) -> Option<Balance> {
 #[cfg(test)]
 mod tests {
     use iota_protocol_config::ProtocolConfig;
-
-    use crate::{
+    use iota_types::{
         balance::Balance,
-        base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
+        base_types::{IotaAddress, ObjectID, TxContext},
         id::UID,
-        object::{Data, MoveObject, Object, Owner},
+        object::{Object, Owner},
         stardust::{
-            coin_kind::{get_gas_balance_maybe, is_gas_coin_kind},
             coin_type::CoinType,
             output::{AliasOutput, BasicOutput, NftOutput},
         },
         timelock::timelock::TimeLock,
     };
 
-    /// Creates a genesis object from a time-locked balance.
-    fn to_genesis_object(
-        timelock: TimeLock<Balance>,
-        owner: IotaAddress,
-        protocol_config: &ProtocolConfig,
-        tx_context: &TxContext,
-        version: SequenceNumber,
-    ) -> Result<Object, anyhow::Error> {
-        let move_object = MoveObject::new_from_execution(
-            MoveObjectType::timelocked_iota_balance(),
-            version,
-            timelock.to_bcs_bytes(),
-            protocol_config,
-        )?;
-        Ok(Object::new_from_genesis(
-            Data::Move(move_object),
-            Owner::AddressOwner(owner),
-            tx_context.digest(),
-        ))
-    }
+    use super::{get_gas_balance_maybe, is_gas_coin_kind};
+    use crate::stardust::types::{
+        output::{alias::AliasOutputExt, basic::BasicOutputExt, nft::NftOutputExt},
+        vested_reward::to_genesis_object,
+    };
 
     fn nft_output(balance: u64, coin_type: CoinType) -> anyhow::Result<Object> {
         let id = UID::new(ObjectID::random());

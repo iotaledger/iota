@@ -4,7 +4,7 @@
 pub mod address;
 pub mod address_swap_map;
 pub mod address_swap_split_map;
-pub mod coin_type;
+pub mod coin_kind;
 pub mod error;
 pub mod output;
 pub mod output_header;
@@ -14,5 +14,4 @@ pub mod token_scheme;
 pub mod vested_reward;
 
 pub use address::*;
-pub use coin_type::*;
 pub use error::*;
