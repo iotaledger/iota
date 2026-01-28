@@ -4,4 +4,3 @@
 
 include!("../../../generated/iota.grpc.v0.filter.rs");
 include!("../../../generated/iota.grpc.v0.filter.field_info.rs");
-include!("../../../generated/iota.grpc.v0.filter.accessors.rs");

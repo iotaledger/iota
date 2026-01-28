@@ -4,7 +4,6 @@
 
 include!("../../../generated/iota.grpc.v0.transaction.rs");
 include!("../../../generated/iota.grpc.v0.transaction.field_info.rs");
-include!("../../../generated/iota.grpc.v0.transaction.accessors.rs");
 
 use crate::{field::FieldMaskTree, merge::Merge, v0::bcs::BcsData};
 

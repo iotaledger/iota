@@ -5,7 +5,6 @@
 #[allow(rustdoc::invalid_html_tags)]
 pub mod rpc {
     include!("generated/google.rpc.rs");
-    include!("generated/google.rpc.accessors.rs");
 
     impl ::prost::Name for Status {
         const NAME: &'static str = "Status";
@@ -104,15 +103,15 @@ pub mod rpc {
             }
         }
 
-        // pub fn with_description<T: Into<String>>(mut self, description: T) -> Self {
-        //     self.description = description.into();
-        //     self
-        // }
+        pub fn with_description<T: Into<String>>(mut self, description: T) -> Self {
+            self.description = description.into();
+            self
+        }
 
-        // pub fn with_reason<T: Into<String>>(mut self, reason: T) -> Self {
-        //     self.reason = reason.into();
-        //     self
-        // }
+        pub fn with_reason<T: Into<String>>(mut self, reason: T) -> Self {
+            self.reason = reason.into();
+            self
+        }
 
         pub fn nested<T: Into<String>>(mut self, field: T) -> Self {
             use std::fmt::Write;

@@ -6,7 +6,7 @@ use iota_grpc_types::{
     field::FieldMaskUtil,
     v0::ledger_service::{
         GetTransactionsRequest, GetTransactionsResponse, TransactionRequest, TransactionRequests,
-        ledger_service_client::LedgerServiceClient,
+        ledger_service_client::LedgerServiceClient, transaction_result,
     },
 };
 use iota_macros::sim_test;
@@ -75,9 +75,9 @@ async fn assert_get_transactions_request(
 
         // Assert all returned transactions have the expected fields
         for (idx, tx_result) in response.transactions.iter().enumerate() {
-            if let Some(transaction) = tx_result.transaction_opt() {
+            if let Some(transaction_result::Result::Transaction(transaction)) = &tx_result.result {
                 assert_field_presence(
-                    transaction,
+                    transaction.as_ref(),
                     expected_field_mask_paths,
                     &format!("{scenario} (response {response_count}, transaction {idx})"),
                 );
@@ -415,21 +415,25 @@ async fn get_transactions_nonexistent() {
     for response in &responses {
         for tx_result in &response.transactions {
             assert!(
-                tx_result.error_opt().is_some(),
+                matches!(tx_result.result, Some(transaction_result::Result::Error(_))),
                 "Expected error for non-existent transaction"
             );
             assert!(
-                tx_result.transaction_opt().is_none(),
+                !matches!(
+                    tx_result.result,
+                    Some(transaction_result::Result::Transaction(_))
+                ),
                 "Expected no transaction for non-existent digest"
             );
 
-            let error = tx_result.error_opt().unwrap();
-            // Verify error code is NOT_FOUND (5)
-            assert_eq!(
-                error.code, 5,
-                "Error code should be NOT_FOUND (5), got: {}",
-                error.code
-            );
+            if let Some(transaction_result::Result::Error(error)) = &tx_result.result {
+                // Verify error code is NOT_FOUND (5)
+                assert_eq!(
+                    error.code, 5,
+                    "Error code should be NOT_FOUND (5), got: {}",
+                    error.code
+                );
+            }
             error_count += 1;
         }
     }
@@ -496,29 +500,42 @@ async fn get_transactions_mixed_valid_invalid() {
 
     // First result should be a transaction (valid digest)
     assert!(
-        all_results[0].transaction_opt().is_some(),
+        matches!(
+            all_results[0].result,
+            Some(transaction_result::Result::Transaction(_))
+        ),
         "First result should be a valid transaction"
     );
     assert!(
-        all_results[0].error_opt().is_none(),
+        !matches!(
+            all_results[0].result,
+            Some(transaction_result::Result::Error(_))
+        ),
         "First result should not have an error"
     );
 
     // Second result should be an error (invalid digest)
     assert!(
-        all_results[1].error_opt().is_some(),
+        matches!(
+            all_results[1].result,
+            Some(transaction_result::Result::Error(_))
+        ),
         "Second result should be an error"
     );
     assert!(
-        all_results[1].transaction_opt().is_none(),
+        !matches!(
+            all_results[1].result,
+            Some(transaction_result::Result::Transaction(_))
+        ),
         "Second result should not have a transaction"
     );
 
     // Verify error code is NOT_FOUND
-    let error = all_results[1].error_opt().unwrap();
-    assert_eq!(
-        error.code, 5,
-        "Error code should be NOT_FOUND (5), got: {}",
-        error.code
-    );
+    if let Some(transaction_result::Result::Error(error)) = &all_results[1].result {
+        assert_eq!(
+            error.code, 5,
+            "Error code should be NOT_FOUND (5), got: {}",
+            error.code
+        );
+    }
 }

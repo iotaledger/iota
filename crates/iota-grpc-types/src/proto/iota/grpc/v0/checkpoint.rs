@@ -4,7 +4,6 @@
 
 include!("../../../generated/iota.grpc.v0.checkpoint.rs");
 include!("../../../generated/iota.grpc.v0.checkpoint.field_info.rs");
-include!("../../../generated/iota.grpc.v0.checkpoint.accessors.rs");
 
 use crate::{field::FieldMaskTree, merge::Merge, proto::TryFromProtoError, v0::bcs::BcsData};
 

@@ -4,7 +4,6 @@
 
 include!("../../../generated/iota.grpc.v0.types.rs");
 include!("../../../generated/iota.grpc.v0.types.field_info.rs");
-include!("../../../generated/iota.grpc.v0.types.accessors.rs");
 
 impl From<iota_sdk_types::Digest> for Digest {
     fn from(value: iota_sdk_types::Digest) -> Self {

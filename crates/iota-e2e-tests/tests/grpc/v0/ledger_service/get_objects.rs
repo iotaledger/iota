@@ -8,7 +8,7 @@ use iota_grpc_types::{
     v0::{
         ledger_service::{
             GetObjectsRequest, GetObjectsResponse, ObjectRequest, ObjectRequests,
-            ledger_service_client::LedgerServiceClient,
+            ledger_service_client::LedgerServiceClient, object_result,
         },
         types::ObjectReference,
     },
@@ -46,12 +46,13 @@ async fn assert_get_objects_request(
 
         // Assert all returned objects have the expected fields
         for (idx, obj_result) in response.objects.iter().enumerate() {
-            let object = obj_result.object();
-            assert_field_presence(
-                object,
-                expected_field_mask_paths,
-                &format!("{scenario} (response {response_count}, object {idx})"),
-            );
+            if let Some(object_result::Result::Object(object)) = &obj_result.result {
+                assert_field_presence(
+                    object,
+                    expected_field_mask_paths,
+                    &format!("{scenario} (response {response_count}, object {idx})"),
+                );
+            }
         }
 
         let has_next = response.has_next;
@@ -401,21 +402,22 @@ async fn get_objects_nonexistent() {
     for response in &responses {
         for obj_result in &response.objects {
             assert!(
-                obj_result.error_opt().is_some(),
+                matches!(obj_result.result, Some(object_result::Result::Error(_))),
                 "Expected error for non-existent object"
             );
             assert!(
-                obj_result.object_opt().is_none(),
+                !matches!(obj_result.result, Some(object_result::Result::Object(_))),
                 "Expected no object for non-existent object"
             );
 
-            let error = obj_result.error_opt().unwrap();
-            // Verify error has a non-zero code (indicating an actual error)
-            assert!(
-                error.code != 0,
-                "Error should have non-zero code, got: {}",
-                error.code
-            );
+            if let Some(object_result::Result::Error(error)) = &obj_result.result {
+                // Verify error has a non-zero code (indicating an actual error)
+                assert!(
+                    error.code != 0,
+                    "Error should have non-zero code, got: {}",
+                    error.code
+                );
+            }
             error_count += 1;
         }
     }

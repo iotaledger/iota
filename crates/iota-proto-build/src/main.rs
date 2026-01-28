@@ -16,6 +16,8 @@ mod generate_fields;
 mod ident;
 mod message_graph;
 
+const GENERATE_ACCESSORS: bool = false;
+
 fn main() {
     let root_dir = PathBuf::from(std::env!("CARGO_MANIFEST_DIR"));
 
@@ -146,10 +148,19 @@ fn main() {
     }
 
     // Setup for extended codegen
-    let extern_paths = context::extern_paths::ExternPaths::new(&[], true).unwrap();
-    let graph = DescriptorGraph::new(fds.file.iter());
-    let context = context::Context::new(extern_paths, graph);
-    codegen::accessors::generate_accessors(&context, &out_dir, &boxed_types_accessor);
+    if GENERATE_ACCESSORS {
+        let extern_paths = context::extern_paths::ExternPaths::new(&[], true).unwrap();
+        let files = fds
+            .file
+            .clone()
+            .into_iter()
+            // Filter files, there should only be accessors for google.rpc package
+            .filter(|file| file.package().starts_with("google.rpc"))
+            .collect::<Vec<_>>();
+        let graph = DescriptorGraph::new(files.iter());
+        let context = context::Context::new(extern_paths, graph);
+        codegen::accessors::generate_accessors(&context, &out_dir, &boxed_types_accessor);
+    }
 
     // Group files by package for field info generation
     let mut packages: HashMap<String, FileDescriptorWithPackageVersion> = HashMap::new();

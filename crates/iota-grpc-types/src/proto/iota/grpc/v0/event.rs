@@ -4,7 +4,6 @@
 
 include!("../../../generated/iota.grpc.v0.event.rs");
 include!("../../../generated/iota.grpc.v0.event.field_info.rs");
-include!("../../../generated/iota.grpc.v0.event.accessors.rs");
 
 use crate::{
     field::FieldMaskTree,

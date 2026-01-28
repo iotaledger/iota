@@ -4,7 +4,6 @@
 
 include!("../../../generated/iota.grpc.v0.signatures.rs");
 include!("../../../generated/iota.grpc.v0.signatures.field_info.rs");
-include!("../../../generated/iota.grpc.v0.signatures.accessors.rs");
 
 use crate::{field::FieldMaskTree, merge::Merge, proto::TryFromProtoError, v0::bcs::BcsData};
 

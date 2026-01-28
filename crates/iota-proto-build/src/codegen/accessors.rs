@@ -143,18 +143,18 @@ fn generate_accessors_functions_for_field(
     // doc comments
 
     let name_comments = vec![format!(
-        "Returns the value of `{name}`, or the default value if `{name}` is unset."
+        " Returns the value of `{name}`, or the default value if `{name}` is unset."
     )];
     let name_opt_comments = vec![format!(
-        "If `{name}` is set, returns [`Some`] with the value; otherwise returns [`None`]."
+        " If `{name}` is set, returns [`Some`] with the value; otherwise returns [`None`]."
     )];
-    let mut set_name_comments = vec![format!("Sets `{name}` with the provided value.")];
+    let mut set_name_comments = vec![format!(" Sets `{name}` with the provided value.")];
     let mut name_mut_comments = vec![
-        format!("Returns a mutable reference to `{name}`."),
-        "If the field is unset, it is first initialized with the default value.".to_owned(),
+        format!(" Returns a mutable reference to `{name}`."),
+        " If the field is unset, it is first initialized with the default value.".to_owned(),
     ];
     let name_opt_mut_comments = vec![format!(
-        "If `{name}` is set, returns [`Some`] with a mutable reference to the value; otherwise returns [`None`]."
+        " If `{name}` is set, returns [`Some`] with a mutable reference to the value; otherwise returns [`None`]."
     )];
 
     let is_boxed = is_field_boxed_from_config(message, field, boxed_types);
@@ -252,10 +252,10 @@ fn generate_accessors_functions_for_field(
         let variant = quote::format_ident!("{}", field.inner.name().to_pascal_case());
 
         name_mut_comments.push(
-            "If any other oneof field in the same oneof is set, it will be cleared.".to_owned(),
+            " If any other oneof field in the same oneof is set, it will be cleared.".to_owned(),
         );
         set_name_comments.push(
-            "If any other oneof field in the same oneof is set, it will be cleared.".to_owned(),
+            " If any other oneof field in the same oneof is set, it will be cleared.".to_owned(),
         );
 
         let setters = if use_into_for_setter(field) {

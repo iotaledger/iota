@@ -4,7 +4,6 @@
 
 include!("../../../generated/iota.grpc.v0.command.rs");
 include!("../../../generated/iota.grpc.v0.command.field_info.rs");
-include!("../../../generated/iota.grpc.v0.command.accessors.rs");
 
 use iota_types::{TypeTag, transaction::Argument as IotaArgument};
 
