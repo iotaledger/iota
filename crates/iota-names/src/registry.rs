@@ -123,7 +123,7 @@ mod tests {
         let mut name = NameRecord {
             nft_id: iota_types::id::ID::new(ObjectID::random()),
             data: VecMap { contents: vec![] },
-            target_address: Some(IotaAddress::random_for_testing_only()),
+            target_address: Some(IotaAddress::random()),
             expiration_timestamp_ms: system_time + 10,
         };
 

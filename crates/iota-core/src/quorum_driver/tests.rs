@@ -63,7 +63,7 @@ fn make_tx(
 ) -> Transaction {
     make_transfer_iota_transaction(
         gas.compute_object_reference(),
-        IotaAddress::random_for_testing_only(),
+        IotaAddress::random(),
         None,
         sender,
         keypair,

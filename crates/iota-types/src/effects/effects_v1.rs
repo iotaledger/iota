@@ -305,7 +305,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
         } else {
             (
                 (ObjectID::ZERO, SequenceNumber::default(), ObjectDigest::MIN),
-                Owner::AddressOwner(IotaAddress::default()),
+                Owner::AddressOwner(IotaAddress::ZERO),
             )
         }
     }
@@ -388,11 +388,11 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
             EffectsObjectChange {
                 input_state: ObjectIn::Exist((
                     (obj_ref.1, obj_ref.2),
-                    Owner::AddressOwner(IotaAddress::default()),
+                    Owner::AddressOwner(IotaAddress::ZERO),
                 )),
                 output_state: ObjectOut::ObjectWrite((
                     obj_ref.2,
-                    Owner::AddressOwner(IotaAddress::default()),
+                    Owner::AddressOwner(IotaAddress::ZERO),
                 )),
                 id_operation: IDOperation::None,
             },
@@ -405,7 +405,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
             EffectsObjectChange {
                 input_state: ObjectIn::Exist((
                     (obj_ref.1, obj_ref.2),
-                    Owner::AddressOwner(IotaAddress::default()),
+                    Owner::AddressOwner(IotaAddress::ZERO),
                 )),
                 output_state: ObjectOut::NotExist,
                 id_operation: IDOperation::Deleted,
