@@ -592,7 +592,7 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     let tx_data = TransactionData::new_pay_iota(
         *sender,
         vec![gas],
-        vec![IotaAddress::random_for_testing_only()],
+        vec![IotaAddress::random()],
         vec![10000],
         gas,
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,

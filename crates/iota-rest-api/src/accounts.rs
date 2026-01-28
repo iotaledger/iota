@@ -57,7 +57,7 @@ async fn list_account_objects(
     let start = parameters.start();
 
     let mut object_info = indexes
-        .account_owned_objects_info_iter(address.into(), start)?
+        .account_owned_objects_info_iter(address, start)?
         .take(limit + 1)
         .map(|result| {
             result
@@ -69,9 +69,9 @@ async fn list_account_objects(
                 })
                 .and_then(|info| {
                     AccountOwnedObjectInfo {
-                        owner: info.owner.into(),
+                        owner: info.owner,
                         object_id: info.object_id.into(),
-                        version: info.version.into(),
+                        version: info.version,
                         type_: struct_tag_core_to_sdk(info.type_.into())?,
                     }
                     .pipe(Ok)

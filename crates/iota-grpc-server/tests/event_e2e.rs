@@ -114,7 +114,7 @@ async fn test_event_filtering_and_bcs_serialization() {
     let sender_filter = grpc_events::EventFilter {
         filter: Some(Filter::Sender(grpc_events::SenderFilter {
             sender: Some(grpc_common::Address {
-                address: sender_1.to_vec(),
+                address: sender_1.as_bytes().to_vec(),
             }),
         })),
     };

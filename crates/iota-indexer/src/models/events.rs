@@ -60,7 +60,7 @@ impl From<IndexedEvent> for StoredEvent {
             senders: event
                 .senders
                 .into_iter()
-                .map(|sender| Some(sender.to_vec()))
+                .map(|sender| Some(sender.as_bytes().to_vec()))
                 .collect(),
             package: event.package.to_vec(),
             module: event.module.clone(),
@@ -154,7 +154,7 @@ mod tests {
         let event = Event {
             package_id: ObjectID::random(),
             transaction_module: Identifier::new("test").unwrap(),
-            sender: AccountAddress::random().into(),
+            sender: IotaAddress::random(),
             type_: StructTag {
                 address: AccountAddress::TWO,
                 module: Identifier::new("test").unwrap(),

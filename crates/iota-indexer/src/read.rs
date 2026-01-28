@@ -953,7 +953,7 @@ impl IndexerReader {
         run_query!(&self.pool, |conn| {
             let mut query = objects::dsl::objects
                 .filter(objects::dsl::owner_type.eq(OwnerType::Address as i16))
-                .filter(objects::dsl::owner_id.eq(address.to_vec()))
+                .filter(objects::dsl::owner_id.eq(address.as_bytes()))
                 .order(objects::dsl::object_id.asc())
                 .limit(limit as i64)
                 .into_boxed();
@@ -1233,7 +1233,7 @@ impl IndexerReader {
             }
             Some(TransactionFilterKind::V1(TransactionFilter::FromAddress(from_address)))
             | Some(TransactionFilterKind::V2(TransactionFilterV2::FromAddress(from_address))) => {
-                let from_address = Hex::encode(from_address.to_vec());
+                let from_address = Hex::encode(from_address.as_bytes());
                 (
                     "tx_senders".into(),
                     format!("sender = '\\x{from_address}'::bytea"),
@@ -1241,7 +1241,7 @@ impl IndexerReader {
             }
             Some(TransactionFilterKind::V1(TransactionFilter::ToAddress(to_address)))
             | Some(TransactionFilterKind::V2(TransactionFilterV2::ToAddress(to_address))) => {
-                let to_address = Hex::encode(to_address.to_vec());
+                let to_address = Hex::encode(to_address.as_bytes());
                 (
                     "tx_recipients".into(),
                     format!("recipient = '\\x{to_address}'::bytea"),
@@ -1250,8 +1250,8 @@ impl IndexerReader {
             Some(TransactionFilterKind::V1(TransactionFilter::FromAndToAddress { from, to }))
             | Some(TransactionFilterKind::V2(TransactionFilterV2::FromAndToAddress { from, to })) =>
             {
-                let from_address = Hex::encode(from.to_vec());
-                let to_address = Hex::encode(to.to_vec());
+                let from_address = Hex::encode(from.as_bytes());
+                let to_address = Hex::encode(to.as_bytes());
                 // Need to remove ambiguities for tx_sequence_number column
                 let cursor_clause = if let Some(cursor_tx_seq) = cursor_tx_seq {
                     if is_descending {
@@ -1278,7 +1278,7 @@ impl IndexerReader {
             }
             Some(TransactionFilterKind::V1(TransactionFilter::FromOrToAddress { addr }))
             | Some(TransactionFilterKind::V2(TransactionFilterV2::FromOrToAddress { addr })) => {
-                let address = Hex::encode(addr.to_vec());
+                let address = Hex::encode(addr.as_bytes());
                 let inner_query = format!(
                     "( \
                         ( \
@@ -1641,7 +1641,7 @@ impl IndexerReader {
                     ORDER BY {} \
                     LIMIT {}
                 )",
-                Hex::encode(sender.to_vec()),
+                Hex::encode(sender.as_bytes()),
                 cursor_clause,
                 order_clause,
                 limit,
@@ -1955,7 +1955,7 @@ impl IndexerReader {
     ) -> Result<Vec<IotaCoin>, IndexerError> {
         let mut query = objects::dsl::objects
             .filter(objects::dsl::owner_type.eq(OwnerType::Address as i16))
-            .filter(objects::dsl::owner_id.eq(owner.to_vec()))
+            .filter(objects::dsl::owner_id.eq(owner.as_bytes()))
             .filter(objects::dsl::object_id.gt(cursor.to_vec()))
             .into_boxed();
         if let Some(coin_type) = coin_type {
@@ -2010,7 +2010,7 @@ impl IndexerReader {
             ORDER BY coin_type ASC
         ",
             OwnerType::Address as i16,
-            Hex::encode(owner.to_vec()),
+            Hex::encode(owner.as_bytes()),
             coin_type_filter,
         );
 

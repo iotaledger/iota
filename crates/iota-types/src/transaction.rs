@@ -1568,7 +1568,7 @@ impl TransactionData {
     fn new_system_transaction(kind: TransactionKind) -> Self {
         // assert transaction kind if a system transaction
         assert!(kind.is_system_tx());
-        let sender = IotaAddress::default();
+        let sender = IotaAddress::ZERO;
         TransactionData::V1(TransactionDataV1 {
             kind,
             sender,
