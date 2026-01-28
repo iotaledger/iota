@@ -372,7 +372,7 @@ pub enum DecodedSigOutput {
     ZkLogin(ZkLoginAuthenticator),
     Passkey(PasskeyAuthenticator),
     MoveAuthenticator {
-        call_args: Vec<String>,
+        call_arguments: Vec<String>,
         type_arguments: serde_json::Value,
         object_to_authenticate: serde_json::Value,
     },
@@ -658,7 +658,7 @@ impl KeyToolCommand {
                     GenericSignature::ZkLoginAuthenticator(zk) => DecodedSigOutput::ZkLogin(zk),
                     GenericSignature::PasskeyAuthenticator(passkey) => DecodedSigOutput::Passkey(passkey),
                     GenericSignature::MoveAuthenticator(move_auth) => {
-                        let call_args: Vec<String> = move_auth.call_args().iter().map(|arg| {
+                        let call_arguments: Vec<String> = move_auth.call_args().iter().map(|arg| {
                             match arg {
                                 CallArg::Pure(bytes) => format!("0x{}", Hex::encode(bytes)),
                                 CallArg::Object(obj) => serde_json::to_string(obj).unwrap_or_else(|_| format!("{obj:?}")),
@@ -669,7 +669,7 @@ impl KeyToolCommand {
                         let object_to_authenticate = serde_json::to_value(move_auth.object_to_authenticate())
                             .map_err(|e| anyhow!("Failed to serialize object_to_authenticate: {e}"))?;
                         DecodedSigOutput::MoveAuthenticator {
-                            call_args,
+                            call_arguments,
                             type_arguments,
                             object_to_authenticate,
                         }
@@ -1517,6 +1517,7 @@ impl Display for CommandOutput {
                     } => {
                         builder
                             .set_header(["field", "value"])
+                            .push_record(["type", "Signature"])
                             .push_record(["scheme", scheme.as_str()])
                             .push_record(["publicKey", public_key_base64.as_str()])
                             .push_record(["address", address.as_str()])
@@ -1534,6 +1535,7 @@ impl Display for CommandOutput {
                         let parsed_str = serde_json::to_string_pretty(&parsed).unwrap();
                         builder
                             .set_header(["field", "value"])
+                            .push_record(["type", "MultiSig"])
                             .push_record(["multisig", multisig_address.as_str()])
                             .push_record(["parsed", parsed_str.as_str()])
                             .push_record(["address", multisig_address.as_str()]);
@@ -1550,17 +1552,18 @@ impl Display for CommandOutput {
                             .push_record(["type", "Passkey"]);
                     }
                     DecodedSigOutput::MoveAuthenticator {
-                        call_args,
+                        call_arguments,
                         type_arguments,
                         object_to_authenticate,
                     } => {
-                        let call_args_hex = call_args.join("");
+                        let call_args_str = serde_json::to_string(&call_arguments).unwrap();
                         let type_args_str = serde_json::to_string(&type_arguments).unwrap();
                         let obj_str =
                             serde_json::to_string_pretty(&object_to_authenticate).unwrap();
                         builder
                             .set_header(["field", "value"])
-                            .push_record(["callArgs", call_args_hex.as_str()])
+                            .push_record(["type", "MoveAuthenticator"])
+                            .push_record(["callArguments", &call_args_str])
                             .push_record(["typeArguments", type_args_str.as_str()])
                             .push_record(["objectToAuthenticate", obj_str.as_str()]);
                     }

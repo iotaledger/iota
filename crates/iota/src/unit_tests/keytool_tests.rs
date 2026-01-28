@@ -895,12 +895,12 @@ async fn test_decode_sig() -> Result<(), anyhow::Error> {
     };
     match decoded {
         DecodedSigOutput::MoveAuthenticator {
-            call_args,
+            call_arguments,
             type_arguments,
             object_to_authenticate,
         } => {
             assert_eq!(
-                call_args,
+                call_arguments,
                 vec![
                     "0x80016463353733613538633764613031366166633630326432616535356162646161366464633365373963326634633038353339346336633234623438333965633465303132306462363930326230393737373231313861373861626136323038393838323030353130396631666133613563303738643931363434343536363063"
                 ]
