@@ -34,7 +34,10 @@ use iota_types::{
     parse_iota_struct_tag,
 };
 use itertools::Itertools;
-use move_core_types::language_storage::{ModuleId, StructTag, TypeTag};
+use move_core_types::{
+    account_address::AccountAddress,
+    language_storage::{ModuleId, StructTag, TypeTag},
+};
 use parking_lot::ArcMutexGuard;
 use prometheus::{
     IntCounter, IntCounterVec, Registry, register_int_counter_vec_with_registry,
@@ -733,7 +736,10 @@ impl IndexStore {
                 .map(|(i, e)| {
                     (
                         i,
-                        ModuleId::new(e.package_id.into(), e.transaction_module.clone()),
+                        ModuleId::new(
+                            AccountAddress::new(e.package_id.into_bytes()),
+                            e.transaction_module.clone(),
+                        ),
                     )
                 })
                 .map(|(i, m)| ((m, (sequence, i)), (event_digest, *digest, timestamp_ms))),
@@ -1299,7 +1305,7 @@ impl IndexStore {
         debug!(?object, "get_dynamic_fields");
         // The object id 0 is the smallest possible
         let iter_lower_bound = (object, cursor.unwrap_or(ObjectID::ZERO));
-        let iter_upper_bound = (object, ObjectID::MAX);
+        let iter_upper_bound = (object, ObjectID::new([u8::MAX; _]));
         Ok(self
             .tables
             .dynamic_field_index

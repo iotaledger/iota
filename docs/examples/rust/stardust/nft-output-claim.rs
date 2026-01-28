@@ -54,7 +54,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .ok_or(anyhow!("No coins found"))?;
 
     // Get an NftOutput object
-    let nft_output_object_id = ObjectID::from_hex_literal(
+    let nft_output_object_id = ObjectID::from_hex(
         "0xad87a60921c62f84d57301ea127d1706b406cde5ec6fa4d3af2a80f424fab93a",
     )?;
 

@@ -38,7 +38,9 @@ use iota_types::{
 };
 use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
-use move_core_types::{identifier::IdentStr, language_storage::StructTag};
+use move_core_types::{
+    account_address::AccountAddress, identifier::IdentStr, language_storage::StructTag,
+};
 
 use crate::{
     coin_api::execute_move_call,
@@ -822,7 +824,7 @@ fn test_repeatedly_update_display() {
         indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
 
         let (res, package_id) = deploy_bear_pkg(sender, &sender_kp, client).await;
-        let display_obj_id = ObjectID::from_hex_literal(
+        let display_obj_id = ObjectID::from_hex(
             res.events.unwrap().data[0].parsed_json.as_object().unwrap()["id"]
                 .as_str()
                 .unwrap(),
@@ -834,7 +836,7 @@ fn test_repeatedly_update_display() {
             .unwrap();
 
         let bear_type_tag = TypeTag::Struct(Box::new(StructTag {
-            address: (*package_id),
+            address: AccountAddress::new(package_id.into_bytes()),
             name: IdentStr::new("DemoBear").unwrap().into(),
             module: IdentStr::new("demo_bear").unwrap().into(),
             type_params: Vec::new(),

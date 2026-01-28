@@ -424,6 +424,6 @@ impl Validator {
 
 impl Validator {
     pub fn operation_cap_id(&self) -> IotaAddress {
-        IotaAddress::from_array(**self.validator_summary.operation_cap_id)
+        IotaAddress::from_array(self.validator_summary.operation_cap_id.into_bytes())
     }
 }

@@ -10,7 +10,9 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
 };
-use move_core_types::{identifier::Identifier, language_storage::StructTag};
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::StructTag,
+};
 use tokio_util::sync::CancellationToken;
 use tonic::{Request, Response, Status};
 use tracing::debug;
@@ -123,7 +125,7 @@ fn create_event_filter(proto_filter: &grpc_events::EventFilter) -> Result<EventF
         Some(Filter::MoveEventType(f)) => {
             let object_id = parse_object_id(&f.package_id, "Package ID")?;
             let struct_tag = StructTag {
-                address: *object_id,
+                address: AccountAddress::new(object_id.into_bytes()),
                 module: parse_identifier(&f.module, "module name")?,
                 name: parse_identifier(&f.name, "event name")?,
                 type_params: vec![],

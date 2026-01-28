@@ -234,7 +234,7 @@ impl KeyValueStoreReader for BigTableClient {
 }
 
 pub fn raw_object_key(object_key: &ObjectKey) -> Vec<u8> {
-    let mut raw_key = object_key.0.to_vec();
+    let mut raw_key = object_key.0.as_bytes().to_vec();
     raw_key.extend(object_key.1.as_u64().to_be_bytes());
     raw_key
 }

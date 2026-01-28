@@ -8,6 +8,7 @@ use std::{
 };
 
 use move_core_types::{
+    account_address::AccountAddress,
     ident_str,
     identifier::IdentStr,
     language_storage::{StructTag, TypeTag},
@@ -59,7 +60,7 @@ struct ConfigKey {
 impl ConfigKey {
     pub fn type_() -> StructTag {
         StructTag {
-            address: IOTA_FRAMEWORK_PACKAGE_ID.into(),
+            address: AccountAddress::new(IOTA_FRAMEWORK_PACKAGE_ID.into_bytes()),
             module: DENY_LIST_MODULE.to_owned(),
             name: ident_str!("ConfigKey").to_owned(),
             type_params: vec![],
@@ -80,7 +81,7 @@ struct AddressKey(IotaAddress);
 impl AddressKey {
     pub fn type_() -> StructTag {
         StructTag {
-            address: IOTA_FRAMEWORK_PACKAGE_ID.into(),
+            address: AccountAddress::new(IOTA_FRAMEWORK_PACKAGE_ID.into_bytes()),
             module: DENY_LIST_MODULE.to_owned(),
             name: ident_str!("AddressKey").to_owned(),
             type_params: vec![],
@@ -106,7 +107,7 @@ impl GlobalPauseKey {
     }
     pub fn type_() -> StructTag {
         StructTag {
-            address: IOTA_FRAMEWORK_PACKAGE_ID.into(),
+            address: AccountAddress::new(IOTA_FRAMEWORK_PACKAGE_ID.into_bytes()),
             module: DENY_LIST_MODULE.to_owned(),
             name: ident_str!("GlobalPauseKey").to_owned(),
             type_params: vec![],

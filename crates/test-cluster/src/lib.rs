@@ -530,7 +530,7 @@ impl TestCluster {
                 .with_async(|node| async move {
                     let mut txns = node.state().subscription_handler.subscribe_transactions(
                         TransactionFilter::ChangedObject(
-                            ObjectID::from_hex_literal("0x7").unwrap(),
+                            ObjectID::from_hex("0x7").unwrap(),
                         ),
                     );
                     let state = node.state();

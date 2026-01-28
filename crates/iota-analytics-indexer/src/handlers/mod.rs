@@ -237,7 +237,7 @@ fn parse_struct_field(
                     if let Some(MoveValue::Address(address) | MoveValue::Signer(address)) =
                         id_values.get("bytes").cloned()
                     {
-                        curr_struct.object_id = Some(ObjectID::from_address(*address))
+                        curr_struct.object_id = Some(ObjectID::new(address.into_bytes()))
                     }
                 }
             } else if "0x1::option::Option" == struct_name {
@@ -325,7 +325,7 @@ mod tests {
         parse_struct("$", move_struct, &mut all_structs);
         assert_eq!(
             all_structs.get("$").unwrap().object_id,
-            Some(ObjectID::from_hex_literal("0x300")?)
+            Some(ObjectID::from_hex("0x300")?)
         );
         assert_eq!(
             all_structs.get("$.principal").unwrap().struct_tag,
@@ -376,7 +376,7 @@ mod tests {
         parse_struct("$", move_struct, &mut all_structs);
         assert_eq!(
             all_structs.get("$").unwrap().object_id,
-            Some(ObjectID::from_hex_literal("0x300")?)
+            Some(ObjectID::from_hex("0x300")?)
         );
         assert_eq!(
             all_structs

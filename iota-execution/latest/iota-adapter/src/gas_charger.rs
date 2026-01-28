@@ -10,13 +10,12 @@ pub mod checked {
 
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
-        base_types::{ObjectID, ObjectRef},
+        base_types::{IotaAddress, ObjectID, ObjectRef},
         deny_list_v1::CONFIG_SETTING_DYNAMIC_FIELD_SIZE_FOR_GAS,
         digests::TransactionDigest,
         error::ExecutionError,
         gas::{GasCostSummary, IotaGasStatus, deduct_gas},
         gas_model::tables::GasStatus,
-        is_system_package,
         object::Data,
     };
     use tracing::trace;
@@ -236,7 +235,7 @@ pub mod checked {
                 .objects()
                 .iter()
                 // don't charge for loading IOTA Framework or Move stdlib
-                .filter(|(id, _)| !is_system_package(**id))
+                .filter(|(id, _)| !IotaAddress::from_object_id(**id).is_system_package())
                 .map(|(_, obj)| obj.object_size_for_gas_metering())
                 .sum();
             self.gas_status.charge_storage_read(total_size)

@@ -54,7 +54,7 @@ use iota_storage::{
 #[cfg(msim)]
 use iota_types::committee::CommitteeTrait;
 use iota_types::{
-    IOTA_SYSTEM_ADDRESS, TypeTag,
+    IOTA_SYSTEM_PACKAGE_ID, TypeTag,
     authenticator_state::get_authenticator_state,
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
@@ -84,7 +84,6 @@ use iota_types::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
     },
-    is_system_package,
     layout_resolver::{LayoutResolver, into_struct_layout},
     message_envelope::Message,
     messages_checkpoint::{
@@ -115,7 +114,9 @@ use iota_types::{
 };
 use itertools::Itertools;
 use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
-use move_core_types::{annotated_value::MoveStructLayout, language_storage::ModuleId};
+use move_core_types::{
+    account_address::AccountAddress, annotated_value::MoveStructLayout, language_storage::ModuleId,
+};
 use parking_lot::Mutex;
 use prometheus::{
     Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
@@ -1908,7 +1909,7 @@ impl AuthorityState {
             let mock_gas_object = Object::new_move(
                 MoveObject::new_gas_coin(
                     OBJECT_START_VERSION,
-                    ObjectID::MAX,
+                    ObjectID::new([u8::MAX; _]),
                     SIMULATION_GAS_COIN_VALUE,
                 ),
                 Owner::AddressOwner(transaction.gas_data().owner),
@@ -3398,7 +3399,7 @@ impl AuthorityState {
 
     pub async fn get_iota_system_package_object_ref(&self) -> IotaResult<ObjectRef> {
         Ok(self
-            .try_get_object(&IOTA_SYSTEM_ADDRESS.into())
+            .try_get_object(&IOTA_SYSTEM_PACKAGE_ID)
             .await?
             .expect("framework object should always exist")
             .compute_object_reference())
@@ -3921,7 +3922,7 @@ impl AuthorityState {
 
     #[instrument(level = "trace", skip_all)]
     pub fn find_publish_txn_digest(&self, package_id: ObjectID) -> IotaResult<TransactionDigest> {
-        if is_system_package(package_id) {
+        if IotaAddress::from_object_id(package_id).is_system_package() {
             return self.find_genesis_txn_digest();
         }
         Ok(self
@@ -4052,7 +4053,7 @@ impl AuthorityState {
                 index_store.events_by_transaction(&digest, tx_num, event_num, limit, descending)?
             }
             EventFilter::MoveModule { package, module } => {
-                let module_id = ModuleId::new(package.into(), module);
+                let module_id = ModuleId::new(AccountAddress::new(package.into_bytes()), module);
                 index_store.events_by_module_id(&module_id, tx_num, event_num, limit, descending)?
             }
             EventFilter::MoveEventType(struct_name) => index_store
@@ -4073,7 +4074,7 @@ impl AuthorityState {
                 .event_iterator(start_time, end_time, tx_num, event_num, limit, descending)?,
             EventFilter::MoveEventModule { package, module } => index_store
                 .events_by_move_event_module(
-                    &ModuleId::new(package.into(), module),
+                    &ModuleId::new(AccountAddress::new(package.into_bytes()), module),
                     tx_num,
                     event_num,
                     limit,

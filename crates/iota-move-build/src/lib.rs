@@ -19,9 +19,8 @@ use iota_package_management::{
 };
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS, STARDUST_ADDRESS,
-    base_types::ObjectID,
+    base_types::{IotaAddress, ObjectID},
     error::{IotaError, IotaResult},
-    is_system_package,
     move_package::{FnInfo, FnInfoKey, FnInfoMap, MovePackage},
 };
 use iota_verifier::verifier as iota_bytecode_verifier;
@@ -145,7 +144,7 @@ impl BuildConfig {
             build_config
                 .config
                 .additional_named_addresses
-                .insert(addr_name.into(), AccountAddress::from(obj_id));
+                .insert(addr_name.into(), AccountAddress::new(obj_id.into_bytes()));
         }
         build_config
     }
@@ -583,7 +582,7 @@ impl CompiledPackage {
             return false;
         };
 
-        is_system_package(published_at)
+        IotaAddress::from_object_id(published_at).is_system_package()
     }
 
     /// Checks for root modules with non-zero package addresses.  Returns an

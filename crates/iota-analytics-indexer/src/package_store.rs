@@ -91,14 +91,14 @@ impl LocalDBPackageStore {
         let object = if let Some(object) = self
             .package_store_tables
             .packages
-            .get(&ObjectID::from(id))
+            .get(&ObjectID::new(id.into_bytes()))
             .map_err(Error::TypedStore)?
         {
             object
         } else {
             let object = self
                 .fallback_client
-                .get_object(ObjectID::from(id))
+                .get_object(ObjectID::new(id.into_bytes()))
                 .await
                 .map_err(|_| PackageResolverError::PackageNotFound(id))?;
             self.update(&object)?;

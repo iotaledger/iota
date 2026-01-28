@@ -1587,7 +1587,7 @@ impl From<MoveLocation> for crate::execution_status::MoveLocation {
     fn from(value: MoveLocation) -> Self {
         Self {
             module: ModuleId::new(
-                move_core_types::account_address::AccountAddress::new(value.package.into_inner()),
+                move_core_types::account_address::AccountAddress::new(value.package.into_bytes()),
                 crate::Identifier::new(value.module.as_str()).expect("invalid module name"),
             ),
             function: value.function,
@@ -2207,18 +2207,6 @@ impl From<Owner> for crate::object::Owner {
             Owner::Immutable => crate::object::Owner::Immutable,
             _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
-    }
-}
-
-impl From<crate::base_types::ObjectID> for ObjectId {
-    fn from(value: crate::base_types::ObjectID) -> Self {
-        Self::new(value.into_bytes())
-    }
-}
-
-impl From<ObjectId> for crate::base_types::ObjectID {
-    fn from(value: ObjectId) -> Self {
-        Self::new(value.into_inner())
     }
 }
 

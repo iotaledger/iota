@@ -276,7 +276,7 @@ fn copy_with_published_at_manifest(
     let idx = lines.iter().position(|s| s == "[package]").unwrap();
     lines.insert(
         idx + 1,
-        format!("published-at = \"{}\"", package_id.to_hex_uncompressed()),
+        format!("published-at = \"{}\"", package_id.to_hex()),
     );
     let new = lines.join("\n");
 

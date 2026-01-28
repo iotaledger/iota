@@ -128,7 +128,7 @@ async fn test_event_filtering_and_bcs_serialization() {
     let nft_filter = grpc_events::EventFilter {
         filter: Some(Filter::MoveEventType(grpc_events::MoveEventTypeFilter {
             package_id: Some(grpc_common::Address {
-                address: nft_package_id.to_vec(),
+                address: nft_package_id.as_bytes().to_vec(),
             }),
             module: NFT_MODULE.to_string(),
             name: NFT_MINTED_EVENT.to_string(),
