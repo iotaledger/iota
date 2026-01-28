@@ -14,6 +14,9 @@ export class SidePanel {
     }
 
     static async enableAndGoTo(path: string) {
+        await chrome.sidePanel.setPanelBehavior({
+            openPanelOnActionClick: true,
+        });
         await chrome.sidePanel.setOptions({
             path,
             enabled: true,
@@ -21,6 +24,9 @@ export class SidePanel {
     }
 
     static async disable() {
+        await chrome.sidePanel.setPanelBehavior({
+            openPanelOnActionClick: false,
+        });
         await chrome.sidePanel.setOptions({
             enabled: false,
         });
