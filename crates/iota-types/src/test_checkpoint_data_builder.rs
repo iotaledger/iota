@@ -581,7 +581,7 @@ impl TestCheckpointDataBuilder {
         // pipeline.
         let end_of_epoch_tx = TransactionData::new(
             TransactionKind::EndOfEpochTransaction(vec![tx_kind]),
-            IotaAddress::default(),
+            IotaAddress::ZERO,
             random_object_ref(),
             1,
             1,

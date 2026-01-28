@@ -309,7 +309,7 @@ async fn package_not_found() -> anyhow::Result<()> {
 
     let a_pkg_fixtures = iota_common::tempdir();
     let a_pkg = {
-        let b_id = IotaAddress::random_for_testing_only();
+        let b_id = IotaAddress::random();
         stable_addrs.insert(b_id, "<id>");
         copy_published_package(&a_pkg_fixtures, "b", b_id).await?;
         let a_src = copy_published_package(&a_pkg_fixtures, "a", IotaAddress::ZERO).await?;
@@ -328,7 +328,7 @@ async fn package_not_found() -> anyhow::Result<()> {
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     let package_root = AccountAddress::random();
-    stable_addrs.insert(IotaAddress::from(package_root), "<id>");
+    stable_addrs.insert(IotaAddress::new(package_root.into_bytes()), "<id>");
     let Err(err) = verifier
         .verify(&a_pkg, ValidationMode::root_and_deps_at(package_root))
         .await
@@ -343,7 +343,7 @@ async fn package_not_found() -> anyhow::Result<()> {
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     let package_root = AccountAddress::random();
-    stable_addrs.insert(IotaAddress::from(package_root), "<id>");
+    stable_addrs.insert(IotaAddress::new(package_root.into_bytes()), "<id>");
     let Err(err) = verifier
         .verify(&a_pkg, ValidationMode::root_at(package_root))
         .await
@@ -506,7 +506,10 @@ async fn module_bytecode_mismatch() -> anyhow::Result<()> {
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     let Err(err) = verifier
-        .verify(&a_pkg, ValidationMode::root_at(a_addr.into()))
+        .verify(
+            &a_pkg,
+            ValidationMode::root_at(AccountAddress::new(a_addr.into_bytes())),
+        )
         .await
     else {
         panic!("Expected verification to fail");

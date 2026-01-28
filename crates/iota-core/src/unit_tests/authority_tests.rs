@@ -782,8 +782,8 @@ async fn test_dev_inspect_gas_coin_argument() {
     let epoch_store = validator.epoch_store_for_testing();
     let protocol_config = epoch_store.protocol_config();
 
-    let sender = IotaAddress::random_for_testing_only();
-    let recipient = IotaAddress::random_for_testing_only();
+    let sender = IotaAddress::random();
+    let recipient = IotaAddress::random();
     let amount = 500;
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -831,8 +831,8 @@ async fn test_dev_inspect_gas_price() {
     let (_, fullnode, _object_basics) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
 
-    let sender = IotaAddress::random_for_testing_only();
-    let recipient = IotaAddress::random_for_testing_only();
+    let sender = IotaAddress::random();
+    let recipient = IotaAddress::random();
     let amount = 500;
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();

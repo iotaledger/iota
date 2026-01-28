@@ -1041,9 +1041,9 @@ mod tests {
         let (committee, keypairs) = Committee::new_simple_test_committee();
         let data = SenderSignedData::new(
             TransactionData::new_transfer(
-                IotaAddress::default(),
+                IotaAddress::ZERO,
                 random_object_ref(),
-                IotaAddress::default(),
+                IotaAddress::ZERO,
                 random_object_ref(),
                 1000 * gas_price,
                 gas_price,

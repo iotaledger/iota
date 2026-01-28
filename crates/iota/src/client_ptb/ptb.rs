@@ -9,6 +9,7 @@ use clap::{Args, ValueHint, arg, builder::StyledStr};
 use iota_json_rpc_types::{DevInspectResults, IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{IotaClient, wallet_context::WalletContext};
+use iota_sdk_types::Address;
 use iota_types::{
     digests::TransactionDigest,
     gas::GasCostSummary,
@@ -241,7 +242,7 @@ impl PTB {
             .collect();
 
         let sender = if let Some(sender) = program_metadata.sender {
-            sender.value.into_inner().into()
+            Address::new(sender.value.into_inner().into_bytes())
         } else {
             // the sender is the gas object if gas is provided, otherwise the active address
             context.infer_sender(&gas).await?
@@ -258,7 +259,7 @@ impl PTB {
             gas_price: program_metadata.gas_price.map(|x| x.value),
             gas_sponsor: program_metadata
                 .gas_sponsor
-                .map(|x| x.value.into_inner().into()),
+                .map(|x| Address::new(x.value.into_inner().into_bytes())),
         };
 
         let processing = TxProcessingArgs {
@@ -267,7 +268,9 @@ impl PTB {
             dev_inspect: program_metadata.dev_inspect_set,
             serialize_unsigned_transaction: program_metadata.serialize_unsigned_set,
             serialize_signed_transaction: program_metadata.serialize_signed_set,
-            sender: program_metadata.sender.map(|x| x.value.into_inner().into()),
+            sender: program_metadata
+                .sender
+                .map(|x| Address::new(x.value.into_inner().into_bytes())),
             display: self.display,
             auth_call_args,
             auth_type_args,
@@ -359,7 +362,7 @@ impl PTB {
             .keystore()
             .addresses_with_alias()
             .into_iter()
-            .map(|(sa, alias)| (alias.alias.clone(), AccountAddress::from(*sa)))
+            .map(|(sa, alias)| (alias.alias.clone(), AccountAddress::new(sa.into_bytes())))
             .collect();
         let builder = PTBBuilder::new(starting_addresses, client.read_api());
         builder.build(program).await

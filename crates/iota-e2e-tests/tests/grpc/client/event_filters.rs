@@ -131,8 +131,9 @@ async fn test_event_filter_scenarios() {
     // --- Scenario A: Sender filter (sender_1 only) ---
     // sender_1 produced: 2 NFTMinted events
     let sender_1_filter = grpc_filter::EventFilter::default().with_sender(
-        grpc_filter::AddressFilter::default()
-            .with_address(grpc_types::Address::default().with_address(sender_1.to_vec())),
+        grpc_filter::AddressFilter::default().with_address(
+            grpc_types::Address::default().with_address(sender_1.into_bytes().to_vec()),
+        ),
     );
     let count = stream_and_count_events(sender_1_filter.clone()).await;
     assert_eq!(

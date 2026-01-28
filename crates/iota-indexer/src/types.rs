@@ -247,7 +247,7 @@ impl EventIndex {
         EventIndex {
             tx_sequence_number: rng.gen(),
             event_sequence_number: rng.gen(),
-            sender: IotaAddress::random_for_testing_only(),
+            sender: IotaAddress::random(),
             emit_package: ObjectID::random(),
             emit_module: rng.gen::<u64>().to_string(),
             type_package: ObjectID::random(),
@@ -348,7 +348,7 @@ impl IndexedObject {
 impl IndexedObject {
     pub fn random() -> Self {
         let mut rng = rand::thread_rng();
-        let random_address = IotaAddress::random_for_testing_only();
+        let random_address = IotaAddress::random();
         IndexedObject {
             checkpoint_sequence_number: rng.gen(),
             object: Object::with_owner_for_testing(random_address),
@@ -443,10 +443,10 @@ impl TxIndex {
 
         let input_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
         let changed_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
-        let payers = repeat_with(IotaAddress::random_for_testing_only)
+        let payers = repeat_with(IotaAddress::random)
             .take(rng.gen_range(0..MAX_PAYERS))
             .collect();
-        let recipients = repeat_with(IotaAddress::random_for_testing_only)
+        let recipients = repeat_with(IotaAddress::random)
             .take(rng.gen_range(0..MAX_RECIPIENTS))
             .collect();
         let move_calls = repeat_with(|| {
@@ -468,7 +468,7 @@ impl TxIndex {
             input_objects,
             changed_objects,
             payers,
-            sender: IotaAddress::random_for_testing_only(),
+            sender: IotaAddress::random(),
             recipients,
             move_calls,
             wrapped_or_deleted_objects,

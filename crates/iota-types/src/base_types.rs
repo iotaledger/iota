@@ -600,93 +600,20 @@ impl From<&ObjectInfo> for ObjectRef {
 
 pub const IOTA_ADDRESS_LENGTH: usize = ObjectID::LENGTH;
 
-#[serde_as]
-#[derive(Eq, Default, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "fuzzing", derive(proptest_derive::Arbitrary))]
-pub struct IotaAddress(#[serde_as(as = "Readable<Hex, _>")] [u8; IOTA_ADDRESS_LENGTH]);
-
-impl IotaAddress {
-    pub const ZERO: Self = Self([0u8; IOTA_ADDRESS_LENGTH]);
-
-    /// Convert the address to a byte buffer.
-    pub fn to_vec(&self) -> Vec<u8> {
-        self.0.to_vec()
-    }
-
-    /// Return a random IotaAddress.
-    pub fn random_for_testing_only() -> Self {
-        AccountAddress::random().into()
-    }
-
-    pub fn generate<R: rand::RngCore + rand::CryptoRng>(mut rng: R) -> Self {
-        let buf: [u8; IOTA_ADDRESS_LENGTH] = rng.gen();
-        Self(buf)
-    }
-
-    /// Return the underlying byte array of a IotaAddress.
-    pub fn to_inner(self) -> [u8; IOTA_ADDRESS_LENGTH] {
-        self.0
-    }
-
-    /// Parse a IotaAddress from a byte array or buffer.
-    pub fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, IotaError> {
-        <[u8; IOTA_ADDRESS_LENGTH]>::try_from(bytes.as_ref())
-            .map_err(|_| IotaError::InvalidAddress)
-            .map(IotaAddress)
-    }
-}
+pub use iota_sdk_types::Address as IotaAddress;
 
 impl From<ObjectID> for IotaAddress {
-    fn from(object_id: ObjectID) -> IotaAddress {
-        Self(object_id.into_bytes())
+    fn from(value: ObjectID) -> Self {
+        Self::new(value.into_bytes())
     }
 }
 
-impl From<AccountAddress> for IotaAddress {
-    fn from(address: AccountAddress) -> IotaAddress {
-        Self(address.into_bytes())
-    }
-}
-
-impl TryFrom<&[u8]> for IotaAddress {
-    type Error = IotaError;
-
-    /// Tries to convert the provided byte array into a IotaAddress.
-    fn try_from(bytes: &[u8]) -> Result<Self, IotaError> {
-        Self::from_bytes(bytes)
-    }
-}
-
-impl TryFrom<Vec<u8>> for IotaAddress {
-    type Error = IotaError;
-
-    /// Tries to convert the provided byte buffer into a IotaAddress.
-    fn try_from(bytes: Vec<u8>) -> Result<Self, IotaError> {
-        Self::from_bytes(bytes)
-    }
-}
-
-impl AsRef<[u8]> for IotaAddress {
-    fn as_ref(&self) -> &[u8] {
-        &self.0[..]
-    }
-}
-
-impl FromStr for IotaAddress {
-    type Err = anyhow::Error;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        decode_bytes_hex(s).map_err(|e| anyhow!(e))
-    }
-}
-
-impl<T: IotaPublicKey> From<&T> for IotaAddress {
-    fn from(pk: &T) -> Self {
-        let mut hasher = DefaultHash::default();
-        T::SIGNATURE_SCHEME.update_hasher_with_flag(&mut hasher);
-        hasher.update(pk);
-        let g_arr = hasher.finalize();
-        IotaAddress(g_arr.digest)
-    }
+pub fn address_from_iota_pub_key<T: IotaPublicKey>(pk: &T) -> IotaAddress {
+    let mut hasher = DefaultHash::default();
+    T::SIGNATURE_SCHEME.update_hasher_with_flag(&mut hasher);
+    hasher.update(pk);
+    let g_arr = hasher.finalize();
+    IotaAddress::new(g_arr.digest)
 }
 
 impl From<&PublicKey> for IotaAddress {
@@ -695,7 +622,7 @@ impl From<&PublicKey> for IotaAddress {
         pk.scheme().update_hasher_with_flag(&mut hasher);
         hasher.update(pk);
         let g_arr = hasher.finalize();
-        IotaAddress(g_arr.digest)
+        IotaAddress::new(g_arr.digest)
     }
 }
 
@@ -714,7 +641,7 @@ impl From<&MultiSigPublicKey> for IotaAddress {
             hasher.update(pk.as_ref());
             hasher.update(w.to_le_bytes());
         });
-        IotaAddress(hasher.finalize().digest)
+        IotaAddress::new(hasher.finalize().digest)
     }
 }
 
@@ -747,22 +674,10 @@ impl TryFrom<&GenericSignature> for IotaAddress {
     }
 }
 
-impl fmt::Display for IotaAddress {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "0x{}", Hex::encode(self.0))
-    }
-}
-
-impl fmt::Debug for IotaAddress {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "0x{}", Hex::encode(self.0))
-    }
-}
-
 /// Generate a fake IotaAddress with repeated one byte.
 pub fn dbg_addr(name: u8) -> IotaAddress {
     let addr = [name; IOTA_ADDRESS_LENGTH];
-    IotaAddress(addr)
+    IotaAddress::new(addr)
 }
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize, Debug)]
@@ -1025,7 +940,7 @@ impl TxContext {
         protocol_config: &ProtocolConfig,
     ) -> Self {
         Self {
-            sender: AccountAddress::new(sender.0),
+            sender: AccountAddress::new(sender.into_bytes()),
             digest: digest.into_inner().to_vec(),
             epoch: *epoch_id,
             epoch_timestamp_ms,
@@ -1033,7 +948,7 @@ impl TxContext {
             rgp,
             gas_price,
             gas_budget,
-            sponsor: sponsor.map(|s| s.into()),
+            sponsor: sponsor.map(|s| AccountAddress::new(s.into_bytes())),
             is_native: protocol_config.move_native_tx_context(),
         }
     }
@@ -1082,7 +997,7 @@ impl TxContext {
     }
 
     pub fn sponsor(&self) -> Option<IotaAddress> {
-        self.sponsor.map(IotaAddress::from)
+        self.sponsor.map(|a| IotaAddress::from(a.into_bytes()))
     }
 
     pub fn rgp(&self) -> u64 {
@@ -1184,7 +1099,7 @@ impl TxContext {
     // Generate a random TxContext for testing.
     pub fn random_for_testing_only() -> Self {
         Self::new(
-            &IotaAddress::random_for_testing_only(),
+            &IotaAddress::random(),
             &TransactionDigest::random(),
             &EpochData::new_test(),
             0,
@@ -1336,7 +1251,7 @@ impl ObjectID {
 
 impl From<IotaAddress> for ObjectID {
     fn from(address: IotaAddress) -> ObjectID {
-        let tmp: AccountAddress = address.into();
+        let tmp = AccountAddress::new(address.into_bytes());
         tmp.into()
     }
 }
@@ -1418,12 +1333,6 @@ pub enum ObjectIDParseError {
 impl From<ObjectID> for AccountAddress {
     fn from(obj_id: ObjectID) -> Self {
         obj_id.0
-    }
-}
-
-impl From<IotaAddress> for AccountAddress {
-    fn from(address: IotaAddress) -> Self {
-        Self::new(address.0)
     }
 }
 

@@ -188,7 +188,7 @@ pub async fn publish_custom_nft_package(
         .created()
         .first()
         .expect("There are no created objects");
-    let package_id = package_ref.reference.object_id;
+    let package_id = package_ref.reference.0;
     println!("Package ID: {package_id}");
     Ok(package_id)
 }

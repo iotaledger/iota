@@ -230,7 +230,7 @@ pub fn make_transfer_object_move_transaction(
 ) -> Transaction {
     let args = vec![
         CallArg::Object(ObjectArg::ImmOrOwnedObject(object_ref)),
-        CallArg::Pure(bcs::to_bytes(&AccountAddress::from(dest)).unwrap()),
+        CallArg::Pure(bcs::to_bytes(&AccountAddress::new(dest.into_bytes())).unwrap()),
     ];
 
     to_sender_signed_transaction(

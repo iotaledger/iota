@@ -92,7 +92,7 @@ fn main() -> anyhow::Result<()> {
         &new_path,
         coin_type,
         randomness_seed,
-        Ed25519Address::from(delegator_address.to_inner()),
+        Ed25519Address::from(delegator_address.into_bytes()),
         WITH_SAMPLING,
     )?;
 

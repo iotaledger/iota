@@ -1428,9 +1428,9 @@ async fn test_handle_soft_bundle_certificates_errors() {
 fn sender_signed_data_serialized_intent() {
     let mut txn = SenderSignedData::new(
         TransactionData::new_transfer(
-            IotaAddress::default(),
+            IotaAddress::ZERO,
             random_object_ref(),
-            IotaAddress::default(),
+            IotaAddress::ZERO,
             random_object_ref(),
             0,
             0,

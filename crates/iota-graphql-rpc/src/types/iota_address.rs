@@ -118,13 +118,13 @@ impl From<IotaAddress> for ObjectID {
 
 impl From<NativeIotaAddress> for IotaAddress {
     fn from(value: NativeIotaAddress) -> Self {
-        IotaAddress(value.to_inner())
+        IotaAddress(value.into_bytes())
     }
 }
 
 impl From<IotaAddress> for NativeIotaAddress {
     fn from(value: IotaAddress) -> Self {
-        AccountAddress::from(value).into()
+        NativeIotaAddress::new(value.0)
     }
 }
 

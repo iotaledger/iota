@@ -113,22 +113,22 @@ impl From<TxIndex> for TxIndexSplit {
                 tx_sequence_number: value.tx_sequence_number as i64,
                 object_id: bcs::to_bytes(&o)
                     .expect("indexed object should serialize without issues"),
-                sender: value.sender.to_vec(),
+                sender: value.sender.as_bytes().to_vec(),
             })
             .collect();
 
         let tx_sequence_number = value.tx_sequence_number as i64;
         let tx_sender = StoredTxSenders {
             tx_sequence_number,
-            sender: value.sender.to_vec(),
+            sender: value.sender.as_bytes().to_vec(),
         };
         let tx_recipients = value
             .recipients
             .iter()
             .map(|s| StoredTxRecipients {
                 tx_sequence_number,
-                recipient: s.to_vec(),
-                sender: value.sender.to_vec(),
+                recipient: s.as_bytes().to_vec(),
+                sender: value.sender.as_bytes().to_vec(),
             })
             .collect();
         let tx_input_objects = value
@@ -138,7 +138,7 @@ impl From<TxIndex> for TxIndexSplit {
                 tx_sequence_number,
                 object_id: bcs::to_bytes(&o)
                     .expect("indexed object should serialize without issues"),
-                sender: value.sender.to_vec(),
+                sender: value.sender.as_bytes().to_vec(),
             })
             .collect();
         let tx_changed_objects = value
@@ -148,7 +148,7 @@ impl From<TxIndex> for TxIndexSplit {
                 tx_sequence_number,
                 object_id: bcs::to_bytes(&o)
                     .expect("indexed object should serialize without issues"),
-                sender: value.sender.to_vec(),
+                sender: value.sender.as_bytes().to_vec(),
             })
             .collect();
 
@@ -171,7 +171,7 @@ impl From<TxIndex> for TxIndexSplit {
             .map(|p| StoredTxPkg {
                 tx_sequence_number,
                 package: p.to_vec(),
-                sender: value.sender.to_vec(),
+                sender: value.sender.as_bytes().to_vec(),
             })
             .collect();
 
@@ -181,7 +181,7 @@ impl From<TxIndex> for TxIndexSplit {
                 tx_sequence_number,
                 package: p.to_vec(),
                 module: m.to_string(),
-                sender: value.sender.to_vec(),
+                sender: value.sender.as_bytes().to_vec(),
             })
             .collect();
 
@@ -192,7 +192,7 @@ impl From<TxIndex> for TxIndexSplit {
                 package: p.to_vec(),
                 module: m.to_string(),
                 func: f.to_string(),
-                sender: value.sender.to_vec(),
+                sender: value.sender.as_bytes().to_vec(),
             })
             .collect();
 

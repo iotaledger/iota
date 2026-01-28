@@ -288,7 +288,7 @@ impl IotaEvent {
             },
             package_id: ObjectID::random(),
             transaction_module: Identifier::from_str("random_for_testing").unwrap(),
-            sender: IotaAddress::random_for_testing_only(),
+            sender: IotaAddress::random(),
             type_: StructTag::from_str("0x6666::random_for_testing::RandomForTesting").unwrap(),
             parsed_json: json!({}),
             bcs: BcsEvent::new(vec![]),

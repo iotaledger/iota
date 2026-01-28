@@ -874,7 +874,7 @@ fn test_sponsored_transaction_validity_check() {
         builder
             .pay(
                 vec![random_object_ref()],
-                vec![IotaAddress::random_for_testing_only()],
+                vec![IotaAddress::random()],
                 vec![100000],
             )
             .unwrap();
@@ -888,7 +888,7 @@ fn test_sponsored_transaction_validity_check() {
     // TransferIota
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder.transfer_iota(IotaAddress::random_for_testing_only(), Some(50000));
+        builder.transfer_iota(IotaAddress::random(), Some(50000));
         builder.finish()
     };
     let kind = TransactionKind::programmable(pt);
@@ -910,7 +910,7 @@ fn test_sponsored_transaction_validity_check() {
     // PayAllIota
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder.pay_all_iota(IotaAddress::random_for_testing_only());
+        builder.pay_all_iota(IotaAddress::random());
         builder.finish()
     };
     let kind = TransactionKind::programmable(pt);
@@ -1144,7 +1144,7 @@ fn test_move_input_objects() {
         args,
     ));
     let data = TransactionData::new_programmable(
-        IotaAddress::random_for_testing_only(),
+        IotaAddress::random(),
         vec![gas_object_ref],
         builder.finish(),
         1_000_000, // any random number the transaction is not run

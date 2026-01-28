@@ -585,7 +585,7 @@ mod tests {
         utils::create_fake_transaction,
     };
     use mockall::{mock, predicate};
-    use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
+    use move_core_types::language_storage::StructTag;
 
     use super::*;
     use crate::authority_state::{MockStateRead, StateReadError};
@@ -658,7 +658,7 @@ mod tests {
     }
 
     fn get_test_owner() -> IotaAddress {
-        AccountAddress::ONE.into()
+        IotaAddress::STD
     }
 
     fn get_test_package_id() -> ObjectID {

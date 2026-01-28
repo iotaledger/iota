@@ -246,7 +246,7 @@ fn sdk_object_type_to_move(
 ) -> Result<crate::base_types::MoveObjectType, SdkTypeConversionError> {
     crate::base_types::MoveObjectType::from(move_core_types::language_storage::StructTag {
         address: move_core_types::account_address::AccountAddress::new(
-            type_.address().into_inner(),
+            type_.address().into_bytes(),
         ),
         module: crate::Identifier::new(type_.module().as_str())?,
         name: crate::Identifier::new(type_.name().as_str())?,
@@ -335,7 +335,7 @@ impl TryFrom<crate::transaction::TransactionDataV1> for TransactionV1 {
 
     fn try_from(value: crate::transaction::TransactionDataV1) -> Result<Self, Self::Error> {
         Self {
-            sender: Address::new(value.sender().to_inner()),
+            sender: value.sender(),
             gas_payment: GasPayment {
                 objects: value
                     .gas()
@@ -344,7 +344,7 @@ impl TryFrom<crate::transaction::TransactionDataV1> for TransactionV1 {
                         ObjectReference::new((*id).into(), *seq, (*digest).into())
                     })
                     .collect(),
-                owner: Address::new(value.gas_data().owner.to_inner()),
+                owner: value.gas_data().owner,
                 price: value.gas_data().price,
                 budget: value.gas_data().budget,
             },
@@ -366,7 +366,7 @@ impl TryFrom<TransactionV1> for crate::transaction::TransactionDataV1 {
     fn try_from(value: TransactionV1) -> Result<Self, Self::Error> {
         Self {
             kind: value.kind.try_into()?,
-            sender: value.sender.into(),
+            sender: value.sender,
             gas_data: crate::transaction::GasData {
                 payment: value
                     .gas_payment
@@ -375,7 +375,7 @@ impl TryFrom<TransactionV1> for crate::transaction::TransactionDataV1 {
                     .map(ObjectReference::into_parts)
                     .map(|(id, seq, digest)| (id.into(), seq, digest.into()))
                     .collect(),
-                owner: value.gas_payment.owner.into(),
+                owner: value.gas_payment.owner,
                 price: value.gas_payment.price,
                 budget: value.gas_payment.budget,
             },
@@ -440,7 +440,7 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                                 (Ok(module), Ok(type_)) => Ok(Event {
                                     package_id: event.package_id.into(),
                                     module,
-                                    sender: event.sender.into(),
+                                    sender: event.sender,
                                     type_,
                                     contents: event.contents,
                                 }),
@@ -547,7 +547,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                                 (Ok(transaction_module), Ok(type_)) => Ok(crate::event::Event {
                                     package_id: event.package_id.into(),
                                     transaction_module,
-                                    sender: event.sender.into(),
+                                    sender: event.sender,
                                     type_,
                                     contents: event.contents,
                                 }),
@@ -1337,10 +1337,7 @@ impl From<crate::execution_status::ExecutionFailureStatus> for ExecutionError {
                 congested_objects: congested_objects.0.into_iter().map(Into::into).collect(),
             },
             ExecutionFailureStatus::AddressDeniedForCoin { address, coin_type } => {
-                Self::AddressDeniedForCoin {
-                    address: address.into(),
-                    coin_type,
-                }
+                Self::AddressDeniedForCoin { address, coin_type }
             }
             ExecutionFailureStatus::CoinTypeGlobalPause { coin_type } => {
                 Self::CoinTypeGlobalPause { coin_type }
@@ -1545,10 +1542,7 @@ impl From<ExecutionError> for crate::execution_status::ExecutionFailureStatus {
                 }
             }
             ExecutionError::AddressDeniedForCoin { address, coin_type } => {
-                Self::AddressDeniedForCoin {
-                    address: address.into(),
-                    coin_type,
-                }
+                Self::AddressDeniedForCoin { address, coin_type }
             }
             ExecutionError::CoinTypeGlobalPause { coin_type } => {
                 Self::CoinTypeGlobalPause { coin_type }
@@ -1589,7 +1583,7 @@ impl From<MoveLocation> for crate::execution_status::MoveLocation {
     fn from(value: MoveLocation) -> Self {
         Self {
             module: ModuleId::new(
-                move_core_types::account_address::AccountAddress::new(value.package.into_inner()),
+                move_core_types::account_address::AccountAddress::new(value.package.into_bytes()),
                 crate::Identifier::new(value.module.as_str()).expect("invalid module name"),
             ),
             function: value.function,
@@ -1803,7 +1797,7 @@ impl TryFrom<crate::event::Event> for Event {
         Self {
             package_id: value.package_id.into(),
             module: Identifier::new(value.transaction_module.as_str())?,
-            sender: value.sender.into(),
+            sender: value.sender,
             type_: struct_tag_core_to_sdk(value.type_)?,
             contents: value.contents,
         }
@@ -1818,7 +1812,7 @@ impl TryFrom<Event> for crate::event::Event {
         Self {
             package_id: value.package_id.into(),
             transaction_module: crate::Identifier::new(value.module.as_str())?,
-            sender: value.sender.into(),
+            sender: value.sender,
             type_: struct_tag_sdk_to_core(&value.type_)?,
             contents: value.contents,
         }
@@ -2188,7 +2182,7 @@ impl<const T: bool> From<ValidatorAggregatedSignature>
 impl From<crate::object::Owner> for Owner {
     fn from(value: crate::object::Owner) -> Self {
         match value {
-            crate::object::Owner::AddressOwner(address) => Self::Address(address.into()),
+            crate::object::Owner::AddressOwner(address) => Self::Address(address),
             crate::object::Owner::ObjectOwner(object_id) => Self::Object(object_id.into()),
             crate::object::Owner::Shared {
                 initial_shared_version,
@@ -2201,7 +2195,7 @@ impl From<crate::object::Owner> for Owner {
 impl From<Owner> for crate::object::Owner {
     fn from(value: Owner) -> Self {
         match value {
-            Owner::Address(address) => crate::object::Owner::AddressOwner(address.into()),
+            Owner::Address(address) => crate::object::Owner::AddressOwner(address),
             Owner::Object(object_id) => crate::object::Owner::ObjectOwner(object_id.into()),
             Owner::Shared(initial_shared_version) => crate::object::Owner::Shared {
                 initial_shared_version,
@@ -2209,18 +2203,6 @@ impl From<Owner> for crate::object::Owner {
             Owner::Immutable => crate::object::Owner::Immutable,
             _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
-    }
-}
-
-impl From<crate::base_types::IotaAddress> for Address {
-    fn from(value: crate::base_types::IotaAddress) -> Self {
-        Self::new(value.to_inner())
-    }
-}
-
-impl From<Address> for crate::base_types::IotaAddress {
-    fn from(value: Address) -> Self {
-        crate::base_types::ObjectID::new(value.into_inner()).into()
     }
 }
 
@@ -2232,19 +2214,7 @@ impl From<crate::base_types::ObjectID> for ObjectId {
 
 impl From<ObjectId> for crate::base_types::ObjectID {
     fn from(value: ObjectId) -> Self {
-        Self::new(value.into_inner())
-    }
-}
-
-impl From<crate::base_types::IotaAddress> for ObjectId {
-    fn from(value: crate::base_types::IotaAddress) -> Self {
-        Self::new(value.to_inner())
-    }
-}
-
-impl From<ObjectId> for crate::base_types::IotaAddress {
-    fn from(value: ObjectId) -> Self {
-        crate::base_types::ObjectID::new(value.into_inner()).into()
+        Self::new(value.into_bytes())
     }
 }
 
@@ -2374,7 +2344,7 @@ pub fn struct_tag_sdk_to_core(
     value: &StructTag,
 ) -> Result<move_core_types::language_storage::StructTag, SdkTypeConversionError> {
     let address =
-        move_core_types::account_address::AccountAddress::new(value.address().into_inner());
+        move_core_types::account_address::AccountAddress::new(value.address().into_bytes());
     let module = move_core_types::identifier::Identifier::new(value.module().as_str())?;
     let name = move_core_types::identifier::Identifier::new(value.name().as_str())?;
     let type_params = value

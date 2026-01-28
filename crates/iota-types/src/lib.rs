@@ -165,9 +165,11 @@ pub fn iota_framework_address_concat_string(suffix: &str) -> String {
 /// authority codebases.
 pub fn parse_iota_address(s: &str) -> anyhow::Result<IotaAddress> {
     use move_core_types::parsing::address::ParsedAddress;
-    Ok(ParsedAddress::parse(s)?
-        .into_account_address(&resolve_address)?
-        .into())
+    Ok(IotaAddress::new(
+        ParsedAddress::parse(s)?
+            .into_account_address(&resolve_address)?
+            .into_bytes(),
+    ))
 }
 
 /// Parse `s` as a Module ID: An address (see `parse_iota_address`), followed by

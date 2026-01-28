@@ -933,7 +933,7 @@ impl Default for IotaSystemStateSummary {
 impl Default for IotaValidatorSummary {
     fn default() -> Self {
         Self {
-            iota_address: IotaAddress::default(),
+            iota_address: IotaAddress::ZERO,
             authority_pubkey_bytes: vec![],
             network_pubkey_bytes: vec![],
             protocol_pubkey_bytes: vec![],

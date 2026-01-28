@@ -737,7 +737,12 @@ impl NameCommand {
                     package: IOTA_FRAMEWORK_PACKAGE_ID,
                     module: "transfer".to_owned(),
                     function: "public_transfer".to_owned(),
-                    type_args: vec![nft.type_(iota_names_config.package_address.into()).into()],
+                    type_args: vec![
+                        nft.type_(AccountAddress::new(
+                            iota_names_config.package_address.into_bytes(),
+                        ))
+                        .into(),
+                    ],
                     args: vec![
                         IotaJsonValue::from_object_id(nft.id()),
                         IotaJsonValue::new(serde_json::to_value(address)?)?,
@@ -1635,7 +1640,9 @@ async fn get_owned_nfts<T: DeserializeOwned + IotaNamesNft>(
 ) -> anyhow::Result<Vec<T>> {
     let client = context.get_client().await?;
     let iota_names_config = get_iota_names_config(&client).await?;
-    let nft_type = T::type_(iota_names_config.package_address.into());
+    let nft_type = T::type_(AccountAddress::new(
+        iota_names_config.package_address.into_bytes(),
+    ));
     let responses = PagedFn::collect::<Vec<_>>(async |cursor| {
         client
             .read_api()

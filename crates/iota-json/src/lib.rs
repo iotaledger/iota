@@ -29,6 +29,7 @@ use move_binary_format::{
 use move_bytecode_utils::resolve_struct;
 pub use move_core_types::annotated_value::MoveTypeLayout;
 use move_core_types::{
+    account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStruct, MoveValue, MoveVariant},
     identifier::Identifier,
     language_storage::{StructTag, TypeTag},
@@ -268,7 +269,7 @@ impl IotaJsonValue {
                     );
                 };
                 let addr = IotaAddress::from_str(s)?;
-                R::MoveValue::Address(addr.into())
+                R::MoveValue::Address(AccountAddress::new(addr.into_bytes()))
             }
             (JsonValue::Object(o), MoveTypeLayout::Struct(struct_layout)) => {
                 let mut field_values = vec![];
@@ -324,7 +325,7 @@ impl IotaJsonValue {
 
             (v, MoveTypeLayout::Address) => {
                 let addr = json_value_to_iota_address(v)?;
-                R::MoveValue::Address(addr.into())
+                R::MoveValue::Address(AccountAddress::new(addr.into_bytes()))
             }
 
             _ => bail!("Unexpected arg {val:?} for expected type {ty:?}"),
@@ -362,7 +363,7 @@ fn json_value_to_iota_address(value: &JsonValue) -> anyhow::Result<IotaAddress> 
             }
             let bytes = value_to_byte_array(bytes)
                 .ok_or_else(|| anyhow!("Invalid input: Cannot parse input into IotaAddress."))?;
-            Ok(IotaAddress::try_from(bytes)?)
+            Ok(IotaAddress::from_bytes(bytes)?)
         }
         v => bail!("Unexpected arg {v} for expected type address"),
     }
@@ -377,7 +378,9 @@ fn move_value_to_json(move_value: &MoveValue) -> Option<JsonValue> {
                 .collect::<Option<_>>()?,
         ),
         MoveValue::Bool(v) => json!(v),
-        MoveValue::Signer(v) | MoveValue::Address(v) => json!(IotaAddress::from(*v).to_string()),
+        MoveValue::Signer(v) | MoveValue::Address(v) => {
+            json!(IotaAddress::new(v.into_bytes()).to_string())
+        }
         MoveValue::U8(v) => json!(v),
         MoveValue::U64(v) => json!(v.to_string()),
         MoveValue::U128(v) => json!(v.to_string()),
@@ -404,7 +407,7 @@ fn move_value_to_json(move_value: &MoveValue) -> Option<JsonValue> {
                 // option has a single vec field.
                 let (_, v) = fields.first()?;
                 if let MoveValue::Address(address) = v {
-                    json!(IotaAddress::from(*address))
+                    json!(IotaAddress::new(address.into_bytes()))
                 } else {
                     return None;
                 }

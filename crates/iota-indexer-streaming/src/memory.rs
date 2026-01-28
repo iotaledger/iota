@@ -805,7 +805,7 @@ impl InMemory {
                 tx_sequence_number: tx.tx_sequence_number,
                 event_sequence_number: idx as i64,
                 transaction_digest: tx.transaction_digest.clone(),
-                senders: vec![Some(native.sender.to_vec())],
+                senders: vec![Some(native.sender.as_bytes().to_vec())],
                 package: native.package_id.to_vec(),
                 module: native.transaction_module.to_string(),
                 event_type: native.type_.to_canonical_string(with_prefix),

@@ -4,6 +4,11 @@ AccountAddress:
     TUPLEARRAY:
       CONTENT: U8
       SIZE: 32
+Address:
+  NEWTYPESTRUCT:
+    TUPLEARRAY:
+      CONTENT: U8
+      SIZE: 32
 Argument:
   ENUM:
     0:
@@ -399,7 +404,7 @@ Event:
         TYPENAME: ObjectID
     - transaction_module: STR
     - sender:
-        TYPENAME: IotaAddress
+        TYPENAME: Address
     - type_:
         TYPENAME: StructTag
     - contents: BYTES
@@ -528,7 +533,7 @@ ExecutionFailureStatus:
       AddressDeniedForCoin:
         STRUCT:
           - address:
-              TYPENAME: IotaAddress
+              TYPENAME: Address
           - coin_type: STR
     35:
       CoinTypeGlobalPause:
@@ -580,7 +585,7 @@ GasData:
             - U64
             - TYPENAME: ObjectDigest
     - owner:
-        TYPENAME: IotaAddress
+        TYPENAME: Address
     - price: U64
     - budget: U64
 GenericSignature:
@@ -622,11 +627,6 @@ IntentMessage:
         TYPENAME: Intent
     - value:
         TYPENAME: TransactionData
-IotaAddress:
-  NEWTYPESTRUCT:
-    TUPLEARRAY:
-      CONTENT: U8
-      SIZE: 32
 ModuleId:
   STRUCT:
     - address:
@@ -779,11 +779,11 @@ Owner:
     0:
       AddressOwner:
         NEWTYPE:
-          TYPENAME: IotaAddress
+          TYPENAME: Address
     1:
       ObjectOwner:
         NEWTYPE:
-          TYPENAME: IotaAddress
+          TYPENAME: Address
     2:
       Shared:
         STRUCT:
@@ -912,7 +912,7 @@ TransactionDataV1:
     - kind:
         TYPENAME: TransactionKind
     - sender:
-        TYPENAME: IotaAddress
+        TYPENAME: Address
     - gas_data:
         TYPENAME: GasData
     - expiration:
