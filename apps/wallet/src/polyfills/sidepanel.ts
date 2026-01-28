@@ -33,7 +33,7 @@ export class SidePanel {
             throw new Error('Failed to detect Window');
         }
 
-        this.enableAndGoTo(path);
+        await this.enableAndGoTo(path);
 
         await chrome.sidePanel.open({ windowId: window.id });
     }

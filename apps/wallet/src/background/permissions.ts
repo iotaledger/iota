@@ -39,7 +39,7 @@ type PermissionEvents = {
 
 class Permissions {
     #events = mitt<PermissionEvents>();
-    #_permissionWindows: Map<string, number> = new Map();
+    #_permissionWindows: Map<string, number | 'sidepanel'> = new Map();
 
     public static getUiUrl(permissionID: string) {
         return `${PERMISSION_UI_URL}${encodeURIComponent(permissionID)}`;
@@ -151,7 +151,7 @@ class Permissions {
         );
         if (hasPendingRequest && existingPermission) {
             const windowId = this.#_permissionWindows.get(existingPermission.id);
-            if (windowId) {
+            if (windowId && typeof windowId === 'number') {
                 try {
                     const highlightedWindowId = await this.highlightWindow(windowId);
                     if (highlightedWindowId) {
@@ -182,7 +182,10 @@ class Permissions {
 
         if (await SidePanel.isEnabled()) {
             await SidePanel.enableAndGoTo(Permissions.getUiUrl(pRequest.id));
-            this.#_permissionWindows.set(pRequest.id, -3154731);
+            // Popup windows have random unique IDs as you might end up with multiple of them
+            // In the other hand sidepanels are not windows and there is only ever one
+            // So here we define an unique ID ('sidepanel') just for the sidepanel so that it integrates with the ID system
+            this.#_permissionWindows.set(pRequest.id, 'sidepanel');
             return null;
         }
 

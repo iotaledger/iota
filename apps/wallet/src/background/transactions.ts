@@ -162,7 +162,7 @@ class Transactions {
         await this.storeTransactionRequest(txRequest);
 
         if (await SidePanel.isEnabled()) {
-            SidePanel.enableAndGoTo(
+            await SidePanel.enableAndGoTo(
                 Browser.runtime.getURL('ui.html') +
                     `#/dapp/approve/${encodeURIComponent(txRequest.id)}?fetch=true`,
             );
