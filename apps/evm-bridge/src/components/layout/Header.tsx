@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Close, MenuIcon } from '@iota/apps-ui-icons';
 import { IOTABridgeLogo, ThemeSwitcher } from '..';
 import { ConnectButtonL1, ConnectButtonL2 } from './connect-buttons';

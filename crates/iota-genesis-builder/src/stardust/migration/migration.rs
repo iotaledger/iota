@@ -12,7 +12,7 @@ use std::{
 use anyhow::Result;
 use iota_move_build::CompiledPackage;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
+use iota_stardust_types::block::output::{FoundryOutput, Output, OutputId};
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     balance::Balance,

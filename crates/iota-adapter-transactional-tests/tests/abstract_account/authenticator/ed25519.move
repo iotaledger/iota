@@ -11,7 +11,6 @@
 module test::authenticate;
 
 use abstract_account_with_pub_key::abstract_account::AbstractAccount;
-use iota::auth_context::AuthContext;
 use iota::ed25519;
 
 /// Ed25519 signature authenticator.

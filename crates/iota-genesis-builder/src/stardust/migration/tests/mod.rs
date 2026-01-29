@@ -4,7 +4,7 @@
 use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{anyhow, bail, ensure};
-use iota_sdk::types::block::{
+use iota_stardust_types::block::{
     address::AliasAddress,
     output::{
         AliasId, Feature, FoundryOutput, FoundryOutputBuilder, NativeTokens, Output, OutputId,

@@ -4,7 +4,6 @@
 //# publish
 module 0x0::account;
 
-use iota::auth_context::AuthContext;
 use std::string::String;
 
 // FAIL
