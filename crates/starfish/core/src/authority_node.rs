@@ -45,8 +45,8 @@ pub struct ConsensusAuthority {
     commit_consumer_monitor: Arc<CommitConsumerMonitor>,
     shard_reconstructor: Arc<ShardReconstructorHandle>,
     cordial_knowledge: Arc<CordialKnowledgeHandle>,
-    regular_commit_syncer_handle: Option<CommitSyncerHandle>,
-    fast_commit_syncer_handle: Option<CommitSyncerHandle>,
+    regular_commit_syncer_handle: CommitSyncerHandle,
+    fast_commit_syncer_handle: CommitSyncerHandle,
     leader_timeout_handle: LeaderTimeoutTaskHandle,
     core_thread_handle: CoreThreadHandle,
     subscriber: Subscriber<TonicClient, AuthorityService<ChannelCoreThreadDispatcher>>,
@@ -278,8 +278,8 @@ impl ConsensusAuthority {
             cordial_knowledge,
             transactions_synchronizer,
             commit_consumer_monitor,
-            regular_commit_syncer_handle: Some(regular_commit_syncer_handle),
-            fast_commit_syncer_handle: Some(fast_commit_syncer_handle),
+            regular_commit_syncer_handle,
+            fast_commit_syncer_handle,
             leader_timeout_handle,
             core_thread_handle,
             subscriber,
@@ -340,12 +340,8 @@ impl ConsensusAuthority {
             );
         }
 
-        if let Some(handle) = self.regular_commit_syncer_handle.take() {
-            handle.stop().await;
-        }
-        if let Some(handle) = self.fast_commit_syncer_handle.take() {
-            handle.stop().await;
-        }
+        self.regular_commit_syncer_handle.stop().await;
+        self.fast_commit_syncer_handle.stop().await;
         self.leader_timeout_handle.stop().await;
         // Shutdown Core to stop block productions and broadcast.
         // When using streaming, all subscribers to broadcast blocks stop after this.
@@ -402,22 +398,6 @@ impl ConsensusAuthority {
         &self,
     ) -> Result<(), tokio::task::JoinError> {
         self.shard_reconstructor.stop().await
-    }
-
-    /// Stop regular commit syncer for testing pending subdags.
-    #[cfg(test)]
-    pub(crate) async fn stop_regular_commit_syncer_for_test(&mut self) {
-        if let Some(handle) = self.regular_commit_syncer_handle.take() {
-            handle.stop().await;
-        }
-    }
-
-    /// Stop fast commit syncer for testing pending subdags.
-    #[cfg(test)]
-    pub(crate) async fn stop_fast_commit_syncer_for_test(&mut self) {
-        if let Some(handle) = self.fast_commit_syncer_handle.take() {
-            handle.stop().await;
-        }
     }
 
     /// Unsubscribe from a specific peer for testing network partition scenarios.
