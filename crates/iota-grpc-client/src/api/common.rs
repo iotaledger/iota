@@ -65,68 +65,33 @@ pub type Result<T> = std::result::Result<T, Error>;
 // =============================================================================
 //
 // These masks specify which fields to request from the server. Users can
-// provide custom masks to optimize bandwidth, but must include the required
-// fields for SDK type deserialization.
+// provide custom masks to optimize bandwidth by only requesting necessary
+// fields.
 //
-// If `None` is passed, these defaults are used. If a custom mask is provided,
-// it completely replaces the default (no merging).
+// If `None` is passed, these defaults are used.
 
 /// Default field mask for [`crate::Client::get_transactions`].
-///
-/// **Required fields for `TransactionResponse` deserialization:**
-/// - `transaction.bcs` - Transaction data (required)
-/// - `signatures` - User signatures (required)
-/// - `effects.bcs` - Transaction effects (required)
-///
-/// **Optional fields:**
-/// - `events` - Transaction events
-/// - `checkpoint` - Checkpoint sequence number
-/// - `timestamp` - Execution timestamp
-///
-/// If you provide a custom mask, you must include at least `transaction.bcs`,
-/// `signatures`, and `effects.bcs`, or deserialization will fail.
 pub const TRANSACTIONS_READ_MASK: &str =
     "transaction.bcs,signatures,effects.bcs,events,checkpoint,timestamp";
 
 /// Default field mask for [`crate::Client::get_objects`].
-///
-/// **Required fields for `Object` deserialization:**
-/// - `bcs` - Object BCS data (required)
-///
-/// If you provide a custom mask, you must include `bcs`, or deserialization
-/// will fail.
 pub const OBJECTS_READ_MASK: &str = "bcs";
 
-/// Default field mask for checkpoint data queries.
-///
-/// **Required fields for `CheckpointResponse` deserialization:**
-/// - `summary` - Checkpoint summary (required)
-///
-/// **Optional fields:**
-/// - `contents` - Checkpoint contents
-/// - `signature` - Checkpoint signature
-/// - `transactions` - Executed transactions
-/// - `events` - Transaction events
-///
-/// If you provide a custom mask, you must include at least `summary`,
-/// or deserialization will fail.
-pub const CHECKPOINT_DATA_READ_MASK: &str = "summary,contents,signature,transactions,events";
+/// Default field mask for checkpoint queries.
+pub const CHECKPOINT_READ_MASK: &str = "summary,contents,signature,transactions,events";
 
 /// Default field mask for [`crate::Client::execute_transaction`] and
 /// [`crate::Client::simulate_transaction`].
-///
-/// **Required fields for response deserialization:**
-/// - `transaction.effects` - Transaction effects (required)
-///
-/// **Optional fields:**
-/// - `transaction.events` - Transaction events
-/// - `transaction.input_objects` - Input objects used
-/// - `transaction.output_objects` - Output objects created/modified
-///
-/// If you provide a custom mask, you must include at least
-/// `transaction.effects`, or deserialization will fail.
 pub const EXECUTION_READ_MASK: &str =
     "transaction.effects,transaction.events,transaction.input_objects,transaction.output_objects";
+
+/// Build a field mask with a custom value or default.
+///
+/// This is a convenience helper that handles the common pattern of using
+/// a user-provided field mask or falling back to a default.
+pub fn field_mask_with_default(custom: Option<&str>, default: &str) -> FieldMask {
+    FieldMask::from_str(custom.unwrap_or(default))
+}
 
 /// A trait for proto result types that follow the pattern of having
 /// `Some(Result::Value)`, `Some(Result::Error)`, or `None`.
@@ -174,12 +139,4 @@ pub fn build_proto_transaction<T: Serialize>(data: &T, digest: Digest) -> Result
         digest: Some(digest.into()),
         bcs: Some(bcs),
     })
-}
-
-/// Build a field mask with a custom value or default.
-///
-/// This is a convenience helper that handles the common pattern of using
-/// a user-provided field mask or falling back to a default.
-pub fn field_mask_with_default(custom: Option<&str>, default: &str) -> FieldMask {
-    FieldMask::from_str(custom.unwrap_or(default))
 }

@@ -436,7 +436,12 @@ impl GrpcReader {
 
             // 1. Send Checkpoint message (controlled by checkpoint_mask)
             // Build the Checkpoint proto message using Merge
-            let mut checkpoint_proto = grpc_checkpoint::Checkpoint::default();
+
+            // We need the sequence number to reassemble the checkpoint on client side.
+            let mut checkpoint_proto = grpc_checkpoint::Checkpoint {
+                sequence_number: Some(sequence_number),
+                ..Default::default()
+            };
 
             // Convert to iota_sdk_types for Merge compatibility
             let sdk_summary: iota_sdk_types::CheckpointSummary = checkpoint_summary

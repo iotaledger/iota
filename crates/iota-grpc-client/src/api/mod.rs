@@ -14,7 +14,7 @@ pub mod execution;
 pub mod ledger;
 
 pub use common::{
-    CHECKPOINT_DATA_READ_MASK, EXECUTION_READ_MASK, Error, OBJECTS_READ_MASK, Result,
+    CHECKPOINT_READ_MASK, EXECUTION_READ_MASK, Error, OBJECTS_READ_MASK, Result,
     TRANSACTIONS_READ_MASK,
 };
 pub(crate) use common::{
@@ -28,11 +28,11 @@ pub use iota_grpc_types::v0::{
     transaction::{ExecutedTransaction, Transaction, TransactionEffects, TransactionEvents},
 };
 
-/// Response for a full checkpoint data query.
+/// Response for a checkpoint query.
 ///
-/// Contains checkpoint summary, optional contents, transactions, and events.
+/// Contains checkpoint summary, signature, contents, transactions, and events.
 /// Fields are proto types that can be lazily converted to SDK types using their
-/// conversion methods (e.g., `summary.summary()?`, `tx.effects()?`).
+/// conversion methods (e.g., `response.summary()?`, `response.effects()?`).
 #[derive(Debug, Clone)]
 pub struct CheckpointResponse {
     /// The checkpoint sequence number.
@@ -51,4 +51,51 @@ pub struct CheckpointResponse {
     pub transactions: Vec<ExecutedTransaction>,
     /// Proto events. Use `event.events()` to convert to SDK type.
     pub events: Vec<Event>,
+}
+
+impl CheckpointResponse {
+    pub fn sequence_number(&self) -> CheckpointSequenceNumber {
+        self.sequence_number
+    }
+
+    pub fn summary(&self) -> Result<iota_sdk_types::checkpoint::CheckpointSummary> {
+        self.summary
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing("summary"))?
+            .try_into()
+            .map_err(Into::into)
+    }
+
+    pub fn signature(&self) -> Result<iota_sdk_types::ValidatorAggregatedSignature> {
+        self.signature
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing("signature"))?
+            .try_into()
+            .map_err(Into::into)
+    }
+
+    pub fn contents(&self) -> Result<iota_sdk_types::checkpoint::CheckpointContents> {
+        self.contents
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing("contents"))?
+            .try_into()
+            .map_err(Into::into)
+    }
+
+    pub fn transactions(&self) -> Result<Vec<&ExecutedTransaction>> {
+        Ok(self.transactions.iter().collect())
+    }
+
+    pub fn events(&self) -> Result<Vec<iota_sdk_types::Event>> {
+        self.events
+            .iter()
+            .enumerate()
+            .map(|(i, e)| {
+                e.try_into().map_err(|e: TryFromProtoError| {
+                    e.nested_at(iota_grpc_types::v0::event::Events::EVENTS_FIELD.name, i)
+                })
+            })
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(Into::into)
+    }
 }

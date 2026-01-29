@@ -159,10 +159,6 @@ impl Merge<&iota_sdk_types::CheckpointSummary> for Checkpoint {
         source: &iota_sdk_types::CheckpointSummary,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        if mask.contains(Self::SEQUENCE_NUMBER_FIELD.name) {
-            self.sequence_number = Some(source.sequence_number);
-        }
-
         if let Some(submask) = mask.subtree(Self::SUMMARY_FIELD.name) {
             self.summary = Some(CheckpointSummary::merge_from(source.clone(), &submask)?);
         }
