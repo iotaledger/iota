@@ -77,7 +77,7 @@ impl BlockManager {
             .map(|b| b.verified_block_header.clone())
             .collect();
         let (block_headers_to_accept, missing_block_headers) =
-            self.process_block_headers(block_headers);
+            self.process_block_headers(block_headers, source);
         // collect suspended transactions for accepted headers.
         let accepted_transactions =
             self.resolve_transactions(&block_headers_to_accept, Some(blocks));
@@ -107,7 +107,7 @@ impl BlockManager {
         // Headers are added through synchronizer, commit syncer and cordial
         // dissemination.
         let (block_headers_to_accept, ancestors_to_fetch) =
-            self.process_block_headers(block_headers);
+            self.process_block_headers(block_headers, source);
         // collect transactions we already have for accepted headers.
         let accepted_transactions = self.resolve_transactions(&block_headers_to_accept, None);
         self.write_block_headers_and_transactions_to_dag_state(
@@ -124,11 +124,12 @@ impl BlockManager {
     fn process_block_headers(
         &mut self,
         block_headers: Vec<VerifiedBlockHeader>,
+        source: DataSource,
     ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_block_headers_internal");
 
         // Filter out already processed and suspended block headers.
-        let block_headers = self.filter_out_already_processed_and_sort(block_headers);
+        let block_headers = self.filter_out_already_processed_and_sort(block_headers, source);
         // update received block rounds
         for block_header in &block_headers {
             self.update_block_received_metrics(block_header);
@@ -329,6 +330,7 @@ impl BlockManager {
     fn filter_out_already_processed_and_sort(
         &self,
         block_headers: Vec<VerifiedBlockHeader>,
+        source: DataSource,
     ) -> Vec<VerifiedBlockHeader> {
         let block_references = block_headers
             .iter()
@@ -347,10 +349,11 @@ impl BlockManager {
                     self.context
                         .metrics
                         .node_metrics
-                        .block_manager_filtered_processed_headers_by_authority
-                        .with_label_values(&[self
-                            .context
-                            .authority_hostname(block_header.author())])
+                        .core_skipped_headers
+                        .with_label_values(&[
+                            self.context.authority_hostname(block_header.author()),
+                            source.as_str(),
+                        ])
                         .inc();
                     None // filter out
                 } else {

@@ -7,8 +7,6 @@
 
 module Test::M;
 
-use iota::auth_context::AuthContext;
-
 public fun authenticate(_: &AuthContext, _: &TxContext) {}
 
 public fun authenticate_with_mut_auth_context(_: &mut AuthContext, _: &TxContext) {}
