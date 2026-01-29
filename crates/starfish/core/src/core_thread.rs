@@ -776,5 +776,3 @@ pub(crate) mod tests {
         assert!(dispatcher_2.add_block_headers(vec![]).await.is_err());
     }
 }
-
-

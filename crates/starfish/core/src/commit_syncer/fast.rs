@@ -1181,23 +1181,23 @@ mod tests {
     /// after restart.
     ///
     /// This test creates pending subdags using dynamic peer unsubscribe, then
-    /// stops and restarts the validator to verify fast sync handles pre-existing
-    /// pending subdags correctly.
+    /// stops and restarts the validator to verify fast sync handles
+    /// pre-existing pending subdags correctly.
     ///
     /// Test flow:
     /// - Phase 1: All validators run together, creating initial commits
-    /// - Phase 2: Dynamically unsubscribe test validator from validator 1 + stop
-    ///   txn synchronizer + stop shard reconstructor
-    /// - Phase 3: Wait for commits with missing txs (creates pending subdags) and
-    ///   verify gap
+    /// - Phase 2: Dynamically unsubscribe test validator from validator 1 +
+    ///   stop txn synchronizer + stop shard reconstructor
+    /// - Phase 3: Wait for commits with missing txs (creates pending subdags)
+    ///   and verify gap
     /// - Phase 4: Stop test validator
     /// - Phase 5: Other validators continue (creates fast sync gap > threshold)
-    /// - Phase 6: Restart test validator with full connectivity, but keep
-    ///   txn synchronizer + shard reconstructor stopped
-    ///   to prevent pending subdags from being solidified
+    /// - Phase 6: Restart test validator with full connectivity, but keep txn
+    ///   synchronizer + shard reconstructor stopped to prevent pending subdags
+    ///   from being solidified
     /// - Phase 7: Verify fast sync was used and validator caught up
     #[tokio::test(flavor = "current_thread")]
-async fn test_fast_sync_with_pending_subdags() {
+    async fn test_fast_sync_with_pending_subdags() {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
@@ -1207,9 +1207,10 @@ async fn test_fast_sync_with_pending_subdags() {
         const COMMIT_SYNC_BATCH_SIZE: u32 = 20;
 
         // Work phases need to be long enough to create pending subdags during Phase 3.
-        // During Phase 3, the validator keeps creating commits (headers arrive via cordial
-        // dissemination), so there's no commit gap for syncers to act on. Phase 5 creates
-        // a commit gap larger than the threshold for fast sync to trigger on restart.
+        // During Phase 3, the validator keeps creating commits (headers arrive via
+        // cordial dissemination), so there's no commit gap for syncers to act
+        // on. Phase 5 creates a commit gap larger than the threshold for fast
+        // sync to trigger on restart.
         let stable_work_duration = Duration::from_secs(10);
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
@@ -1287,11 +1288,12 @@ async fn test_fast_sync_with_pending_subdags() {
             sleep(Duration::from_millis(50)).await;
         }
 
-        // Phase 2: Dynamically unsubscribe from validator 1 + stop txn synchronizer + stop shard reconstructor
-        // This will create pending subdags as headers arrive via cordial dissemination
-        // but transactions from validator 1's blocks are missing and shards cannot be
-        // reconstructed. Commit syncers won't activate during Phase 3 because there's
-        // no commit gap - the validator keeps up with commits, just missing transactions.
+        // Phase 2: Dynamically unsubscribe from validator 1 + stop txn synchronizer +
+        // stop shard reconstructor This will create pending subdags as headers
+        // arrive via cordial dissemination but transactions from validator 1's
+        // blocks are missing and shards cannot be reconstructed. Commit syncers
+        // won't activate during Phase 3 because there's no commit gap - the
+        // validator keeps up with commits, just missing transactions.
         authorities[test_validator_index].unsubscribe_from_peer_for_test(
             committee
                 .to_authority_index(blocked_validator_index)
@@ -1316,7 +1318,8 @@ async fn test_fast_sync_with_pending_subdags() {
 
         // Submit transactions to all validators during Phase 3.
         // Validator 0 can process transactions from itself and validators 2 & 3.
-        // However, validator 0 can't fetch transactions from validator 1's blocks because:
+        // However, validator 0 can't fetch transactions from validator 1's blocks
+        // because:
         // - It's unsubscribed from validator 1
         // - Transaction synchronizer is stopped (blocks active transaction fetching)
         // - Shard reconstructor is stopped (blocks erasure-coded shard reconstruction)
@@ -1414,7 +1417,8 @@ async fn test_fast_sync_with_pending_subdags() {
 
         // Phase 6: Restart test validator with full connectivity.
         // Transaction synchronizer and shard reconstructor
-        // will be stopped after restart to prevent pending subdags from being solidified.
+        // will be stopped after restart to prevent pending subdags from being
+        // solidified.
         let parameters = Parameters {
             db_path: temp_dirs[test_validator_index].path().to_path_buf(),
             dag_state_cached_rounds: 5,
@@ -1489,7 +1493,8 @@ async fn test_fast_sync_with_pending_subdags() {
             test_validator_index
         );
 
-        // Verify the validator progressed significantly after restart with pending subdags
+        // Verify the validator progressed significantly after restart with pending
+        // subdags
         let final_index = consumer_monitors[test_validator_index].highest_handled_commit();
         assert!(
             final_index > last_processed_with_pending,

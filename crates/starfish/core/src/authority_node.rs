@@ -400,7 +400,8 @@ impl ConsensusAuthority {
         self.shard_reconstructor.stop().await
     }
 
-    /// Unsubscribe from a specific peer for testing network partition scenarios.
+    /// Unsubscribe from a specific peer for testing network partition
+    /// scenarios.
     #[cfg(test)]
     pub(crate) fn unsubscribe_from_peer_for_test(&self, peer: AuthorityIndex) {
         self.subscriber.unsubscribe(peer);
