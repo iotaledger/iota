@@ -27,10 +27,8 @@ pub struct Event {
     #[prost(message, optional, tag = "6")]
     pub bcs_contents: ::core::option::Option<super::bcs::BcsData>,
     /// JSON rendering of the event.
-    #[prost(message, optional, boxed, tag = "7")]
-    pub json_contents: ::core::option::Option<
-        ::prost::alloc::boxed::Box<::prost_types::Value>,
-    >,
+    #[prost(message, optional, tag = "7")]
+    pub json_contents: ::core::option::Option<::prost_types::Value>,
 }
 /// A list of events.
 #[derive(Clone, PartialEq, ::prost::Message)]

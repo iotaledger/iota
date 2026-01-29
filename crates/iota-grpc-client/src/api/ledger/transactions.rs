@@ -74,7 +74,7 @@ impl Client {
         &self,
         digests: &[Digest],
         read_mask: Option<&str>,
-    ) -> Result<Vec<Box<ExecutedTransaction>>> {
+    ) -> Result<Vec<ExecutedTransaction>> {
         if digests.is_empty() {
             return Ok(vec![]);
         }

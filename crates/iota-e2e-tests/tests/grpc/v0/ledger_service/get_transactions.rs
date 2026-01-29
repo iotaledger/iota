@@ -77,7 +77,7 @@ async fn assert_get_transactions_request(
         for (idx, tx_result) in response.transactions.iter().enumerate() {
             if let Some(transaction_result::Result::Transaction(transaction)) = &tx_result.result {
                 assert_field_presence(
-                    transaction.as_ref(),
+                    transaction,
                     expected_field_mask_paths,
                     &format!("{scenario} (response {response_count}, transaction {idx})"),
                 );

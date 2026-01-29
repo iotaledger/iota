@@ -55,8 +55,8 @@ pub struct CommandOutput {
     pub type_tag: ::core::option::Option<super::types::TypeTag>,
     #[prost(message, optional, tag = "3")]
     pub bcs: ::core::option::Option<super::bcs::BcsData>,
-    #[prost(message, optional, boxed, tag = "4")]
-    pub json: ::core::option::Option<::prost::alloc::boxed::Box<::prost_types::Value>>,
+    #[prost(message, optional, tag = "4")]
+    pub json: ::core::option::Option<::prost_types::Value>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CommandOutputs {

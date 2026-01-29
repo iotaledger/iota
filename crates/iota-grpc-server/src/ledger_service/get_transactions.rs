@@ -95,7 +95,7 @@ pub(crate) fn get_transactions(
         {
             let tx_result = match get_transaction_impl(&reader, &config, digest, &read_mask) {
                 Ok(tx) => TransactionResult {
-                    result: Some(transaction_result::Result::Transaction(Box::new(tx))),
+                    result: Some(transaction_result::Result::Transaction(tx)),
                 },
                 Err(error) => TransactionResult {
                     result: Some(transaction_result::Result::Error(error.into_status_proto())),

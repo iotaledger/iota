@@ -63,13 +63,7 @@ fn main() {
     fds.file.sort_by(|a, b| a.name.cmp(&b.name));
 
     // Define boxing configuration for prost-build
-    let boxed_types_prost = vec![
-        // TODO: should we box all bcs types?
-        ".iota.grpc.v0.epoch.Epoch.bcs_system_state".to_string(),
-        ".iota.grpc.v0.ledger_service.TransactionResult.result.transaction".to_string(),
-        "json_contents".to_string(),
-        "json".to_string(),
-    ];
+    let boxed_types_prost = vec![];
 
     // for field info and accessor generation
     let boxed_types_field_info = vec![

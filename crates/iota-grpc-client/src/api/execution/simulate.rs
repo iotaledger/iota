@@ -75,7 +75,7 @@ impl Client {
         transaction: Transaction,
         dev_inspect: bool,
         read_mask: Option<&str>,
-    ) -> Result<Box<ExecutedTransaction>> {
+    ) -> Result<ExecutedTransaction> {
         // Build proto transaction directly from SDK types
         let proto_transaction = build_proto_transaction(&transaction, transaction.digest())?;
 
@@ -100,7 +100,6 @@ impl Client {
 
         response
             .transaction
-            .map(Box::new)
             .ok_or_else(|| TryFromProtoError::missing("transaction").into())
     }
 }

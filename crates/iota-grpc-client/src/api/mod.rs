@@ -48,7 +48,7 @@ pub struct CheckpointResponse {
     pub contents: Option<iota_grpc_types::v0::checkpoint::CheckpointContents>,
     /// Proto executed transactions. Use methods like `tx.effects()?`,
     /// `tx.transaction()?`, etc.
-    pub transactions: Vec<Box<ExecutedTransaction>>,
+    pub transactions: Vec<ExecutedTransaction>,
     /// Proto events. Use `event.events()` to convert to SDK type.
     pub events: Vec<Event>,
 }

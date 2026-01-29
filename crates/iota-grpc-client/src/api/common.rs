@@ -154,7 +154,7 @@ impl ProtoResult for ObjectResult {
 }
 
 impl ProtoResult for TransactionResult {
-    type Value = Box<ExecutedTransaction>;
+    type Value = ExecutedTransaction;
 
     fn into_result(self) -> Result<Self::Value> {
         match self.result {

@@ -124,9 +124,7 @@ pub mod transaction_result {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Result {
         #[prost(message, tag = "1")]
-        Transaction(
-            ::prost::alloc::boxed::Box<super::super::transaction::ExecutedTransaction>,
-        ),
+        Transaction(super::super::transaction::ExecutedTransaction),
         #[prost(message, tag = "2")]
         Error(crate::google::rpc::Status),
     }

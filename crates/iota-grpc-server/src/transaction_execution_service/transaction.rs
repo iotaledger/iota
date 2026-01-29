@@ -169,8 +169,7 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::TransactionEvents {
                             source.config.max_json_move_value_size,
                             &iota_types::TypeTag::Struct(Box::new(event.type_.clone())),
                             &event.contents,
-                        )
-                        .map(Box::new);
+                        );
                     }
                 }
             }
@@ -355,8 +354,7 @@ impl Merge<&CommandOutputReadSource<'_>> for CommandOutput {
                 source.config.max_json_move_value_size,
                 source.ty,
                 source.bcs_bytes,
-            )
-            .map(Box::new);
+            );
         }
 
         Ok(())

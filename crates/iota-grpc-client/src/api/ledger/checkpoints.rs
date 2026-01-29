@@ -345,7 +345,7 @@ impl Client {
             let mut current_summary: Option<checkpoint::CheckpointSummary> = None;
             let mut current_signature: Option<ProtoValidatorAggregatedSignature> = None;
             let mut current_contents: Option<checkpoint::CheckpointContents> = None;
-            let mut current_transactions: Vec<Box<ExecutedTransaction>> = Vec::new();
+            let mut current_transactions: Vec<ExecutedTransaction> = Vec::new();
             let mut current_events: Vec<event::Event> = Vec::new();
 
             while let Some(data) = stream.next().await {
@@ -384,7 +384,7 @@ impl Client {
                         }
 
                         // Accumulate proto transactions (no deserialization)
-                        current_transactions.extend(txs.transactions.into_iter().map(Box::new));
+                        current_transactions.extend(txs.transactions.into_iter());
                     }
 
                     Some(checkpoint_data::Payload::Events(events)) => {
