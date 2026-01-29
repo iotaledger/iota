@@ -2,10 +2,96 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! Attributes
+//!
+//! The compiler has a built in system for processing arbitrary attributes,
+//! but has no generalized concept of validating or storing them.
+//! A fully compiled program will loose all attributes by the end of compilation
+//! and while attributes are initially processed and propagated through the
+//! stages, they have no effect until they are handled by the developer.
+//! This means that adding an attribute stub is simple, but properly handling it
+//! may happen on an arbitrary stage of compilation.
+//!
+//! ## Processing stages
+//!
+//! The **parser** stage of compilation will extract everything the compiler
+//! understands about an attribute. Where is it from, what form does it have,
+//! but nothing else is known.
+//! During the **expansion** stage an attribute will be turned into a
+//! [KnownAttribute] or unknown attribute after it passed the
+//! [AttributePosition] check and any associated values will be attached to it.
+//! After this point the attributes will propagate through the stages up until
+//! **to_bytecode** at which point they will be discarded completely.
+//!
+//! ## Structure
+//!
+//! There are tree types of attributes, defined in the **expansion**
+//! stage.
+//!
+//! Named attributes, which only have an identifier to them.
+//! ```text
+//! #[NamedAttribute]
+//! ....
+//! ```
+//! which can be listed in one unit or separated into more lines:
+//! ```text
+//! #[NamedAttribute1, NamedAttribute2]
+//! ...
+//!
+//! #[NamedAttribute1]
+//! #[NamedAttribute2]
+//! ...
+//! ```
+//! Assigned attributes, which also have an associated value:
+//! ```text
+//! #[AssignedAttribute = AttributeValue]
+//! ...
+//! ```
+//! which can be listed/grouped similarly to the named version above.
+//!
+//! Parameterized attributes, which can recursively contain
+//! all other types of attributes:
+//! ```text
+//! #[Parameterized(NamedAttribute)]
+//! ...
+//!
+//! #[Parameterized(AssignedAttribute = AttributeValue)]
+//! ...
+//!
+//! #[Parameterized(Parameterized(...))]
+//! ...
+//! ```
+//! which follows the same listing rules as seen above.
+//!
+//! The compiler ensures that no duplicate attributes are specified
+//! and checks if the values fit into a set of allowed types, but
+//! there is no further validation. Everything else is up to the
+//! developer.
+//!
+//! ## Attribute implementation patterns
+//!
+//! Simple **named** and **assigned** attributes are easy to implement and apart
+//! from setting the appropriate [AttributePosition] and trait implementations
+//! only require a type check to be implemented by the developer.
+//!
+//! **Parameterized** attributes are considerably trickier to be used properly
+//! as they can contain other attribute types recursively, but
+//! [AttributePosition] is not capable of expressing that a given attribute may
+//! only appear in such a nested structure. This means that after defining the
+//! top level **parameterized** attribute it is up the developer to define
+//! exactly what internal formats are expected.
+//! For example see [TestingAttribute::ExpectedFailure] implementation.
+
 use std::{collections::BTreeSet, fmt};
 
 use once_cell::sync::Lazy;
 
+use crate::editions::Flavor;
+
+/// All the code positions at which an attribute may be placed
+/// at in code.
+///
+/// A [KnownAttribute] specifies on which positions it may appear.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AttributePosition {
     AddressBlock,
@@ -19,6 +105,10 @@ pub enum AttributePosition {
     Spec,
 }
 
+/// The list of attribute types recognized by the compiler.
+///
+/// These variants not necessarily specify a single attribute
+/// , but a whole class of them like [KnownAttribute::Testing].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum KnownAttribute {
     Testing(TestingAttribute),
@@ -30,6 +120,7 @@ pub enum KnownAttribute {
     Syntax(SyntaxAttribute),
     Error(ErrorAttribute),
     Deprecation(DeprecationAttribute),
+    Flavored(FlavoredAttribute),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -80,6 +171,12 @@ pub struct ErrorAttribute;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DeprecationAttribute;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct FlavoredAttribute {
+    pub name: &'static str,
+    pub expected_positions: &'static BTreeSet<AttributePosition>,
+}
+
 impl AttributePosition {
     const ALL: &'static [Self] = &[
         Self::AddressBlock,
@@ -94,23 +191,25 @@ impl AttributePosition {
 }
 
 impl KnownAttribute {
-    pub fn resolve(attribute_str: impl AsRef<str>) -> Option<Self> {
-        Some(match attribute_str.as_ref() {
-            TestingAttribute::TEST => TestingAttribute::Test.into(),
-            TestingAttribute::TEST_ONLY => TestingAttribute::TestOnly.into(),
-            TestingAttribute::EXPECTED_FAILURE => TestingAttribute::ExpectedFailure.into(),
-            TestingAttribute::RAND_TEST => TestingAttribute::RandTest.into(),
-            VerificationAttribute::VERIFY_ONLY => VerificationAttribute::VerifyOnly.into(),
-            NativeAttribute::BYTECODE_INSTRUCTION => NativeAttribute::BytecodeInstruction.into(),
-            DiagnosticAttribute::ALLOW => DiagnosticAttribute::Allow.into(),
-            DiagnosticAttribute::LINT_ALLOW => DiagnosticAttribute::LintAllow.into(),
-            DefinesPrimitive::DEFINES_PRIM => DefinesPrimitive.into(),
-            ExternalAttribute::EXTERNAL => ExternalAttribute.into(),
-            SyntaxAttribute::SYNTAX => SyntaxAttribute::Syntax.into(),
-            ErrorAttribute::ERROR => ErrorAttribute.into(),
-            DeprecationAttribute::DEPRECATED => DeprecationAttribute.into(),
-            _ => return None,
-        })
+    pub fn resolve(attribute_str: impl AsRef<str>, flavor: Flavor) -> Option<Self> {
+        match attribute_str.as_ref() {
+            TestingAttribute::TEST => Some(TestingAttribute::Test.into()),
+            TestingAttribute::TEST_ONLY => Some(TestingAttribute::TestOnly.into()),
+            TestingAttribute::EXPECTED_FAILURE => Some(TestingAttribute::ExpectedFailure.into()),
+            TestingAttribute::RAND_TEST => Some(TestingAttribute::RandTest.into()),
+            VerificationAttribute::VERIFY_ONLY => Some(VerificationAttribute::VerifyOnly.into()),
+            NativeAttribute::BYTECODE_INSTRUCTION => {
+                Some(NativeAttribute::BytecodeInstruction.into())
+            }
+            DiagnosticAttribute::ALLOW => Some(DiagnosticAttribute::Allow.into()),
+            DiagnosticAttribute::LINT_ALLOW => Some(DiagnosticAttribute::LintAllow.into()),
+            DefinesPrimitive::DEFINES_PRIM => Some(DefinesPrimitive.into()),
+            ExternalAttribute::EXTERNAL => Some(ExternalAttribute.into()),
+            SyntaxAttribute::SYNTAX => Some(SyntaxAttribute::Syntax.into()),
+            ErrorAttribute::ERROR => Some(ErrorAttribute.into()),
+            DeprecationAttribute::DEPRECATED => Some(DeprecationAttribute.into()),
+            _ => flavor.resolve_known_attribute(attribute_str),
+        }
     }
 
     pub const fn name(&self) -> &str {
@@ -124,6 +223,7 @@ impl KnownAttribute {
             Self::Syntax(a) => a.name(),
             Self::Error(a) => a.name(),
             Self::Deprecation(a) => a.name(),
+            Self::Flavored(a) => a.name(),
         }
     }
 
@@ -138,6 +238,7 @@ impl KnownAttribute {
             Self::Syntax(a) => a.expected_positions(),
             Self::Error(a) => a.expected_positions(),
             Self::Deprecation(a) => a.expected_positions(),
+            Self::Flavored(a) => a.expected_positions(),
         }
     }
 }
@@ -357,6 +458,16 @@ impl DeprecationAttribute {
     }
 }
 
+impl FlavoredAttribute {
+    pub const fn name(&self) -> &str {
+        self.name
+    }
+
+    pub fn expected_positions(&self) -> &'static BTreeSet<AttributePosition> {
+        self.expected_positions
+    }
+}
+
 //**************************************************************************************************
 // Display
 //**************************************************************************************************
@@ -389,6 +500,7 @@ impl fmt::Display for KnownAttribute {
             Self::Syntax(a) => a.fmt(f),
             Self::Error(a) => a.fmt(f),
             Self::Deprecation(a) => a.fmt(f),
+            Self::Flavored(a) => a.fmt(f),
         }
     }
 }
@@ -447,6 +559,12 @@ impl fmt::Display for DeprecationAttribute {
     }
 }
 
+impl fmt::Display for FlavoredAttribute {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
 //**************************************************************************************************
 // From
 //**************************************************************************************************
@@ -494,5 +612,10 @@ impl From<ErrorAttribute> for KnownAttribute {
 impl From<DeprecationAttribute> for KnownAttribute {
     fn from(a: DeprecationAttribute) -> Self {
         Self::Deprecation(a)
+    }
+}
+impl From<FlavoredAttribute> for KnownAttribute {
+    fn from(a: FlavoredAttribute) -> Self {
+        Self::Flavored(a)
     }
 }

@@ -11,8 +11,8 @@ use crate::{
     diag,
     diagnostics::{Diagnostic, DiagnosticReporter, Diagnostics, warning_filters::WarningFilters},
     editions::Flavor,
-    expansion::ast::{AbilitySet, Fields, ModuleIdent, Mutability, Visibility},
-    iota_mode::*,
+    expansion::ast::{AbilitySet, Attribute_, Fields, ModuleIdent, Mutability, Visibility},
+    iota_mode::{known_attributes as iota_known_attributes, *},
     naming::ast::{
         self as N, BuiltinTypeName_, FunctionSignature, StructFields, Type, Type_, TypeName_, Var,
     },
@@ -305,6 +305,11 @@ fn function(context: &mut Context, name: FunctionName, fdef: &T::Function) {
     }
     if let Some(entry_loc) = entry {
         entry_signature(context, *entry_loc, name, signature);
+    }
+    if let Some(sp!(authenticator_loc, authenticator_value)) =
+        attributes.get_(&iota_known_attributes::authenticator::AuthenticatorAttribute.into())
+    {
+        authenticator_attribute(context, authenticator_loc, authenticator_value);
     }
     if let sp!(_, T::FunctionBody_::Defined(seq)) = body {
         context.visit_seq(body.loc, seq)
@@ -974,6 +979,10 @@ fn exp(context: &mut Context, e: &T::Exp) {
             if is_transfer_module && PRIVATE_TRANSFER_FUNCTIONS.contains(&name.value()) {
                 check_private_transfer(context, e.exp.loc, mcall)
             }
+            let is_account_module = module.value.is(&IOTA_ADDR_VALUE, ACCOUNT_MODULE_NAME);
+            if is_account_module && PRIVATE_ACCOUNT_FUNCTIONS.contains(&name.value()) {
+                check_private_account(context, e.exp.loc, mcall)
+            }
         }
         T::UnannotatedExp_::Pack(m, s, _, _) => {
             if !context.in_test
@@ -1045,7 +1054,7 @@ fn check_private_transfer(context: &mut Context, loc: Loc, mcall: &ModuleCall) {
     let current_module = context.current_module();
     if current_module
         .value
-        .is(&IOTA_ADDR_VALUE, TRANSFER_FUNCTION_NAME)
+        .is(&IOTA_ADDR_VALUE, TRANSFER_MODULE_NAME)
     {
         // inside the transfer module, so no private transfer rules
         return;
@@ -1107,4 +1116,65 @@ fn check_private_transfer(context: &mut Context, loc: Loc, mcall: &ModuleCall) {
         }
         context.add_diag(diag)
     }
+}
+
+fn check_private_account(context: &mut Context, loc: Loc, mcall: &ModuleCall) {
+    let ModuleCall {
+        module,
+        name,
+        type_arguments,
+        ..
+    } = mcall;
+    let current_module = context.current_module();
+    if current_module
+        .value
+        .is(&IOTA_ADDR_VALUE, ACCOUNT_MODULE_NAME)
+    {
+        // inside the account module, so no private account rules
+        return;
+    }
+    let Some(first_ty) = type_arguments.first() else {
+        // invalid arity
+        debug_assert!(false, "ICE arity should have been expanded for errors");
+        return;
+    };
+    let (in_current_module, first_ty_tn) = match first_ty.value.type_name() {
+        Some(sp!(_, TypeName_::Multiple(_))) | Some(sp!(_, TypeName_::Builtin(_))) | None => {
+            (false, None)
+        }
+        Some(sp!(_, TypeName_::ModuleType(m, n))) => (m == current_module, Some((m, n))),
+    };
+    if !in_current_module {
+        let mut msg = format!(
+            "Invalid private account call. \
+            The function '{}::{}' is restricted to being called in the object's module",
+            module, name,
+        );
+        if let Some((first_ty_module, _)) = &first_ty_tn {
+            msg = format!("{}, '{}'", msg, first_ty_module);
+        };
+        let ty_msg = format!(
+            "The type {} is not declared in the current module",
+            error_format(first_ty, &Subst::empty()),
+        );
+        let diag = diag!(
+            PRIVATE_ACCOUNT_CALL_DIAG,
+            (loc, msg),
+            (first_ty.loc, ty_msg)
+        );
+        context.add_diag(diag)
+    }
+}
+
+/// Checks the `authenticator` attribute for a valid version field.
+/// Only accepts #[authenticator], #[authenticator = <u8>], or
+/// #[authenticator(version = <u8>)].
+fn authenticator_attribute(
+    context: &mut Context,
+    authenticator_loc: &Loc,
+    authenticator_value: &Attribute_,
+) {
+    let _ = authenticator_value
+        .parse_authenticator_version(authenticator_loc)
+        .map_err(|(loc, err)| context.add_diag(diag!(Attributes::InvalidValue, (loc, err))));
 }

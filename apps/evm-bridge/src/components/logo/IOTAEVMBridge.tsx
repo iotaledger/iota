@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 export function IOTABridgeLogo(props: React.SVGProps<SVGSVGElement>): React.JSX.Element {
     return (
         <svg

@@ -143,7 +143,7 @@ export function MenuList() {
             title: 'Expand View',
             icon: <Expand />,
             onClick: () => openInNewTab('/tokens'),
-            hidden: extensionType != ExtensionViewType.Popup,
+            hidden: extensionType !== ExtensionViewType.Popup,
         },
         ...(SidePanel.isSupported()
             ? [
