@@ -350,6 +350,15 @@ impl DagState {
 
         let block_ref = block_header.reference();
         if self.contains_block_header(&block_ref) {
+            self.context
+                .metrics
+                .node_metrics
+                .core_skipped_headers
+                .with_label_values(&[
+                    self.context.authority_hostname(block_ref.author),
+                    source.as_str(),
+                ])
+                .inc();
             return;
         }
 

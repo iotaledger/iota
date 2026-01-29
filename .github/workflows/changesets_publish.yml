@@ -70,11 +70,7 @@ jobs:
 
       - name: Publish packages
         run: |
-          if [ "${{ github.event.inputs.create_snapshot }}" = "true" ]; then
-            pnpm changeset publish --snapshot --tag ${{ github.event.inputs.tag }}
-          else
-            pnpm changeset publish
-          fi
+          pnpm changeset publish --tag ${{ github.event.inputs.tag }}
 
       - name: Create summary
         run: |

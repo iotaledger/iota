@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useActiveAddress } from '_hooks';
+import { useAccounts, useActiveAddress } from '_hooks';
 import { Loading } from '_components';
 import {
     useGetAllCoins,
@@ -46,6 +46,7 @@ export function SendTokenForm({
     selectedCoinsQuery,
     onNext,
 }: SendTokenFormProps) {
+    const { data: accounts } = useAccounts();
     const activeAddress = useActiveAddress();
     const coinMetadata = useCoinMetadata(coinType);
     const { values, isValid, isSubmitting, setFieldValue } =
@@ -105,6 +106,23 @@ export function SendTokenForm({
         }
     }, [iotaBalance, isBuildingTransaction, isSendCoinErrored, sendCoinError]);
 
+    const isSendingToIotaName = values.resolvedAddress ? values.resolvedAddress.length > 0 : false;
+
+    const matchedAccountWithNickname = isSendingToIotaName
+        ? accounts?.find(({ nickname }) => {
+              if (!nickname || !values.to || values.to === '@') return;
+
+              return denormalizeIotaName(values.to) === denormalizeIotaName(nickname);
+          })
+        : undefined;
+
+    const showNicknameWarning =
+        matchedAccountWithNickname && matchedAccountWithNickname.address !== values.resolvedAddress;
+
+    function denormalizeIotaName(name: string) {
+        return name.replace(/^@/, '').replace(/\.iota$/i, '');
+    }
+
     return (
         <Loading
             loading={
@@ -130,6 +148,15 @@ export function SendTokenForm({
                             {...RECEIVING_ADDRESS_FIELD_IDS}
                             placeholder="Enter Address"
                         />
+                        {showNicknameWarning && (
+                            <InfoBox
+                                type={InfoBoxType.Warning}
+                                title="Sending to an IOTA Name"
+                                supportingText={`You have an account named '${matchedAccountWithNickname.nickname}' but you are sending to the IOTA Name '${values.to}'. These are different addresses. Please verify the recipient’s address before sending.`}
+                                style={InfoBoxStyle.Elevated}
+                                icon={<Exclamation />}
+                            />
+                        )}
                     </div>
                 </Form>
 
