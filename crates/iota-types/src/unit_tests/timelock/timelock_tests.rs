@@ -3,7 +3,7 @@
 
 use std::str::FromStr;
 
-use iota_stardust_sdk::types::block::{
+use iota_stardust_types::block::{
     address::Ed25519Address,
     output::{
         BasicOutput, BasicOutputBuilder, NativeToken, OutputId, TokenId,

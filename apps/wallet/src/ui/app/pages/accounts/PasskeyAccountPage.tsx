@@ -67,17 +67,17 @@ export function PasskeyAccountPage() {
 
     const RADIO_BUTTONS: React.ComponentProps<typeof RadioButton>[] = [
         {
-            label: 'Cross-Platform',
+            label: 'Externally',
             name: 'cross-platform',
             supportingLabel: '(Recommended)',
-            body: 'Use a passkey saved in your phone (Google or Apple account) or store it in a hardware key like a YubiKey.',
+            body: 'On your phone via a password manager (e.g. Apple / Google Passwords, LastPass) or on a hardware security key (e.g., YubiKey).',
             isChecked: authenticatorAttachment === 'cross-platform',
             onChange: () => setAuthenticatorAttachment('cross-platform'),
         },
         {
-            label: 'Platform',
+            label: 'Locally',
             name: 'platform',
-            body: 'Store a passkey on this device. Use built-in Face ID, Touch ID, or Windows Hello.',
+            body: 'On this device using its built-in password manager.',
             isChecked: authenticatorAttachment === 'platform',
             onChange: () => setAuthenticatorAttachment('platform'),
         },
@@ -100,7 +100,7 @@ export function PasskeyAccountPage() {
                         autoFocus
                         type={InputType.Text}
                         label="Account Nickname"
-                        placeholder="Enter a nickname"
+                        placeholder="Give your account a name"
                         errorMessage={errors.username?.message}
                         {...register('username', { shouldUnregister: true })}
                         name="username"
@@ -110,7 +110,7 @@ export function PasskeyAccountPage() {
                     {isCreateFlow ? (
                         <div className="flex flex-col gap-md text-start">
                             <p className="pt-xxs text-label-md text-iota-neutral-30 dark:text-iota-neutral-80">
-                                Passkey Storage and Access
+                                How would you like to store your passkey?
                             </p>
 
                             {RADIO_BUTTONS.map((radio) => (
@@ -140,7 +140,7 @@ export function PasskeyAccountPage() {
                         <Button
                             type={ButtonType.Primary}
                             disabled={isSubmitting || !isValid}
-                            text={isCreateFlow ? 'Create' : 'Restore'}
+                            text={isCreateFlow ? 'Continue' : 'Restore'}
                             fullWidth
                             htmlType={ButtonHtmlType.Submit}
                         />
