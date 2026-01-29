@@ -406,6 +406,30 @@ impl CommitObserver {
     ) -> Vec<CommitIndex> {
         if last_processed_commit_index >= last_commit_index {
             info!("No unprocessed commits to resend");
+
+            // Even though there are no commits to resend, we still need to initialize
+            // last_solid_subdag_base so that fast sync knows where to start fetching.
+            if last_processed_commit_index > 0 {
+                if let Some(commit) = self
+                    .store
+                    .scan_commits(
+                        (last_processed_commit_index..=last_processed_commit_index).into(),
+                    )
+                    .ok()
+                    .and_then(|commits| commits.into_iter().next())
+                {
+                    let pending_subdag =
+                        load_pending_subdag_from_store(self.store.as_ref(), commit, vec![]);
+                    info!(
+                        "Initializing last_solid_subdag_base from last processed commit {}",
+                        last_processed_commit_index
+                    );
+                    self.dag_state
+                        .write()
+                        .update_last_solid_subdag_base(pending_subdag.base);
+                }
+            }
+
             return Vec::new();
         }
 

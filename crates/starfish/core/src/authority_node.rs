@@ -24,7 +24,6 @@ use crate::{
     core::{Core, CoreSignals},
     core_thread::{ChannelCoreThreadDispatcher, CoreThreadHandle},
     dag_state::DagState,
-    error::ConsensusResult,
     header_synchronizer::{HeaderSynchronizer, HeaderSynchronizerHandle},
     leader_schedule::LeaderSchedule,
     leader_timeout::{LeaderTimeoutTask, LeaderTimeoutTaskHandle},

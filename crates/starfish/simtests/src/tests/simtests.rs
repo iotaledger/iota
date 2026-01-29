@@ -161,7 +161,7 @@ mod test {
 
         // Timing constants
         const LONG_DURATION_SECS: u64 = 120;
-        const SHORT_DURATION_SECS: u64 = 2;
+        const SHORT_DURATION_SECS: u64 = 5;
         const TXN_SUBMIT_INTERVAL_MS: u64 = 10;
         const PRE_FINAL_RUN_SECS: u64 = 2 * LONG_DURATION_SECS;
         const FINAL_SETTLEMENT_WAIT_SECS: u64 = LONG_DURATION_SECS;
