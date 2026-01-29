@@ -314,6 +314,7 @@ fn coins(objects: &[Object]) -> impl Iterator<Item = (&Address, Coin)> + '_ {
             Owner::Address(address) => address,
             Owner::Object(object_id) => object_id.as_address(),
             Owner::Shared { .. } | Owner::Immutable => return None,
+            _ => unreachable!("a new enum variant was added and needs to be handled"),
         };
         let coin = Coin::try_from_object(object).ok()?;
         Some((address, coin))
@@ -413,7 +414,9 @@ pub(super) fn simulate_transaction_impl(
     parameters: &SimulateTransactionQueryParameters,
     transaction: Transaction,
 ) -> Result<TransactionSimulationResponse> {
-    let Transaction::V1(transaction) = transaction;
+    let Transaction::V1(transaction) = transaction else {
+        unreachable!("a new enum variant was added and needs to be handled");
+    };
 
     if transaction.gas_payment.objects.is_empty() {
         return Err(RestError::new(

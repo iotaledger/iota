@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 18;
+pub const MAX_PROTOCOL_VERSION: u64 = 19;
 
 // Record history of protocol version allocations here:
 //
@@ -93,6 +93,18 @@ pub const MAX_PROTOCOL_VERSION: u64 = 18;
 //             Starfish.
 // Version 17: Increase the committee size to 100 on all networks.
 // Version 18: Enable passkey authentication support in testnet.
+// Version 19: Enable congestion limit overshoot in the gas price feedback
+//             mechanism on devnet.
+//             Enable a separate gas price feedback mechanism for transactions
+//             using randomness on devnet.
+//             Allow metadata bytes indexed with a dedicated key in compiled
+//             Move modules in devnet.
+//             Enable publishing package metadata v1 along with the package in
+//             devnet.
+//             Enable Move-based account authentication in devnet.
+//             Increase the base cost for transfer receive object in devnet.
+//             Switch consensus protocol to Starfish in testnet.
+//             Enable passkey authentication support in mainnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -368,9 +380,32 @@ struct FeatureFlags {
     // leader's ancestors, and (3) enforces checkpoint timestamps are non-decreasing.
     #[serde(skip_serializing_if = "is_false")]
     consensus_median_timestamp_with_checkpoint_enforcement: bool,
+
     // If true, then transactions are committed only for traversed headers
     #[serde(skip_serializing_if = "is_false")]
     consensus_commit_transactions_only_for_traversed_headers: bool,
+
+    // To enable/disable congestion limit overshoot in the gas price feedback mechanism.
+    #[serde(skip_serializing_if = "is_false")]
+    congestion_limit_overshoot_in_gas_price_feedback_mechanism: bool,
+
+    // To enable/disable a separate gas price feedback mechanism for transactions using
+    // randomness.
+    #[serde(skip_serializing_if = "is_false")]
+    separate_gas_price_feedback_mechanism_for_randomness: bool,
+
+    // If true, it allows metadata bytes indexed with a dedicated key in a compiled module.
+    // This flag is used to provide the correct MoveVM configuration for clients.
+    #[serde(skip_serializing_if = "is_false")]
+    metadata_in_module_bytes: bool,
+
+    // If true, enables publishing package metadata v1 along with the package.
+    #[serde(skip_serializing_if = "is_false")]
+    publish_package_metadata: bool,
+
+    // If true, enables the authentication of account using Move code.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_move_authentication: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -578,6 +613,9 @@ pub struct ProtocolConfig {
 
     /// Maximum gas budget in NANOS that a transaction can use.
     max_tx_gas: Option<u64>,
+
+    /// Maximum gas budget in NANOS that a authentication transaction can use.
+    max_auth_gas: Option<u64>,
 
     /// Maximum amount of the proposed gas price in NANOS (defined in the
     /// transaction).
@@ -1440,9 +1478,36 @@ impl ProtocolConfig {
         );
         res
     }
+
     pub fn consensus_commit_transactions_only_for_traversed_headers(&self) -> bool {
         self.feature_flags
             .consensus_commit_transactions_only_for_traversed_headers
+    }
+
+    /// Check whether congestion limit overshoot is enabled in the gas price
+    /// feedback mechanism.
+    pub fn congestion_limit_overshoot_in_gas_price_feedback_mechanism(&self) -> bool {
+        self.feature_flags
+            .congestion_limit_overshoot_in_gas_price_feedback_mechanism
+    }
+
+    /// Check whether a separate gas price feedback mechanism is used for
+    /// randomness transactions.
+    pub fn separate_gas_price_feedback_mechanism_for_randomness(&self) -> bool {
+        self.feature_flags
+            .separate_gas_price_feedback_mechanism_for_randomness
+    }
+
+    pub fn metadata_in_module_bytes(&self) -> bool {
+        self.feature_flags.metadata_in_module_bytes
+    }
+
+    pub fn publish_package_metadata(&self) -> bool {
+        self.feature_flags.publish_package_metadata
+    }
+
+    pub fn enable_move_authentication(&self) -> bool {
+        self.feature_flags.enable_move_authentication
     }
 }
 
@@ -1621,6 +1686,8 @@ impl ProtocolConfig {
             max_move_object_size: Some(250 * 1024),
             max_move_package_size: Some(100 * 1024),
             max_publish_or_upgrade_per_ptb: Some(5),
+            // max gas budget for an authentication is in NANOS
+            max_auth_gas: None,
             // max gas budget is in NANOS and an absolute value 50IOTA
             max_tx_gas: Some(50_000_000_000),
             max_gas_price: Some(100_000),
@@ -2324,6 +2391,37 @@ impl ProtocolConfig {
                         cfg.feature_flags.passkey_auth = true;
                     }
                 }
+                19 => {
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable congestion limit overshoot in the gas price feedback
+                        // mechanism on devnet.
+                        cfg.feature_flags
+                            .congestion_limit_overshoot_in_gas_price_feedback_mechanism = true;
+                        // Enable a separate gas price feedback mechanism for transactions using
+                        // randomness on devnet.
+                        cfg.feature_flags
+                            .separate_gas_price_feedback_mechanism_for_randomness = true;
+                        // Enable storing metadata in module bytes and then
+                        // publishing package metadata in devnet
+                        cfg.feature_flags.metadata_in_module_bytes = true;
+                        cfg.feature_flags.publish_package_metadata = true;
+                        // Enable Move authentication in devnet
+                        cfg.feature_flags.enable_move_authentication = true;
+                        // Max auth gas budget is in NANOS and an absolute value 0.25 IOTA
+                        cfg.max_auth_gas = Some(250_000_000);
+                        // Increase the base cost for transfer receive object in devnet, since the
+                        // implementation now does check if parent is not an account.
+                        cfg.transfer_receive_object_cost_base = Some(100);
+                    }
+
+                    if chain != Chain::Mainnet {
+                        // Switch consensus protocol to Starfish in testnet.
+                        cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
+                    }
+
+                    // Enable passkey authentication support in mainnet
+                    cfg.feature_flags.passkey_auth = true;
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -2484,6 +2582,7 @@ impl ProtocolConfig {
         self.feature_flags
             .congestion_control_gas_price_feedback_mechanism = val;
     }
+
     pub fn set_select_committee_from_eligible_validators_for_testing(&mut self, val: bool) {
         self.feature_flags.select_committee_from_eligible_validators = val;
     }
@@ -2504,12 +2603,41 @@ impl ProtocolConfig {
         self.feature_flags
             .consensus_median_timestamp_with_checkpoint_enforcement = val;
     }
+
     pub fn set_consensus_commit_transactions_only_for_traversed_headers_for_testing(
         &mut self,
         val: bool,
     ) {
         self.feature_flags
             .consensus_commit_transactions_only_for_traversed_headers = val;
+    }
+
+    pub fn set_congestion_limit_overshoot_in_gas_price_feedback_mechanism_for_testing(
+        &mut self,
+        val: bool,
+    ) {
+        self.feature_flags
+            .congestion_limit_overshoot_in_gas_price_feedback_mechanism = val;
+    }
+
+    pub fn set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(
+        &mut self,
+        val: bool,
+    ) {
+        self.feature_flags
+            .separate_gas_price_feedback_mechanism_for_randomness = val;
+    }
+
+    pub fn set_metadata_in_module_bytes_for_testing(&mut self, val: bool) {
+        self.feature_flags.metadata_in_module_bytes = val;
+    }
+
+    pub fn set_publish_package_metadata_for_testing(&mut self, val: bool) {
+        self.feature_flags.publish_package_metadata = val;
+    }
+
+    pub fn set_enable_move_authentication_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_move_authentication = val;
     }
 }
 

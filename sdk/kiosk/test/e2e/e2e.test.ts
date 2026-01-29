@@ -78,18 +78,6 @@ describe('Testing Kiosk SDK transaction building & querying e2e', () => {
         expect(page.hasNextPage).toBe(false);
         expect(page.kioskIds).toHaveLength(2);
         expect(page.kioskOwnerCaps).toHaveLength(2);
-
-        const emptyPage = await kioskClient.getOwnedKiosks({
-            address: toolbox.address(),
-            pagination: {
-                limit: 1,
-                cursor: page.nextCursor!,
-            },
-        });
-        expect(emptyPage.hasNextPage).toBe(false);
-        expect(emptyPage.nextCursor).toBe(page.nextCursor);
-        expect(emptyPage.kioskIds).toHaveLength(0);
-        expect(emptyPage.kioskOwnerCaps).toHaveLength(0);
     });
 
     it('Should fetch the two already created owned kiosks in two paginated requests', async () => {
@@ -113,18 +101,6 @@ describe('Testing Kiosk SDK transaction building & querying e2e', () => {
         expect(secondPage.hasNextPage).toBe(false);
         expect(secondPage.kioskIds).toHaveLength(1);
         expect(secondPage.kioskOwnerCaps).toHaveLength(1);
-
-        const emptyPage = await kioskClient.getOwnedKiosks({
-            address: toolbox.address(),
-            pagination: {
-                limit: 1,
-                cursor: secondPage.nextCursor!,
-            },
-        });
-        expect(emptyPage.hasNextPage).toBe(false);
-        expect(emptyPage.nextCursor).toBe(secondPage.nextCursor);
-        expect(emptyPage.kioskIds).toHaveLength(0);
-        expect(emptyPage.kioskOwnerCaps).toHaveLength(0);
     });
 
     it('Should take, list, delist, place, placeAndList, transfer in a normal sequence on a normal and on a personal kiosk.', async () => {

@@ -3,7 +3,8 @@
 
 use std::str::FromStr;
 
-use iota_sdk::types::block::{
+use iota_stardust_types::block::{
+    TransactionId,
     address::{AliasAddress, Ed25519Address},
     output::{
         AliasId, BasicOutputBuilder, Feature, FoundryOutputBuilder, NativeToken, SimpleTokenScheme,
@@ -15,7 +16,6 @@ use iota_sdk::types::block::{
             TimelockUnlockCondition,
         },
     },
-    payload::transaction::TransactionId,
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
