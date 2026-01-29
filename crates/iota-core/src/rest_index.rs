@@ -410,7 +410,7 @@ impl IndexStoreTables {
         TypedStoreError,
     > {
         let lower_bound = OwnerIndexKey::new(owner, cursor.unwrap_or(ObjectID::ZERO));
-        let upper_bound = OwnerIndexKey::new(owner, ObjectID::new([u8::MAX; _]));
+        let upper_bound = OwnerIndexKey::new(owner, ObjectID::MAX);
         Ok(self
             .owner
             .safe_iter_with_bounds(Some(lower_bound), Some(upper_bound)))
@@ -425,7 +425,7 @@ impl IndexStoreTables {
         TypedStoreError,
     > {
         let lower_bound = DynamicFieldKey::new(parent, cursor.unwrap_or(ObjectID::ZERO));
-        let upper_bound = DynamicFieldKey::new(parent, ObjectID::new([u8::MAX; _]));
+        let upper_bound = DynamicFieldKey::new(parent, ObjectID::MAX);
         let iter = self
             .dynamic_field
             .safe_iter_with_bounds(Some(lower_bound), Some(upper_bound));

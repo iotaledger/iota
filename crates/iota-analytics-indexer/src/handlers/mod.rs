@@ -325,7 +325,7 @@ mod tests {
         parse_struct("$", move_struct, &mut all_structs);
         assert_eq!(
             all_structs.get("$").unwrap().object_id,
-            Some(ObjectID::from_hex("0x300")?)
+            Some(ObjectID::from_short_hex("0x300")?)
         );
         assert_eq!(
             all_structs.get("$.principal").unwrap().struct_tag,
@@ -376,7 +376,7 @@ mod tests {
         parse_struct("$", move_struct, &mut all_structs);
         assert_eq!(
             all_structs.get("$").unwrap().object_id,
-            Some(ObjectID::from_hex("0x300")?)
+            Some(ObjectID::from_short_hex("0x300")?)
         );
         assert_eq!(
             all_structs

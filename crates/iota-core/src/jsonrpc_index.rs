@@ -1305,7 +1305,7 @@ impl IndexStore {
         debug!(?object, "get_dynamic_fields");
         // The object id 0 is the smallest possible
         let iter_lower_bound = (object, cursor.unwrap_or(ObjectID::ZERO));
-        let iter_upper_bound = (object, ObjectID::new([u8::MAX; _]));
+        let iter_upper_bound = (object, ObjectID::MAX);
         Ok(self
             .tables
             .dynamic_field_index

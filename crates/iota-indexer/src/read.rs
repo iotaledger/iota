@@ -1667,7 +1667,7 @@ impl IndexerReader {
                     format!("event_type = '{formatted_struct_tag}'")
                 }
                 EventFilter::MoveEventModule { package, module } => {
-                    let package_module_prefix = format!("{}::{}", package.to_hex(), module);
+                    let package_module_prefix = format!("{}::{}", package.to_short_hex(), module);
                     format!("event_type LIKE '{package_module_prefix}::%'")
                 }
                 EventFilter::Sender(_) => {

@@ -16,6 +16,7 @@ use iota_macros::sim_test;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
+use iota_sdk_types::Address;
 use iota_types::{
     IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
     IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_PACKAGE_ID,
@@ -2107,7 +2108,7 @@ async fn test_missing_package() {
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
-    let non_existent_package = ObjectID::new([u8::MAX; _]);
+    let non_existent_package = ObjectID::MAX;
     let gas_object_ref = gas_object.compute_object_reference();
     let data = TransactionData::new_move_call(
         sender,
@@ -2210,7 +2211,7 @@ async fn test_type_argument_dependencies() {
         ident_str!("object_basics").to_owned(),
         ident_str!("generic_test").to_owned(),
         vec![TypeTag::Struct(Box::new(StructTag {
-            address: AccountAddress::new(ObjectID::new([u8::MAX; _]).into_bytes()),
+            address: AccountAddress::new(ObjectID::MAX.into_bytes()),
             module: ident_str!("object_basics").to_owned(),
             name: ident_str!("Object").to_owned(),
             type_params: vec![],
@@ -5892,7 +5893,7 @@ async fn test_function_not_found() {
     let mut builder = ProgrammableTransactionBuilder::new();
     builder
         .move_call(
-            IotaAddress::from_u16(1).into(),
+            Address::STD.into(),
             ident_str!("option").to_owned(),
             ident_str!("bad_function").to_owned(),
             vec![],
@@ -5948,7 +5949,7 @@ async fn test_arity_mismatch() {
     let mut builder = ProgrammableTransactionBuilder::new();
     builder
         .move_call(
-            IotaAddress::from_u16(1).into(),
+            Address::STD.into(),
             ident_str!("option").to_owned(),
             ident_str!("is_none").to_owned(),
             vec![TypeTag::U64],

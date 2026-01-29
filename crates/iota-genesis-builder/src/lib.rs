@@ -1217,14 +1217,12 @@ fn update_system_packages_from_objects(
         .iter()
         .filter_map(|obj| {
             let pkg = obj.data.try_as_package()?;
-            IotaAddress::from_object_id(pkg.id())
-                .is_system_package()
-                .then(|| {
-                    (
-                        pkg.id(),
-                        pkg.serialized_module_map().values().cloned().collect(),
-                    )
-                })
+            pkg.id().is_system_package().then(|| {
+                (
+                    pkg.id(),
+                    pkg.serialized_module_map().values().cloned().collect(),
+                )
+            })
         })
         .collect();
 
@@ -1584,7 +1582,7 @@ pub fn generate_genesis_system_object(
         arguments.append(&mut call_arg_arguments);
         arguments.push(system_admin_cap);
         builder.programmable_move_call(
-            IotaAddress::SYSTEM.into(),
+            ObjectID::SYSTEM_PACKAGE,
             ident_str!("genesis").to_owned(),
             ident_str!("create").to_owned(),
             vec![],

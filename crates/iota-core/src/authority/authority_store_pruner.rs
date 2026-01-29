@@ -816,7 +816,7 @@ impl AuthorityStorePruner {
     pub fn compact(perpetual_db: &Arc<AuthorityPerpetualTables>) -> Result<(), TypedStoreError> {
         perpetual_db.objects.compact_range(
             &ObjectKey(ObjectID::ZERO, SequenceNumber::MIN_VALID_INCL),
-            &ObjectKey(ObjectID::new([u8::MAX; _]), SequenceNumber::MAX_VALID_EXCL),
+            &ObjectKey(ObjectID::MAX, SequenceNumber::MAX_VALID_EXCL),
         )
     }
 }
@@ -1106,7 +1106,7 @@ mod tests {
 
         let db_path = primary_path.clone().join("perpetual");
         let start = ObjectKey(ObjectID::ZERO, SequenceNumber::MIN_VALID_INCL);
-        let end = ObjectKey(ObjectID::new([u8::MAX; _]), SequenceNumber::MAX_VALID_EXCL);
+        let end = ObjectKey(ObjectID::MAX, SequenceNumber::MAX_VALID_EXCL);
 
         perpetual_db.objects.rocksdb.flush()?;
         perpetual_db.objects.compact_range_to_bottom(&start, &end)?;

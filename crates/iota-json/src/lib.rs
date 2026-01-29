@@ -653,7 +653,7 @@ fn resolve_object_arg(idx: usize, arg: &JsonValue) -> Result<ObjectID, anyhow::E
             if !s.starts_with(HEX_PREFIX) {
                 bail!("ObjectID hex string must start with 0x.",);
             }
-            Ok(ObjectID::from_hex(&s)?)
+            Ok(ObjectID::from_short_hex(&s)?)
         }
         _ => bail!(
             "Unable to parse arg {:?} as ObjectID at pos {}. Expected {:?}-byte hex string \

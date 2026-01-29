@@ -9,7 +9,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{ObjectID, ObjectRef, SequenceNumber},
     digests::{ObjectDigest, TransactionDigest},
     event::Event,
     object::{Data, Object, Owner},
@@ -128,7 +128,7 @@ impl ExecutionResultsV1 {
                     // only applies to system packages).  All other packages can only be created,
                     // and they are left alone.
                     if self.modified_objects.contains(id) {
-                        debug_assert!(IotaAddress::from_object_id(*id).is_system_package());
+                        debug_assert!(id.is_system_package());
                         pkg.increment_version();
                     }
                 }

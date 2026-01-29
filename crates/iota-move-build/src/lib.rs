@@ -19,7 +19,7 @@ use iota_package_management::{
 };
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS, STARDUST_ADDRESS,
-    base_types::{IotaAddress, ObjectID},
+    base_types::ObjectID,
     error::{IotaError, IotaResult},
     move_package::{FnInfo, FnInfoKey, FnInfoMap, MovePackage},
 };
@@ -582,7 +582,7 @@ impl CompiledPackage {
             return false;
         };
 
-        IotaAddress::from_object_id(published_at).is_system_package()
+        published_at.is_system_package()
     }
 
     /// Checks for root modules with non-zero package addresses.  Returns an

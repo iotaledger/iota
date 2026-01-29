@@ -452,7 +452,7 @@ iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rosetta = { path = "crates/iota-rosetta" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "bc0f3fbb793c4c0b10dd25696c797ff4115e36d4", default-features = false }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "a720173caae5f34e797a857a25e82ea29c4e0605", default-features = false }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }

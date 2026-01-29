@@ -264,7 +264,7 @@ impl<'de> Deserialize<'de> for CoinID {
                 .ok_or_else(|| D::Error::custom(format!("Malformed Coin id [{s}].")))?,
         );
         let version = version.trim_start_matches(':');
-        let id = ObjectID::from_hex(id).map_err(D::Error::custom)?;
+        let id = ObjectID::from_short_hex(id).map_err(D::Error::custom)?;
         let version = SequenceNumber::from_u64(u64::from_str(version).map_err(D::Error::custom)?);
 
         Ok(Self { id, version })

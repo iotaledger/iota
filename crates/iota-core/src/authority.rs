@@ -1909,7 +1909,7 @@ impl AuthorityState {
             let mock_gas_object = Object::new_move(
                 MoveObject::new_gas_coin(
                     OBJECT_START_VERSION,
-                    ObjectID::new([u8::MAX; _]),
+                    ObjectID::MAX,
                     SIMULATION_GAS_COIN_VALUE,
                 ),
                 Owner::AddressOwner(transaction.gas_data().owner),
@@ -3922,7 +3922,7 @@ impl AuthorityState {
 
     #[instrument(level = "trace", skip_all)]
     pub fn find_publish_txn_digest(&self, package_id: ObjectID) -> IotaResult<TransactionDigest> {
-        if IotaAddress::from_object_id(package_id).is_system_package() {
+        if package_id.is_system_package() {
             return self.find_genesis_txn_digest();
         }
         Ok(self

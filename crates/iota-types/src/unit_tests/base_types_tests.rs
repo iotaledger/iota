@@ -153,9 +153,9 @@ fn test_object_id_str_lossless() {
         ObjectID::from_str("0000000000000000000000000000000000000000000000000000000000000001")
             .unwrap();
 
-    assert_eq!(id.to_short_string(false), "c0f1f95c5b1c5f0eda533eff269000",);
-    assert_eq!(id_empty.to_short_string(false), "0",);
-    assert_eq!(id_one.to_short_string(false), "1",);
+    assert_eq!(id.to_raw_short_hex(), "c0f1f95c5b1c5f0eda533eff269000",);
+    assert_eq!(id_empty.to_raw_short_hex(), "0",);
+    assert_eq!(id_one.to_raw_short_hex(), "1",);
 }
 
 #[test]
@@ -163,17 +163,19 @@ fn test_object_id_from_hex_literal() {
     let hex_literal = "0x1";
     let hex = "0000000000000000000000000000000000000000000000000000000000000001";
 
-    let obj_id_from_literal = ObjectID::from_hex(hex_literal).unwrap();
+    let obj_id_from_literal = ObjectID::from_short_hex(hex_literal).unwrap();
     let obj_id = ObjectID::from_str(hex).unwrap();
 
     assert_eq!(obj_id_from_literal, obj_id);
-    assert_eq!(hex_literal, obj_id.to_hex());
+    assert_eq!(hex_literal, obj_id.to_short_hex());
 
     // Missing '0x'
-    ObjectID::from_hex(hex).unwrap_err();
+    ObjectID::from_prefixed_short_hex(hex).unwrap_err();
     // Too long
-    ObjectID::from_hex("0x10000000000000000000000000000000000000000000000000000000000000001")
-        .unwrap_err();
+    ObjectID::from_prefixed_short_hex(
+        "0x10000000000000000000000000000000000000000000000000000000000000001",
+    )
+    .unwrap_err();
     assert_eq!(
         "0x0000000000000000000000000000000000000000000000000000000000000001",
         obj_id.to_hex()
@@ -490,7 +492,7 @@ fn next_lexicographical_digest() {
     let max = [255; 32];
     let mut input = max;
     input[31] = 254;
-    assert_eq!(Digest::from(max).next_lexicographical(), Some(Digest::ZERO));
+    assert_eq!(Digest::from(max).next_lexicographical(), None);
     assert_eq!(
         Digest::from(input).next_lexicographical(),
         Some(Digest::from(max))

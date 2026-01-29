@@ -714,7 +714,7 @@ impl std::ops::DerefMut for Object {
 impl ObjectInner {
     /// Returns true if the object is a system package.
     pub fn is_system_package(&self) -> bool {
-        self.is_package() && IotaAddress::from_object_id(self.id()).is_system_package()
+        self.is_package() && self.id().is_system_package()
     }
 
     pub fn is_immutable(&self) -> bool {
