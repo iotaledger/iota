@@ -8,7 +8,9 @@ import { getAmplitudeConsentStatus } from '@iota/core';
 
 import { ampli } from './ampli';
 
-const IS_ENABLED = process.env.NEXT_PUBLIC_BUILD_ENV == 'production';
+const IS_ENABLED =
+    process.env.NEXT_PUBLIC_BUILD_ENV === 'production' &&
+    process.env.NEXT_PUBLIC_AMPLITUDE_ENABLED === 'true';
 
 export async function initAmplitude() {
     // Check consent status to determine initial opt-out state

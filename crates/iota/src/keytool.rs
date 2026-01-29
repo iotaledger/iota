@@ -26,7 +26,7 @@ use fastcrypto::{
     encoding::{Base64, Encoding, Hex},
     hash::HashFunction,
     secp256k1::recoverable::Secp256k1Sig,
-    traits::{KeyPair, ToFromBytes},
+    traits::{KeyPair, Signer, ToFromBytes},
 };
 use iota_keys::{
     key_derive::generate_new_key,
@@ -37,11 +37,14 @@ use iota_keys::{
     keystore::{AccountKeystore, Keystore, StoredKey},
 };
 use iota_ledger::Ledger;
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_types::{
+    SenderSignedTransaction, Transaction,
+    crypto::{Intent, IntentMessage},
+};
 use iota_types::{
     base_types::IotaAddress,
     crypto::{
-        DefaultHash, EncodeDecodeBase64, IotaKeyPair, PublicKey, SignatureScheme,
+        DefaultHash, EncodeDecodeBase64, IotaKeyPair, IotaSignature, PublicKey, SignatureScheme,
         get_authority_key_pair,
     },
     error::IotaResult,
@@ -64,7 +67,7 @@ use crate::{
     key_identity::{
         KeyIdentity, get_identity_address_from_keystore, get_identity_alias_from_keystore,
     },
-    signing::{ExternalKeySource, sign_secure},
+    signing::{ExternalKeySource, SignData, sign_secure},
 };
 
 #[derive(Subcommand)]
@@ -97,6 +100,8 @@ pub enum KeyToolCommand {
         #[arg(long, default_value = "0")]
         cur_epoch: u64,
     },
+    /// Compute the digest of a transaction from its Base64 encoded bytes.
+    TxDigest { tx_bytes: String },
     /// Output the private key of the given key identity in IOTA CLI Keystore as
     /// Bech32 encoded string starting with `iotaprivkey`.
     Export {
@@ -205,6 +210,15 @@ pub enum KeyToolCommand {
         data: String,
         #[arg(long)]
         intent: Option<Intent>,
+    },
+    /// Create signature using the private key for the given address (or its
+    /// alias) in iota keystore for arbitrary data. The data is treated as hex
+    /// bytes to sign directly and not wrapped in an intent.
+    SignRaw {
+        #[arg(long)]
+        address: KeyIdentity,
+        #[arg(long)]
+        data: String,
     },
     /// Creates a signature by leveraging AWS KMS. Pass in a key-id to leverage
     /// Amazon KMS to sign a message and the base64 pubkey.
@@ -348,15 +362,19 @@ pub struct Key {
     #[serde(skip_serializing_if = "Option::is_none")]
     alias: Option<String>,
     pub(crate) iota_address: IotaAddress,
-    pub(crate) public_base64_key: String,
-    pub(crate) public_base64_key_with_flag: String,
-    key_scheme: String,
-    flag: u8,
+    source: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) public_base64_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) public_base64_key_with_flag: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    key_scheme: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    flag: Option<u8>,
     #[serde(skip_serializing_if = "Option::is_none")]
     mnemonic: Option<String>,
-    peer_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    external_source: Option<String>,
+    peer_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     derivation_path: Option<String>,
 }
@@ -408,20 +426,28 @@ pub struct SerializedSig {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SignData {
+pub struct SignRawData {
     iota_address: IotaAddress,
-    // Base64 encoded string of serialized transaction data.
-    raw_tx_data: String,
-    // Intent struct used, see [struct Intent] for field definitions.
-    intent: Intent,
-    // Base64 encoded [struct IntentMessage] consisting of (intent || message)
-    // where message can be `TransactionData` etc.
-    raw_intent_msg: String,
-    // Base64 encoded blake2b hash of the intent message, this is what the signature commits to.
-    digest: String,
+    // Hex encoded raw data that was signed.
+    raw_data: String,
+    // Base64 encoded public key.
+    public_key: String,
+    // Hex encoded public key.
+    public_key_hex: String,
+    // Hex encoded raw signature (without flag and pubkey).
+    signature_hex: String,
     // Base64 encoded `flag || signature || pubkey` for a complete
-    // serialized IOTA signature to be send for executing the transaction.
+    // serialized IOTA signature.
     iota_signature: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TxDigestOutput {
+    // Base58
+    digest: String,
+    digest_hex: String,
+    signing_digest_hex: String,
 }
 
 // Commented for now: https://github.com/iotaledger/iota/issues/1777
@@ -463,7 +489,9 @@ pub enum CommandOutput {
     MultiSigCombinePartialSig(MultiSigCombinePartialSig),
     Show(Key),
     Sign(SignData),
+    SignRaw(SignRawData),
     SignKMS(SerializedSig),
+    TxDigest(TxDigestOutput),
     UpdateAlias(AliasUpdate),
     // Commented for now: https://github.com/iotaledger/iota/issues/1777
     // ZkLoginSignAndExecuteTx(ZkLoginSignAndExecuteTx),
@@ -539,6 +567,22 @@ impl KeyToolCommand {
 
                 CommandOutput::DecodeMultiSig(output)
             }
+            KeyToolCommand::TxDigest { tx_bytes } => {
+                let tx_bytes = Base64::decode(&tx_bytes)
+                    .map_err(|e| anyhow!("Invalid base64 tx bytes: {e:?}"))?;
+                let tx = match bcs::from_bytes::<Transaction>(&tx_bytes) {
+                    Ok(tx) => tx,
+                    Err(_) => {
+                        let deserialized_tx = bcs::from_bytes::<SenderSignedTransaction>(&tx_bytes)?;
+                       deserialized_tx.0.transaction
+                    }
+                };
+                CommandOutput::TxDigest(TxDigestOutput {
+                    digest: tx.digest().to_string(),
+                    digest_hex: format!("0x{}", Hex::encode(tx.digest())),
+                    signing_digest_hex: format!("0x{}", Hex::encode(tx.signing_digest())),
+                })
+            }
             KeyToolCommand::DecodeOrVerifyTx {
                 tx_bytes,
                 sig,
@@ -585,6 +629,9 @@ impl KeyToolCommand {
 
                         CommandOutput::Export(key)
                     }
+                    StoredKey::Account(_) => {
+                        bail!("Cannot export: account addresses are not backed by private keys");
+                    }
                     StoredKey::External { source, .. } => {
                         bail!("Cannot export external keys from {source}");
                     }
@@ -606,13 +653,13 @@ impl KeyToolCommand {
                     CommandOutput::Generate(Key {
                         alias: None,
                         iota_address,
-                        public_base64_key: kp.public().encode_base64(),
-                        public_base64_key_with_flag,
-                        key_scheme: key_scheme.to_string(),
-                        flag: SignatureScheme::BLS12381.flag(),
+                        source: "keypair".to_string(),
+                        public_base64_key: Some(kp.public().encode_base64()),
+                        public_base64_key_with_flag: Some(public_base64_key_with_flag),
+                        key_scheme: Some(key_scheme.to_string()),
+                        flag: Some(SignatureScheme::BLS12381.flag()),
                         mnemonic: None,
                         peer_id: None,
-                        external_source: None,
                         derivation_path: None,
                     })
                 }
@@ -764,13 +811,13 @@ impl KeyToolCommand {
                             CommandOutput::Show(Key {
                                 alias: None, // alias does not get stored in key files
                                 iota_address: (keypair.public()).into(),
-                                public_base64_key,
-                                public_base64_key_with_flag,
-                                key_scheme: SignatureScheme::BLS12381.to_string(),
-                                flag: SignatureScheme::BLS12381.flag(),
+                                source: "keypair".to_string(),
+                                public_base64_key: Some(public_base64_key),
+                                public_base64_key_with_flag: Some(public_base64_key_with_flag),
+                                key_scheme: Some(SignatureScheme::BLS12381.to_string()),
+                                flag: Some(SignatureScheme::BLS12381.flag()),
                                 peer_id: None,
                                 mnemonic: None,
-                                external_source: None,
                                 derivation_path: None,
                             })
                         }
@@ -807,6 +854,32 @@ impl KeyToolCommand {
                     raw_intent_msg,
                     digest: Base64::encode(digest),
                     iota_signature: iota_signature.encode_base64(),
+                })
+            }
+            KeyToolCommand::SignRaw {
+                address,
+                data,
+            } => {
+                let address = get_identity_address_from_keystore(address, keystore)?;
+                let bytes = Hex::decode(&data).map_err(|e| anyhow!("Invalid hex data: {e:?}"))?;
+                let stored = keystore.get_key(&address)?;
+                let ikp = match stored {
+                    StoredKey::KeyPair(kp) => kp,
+                    _ => bail!("Not a keypair"),
+                };
+                let signature = ikp.sign(&bytes);
+                let iota_signature = signature.encode_base64();
+                let public_key = ikp.public().encode_base64();
+                let public_key_hex = Hex::encode_with_format(ikp.public().as_ref());
+                let signature_hex = Hex::encode_with_format(signature.signature_bytes());
+
+                CommandOutput::SignRaw(SignRawData {
+                    iota_address: address,
+                    raw_data: data,
+                    public_key,
+                    public_key_hex,
+                    signature_hex,
+                    iota_signature,
                 })
             }
             KeyToolCommand::SignKMS {
@@ -1236,18 +1309,34 @@ impl From<IotaKeyPair> for Key {
 
 impl From<&StoredKey> for Key {
     fn from(stored: &StoredKey) -> Self {
-        let pk = stored.public();
-        Self {
-            alias: None, // this is retrieved later
-            iota_address: stored.address(),
-            public_base64_key: Base64::encode(pk.as_ref()),
-            public_base64_key_with_flag: pk.encode_base64(),
-            key_scheme: pk.scheme().to_string(),
-            mnemonic: None,
-            flag: pk.flag(),
-            peer_id: anemo_styling(&pk),
-            external_source: stored.external_source(),
-            derivation_path: stored.derivation_path().map(|d| d.to_string()),
+        if matches!(stored, StoredKey::Account { .. }) {
+            Self {
+                alias: None, // this is retrieved later
+                iota_address: stored.address(),
+                source: stored.source().to_string(),
+                public_base64_key: None,
+                public_base64_key_with_flag: None,
+                key_scheme: None,
+                mnemonic: None,
+                flag: None,
+                peer_id: None,
+                derivation_path: None,
+            }
+        } else {
+            let pk = stored.public();
+
+            Self {
+                alias: None, // this is retrieved later
+                iota_address: stored.address(),
+                source: stored.source().to_string(),
+                public_base64_key: Some(Base64::encode(pk.as_ref())),
+                public_base64_key_with_flag: Some(pk.encode_base64()),
+                key_scheme: Some(pk.scheme().to_string()),
+                mnemonic: None,
+                flag: Some(pk.flag()),
+                peer_id: anemo_styling(&pk),
+                derivation_path: stored.derivation_path().map(|d| d.to_string()),
+            }
         }
     }
 }

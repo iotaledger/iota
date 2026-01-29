@@ -3,12 +3,10 @@
 
 import { MILLISECONDS_PER_HOUR } from '@iota/core/constants/time.constants';
 import {
-    mockedVestingTimelockedStakedObjectsWithDynamicDate,
     MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS,
     MOCKED_VESTING_TIMELOCKED_STAKED_OBJECTS,
     SUPPLY_INCREASE_STAKER_VESTING_DURATION,
     SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR,
-    mockedSupplyIncreaseVestingTimelockedObjectsWithDynamicDate,
 } from '../../constants';
 import { SupplyIncreaseUserType, SupplyIncreaseVestingPayout } from '../../interfaces';
 import { isTimelockedObject } from '../timelock';
@@ -20,6 +18,10 @@ import {
     getSupplyIncreaseVestingUserType,
 } from './vesting';
 import { formatDelegatedTimelockedStake } from '@iota/core/utils/formatDelegatedTimelockedStake';
+import {
+    mockedSupplyIncreaseVestingTimelockedObjectsWithDynamicDate,
+    mockedVestingTimelockedStakedObjectsWithDynamicDate,
+} from './vesting.constants';
 
 const MOCKED_CURRENT_EPOCH_TIMESTAMP = Date.now() + MILLISECONDS_PER_HOUR * 6; // 6 hours later
 

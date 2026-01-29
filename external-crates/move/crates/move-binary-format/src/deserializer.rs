@@ -572,7 +572,9 @@ fn build_common_tables(
                 check_table_size!(constant_pool, *constant_pool_max);
             }
             TableType::METADATA => {
-                if binary.check_no_extraneous_bytes() || binary.version() < VERSION_5 {
+                if !binary.check_iota_metadata_bytes() && binary.check_no_extraneous_bytes()
+                    || binary.version() < VERSION_5
+                {
                     return Err(
                         PartialVMError::new(StatusCode::MALFORMED).with_message(format!(
                             "metadata declarations not applicable in bytecode version {}",
@@ -580,8 +582,21 @@ fn build_common_tables(
                         )),
                     );
                 }
-                load_metadata(binary, table, common.get_metadata())?;
-                // we do not read metadata, nothing to check
+                let metadata = common.get_metadata();
+                load_metadata(binary, table, metadata)?;
+                // only in the case of check_iota_metadata_bytes we read
+                // metadata and check
+                if binary.check_iota_metadata_bytes() {
+                    check_table_size!(metadata, 1);
+                    if metadata[0].key != IOTA_METADATA_KEY {
+                        return Err(PartialVMError::new(StatusCode::MALFORMED).with_message(
+                            format!(
+                                "metadata declaration is using the {:?} key instead of the dedicated iota key",
+                                metadata[0].key
+                            ),
+                        ));
+                    }
+                }
             }
             TableType::IDENTIFIERS => {
                 let identifiers = common.get_identifiers();
@@ -2211,6 +2226,10 @@ impl<'a, 'b> VersionedBinary<'a, 'b> {
 
     fn check_no_extraneous_bytes(&self) -> bool {
         self.binary_config.check_no_extraneous_bytes
+    }
+
+    fn check_iota_metadata_bytes(&self) -> bool {
+        self.binary_config.check_iota_metadata_bytes
     }
 }
 

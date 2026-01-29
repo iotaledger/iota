@@ -25,6 +25,7 @@ use iota_types::{
     object::Object,
 };
 use itertools::{Either, Itertools, izip};
+use prometheus::Registry;
 
 use crate::{
     errors::{IndexerError, IndexerResult},
@@ -33,6 +34,7 @@ use crate::{
         convert::{
             HistoricalFallbackCheckpoint, HistoricalFallbackEvents, HistoricalFallbackTransaction,
         },
+        metrics::HistoricalFallbackClientMetrics,
     },
     models::{
         checkpoints::StoredCheckpoint, objects::StoredObject, transactions::StoredTransaction,
@@ -62,8 +64,21 @@ pub(crate) struct HistoricalFallbackReader {
 }
 
 impl HistoricalFallbackReader {
-    pub fn new(rest_kv_url: &str, package_resolver: PackageResolver) -> IndexerResult<Self> {
-        let client = HttpRestKVClient::new(rest_kv_url)?;
+    pub fn new(
+        rest_kv_url: &str,
+        cache_size: u64,
+        package_resolver: PackageResolver,
+        fallback_kv_multi_fetch_batch_size: usize,
+        fallback_kv_concurrent_fetches: usize,
+        registry: &Registry,
+    ) -> IndexerResult<Self> {
+        let client = HttpRestKVClient::new(
+            rest_kv_url,
+            cache_size,
+            fallback_kv_multi_fetch_batch_size,
+            fallback_kv_concurrent_fetches,
+            HistoricalFallbackClientMetrics::new(registry),
+        )?;
         Ok(Self {
             client,
             package_resolver,
@@ -267,7 +282,7 @@ impl HistoricalFallbackReader {
         };
 
         HistoricalFallbackEvents::new(events, summary)
-            .into_iota_events(self.package_resolver.clone(), tx_digest)
+            .into_iota_events(&self.package_resolver, tx_digest)
             .await
     }
 

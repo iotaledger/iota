@@ -5,10 +5,27 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { faucet, split_coin } from './utils/localnet';
 
-async function search(page: Page, text: string) {
+async function search(page: Page, text: string, resultLabel?: string) {
     const searchbar = page.getByPlaceholder('Search');
     await searchbar.fill(text);
-    const result = page.getByRole('button').getByText(text).first();
+
+    let result;
+
+    if (resultLabel === 'checkpoint') {
+        result = page
+            .getByRole('button')
+            .filter({ hasText: /^Checkpoint\s+\d+/i })
+            .first();
+    } else if (resultLabel === 'epoch') {
+        result = page
+            .getByRole('button')
+            .filter({ hasText: /^Epoch\s+\d+/i })
+            .first();
+    } else {
+        result = page.getByRole('button').filter({ hasText: text }).first();
+    }
+
+    await expect(result).toBeVisible();
     await result.click();
 }
 
@@ -37,4 +54,16 @@ test('can search for transaction', async ({ page }) => {
     await page.goto('/');
     await search(page, txid);
     await expect(page).toHaveURL(`/txblock/${txid}`);
+});
+
+test('can search for checkpoint by sequence number', async ({ page }) => {
+    await page.goto('/');
+    await search(page, '1', 'checkpoint');
+    await expect(page).toHaveURL('/checkpoint/1');
+});
+
+test('can search for epoch by sequence number', async ({ page }) => {
+    await page.goto('/');
+    await search(page, '1', 'epoch');
+    await expect(page).toHaveURL(/\/epoch\/\d+$/);
 });

@@ -3,7 +3,7 @@
 
 use std::str::FromStr;
 
-use iota_sdk::types::block::{
+use iota_stardust_types::block::{
     address::{Address, AliasAddress, Ed25519Address},
     output::{
         AliasId, AliasOutput as StardustAlias, AliasOutputBuilder, Feature, FoundryOutputBuilder,

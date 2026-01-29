@@ -12,6 +12,7 @@ use crate::{
     command_line::compiler::FullyCompiledProgram,
     diag,
     diagnostics::DiagnosticReporter,
+    editions::Flavor,
     parser::{
         ast::{self as P, DocComment, NamePath, PathEntry},
         filter::{FilterContext, filter_program},
@@ -68,7 +69,12 @@ impl FilterContext for Context<'_> {
     // * If it is a library and is annotated as #[test]
     fn should_remove_by_attributes(&mut self, attrs: &[P::Attributes]) -> bool {
         use known_attributes::TestingAttribute;
-        let flattened_attrs: Vec<_> = attrs.iter().flat_map(test_attributes).collect();
+        let current_package = self.current_package;
+        let flavor = self.env.flavor(current_package);
+        let flattened_attrs: Vec<_> = attrs
+            .iter()
+            .flat_map(|attrs| test_attributes(attrs, flavor))
+            .collect();
         let is_test_only = flattened_attrs.iter().any(|attr| {
             matches!(
                 attr.1,
@@ -235,13 +241,16 @@ fn create_test_poison(mloc: Loc) -> P::ModuleMember {
     })
 }
 
-fn test_attributes(attrs: &P::Attributes) -> Vec<(Loc, known_attributes::TestingAttribute)> {
+fn test_attributes(
+    attrs: &P::Attributes,
+    flavor: Flavor,
+) -> Vec<(Loc, known_attributes::TestingAttribute)> {
     use known_attributes::KnownAttribute;
     attrs
         .value
         .iter()
-        .filter_map(
-            |attr| match KnownAttribute::resolve(attr.value.attribute_name().value)? {
+        .filter_map(|attr| {
+            match KnownAttribute::resolve(attr.value.attribute_name().value, flavor)? {
                 KnownAttribute::Testing(test_attr) => Some((attr.loc, test_attr)),
                 KnownAttribute::Verification(_)
                 | KnownAttribute::Native(_)
@@ -250,8 +259,9 @@ fn test_attributes(attrs: &P::Attributes) -> Vec<(Loc, known_attributes::Testing
                 | KnownAttribute::External(_)
                 | KnownAttribute::Syntax(_)
                 | KnownAttribute::Error(_)
-                | KnownAttribute::Deprecation(_) => None,
-            },
-        )
+                | KnownAttribute::Deprecation(_)
+                | KnownAttribute::Flavored(_) => None,
+            }
+        })
         .collect()
 }

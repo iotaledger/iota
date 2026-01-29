@@ -89,12 +89,6 @@ task 15, lines 58-80:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasPreviousPage": false,
-        "hasNextPage": false,
-        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjpmYWxzZX0",
-        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6ZmFsc2V9"
-      },
       "edges": [
         {
           "cursor": "eyJjIjozLCJ0IjoyLCJpIjpmYWxzZX0",
@@ -151,7 +145,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6ZmFsc2V9",
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjpmYWxzZX0"
+      }
     }
   }
 }
@@ -161,12 +161,6 @@ task 16, lines 83-107:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": false,
-        "startCursor": "eyJjIjozLCJ0IjoxMCwiaSI6dHJ1ZX0",
-        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6dHJ1ZX0"
-      },
       "edges": [
         {
           "cursor": "eyJjIjozLCJ0IjoxMSwiaSI6ZmFsc2V9",
@@ -179,7 +173,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6dHJ1ZX0",
+        "hasNextPage": false,
+        "hasPreviousPage": true,
+        "startCursor": "eyJjIjozLCJ0IjoxMCwiaSI6dHJ1ZX0"
+      }
     }
   }
 }
@@ -189,12 +189,6 @@ task 17, lines 109-133:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": true,
-        "startCursor": "eyJjIjo0LCJ0Ijo5LCJpIjp0cnVlfQ",
-        "endCursor": "eyJjIjo0LCJ0Ijo5LCJpIjp0cnVlfQ"
-      },
       "edges": [
         {
           "cursor": "eyJjIjo0LCJ0Ijo5LCJpIjpmYWxzZX0",
@@ -207,7 +201,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjo0LCJ0Ijo5LCJpIjp0cnVlfQ",
+        "hasNextPage": true,
+        "hasPreviousPage": true,
+        "startCursor": "eyJjIjo0LCJ0Ijo5LCJpIjp0cnVlfQ"
+      }
     }
   }
 }
@@ -217,12 +217,6 @@ task 18, lines 135-159:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": true,
-        "startCursor": "eyJjIjo0LCJ0Ijo2LCJpIjp0cnVlfQ",
-        "endCursor": "eyJjIjo0LCJ0Ijo4LCJpIjp0cnVlfQ"
-      },
       "edges": [
         {
           "cursor": "eyJjIjo0LCJ0Ijo3LCJpIjpmYWxzZX0",
@@ -235,7 +229,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjo0LCJ0Ijo4LCJpIjp0cnVlfQ",
+        "hasNextPage": true,
+        "hasPreviousPage": true,
+        "startCursor": "eyJjIjo0LCJ0Ijo2LCJpIjp0cnVlfQ"
+      }
     }
   }
 }
@@ -245,13 +245,13 @@ task 19, lines 161-185:
 Response: {
   "data": {
     "transactionBlocks": {
+      "edges": [],
       "pageInfo": {
-        "hasPreviousPage": true,
+        "endCursor": "eyJjIjo0LCJ0Ijo1LCJpIjp0cnVlfQ",
         "hasNextPage": true,
-        "startCursor": "eyJjIjo0LCJ0Ijo0LCJpIjp0cnVlfQ",
-        "endCursor": "eyJjIjo0LCJ0Ijo1LCJpIjp0cnVlfQ"
-      },
-      "edges": []
+        "hasPreviousPage": true,
+        "startCursor": "eyJjIjo0LCJ0Ijo0LCJpIjp0cnVlfQ"
+      }
     }
   }
 }
@@ -261,12 +261,6 @@ task 20, lines 187-210:
 Response: {
   "data": {
     "transactionBlocks": {
-      "pageInfo": {
-        "hasPreviousPage": false,
-        "hasNextPage": true,
-        "startCursor": "eyJjIjo0LCJ0IjoyLCJpIjp0cnVlfQ",
-        "endCursor": "eyJjIjo0LCJ0IjozLCJpIjp0cnVlfQ"
-      },
       "edges": [
         {
           "cursor": "eyJjIjo0LCJ0IjoyLCJpIjpmYWxzZX0",
@@ -290,7 +284,13 @@ Response: {
             }
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjo0LCJ0IjozLCJpIjp0cnVlfQ",
+        "hasNextPage": true,
+        "hasPreviousPage": false,
+        "startCursor": "eyJjIjo0LCJ0IjoyLCJpIjp0cnVlfQ"
+      }
     }
   }
 }
@@ -300,13 +300,13 @@ task 21, lines 213-236:
 Response: {
   "data": {
     "transactionBlocks": {
+      "edges": [],
       "pageInfo": {
-        "hasPreviousPage": false,
+        "endCursor": null,
         "hasNextPage": false,
-        "startCursor": null,
-        "endCursor": null
-      },
-      "edges": []
+        "hasPreviousPage": false,
+        "startCursor": null
+      }
     }
   }
 }

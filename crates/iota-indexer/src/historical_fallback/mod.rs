@@ -10,4 +10,5 @@
 
 pub(crate) mod client;
 pub(crate) mod convert;
+pub(crate) mod metrics;
 pub(crate) mod reader;

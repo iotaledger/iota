@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, bail, ensure};
-use iota_sdk::types::block::output as stardust;
+use iota_stardust_types::block::output as stardust;
 use iota_types::{
     TypeTag,
     balance::Balance,

@@ -75,6 +75,7 @@
 /crates/iota-snapshot/ @iotaledger/node
 /crates/iota-source-validation/ @iotaledger/vm-language
 /crates/iota-source-validation-service/ @iotaledger/vm-language
+/crates/iota-stardust-types/ @iotaledger/dev-tools
 /crates/iota-storage/ @iotaledger/node
 /crates/iota-surfer/ @iotaledger/node
 /crates/iota-swarm/ @iotaledger/node
@@ -103,6 +104,7 @@
 # Docker
 /docker/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin
 /dev-tools/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin
+/dev-tools/iota-private-network/fuzzer/ @iotaledger/consensus
 /dev-tools/iota-indexer-monitoring/ @iotaledger/infrastructure
 /dev-tools/iota-data-ingestion/ @iotaledger/infrastructure
 /dev-tools/iota-rest-kv/ @iotaledger/infrastructure

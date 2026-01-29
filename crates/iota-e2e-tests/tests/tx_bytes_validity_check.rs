@@ -95,7 +95,7 @@ async fn above_version_9_it_fails() {
         assert_eq!(error_object.code(), ErrorCode::InvalidParams.code());
         assert_eq!(
             error_object.message(),
-            "Error checking transaction input objects: InvalidIdentifier { error: \"_\" }"
+            "Error checking transaction input objects: Invalid identifier found in the transaction: _"
                 .to_string()
         );
     } else {
