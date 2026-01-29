@@ -20,14 +20,14 @@
 //! let digest: Digest = todo!();
 //! let txs = client.get_transactions(&[digest], None).await?;
 //! if let Some(tx) = txs.first() {
-//!     println!("Transaction digest: {:?}", tx.digest);
+//!     println!("Transaction digest: {:?}", tx.digest()?);
 //! }
 //!
 //! // Get an object (None = use default field mask)
 //! let object_id: ObjectId = "0x2".parse()?;
 //! let objects = client.get_objects(&[(object_id, None)], None).await?;
 //! if let Some(object) = objects.first() {
-//!     println!("Object version: {:?}", object.version());
+//!     println!("Object version: {:?}", object.object_reference()?.version());
 //! }
 //! # Ok(())
 //! # }

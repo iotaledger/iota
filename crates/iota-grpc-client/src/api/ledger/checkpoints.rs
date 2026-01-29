@@ -200,9 +200,11 @@ impl Client {
     /// # use futures::StreamExt;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::connect("http://localhost:9000").await?;
-    /// let mut stream = client
-    ///     .stream_checkpoints(Some(0), Some(10), None, None, None)
-    ///     .await?;
+    /// let mut stream = Box::pin(
+    ///     client
+    ///         .stream_checkpoints(Some(0), Some(10), None, None, None)
+    ///         .await?,
+    /// );
     ///
     /// while let Some(checkpoint) = stream.next().await {
     ///     let checkpoint = checkpoint?;

@@ -19,11 +19,7 @@ impl Client {
     /// Get objects by their IDs and optional versions.
     ///
     /// Returns proto `Object` types. Use `obj.object()` to convert to SDK
-    /// type, or use `obj.object_id()` / `obj.version()` to access
-    /// metadata without full deserialization.
-    ///
-    /// Each tuple contains `(ObjectId, Option<Version>)`. If version is None,
-    /// the latest version is returned.
+    /// type, or use `obj.object_reference()` to get the object reference.
     ///
     /// Results are returned in the same order as the input refs.
     /// If an object is not found, an error is returned.
@@ -50,12 +46,11 @@ impl Client {
     /// let objs = client.get_objects(&[(object_id, None)], None).await?;
     ///
     /// for obj in objs {
-    ///     // Lazy conversion - only deserialize if needed
+    ///     // Convert proto object to SDK type
     ///     let sdk_obj = obj.object()?;
-    ///
-    ///     // Or access metadata without full deserialization
-    ///     let id = obj.object_id()?;
-    ///     let version = obj.version();
+    ///     println!("Got object ID: {:?}", sdk_obj.object_id());
+    ///     let obj_ref = obj.object_reference()?;
+    ///     println!("Object version: {:?}", obj_ref.version());
     /// }
     /// # Ok(())
     /// # }
