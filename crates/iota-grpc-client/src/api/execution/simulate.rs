@@ -30,10 +30,10 @@ impl Client {
     ///
     /// Returns proto `ExecutedTransaction`. Use lazy conversion methods to
     /// extract data:
-    /// - `result.sdk_effects()` - Get simulated effects
-    /// - `result.sdk_events()` - Get simulated events (if available)
-    /// - `result.sdk_input_objects()` - Get input objects (if requested)
-    /// - `result.sdk_output_objects()` - Get output objects (if requested)
+    /// - `result.effects()` - Get simulated effects
+    /// - `result.events()` - Get simulated events (if available)
+    /// - `result.input_objects()` - Get input objects (if requested)
+    /// - `result.output_objects()` - Get output objects (if requested)
     ///
     /// # Field Mask
     ///
@@ -61,10 +61,10 @@ impl Client {
     /// let result = client.simulate_transaction(tx, false, None).await?;
     ///
     /// // Lazy conversion - only deserialize what you need
-    /// let effects = result.sdk_effects()?;
+    /// let effects = result.effects()?;
     /// println!("Simulation status: {:?}", effects.status());
     ///
-    /// if let Some(output_objs) = result.sdk_output_objects()? {
+    /// if let Some(output_objs) = result.output_objects()? {
     ///     println!("Would create {} objects", output_objs.len());
     /// }
     /// # Ok(())

@@ -19,7 +19,7 @@ async fn execute_transaction_transfer() {
         .expect("Failed to execute transaction");
 
     let effects = result
-        .sdk_effects()
+        .effects()
         .expect("Failed to get SDK effects from execution result");
 
     assert!(
@@ -59,7 +59,7 @@ async fn execute_transaction_minimal_mask() {
     assert!(
         is_success(
             result
-                .sdk_effects()
+                .effects()
                 .expect("Failed to get SDK effects from execution result with minimal mask")
                 .status()
         ),
@@ -123,7 +123,7 @@ async fn execute_transaction_idempotency() {
     assert!(
         is_success(
             result1
-                .sdk_effects()
+                .effects()
                 .expect("Failed to get SDK effects from first execution result")
                 .status()
         ),
@@ -141,7 +141,7 @@ async fn execute_transaction_idempotency() {
     assert!(
         is_success(
             result2
-                .sdk_effects()
+                .effects()
                 .expect("Failed to get SDK effects from re-execution result")
                 .status()
         ),

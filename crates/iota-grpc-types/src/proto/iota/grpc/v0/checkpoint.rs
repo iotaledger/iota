@@ -5,6 +5,8 @@
 include!("../../../generated/iota.grpc.v0.checkpoint.rs");
 include!("../../../generated/iota.grpc.v0.checkpoint.field_info.rs");
 
+use serde::{Deserialize, Serialize};
+
 use crate::{field::FieldMaskTree, merge::Merge, proto::TryFromProtoError, v0::bcs::BcsData};
 
 // CheckpointSummary
@@ -44,12 +46,12 @@ impl Merge<&CheckpointSummary> for CheckpointSummary {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let CheckpointSummary { bcs, digest } = source;
 
-        if mask.contains(Self::BCS_FIELD.name) {
-            self.bcs = bcs.clone();
-        }
-
         if mask.contains(Self::DIGEST_FIELD.name) {
             self.digest = digest.clone();
+        }
+
+        if mask.contains(Self::BCS_FIELD.name) {
+            self.bcs = bcs.clone();
         }
 
         Ok(())
@@ -70,10 +72,9 @@ impl TryFrom<&CheckpointSummary> for iota_sdk_types::CheckpointSummary {
     }
 }
 
-// Lazy conversion methods for CheckpointSummary
 impl CheckpointSummary {
     /// Deserialize checkpoint summary.
-    pub fn deserialize(&self) -> Result<iota_sdk_types::CheckpointSummary, TryFromProtoError> {
+    pub fn summary(&self) -> Result<iota_sdk_types::CheckpointSummary, TryFromProtoError> {
         self.try_into()
     }
 }
@@ -142,10 +143,9 @@ impl TryFrom<&CheckpointContents> for iota_sdk_types::CheckpointContents {
     }
 }
 
-// Lazy conversion methods for CheckpointContents
 impl CheckpointContents {
     /// Deserialize checkpoint contents.
-    pub fn deserialize(&self) -> Result<iota_sdk_types::CheckpointContents, TryFromProtoError> {
+    pub fn contents(&self) -> Result<iota_sdk_types::CheckpointContents, TryFromProtoError> {
         self.try_into()
     }
 }
@@ -238,36 +238,30 @@ impl Merge<&Checkpoint> for Checkpoint {
     }
 }
 
-// Lazy conversion methods for Checkpoint
 impl Checkpoint {
     /// Deserialize checkpoint summary.
-    pub fn sdk_summary(
-        &self,
-    ) -> Result<Option<iota_sdk_types::CheckpointSummary>, TryFromProtoError> {
+    pub fn summary(&self) -> Result<Option<iota_sdk_types::CheckpointSummary>, TryFromProtoError> {
         self.summary
             .as_ref()
-            .map(|s| {
-                s.deserialize()
-                    .map_err(|e| e.nested(Self::SUMMARY_FIELD.name))
-            })
+            .map(|s| s.summary().map_err(|e| e.nested(Self::SUMMARY_FIELD.name)))
             .transpose()
     }
 
     /// Deserialize checkpoint contents.
-    pub fn sdk_contents(
+    pub fn contents(
         &self,
     ) -> Result<Option<iota_sdk_types::CheckpointContents>, TryFromProtoError> {
         self.contents
             .as_ref()
             .map(|c| {
-                c.deserialize()
+                c.contents()
                     .map_err(|e| e.nested(Self::CONTENTS_FIELD.name))
             })
             .transpose()
     }
 
     /// Deserialize validator signature.
-    pub fn sdk_signature(
+    pub fn signature(
         &self,
     ) -> Result<Option<iota_sdk_types::ValidatorAggregatedSignature>, TryFromProtoError> {
         self.signature
@@ -281,8 +275,6 @@ impl Checkpoint {
             .transpose()
     }
 }
-
-use serde::{Deserialize, Serialize};
 
 /// Forward-compatible versioned checkpoint summary for gRPC streaming.
 #[derive(Serialize, Deserialize, Clone, Debug)]

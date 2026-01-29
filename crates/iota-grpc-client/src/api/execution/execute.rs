@@ -26,10 +26,10 @@ impl Client {
     ///
     /// Returns proto `ExecutedTransaction`. Use lazy conversion methods to
     /// extract data:
-    /// - `result.sdk_effects()` - Get transaction effects
-    /// - `result.sdk_events()` - Get transaction events (if available)
-    /// - `result.sdk_input_objects()` - Get input objects (if requested)
-    /// - `result.sdk_output_objects()` - Get output objects (if requested)
+    /// - `result.effects()` - Get transaction effects
+    /// - `result.events()` - Get transaction events (if available)
+    /// - `result.input_objects()` - Get input objects (if requested)
+    /// - `result.output_objects()` - Get output objects (if requested)
     ///
     /// # Field Mask
     ///
@@ -57,10 +57,10 @@ impl Client {
     /// let result = client.execute_transaction(signed_tx, None).await?;
     ///
     /// // Lazy conversion - only deserialize what you need
-    /// let effects = result.sdk_effects()?;
+    /// let effects = result.effects()?;
     /// println!("Status: {:?}", effects.status());
     ///
-    /// if let Some(events) = result.sdk_events()? {
+    /// if let Some(events) = result.events()? {
     ///     println!("Events: {}", events.0.len());
     /// }
     /// # Ok(())

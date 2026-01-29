@@ -21,7 +21,11 @@ async fn get_objects_scenarios() {
         .expect("Failed to get object");
     assert_eq!(objects.len(), 1, "Expected exactly one object");
     assert!(
-        objects[0].version().expect("Failed to get object version") > 0,
+        objects[0]
+            .object_reference()
+            .expect("Failed to get object reference")
+            .version()
+            > 0,
         "Object should have a valid version"
     );
 
@@ -42,12 +46,16 @@ async fn get_objects_scenarios() {
     );
     for object in &objects {
         assert!(
-            object.version().expect("Failed to get object version") > 0,
+            object
+                .object_reference()
+                .expect("Failed to get object reference")
+                .version()
+                > 0,
             "Each object should have a valid version"
         );
         assert!(
             object
-                .deserialize()
+                .object()
                 .expect("Failed to deserialize object")
                 .data
                 .is_package(),
@@ -68,15 +76,19 @@ async fn get_objects_scenarios() {
         .get_objects(&[(object_id, None)], None)
         .await
         .expect("Failed to get object");
-    let current_version = objects[0].version().expect("Failed to get object version");
+    let current_version = objects[0]
+        .object_reference()
+        .expect("Failed to get object reference")
+        .version();
     let objects_with_version = client
         .get_objects(&[(object_id, Some(current_version))], None)
         .await
         .expect("Failed to get object with specific version");
     assert_eq!(
         objects_with_version[0]
-            .version()
-            .expect("Failed to get object version"),
+            .object_reference()
+            .expect("Failed to get object reference")
+            .version(),
         current_version,
         "Object version should match requested version"
     );

@@ -54,7 +54,7 @@ impl Merge<iota_types::signature::GenericSignature> for UserSignature {
 
         let sdk_signature: iota_sdk_types::UserSignature = source
             .try_into()
-            .map_err(|e| format!("Failed to convert SDK signature: {}", e))?;
+            .map_err(|e| format!("Failed to convert signature: {}", e))?;
 
         Merge::merge(self, sdk_signature, mask)
     }
@@ -165,7 +165,7 @@ impl TryFrom<&UserSignatures> for Vec<iota_sdk_types::UserSignature> {
 // Convenience methods for UserSignatures (delegate to TryFrom)
 impl UserSignatures {
     /// Deserialize all user signatures.
-    pub fn deserialize(
+    pub fn signatures(
         &self,
     ) -> Result<Vec<iota_sdk_types::UserSignature>, crate::proto::TryFromProtoError> {
         self.try_into()

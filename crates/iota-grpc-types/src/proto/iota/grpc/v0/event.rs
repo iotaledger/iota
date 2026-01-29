@@ -116,7 +116,7 @@ impl TryFrom<&grpc_event::Events> for Vec<iota_sdk_types::Event> {
 // Convenience methods for Event (delegate to TryFrom)
 impl grpc_event::Event {
     /// Deserialize the event from BCS.
-    pub fn deserialize(&self) -> Result<iota_sdk_types::Event, crate::proto::TryFromProtoError> {
+    pub fn event(&self) -> Result<iota_sdk_types::Event, crate::proto::TryFromProtoError> {
         self.try_into()
     }
 }
@@ -124,9 +124,7 @@ impl grpc_event::Event {
 // Convenience methods for Events (delegate to TryFrom)
 impl grpc_event::Events {
     /// Deserialize all events.
-    pub fn deserialize(
-        &self,
-    ) -> Result<Vec<iota_sdk_types::Event>, crate::proto::TryFromProtoError> {
+    pub fn events(&self) -> Result<Vec<iota_sdk_types::Event>, crate::proto::TryFromProtoError> {
         self.try_into()
     }
 }

@@ -25,7 +25,7 @@ async fn simulate_transaction_scenarios() {
             .unwrap_or_else(|e| panic!("Failed to simulate transaction in {mode_name} mode: {e}"));
 
         let effects = result
-            .sdk_effects()
+            .effects()
             .expect("Failed to get effects from simulation result");
         assert!(
             is_success(effects.status()),
@@ -47,7 +47,7 @@ async fn simulate_transaction_scenarios() {
         .expect("Failed to simulate transaction with minimal mask");
 
     let effects = result
-        .sdk_effects()
+        .effects()
         .expect("Failed to get effects from simulation result with minimal mask");
 
     assert!(
@@ -95,7 +95,7 @@ async fn simulate_transaction_scenarios() {
         .expect("Simulation should succeed at RPC level");
 
     let effects = response
-        .sdk_effects()
+        .effects()
         .expect("Failed to get SDK effects from simulation result");
 
     assert!(

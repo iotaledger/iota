@@ -19,11 +19,11 @@ impl Client {
     ///
     /// Returns proto `ExecutedTransaction` for each transaction. Use the lazy
     /// conversion methods to extract data:
-    /// - `tx.sdk_digest()` - Get transaction digest
-    /// - `tx.sdk_transaction()` - Deserialize transaction
-    /// - `tx.sdk_signatures()` - Deserialize signatures
-    /// - `tx.sdk_effects()` - Deserialize effects
-    /// - `tx.sdk_events()` - Deserialize events (if available)
+    /// - `tx.digest()` - Get transaction digest
+    /// - `tx.transaction()` - Deserialize transaction
+    /// - `tx.signatures()` - Deserialize signatures
+    /// - `tx.effects()` - Deserialize effects
+    /// - `tx.events()` - Deserialize events (if available)
     /// - `tx.checkpoint_sequence_number()` - Get checkpoint number
     /// - `tx.timestamp_ms()` - Get timestamp
     ///
@@ -59,7 +59,7 @@ impl Client {
     ///
     /// for tx in txs {
     ///     // Lazy conversion - only deserialize what you need
-    ///     let effects = tx.sdk_effects()?;
+    ///     let effects = tx.effects()?;
     ///     println!("Status: {:?}", effects.status());
     ///
     ///     // Access raw proto fields without deserialization

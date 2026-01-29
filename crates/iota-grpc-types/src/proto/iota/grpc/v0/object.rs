@@ -151,7 +151,7 @@ impl TryFrom<&Object> for iota_sdk_types::Object {
     }
 }
 
-impl TryFrom<&Object> for iota_sdk_types::ObjectId {
+impl TryFrom<&Object> for iota_sdk_types::ObjectReference {
     type Error = crate::proto::TryFromProtoError;
 
     fn try_from(value: &Object) -> Result<Self, Self::Error> {
@@ -164,9 +164,30 @@ impl TryFrom<&Object> for iota_sdk_types::ObjectId {
                 .nested(Object::REFERENCE_FIELD.name)
         })?;
 
-        object_id_str.parse().map_err(|e| {
+        let object_id = object_id_str.parse().map_err(|e| {
             crate::proto::TryFromProtoError::invalid(ObjectReference::OBJECT_ID_FIELD.name, e)
                 .nested(Object::REFERENCE_FIELD.name)
+        })?;
+
+        let version = reference.version.ok_or_else(|| {
+            crate::proto::TryFromProtoError::missing(ObjectReference::VERSION_FIELD.name)
+                .nested(Object::REFERENCE_FIELD.name)
+        })?;
+
+        let digest = reference.digest.as_ref().ok_or_else(|| {
+            crate::proto::TryFromProtoError::missing(ObjectReference::DIGEST_FIELD.name)
+                .nested(Object::REFERENCE_FIELD.name)
+        })?;
+
+        let digest = digest.try_into().map_err(|e| {
+            crate::proto::TryFromProtoError::invalid(ObjectReference::DIGEST_FIELD.name, e)
+                .nested(Object::REFERENCE_FIELD.name)
+        })?;
+
+        Ok(iota_sdk_types::ObjectReference {
+            object_id,
+            version,
+            digest,
         })
     }
 }
@@ -192,30 +213,22 @@ impl TryFrom<&Objects> for Vec<iota_sdk_types::Object> {
 
 // Convenience methods for Object (delegate to TryFrom)
 impl Object {
-    /// Deserialize the object from BCS.
-    pub fn deserialize(&self) -> Result<iota_sdk_types::Object, crate::proto::TryFromProtoError> {
-        self.try_into()
-    }
-
-    /// Get object ID from reference (no BCS deserialization).
-    pub fn sdk_object_id(
+    pub fn object_reference(
         &self,
-    ) -> Result<iota_sdk_types::ObjectId, crate::proto::TryFromProtoError> {
+    ) -> Result<iota_sdk_types::ObjectReference, crate::proto::TryFromProtoError> {
         self.try_into()
     }
 
-    /// Get object version from reference.
-    pub fn version(&self) -> Option<u64> {
-        self.reference.as_ref().and_then(|r| r.version)
+    /// Deserialize the object from BCS.
+    pub fn object(&self) -> Result<iota_sdk_types::Object, crate::proto::TryFromProtoError> {
+        self.try_into()
     }
 }
 
 // Convenience methods for Objects (delegate to TryFrom)
 impl Objects {
     /// Deserialize all objects from BCS.
-    pub fn deserialize(
-        &self,
-    ) -> Result<Vec<iota_sdk_types::Object>, crate::proto::TryFromProtoError> {
+    pub fn objects(&self) -> Result<Vec<iota_sdk_types::Object>, crate::proto::TryFromProtoError> {
         self.try_into()
     }
 }

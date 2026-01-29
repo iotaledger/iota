@@ -28,14 +28,14 @@ async fn get_transactions_scenarios() {
     assert_eq!(transactions.len(), 1, "Expected exactly one transaction");
     assert_eq!(
         transactions[0]
-            .sdk_digest()
+            .digest()
             .unwrap_or_else(|_| panic!("Failed to get digest from transaction")),
         digest1,
         "Transaction digest should match requested digest"
     );
     assert!(
         !transactions[0]
-            .sdk_signatures()
+            .signatures()
             .expect("Failed to get signatures from transaction")
             .is_empty(),
         "Signatures should be present"
@@ -49,14 +49,14 @@ async fn get_transactions_scenarios() {
     assert_eq!(transactions.len(), 2, "Expected exactly two transactions");
     assert_eq!(
         transactions[0]
-            .sdk_digest()
+            .digest()
             .expect("Failed to get digest from first transaction"),
         digest1,
         "First transaction should match first digest"
     );
     assert_eq!(
         transactions[1]
-            .sdk_digest()
+            .digest()
             .expect("Failed to get digest from second transaction"),
         digest2,
         "Second transaction should match second digest"
@@ -92,20 +92,19 @@ async fn get_transactions_scenarios() {
         .expect("Failed to get transaction");
     let tx = &transactions[0];
     assert_eq!(
-        tx.sdk_digest()
-            .expect("Failed to get digest from transaction"),
+        tx.digest().expect("Failed to get digest from transaction"),
         digest1,
         "Digest should match"
     );
     assert!(
-        !tx.sdk_signatures()
+        !tx.signatures()
             .expect("Failed to get signatures from transaction")
             .is_empty(),
         "Signatures should be present"
     );
     assert!(
         is_success(
-            tx.sdk_effects()
+            tx.effects()
                 .expect("Failed to get effects from transaction")
                 .status()
         ),

@@ -97,12 +97,12 @@ impl TryFrom<&TransactionEffects> for iota_sdk_types::Digest {
 // Convenience methods for TransactionEffects (delegate to TryFrom)
 impl TransactionEffects {
     /// Get the effects digest.
-    pub fn sdk_digest(&self) -> Result<iota_sdk_types::Digest, crate::proto::TryFromProtoError> {
+    pub fn digest(&self) -> Result<iota_sdk_types::Digest, crate::proto::TryFromProtoError> {
         self.try_into()
     }
 
     /// Deserialize effects from BCS.
-    pub fn deserialize(
+    pub fn effects(
         &self,
     ) -> Result<iota_sdk_types::TransactionEffects, crate::proto::TryFromProtoError> {
         self.try_into()
@@ -212,12 +212,12 @@ impl TryFrom<&TransactionEvents> for iota_sdk_types::Digest {
 // Convenience methods for TransactionEvents (delegate to TryFrom)
 impl TransactionEvents {
     /// Get the events digest.
-    pub fn sdk_digest(&self) -> Result<iota_sdk_types::Digest, crate::proto::TryFromProtoError> {
+    pub fn digest(&self) -> Result<iota_sdk_types::Digest, crate::proto::TryFromProtoError> {
         self.try_into()
     }
 
     /// Deserialize all events from BCS.
-    pub fn deserialize(
+    pub fn events(
         &self,
     ) -> Result<iota_sdk_types::TransactionEvents, crate::proto::TryFromProtoError> {
         self.try_into()
@@ -359,27 +359,27 @@ impl Merge<&ExecutedTransaction> for ExecutedTransaction {
 // Lazy conversion methods for ExecutedTransaction
 impl ExecutedTransaction {
     /// Get the transaction digest.
-    pub fn sdk_digest(&self) -> Result<iota_sdk_types::Digest, crate::proto::TryFromProtoError> {
+    pub fn digest(&self) -> Result<iota_sdk_types::Digest, crate::proto::TryFromProtoError> {
         self.transaction
             .as_ref()
             .ok_or_else(|| crate::proto::TryFromProtoError::missing(Self::TRANSACTION_FIELD.name))?
-            .sdk_digest()
+            .digest()
             .map_err(|e| e.nested(Self::TRANSACTION_FIELD.name))
     }
 
     /// Deserialize the transaction from BCS.
-    pub fn sdk_transaction(
+    pub fn transaction(
         &self,
     ) -> Result<iota_sdk_types::Transaction, crate::proto::TryFromProtoError> {
         self.transaction
             .as_ref()
             .ok_or_else(|| crate::proto::TryFromProtoError::missing(Self::TRANSACTION_FIELD.name))?
-            .deserialize()
+            .transaction()
             .map_err(|e| e.nested(Self::TRANSACTION_FIELD.name))
     }
 
     /// Deserialize user signatures.
-    pub fn sdk_signatures(
+    pub fn signatures(
         &self,
     ) -> Result<Vec<iota_sdk_types::UserSignature>, crate::proto::TryFromProtoError> {
         let signatures_proto = self
@@ -399,26 +399,23 @@ impl ExecutedTransaction {
     }
 
     /// Deserialize transaction effects from BCS.
-    pub fn sdk_effects(
+    pub fn effects(
         &self,
     ) -> Result<iota_sdk_types::TransactionEffects, crate::proto::TryFromProtoError> {
         self.effects
             .as_ref()
             .ok_or_else(|| crate::proto::TryFromProtoError::missing(Self::EFFECTS_FIELD.name))?
-            .deserialize()
+            .effects()
             .map_err(|e| e.nested(Self::EFFECTS_FIELD.name))
     }
 
     /// Deserialize transaction events. Returns Ok(None) if not present.
-    pub fn sdk_events(
+    pub fn events(
         &self,
     ) -> Result<Option<iota_sdk_types::TransactionEvents>, crate::proto::TryFromProtoError> {
         self.events
             .as_ref()
-            .map(|ev| {
-                ev.deserialize()
-                    .map_err(|e| e.nested(Self::EVENTS_FIELD.name))
-            })
+            .map(|ev| ev.events().map_err(|e| e.nested(Self::EVENTS_FIELD.name)))
             .transpose()
     }
 
@@ -439,26 +436,26 @@ impl ExecutedTransaction {
     }
 
     /// Deserialize input objects. Returns Ok(None) if not present.
-    pub fn sdk_input_objects(
+    pub fn input_objects(
         &self,
     ) -> Result<Option<Vec<iota_sdk_types::Object>>, crate::proto::TryFromProtoError> {
         self.input_objects
             .as_ref()
             .map(|objs| {
-                objs.deserialize()
+                objs.objects()
                     .map_err(|e| e.nested(Self::INPUT_OBJECTS_FIELD.name))
             })
             .transpose()
     }
 
     /// Deserialize output objects. Returns Ok(None) if not present.
-    pub fn sdk_output_objects(
+    pub fn output_objects(
         &self,
     ) -> Result<Option<Vec<iota_sdk_types::Object>>, crate::proto::TryFromProtoError> {
         self.output_objects
             .as_ref()
             .map(|objs| {
-                objs.deserialize()
+                objs.objects()
                     .map_err(|e| e.nested(Self::OUTPUT_OBJECTS_FIELD.name))
             })
             .transpose()
@@ -546,12 +543,12 @@ impl TryFrom<&Transaction> for iota_sdk_types::Digest {
 // Convenience methods for Transaction (delegate to TryFrom)
 impl Transaction {
     /// Get the transaction digest.
-    pub fn sdk_digest(&self) -> Result<iota_sdk_types::Digest, crate::proto::TryFromProtoError> {
+    pub fn digest(&self) -> Result<iota_sdk_types::Digest, crate::proto::TryFromProtoError> {
         self.try_into()
     }
 
     /// Deserialize the transaction from BCS.
-    pub fn deserialize(
+    pub fn transaction(
         &self,
     ) -> Result<iota_sdk_types::Transaction, crate::proto::TryFromProtoError> {
         self.try_into()

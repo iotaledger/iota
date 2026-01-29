@@ -18,8 +18,8 @@ use crate::{
 impl Client {
     /// Get objects by their IDs and optional versions.
     ///
-    /// Returns proto `Object` types. Use `obj.deserialize()` to convert to SDK
-    /// type, or use `obj.sdk_object_id()` / `obj.version()` to access
+    /// Returns proto `Object` types. Use `obj.object()` to convert to SDK
+    /// type, or use `obj.object_id()` / `obj.version()` to access
     /// metadata without full deserialization.
     ///
     /// Each tuple contains `(ObjectId, Option<Version>)`. If version is None,
@@ -51,10 +51,10 @@ impl Client {
     ///
     /// for obj in objs {
     ///     // Lazy conversion - only deserialize if needed
-    ///     let sdk_obj = obj.deserialize()?;
+    ///     let sdk_obj = obj.object()?;
     ///
     ///     // Or access metadata without full deserialization
-    ///     let id = obj.sdk_object_id()?;
+    ///     let id = obj.object_id()?;
     ///     let version = obj.version();
     /// }
     /// # Ok(())
