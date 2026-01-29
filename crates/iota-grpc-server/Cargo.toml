@@ -38,4 +38,3 @@ move-core-types.workspace = true
 [dev-dependencies]
 iota-grpc-client.workspace = true
 iota-test-transaction-builder.workspace = true
-test-cluster.workspace = true

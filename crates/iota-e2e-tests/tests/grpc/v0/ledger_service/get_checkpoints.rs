@@ -103,12 +103,10 @@ async fn test_get_checkpoint() {
 async fn test_stream_checkpoints() {
     let (_cluster, client) = setup_test_cluster_and_client(None).await;
 
-    let mut stream = Box::pin(
-        client
-            .stream_checkpoints(None, Some(2), None, None, None)
-            .await
-            .unwrap(),
-    );
+    let mut stream = client
+        .stream_checkpoints(None, Some(2), None, None, None)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(120), async {
         if let Some(res) = stream.next().await {
@@ -248,18 +246,16 @@ async fn test_event_filtering() {
         .sequence_number();
 
     // Test 1: SenderFilter - should receive only events from sender_1
-    let mut sender_stream = Box::pin(
-        client
-            .stream_checkpoints(
-                Some(0),
-                Some(latest_checkpoint_seq),
-                Some("events"),
-                None,
-                Some(sender_filter),
-            )
-            .await
-            .expect("Failed to create sender events stream"),
-    );
+    let mut sender_stream = client
+        .stream_checkpoints(
+            Some(0),
+            Some(latest_checkpoint_seq),
+            Some("events"),
+            None,
+            Some(sender_filter),
+        )
+        .await
+        .expect("Failed to create sender events stream");
 
     let mut sender_events = Vec::new();
     let result = timeout(Duration::from_secs(5), async {
@@ -294,18 +290,16 @@ async fn test_event_filtering() {
     );
 
     // Test 2: MoveEventTypeFilter - should receive only NFT events
-    let mut nft_stream = Box::pin(
-        client
-            .stream_checkpoints(
-                Some(0),
-                Some(latest_checkpoint_seq),
-                Some("events"),
-                None,
-                Some(nft_filter),
-            )
-            .await
-            .expect("Failed to create NFT events stream"),
-    );
+    let mut nft_stream = client
+        .stream_checkpoints(
+            Some(0),
+            Some(latest_checkpoint_seq),
+            Some("events"),
+            None,
+            Some(nft_filter),
+        )
+        .await
+        .expect("Failed to create NFT events stream");
 
     let mut nft_events = Vec::new();
     let result = timeout(Duration::from_secs(5), async {
@@ -341,18 +335,16 @@ async fn test_event_filtering() {
     );
 
     // Test 3: AnyEventFilter - should receive sender_1 events, and all NFT events
-    let mut any_stream = Box::pin(
-        client
-            .stream_checkpoints(
-                Some(0),
-                Some(latest_checkpoint_seq),
-                Some("events"),
-                None,
-                Some(any_filter),
-            )
-            .await
-            .expect("Failed to create all events stream"),
-    );
+    let mut any_stream = client
+        .stream_checkpoints(
+            Some(0),
+            Some(latest_checkpoint_seq),
+            Some("events"),
+            None,
+            Some(any_filter),
+        )
+        .await
+        .expect("Failed to create all events stream");
 
     let mut any_events = Vec::new();
     let result = timeout(Duration::from_secs(5), async {

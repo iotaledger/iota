@@ -540,12 +540,10 @@ async fn test_start_sequence_number_only() {
 
     let range = (Some(5), None);
 
-    let mut stream = Box::pin(
-        client
-            .stream_checkpoints(range.0, range.1, None, None, None)
-            .await
-            .unwrap(),
-    );
+    let mut stream = client
+        .stream_checkpoints(range.0, range.1, None, None, None)
+        .await
+        .unwrap();
 
     let mut results = Vec::new();
 
@@ -592,12 +590,10 @@ async fn test_start_and_future_end_sequence_number() {
 
     let range = (Some(3), Some(15));
 
-    let mut stream = Box::pin(
-        client
-            .stream_checkpoints(range.0, range.1, None, None, None)
-            .await
-            .unwrap(),
-    );
+    let mut stream = client
+        .stream_checkpoints(range.0, range.1, None, None, None)
+        .await
+        .unwrap();
 
     let mut results = Vec::new();
 
@@ -639,12 +635,10 @@ async fn test_historical_end_sequence_number_only() {
 
     let range = (None, Some(4));
 
-    let mut stream = Box::pin(
-        client
-            .stream_checkpoints(range.0, range.1, None, None, None)
-            .await
-            .unwrap(),
-    );
+    let mut stream = client
+        .stream_checkpoints(range.0, range.1, None, None, None)
+        .await
+        .unwrap();
 
     let mut results = Vec::new();
 
@@ -683,12 +677,10 @@ async fn test_future_end_sequence_number_only_full() {
 
     let range = (None, Some(100));
 
-    let mut stream = Box::pin(
-        client
-            .stream_checkpoints(range.0, range.1, None, None, None)
-            .await
-            .unwrap(),
-    );
+    let mut stream = client
+        .stream_checkpoints(range.0, range.1, None, None, None)
+        .await
+        .unwrap();
 
     let mut results = Vec::new();
 
@@ -727,12 +719,10 @@ async fn test_both_indices_omitted() {
     // Subscribe to the stream after buffer is pre-filled (0..=10)
     let range = (None, None);
 
-    let mut stream = Box::pin(
-        client
-            .stream_checkpoints(range.0, range.1, None, None, None)
-            .await
-            .unwrap(),
-    );
+    let mut stream = client
+        .stream_checkpoints(range.0, range.1, None, None, None)
+        .await
+        .unwrap();
 
     // Now send new checkpoints (live) after subscribing
     spawn_checkpoint_sender(&server_handle, 11);
@@ -785,12 +775,10 @@ async fn test_historical_to_live_gap_fill() {
     // 150 from broadcast
     let range = (Some(0), None);
 
-    let mut stream = Box::pin(
-        client
-            .stream_checkpoints(range.0, range.1, None, None, None)
-            .await
-            .unwrap(),
-    );
+    let mut stream = client
+        .stream_checkpoints(range.0, range.1, None, None, None)
+        .await
+        .unwrap();
 
     // Simulate broadcast of checkpoint 150 AFTER subscribing
     let data_150 = mock_checkpoint_data(150);
@@ -864,12 +852,10 @@ async fn test_gap_fill_with_slow_client() {
     // Client: slow consumer
     let range = (Some(0), None);
 
-    let mut stream = Box::pin(
-        client
-            .stream_checkpoints(range.0, range.1, None, None, None)
-            .await
-            .unwrap(),
-    );
+    let mut stream = client
+        .stream_checkpoints(range.0, range.1, None, None, None)
+        .await
+        .unwrap();
 
     let mut results = Vec::new();
 

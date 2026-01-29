@@ -3,6 +3,8 @@
 
 //! High-level API for checkpoint queries.
 
+use std::pin::Pin;
+
 use futures::{Stream, StreamExt};
 use iota_grpc_types::v0::{
     checkpoint, event, filter as grpc_filter,
@@ -200,11 +202,9 @@ impl Client {
     /// # use futures::StreamExt;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::connect("http://localhost:9000").await?;
-    /// let mut stream = Box::pin(
-    ///     client
-    ///         .stream_checkpoints(Some(0), Some(10), None, None, None)
-    ///         .await?,
-    /// );
+    /// let mut stream = client
+    ///     .stream_checkpoints(Some(0), Some(10), None, None, None)
+    ///     .await?;
     ///
     /// while let Some(checkpoint) = stream.next().await {
     ///     let checkpoint = checkpoint?;
@@ -220,7 +220,7 @@ impl Client {
         read_mask: Option<&str>,
         transactions_filter: Option<grpc_filter::TransactionFilter>,
         events_filter: Option<grpc_filter::EventFilter>,
-    ) -> Result<impl Stream<Item = Result<CheckpointResponse>>> {
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<CheckpointResponse>> + Send>>> {
         let request = CheckpointDataStreamRequest {
             start_sequence_number,
             end_sequence_number,
@@ -233,7 +233,7 @@ impl Client {
         let mut client = self.ledger_service_client();
         let stream = client.stream_checkpoint_data(request).await?.into_inner();
 
-        Ok(Self::reassemble_checkpoint_data_stream(stream))
+        Ok(Box::pin(Self::reassemble_checkpoint_data_stream(stream)))
     }
 
     /// Reassemble a stream of checkpoint data chunks into complete checkpoints.

@@ -6493,7 +6493,6 @@ dependencies = [
  "prost-types 0.14.1",
  "serde",
  "tap",
- "test-cluster",
  "tokio",
  "tokio-stream",
  "tokio-util 0.7.12",
