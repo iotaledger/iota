@@ -219,10 +219,10 @@ impl GrpcStateReader for SimulacrumGrpcReader {
     ) -> std::pin::Pin<
         Box<dyn futures::Stream<Item = anyhow::Result<CheckpointTransaction>> + Send + '_>,
     > {
-        let transactions: Vec<anyhow::Result<CheckpointTransaction>> = checkpoint_contents
-            .iter()
-            .map(|exec_digests| {
-                self.simulacrum.with_store(|store| {
+        self.simulacrum.with_store(|store| {
+            let transactions: Vec<anyhow::Result<CheckpointTransaction>> = checkpoint_contents
+                .iter()
+                .map(|exec_digests| {
                     let verified_transaction = store
                         .get_transaction(&exec_digests.transaction)
                         .ok_or_else(|| {
@@ -255,9 +255,9 @@ impl GrpcStateReader for SimulacrumGrpcReader {
                         output_objects,
                     })
                 })
-            })
-            .collect();
+                .collect();
 
-        Box::pin(futures::stream::iter(transactions))
+            Box::pin(futures::stream::iter(transactions))
+        })
     }
 }
