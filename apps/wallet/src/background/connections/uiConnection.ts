@@ -355,7 +355,6 @@ export class UiConnection extends Connection {
 
                 this.send(createMessage({ type: 'done' }, msg.id));
             } else if (isSidepanelSetState(payload)) {
-                console.log('UPDATED', payload.open);
                 this.isSidePanel = true;
                 SidePanel._setOpen(payload.open);
                 this.send(createMessage({ type: 'done' }, id));
