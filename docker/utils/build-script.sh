@@ -49,7 +49,7 @@ if [ -z "$IMAGE_TAG" ]; then
     exit 1
 fi
 
-DOCKERFILE="$REPO_ROOT/docker/$(basename "$IMAGE_TAG")/Dockerfile"
+DOCKERFILE="$REPO_ROOT/docker/$(basename "${IMAGE_TAG%%:*}")/Dockerfile"
 
 print_step "Parse the rust toolchain version from 'rust-toolchain.toml'..."
 RUST_VERSION=$(grep -oE 'channel = "[^"]+' ${REPO_ROOT}/rust-toolchain.toml | sed 's/channel = "//')
