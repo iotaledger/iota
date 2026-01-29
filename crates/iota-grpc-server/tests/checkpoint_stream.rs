@@ -8,11 +8,8 @@ use std::{
 };
 
 use iota_config::{local_ip_utils, node::GrpcApiConfig};
-use iota_grpc_client::{LedgerClient, NodeClient};
-use iota_grpc_server::{
-    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, GrpcReader,
-    GrpcServerHandle, start_grpc_server,
-};
+use iota_grpc_client::Client;
+use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{ObjectID, random_object_ref},
@@ -29,12 +26,14 @@ use iota_types::{
 use tokio_stream::StreamExt;
 
 struct MockRestStateReader {
+    chain_identifier: iota_types::digests::ChainIdentifier,
     checkpoints: Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
     large_checkpoints: Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
 }
 impl MockRestStateReader {
     fn new_from_iter<I: Iterator<Item = u64>>(iter: I) -> Self {
         Self {
+            chain_identifier: iota_types::digests::ChainIdentifier::default(),
             checkpoints: Arc::new(Mutex::new(iter.collect())),
             large_checkpoints: Arc::new(Mutex::new(HashSet::new())),
         }
@@ -213,7 +212,7 @@ impl iota_types::storage::ReadStore for MockRestStateReader {
     }
 
     fn try_get_lowest_available_checkpoint(&self) -> iota_types::storage::error::Result<u64> {
-        unimplemented!()
+        Ok(0)
     }
 
     fn get_lowest_available_checkpoint(&self) -> u64 {
@@ -416,7 +415,7 @@ impl RestStateReader for MockRestStateReader {
     }
 
     fn get_chain_identifier(&self) -> StorageResult<iota_types::digests::ChainIdentifier> {
-        unimplemented!()
+        Ok(self.chain_identifier)
     }
 
     fn get_epoch_last_checkpoint(
@@ -450,7 +449,7 @@ async fn test_server_and_client_setup_with_large_checkpoints<
     client_max_message_size_bytes: Option<u32>,
 ) -> (
     GrpcServerHandle,
-    LedgerClient,
+    Client,
     Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
 ) {
     let mock = Arc::new(MockRestStateReader::new_from_iter(checkpoint_range));
@@ -476,7 +475,7 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
     client_max_message_size_bytes: Option<u32>,
 ) -> (
     GrpcServerHandle,
-    CheckpointClient,
+    Client,
     Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
 ) {
     let mock = mock_state_reader.unwrap_or(Arc::new(MockRestStateReader::new_from_iter(
@@ -484,7 +483,10 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
     )));
     let checkpoints = mock.checkpoints.clone();
     let cancellation_token = tokio_util::sync::CancellationToken::new();
-    let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(mock, None));
+    let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(
+        mock,
+        Some("test".to_string()),
+    ));
 
     let localhost = local_ip_utils::localhost_for_testing();
     let grpc_port = local_ip_utils::get_available_port(&localhost);
@@ -501,19 +503,20 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
         config,
         cancellation_token,
         iota_types::digests::ChainIdentifier::default(),
-        Some("test".to_string()),
     )
     .await
     .expect("Failed to start gRPC server");
 
     let server_addr = server_handle.address();
-    let ledger_service_client = NodeClient::connect(&format!("http://{server_addr}"), client_max_message_size_bytes)
+    let mut client = Client::connect(&format!("http://{server_addr}"))
         .await
-        .expect("Failed to connect to gRPC server")
-        .ledger_service_client()
-        .expect("Ledger service client should be available");
+        .expect("Failed to connect to gRPC server");
 
-    (server_handle, ledger_service_client, checkpoints)
+    if let Some(max_size) = client_max_message_size_bytes {
+        client = client.with_max_decoding_message_size(max_size as usize);
+    }
+
+    (server_handle, client, checkpoints)
 }
 
 // Helper function to spawn a background checkpoint sender for checkpoint data
@@ -524,7 +527,7 @@ fn spawn_checkpoint_sender(server_handle: &GrpcServerHandle, start_seq: u64) {
         let mut seq = start_seq;
         loop {
             let data = mock_checkpoint_data(seq);
-            let _ = data_broadcaster.send(&data);
+            data_broadcaster.send_traced(&data);
             seq += 1;
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
@@ -533,81 +536,46 @@ fn spawn_checkpoint_sender(server_handle: &GrpcServerHandle, start_seq: u64) {
 
 #[tokio::test]
 async fn test_start_sequence_number_only() {
-    let (server_handle, mut client, _) =
-        test_server_and_client_setup(0..=10, |_| {}, None, None).await;
+    let (server_handle, client, _) = test_server_and_client_setup(0..=10, |_| {}, None, None).await;
 
     let range = (Some(5), None);
 
-    let mut checkpoint_summaries_stream = Box::pin(
+    let mut stream = Box::pin(
         client
-            .stream_checkpoint_summaries(range.0, range.1)
+            .stream_checkpoints(range.0, range.1, None, None, None)
             .await
             .unwrap(),
     );
 
-    let mut checkpoints_stream =
-        Box::pin(client.stream_checkpoints(range.0, range.1).await.unwrap());
-
-    let mut results_summaries = Vec::new();
-    let mut results_checkpoints = Vec::new();
+    let mut results = Vec::new();
 
     // Start the checkpoint sender after we've subscribed to the stream
     spawn_checkpoint_sender(&server_handle, 11);
 
     tokio::time::timeout(Duration::from_secs(10), async {
-        let mut summaries_stream_done = false;
-        let mut checkpoints_stream_done = false;
-
-        while !summaries_stream_done || !checkpoints_stream_done {
-            tokio::select! {
-                res = checkpoint_summaries_stream.next(), if !summaries_stream_done => {
-                    match res {
-                        Some(Ok(summary)) => {
-                            let sequence_number = summary.sequence_number();
-                            // Only collect the expected range
-                            if sequence_number > 30 {
-                                summaries_stream_done = true;
-                                continue;
-                            }
-                            results_summaries.push(sequence_number);
-                        },
-                        Some(Err(status)) if status.code() == tonic::Code::NotFound => {
-                            summaries_stream_done = true;
-                        },
-                        Some(Err(e)) => panic!("Unexpected error in summaries stream: {e:?}"),
-                        None => {
-                            summaries_stream_done = true;
-                        },
+        while let Some(res) = stream.next().await {
+            match res {
+                Ok(response) => {
+                    let sequence_number = response.sequence_number();
+                    // Only collect the expected range
+                    if sequence_number > 30 {
+                        break;
                     }
-                },
-                res = checkpoints_stream.next(), if !checkpoints_stream_done => {
-                    match res {
-                        Some(Ok(checkpoint)) => {
-                            let sequence_number = checkpoint.sequence_number();
-                            // Only collect the expected range
-                            if sequence_number > 30 {
-                                checkpoints_stream_done = true;
-                                continue;
-                            }
-                            results_checkpoints.push(sequence_number);
-                        },
-                        Some(Err(status)) if status.code() == tonic::Code::NotFound => {
-                            checkpoints_stream_done = true;
-                        },
-                        Some(Err(e)) => panic!("Unexpected error in checkpoints stream: {e:?}"),
-                        None => {
-                            checkpoints_stream_done = true;
-                        },
-                    }
-                },
+                    results.push(sequence_number);
+                }
+                Err(iota_grpc_client::Error::Grpc(status))
+                    if status.code() == tonic::Code::NotFound =>
+                {
+                    break;
+                }
+                Err(e) => panic!("Unexpected error in stream: {e:?}"),
             }
         }
     })
     .await
-    .expect("waiting for streams timed out");
+    .expect("waiting for stream timed out");
 
-    assert_eq!(results_summaries, (5..=30).collect::<Vec<_>>());
-    assert_eq!(results_checkpoints, (5..=30).collect::<Vec<_>>());
+    assert_eq!(results, (5..=30).collect::<Vec<_>>());
 
     // Clean up
     server_handle
@@ -618,80 +586,45 @@ async fn test_start_sequence_number_only() {
 
 #[tokio::test]
 async fn test_start_and_future_end_sequence_number() {
-    let (server_handle, mut client, _) =
-        test_server_and_client_setup(0..=10, |_| {}, None, None).await;
+    let (server_handle, client, _) = test_server_and_client_setup(0..=10, |_| {}, None, None).await;
 
     spawn_checkpoint_sender(&server_handle, 11);
 
     let range = (Some(3), Some(15));
 
-    let mut checkpoint_summaries_stream = Box::pin(
+    let mut stream = Box::pin(
         client
-            .stream_checkpoint_summaries(range.0, range.1)
+            .stream_checkpoints(range.0, range.1, None, None, None)
             .await
             .unwrap(),
     );
 
-    let mut checkpoints_stream =
-        Box::pin(client.stream_checkpoints(range.0, range.1).await.unwrap());
-
-    let mut results_summaries = Vec::new();
-    let mut results_checkpoints = Vec::new();
+    let mut results = Vec::new();
 
     tokio::time::timeout(Duration::from_secs(10), async {
-        let mut summaries_stream_done = false;
-        let mut checkpoints_stream_done = false;
-
-        while !summaries_stream_done || !checkpoints_stream_done {
-            tokio::select! {
-                res = checkpoint_summaries_stream.next(), if !summaries_stream_done => {
-                    match res {
-                        Some(Ok(summary)) => {
-                            let sequence_number = summary.sequence_number();
-                            // Only collect the expected range
-                            if sequence_number > 7{
-                                summaries_stream_done = true;
-                                continue;
-                            }
-                            results_summaries.push(sequence_number);
-                        },
-                        Some(Err(status)) if status.code() == tonic::Code::NotFound => {
-                            summaries_stream_done = true;
-                        },
-                        Some(Err(e)) => panic!("Unexpected error in summaries stream: {e:?}"),
-                        None => {
-                            summaries_stream_done = true;
-                        },
+        while let Some(res) = stream.next().await {
+            match res {
+                Ok(response) => {
+                    let sequence_number = response.sequence_number();
+                    // Only collect the expected range
+                    if sequence_number > 7 {
+                        break;
                     }
-                },
-                res = checkpoints_stream.next(), if !checkpoints_stream_done => {
-                    match res {
-                        Some(Ok(checkpoint)) => {
-                            let sequence_number = checkpoint.sequence_number();
-                            // Only collect the expected range
-                            if sequence_number > 7 {
-                                checkpoints_stream_done = true;
-                                continue;
-                            }
-                            results_checkpoints.push(sequence_number);
-                        },
-                        Some(Err(status)) if status.code() == tonic::Code::NotFound => {
-                            checkpoints_stream_done = true;
-                        },
-                        Some(Err(e)) => panic!("Unexpected error in checkpoints stream: {e:?}"),
-                        None => {
-                            checkpoints_stream_done = true;
-                        },
-                    }
-                },
+                    results.push(sequence_number);
+                }
+                Err(iota_grpc_client::Error::Grpc(status))
+                    if status.code() == tonic::Code::NotFound =>
+                {
+                    break;
+                }
+                Err(e) => panic!("Unexpected error in stream: {e:?}"),
             }
         }
     })
     .await
-    .expect("waiting for streams timed out");
+    .expect("waiting for stream timed out");
 
-    assert_eq!(results_summaries, (3..=7).collect::<Vec<_>>());
-    assert_eq!(results_checkpoints, (3..=7).collect::<Vec<_>>());
+    assert_eq!(results, (3..=7).collect::<Vec<_>>());
 
     // Clean up
     server_handle
@@ -702,68 +635,39 @@ async fn test_start_and_future_end_sequence_number() {
 
 #[tokio::test]
 async fn test_historical_end_sequence_number_only() {
-    let (server_handle, mut client, _) =
-        test_server_and_client_setup(0..=10, |_| {}, None, None).await;
+    let (server_handle, client, _) = test_server_and_client_setup(0..=10, |_| {}, None, None).await;
 
     let range = (None, Some(4));
 
-    let mut checkpoint_summaries_stream = Box::pin(
+    let mut stream = Box::pin(
         client
-            .stream_checkpoint_summaries(range.0, range.1)
+            .stream_checkpoints(range.0, range.1, None, None, None)
             .await
             .unwrap(),
     );
 
-    let mut checkpoints_stream =
-        Box::pin(client.stream_checkpoints(range.0, range.1).await.unwrap());
-
-    let mut results_summaries = Vec::new();
-    let mut results_checkpoints = Vec::new();
+    let mut results = Vec::new();
 
     tokio::time::timeout(Duration::from_secs(10), async {
-        let mut summaries_stream_done = false;
-        let mut checkpoints_stream_done = false;
-
-        while !summaries_stream_done || !checkpoints_stream_done {
-            tokio::select! {
-                res = checkpoint_summaries_stream.next(), if !summaries_stream_done => {
-                    match res {
-                        Some(Ok(summary)) => {
-                            let sequence_number = summary.sequence_number();
-                            results_summaries.push(sequence_number);
-                        },
-                        Some(Err(status)) if status.code() == tonic::Code::NotFound => {
-                            summaries_stream_done = true;
-                        },
-                        Some(Err(e)) => panic!("Unexpected error in summaries stream: {e:?}"),
-                        None => {
-                            summaries_stream_done = true;
-                        },
-                    }
-                },
-                res = checkpoints_stream.next(), if !checkpoints_stream_done => {
-                    match res {
-                        Some(Ok(checkpoint)) => {
-                            let sequence_number = checkpoint.sequence_number();
-                            results_checkpoints.push(sequence_number);
-                        },
-                        Some(Err(status)) if status.code() == tonic::Code::NotFound => {
-                            checkpoints_stream_done = true;
-                        },
-                        Some(Err(e)) => panic!("Unexpected error in checkpoints stream: {e:?}"),
-                        None => {
-                            checkpoints_stream_done = true;
-                        },
-                    }
-                },
+        while let Some(res) = stream.next().await {
+            match res {
+                Ok(response) => {
+                    let sequence_number = response.sequence_number();
+                    results.push(sequence_number);
+                }
+                Err(iota_grpc_client::Error::Grpc(status))
+                    if status.code() == tonic::Code::NotFound =>
+                {
+                    break;
+                }
+                Err(e) => panic!("Unexpected error in stream: {e:?}"),
             }
         }
     })
     .await
-    .expect("waiting for streams timed out");
+    .expect("waiting for stream timed out");
 
-    assert_eq!(results_summaries, vec![4]);
-    assert_eq!(results_checkpoints, vec![4]);
+    assert_eq!(results, vec![4]);
 
     // Clean up
     server_handle
@@ -774,69 +678,40 @@ async fn test_historical_end_sequence_number_only() {
 
 #[tokio::test]
 async fn test_future_end_sequence_number_only_full() {
-    let (server_handle, mut client, _) =
-        test_server_and_client_setup(0..=10, |_| {}, None, None).await;
+    let (server_handle, client, _) = test_server_and_client_setup(0..=10, |_| {}, None, None).await;
     spawn_checkpoint_sender(&server_handle, 11);
 
     let range = (None, Some(100));
 
-    let mut checkpoint_summaries_stream = Box::pin(
+    let mut stream = Box::pin(
         client
-            .stream_checkpoint_summaries(range.0, range.1)
+            .stream_checkpoints(range.0, range.1, None, None, None)
             .await
             .unwrap(),
     );
 
-    let mut checkpoints_stream =
-        Box::pin(client.stream_checkpoints(range.0, range.1).await.unwrap());
-
-    let mut results_summaries = Vec::new();
-    let mut results_checkpoints = Vec::new();
+    let mut results = Vec::new();
 
     tokio::time::timeout(Duration::from_secs(10), async {
-        let mut summaries_stream_done = false;
-        let mut checkpoints_stream_done = false;
-
-        while !summaries_stream_done || !checkpoints_stream_done {
-            tokio::select! {
-                res = checkpoint_summaries_stream.next(), if !summaries_stream_done => {
-                    match res {
-                        Some(Ok(summary)) => {
-                            let sequence_number = summary.sequence_number();
-                            results_summaries.push(sequence_number);
-                        },
-                        Some(Err(status)) if status.code() == tonic::Code::NotFound => {
-                            summaries_stream_done = true;
-                        },
-                        Some(Err(e)) => panic!("Unexpected error in summaries stream: {e:?}"),
-                        None => {
-                            summaries_stream_done = true;
-                        },
-                    }
-                },
-                res = checkpoints_stream.next(), if !checkpoints_stream_done => {
-                    match res {
-                        Some(Ok(checkpoint)) => {
-                            let sequence_number = checkpoint.sequence_number();
-                            results_checkpoints.push(sequence_number);
-                        },
-                        Some(Err(status)) if status.code() == tonic::Code::NotFound => {
-                            checkpoints_stream_done = true;
-                        },
-                        Some(Err(e)) => panic!("Unexpected error in checkpoints stream: {e:?}"),
-                        None => {
-                            checkpoints_stream_done = true;
-                        },
-                    }
-                },
+        while let Some(res) = stream.next().await {
+            match res {
+                Ok(response) => {
+                    let sequence_number = response.sequence_number();
+                    results.push(sequence_number);
+                }
+                Err(iota_grpc_client::Error::Grpc(status))
+                    if status.code() == tonic::Code::NotFound =>
+                {
+                    break;
+                }
+                Err(e) => panic!("Unexpected error in stream: {e:?}"),
             }
         }
     })
     .await
-    .expect("waiting for streams timed out");
+    .expect("waiting for stream timed out");
 
-    assert_eq!(results_summaries, vec![100]);
-    assert_eq!(results_checkpoints, vec![100]);
+    assert_eq!(results, vec![100]);
 
     // Clean up
     server_handle
@@ -847,84 +722,51 @@ async fn test_future_end_sequence_number_only_full() {
 
 #[tokio::test]
 async fn test_both_indices_omitted() {
-    let (server_handle, mut client, _) =
-        test_server_and_client_setup(0..=10, |_| {}, None, None).await;
+    let (server_handle, client, _) = test_server_and_client_setup(0..=10, |_| {}, None, None).await;
 
     // Subscribe to the stream after buffer is pre-filled (0..=10)
     let range = (None, None);
 
-    let mut checkpoint_summaries_stream = Box::pin(
+    let mut stream = Box::pin(
         client
-            .stream_checkpoint_summaries(range.0, range.1)
+            .stream_checkpoints(range.0, range.1, None, None, None)
             .await
             .unwrap(),
     );
 
-    let mut checkpoints_stream =
-        Box::pin(client.stream_checkpoints(range.0, range.1).await.unwrap());
-
     // Now send new checkpoints (live) after subscribing
     spawn_checkpoint_sender(&server_handle, 11);
 
-    let mut results_summaries = Vec::new();
-    let mut results_checkpoints = Vec::new();
+    let mut results = Vec::new();
 
     // Collect enough checkpoints to see both buffered and live ones
     tokio::time::timeout(Duration::from_secs(10), async {
-        let mut summaries_stream_done = false;
-        let mut checkpoints_stream_done = false;
-        let mut summaries_stream_count = 0;
-        let mut checkpoints_stream_count = 0;
+        let mut count = 0;
 
-        while !summaries_stream_done || !checkpoints_stream_done {
-            tokio::select! {
-                res = checkpoint_summaries_stream.next(), if !summaries_stream_done => {
-                    match res {
-                        Some(Ok(summary)) => {
-                            let sequence_number = summary.sequence_number();
-                            results_summaries.push(sequence_number);
-                            summaries_stream_count += 1;
-                            if summaries_stream_count >= 15 {
-                                summaries_stream_done = true;
-                            }
-                        },
-                        Some(Err(status)) if status.code() == tonic::Code::NotFound => {
-                            summaries_stream_done = true;
-                        },
-                        Some(Err(e)) => panic!("Unexpected error in summaries stream: {e:?}"),
-                        None => {
-                            summaries_stream_done = true;
-                        },
+        while let Some(res) = stream.next().await {
+            match res {
+                Ok(response) => {
+                    let sequence_number = response.sequence_number();
+                    results.push(sequence_number);
+                    count += 1;
+                    if count >= 15 {
+                        break;
                     }
-                },
-                res = checkpoints_stream.next(), if !checkpoints_stream_done => {
-                    match res {
-                        Some(Ok(checkpoint)) => {
-                            let sequence_number = checkpoint.sequence_number();
-                            results_checkpoints.push(sequence_number);
-                            checkpoints_stream_count += 1;
-                            if checkpoints_stream_count >= 15 {
-                                checkpoints_stream_done = true;
-                            }
-                        },
-                        Some(Err(status)) if status.code() == tonic::Code::NotFound => {
-                            checkpoints_stream_done = true;
-                        },
-                        Some(Err(e)) => panic!("Unexpected error in checkpoints stream: {e:?}"),
-                        None => {
-                            checkpoints_stream_done = true;
-                        },
-                    }
-                },
+                }
+                Err(iota_grpc_client::Error::Grpc(status))
+                    if status.code() == tonic::Code::NotFound =>
+                {
+                    break;
+                }
+                Err(e) => panic!("Unexpected error in stream: {e:?}"),
             }
         }
     })
     .await
-    .expect("waiting for streams timed out");
+    .expect("waiting for stream timed out");
 
     // The first 11 should be 0..=10 (buffered), then live ones (11, 12, ...)
-    assert_eq!(&results_summaries[..], &(10..=24).collect::<Vec<_>>()[..]);
-    assert_eq!(&results_checkpoints[..], &(10..=24).collect::<Vec<_>>()[..]);
+    assert_eq!(&results[..], &(10..=24).collect::<Vec<_>>()[..]);
 
     // Clean up
     server_handle
@@ -936,83 +778,54 @@ async fn test_both_indices_omitted() {
 #[tokio::test]
 async fn test_historical_to_live_gap_fill() {
     // Simulate storage with checkpoints 0..=149 (missing 150)
-    let (server_handle, mut client, _) =
+    let (server_handle, client, _) =
         test_server_and_client_setup(0..=149, |_| {}, None, None).await;
 
     // Client requests from 0 (historical) - should get 0..=149 from storage, then
     // 150 from broadcast
     let range = (Some(0), None);
 
-    let mut checkpoint_summaries_stream = Box::pin(
+    let mut stream = Box::pin(
         client
-            .stream_checkpoint_summaries(range.0, range.1)
+            .stream_checkpoints(range.0, range.1, None, None, None)
             .await
             .unwrap(),
     );
 
-    let mut checkpoints_stream =
-        Box::pin(client.stream_checkpoints(range.0, range.1).await.unwrap());
-
     // Simulate broadcast of checkpoint 150 AFTER subscribing
     let data_150 = mock_checkpoint_data(150);
-    let _data_result = server_handle.checkpoint_data_broadcaster().send(&data_150);
+    server_handle
+        .checkpoint_data_broadcaster()
+        .send_traced(&data_150);
 
-    let mut results_summaries = Vec::new();
-    let mut results_checkpoints = Vec::new();
+    let mut results = Vec::new();
 
     // Collect up to 151 checkpoints
     tokio::time::timeout(Duration::from_secs(10), async {
-        let mut summaries_stream_done = false;
-        let mut checkpoints_stream_done = false;
-
-        while !summaries_stream_done || !checkpoints_stream_done {
-            tokio::select! {
-                res = checkpoint_summaries_stream.next(), if !summaries_stream_done => {
-                    match res {
-                        Some(Ok(summary)) => {
-                            let sequence_number = summary.sequence_number();
-                            results_summaries.push(sequence_number);
-                            if sequence_number == 150 {
-                                summaries_stream_done = true;
-                            }
-                        },
-                        Some(Err(status)) if status.code() == tonic::Code::NotFound => {
-                            summaries_stream_done = true;
-                        },
-                        Some(Err(e)) => panic!("Unexpected error in summaries stream: {e:?}"),
-                        None => {
-                            summaries_stream_done = true;
-                        },
+        while let Some(res) = stream.next().await {
+            match res {
+                Ok(response) => {
+                    let sequence_number = response.sequence_number();
+                    results.push(sequence_number);
+                    if sequence_number == 150 {
+                        break;
                     }
-                },
-                res = checkpoints_stream.next(), if !checkpoints_stream_done => {
-                    match res {
-                        Some(Ok(checkpoint)) => {
-                            let sequence_number = checkpoint.sequence_number();
-                            results_checkpoints.push(sequence_number);
-                            if sequence_number == 150 {
-                                checkpoints_stream_done = true;
-                            }
-                        },
-                        Some(Err(status)) if status.code() == tonic::Code::NotFound => {
-                            checkpoints_stream_done = true;
-                        },
-                        Some(Err(e)) => panic!("Unexpected error in checkpoints stream: {e:?}"),
-                        None => {
-                            checkpoints_stream_done = true;
-                        },
-                    }
-                },
+                }
+                Err(iota_grpc_client::Error::Grpc(status))
+                    if status.code() == tonic::Code::NotFound =>
+                {
+                    break;
+                }
+                Err(e) => panic!("Unexpected error in stream: {e:?}"),
             }
         }
     })
     .await
-    .expect("waiting for streams timed out");
+    .expect("waiting for stream timed out");
 
     // Assert we got all checkpoints 0..=150 (0..=149 from storage, 150 from
     // broadcast)
-    assert_eq!(results_summaries, (0..=150u64).collect::<Vec<_>>());
-    assert_eq!(results_checkpoints, (0..=150u64).collect::<Vec<_>>());
+    assert_eq!(results, (0..=150u64).collect::<Vec<_>>());
 
     // Clean up
     server_handle
@@ -1024,10 +837,10 @@ async fn test_historical_to_live_gap_fill() {
 #[tokio::test(flavor = "current_thread")]
 async fn test_gap_fill_with_slow_client() {
     // Pre-populate storage with checkpoints 0..=10 before spawning the producer
-    let (server_handle, mut client, checkpoints) = test_server_and_client_setup(
+    let (server_handle, client, checkpoints) = test_server_and_client_setup(
         0..=10,
         |config| {
-            config.checkpoint_service.broadcast_buffer_size = 5;
+            config.broadcast_buffer_size = 5;
         },
         None,
         None,
@@ -1042,7 +855,7 @@ async fn test_gap_fill_with_slow_client() {
             for i in 11..=200u64 {
                 let data = mock_checkpoint_data(i);
                 checkpoints.lock().unwrap().insert(i);
-                let _ = data_broadcaster.send(&data);
+                data_broadcaster.send_traced(&data);
                 tokio::time::sleep(Duration::from_millis(100)).await;
             }
         }
@@ -1051,72 +864,40 @@ async fn test_gap_fill_with_slow_client() {
     // Client: slow consumer
     let range = (Some(0), None);
 
-    let mut checkpoint_summaries_stream = Box::pin(
+    let mut stream = Box::pin(
         client
-            .stream_checkpoint_summaries(range.0, range.1)
+            .stream_checkpoints(range.0, range.1, None, None, None)
             .await
             .unwrap(),
     );
 
-    let mut checkpoints_stream =
-        Box::pin(client.stream_checkpoints(range.0, range.1).await.unwrap());
-
-    let mut results_summaries = Vec::new();
-    let mut results_checkpoints = Vec::new();
+    let mut results = Vec::new();
 
     tokio::time::timeout(Duration::from_secs(120), async {
-        let mut summaries_stream_done = false;
-        let mut checkpoints_stream_done = false;
-
-        while !summaries_stream_done || !checkpoints_stream_done {
-            tokio::select! {
-                res = checkpoint_summaries_stream.next(), if !summaries_stream_done => {
-                    match res {
-                        Some(Ok(summary)) => {
-                            let sequence_number = summary.sequence_number();
-                            results_summaries.push(sequence_number);
-                            tokio::time::sleep(Duration::from_millis(250)).await; // slow down the client
-                            if sequence_number >= 20 {
-                                summaries_stream_done = true;
-                            }
-                        },
-                        Some(Err(status)) if status.code() == tonic::Code::NotFound => {
-                            summaries_stream_done = true;
-                        },
-                        Some(Err(e)) => panic!("Unexpected error in summaries stream: {e:?}"),
-                        None => {
-                            summaries_stream_done = true;
-                        },
+        while let Some(res) = stream.next().await {
+            match res {
+                Ok(response) => {
+                    let sequence_number = response.sequence_number();
+                    results.push(sequence_number);
+                    tokio::time::sleep(Duration::from_millis(250)).await; // slow down the client
+                    if sequence_number >= 20 {
+                        break;
                     }
-                },
-                res = checkpoints_stream.next(), if !checkpoints_stream_done => {
-                    match res {
-                        Some(Ok(checkpoint)) => {
-                            let sequence_number = checkpoint.sequence_number();
-                            results_checkpoints.push(sequence_number);
-                            tokio::time::sleep(Duration::from_millis(250)).await; // slow down the client
-                            if sequence_number >= 20 {
-                                checkpoints_stream_done = true;
-                            }
-                        },
-                        Some(Err(status)) if status.code() == tonic::Code::NotFound => {
-                            checkpoints_stream_done = true;
-                        },
-                        Some(Err(e)) => panic!("Unexpected error in checkpoints stream: {e:?}"),
-                        None => {
-                            checkpoints_stream_done = true;
-                        },
-                    }
-                },
+                }
+                Err(iota_grpc_client::Error::Grpc(status))
+                    if status.code() == tonic::Code::NotFound =>
+                {
+                    break;
+                }
+                Err(e) => panic!("Unexpected error in stream: {e:?}"),
             }
         }
     })
     .await
-    .expect("waiting for streams timed out");
+    .expect("waiting for stream timed out");
 
     // Assert we got all checkpoints 0..=20
-    assert_eq!(results_summaries, (0..=20u64).collect::<Vec<_>>());
-    assert_eq!(results_checkpoints, (0..=20u64).collect::<Vec<_>>());
+    assert_eq!(results, (0..=20u64).collect::<Vec<_>>());
 
     // Clean up
     server_handle
@@ -1128,48 +909,48 @@ async fn test_gap_fill_with_slow_client() {
 #[tokio::test]
 async fn test_chunked_checkpoint_streaming() {
     // Test chunking by using a naturally large checkpoint that exceeds 4MB
-    let (server_handle, mut client, _checkpoints) =
+    let (server_handle, client, _checkpoints) =
         test_server_and_client_setup_with_large_checkpoints(
             0..=1,
             std::iter::once(0), // Mark checkpoint 0 as large
             |config| {
-                config.checkpoint_service.max_message_size_bytes = 4 * 1024 * 1024; // 4 MB
+                config.max_message_size_bytes = 4 * 1024 * 1024; // 4 MB
             },
             Some(4 * 1024 * 1024),
         )
         .await;
 
-    // Test individual checkpoint retrieval (get_checkpoint)
+    // Test individual checkpoint retrieval
     let individual_checkpoint = client
-        .get_checkpoint_data(0)
+        .get_checkpoint_by_sequence_number(0, None, None, None)
         .await
         .expect("get_checkpoint should work");
 
     // Verify the checkpoint data is correct
-    match individual_checkpoint {
-        iota_grpc_types::checkpoints::CheckpointData::V1(checkpoint_data) => {
-            assert_eq!(checkpoint_data.checkpoint_summary.sequence_number, 0);
-            assert_eq!(checkpoint_data.checkpoint_summary.epoch, 0);
-        }
-    }
+    assert_eq!(individual_checkpoint.sequence_number(), 0);
+    let summary = individual_checkpoint
+        .summary()
+        .expect("should have summary");
+    assert_eq!(summary.epoch, 0);
 
     // Test streaming checkpoints - this should also work with small chunks
-    let mut checkpoints_stream =
-        Box::pin(client.stream_checkpoints(Some(0), Some(0)).await.unwrap());
+    let mut stream = Box::pin(
+        client
+            .stream_checkpoints(Some(0), Some(0), None, None, None)
+            .await
+            .unwrap(),
+    );
 
-    let streamed_checkpoint = checkpoints_stream
+    let streamed_checkpoint = stream
         .next()
         .await
         .expect("stream should have data")
         .expect("stream should not error");
 
     // Verify the streamed checkpoint data matches
-    match streamed_checkpoint {
-        iota_grpc_types::checkpoints::CheckpointData::V1(checkpoint_data) => {
-            assert_eq!(checkpoint_data.checkpoint_summary.sequence_number, 0);
-            assert_eq!(checkpoint_data.checkpoint_summary.epoch, 0);
-        }
-    }
+    assert_eq!(streamed_checkpoint.sequence_number(), 0);
+    let streamed_summary = streamed_checkpoint.summary().expect("should have summary");
+    assert_eq!(streamed_summary.epoch, 0);
 
     // Clean up
     server_handle

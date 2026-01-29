@@ -120,6 +120,8 @@ async fn assert_get_transactions_request(
 async fn get_transactions_readmask_scenarios() {
     let test_cluster = TestClusterBuilder::new()
         .with_fullnode_enable_grpc_api(true)
+        .disable_fullnode_pruning()
+        .with_num_validators(1)
         .build()
         .await;
 
@@ -226,6 +228,8 @@ async fn get_transactions_readmask_scenarios() {
 async fn get_transactions_batch() {
     let test_cluster = TestClusterBuilder::new()
         .with_fullnode_enable_grpc_api(true)
+        .disable_fullnode_pruning()
+        .with_num_validators(1)
         .build()
         .await;
 
@@ -265,6 +269,8 @@ async fn get_transactions_batch() {
 async fn get_transactions_streaming() {
     let test_cluster = TestClusterBuilder::new()
         .with_fullnode_enable_grpc_api(true)
+        .disable_fullnode_pruning()
+        .with_num_validators(1)
         .build()
         .await;
 
@@ -339,6 +345,8 @@ async fn get_transactions_streaming() {
 async fn get_transactions_empty_request() {
     let test_cluster = TestClusterBuilder::new()
         .with_fullnode_enable_grpc_api(true)
+        .disable_fullnode_pruning()
+        .with_num_validators(1)
         .build()
         .await;
 
@@ -368,6 +376,8 @@ async fn get_transactions_empty_request() {
 async fn get_transactions_nonexistent() {
     let test_cluster = TestClusterBuilder::new()
         .with_fullnode_enable_grpc_api(true)
+        .disable_fullnode_pruning()
+        .with_num_validators(1)
         .build()
         .await;
 
@@ -445,6 +455,8 @@ async fn get_transactions_nonexistent() {
 async fn get_transactions_mixed_valid_invalid() {
     let test_cluster = TestClusterBuilder::new()
         .with_fullnode_enable_grpc_api(true)
+        .disable_fullnode_pruning()
+        .with_num_validators(1)
         .build()
         .await;
 
