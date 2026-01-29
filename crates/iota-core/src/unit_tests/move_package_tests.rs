@@ -232,7 +232,7 @@ fn test_upgrade_upgrades_linkage() {
 
 #[test]
 fn test_upgrade_linkage_digest_to_new_dep() {
-    let c_id1 = ObjectID::from_address(IotaAddress::from_u16(0xc1));
+    let c_id1 = ObjectID::from_u16(0xc1);
     let c_pkg = MovePackage::new_initial(
         &build_test_modules("Cv1"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
@@ -240,7 +240,7 @@ fn test_upgrade_linkage_digest_to_new_dep() {
     )
     .unwrap();
 
-    let c_id2 = ObjectID::from_address(IotaAddress::from_u16(0xc2));
+    let c_id2 = ObjectID::from_u16(0xc2);
     let c_new = c_pkg
         .new_upgraded(
             c_id2,
@@ -257,7 +257,7 @@ fn test_upgrade_linkage_digest_to_new_dep() {
     )
     .unwrap();
 
-    let b_id2 = ObjectID::from_address(IotaAddress::from_u16(0xb2));
+    let b_id2 = ObjectID::from_u16(0xb2);
     let b_new = b_pkg
         .new_upgraded(
             b_id2,
