@@ -79,7 +79,6 @@ use iota_types::{
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
     event::{Event, EventID, SystemEpochInfoEvent},
     executable_transaction::VerifiedExecutableTransaction,
-    execution::DynamicallyLoadedObjectMetadata,
     execution_config_utils::to_binary_config,
     execution_status::ExecutionStatus,
     fp_ensure,
@@ -5383,19 +5382,12 @@ impl AuthorityState {
                     },
                 )?;
 
-            let authenticator_function_ref_field_obj_ref =
-                authenticator_function_ref_field_obj.compute_object_reference();
-
             Ok(AuthenticatorFunctionRefForExecution::new_v1(
                 field.value,
-                authenticator_function_ref_field_obj_ref.0,
-                DynamicallyLoadedObjectMetadata {
-                    version: authenticator_function_ref_field_obj_ref.1,
-                    digest: authenticator_function_ref_field_obj_ref.2,
-                    owner: authenticator_function_ref_field_obj.owner,
-                    storage_rebate: authenticator_function_ref_field_obj.storage_rebate,
-                    previous_transaction: authenticator_function_ref_field_obj.previous_transaction,
-                },
+                authenticator_function_ref_field_obj.compute_object_reference(),
+                authenticator_function_ref_field_obj.owner,
+                authenticator_function_ref_field_obj.storage_rebate,
+                authenticator_function_ref_field_obj.previous_transaction,
             ))
         } else {
             Err(UserInputError::MoveAuthenticatorNotFound {

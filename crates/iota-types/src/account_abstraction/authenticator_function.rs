@@ -10,10 +10,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
-    base_types::ObjectID,
+    base_types::{ObjectID, ObjectRef, TransactionDigest},
     error::IotaError,
     execution::DynamicallyLoadedObjectMetadata,
-    object::{Data, Object},
+    object::{Data, Object, Owner},
 };
 
 pub const AUTHENTICATOR_FUNCTION_MODULE_NAME: &IdentStr = ident_str!("authenticator_function");
@@ -88,13 +88,21 @@ pub struct AuthenticatorFunctionRefForExecution {
 impl AuthenticatorFunctionRefForExecution {
     pub fn new_v1(
         authenticator_function_ref: AuthenticatorFunctionRefV1,
-        loaded_object_id: ObjectID,
-        loaded_object_metadata: DynamicallyLoadedObjectMetadata,
+        loaded_object_ref: ObjectRef,
+        owner: Owner,
+        storage_rebate: u64,
+        previous_transaction: TransactionDigest,
     ) -> Self {
         Self {
             authenticator_function_ref: AuthenticatorFunctionRef::V1(authenticator_function_ref),
-            loaded_object_id,
-            loaded_object_metadata,
+            loaded_object_id: loaded_object_ref.0,
+            loaded_object_metadata: DynamicallyLoadedObjectMetadata {
+                version: loaded_object_ref.1,
+                digest: loaded_object_ref.2,
+                owner,
+                storage_rebate,
+                previous_transaction,
+            },
         }
     }
 }
