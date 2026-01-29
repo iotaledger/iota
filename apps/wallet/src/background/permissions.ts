@@ -180,7 +180,7 @@ class Permissions {
             existingPermission,
         );
 
-        if (await SidePanel.isEnabled()) {
+        if (SidePanel.isOpen()) {
             await SidePanel.enableAndGoTo(Permissions.getUiUrl(pRequest.id));
             // Popup windows have random unique IDs as you might end up with multiple of them
             // In the other hand sidepanels are not windows and there is only ever one

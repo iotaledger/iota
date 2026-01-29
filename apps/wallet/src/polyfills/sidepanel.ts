@@ -4,8 +4,18 @@
 // The webextension polyfill does not support (neither plans to) the chrome `sidePanel` API, so instead we do our little abstraction here
 
 export class SidePanel {
+    private static _isOpen: boolean = false;
+
     static isSupported(): boolean {
         return 'chrome' in window;
+    }
+
+    static isOpen(): boolean {
+        return this._isOpen;
+    }
+
+    static _setOpen(open: boolean): void {
+        this._isOpen = open;
     }
 
     static async isEnabled() {

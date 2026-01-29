@@ -52,6 +52,14 @@ async function init() {
     await thunkExtras.background.init(store.dispatch);
     const { network, customRpc } = store.getState().app;
     setAttributes({ network, customRpc });
+
+    // Set up cleanup for sidepanel lifecycle
+    const extensionViewType = getAppViewType();
+    if (extensionViewType === ExtensionViewType.SidePanel) {
+        window.addEventListener('pagehide', () => {
+            thunkExtras.background.cleanup();
+        });
+    }
 }
 
 function renderApp() {

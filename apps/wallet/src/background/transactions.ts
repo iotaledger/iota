@@ -161,7 +161,7 @@ class Transactions {
         const txRequest = this.createTransactionRequest(request, origin, favIcon);
         await this.storeTransactionRequest(txRequest);
 
-        if (await SidePanel.isEnabled()) {
+        if (SidePanel.isOpen()) {
             await SidePanel.enableAndGoTo(
                 Browser.runtime.getURL('ui.html') +
                     `#/dapp/approve/${encodeURIComponent(txRequest.id)}?fetch=true`,
