@@ -3,7 +3,6 @@
 
 module abstract_account::basic_keyed_aa;
 
-use iota::auth_context::AuthContext;
 use iota::ecdsa_k1;
 use iota::ecdsa_r1;
 use iota::ed25519;
