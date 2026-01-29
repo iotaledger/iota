@@ -4,8 +4,6 @@
 //# publish
 module 0x0::account;
 
-use iota::auth_context::AuthContext;
-
 public struct Wrapped has store {
     cd: u8,
 }
