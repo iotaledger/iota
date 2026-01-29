@@ -11,7 +11,6 @@
 module test::authenticate;
 
 use simple_abstract_account::abstract_account::AbstractAccount;
-use iota::auth_context::AuthContext;
 
 #[authenticator]
 public fun authenticate(_account: &AbstractAccount, _auth_ctx: &AuthContext, _ctx: &TxContext) {}

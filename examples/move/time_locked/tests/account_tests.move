@@ -5,7 +5,6 @@
 module time_locked::account_tests;
 
 use generic_keyed_authentication::owner_public_key;
-use iota::auth_context::{Self, AuthContext};
 use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
 use iota::clock;
 use iota::hex;
