@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 const tsSDK = require('./ts-sdk');
-const iotaEvm = require('./iota-evm');
 const notarization = require("./notarization");
 const hierarchies = require('./hierarchies');
 const identity = require('./identity');
@@ -677,11 +676,6 @@ const developer = [
                 items: hierarchies,
             },
         ],
-    },
-    {
-        type: 'category',
-        label: 'IOTA EVM',
-        items: iotaEvm,
     },
     {
         type: 'html',
