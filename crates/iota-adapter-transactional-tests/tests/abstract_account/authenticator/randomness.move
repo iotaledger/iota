@@ -10,7 +10,6 @@
 //# publish --sender A --dependencies simple_abstract_account
 module test::authenticate;
 
-use iota::auth_context::AuthContext;
 use iota::random::Random;
 use simple_abstract_account::abstract_account::AbstractAccount;
 

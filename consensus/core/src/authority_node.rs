@@ -5,6 +5,7 @@
 use std::{sync::Arc, time::Instant};
 
 use consensus_config::{AuthorityIndex, Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
+use iota_common::scoring_metrics::VersionedScoringMetrics;
 use iota_protocol_config::{ConsensusNetwork, ProtocolConfig};
 use itertools::Itertools;
 use parking_lot::RwLock;
@@ -29,6 +30,7 @@ use crate::{
     metrics::initialise_metrics,
     network::{NetworkClient as _, NetworkManager, tonic_network::TonicManager},
     round_prober::{RoundProber, RoundProberHandle},
+    scoring_metrics_store::MysticetiScoringMetricsStore,
     storage::rocksdb_store::RocksDBStore,
     subscriber::Subscriber,
     synchronizer::{Synchronizer, SynchronizerHandle},
@@ -58,6 +60,7 @@ impl ConsensusAuthority {
         transaction_verifier: Arc<dyn TransactionVerifier>,
         commit_consumer: CommitConsumer,
         registry: Registry,
+        current_local_metrics_count: Arc<VersionedScoringMetrics>,
         // A counter that keeps track of how many times the authority node has been booted while
         // the binary or the component that is calling the `ConsensusAuthority` has been
         // running. It's mostly useful to make decisions on whether amnesia recovery should
@@ -79,6 +82,7 @@ impl ConsensusAuthority {
                     transaction_verifier,
                     commit_consumer,
                     registry,
+                    current_local_metrics_count,
                     boot_counter,
                 )
                 .await;
@@ -164,6 +168,7 @@ where
         transaction_verifier: Arc<dyn TransactionVerifier>,
         commit_consumer: CommitConsumer,
         registry: Registry,
+        current_local_metrics_count: Arc<VersionedScoringMetrics>,
         boot_counter: u64,
     ) -> Self {
         assert!(
@@ -184,14 +189,21 @@ where
         );
         info!("Consensus parameters: {:?}", parameters);
         info!("Consensus committee: {:?}", committee);
-        let committee_size = committee.size();
+
+        let scoring_metrics_store = Arc::new(MysticetiScoringMetricsStore::new(
+            committee.size(),
+            current_local_metrics_count,
+            &protocol_config,
+        ));
+
         let context = Arc::new(Context::new(
             epoch_start_timestamp_ms,
             own_index,
             committee,
             parameters,
             protocol_config,
-            initialise_metrics(registry, committee_size),
+            initialise_metrics(registry),
+            scoring_metrics_store,
             clock,
         ));
         let start_time = Instant::now();
@@ -465,6 +477,11 @@ mod tests {
 
         let (sender, _receiver) = unbounded_channel("consensus_output");
         let commit_consumer = CommitConsumer::new(sender, 0);
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+        let current_local_metrics_count = Arc::new(VersionedScoringMetrics::new(
+            committee.size(),
+            &protocol_config,
+        ));
 
         let authority = ConsensusAuthority::start(
             network_type,
@@ -472,13 +489,14 @@ mod tests {
             own_index,
             committee,
             parameters,
-            ProtocolConfig::get_for_max_version_UNSAFE(),
+            protocol_config,
             protocol_keypair,
             network_keypair,
             Arc::new(Clock::default()),
             Arc::new(txn_verifier),
             commit_consumer,
             registry,
+            current_local_metrics_count,
             0,
         )
         .await;
@@ -865,6 +883,10 @@ mod tests {
 
         let (sender, receiver) = unbounded_channel("consensus_output");
         let commit_consumer = CommitConsumer::new(sender, 0);
+        let current_local_metrics_count = Arc::new(VersionedScoringMetrics::new(
+            committee.size(),
+            &protocol_config,
+        ));
 
         let authority = ConsensusAuthority::start(
             network_type,
@@ -879,6 +901,7 @@ mod tests {
             Arc::new(txn_verifier),
             commit_consumer,
             registry,
+            current_local_metrics_count,
             boot_counter,
         )
         .await;
