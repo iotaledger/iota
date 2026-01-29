@@ -332,17 +332,16 @@ fn resolve_object_reference(
         digest,
     } = unresolved_object_reference;
 
-    let id = object_id;
     let (v, d) = if let Some(version) = version {
         let object = reader
             .inner()
-            .try_get_object_by_key(&id, version)?
+            .try_get_object_by_key(&object_id, version)?
             .ok_or_else(|| ObjectNotFoundError::new_with_version(object_id, version))?;
         (object.version(), object.digest())
     } else {
         let object = reader
             .inner()
-            .try_get_object(&id)?
+            .try_get_object(&object_id)?
             .ok_or_else(|| ObjectNotFoundError::new(object_id))?;
         (object.version(), object.digest())
     };
@@ -354,7 +353,7 @@ fn resolve_object_reference(
         ));
     }
 
-    Ok((id, v, d))
+    Ok((object_id, v, d))
 }
 
 fn resolve_ptb(
