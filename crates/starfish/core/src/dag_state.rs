@@ -710,6 +710,27 @@ impl DagState {
         transactions
     }
 
+    /// Returns all verified transactions or the list of missing transaction
+    /// refs. This is the canonical way to load transactions for
+    /// CommittedSubDag construction.
+    pub(crate) fn try_get_all_verified_transactions(
+        &self,
+        tx_refs: &[GenericTransactionRef],
+    ) -> Result<Vec<VerifiedTransactions>, Vec<GenericTransactionRef>> {
+        let results = self.get_verified_transactions(tx_refs);
+        let mut missing = Vec::new();
+        for (i, tx_opt) in results.iter().enumerate() {
+            if tx_opt.is_none() {
+                missing.push(tx_refs[i]);
+            }
+        }
+        if missing.is_empty() {
+            Ok(results.into_iter().map(|tx| tx.unwrap()).collect())
+        } else {
+            Err(missing)
+        }
+    }
+
     /// Gets serialized transactions by checking cached recent transactions in
     /// memory, then storage. An element is None when the corresponding
     /// transaction is not found.

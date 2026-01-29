@@ -593,8 +593,11 @@ impl Core {
         self.dag_state.write().flush();
 
         // Then process subdags as usual
-        self.commit_observer
-            .handle_committed_sub_dags(committed_subdags, CommittedSubDagSource::FastCommitSyncer)
+        self.commit_observer.finalize_and_send_solid_subdags(
+            &[],
+            &committed_subdags,
+            CommittedSubDagSource::FastCommitSyncer,
+        )
     }
 
     /// Reinitialize consensus components after fast sync completes.
