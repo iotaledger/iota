@@ -62,13 +62,16 @@ import { SidePanel } from '_src/polyfills/sidepanel';
 export class UiConnection extends Connection {
     public static readonly CHANNEL: PortChannelName = 'iota_ui<->background';
     private uiAppInitialized: BehaviorSubject<boolean> = new BehaviorSubject(false);
+    private isSidePanel: boolean = false;
 
     constructor(port: Runtime.Port) {
         super(port);
 
         // Clean up sidepanel state when UI disconnects
         this.onDisconnect.subscribe(() => {
-            SidePanel._setOpen(false);
+            if (this.isSidePanel) {
+                SidePanel._setOpen(false);
+            }
         });
 
         this.uiAppInitialized
@@ -352,6 +355,8 @@ export class UiConnection extends Connection {
 
                 this.send(createMessage({ type: 'done' }, msg.id));
             } else if (isSidepanelSetState(payload)) {
+                console.log('UPDATED', payload.open);
+                this.isSidePanel = true;
                 SidePanel._setOpen(payload.open);
                 this.send(createMessage({ type: 'done' }, id));
             } else {
