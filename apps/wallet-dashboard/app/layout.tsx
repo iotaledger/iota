@@ -4,6 +4,7 @@
 import '@iota/dapp-kit/dist/index.css';
 import './globals.css';
 import { Inter } from 'next/font/google';
+import { ErrorBoundary } from '@/components/error-boundary';
 import { AppProviders } from '@/providers';
 import { FontLinks } from '@/components/FontLinks';
 import { ConnectionGuard } from '@/components/connection-guard';
@@ -25,7 +26,9 @@ export default function RootLayout({
                 <AppProviders>
                     <FontLinks />
                     <Amplitude />
-                    <ConnectionGuard>{children}</ConnectionGuard>
+                    <ConnectionGuard>
+                        <ErrorBoundary>{children}</ErrorBoundary>
+                    </ConnectionGuard>
                 </AppProviders>
             </body>
         </html>

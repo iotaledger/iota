@@ -26,10 +26,11 @@ use move_command_line_common::{
 };
 use move_compiler::{
     FullyCompiledProgram,
-    compiled_unit::AnnotatedCompiledUnit,
+    compiled_unit::{AnnotatedCompiledUnit, FunctionInfo},
     diagnostics::{Diagnostics, warning_filters::WarningFiltersBuilder},
     editions::{Edition, Flavor},
-    shared::{NumericalAddress, PackageConfig, files::MappedFiles},
+    parser::ast::FunctionName,
+    shared::{NumericalAddress, PackageConfig, files::MappedFiles, unique_map::UniqueMap},
 };
 use move_core_types::{
     account_address::AccountAddress,
@@ -549,6 +550,7 @@ pub struct MaybeNamedCompiledModule {
     pub named_address: Option<Symbol>,
     pub module: CompiledModule,
     pub source_map: Option<SourceMap>,
+    pub function_infos: Option<UniqueMap<FunctionName, FunctionInfo>>,
 }
 
 pub async fn compile_any<'state, 'adapter: 'result, 'result, F, A, R>(
@@ -595,6 +597,7 @@ where
                         named_address: named_addr_opt,
                         module,
                         source_map,
+                        function_infos: Some(unit.function_infos),
                     }
                 })
                 .collect();
@@ -607,6 +610,7 @@ where
                     named_address: None,
                     module,
                     source_map: None,
+                    function_infos: None,
                 }],
                 None,
             )

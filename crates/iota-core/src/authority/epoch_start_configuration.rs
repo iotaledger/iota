@@ -47,7 +47,7 @@ pub trait EpochStartConfigTrait {
 // is a collision in the value of some variant, the branch which has been
 // released should take precedence. In this case, the picked-from branch is
 // inconsistent with the released branch, and must be fixed.
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Ord, PartialOrd)]
 pub enum EpochFlag {
     // The deprecated flags have all been in production for long enough that
     // we have deleted the old code paths they were guarding.
@@ -59,11 +59,22 @@ pub enum EpochFlag {
     // lock or not, depending on the used implementation. That's why we should not switch
     // mid-epoch.
     WritebackCacheEnabled = 0,
+
+    // Used for `test_epoch_flag_upgrade`.
+    #[cfg(msim)]
+    DummyFlag = 2,
 }
 
 impl EpochFlag {
     pub fn default_flags_for_new_epoch(config: &NodeConfig) -> Vec<Self> {
         Self::default_flags_impl(config.execution_cache)
+    }
+
+    // Return flags that are mandatory for the current version of the code. This is
+    // used so that `test_epoch_flag_upgrade` can still work correctly even when
+    // there are no optional flags.
+    pub fn mandatory_flags() -> Vec<Self> {
+        vec![]
     }
 
     /// For situations in which there is no config available (e.g. setting up a
@@ -73,7 +84,10 @@ impl EpochFlag {
     }
 
     fn default_flags_impl(cache_type: ExecutionCacheType) -> Vec<Self> {
-        let mut new_flags = vec![];
+        let mut new_flags = vec![
+            #[cfg(msim)]
+            EpochFlag::DummyFlag,
+        ];
 
         // Load cache type from env
         if matches!(cache_type.cache_type(), ExecutionCacheType::WritebackCache) {
@@ -92,6 +106,10 @@ impl fmt::Display for EpochFlag {
             EpochFlag::WritebackCacheEnabled => write!(f, "WritebackCacheEnabled"),
             EpochFlag::_DataQuarantineFromBeginningOfEpochDeprecated => {
                 write!(f, "DataQuarantineFromBeginningOfEpoch (DEPRECATED)")
+            }
+            #[cfg(msim)]
+            EpochFlag::DummyFlag => {
+                write!(f, "DummyFlag")
             }
         }
     }

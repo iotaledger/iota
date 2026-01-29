@@ -1,36 +1,43 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { test, expect } from './fixtures';
-import { connectWallet, createWallet } from './utils';
+import { BrowserContext, Page } from '@playwright/test';
+import { test, expect, SharedState } from './utils/fixtures';
+import { connectWallet } from './utils/wallet';
 import 'dotenv/config';
+import { SHORT_TIMEOUT } from './constants/timeout.constants';
+
+interface TestContext {
+    page: Page;
+    context: BrowserContext;
+    sharedState: SharedState;
+}
 
 test.describe.serial('Wallet Connection', () => {
-    test.beforeAll(async ({ context, sharedState, extensionUrl }) => {
-        const page = await context.newPage();
-        await page.goto(extensionUrl);
+    const shared: TestContext = {} as TestContext;
 
-        const cratedWallet = await createWallet(page);
-
-        sharedState.wallet.address = cratedWallet.address;
+    test.beforeAll(async ({ pageWithFreshWalletPersistent, persistentContext, sharedState }) => {
+        shared.page = pageWithFreshWalletPersistent;
+        shared.context = persistentContext;
+        shared.sharedState = sharedState;
     });
 
-    test('should connect to wallet extension', async ({ page, sharedState, extensionName }) => {
-        const { sharedContext, wallet } = sharedState;
+    test('should connect to wallet extension', async () => {
+        const { page, context, sharedState } = shared;
 
-        if (!sharedContext) {
+        if (!context) {
             throw new Error('Shared context expected!');
         }
 
-        if (!wallet.address) {
+        if (!sharedState.wallet.address) {
             throw new Error('Wallet address was not set');
         }
 
         await page.goto('/', { waitUntil: 'networkidle' });
-        await connectWallet(page, sharedContext, extensionName);
+        await connectWallet(page, context, sharedState.extension.name);
 
         // Verify connection was successful on dashboard
-        expect(page.getByText('My Coins')).toBeVisible({ timeout: 30_000 });
+        expect(page.getByText('My Coins')).toBeVisible({ timeout: SHORT_TIMEOUT });
 
         const displayedFullAddress = await page
             .locator('[data-full-address]')
@@ -39,14 +46,10 @@ test.describe.serial('Wallet Connection', () => {
         expect(displayedFullAddress).toBe(sharedState.wallet.address);
     });
 
-    test('should return to main screen when disconnecting from wallet', async ({
-        page,
-        sharedState,
-        extensionUrl,
-    }) => {
-        const { sharedContext } = sharedState;
+    test('should return to main screen when disconnecting from wallet', async () => {
+        const { page, context, sharedState } = shared;
 
-        if (!sharedContext) {
+        if (!context) {
             throw new Error('Shared context expected!');
         }
 
@@ -54,8 +57,8 @@ test.describe.serial('Wallet Connection', () => {
         await page.locator('[data-full-address]').waitFor({ state: 'visible' });
 
         // Disconnect from the wallet
-        const extensionPage = await sharedContext.newPage();
-        await extensionPage.goto(`${extensionUrl}#/apps/connected`);
+        const extensionPage = await context.newPage();
+        await extensionPage.goto(`${sharedState.extension.url}#/apps/connected`);
         await extensionPage.getByText('localhost').first().click();
         await extensionPage.getByRole('button', { name: 'Disconnect' }).click();
 
@@ -63,8 +66,15 @@ test.describe.serial('Wallet Connection', () => {
 
         await expect(
             page.getByText('Connecting you to the decentralized web and IOTA network'),
-        ).toBeVisible({ timeout: 10000 });
+        ).toBeVisible({ timeout: SHORT_TIMEOUT });
 
         await expect(page.getByRole('button', { name: 'Connect' })).toBeVisible();
+    });
+    test.afterAll(async () => {
+        if (shared.context && shared.context.browser()?.isConnected()) {
+            await shared.context
+                .close()
+                .catch((e) => console.error('Error closing persistent context:', e));
+        }
     });
 });

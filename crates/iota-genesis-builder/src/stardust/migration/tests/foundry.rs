@@ -3,11 +3,8 @@
 
 use anyhow::{Result, anyhow};
 use iota_protocol_config::ProtocolConfigValue::u64;
-use iota_sdk::{
-    U256, Url,
-    types::block::output::{
-        AliasId, FoundryOutput, Output, SimpleTokenScheme, feature::Irc30Metadata,
-    },
+use iota_stardust_types::block::output::{
+    AliasId, FoundryOutput, Output, SimpleTokenScheme, feature::Irc30Metadata,
 };
 use iota_types::{
     balance::Balance,
@@ -19,6 +16,8 @@ use iota_types::{
     stardust::{coin_type::CoinType, stardust_to_iota_address, stardust_to_iota_address_owner},
 };
 use move_core_types::language_storage::TypeTag;
+use primitive_types::U256;
+use url::Url;
 
 use crate::stardust::{
     migration::tests::{create_foundry, run_migration},

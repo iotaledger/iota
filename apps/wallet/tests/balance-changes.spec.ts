@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { expect, test } from './fixtures';
-import { createWallet, importWallet } from './utils/auth';
-import { generateKeypairFromMnemonic, requestIotaFromFaucet } from './utils/localnet';
+import { expect, test } from './utils/fixtures';
+import { createWallet, importWallet } from './utils/wallet';
+import { generateKeypairFromMnemonic, requestIotaFromFaucet } from './utils/utils';
 import { SHORT_TIMEOUT, LONG_TIMEOUT } from './constants/timeout.constants';
 import { receiverAddressMnemonic } from './mocks';
 
