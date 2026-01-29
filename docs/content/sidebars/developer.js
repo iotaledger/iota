@@ -509,6 +509,41 @@ const developer = [
                     },
                 ],
             },
+            {
+                type: 'category',
+                label: 'Standards',
+                link: {
+                    type: 'generated-index',
+                    title: 'IOTA Standards Overview',
+                    description:
+                        'Standards on the IOTA blockchain are features, frameworks, or apps that you can extend or customize.',
+                    slug: 'developer/standards',
+                },
+                items: [
+                    'developer/standards/coin',
+                    'developer/standards/coin-manager',
+                    {
+                        type: 'category',
+                        label: 'Closed-Loop Token',
+                        link: {
+                            type: 'doc',
+                            id: 'developer/standards/closed-loop-token',
+                        },
+                        items: [
+                            'developer/standards/closed-loop-token/action-request',
+                            'developer/standards/closed-loop-token/token-policy',
+                            'developer/standards/closed-loop-token/spending',
+                            'developer/standards/closed-loop-token/rules',
+                            'developer/standards/closed-loop-token/coin-token-comparison',
+                            'developer/standards/closed-loop-token/tutorial',
+                        ],
+                    },
+                    'developer/standards/kiosk',
+                    'developer/standards/kiosk-apps',
+                    'developer/standards/display',
+                    'developer/standards/wallet-standard',
+                ],
+            },
             'developer/advanced/introducing-move-2024',
             'developer/advanced/onchain-randomness',
             'developer/advanced/asset-tokenization',
@@ -651,41 +686,6 @@ const developer = [
     {
         type: 'html',
         value: '<hr/>',
-    },
-    {
-        type: 'category',
-        label: 'Standards',
-        link: {
-            type: 'generated-index',
-            title: 'IOTA Standards Overview',
-            description:
-                'Standards on the IOTA blockchain are features, frameworks, or apps that you can extend or customize.',
-            slug: 'developer/standards',
-        },
-        items: [
-            'developer/standards/coin',
-            'developer/standards/coin-manager',
-            {
-                type: 'category',
-                label: 'Closed-Loop Token',
-                link: {
-                    type: 'doc',
-                    id: 'developer/standards/closed-loop-token',
-                },
-                items: [
-                    'developer/standards/closed-loop-token/action-request',
-                    'developer/standards/closed-loop-token/token-policy',
-                    'developer/standards/closed-loop-token/spending',
-                    'developer/standards/closed-loop-token/rules',
-                    'developer/standards/closed-loop-token/coin-token-comparison',
-                    'developer/standards/closed-loop-token/tutorial',
-                ],
-            },
-            'developer/standards/kiosk',
-            'developer/standards/kiosk-apps',
-            'developer/standards/display',
-            'developer/standards/wallet-standard',
-        ],
     },
     {
         type: 'category',
