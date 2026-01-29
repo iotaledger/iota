@@ -8,7 +8,6 @@ use std::{
 };
 
 use move_core_types::{
-    account_address::AccountAddress,
     ident_str,
     identifier::IdentStr,
     language_storage::{StructTag, TypeTag},
@@ -17,7 +16,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{error, instrument};
 
 use crate::{
-    IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, MoveTypeTagTrait,
+    IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, MoveTypeTagTrait,
     base_types::{EpochId, IotaAddress, ObjectID, SequenceNumber},
     config::{Config, Setting},
     dynamic_field::{DOFWrapper, get_dynamic_field_from_store},
@@ -60,7 +59,7 @@ struct ConfigKey {
 impl ConfigKey {
     pub fn type_() -> StructTag {
         StructTag {
-            address: AccountAddress::new(IOTA_FRAMEWORK_PACKAGE_ID.into_bytes()),
+            address: IOTA_FRAMEWORK_ADDRESS,
             module: DENY_LIST_MODULE.to_owned(),
             name: ident_str!("ConfigKey").to_owned(),
             type_params: vec![],
@@ -81,7 +80,7 @@ struct AddressKey(IotaAddress);
 impl AddressKey {
     pub fn type_() -> StructTag {
         StructTag {
-            address: AccountAddress::new(IOTA_FRAMEWORK_PACKAGE_ID.into_bytes()),
+            address: IOTA_FRAMEWORK_ADDRESS,
             module: DENY_LIST_MODULE.to_owned(),
             name: ident_str!("AddressKey").to_owned(),
             type_params: vec![],
@@ -107,7 +106,7 @@ impl GlobalPauseKey {
     }
     pub fn type_() -> StructTag {
         StructTag {
-            address: AccountAddress::new(IOTA_FRAMEWORK_PACKAGE_ID.into_bytes()),
+            address: IOTA_FRAMEWORK_ADDRESS,
             module: DENY_LIST_MODULE.to_owned(),
             name: ident_str!("GlobalPauseKey").to_owned(),
             type_params: vec![],
