@@ -695,7 +695,7 @@ mod tests {
         };
 
         let object_id = if let Some(literal) = id_hex_literal {
-            ObjectID::from_short_hex(literal).unwrap()
+            ObjectID::from_prefixed_short_hex(literal).unwrap()
         } else {
             ObjectID::from_short_hex(default_hex).unwrap()
         };

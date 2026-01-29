@@ -824,7 +824,7 @@ fn test_repeatedly_update_display() {
         indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
 
         let (res, package_id) = deploy_bear_pkg(sender, &sender_kp, client).await;
-        let display_obj_id = ObjectID::from_short_hex(
+        let display_obj_id = ObjectID::from_prefixed_short_hex(
             res.events.unwrap().data[0].parsed_json.as_object().unwrap()["id"]
                 .as_str()
                 .unwrap(),
