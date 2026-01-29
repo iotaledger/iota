@@ -101,6 +101,10 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             sync_type: CommitSyncType::Fast,
         });
         let last_solid_commit_index = inner.dag_state.read().last_solid_commit_index();
+        info!(
+            "[fast_commit_sync] Initialized with synced_commit_index={}",
+            last_solid_commit_index
+        );
         FastCommitSyncer {
             inner,
             inflight_fetches: JoinSet::new(),
@@ -1186,9 +1190,11 @@ mod tests {
     ///   txn synchronizer + stop shard reconstructor
     /// - Phase 3: Wait for commits with missing txs (creates pending subdags) and
     ///   verify gap
-    /// - Phase 4: Stop test validator (preserves pending subdags to disk)
+    /// - Phase 4: Stop test validator
     /// - Phase 5: Other validators continue (creates fast sync gap > threshold)
-    /// - Phase 6: Restart test validator with full connectivity → fast sync triggers
+    /// - Phase 6: Restart test validator with full connectivity, but keep
+    ///   txn synchronizer + shard reconstructor stopped
+    ///   to prevent pending subdags from being solidified
     /// - Phase 7: Verify fast sync was used and validator caught up
     #[tokio::test(flavor = "current_thread")]
 async fn test_fast_sync_with_pending_subdags() {
@@ -1196,13 +1202,14 @@ async fn test_fast_sync_with_pending_subdags() {
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
 
-        // Use 4 validators so that quorum (3) can still be reached with 1 validator
-        // stopped.
         const NUM_AUTHORITIES: usize = 4;
         const COMMIT_GAP_THRESHOLD: u32 = 30;
+        const COMMIT_SYNC_BATCH_SIZE: u32 = 20;
 
-        // Work phases need to be long enough to create a gap larger than
-        // COMMIT_GAP_THRESHOLD (30) for fast sync to trigger.
+        // Work phases need to be long enough to create pending subdags during Phase 3.
+        // During Phase 3, the validator keeps creating commits (headers arrive via cordial
+        // dissemination), so there's no commit gap for syncers to act on. Phase 5 creates
+        // a commit gap larger than the threshold for fast sync to trigger on restart.
         let stable_work_duration = Duration::from_secs(10);
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
@@ -1222,15 +1229,14 @@ async fn test_fast_sync_with_pending_subdags() {
         let blocked_validator_index: usize = 1;
 
         // Phase 1: Start all authorities and let them create initial commits
-        info!("Phase 1: Starting all authorities");
         for (index, _) in committee.authorities() {
             let parameters = Parameters {
                 db_path: temp_dirs[index.value()].path().to_path_buf(),
                 dag_state_cached_rounds: 5,
                 commit_sync_parallel_fetches: 2,
-                commit_sync_batch_size: 10,
+                commit_sync_batch_size: COMMIT_SYNC_BATCH_SIZE,
                 commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
-                fast_commit_sync_batch_size: 20,
+                fast_commit_sync_batch_size: COMMIT_SYNC_BATCH_SIZE,
                 sync_last_known_own_block_timeout: Duration::from_millis(2_000),
                 ..Default::default()
             };
@@ -1251,18 +1257,19 @@ async fn test_fast_sync_with_pending_subdags() {
             consumer_monitors.push(monitor);
         }
 
-        // Phase 1: Let all authorities run, submit transactions, and commit
-        info!("Phase 1: Running all authorities for initial commits with transactions");
         let mut txn_counter = 0u64;
         let start_time = Instant::now();
         let mut committed_index = [0u32; NUM_AUTHORITIES];
         while start_time.elapsed() < stable_work_duration {
-            // Submit transactions to all validators to ensure blocks have content
-            for authority in authorities.iter() {
-                let txn = vec![txn_counter as u8; 16];
-                let _ = authority.transaction_client().submit(vec![txn]).await;
-                txn_counter += 1;
-            }
+            // Submit transactions to all validators (rotating)
+            let authority_index = txn_counter as usize % authorities.len();
+            let txn = vec![txn_counter as u8; 16];
+            authorities[authority_index]
+                .transaction_client()
+                .submit(vec![txn])
+                .await
+                .unwrap();
+            txn_counter += 1;
 
             for (index, receiver) in output_receivers.iter_mut().enumerate() {
                 while let Ok(committed_subdag) = receiver.try_recv() {
@@ -1280,65 +1287,51 @@ async fn test_fast_sync_with_pending_subdags() {
             sleep(Duration::from_millis(50)).await;
         }
 
-        info!(
-            "Phase 1 complete: All validators have committed. Validator {} at commit {}",
-            test_validator_index, committed_index[test_validator_index]
-        );
-
         // Phase 2: Dynamically unsubscribe from validator 1 + stop txn synchronizer + stop shard reconstructor
-        // This will create pending subdags as headers arrive via cordial
-        // dissemination but transactions from validator 1's blocks are missing and
-        // shards cannot be reconstructed
-        info!(
-            "Phase 2: Dynamically unsubscribing validator {} from validator {} + stopping txn synchronizer + stopping shard reconstructor",
-            test_validator_index, blocked_validator_index
-        );
+        // This will create pending subdags as headers arrive via cordial dissemination
+        // but transactions from validator 1's blocks are missing and shards cannot be
+        // reconstructed. Commit syncers won't activate during Phase 3 because there's
+        // no commit gap - the validator keeps up with commits, just missing transactions.
         authorities[test_validator_index].unsubscribe_from_peer_for_test(
             committee
                 .to_authority_index(blocked_validator_index)
                 .unwrap(),
         );
-        if let Err(e) = authorities[test_validator_index]
+        authorities[test_validator_index]
             .stop_transactions_synchronizer_for_test()
             .await
-        {
-            info!("Failed to stop transaction synchronizer: {:?}", e);
-        }
-        if let Err(e) = authorities[test_validator_index]
+            .expect("Transaction synchronizer should stop");
+        authorities[test_validator_index]
             .stop_shard_reconstructor_for_test()
             .await
-        {
-            info!("Failed to stop shard reconstructor: {:?}", e);
-        }
-        // Also stop commit syncers to prevent fetching transactions via RPC
-        authorities[test_validator_index]
-            .stop_regular_commit_syncer_for_test()
-            .await;
-        authorities[test_validator_index]
-            .stop_fast_commit_syncer_for_test()
-            .await;
+            .expect("Shard reconstructor should stop");
 
         // Phase 3: Wait for headers to arrive via cordial dissemination and commits to
-        // be created. Submit transactions to validators 2 & 3 (not 1, which is blocked)
+        // be created. Submit transactions to all validators (rotating).
         // This should create pending subdags (gap between
         // last_commit and last_solid_commit_leader_round)
-        info!("Phase 3: Waiting for headers and commits (creating pending subdags)");
 
         // Track commits before the wait
         let commits_before = committed_index[test_validator_index];
 
-        // Submit transactions continuously during Phase 3 to the blocked validator
-        // Validator 0 won't be able to fetch these transactions because:
+        // Submit transactions to all validators during Phase 3.
+        // Validator 0 can process transactions from itself and validators 2 & 3.
+        // However, validator 0 can't fetch transactions from validator 1's blocks because:
         // - It's unsubscribed from validator 1
-        // - Transaction synchronizer is stopped
-        // - Shard reconstructor is stopped
-        // - Commit syncers are stopped
+        // - Transaction synchronizer is stopped (blocks active transaction fetching)
+        // - Shard reconstructor is stopped (blocks erasure-coded shard reconstruction)
+        // This creates pending subdags.
+        // Commit syncers are running but have nothing to fetch (no commit gap exists).
         let phase3_start = Instant::now();
         while phase3_start.elapsed() < stable_work_duration {
-            // Submit transactions only to the blocked validator (1)
-            // These will end up in validator 1's blocks, which validator 0 can't fetch
+            // Submit transactions to all validators (rotating)
+            let authority_index = txn_counter as usize % authorities.len();
             let txn = vec![txn_counter as u8; 16];
-            let _ = authorities[blocked_validator_index].transaction_client().submit(vec![txn]).await;
+            authorities[authority_index]
+                .transaction_client()
+                .submit(vec![txn])
+                .await
+                .unwrap();
             txn_counter += 1;
 
             // Drain receivers
@@ -1360,32 +1353,12 @@ async fn test_fast_sync_with_pending_subdags() {
             new_commits > 0,
             "Expected new commits during Phase 3, got 0"
         );
-        info!("Phase 3: new_commits={}", new_commits);
 
         // Verify pending subdags gap exists
         let dag_state = authorities[test_validator_index].dag_state_for_test();
         let last_commit = dag_state.read().last_commit_round();
         let last_solid = dag_state.read().last_solid_commit_leader_round();
-        let last_commit_index = dag_state.read().last_commit_index();
         let dag_round = dag_state.read().threshold_clock_round();
-        info!(
-            "Phase 3: DAG round = {}, commits = {}, last_solid = {:?}",
-            dag_round, last_commit, last_solid
-        );
-
-        // Check metrics for pending subdags
-        let metrics = authorities[test_validator_index].context();
-        let pending_subdags_count = metrics
-            .metrics
-            .node_metrics
-            .sub_dags_per_commit_count
-            .with_label_values(&["consensus"])
-            .get_sample_count();
-
-        info!(
-            "Phase 3: Validator {}: last_commit_round={}, last_solid_commit_leader_round={:?}, last_commit_index={}, pending_subdags_metric={}",
-            test_validator_index, last_commit, last_solid, last_commit_index, pending_subdags_count
-        );
 
         // Verify gap exists - we expect pending subdags
         let has_gap = last_commit > last_solid.unwrap_or(0);
@@ -1397,23 +1370,15 @@ async fn test_fast_sync_with_pending_subdags() {
             last_commit, last_solid, dag_round, new_commits
         );
 
-        // Record where validator is now (with pending subdags)
+        // Record where the validator is now (with pending subdags)
         let last_processed_with_pending =
             consumer_monitors[test_validator_index].highest_handled_commit();
 
         // Phase 4: Stop test validator (preserves pending subdags to disk)
-        info!(
-            "Phase 4: Stopping validator {} to preserve pending subdags to disk (at commit {})",
-            test_validator_index, last_processed_with_pending
-        );
         authorities.remove(test_validator_index).stop().await;
 
-        // Phase 5: Let other validators continue while test validator is stopped
+        // Phase 5: Let other validators continue while the test validator is stopped
         // (creates fast sync gap > threshold)
-        info!(
-            "Phase 5: Other validators continuing while validator {} is stopped",
-            test_validator_index
-        );
         let start_time = Instant::now();
         while start_time.elapsed() < stable_work_duration * 2 {
             for (index, receiver) in output_receivers.iter_mut().enumerate() {
@@ -1440,10 +1405,6 @@ async fn test_fast_sync_with_pending_subdags() {
             .unwrap_or(0);
 
         let gap = max_other.saturating_sub(last_processed_with_pending);
-        info!(
-            "Phase 5 complete: Gap created. Validator {} at {}, others at {} (gap = {})",
-            test_validator_index, last_processed_with_pending, max_other, gap
-        );
         assert!(
             gap > COMMIT_GAP_THRESHOLD,
             "Gap {} should be greater than threshold {}",
@@ -1451,18 +1412,16 @@ async fn test_fast_sync_with_pending_subdags() {
             COMMIT_GAP_THRESHOLD
         );
 
-        // Phase 6: Restart test validator with full connectivity → fast sync should trigger
-        info!(
-            "Phase 6: Restarting validator {} with full connectivity (has pending subdags from before stop)",
-            test_validator_index
-        );
+        // Phase 6: Restart test validator with full connectivity.
+        // Transaction synchronizer and shard reconstructor
+        // will be stopped after restart to prevent pending subdags from being solidified.
         let parameters = Parameters {
             db_path: temp_dirs[test_validator_index].path().to_path_buf(),
             dag_state_cached_rounds: 5,
             commit_sync_parallel_fetches: 2,
-            commit_sync_batch_size: 10,
+            commit_sync_batch_size: COMMIT_SYNC_BATCH_SIZE,
             commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
-            fast_commit_sync_batch_size: 20,
+            fast_commit_sync_batch_size: COMMIT_SYNC_BATCH_SIZE,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             ..Default::default()
         };
@@ -1477,16 +1436,24 @@ async fn test_fast_sync_with_pending_subdags() {
             last_processed_with_pending,
         )
         .await;
-        boot_counters[test_validator_index] += 1;
         output_receivers[test_validator_index] = receiver;
         consumer_monitors[test_validator_index] = monitor;
         authorities.insert(test_validator_index, authority);
 
+        // Keep transaction synchronizer and shard reconstructor stopped after restart
+        // to prevent pending subdags from being solidified. This forces the system
+        // to rely on fast sync to fill the gap, which should expose the bug.
+        authorities[test_validator_index]
+            .stop_transactions_synchronizer_for_test()
+            .await
+            .expect("Transaction synchronizer should stop");
+        authorities[test_validator_index]
+            .stop_shard_reconstructor_for_test()
+            .await
+            .expect("Shard reconstructor should stop");
+
         // Phase 7: Wait for the validator to catch up via fast sync
         // This tests whether fast sync can handle pre-existing pending subdags
-        info!(
-            "Phase 7: Waiting for validator to catch up via fast sync (test may fail if fast sync can't handle pending subdags)"
-        );
         let start_time = Instant::now();
         let mut caught_up = false;
         while start_time.elapsed() < Duration::from_secs(60) {
@@ -1511,10 +1478,6 @@ async fn test_fast_sync_with_pending_subdags() {
 
             if test_index > last_processed_with_pending && test_index + 20 >= max_other {
                 caught_up = true;
-                info!(
-                    "Validator {} caught up: at commit {} (max_other = {})",
-                    test_validator_index, test_index, max_other
-                );
                 break;
             }
             sleep(Duration::from_millis(50)).await;
@@ -1553,11 +1516,6 @@ async fn test_fast_sync_with_pending_subdags() {
             commit_sync_fetched_commits > 0,
             "Expected commits fetched via fast sync > 0, got {}",
             commit_sync_fetched_commits
-        );
-
-        info!(
-            "Test complete: Validator with pending subdags successfully caught up via fast sync. Final commit: {}, commits fetched via fast sync: {}",
-            final_index, commit_sync_fetched_commits
         );
 
         // Stop all authorities
