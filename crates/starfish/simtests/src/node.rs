@@ -38,6 +38,9 @@ pub(crate) enum RestartMode {
     /// Keep consensus DB but reset last_processed_commit to 0.
     /// Tests recovery when consensus state is intact but node tracking is lost.
     ResetLastProcessed,
+    /// Erase all transactions from the DB, preserving commits and block
+    /// headers. Tests transaction recovery via sync from peers.
+    EraseAllTransactions,
 }
 
 #[derive(Clone)]
@@ -104,9 +107,9 @@ impl AuthorityNode {
 
     /// Restart the node with the specified mode
     pub async fn restart(&self, mode: RestartMode) -> Result<()> {
-        self.stop();
         match mode {
             RestartMode::CleanAll => {
+                self.stop().await;
                 // Erase consensus DB and all node tracking
                 *self.db_dir.lock() = Arc::new(TempDir::new()?);
                 self.last_processed_commit.store(0, Ordering::SeqCst);
@@ -118,6 +121,7 @@ impl AuthorityNode {
                 self.committed_transactions.write().await.clear();
             }
             RestartMode::ResetLastProcessed => {
+                self.stop().await;
                 // Keep consensus DB, reset node tracking state
                 self.last_processed_commit.store(0, Ordering::SeqCst);
                 self.commit_digests.write().await.clear();
@@ -125,7 +129,16 @@ impl AuthorityNode {
                 // Keep boot_counter incrementing (not a fresh node)
             }
             RestartMode::PersistAll => {
+                self.stop().await;
                 // Keep both consensus DB and node tracking (no changes)
+            }
+            RestartMode::EraseAllTransactions => {
+                self.stop_and_clear_transactions().await;
+
+                // Reset tracking state (transactions will be re-synced)
+                self.last_processed_commit.store(0, Ordering::SeqCst);
+                self.commit_digests.write().await.clear();
+                self.committed_transactions.write().await.clear();
             }
         }
         self.start().await
@@ -195,9 +208,42 @@ impl AuthorityNode {
     }
 
     /// Stop this Node
-    pub fn stop(&self) {
+    pub async fn stop(&self) {
         info!(index =% self.config.authority_index, "stopping in-memory node");
-        *self.inner.lock() = None;
+        let inner = self.inner.lock().take();
+        if let Some(mut inner) = inner {
+            if let Some(consensus_authority) = inner.consensus_authority.take() {
+                consensus_authority.stop().await;
+            }
+
+            if let Some(handle) = inner.handle.take() {
+                tracing::info!("shutting down {}", handle.node_id);
+                iota_simulator::runtime::Handle::try_current()
+                    .map(|h| h.delete_node(handle.node_id));
+            }
+        }
+        info!(index =% self.config.authority_index, "node stopped");
+    }
+
+    /// Stop this Node and clear all transactions from the consensus store.
+    /// Only used by simtests.
+    pub async fn stop_and_clear_transactions(&self) {
+        info!(index =% self.config.authority_index, "stopping in-memory node");
+        let inner = self.inner.lock().take();
+        if let Some(mut inner) = inner {
+            if let Some(consensus_authority) = inner.consensus_authority.take() {
+                consensus_authority
+                    .stop_and_clear_transactions()
+                    .await
+                    .expect("Failed to delete transactions");
+            }
+
+            if let Some(handle) = inner.handle.take() {
+                tracing::info!("shutting down {}", handle.node_id);
+                iota_simulator::runtime::Handle::try_current()
+                    .map(|h| h.delete_node(handle.node_id));
+            }
+        }
         info!(index =% self.config.authority_index, "node stopped");
     }
 
@@ -220,7 +266,7 @@ impl AuthorityNode {
 pub(crate) struct AuthorityNodeInner {
     handle: Option<NodeHandle>,
     cancel_sender: Option<tokio::sync::watch::Sender<bool>>,
-    consensus_authority: ConsensusAuthority,
+    consensus_authority: Option<ConsensusAuthority>,
     commit_receiver: ArcSwapOption<UnboundedReceiver<CommittedSubDag>>,
     commit_consumer_monitor: Arc<CommitConsumerMonitor>,
 }
@@ -306,7 +352,7 @@ impl AuthorityNodeInner {
         Self {
             handle: Some(NodeHandle { node_id: node.id() }),
             cancel_sender: Some(cancel_sender),
-            consensus_authority,
+            consensus_authority: Some(consensus_authority),
             commit_receiver: ArcSwapOption::new(Some(Arc::new(commit_receiver))),
             commit_consumer_monitor,
         }
@@ -343,7 +389,10 @@ impl AuthorityNodeInner {
     }
 
     pub fn transaction_client(&self) -> Arc<TransactionClient> {
-        self.consensus_authority.transaction_client()
+        self.consensus_authority
+            .as_ref()
+            .expect("consensus authority should be available")
+            .transaction_client()
     }
 }
 
