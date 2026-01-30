@@ -214,7 +214,8 @@ impl CommitObserver {
     }
 
     /// Builds a CommittedSubDag from a stored commit by loading transactions
-    /// from dag_state. Returns None if any transactions are missing.
+    /// from dag_state and no headers. Returns None if any transactions are
+    /// missing.
     fn build_committed_subdag_from_commit(
         &self,
         commit: &TrustedCommit,
