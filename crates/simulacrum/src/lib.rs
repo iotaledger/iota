@@ -681,7 +681,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
             store.get_checkpoint_contents_by_digest(digest)
             .map_or(Ok(None), |contents| {
                 iota_types::messages_checkpoint::FullCheckpointContents::try_from_checkpoint_contents(
-                    self,
+                    store,
                     contents.clone(),
                 )
             })
@@ -714,7 +714,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> RestStateReader for
         Ok(self.with_store(|store| {
             store
                 .get_last_checkpoint_of_epoch(epoch_id)
-                .and_then(|seq| self.get_checkpoint_by_sequence_number(seq))
+                .and_then(|seq| store.get_checkpoint_by_sequence_number(seq))
         }))
     }
 
