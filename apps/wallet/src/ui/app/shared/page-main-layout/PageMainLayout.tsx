@@ -15,7 +15,6 @@ import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAcco
 import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { Badge, BadgeType } from '@iota/apps-ui-kit';
 import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
-import { isMainAccount } from '_src/background/accounts/isMainAccount';
 import { useGetDefaultIotaName } from '@iota/core';
 import { formatAccountName } from '../../helpers';
 import { isKeystoneAccountSerializedUI } from '_src/background/accounts/keystoneAccount';
@@ -113,7 +112,6 @@ function LeftContent({ account }: { account: SerializedUIAccount | null }) {
                 </span>
             </div>
             {isLegacyAccount(account) && <Badge type={BadgeType.Neutral} label="Legacy" />}
-            {isMainAccount(account) && <Badge type={BadgeType.PrimarySoft} label="Main" />}
         </Link>
     );
 }

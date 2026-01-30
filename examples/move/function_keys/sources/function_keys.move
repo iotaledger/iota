@@ -30,7 +30,6 @@ use function_keys::fk_store::{
     disallow,
     is_allowed
 };
-use iota::auth_context::AuthContext;
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::ed25519;
 use iota::hex::decode;

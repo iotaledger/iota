@@ -136,6 +136,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) accepted_block_header_time_drift_ms: IntCounterVec,
     pub(crate) accepted_block_headers: IntCounterVec,
     pub(crate) accepted_block_headers_source: IntCounterVec,
+    pub(crate) core_skipped_headers: IntCounterVec,
     pub(crate) cordial_knowledge_useful_headers_authors: IntCounterVec,
     pub(crate) cordial_knowledge_useful_shards_authors: IntCounterVec,
     pub(crate) dag_state_recent_transactions: IntGauge,
@@ -167,6 +168,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) valid_shards_in_bundles: IntCounterVec,
     pub(crate) missing_ancestors_from_streaming: HistogramVec,
     pub(crate) missing_ancestors_from_streaming_round_gap: Histogram,
+    pub(crate) additional_headers_round_gap: Histogram,
     pub(crate) rejected_blocks: IntCounterVec,
     pub(crate) skipped_empty_transaction_acknowledgments: IntCounterVec,
     pub(crate) subscribed_block_bundles: IntCounterVec,
@@ -208,7 +210,6 @@ pub(crate) struct NodeMetrics {
     pub(crate) block_manager_missing_block_headers: IntGauge,
     pub(crate) block_manager_missing_block_headers_by_authority: IntCounterVec,
     pub(crate) block_manager_missing_ancestors_by_authority: IntCounterVec,
-    pub(crate) block_manager_filtered_processed_headers_by_authority: IntCounterVec,
     pub(crate) threshold_clock_round: IntGauge,
     pub(crate) subscriber_connection_attempts: IntCounterVec,
     pub(crate) subscribed_to: IntGaugeVec,
@@ -448,6 +449,12 @@ impl NodeMetrics {
                 &["source"],
                 registry,
             ).unwrap(),
+            core_skipped_headers: register_int_counter_vec_with_registry!(
+                "core_skipped_headers",
+                "Number of block headers skipped in core because already in DAG or suspended",
+                &["authority", "source"],
+                registry,
+            ).unwrap(),
             shard_accumulators: register_int_gauge_with_registry!(
                 "shard_accumulators",
                 "The number of shard accumulators currently in memory",
@@ -665,6 +672,12 @@ impl NodeMetrics {
                 vec![0.0, 1.0, 2.0, 5.0, 10.0, 20.0, 40.0, 80.0, 100.0, 200.0, 400.0, 800.0, 1000.0],
                 registry,
             ).unwrap(),
+            additional_headers_round_gap: register_histogram_with_registry!(
+                "additional_headers_round_gap",
+                "Round gap between additional block headers in bundles and the main block",
+                vec![0.0, 1.0, 2.0, 5.0, 10.0, 20.0, 40.0, 80.0, 100.0, 200.0, 400.0, 800.0, 1000.0],
+                registry,
+            ).unwrap(),
             rejected_blocks: register_int_counter_vec_with_registry!(
                 "rejected_blocks",
                 "Number of blocks rejected because last commit index is lagging quorum commit index too much",
@@ -843,12 +856,6 @@ impl NodeMetrics {
             block_manager_missing_ancestors_by_authority: register_int_counter_vec_with_registry!(
                 "block_manager_missing_ancestors_by_authority",
                 "The number of headers that are missing or suspended in the block manager by authority",
-                &["authority"],
-                registry,
-            ).unwrap(),
-            block_manager_filtered_processed_headers_by_authority: register_int_counter_vec_with_registry!(
-                "block_manager_filtered_processed_headers_by_authority",
-                "The number of already processed headers filtered in block manager by authority",
                 &["authority"],
                 registry,
             ).unwrap(),

@@ -5,7 +5,6 @@ module abstract_account::delayed_abstract_account_keyed;
 
 use abstract_account::basic_keyed_aa;
 use abstract_account::delayed_abstract_account::{Self, DelayedAbstractAccount};
-use iota::auth_context::AuthContext;
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
 
 // === Errors ===

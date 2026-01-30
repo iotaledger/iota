@@ -5,7 +5,6 @@
 module spending_limit::account_tests;
 
 use generic_keyed_authentication::owner_public_key;
-use iota::auth_context::{Self, AuthContext};
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::coin;
 use iota::hex;

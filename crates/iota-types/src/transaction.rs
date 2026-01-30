@@ -270,6 +270,43 @@ pub struct ChangeEpochV3 {
     /// selection because they support the new, target protocol version.
     pub eligible_active_validators: Vec<u64>,
 }
+/// System transaction for advancing the epoch.
+/// This version includes the scores field for when the score based rewards are
+/// enabled in the protocol config.
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+pub struct ChangeEpochV4 {
+    /// The next (to become) epoch ID.
+    pub epoch: EpochId,
+    /// The protocol version in effect in the new epoch.
+    pub protocol_version: ProtocolVersion,
+    /// The total amount of gas charged for storage during the epoch.
+    pub storage_charge: u64,
+    /// The total amount of gas charged for computation during the epoch.
+    pub computation_charge: u64,
+    /// The burned component of the total computation/execution costs.
+    pub computation_charge_burned: u64,
+    /// The amount of storage rebate refunded to the txn senders.
+    pub storage_rebate: u64,
+    /// The non-refundable storage fee.
+    pub non_refundable_storage_fee: u64,
+    /// Unix timestamp when epoch started
+    pub epoch_start_timestamp_ms: u64,
+    /// System packages (specifically framework and move stdlib) that are
+    /// written before the new epoch starts. This tracks framework upgrades
+    /// on chain. When executing the ChangeEpochV4 txn, the validator must
+    /// write out the modules below.  Modules are provided with the version they
+    /// will be upgraded to, their modules in serialized form (which include
+    /// their package ID), and a list of their transitive dependencies.
+    pub system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
+    /// Vector of active validator indices eligible to take part in committee
+    /// selection because they support the new, target protocol version.
+    pub eligible_active_validators: Vec<u64>,
+    /// Scores for the epoch being finalized. Each value corresponds to
+    /// an authority, ordered by the ending epoch's AuthorityIndex.
+    pub scores: Vec<u64>,
+    /// Whether to adjust validator rewards based on score.
+    pub adjust_rewards_by_score: bool,
+}
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct GenesisTransaction {
@@ -382,6 +419,11 @@ pub enum EndOfEpochTransactionKind {
     ChangeEpoch(ChangeEpoch),
     ChangeEpochV2(ChangeEpochV2),
     ChangeEpochV3(ChangeEpochV3),
+    ChangeEpochV4(ChangeEpochV4),
+    // IMPORTANT: new enum variants should be added at the end to preserve serialization
+    // compatibility. DO NOT CHANGE THE ORDER OF EXISTING ENTRIES!
+    // AuthenticatorStateCreate and AuthenticatorStateExpire can be left at the end as long as
+    // `enable_jwk_consensus_updates` is not enabled in the protocol config.
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(AuthenticatorStateExpire),
 }
@@ -459,6 +501,36 @@ impl EndOfEpochTransactionKind {
         })
     }
 
+    pub fn new_change_epoch_v4(
+        next_epoch: EpochId,
+        protocol_version: ProtocolVersion,
+        storage_charge: u64,
+        computation_charge: u64,
+        computation_charge_burned: u64,
+        storage_rebate: u64,
+        non_refundable_storage_fee: u64,
+        epoch_start_timestamp_ms: u64,
+        system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
+        eligible_active_validators: Vec<u64>,
+        scores: Vec<u64>,
+        adjust_rewards_by_score: bool,
+    ) -> Self {
+        Self::ChangeEpochV4(ChangeEpochV4 {
+            epoch: next_epoch,
+            protocol_version,
+            storage_charge,
+            computation_charge,
+            computation_charge_burned,
+            storage_rebate,
+            non_refundable_storage_fee,
+            epoch_start_timestamp_ms,
+            system_packages,
+            eligible_active_validators,
+            scores,
+            adjust_rewards_by_score,
+        })
+    }
+
     pub fn new_authenticator_state_expire(
         min_epoch: u64,
         authenticator_obj_initial_shared_version: SequenceNumber,
@@ -496,6 +568,13 @@ impl EndOfEpochTransactionKind {
                     mutable: true,
                 }]
             }
+            Self::ChangeEpochV4(_) => {
+                vec![InputObjectKind::SharedMoveObject {
+                    id: IOTA_SYSTEM_STATE_OBJECT_ID,
+                    initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
+                    mutable: true,
+                }]
+            }
             Self::AuthenticatorStateCreate => vec![],
             Self::AuthenticatorStateExpire(expire) => {
                 vec![InputObjectKind::SharedMoveObject {
@@ -516,6 +595,9 @@ impl EndOfEpochTransactionKind {
                 Either::Left(vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter())
             }
             Self::ChangeEpochV3(_) => {
+                Either::Left(vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter())
+            }
+            Self::ChangeEpochV4(_) => {
                 Either::Left(vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter())
             }
             Self::AuthenticatorStateExpire(expire) => Either::Left(
@@ -543,6 +625,16 @@ impl EndOfEpochTransactionKind {
                         "selecting committee only among validators supporting the protocol version not supported".to_string(),
                     ));
                 }
+                if config.pass_validator_scores_to_advance_epoch() {
+                    return Err(UserInputError::Unsupported(
+                        "passing of validator scores not supported".to_string(),
+                    ));
+                }
+                if config.adjust_rewards_by_score() {
+                    return Err(UserInputError::Unsupported(
+                        "adjusting rewards by score not supported".to_string(),
+                    ));
+                }
             }
             Self::ChangeEpochV2(_) => {
                 if !config.protocol_defined_base_fee() {
@@ -555,6 +647,16 @@ impl EndOfEpochTransactionKind {
                         "selecting committee only among validators supporting the protocol version not supported".to_string(),
                     ));
                 }
+                if config.pass_validator_scores_to_advance_epoch() {
+                    return Err(UserInputError::Unsupported(
+                        "passing of validator scores not supported".to_string(),
+                    ));
+                }
+                if config.adjust_rewards_by_score() {
+                    return Err(UserInputError::Unsupported(
+                        "adjusting rewards by score not supported".to_string(),
+                    ));
+                }
             }
             Self::ChangeEpochV3(_) => {
                 if !config.protocol_defined_base_fee() {
@@ -565,6 +667,33 @@ impl EndOfEpochTransactionKind {
                 if !config.select_committee_from_eligible_validators() {
                     return Err(UserInputError::Unsupported(
                         "selecting committee only among validators supporting the protocol version required".to_string(),
+                    ));
+                }
+                if config.pass_validator_scores_to_advance_epoch() {
+                    return Err(UserInputError::Unsupported(
+                        "passing of validator scores not supported".to_string(),
+                    ));
+                }
+                if config.adjust_rewards_by_score() {
+                    return Err(UserInputError::Unsupported(
+                        "adjusting rewards by score not supported".to_string(),
+                    ));
+                }
+            }
+            Self::ChangeEpochV4(_) => {
+                if !config.protocol_defined_base_fee() {
+                    return Err(UserInputError::Unsupported(
+                        "protocol defined base fee required".to_string(),
+                    ));
+                }
+                if !config.select_committee_from_eligible_validators() {
+                    return Err(UserInputError::Unsupported(
+                        "selecting committee only among validators supporting the protocol version required".to_string(),
+                    ));
+                }
+                if !config.pass_validator_scores_to_advance_epoch() {
+                    return Err(UserInputError::Unsupported(
+                        "passing of validator scores required".to_string(),
                     ));
                 }
             }
@@ -1350,6 +1479,9 @@ impl TransactionKind {
                         Some((e.computation_charge + e.storage_charge, e.storage_rebate))
                     }
                     EndOfEpochTransactionKind::ChangeEpochV3(e) => {
+                        Some((e.computation_charge + e.storage_charge, e.storage_rebate))
+                    }
+                    EndOfEpochTransactionKind::ChangeEpochV4(e) => {
                         Some((e.computation_charge + e.storage_charge, e.storage_rebate))
                     }
                     _ => panic!("final end-of-epoch txn must be ChangeEpoch"),
