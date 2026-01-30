@@ -102,7 +102,7 @@ export function AccountGroup({
         if (ledgerAcc) {
             const params = ledgerAcc.mainPublicKey
                 ? new URLSearchParams({
-                      mainPublicKey: ledgerAcc.mainPublicKey || '',
+                      mainPublicKey: ledgerAcc.mainPublicKey,
                   })
                 : undefined;
             return url + (params ? `?${params.toString()}` : '');
