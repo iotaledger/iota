@@ -97,16 +97,15 @@ impl MessageFields for CheckpointDataResponse {
 fn parse_checkpoint_read_mask(
     read_mask: Option<prost_types::FieldMask>,
 ) -> Result<(FieldMaskTree, Option<FieldMaskTree>, Option<FieldMaskTree>), Status> {
-    let read_mask = read_mask.map(FieldMaskTree::from).unwrap_or_else(|| {
-        CHECKPOINT_READ_MASK_DEFAULT
-            .parse()
-            .expect("valid default mask")
-    });
+    let field_mask =
+        read_mask.unwrap_or_else(|| prost_types::FieldMask::from_str(CHECKPOINT_READ_MASK_DEFAULT));
 
     // Validate the read_mask paths
-    read_mask
-        .validate::<CheckpointDataResponse>()
+    FieldMaskUtil::validate::<CheckpointDataResponse>(&field_mask)
         .map_err(|path| Status::invalid_argument(format!("invalid read_mask path: {path}")))?;
+
+    // Convert to FieldMaskTree after validation
+    let read_mask = FieldMaskTree::from(field_mask);
 
     // Extract checkpoint-related fields mask
     let checkpoint_mask = read_mask.subtree("checkpoint").unwrap_or_default();

@@ -522,8 +522,13 @@ impl GrpcReader {
                                     }
                                 }
 
-                                let executed_tx = grpc_transaction::ExecutedTransaction::merge_from(
+                                let checkpoint_tx_ctx = iota_grpc_types::v0::transaction::CheckpointTransactionWithContext::new(
                                     checkpoint_transaction,
+                                    Some(sequence_number),
+                                    Some(checkpoint_summary.data().timestamp_ms),
+                                );
+                                let executed_tx = grpc_transaction::ExecutedTransaction::merge_from(
+                                    checkpoint_tx_ctx,
                                     &tx_mask,
                                 )
                                 .map_err(|e| Status::internal(format!("transaction merge error: {e}")))?;

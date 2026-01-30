@@ -106,6 +106,32 @@ impl TryFrom<&UserSignature> for iota_sdk_types::UserSignature {
 // UserSignatures
 //
 
+impl Merge<iota_types::transaction::Transaction> for UserSignatures {
+    fn merge(
+        &mut self,
+        source: iota_types::transaction::Transaction,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        // Get signatures directly from transaction without converting the whole
+        // transaction
+        let tx_signatures = source.tx_signatures();
+
+        self.signatures = tx_signatures
+            .iter()
+            .map(|sig| {
+                // Convert iota_types signature to SDK signature, then merge
+                let sdk_sig: iota_sdk_types::UserSignature = sig
+                    .clone()
+                    .try_into()
+                    .map_err(|e| format!("Failed to convert signature: {e}"))?;
+                UserSignature::merge_from(sdk_sig, mask)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(())
+    }
+}
+
 impl Merge<&iota_sdk_types::SignedTransaction> for UserSignatures {
     fn merge(
         &mut self,
