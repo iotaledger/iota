@@ -347,6 +347,13 @@ impl Client {
                     }
                 }
             }
+
+            // Check if stream ended with incomplete checkpoint data
+            if let Some(sequence_number) = current_sequence_number {
+                Err(Error::server(format!(
+                    "Stream ended with incomplete checkpoint data for sequence number {sequence_number}"
+                )))?;
+            }
         }
     }
 }
