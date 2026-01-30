@@ -161,7 +161,7 @@ mod test {
 
         // Timing constants
         const LONG_DURATION_SECS: u64 = 120;
-        const SHORT_DURATION_SECS: u64 = 2;
+        const SHORT_DURATION_SECS: u64 = 5;
         const TXN_SUBMIT_INTERVAL_MS: u64 = 10;
         const PRE_FINAL_RUN_SECS: u64 = 2 * LONG_DURATION_SECS;
         const FINAL_SETTLEMENT_WAIT_SECS: u64 = LONG_DURATION_SECS;
@@ -317,7 +317,7 @@ mod test {
                     .map(|a| a.commit_consumer_monitor().highest_handled_commit())
                     .max()
                     .unwrap_or(commit_at_stop);
-                authorities[authority_idx].stop();
+                authorities[authority_idx].stop().await;
                 assert!(!authorities[authority_idx].is_running());
 
                 // Wait while stopped (other authorities make progress)
@@ -495,5 +495,13 @@ mod test {
     #[sim_test(config = "test_config()")]
     async fn test_sequential_restarts_reset_last_processed_long_run_long_stop() {
         run_sequential_restarts_test(RestartMode::ResetLastProcessed, true, true).await;
+    }
+
+    /// Erase all transactions from DB, preserving commits and block headers.
+    /// Tests transaction recovery via sync from peers.
+    /// Long run before stop, long stop duration.
+    #[sim_test(config = "test_config()")]
+    async fn test_sequential_restarts_erase_transactions_long_run_long_stop() {
+        run_sequential_restarts_test(RestartMode::EraseAllTransactions, true, true).await;
     }
 }

@@ -51,6 +51,8 @@ pub struct ConsensusAuthority {
     core_thread_handle: CoreThreadHandle,
     subscriber: Subscriber<TonicClient, AuthorityService<ChannelCoreThreadDispatcher>>,
     network_manager: TonicManager<AuthorityService<ChannelCoreThreadDispatcher>>,
+    #[cfg(msim)]
+    store: Arc<RocksDBStore>,
     #[cfg(test)]
     sync_last_known_own_block: bool,
 }
@@ -241,7 +243,7 @@ impl ConsensusAuthority {
             core_dispatcher,
             signals_receivers.block_broadcast_receiver(),
             dag_state.clone(),
-            store,
+            store.clone(),
             shard_reconstructor.transaction_message_sender(),
             cordial_knowledge.clone(),
         ));
@@ -280,6 +282,8 @@ impl ConsensusAuthority {
             core_thread_handle,
             subscriber,
             network_manager,
+            #[cfg(msim)]
+            store,
             #[cfg(test)]
             sync_last_known_own_block,
         }
@@ -347,6 +351,15 @@ impl ConsensusAuthority {
             .node_metrics
             .uptime
             .observe(self.start_time.elapsed().as_secs_f64());
+    }
+
+    #[cfg(msim)]
+    pub async fn stop_and_clear_transactions(self) -> Result<(), String> {
+        let store = self.store.clone();
+        self.stop().await;
+        store
+            .delete_all_transactions()
+            .map_err(|err| err.to_string())
     }
 
     pub fn transaction_client(&self) -> Arc<TransactionClient> {

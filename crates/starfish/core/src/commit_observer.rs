@@ -193,6 +193,21 @@ impl CommitObserver {
         self.handle_committed_sub_dags_internal(&[], committed_subdags, source)
     }
 
+    /// Evicts linearizer and updates dag_state with the last solid subdag.
+    fn update_and_evict_with_solid_subdags(&mut self, solid_subdags: &[CommittedSubDag]) {
+        if solid_subdags.is_empty() {
+            return;
+        }
+        let last_solid_subdag = solid_subdags
+            .last()
+            .expect("There should be at least one solid subdag");
+        self.linearizer
+            .evict_linearizer(last_solid_subdag.leader.round);
+        self.dag_state
+            .write()
+            .update_last_solid_subdag_base(last_solid_subdag.base.clone());
+    }
+
     fn handle_committed_sub_dags_internal(
         &mut self,
         pending_sub_dags: &[PendingSubDag],
@@ -202,23 +217,11 @@ impl CommitObserver {
         // Committed headers and sequenced transactions must be persisted to storage
         // before sending them outside consensus.
         if !pending_sub_dags.is_empty() || !committed_subdags.is_empty() {
-            let mut dag_state_guard = self.dag_state.write();
             // Evict the ack tracker and update GC round BEFORE flush so that eviction
             // uses the correct GC round.
-            if !committed_subdags.is_empty() {
-                let max_solid_commit_leader_round = committed_subdags
-                    .last()
-                    .expect("There should be at least one solid subdag")
-                    .leader
-                    .round;
-                self.linearizer
-                    .evict_linearizer(max_solid_commit_leader_round);
-                dag_state_guard
-                    .update_last_solid_commit_leader_round(max_solid_commit_leader_round);
-            }
-            dag_state_guard.flush();
+            self.update_and_evict_with_solid_subdags(&committed_subdags);
+            self.dag_state.write().flush();
         }
-
         // Send committed sub-dags through the channel
         let _sent_indices = self.send_sub_dags(&committed_subdags, source)?;
 
@@ -331,6 +334,7 @@ impl CommitObserver {
             let (solid_sub_dags, _missing) = self
                 .commit_solidifier
                 .try_get_solid_sub_dags(&pending_for_solidifier);
+            self.update_and_evict_with_solid_subdags(&solid_sub_dags);
             self.send_sub_dags(&solid_sub_dags, source)
                 .expect("We should successfully send solid commits during recovery");
             self.report_metrics(&[], &solid_sub_dags, source);
@@ -402,6 +406,30 @@ impl CommitObserver {
     ) -> Vec<CommitIndex> {
         if last_processed_commit_index >= last_commit_index {
             info!("No unprocessed commits to resend");
+
+            // Even though there are no commits to resend, we still need to initialize
+            // last_solid_subdag_base so that fast sync knows where to start fetching.
+            if last_processed_commit_index > 0 {
+                if let Some(commit) = self
+                    .store
+                    .scan_commits(
+                        (last_processed_commit_index..=last_processed_commit_index).into(),
+                    )
+                    .ok()
+                    .and_then(|commits| commits.into_iter().next())
+                {
+                    let pending_subdag =
+                        load_pending_subdag_from_store(self.store.as_ref(), commit, vec![]);
+                    info!(
+                        "Initializing last_solid_subdag_base from last processed commit {}",
+                        last_processed_commit_index
+                    );
+                    self.dag_state
+                        .write()
+                        .update_last_solid_subdag_base(pending_subdag.base);
+                }
+            }
+
             return Vec::new();
         }
 
@@ -474,6 +502,9 @@ impl CommitObserver {
 
             committed_subdags.push(committed_subdag);
         }
+
+        // Evict linearizer and update dag_state with solid subdags
+        self.update_and_evict_with_solid_subdags(&committed_subdags);
 
         let sent_indices = self
             .send_sub_dags(&committed_subdags, source)
