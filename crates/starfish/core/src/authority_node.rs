@@ -803,6 +803,16 @@ mod tests {
         authorities.remove(&index_3).unwrap().stop().await;
         sleep(Duration::from_secs(5)).await;
 
+        // Drain any remaining messages from the receiver of the last working authority
+        // before restarting authority 1 and remember the last commit index
+        let index_0 = committee.to_authority_index(0).unwrap();
+        let mut last_commit_before_restart = 0u32;
+        while let Ok(Some(committed_subdag)) =
+            timeout(Duration::from_millis(100), output_receivers[index_0].recv()).await
+        {
+            last_commit_before_restart = committed_subdag.commit_ref.index;
+        }
+
         // Authority 1: create a new directory to simulate amnesia. The node will
         // attempt to synchronize the last own block and recover from there. It
         // won't be able to do that successfully as authority 2 is still down.
@@ -827,14 +837,22 @@ mod tests {
         boot_counters[index_1] += 1;
         authorities.insert(index_1, authority);
         temp_dirs.insert(index_1, dir);
-        let received_from_authority_1 =
-            timeout(Duration::from_secs(10), output_receivers[index_1].recv()).await;
-        match received_from_authority_1 {
-            Ok(Some(result)) => {
-                panic!("Expected no result, but received: {result:?}");
-            }
-            Ok(None) | Err(_) => {
-                // Timeout or channel closed as expected, test passes
+        // let it run for some time
+        sleep(Duration::from_secs(5)).await;
+
+        // Drain any messages from the new receiver and verify there are no NEW commits.
+        // The new authority may receive CommittedSubDags via block subscription for
+        // blocks that were committed BEFORE the restart (commit index <=
+        // last_commit_before_restart). However, it should NOT create any NEW
+        // commits since there's no quorum (only 2/4).
+        while let Ok(Some(committed_subdag)) =
+            timeout(Duration::from_millis(100), output_receivers[index_1].recv()).await
+        {
+            if committed_subdag.commit_ref.index > last_commit_before_restart {
+                panic!(
+                    "Expected no new commits after restart, but received commit index {} (last before restart was {})",
+                    committed_subdag.commit_ref.index, last_commit_before_restart
+                );
             }
         }
 
