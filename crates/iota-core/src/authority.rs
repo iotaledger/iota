@@ -5374,10 +5374,7 @@ pub mod framework_injection {
     };
 
     use iota_framework::{BuiltInFramework, SystemPackage};
-    use iota_types::{
-        base_types::{AuthorityName, ObjectID},
-        is_system_package,
-    };
+    use iota_types::base_types::{AuthorityName, ObjectID};
     use move_binary_format::CompiledModule;
 
     type FrameworkOverrideConfig = BTreeMap<ObjectID, PackageOverrideConfig>;
@@ -5452,7 +5449,7 @@ pub mod framework_injection {
         name: AuthorityName,
     ) -> Option<SystemPackage> {
         let bytes = get_override_bytes(package_id, name)?;
-        let dependencies = if is_system_package(*package_id) {
+        let dependencies = if package_id.is_system_package() {
             BuiltInFramework::get_package_by_id(package_id)
                 .dependencies
                 .to_vec()
