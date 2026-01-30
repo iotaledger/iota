@@ -162,6 +162,8 @@ impl ConsensusAuthority {
             leader_schedule.clone(),
         );
 
+        let fast_sync_ongoing = dag_state.read().fast_sync_ongoing();
+
         let core = Core::new(
             context.clone(),
             leader_schedule,
@@ -179,7 +181,7 @@ impl ConsensusAuthority {
         );
 
         let (core_dispatcher, core_thread_handle) =
-            ChannelCoreThreadDispatcher::start(context.clone(), core);
+            ChannelCoreThreadDispatcher::start(context.clone(), core, fast_sync_ongoing);
         let core_dispatcher = Arc::new(core_dispatcher);
 
         let transactions_synchronizer = TransactionsSynchronizer::start(

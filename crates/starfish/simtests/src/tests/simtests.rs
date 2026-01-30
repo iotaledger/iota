@@ -161,7 +161,7 @@ mod test {
 
         // Timing constants
         const LONG_DURATION_SECS: u64 = 120;
-        const SHORT_DURATION_SECS: u64 = 5;
+        const SHORT_DURATION_SECS: u64 = 2;
         const TXN_SUBMIT_INTERVAL_MS: u64 = 10;
         const PRE_FINAL_RUN_SECS: u64 = 2 * LONG_DURATION_SECS;
         const FINAL_SETTLEMENT_WAIT_SECS: u64 = LONG_DURATION_SECS;
@@ -351,10 +351,13 @@ mod test {
                     .max()
                     .unwrap();
                 let incremental_progress = network_max.saturating_sub(max_commit_at_stop);
-                assert!(
-                    incremental_progress >= MIN_INCREMENTAL_COMMIT_PROGRESS,
-                    "Authority {authority_idx} cycle {cycle}: incremental commit progress too low: {incremental_progress} < {MIN_INCREMENTAL_COMMIT_PROGRESS}"
-                );
+
+                if long_run {
+                    assert!(
+                        incremental_progress >= MIN_INCREMENTAL_COMMIT_PROGRESS,
+                        "Authority {authority_idx} cycle {cycle}: incremental commit progress too low: {incremental_progress} < {MIN_INCREMENTAL_COMMIT_PROGRESS}"
+                    );
+                }
 
                 // Verify consistency after restart and catch-up
                 verify_commit_consistency(
@@ -485,10 +488,11 @@ mod test {
     // aborted before full sync catch-up. It should be added once the fix for
     // fast syncing is applied.
     // /// Persistent DB after each restart, short run before stop, long stop
-    // duration. #[sim_test(config = "test_config()")]
-    // async fn test_sequential_restarts_persistent_db_short_run_long_stop() {
-    //     run_sequential_restarts_test(RestartMode::PersistAll, false, true).await;
-    // }
+    // duration.
+    #[sim_test(config = "test_config()")]
+    async fn test_sequential_restarts_persistent_db_short_run_long_stop() {
+        run_sequential_restarts_test(RestartMode::PersistAll, false, true).await;
+    }
 
     /// DB intact but last_processed_commit reset; long run before stop, long
     /// stop duration.

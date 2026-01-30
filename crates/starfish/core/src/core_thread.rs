@@ -201,13 +201,17 @@ struct CoreThread {
     rx_quorum_subscribers_exists: watch::Receiver<bool>,
     rx_last_known_proposed_round: watch::Receiver<Round>,
     context: Arc<Context>,
+    /// True if fast sync was/is ongoing
+    fast_sync_ongoing: bool,
 }
 
 impl CoreThread {
     #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %self.context.own_index)))]
     pub async fn run(mut self) -> ConsensusResult<()> {
-        tracing::debug!("Started core thread");
-        let mut fast_sync_ongoing = false;
+        tracing::debug!(
+            "Started core thread, fast_sync_ongoing={}",
+            self.fast_sync_ongoing
+        );
 
         loop {
             tokio::select! {
@@ -218,7 +222,7 @@ impl CoreThread {
                     self.context.metrics.node_metrics.core_lock_dequeued.inc();
 
                     // During fast sync, ignore all commands except AddSubdagFromFastSync and ReinitializeComponents
-                    if fast_sync_ongoing && !matches!(command, CoreThreadCommand::AddSubdagFromFastSync(..) | CoreThreadCommand::ReinitializeComponents { .. }) {
+                    if self.fast_sync_ongoing && !matches!(command, CoreThreadCommand::AddSubdagFromFastSync(..) | CoreThreadCommand::ReinitializeComponents { .. }) {
                         match command {
                             CoreThreadCommand::AddBlocks(_, _, sender) |
                             CoreThreadCommand::AddBlockHeaders(_, _, sender) |
@@ -247,7 +251,7 @@ impl CoreThread {
                     match command {
                         CoreThreadCommand::AddSubdagFromFastSync(output, sender) => {
                             info!("Adding subdags from fast sync, entering fast sync mode; {} index_start and {} index_end", output.committed_subdags.first().map(|sd| sd.base.leader.round).unwrap_or(0), output.committed_subdags.last().map(|sd| sd.base.leader.round).unwrap_or(0));
-                            fast_sync_ongoing = true;
+                            self.fast_sync_ongoing = true;
                             let _scope = monitored_scope("CoreThread::loop::add_subdags_from_fast_sync");
                             self.core.handle_committed_sub_dags_from_fast_sync(output)?;
                             sender.send(()).ok();
@@ -298,7 +302,7 @@ impl CoreThread {
                                 block_headers.len()
                             );
                             self.core.reinitialize_components(block_headers)?;
-                            fast_sync_ongoing = false;
+                            self.fast_sync_ongoing = false;
                             sender.send(()).ok();
                         }
                     }
@@ -307,7 +311,7 @@ impl CoreThread {
                     let _scope = monitored_scope("CoreThread::loop::set_last_known_proposed_round");
                     let round = *self.rx_last_known_proposed_round.borrow();
                     self.core.set_last_known_proposed_round(round);
-                    if !fast_sync_ongoing {
+                    if !self.fast_sync_ongoing {
                         self.core.new_block(round + 1, ReasonToCreateBlock::KnownLastBlock)?;
                     }
                 }
@@ -316,7 +320,7 @@ impl CoreThread {
                     let should_propose_before = self.core.should_propose();
                     let exists = *self.rx_quorum_subscribers_exists.borrow();
                     self.core.set_quorum_subscribers_exists(exists);
-                    if !should_propose_before && self.core.should_propose() && !fast_sync_ongoing {
+                    if !should_propose_before && self.core.should_propose() && !self.fast_sync_ongoing {
                         // If core cannot propose before but can propose now, try to produce a new block to ensure liveness,
                         // because block proposal could have been skipped.
                         self.core.new_block(Round::MAX, ReasonToCreateBlock::QuorumSubscribersExist)?;
@@ -340,7 +344,11 @@ pub(crate) struct ChannelCoreThreadDispatcher {
 impl ChannelCoreThreadDispatcher {
     /// Starts the core thread for the consensus authority and returns a
     /// dispatcher and handle for managing the core thread.
-    pub(crate) fn start(context: Arc<Context>, core: Core) -> (Self, CoreThreadHandle) {
+    pub(crate) fn start(
+        context: Arc<Context>,
+        core: Core,
+        fast_sync_ongoing: bool,
+    ) -> (Self, CoreThreadHandle) {
         let (sender, receiver) =
             channel("consensus_core_commands", CORE_THREAD_COMMANDS_CHANNEL_SIZE);
         let (tx_quorum_subscribers_exists, mut rx_quorum_subscribers_exists) =
@@ -354,6 +362,7 @@ impl ChannelCoreThreadDispatcher {
             rx_quorum_subscribers_exists,
             rx_last_known_proposed_round,
             context: context.clone(),
+            fast_sync_ongoing,
         };
 
         let join_handle = spawn_logged_monitored_task!(
@@ -759,7 +768,7 @@ pub(crate) mod tests {
             false,
         );
 
-        let (core_dispatcher, handle) = ChannelCoreThreadDispatcher::start(context, core);
+        let (core_dispatcher, handle) = ChannelCoreThreadDispatcher::start(context, core, false);
 
         // Now create some clones of the dispatcher
         let dispatcher_1 = core_dispatcher.clone();
