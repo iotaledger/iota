@@ -87,6 +87,17 @@ impl GrpcStateReader for SimulacrumGrpcReader {
         })
     }
 
+    fn get_checkpoint_sequence_number_by_digest(
+        &self,
+        digest: &iota_types::digests::CheckpointDigest,
+    ) -> Option<u64> {
+        self.simulacrum.with_store(|store| {
+            store
+                .get_checkpoint_by_digest(digest)
+                .map(|checkpoint| *checkpoint.sequence_number())
+        })
+    }
+
     fn get_checkpoint_data(&self, seq: u64) -> Option<CheckpointData> {
         self.simulacrum
             .with_store(|store| match store.get_checkpoint_by_sequence_number(seq) {

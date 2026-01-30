@@ -131,12 +131,15 @@ pub(crate) fn get_checkpoint_data(
         Some(grpc_ledger_service::get_checkpoint_data_request::CheckpointId::SequenceNumber(
             seq,
         )) => seq,
-        Some(grpc_ledger_service::get_checkpoint_data_request::CheckpointId::Digest(_digest)) => {
-            // TODO: do we have a lookup table for that?
-            return Err(Status::unimplemented(
-                "checkpoint lookup by digest is not yet implemented",
-            )
-            .into());
+        Some(grpc_ledger_service::get_checkpoint_data_request::CheckpointId::Digest(digest)) => {
+            let sdk_digest: iota_sdk_types::Digest = (&digest)
+                .try_into()
+                .map_err(|e| Status::invalid_argument(format!("invalid checkpoint digest: {e}")))?;
+            let digest: iota_types::digests::CheckpointDigest = sdk_digest.into();
+            service
+                .reader
+                .get_checkpoint_sequence_number_by_digest(&digest)
+                .ok_or(Status::not_found("checkpoint not found"))?
         }
         Some(grpc_ledger_service::get_checkpoint_data_request::CheckpointId::Latest(_)) => service
             .reader

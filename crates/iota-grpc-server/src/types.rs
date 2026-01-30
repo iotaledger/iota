@@ -111,6 +111,12 @@ pub trait GrpcStateReader: Send + Sync + 'static {
     /// Get checkpoint summary by sequence number
     fn get_checkpoint_summary(&self, seq: u64) -> Option<CertifiedCheckpointSummary>;
 
+    /// Get checkpoint sequence number by digest
+    fn get_checkpoint_sequence_number_by_digest(
+        &self,
+        digest: &iota_types::digests::CheckpointDigest,
+    ) -> Option<u64>;
+
     /// Get full checkpoint data by sequence number
     fn get_checkpoint_data(&self, seq: u64) -> Option<IotaTypesCheckpointData>;
 
@@ -208,6 +214,15 @@ impl GrpcStateReader for RestStateReaderAdapter {
         self.inner
             .get_checkpoint_by_sequence_number(seq)
             .map(CertifiedCheckpointSummary::from)
+    }
+
+    fn get_checkpoint_sequence_number_by_digest(
+        &self,
+        digest: &iota_types::digests::CheckpointDigest,
+    ) -> Option<u64> {
+        self.inner
+            .get_checkpoint_by_digest(digest)
+            .map(|checkpoint| *checkpoint.sequence_number())
     }
 
     fn get_checkpoint_summary_and_contents(
@@ -354,6 +369,15 @@ impl GrpcReader {
 
     pub fn get_chain_identifier(&self) -> anyhow::Result<iota_types::digests::ChainIdentifier> {
         self.state_reader.get_chain_identifier()
+    }
+
+    /// Get checkpoint sequence number by digest
+    pub fn get_checkpoint_sequence_number_by_digest(
+        &self,
+        digest: &iota_types::digests::CheckpointDigest,
+    ) -> Option<u64> {
+        self.state_reader
+            .get_checkpoint_sequence_number_by_digest(digest)
     }
 
     /// Get the last checkpoint of a given epoch, if any
