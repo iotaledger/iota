@@ -1327,7 +1327,7 @@ impl IotaTestAdapter {
             .trim()
             .parse()?;
 
-        let mut bytes = bcs::to_bytes(&id)?;
+        let mut bytes = bcs::to_bytes(&id.as_bytes().to_vec())?;
         for part in parts {
             let n: u64 = part.trim().parse()?;
             bytes.extend(bcs::to_bytes(&n)?);
