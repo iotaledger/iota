@@ -470,10 +470,7 @@ impl GrpcReader {
             };
             yield Ok(checkpoint_message);
 
-            // 2. Stream transactions if requested
-            // Collect events for later aggregation if events_mask is Some
-            let mut all_events: Vec<grpc_event::Event> = Vec::new();
-
+            // 2. Stream transactions and events if requested (interleaved)
             if transactions_mask.is_some() || events_mask.is_some() {
                 let tx_mask = transactions_mask.clone().unwrap_or_else(FieldMaskTree::new_wildcard);
                 let should_collect_events = events_mask.is_some();
@@ -486,10 +483,14 @@ impl GrpcReader {
                 let mut current_batch: Vec<grpc_transaction::ExecutedTransaction> = Vec::new();
                 let mut current_batch_size = 0usize;
 
+                // Event batching state
+                let mut events_batch: Vec<grpc_event::Event> = Vec::new();
+                let mut events_batch_size = 0usize;
+
                 while let Some(result) = transaction_stream.next().await {
                     match result {
                         Ok(checkpoint_transaction) => {
-                            // Collect events for aggregation if requested
+                            // Collect and yield events as they reach size limits
                             if should_collect_events {
                                 if let Some(ref tx_events) = checkpoint_transaction.events {
                                     // Filter raw events before SDK conversion
@@ -507,7 +508,25 @@ impl GrpcReader {
                                         if let Ok(event) = sdk_event {
                                             let grpc_event = grpc_event::Event::merge_from(&event, &events_submask)
                                                 .map_err(|e| Status::internal(format!("event merge error: {e}")))?;
-                                            all_events.push(grpc_event);
+                                            let event_size = grpc_event.encoded_len();
+
+                                            // Check if adding this event would exceed limit
+                                            if events_batch_size + event_size > max_message_size_bytes && !events_batch.is_empty() {
+                                                // Yield current event batch
+                                                let events_message = grpc_ledger_service::CheckpointData {
+                                                    payload: Some(Payload::Events(grpc_event::Events {
+                                                        events: events_batch,
+                                                    })),
+                                                };
+                                                yield Ok(events_message);
+
+                                                // Reset event batch
+                                                events_batch = vec![grpc_event];
+                                                events_batch_size = event_size;
+                                            } else {
+                                                events_batch.push(grpc_event);
+                                                events_batch_size += event_size;
+                                            }
                                         }
                                     }
                                 }
@@ -536,7 +555,7 @@ impl GrpcReader {
 
                                 // Check if adding this tx would exceed limit
                                 if current_batch_size + tx_size > max_message_size_bytes && !current_batch.is_empty() {
-                                    // Yield current batch
+                                    // Yield current transaction batch
                                     let transactions_message = grpc_ledger_service::CheckpointData {
                                         payload: Some(Payload::Transactions(grpc_transaction::ExecutedTransactions {
                                             transactions: current_batch,
@@ -544,7 +563,7 @@ impl GrpcReader {
                                     };
                                     yield Ok(transactions_message);
 
-                                    // Reset batch
+                                    // Reset transaction batch
                                     current_batch = vec![executed_tx];
                                     current_batch_size = tx_size;
                                 } else {
@@ -569,37 +588,9 @@ impl GrpcReader {
                     };
                     yield Ok(transactions_message);
                 }
-            }
 
-            // 3. Send aggregated Events messages (chunked by size) if requested
-            if events_mask.is_some() && !all_events.is_empty() {
-                let mut events_batch: Vec<grpc_event::Event> = Vec::new();
-                let mut events_batch_size = 0usize;
-
-                for event in all_events {
-                    let event_size = event.encoded_len();
-
-                    // Check if adding this event would exceed limit
-                    if events_batch_size + event_size > max_message_size_bytes && !events_batch.is_empty() {
-                        // Yield current batch
-                        let events_message = grpc_ledger_service::CheckpointData {
-                            payload: Some(Payload::Events(grpc_event::Events {
-                                events: events_batch,
-                            })),
-                        };
-                        yield Ok(events_message);
-
-                        // Reset batch
-                        events_batch = vec![event];
-                        events_batch_size = event_size;
-                    } else {
-                        events_batch.push(event);
-                        events_batch_size += event_size;
-                    }
-                }
-
-                // Send final batch if any remaining
-                if !events_batch.is_empty() {
+                // Send final batch of events if any
+                if should_collect_events && !events_batch.is_empty() {
                     let events_message = grpc_ledger_service::CheckpointData {
                         payload: Some(Payload::Events(grpc_event::Events {
                             events: events_batch,
@@ -609,7 +600,7 @@ impl GrpcReader {
                 }
             }
 
-            // 4. Always send EndMarker at the end
+            // 3. Always send EndMarker at the end
             let end_marker_message = grpc_ledger_service::CheckpointData {
                 payload: Some(Payload::EndMarker(EndMarker {
                     sequence_number: Some(sequence_number),
