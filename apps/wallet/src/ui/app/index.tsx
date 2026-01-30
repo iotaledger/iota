@@ -97,11 +97,6 @@ export function App() {
         [accounts],
     );
     const backgroundClient = useBackgroundClient();
-
-    useEffect(() => {
-        backgroundClient.refreshFeatures();
-    }, []);
-
     const { connectToLedger, iotaLedgerClient } = useIotaLedgerClient();
     useEffect(() => {
         // update ledger accounts without the public key

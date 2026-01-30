@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { openInNewTab } from '_shared/utils';
-import { setAttributes } from '_src/shared/experimentation/features';
+import { growthbook, setAttributes } from '_src/shared/experimentation/features';
 import { coerce, lte } from 'semver';
 import Browser from 'webextension-polyfill';
 
@@ -18,6 +18,9 @@ import Permissions from './permissions';
 import { initSentry } from './sentry';
 import Transactions from './transactions';
 
+growthbook.refreshFeatures().catch(() => {
+    // silence the error
+});
 initSentry();
 
 Browser.runtime.onInstalled.addListener(async ({ reason, previousVersion }) => {
