@@ -10,14 +10,13 @@ use iota_stardust_types::block::{
     address::AliasAddress,
     output::{FoundryId, FoundryOutput, feature::Irc30Metadata},
 };
-use iota_types::stardust::error::StardustError;
 use move_compiler::parser::keywords;
 use rand::distributions::{Alphanumeric, DistString};
 use rand_pcg::Pcg64;
 use rand_seeder::{Seeder, SipRng, rand_core::RngCore};
 use regex::Regex;
 
-use crate::stardust::types::token_scheme::SimpleTokenSchemeU64;
+use crate::stardust::types::{error::StardustError, token_scheme::SimpleTokenSchemeU64};
 
 /// The [`NativeTokenPackageData`] struct encapsulates all the data necessary to
 /// build a Stardust native token package.

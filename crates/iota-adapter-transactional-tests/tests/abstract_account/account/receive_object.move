@@ -9,7 +9,6 @@
 module test::authenticate;
 
 use iota::account;
-use iota::auth_context::AuthContext;
 use iota::authenticator_function;
 use iota::coin::Coin;
 use iota::iota::IOTA;

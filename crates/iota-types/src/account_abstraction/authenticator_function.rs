@@ -10,14 +10,22 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
-    base_types::ObjectID,
+    base_types::{ObjectID, ObjectRef, TransactionDigest},
     error::IotaError,
-    object::{Data, Object},
+    execution::DynamicallyLoadedObjectMetadata,
+    object::{Data, Object, Owner},
 };
 
 pub const AUTHENTICATOR_FUNCTION_MODULE_NAME: &IdentStr = ident_str!("authenticator_function");
 pub const AUTHENTICATOR_FUNCTION_REF_V1_STRUCT_NAME: &IdentStr =
     ident_str!("AuthenticatorFunctionRefV1");
+
+/// An enum representing different versions of AuthenticatorFunctionRef. This is
+/// used to represent the reference to an authenticator function in Move.
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
+pub enum AuthenticatorFunctionRef {
+    V1(AuthenticatorFunctionRefV1),
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct AuthenticatorFunctionRefV1 {
@@ -64,5 +72,37 @@ impl TryFrom<Object> for AuthenticatorFunctionRefV1 {
         Err(IotaError::Type {
             error: format!("Object type is not a AuthenticatorFunctionRefV1: {object:?}"),
         })
+    }
+}
+
+/// A struct used to hold AuthenticatorFunctionRef and
+/// DynamicallyLoadedObjectMetadata together, in order to pass this information
+/// to the execution side.
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
+pub struct AuthenticatorFunctionRefForExecution {
+    pub authenticator_function_ref: AuthenticatorFunctionRef,
+    pub loaded_object_id: ObjectID,
+    pub loaded_object_metadata: DynamicallyLoadedObjectMetadata,
+}
+
+impl AuthenticatorFunctionRefForExecution {
+    pub fn new_v1(
+        authenticator_function_ref: AuthenticatorFunctionRefV1,
+        loaded_object_ref: ObjectRef,
+        owner: Owner,
+        storage_rebate: u64,
+        previous_transaction: TransactionDigest,
+    ) -> Self {
+        Self {
+            authenticator_function_ref: AuthenticatorFunctionRef::V1(authenticator_function_ref),
+            loaded_object_id: loaded_object_ref.0,
+            loaded_object_metadata: DynamicallyLoadedObjectMetadata {
+                version: loaded_object_ref.1,
+                digest: loaded_object_ref.2,
+                owner,
+                storage_rebate,
+                previous_transaction,
+            },
+        }
     }
 }

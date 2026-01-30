@@ -10,8 +10,6 @@
 //# publish --sender A --dependencies simple_abstract_account
 module test::authenticate;
 
-use iota::auth_context::AuthContext;
-
 public struct AbstractAccount2 has key {
     id: UID,
 }

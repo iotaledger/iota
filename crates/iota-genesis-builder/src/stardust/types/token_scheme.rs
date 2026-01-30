@@ -4,8 +4,9 @@
 //! Types representing token schemes in Stardust.
 use bigdecimal::{BigDecimal, ToPrimitive, num_bigint, num_bigint::BigInt};
 use iota_stardust_types::block::output::SimpleTokenScheme;
-use iota_types::stardust::error::StardustError;
 use primitive_types::U256;
+
+use super::error::StardustError;
 
 /// The maximum allowed u64 supply.
 pub const MAX_ALLOWED_U64_SUPPLY: u64 = u64::MAX - 1;

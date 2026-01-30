@@ -21,6 +21,7 @@ use crate::{
     dag_state::DagState,
     error::ConsensusError,
     network::{NetworkClient, NetworkService},
+    scoring_metrics_store::ErrorSource,
 };
 
 /// Subscriber manages the block stream subscriptions to other peers, taking
@@ -230,12 +231,15 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                             .handle_send_block(peer, block.clone())
                             .await;
                         if let Err(e) = result {
-                            context.metrics.update_scoring_metrics_on_block_receival(
-                                peer,
-                                peer_hostname,
-                                e.clone(),
-                                "handle_send_block",
-                            );
+                            context
+                                .scoring_metrics_store
+                                .update_scoring_metrics_on_block_receival(
+                                    peer,
+                                    peer_hostname,
+                                    e.clone(),
+                                    ErrorSource::Subscriber,
+                                    &context.metrics.node_metrics,
+                                );
                             match e {
                                 ConsensusError::BlockRejected { block_ref, reason } => {
                                     debug!(
