@@ -71,19 +71,26 @@ pub type Result<T> = std::result::Result<T, Error>;
 // If `None` is passed, these defaults are used.
 
 /// Default field mask for [`crate::Client::get_transactions`].
+/// possible fields:
+/// transaction,signatures,effects,events,checkpoint,timestamp,input_objects,
+/// output_objects
 pub const TRANSACTIONS_READ_MASK: &str =
-    "transaction.bcs,signatures,effects.bcs,events,checkpoint,timestamp";
+    "transaction,signatures,effects,events,checkpoint,timestamp";
 
 /// Default field mask for [`crate::Client::get_objects`].
-pub const OBJECTS_READ_MASK: &str = "bcs";
+/// possible fields: reference,bcs
+pub const OBJECTS_READ_MASK: &str = "reference,bcs";
 
 /// Default field mask for checkpoint queries.
-pub const CHECKPOINT_READ_MASK: &str = "summary,contents,signature,transactions,events";
+/// possible fields: summary,contents,signature,transactions,events
+pub const CHECKPOINT_READ_MASK: &str = "summary";
 
 /// Default field mask for [`crate::Client::execute_transaction`] and
 /// [`crate::Client::simulate_transaction`].
-pub const EXECUTION_READ_MASK: &str =
-    "transaction.effects,transaction.events,transaction.input_objects,transaction.output_objects";
+/// possible fields:
+/// transaction,signatures,effects,events,checkpoint,timestamp,input_objects,
+/// output_objects
+pub const EXECUTION_READ_MASK: &str = "transaction,effects,events,input_objects,output_objects";
 
 /// Build a field mask with a custom value or default.
 ///
