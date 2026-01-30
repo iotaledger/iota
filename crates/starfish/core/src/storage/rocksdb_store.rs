@@ -791,8 +791,7 @@ pub(crate) fn check_ref_consistency(refs: &[GenericTransactionRef]) -> bool {
 #[cfg(msim)]
 impl RocksDBStore {
     /// Deletes all transactions from the store.
-    /// Preserves commits, block headers, and other data.
-    /// Only available in simulation tests.
+    /// Preserves other data.
     pub(crate) fn delete_all_transactions(&self) -> ConsensusResult<()> {
         use typed_store::Map as _;
 
