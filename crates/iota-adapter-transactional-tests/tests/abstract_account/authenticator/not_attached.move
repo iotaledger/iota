@@ -8,7 +8,6 @@
 //# publish --sender A
 module test::authenticate;
 
-use iota::auth_context::AuthContext;
 use iota::package_metadata::PackageMetadataV1;
 use std::ascii;
 

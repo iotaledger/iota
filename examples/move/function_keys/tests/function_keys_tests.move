@@ -18,7 +18,6 @@ module function_keys::function_keys_scenario_tests;
 
 use function_keys::fk_store::{Self as store, make_func_key};
 use function_keys::function_keys;
-use iota::auth_context::{Self as acx, AuthContext};
 use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
 use iota::hex;
 use iota::ptb_command::{Self, Command};
@@ -571,7 +570,7 @@ fun create_tx_context_for_testing(sender: address, digest: vector<u8>): TxContex
 
 /// Build an AuthContext for tests.
 fun create_auth_context_with_commands_for_testing(cmds: vector<Command>): AuthContext {
-    acx::new_with_tx_inputs(vector::empty(), vector::empty(), cmds)
+    auth_context::new_with_tx_inputs(vector::empty(), vector::empty(), cmds)
 }
 
 fun public_key_for_testing(): vector<u8> { b"42" }

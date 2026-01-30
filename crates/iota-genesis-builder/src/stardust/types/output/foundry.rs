@@ -3,12 +3,13 @@
 
 use iota_protocol_config::ProtocolConfig;
 use iota_stardust_types::block::output::{FoundryOutput, OutputId};
-
-use crate::{
+use iota_types::{
     base_types::{ObjectID, SequenceNumber, TxContext},
     object::Object,
-    stardust::{address::stardust_to_iota_address, coin_type::CoinType},
+    stardust::coin_type::CoinType,
 };
+
+use super::super::address::stardust_to_iota_address;
 
 pub fn create_foundry_amount_coin(
     output_id: &OutputId,
@@ -18,7 +19,7 @@ pub fn create_foundry_amount_coin(
     protocol_config: &ProtocolConfig,
     coin_type: &CoinType,
 ) -> anyhow::Result<Object> {
-    crate::stardust::output::create_coin(
+    super::basic::create_coin(
         ObjectID::new(output_id.hash()),
         stardust_to_iota_address(*foundry.alias_address())?,
         foundry.amount(),

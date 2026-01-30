@@ -10,10 +10,9 @@
 //# publish --sender A --dependencies simple_abstract_account
 module test::authenticate;
 
-use simple_abstract_account::abstract_account::AbstractAccount;
-use iota::auth_context::AuthContext;
 use iota::coin::Coin;
 use iota::iota::IOTA;
+use simple_abstract_account::abstract_account::AbstractAccount;
 
 #[authenticator]
 public fun authenticate_receive_coin(

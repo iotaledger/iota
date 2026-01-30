@@ -11,7 +11,6 @@
 module test::authenticate;
 
 use simple_abstract_account::abstract_account::AbstractAccount;
-use iota::auth_context::AuthContext;
 use std::ascii;
 
 public fun authenticate_hello_world(

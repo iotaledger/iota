@@ -5,7 +5,7 @@ module spending_limit::account;
 
 use generic_keyed_authentication::owner_public_key;
 use iota::account;
-use iota::auth_context::{AuthContext, tx_commands, tx_inputs};
+use iota::auth_context::{tx_commands, tx_inputs};
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::balance::{Self, Balance};
 use iota::bcs;

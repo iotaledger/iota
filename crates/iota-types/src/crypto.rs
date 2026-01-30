@@ -1475,6 +1475,7 @@ mod bcs_signable {
     impl BcsSignable for crate::committee::Committee {}
     impl BcsSignable for crate::messages_checkpoint::CheckpointSummary {}
     impl BcsSignable for crate::messages_checkpoint::CheckpointContents {}
+    impl BcsSignable for crate::messages_consensus::VersionedMisbehaviorReport {}
 
     impl BcsSignable for crate::effects::TransactionEffects {}
     impl BcsSignable for crate::effects::TransactionEvents {}

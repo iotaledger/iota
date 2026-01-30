@@ -4,8 +4,6 @@
 //# publish
 module 0x0::option;
 
-use iota::auth_context::AuthContext;
-
 public struct Account has key {
     id: UID,
 }

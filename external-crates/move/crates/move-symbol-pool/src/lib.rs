@@ -71,6 +71,8 @@ static_symbols!(
     "Clock",
     "tx_context",
     "TxContext",
+    "auth_context",
+    "AuthContext",
     "ID",
     "IOTA",
     "authenticator_state",

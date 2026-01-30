@@ -12,7 +12,10 @@ use iota_types::{
     dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
     in_memory_storage::InMemoryStorage,
     object::Owner,
-    stardust::output::{NFT_DYNAMIC_OBJECT_FIELD_KEY, NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE},
+    stardust::output::{
+        NFT_DYNAMIC_OBJECT_FIELD_KEY, NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE, Nft as MoveNft,
+        NftOutput as MoveNftOutput,
+    },
 };
 
 use crate::stardust::{
@@ -28,7 +31,7 @@ use crate::stardust::{
             },
         },
     },
-    types::address_swap_map::AddressSwapMap,
+    types::{address_swap_map::AddressSwapMap, output::nft::NftExt},
 };
 
 pub(super) fn verify_nft_output(
@@ -46,14 +49,14 @@ pub(super) fn verify_nft_output(
             .ok_or_else(|| anyhow!("missing nft output object for {output_id}"))
     })?;
     let created_output = created_output_obj
-        .to_rust::<iota_types::stardust::output::NftOutput>()
+        .to_rust::<MoveNftOutput>()
         .ok_or_else(|| anyhow!("invalid nft output object for {output_id}"))?;
 
     let created_nft_obj = storage
         .get_object(&ObjectID::new(*output.nft_id_non_null(&output_id)))
         .ok_or_else(|| anyhow!("missing nft object for {output_id}"))?;
     let created_nft = created_nft_obj
-        .to_rust::<iota_types::stardust::output::Nft>()
+        .to_rust::<MoveNft>()
         .ok_or_else(|| anyhow!("invalid nft object for {output_id}"))?;
 
     // Output Owner
@@ -148,10 +151,9 @@ pub(super) fn verify_nft_output(
 
     // Immutable Metadata Feature
     ensure!(
-        iota_types::stardust::output::Nft::convert_immutable_metadata(output)?
-            == created_nft.immutable_metadata,
+        MoveNft::convert_immutable_metadata(output)? == created_nft.immutable_metadata,
         "metadata mismatch: found {:x?}, expected {:x?}",
-        iota_types::stardust::output::Nft::convert_immutable_metadata(output)?,
+        MoveNft::convert_immutable_metadata(output)?,
         created_nft.immutable_metadata
     );
 

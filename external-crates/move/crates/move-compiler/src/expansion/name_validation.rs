@@ -28,10 +28,12 @@ pub const IMPLICIT_STD_MEMBERS: &[(Symbol, Symbol, ModuleMemberKind)] = &[(
 // use iota::object::{Self, ID, UID};
 // use iota::transfer;
 // use iota::tx_context::{Self, TxContext};
+// use iota::auth_context::{Self, AuthContext};
 pub const IMPLICIT_IOTA_MODULES: &[Symbol] = &[
     symbol!("object"),
     symbol!("transfer"),
     symbol!("tx_context"),
+    symbol!("auth_context"),
 ];
 pub const IMPLICIT_IOTA_MEMBERS: &[(Symbol, Symbol, ModuleMemberKind)] = &[
     (symbol!("object"), symbol!("ID"), ModuleMemberKind::Struct),
@@ -39,6 +41,11 @@ pub const IMPLICIT_IOTA_MEMBERS: &[(Symbol, Symbol, ModuleMemberKind)] = &[
     (
         symbol!("tx_context"),
         symbol!("TxContext"),
+        ModuleMemberKind::Struct,
+    ),
+    (
+        symbol!("auth_context"),
+        symbol!("AuthContext"),
         ModuleMemberKind::Struct,
     ),
 ];

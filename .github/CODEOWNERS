@@ -117,6 +117,7 @@
 /linting/ @iotaledger/tooling
 /.husky/ @iotaledger/tooling
 /.changeset/ @iotaledger/tooling
+AGENTS.md @iotaledger/tooling
 .eslintrc.js @iotaledger/tooling
 .lintstagedrc.json @iotaledger/tooling
 .npmrc @iotaledger/tooling

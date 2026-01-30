@@ -8,8 +8,6 @@
 //# publish
 module test::account;
 
-use iota::auth_context::AuthContext;
-
 public struct Account has key { id: UID }
 
 public fun create(ctx: &mut TxContext): Account { Account { id: object::new(ctx) } }

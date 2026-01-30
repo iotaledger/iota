@@ -4,7 +4,6 @@
 #[test_only]
 module iotaccount::keyed_iotaccount_tests;
 
-use iota::auth_context::{Self, AuthContext};
 use iota::authenticator_function;
 use iota::ecdsa_k1;
 use iota::hex;

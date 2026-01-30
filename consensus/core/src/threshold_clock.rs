@@ -99,9 +99,11 @@ impl ThresholdClock {
 #[cfg(test)]
 mod tests {
     use consensus_config::AuthorityIndex;
+    use iota_common::scoring_metrics::{ScoringMetricsV1, VersionedScoringMetrics};
+    use iota_protocol_config::ProtocolConfig;
 
     use super::*;
-    use crate::block::BlockDigest;
+    use crate::{block::BlockDigest, scoring_metrics_store::MysticetiScoringMetricsStore};
 
     #[tokio::test]
     async fn test_threshold_clock_add_block() {
@@ -220,8 +222,16 @@ mod tests {
 
         // Authority 0 has 5/7 stake (>2/3 quorum threshold)
         let (committee, _) = consensus_config::local_committee_and_keys(0, vec![5, 1, 1]);
-        let metrics = test_metrics(3);
+        let committee_size = committee.size();
+        let metrics = test_metrics();
         let temp_dir = TempDir::new().unwrap();
+        let current_local_metrics_count =
+            Arc::new(VersionedScoringMetrics::V1(ScoringMetricsV1::new(3)));
+        let scoring_metrics_store = Arc::new(MysticetiScoringMetricsStore::new(
+            committee_size,
+            current_local_metrics_count,
+            &ProtocolConfig::get_for_max_version_UNSAFE(),
+        ));
 
         let context = Arc::new(crate::context::Context::new(
             0,
@@ -233,6 +243,7 @@ mod tests {
             },
             iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE(),
             metrics,
+            scoring_metrics_store,
             Arc::new(crate::context::Clock::default()),
         ));
 

@@ -12,10 +12,7 @@ use iota_types::{
     dynamic_field::Field,
     in_memory_storage::InMemoryStorage,
     object::Owner,
-    timelock::{
-        stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
-        timelock::{TimeLock, is_timelocked_vested_reward},
-    },
+    timelock::{stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE, timelock::TimeLock},
 };
 
 use crate::stardust::{
@@ -31,7 +28,10 @@ use crate::stardust::{
             },
         },
     },
-    types::address_swap_map::AddressSwapMap,
+    types::{
+        address_swap_map::AddressSwapMap, output::basic::BasicOutput as MoveBasicOutput,
+        vested_reward::is_timelocked_vested_reward,
+    },
 };
 
 pub(super) fn verify_basic_output(
@@ -132,7 +132,7 @@ pub(super) fn verify_basic_output(
                 .ok_or_else(|| anyhow!("missing basic output object"))
         })?;
         let created_output = created_output_obj
-            .to_rust::<iota_types::stardust::output::BasicOutput>()
+            .to_rust::<MoveBasicOutput>()
             .ok_or_else(|| anyhow!("invalid basic output object"))?;
 
         // Owner
