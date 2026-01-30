@@ -91,7 +91,11 @@ pub enum ConsensusTransactionKey {
     NewJWKFetched(Box<(AuthorityName, JwkId, JWK)>),
     RandomnessDkgMessage(AuthorityName),
     RandomnessDkgConfirmation(AuthorityName),
-    MisbehaviorReport(MisbehaviorReportDigest),
+    MisbehaviorReport(
+        AuthorityName,
+        MisbehaviorReportDigest,
+        u64, // checkpoint_seq
+    ),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -126,8 +130,14 @@ impl Debug for ConsensusTransactionKey {
             Self::RandomnessDkgConfirmation(name) => {
                 write!(f, "RandomnessDkgConfirmation({:?})", name.concise())
             }
-            Self::MisbehaviorReport(digest) => {
-                write!(f, "MisbehaviorReport({digest:?})")
+            Self::MisbehaviorReport(name, digest, checkpoint_seq) => {
+                write!(
+                    f,
+                    "MisbehaviorReport({:?}, {:?}, {:?})",
+                    name.concise(),
+                    digest,
+                    checkpoint_seq
+                )
             }
         }
     }
@@ -642,8 +652,12 @@ impl ConsensusTransaction {
             ConsensusTransactionKind::RandomnessDkgConfirmation(authority, _) => {
                 ConsensusTransactionKey::RandomnessDkgConfirmation(*authority)
             }
-            ConsensusTransactionKind::MisbehaviorReport(_, report, _) => {
-                ConsensusTransactionKey::MisbehaviorReport(*report.digest())
+            ConsensusTransactionKind::MisbehaviorReport(authority, report, checkpoint_seq) => {
+                ConsensusTransactionKey::MisbehaviorReport(
+                    *authority,
+                    *report.digest(),
+                    *checkpoint_seq,
+                )
             }
         }
     }
