@@ -139,7 +139,7 @@ fn test_object_id_conversions() {}
 #[test]
 fn test_object_id_display() {
     let id = ObjectID::from_str(SAMPLE_ADDRESS).unwrap();
-    assert_eq!(format!("{id:?}"), SAMPLE_ADDRESS);
+    assert_eq!(format!("{id}"), SAMPLE_ADDRESS);
 }
 
 #[test]
