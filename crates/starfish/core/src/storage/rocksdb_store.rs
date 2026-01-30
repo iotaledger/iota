@@ -787,3 +787,66 @@ pub(crate) fn check_ref_consistency(refs: &[GenericTransactionRef]) -> bool {
     let first = std::mem::discriminant(&refs[0]);
     refs.iter().all(|r| std::mem::discriminant(r) == first)
 }
+
+#[cfg(msim)]
+impl RocksDBStore {
+    /// Deletes all transactions from the store.
+    /// Preserves commits, block headers, and other data.
+    /// Only available in simulation tests.
+    pub(crate) fn delete_all_transactions(&self) -> ConsensusResult<()> {
+        use typed_store::Map as _;
+
+        self.transactions
+            .unsafe_clear()
+            .map_err(ConsensusError::RocksDBFailure)?;
+        self.transactions_by_tx_refs
+            .unsafe_clear()
+            .map_err(ConsensusError::RocksDBFailure)?;
+        self.transaction_commitments_by_authorities
+            .unsafe_clear()
+            .map_err(ConsensusError::RocksDBFailure)?;
+
+        debug!("Deleted all transactions from store");
+        Ok(())
+    }
+
+    /// Simulation-test-only helper that creates a store and deletes all
+    /// transactions.
+    ///
+    /// Deletes all transactions from the consensus RocksDB store while
+    /// preserving commits, block headers, and other data.
+    pub fn delete_all_transactions_from_store(
+        db_path: &std::path::Path,
+        authority_index: AuthorityIndex,
+        committee: starfish_config::Committee,
+        protocol_config: iota_protocol_config::ProtocolConfig,
+    ) -> ConsensusResult<()> {
+        use prometheus::Registry;
+        use starfish_config::Parameters;
+
+        use crate::{Clock, context::Context, metrics::initialise_metrics};
+
+        let metrics = initialise_metrics(Registry::new());
+        let clock = Arc::new(Clock::default());
+        let context = Arc::new(Context::new(
+            0,
+            authority_index,
+            committee,
+            Parameters {
+                db_path: db_path.to_path_buf(),
+                ..Default::default()
+            },
+            protocol_config,
+            metrics,
+            clock,
+        ));
+
+        let store = RocksDBStore::new(
+            db_path
+                .to_str()
+                .expect("consensus DB path should be valid UTF-8"),
+            context,
+        );
+        store.delete_all_transactions()
+    }
+}
