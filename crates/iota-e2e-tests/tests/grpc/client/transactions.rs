@@ -125,5 +125,10 @@ async fn get_transactions_scenarios() {
     let result = client
         .get_transactions(&[digest1], Some("transaction.digest"))
         .await;
-    assert_proto_conversion_error(result);
+
+    let conversion_result = result.expect("request should work")[0]
+        .transaction()
+        .map_err(Into::into);
+
+    assert_proto_conversion_error(conversion_result);
 }

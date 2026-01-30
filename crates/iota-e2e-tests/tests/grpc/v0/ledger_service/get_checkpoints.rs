@@ -56,7 +56,12 @@ async fn test_get_checkpoint() {
 
     // Test getting checkpoint data for sequence number 0
     let response = client
-        .get_checkpoint_by_sequence_number(0, None, None, None)
+        .get_checkpoint_by_sequence_number(
+            0,
+            Some("checkpoint.summary,checkpoint.contents,transactions"),
+            None,
+            None,
+        )
         .await
         .expect("gRPC call");
 
@@ -70,7 +75,7 @@ async fn test_get_checkpoint() {
 
     // Test getting another checkpoint
     let response_1 = client
-        .get_checkpoint_by_sequence_number(1, None, None, None)
+        .get_checkpoint_by_sequence_number(1, Some("checkpoint.summary"), None, None)
         .await
         .expect("gRPC call");
 
