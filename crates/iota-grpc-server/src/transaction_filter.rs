@@ -212,6 +212,18 @@ impl TryFrom<proto_filter::TransactionFilter> for TransactionFilter {
     }
 }
 
+fn is_system_transaction(transaction_kind: &TransactionKind) -> bool {
+    match transaction_kind {
+        TransactionKind::Genesis
+        | TransactionKind::ConsensusCommitPrologueV1
+        | TransactionKind::AuthenticatorStateUpdateV1
+        | TransactionKind::EndOfEpochTransaction
+        | TransactionKind::RandomnessStateUpdate => true,
+        TransactionKind::ProgrammableTransaction => false,
+        _ => panic!("Unhandled transaction kind"),
+    }
+}
+
 impl TransactionFilter {
     pub fn matches_transaction(
         &self,
@@ -234,9 +246,13 @@ impl TransactionFilter {
                 !filter.matches_transaction(state_reader.clone(), item)
             }
 
-            TransactionFilter::TransactionKind(kinds) => kinds
-                .iter()
-                .any(|kind| kind == &TransactionKind::from(tx_data.kind())),
+            TransactionFilter::TransactionKind(kinds) => {
+                let actual_kind = TransactionKind::from(tx_data.kind());
+                kinds.iter().any(|kind| match kind {
+                    TransactionKind::SystemTransaction => is_system_transaction(&actual_kind),
+                    _ => kind == &actual_kind,
+                })
+            }
 
             TransactionFilter::Sender(a) => &tx_data.sender() == a,
 
