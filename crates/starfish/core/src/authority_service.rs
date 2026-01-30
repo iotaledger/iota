@@ -49,7 +49,7 @@ use crate::{
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
 
-const MAX_FILTER_SIZE: u32 = 10000;
+const MAX_FILTER_SIZE: u32 = 100000;
 
 struct FilterForHeaders {
     header_digests: DashSet<BlockHeaderDigest>,
@@ -446,6 +446,13 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             .processed_duplicated_headers_in_bundles
             .with_label_values(&[peer_hostname, "handle_subscribed_block_bundle"])
             .inc_by(digests_to_exclude.len() as u64);
+        for header in additional_block_headers.iter() {
+            self.context
+                .metrics
+                .node_metrics
+                .additional_headers_round_gap
+                .observe(block_ref.round.saturating_sub(header.round()) as f64);
+        }
     }
 }
 

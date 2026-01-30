@@ -1,5 +1,5 @@
 ---
-title: Getting Started with Move Coffee Token Tutorial
+title: Move Coffee Token Tutorial
 tags:
   - tutorial
   - move-sc
@@ -27,17 +27,17 @@ Welcome to this beginner-friendly tutorial on [Move](../iota-101/move-overview/m
 
 - Basic understanding of blockchain concepts like [tokens](../../developer/references/framework/iota/token.mdx) and [transactions](https://www.scalingparrots.com/en/what-is-a-blockchain-transaction/).
 - Basic understanding of the [Move](../iota-101/move-overview/move-overview.mdx)
-- [Install IOTA CLI](install-iota.mdx)
+- [Install IOTA CLI](../getting-started/install-iota.mdx)
 
 ## 1. Create an IOTA Move Package
 
-Use the following command to create a standard IOTA Move [package](create-a-package.mdx) called `coffee_shop`:
+Use the following command to create a standard IOTA Move [package](../getting-started/create-a-package.mdx) called `coffee_shop`:
 
 ``` bash
 iota move new coffee_shop
 ```
 
-The command will create and populate the `coffee_shop` directory with a skeleton for an IOTA Move project. To add a [module](create-a-module.mdx), create a `.move` file in the sources directory, and call it `coffee.move`. In `coffee.move`, paste the following codes to the `coffee` module:
+The command will create and populate the `coffee_shop` directory with a skeleton for an IOTA Move project. To add a [module](../getting-started/create-a-module.mdx), create a `.move` file in the sources directory, and call it `coffee.move`. In `coffee.move`, paste the following codes to the `coffee` module:
 
 ## 2. Importing Modules from the IOTA Package
 
@@ -261,7 +261,7 @@ module coffee_shop::coffee {
 
 ## 10. Building your Package
 
-You can use the `iota move build` command to [build](build-test.mdx) Move packages in the working directory, `coffee_shop` in this case.
+You can use the `iota move build` command to [build](../getting-started/build-test.mdx) Move packages in the working directory, `coffee_shop` in this case.
 
 ```bash
 iota move build

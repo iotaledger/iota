@@ -20,7 +20,7 @@ use iota_types::{
     epoch_data::EpochData,
     object::Object,
     stardust::coin_type::CoinType,
-    timelock::timelock::{self, TimeLock, is_timelocked_balance},
+    timelock::timelock::{TimeLock, is_timelocked_balance},
 };
 use move_binary_format::file_format_common::VERSION_MAX;
 use tracing::info;
@@ -35,7 +35,7 @@ use crate::stardust::{
     process_outputs::process_outputs_for_iota,
     types::{
         address_swap_map::AddressSwapMap, address_swap_split_map::AddressSwapSplitMap,
-        output_header::OutputHeader,
+        output_header::OutputHeader, vested_reward::is_timelocked_vested_reward,
     },
 };
 
@@ -231,7 +231,7 @@ impl Migration {
                 Output::Basic(basic) => {
                     // All timelocked vested rewards(basic outputs with the specific ID format)
                     // should be migrated as TimeLock<Balance<IOTA>> objects.
-                    if timelock::is_timelocked_vested_reward(
+                    if is_timelocked_vested_reward(
                         header.output_id(),
                         basic,
                         self.target_milestone_timestamp_sec,
@@ -463,10 +463,11 @@ mod tests {
         gas_coin::GasCoin,
         id::UID,
         object::{Data, Owner},
-        timelock::timelock::{TimeLock, to_genesis_object},
+        timelock::timelock::TimeLock,
     };
 
     use super::*;
+    use crate::stardust::types::vested_reward::to_genesis_object;
 
     #[test]
     fn migration_objects_get_timelocks() {

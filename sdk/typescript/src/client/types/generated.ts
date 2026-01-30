@@ -538,6 +538,7 @@ export interface IotaChangeEpochV2 {
     eligible_active_validators?: string[] | null;
     epoch: string;
     epoch_start_timestamp_ms: string;
+    scores?: string[] | null;
     storage_charge: string;
     storage_rebate: string;
 }
