@@ -100,7 +100,7 @@ export function App() {
 
     useEffect(() => {
         backgroundClient.refreshFeatures();
-    }, [backgroundClient]);
+    }, []);
 
     const { connectToLedger, iotaLedgerClient } = useIotaLedgerClient();
     useEffect(() => {
