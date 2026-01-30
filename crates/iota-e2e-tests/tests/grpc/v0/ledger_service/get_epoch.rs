@@ -2,29 +2,20 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::v0::ledger_service::{
-    GetEpochRequest, ledger_service_client::LedgerServiceClient,
-};
+use iota_grpc_types::v0::ledger_service::GetEpochRequest;
 use iota_macros::sim_test;
 use prost_types::FieldMask;
-use test_cluster::TestClusterBuilder;
+
+use crate::utils::setup_grpc_test;
 
 #[sim_test]
 async fn get_epoch() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
+    let (_test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
-    // Wait for at least one checkpoint to be created
-    test_cluster.wait_for_checkpoint(1, None).await;
-
-    let mut client = LedgerServiceClient::connect(test_cluster.grpc_url())
-        .await
-        .unwrap();
+    let mut ledger_client = client.ledger_service_client();
 
     // Get current epoch (no epoch specified means current epoch)
-    let latest_epoch_response = client
+    let latest_epoch_response = ledger_client
         .get_epoch(GetEpochRequest {
             epoch: None,
             read_mask: None,
@@ -36,7 +27,7 @@ async fn get_epoch() {
     let latest_epoch = latest_epoch_response.epoch.unwrap();
 
     // Get epoch 0
-    let epoch_0_response = client
+    let epoch_0_response = ledger_client
         .get_epoch(GetEpochRequest {
             epoch: Some(0),
             read_mask: None,
@@ -53,7 +44,7 @@ async fn get_epoch() {
     assert_eq!(epoch_0.first_checkpoint, Some(0));
 
     // Ensure that fetching the system state for the epoch works (using field mask)
-    let epoch_with_bcs = client
+    let epoch_with_bcs = ledger_client
         .get_epoch(GetEpochRequest {
             epoch: None,
             read_mask: Some(FieldMask {

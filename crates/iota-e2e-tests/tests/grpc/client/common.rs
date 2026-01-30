@@ -1,32 +1,11 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_client::{Client, Error};
+use iota_grpc_client::Error;
 use iota_sdk_types::{Digest, ExecutionStatus, SignedTransaction, Transaction};
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
 use iota_types::base_types::IotaAddress;
-use test_cluster::{TestCluster, TestClusterBuilder};
-
-/// Set up a test cluster with gRPC enabled and connect a client.
-///
-/// This is the standard setup for all high-level gRPC client tests.
-/// Waits for the specified checkpoint before returning.
-pub async fn setup_grpc_test(wait_for_checkpoint: u64) -> (TestCluster, Client) {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
-
-    test_cluster
-        .wait_for_checkpoint(wait_for_checkpoint, None)
-        .await;
-
-    let client = Client::connect(test_cluster.grpc_url())
-        .await
-        .expect("Failed to connect to gRPC server");
-
-    (test_cluster, client)
-}
+use test_cluster::TestCluster;
 
 /// Check if execution status is success.
 pub fn is_success(status: &ExecutionStatus) -> bool {

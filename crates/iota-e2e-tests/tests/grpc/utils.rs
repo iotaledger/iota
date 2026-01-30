@@ -3,6 +3,61 @@
 
 use std::collections::{HashMap, HashSet};
 
+use test_cluster::{TestCluster, TestClusterBuilder};
+
+/// Set up a gRPC test cluster and high-level client with default settings
+///
+/// # Parameters
+/// * `wait_for_checkpoint` - Optional checkpoint to wait for before returning
+/// * `client_max_message_size_bytes` - Optional max message size for the client
+pub async fn setup_grpc_test(
+    wait_for_checkpoint: Option<u64>,
+    client_max_message_size_bytes: Option<u32>,
+) -> (TestCluster, iota_grpc_client::Client) {
+    setup_grpc_test_with_builder(
+        |builder| builder,
+        wait_for_checkpoint,
+        client_max_message_size_bytes,
+    )
+    .await
+}
+
+/// Set up a gRPC test cluster and high-level client with custom builder
+///
+/// # Parameters
+/// * `builder_fn` - Function to customize the TestClusterBuilder
+/// * `wait_for_checkpoint` - Optional checkpoint to wait for before returning
+/// * `client_max_message_size_bytes` - Optional max message size for the client
+pub async fn setup_grpc_test_with_builder<F>(
+    builder_fn: F,
+    wait_for_checkpoint: Option<u64>,
+    client_max_message_size_bytes: Option<u32>,
+) -> (TestCluster, iota_grpc_client::Client)
+where
+    F: FnOnce(TestClusterBuilder) -> TestClusterBuilder,
+{
+    let builder = TestClusterBuilder::new()
+        .with_fullnode_enable_grpc_api(true)
+        .disable_fullnode_pruning()
+        .with_num_validators(1);
+
+    let test_cluster = builder_fn(builder).build().await;
+
+    if let Some(checkpoint) = wait_for_checkpoint {
+        test_cluster.wait_for_checkpoint(checkpoint, None).await;
+    }
+
+    let mut client = iota_grpc_client::Client::connect(test_cluster.grpc_url())
+        .await
+        .expect("Failed to connect to gRPC service");
+
+    if let Some(max_size) = client_max_message_size_bytes {
+        client = client.with_max_decoding_message_size(max_size as usize);
+    }
+
+    (test_cluster, client)
+}
+
 /// Trait for checking field presence/absence
 pub(crate) trait FieldPresenceChecker {
     /// Returns a list of all top-level field names for this type.

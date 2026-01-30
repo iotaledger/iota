@@ -6,14 +6,17 @@ use std::panic;
 use iota_macros::sim_test;
 use iota_sdk_types::Digest;
 
-use super::common::{
-    assert_proto_conversion_error, assert_server_not_found, execute_transaction_and_get_digest,
-    is_success, setup_grpc_test,
+use super::{
+    super::utils::setup_grpc_test,
+    common::{
+        assert_proto_conversion_error, assert_server_not_found, execute_transaction_and_get_digest,
+        is_success,
+    },
 };
 
 #[sim_test]
 async fn get_transactions_scenarios() {
-    let (test_cluster, client) = setup_grpc_test(1).await;
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
     // Execute transactions upfront for later tests
     let digest1 = execute_transaction_and_get_digest(&test_cluster).await;

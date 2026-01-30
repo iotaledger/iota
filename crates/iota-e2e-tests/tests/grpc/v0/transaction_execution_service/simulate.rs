@@ -19,18 +19,17 @@ use iota_types::{
     transaction::{ObjectArg, TransactionData, TransactionDataAPI},
 };
 use prost_types::FieldMask;
-use test_cluster::TestClusterBuilder;
 
-use crate::utils::assert_field_presence;
+use crate::utils::{assert_field_presence, setup_grpc_test};
 
 async fn assert_simulate_transaction_request(
-    client: &mut TransactionExecutionServiceClient<tonic::transport::Channel>,
+    exec_client: &mut TransactionExecutionServiceClient<iota_grpc_client::InterceptedChannel>,
     transaction: ProtoTransaction,
     read_mask: Option<FieldMask>,
     expected_fields: &[&str],
     scenario: &str,
 ) -> SimulateTransactionResponse {
-    let response = client
+    let response = exec_client
         .simulate_transaction(SimulateTransactionRequest {
             transaction: Some(transaction),
             tx_checks: vec![],
@@ -47,17 +46,9 @@ async fn assert_simulate_transaction_request(
 
 #[sim_test]
 async fn simulate_transaction_with_gas_estimation() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
-    // Wait for at least one checkpoint
-    test_cluster.wait_for_checkpoint(1, None).await;
-
-    let mut client = TransactionExecutionServiceClient::connect(test_cluster.grpc_url())
-        .await
-        .unwrap();
+    let mut exec_client = client.execution_service_client();
 
     let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
 
@@ -92,7 +83,7 @@ async fn simulate_transaction_with_gas_estimation() {
     };
 
     // Simulate the transaction
-    let response = client
+    let response = exec_client
         .simulate_transaction(request)
         .await
         .unwrap()
@@ -123,17 +114,9 @@ async fn simulate_transaction_with_gas_estimation() {
 
 #[sim_test]
 async fn simulate_transaction_readmask_scenarios() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
-    // Wait for at least one checkpoint
-    test_cluster.wait_for_checkpoint(1, None).await;
-
-    let mut client = TransactionExecutionServiceClient::connect(test_cluster.grpc_url())
-        .await
-        .unwrap();
+    let mut exec_client = client.execution_service_client();
 
     let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
 
@@ -237,7 +220,7 @@ async fn simulate_transaction_readmask_scenarios() {
 
     for (scenario, mask, expected_paths) in test_cases {
         assert_simulate_transaction_request(
-            &mut client,
+            &mut exec_client,
             create_transaction(),
             mask,
             expected_paths,
@@ -249,14 +232,9 @@ async fn simulate_transaction_readmask_scenarios() {
 
 #[sim_test]
 async fn simulate_transaction_invalid_bcs() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
+    let (_test_cluster, client) = setup_grpc_test(None, None).await;
 
-    let mut client = TransactionExecutionServiceClient::connect(test_cluster.grpc_url())
-        .await
-        .unwrap();
+    let mut exec_client = client.execution_service_client();
 
     // Create transaction with invalid BCS data
     let transaction = ProtoTransaction {
@@ -267,7 +245,7 @@ async fn simulate_transaction_invalid_bcs() {
     };
 
     // Request should fail with invalid BCS
-    let result = client
+    let result = exec_client
         .simulate_transaction(SimulateTransactionRequest {
             transaction: Some(transaction),
             tx_checks: vec![],
@@ -284,17 +262,12 @@ async fn simulate_transaction_invalid_bcs() {
 
 #[sim_test]
 async fn simulate_transaction_empty_request() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
+    let (_test_cluster, client) = setup_grpc_test(None, None).await;
 
-    let mut client = TransactionExecutionServiceClient::connect(test_cluster.grpc_url())
-        .await
-        .unwrap();
+    let mut exec_client = client.execution_service_client();
 
     // Test empty/missing transaction
-    let result = client
+    let result = exec_client
         .simulate_transaction(SimulateTransactionRequest {
             transaction: None,
             tx_checks: vec![],
@@ -311,17 +284,9 @@ async fn simulate_transaction_empty_request() {
 
 #[sim_test]
 async fn simulate_programmable_transaction_command_results() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
-    // Wait for at least one checkpoint
-    test_cluster.wait_for_checkpoint(1, None).await;
-
-    let mut client = TransactionExecutionServiceClient::connect(test_cluster.grpc_url())
-        .await
-        .unwrap();
+    let mut exec_client = client.execution_service_client();
 
     let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
     gas.sort_by_key(|object_ref| object_ref.0);
@@ -459,7 +424,7 @@ async fn simulate_programmable_transaction_command_results() {
 
     for (scenario, mask, expected_paths) in test_cases {
         assert_simulate_transaction_request(
-            &mut client,
+            &mut exec_client,
             create_transaction(),
             mask,
             expected_paths,

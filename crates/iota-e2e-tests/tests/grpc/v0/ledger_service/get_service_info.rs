@@ -10,17 +10,16 @@ use iota_grpc_types::{
 };
 use iota_macros::sim_test;
 use prost_types::FieldMask;
-use test_cluster::TestClusterBuilder;
 
-use crate::utils::assert_field_presence;
+use crate::utils::{assert_field_presence, setup_grpc_test};
 
 async fn assert_service_info_request(
-    client: &mut LedgerServiceClient<tonic::transport::Channel>,
+    ledger_client: &mut LedgerServiceClient<iota_grpc_client::InterceptedChannel>,
     read_mask: Option<FieldMask>,
     expected_fields: &[&str],
     scenario: &str,
 ) -> GetServiceInfoResponse {
-    let response = client
+    let response = ledger_client
         .get_service_info(GetServiceInfoRequest { read_mask })
         .await
         .unwrap()
@@ -32,22 +31,14 @@ async fn assert_service_info_request(
 
 #[sim_test]
 async fn get_service_info_readmask_scenarios() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
+    let (_test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
-    // Wait for at least one checkpoint to be created
-    test_cluster.wait_for_checkpoint(1, None).await;
-
-    let mut grpc_client = LedgerServiceClient::connect(test_cluster.grpc_url())
-        .await
-        .unwrap();
+    let mut ledger_client = client.ledger_service_client();
 
     // Test 1: Default readmask (None) should return only default fields:
     // chain_id, epoch, executed_checkpoint_height
     assert_service_info_request(
-        &mut grpc_client,
+        &mut ledger_client,
         None,
         &["chain_id", "epoch", "executed_checkpoint_height"],
         "default readmask",
@@ -56,7 +47,7 @@ async fn get_service_info_readmask_scenarios() {
 
     // Test 2: Empty readmask should return no fields
     assert_service_info_request(
-        &mut grpc_client,
+        &mut ledger_client,
         Some(FieldMask::from_paths(&[] as &[&str])),
         &[],
         "empty readmask",
@@ -65,7 +56,7 @@ async fn get_service_info_readmask_scenarios() {
 
     // Test 3: Full readmask should return all fields
     assert_service_info_request(
-        &mut grpc_client,
+        &mut ledger_client,
         Some(FieldMask::from_paths([
             "chain_id",
             "chain",
@@ -92,7 +83,7 @@ async fn get_service_info_readmask_scenarios() {
 
     // Test 4: Partial readmask should return only requested fields
     assert_service_info_request(
-        &mut grpc_client,
+        &mut ledger_client,
         Some(FieldMask::from_paths(["chain_id", "server"])),
         &["chain_id", "server"],
         "partial readmask",

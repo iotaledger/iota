@@ -7,13 +7,14 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::base_types::IotaAddress;
 use tonic::Code;
 
-use super::common::{
-    assert_grpc_error, create_transaction_for_simulation, is_success, setup_grpc_test,
+use super::{
+    super::utils::setup_grpc_test,
+    common::{assert_grpc_error, create_transaction_for_simulation, is_success},
 };
 
 #[sim_test]
 async fn simulate_transaction_scenarios() {
-    let (test_cluster, client) = setup_grpc_test(1).await;
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
     // Test: regular and dev-inspect simulation modes
     for (dev_inspect, mode_name) in [(false, "regular"), (true, "dev-inspect")] {

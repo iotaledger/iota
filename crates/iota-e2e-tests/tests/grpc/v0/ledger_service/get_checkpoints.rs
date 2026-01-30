@@ -3,12 +3,11 @@
 use std::time::Duration;
 
 use futures::StreamExt;
-use iota_config::local_ip_utils;
-use iota_grpc_client::Client;
 use iota_grpc_types::v0::{filter as grpc_filter, types as grpc_types};
 use iota_types::{effects::TransactionEffectsAPI, transaction::CallArg};
-use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::time::timeout;
+
+use crate::utils::setup_grpc_test;
 
 // Test constants for Move packages and contracts
 const NFT_PACKAGE: &str = "nft";
@@ -20,39 +19,9 @@ const CLOCK_ACCESS_FUNCTION: &str = "access";
 // Event type names
 const NFT_MINTED_EVENT: &str = "NFTMinted";
 
-async fn setup_test_cluster_and_client(
-    client_max_message_size_bytes: Option<u32>,
-) -> (TestCluster, Client) {
-    let localhost = local_ip_utils::localhost_for_testing();
-    let grpc_port = local_ip_utils::get_available_port(&localhost);
-    let grpc_addr = format!("{localhost}:{grpc_port}");
-
-    // Start a test cluster with gRPC enabled and pruning disabled
-    let cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .with_fullnode_grpc_api_address(grpc_addr.parse().expect("Invalid gRPC address"))
-        .disable_fullnode_pruning()
-        .with_num_validators(1)
-        .build()
-        .await;
-
-    let mut client = Client::connect(&format!("http://{grpc_addr}"))
-        .await
-        .expect("connect gRPC");
-
-    if let Some(max_size) = client_max_message_size_bytes {
-        client = client.with_max_decoding_message_size(max_size as usize);
-    }
-
-    (cluster, client)
-}
-
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_get_checkpoint() {
-    let (cluster, client) = setup_test_cluster_and_client(None).await;
-
-    // Wait for 2 new checkpoint to be available
-    cluster.wait_for_checkpoint(2, None).await;
+    let (_cluster, client) = setup_grpc_test(Some(2), None).await;
 
     // Test getting checkpoint data for sequence number 0
     let response = client
@@ -106,7 +75,7 @@ async fn test_get_checkpoint() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_stream_checkpoints() {
-    let (_cluster, client) = setup_test_cluster_and_client(None).await;
+    let (_cluster, client) = setup_grpc_test(None, None).await;
 
     let mut stream = client
         .stream_checkpoints(None, Some(2), None, None, None)
@@ -133,7 +102,7 @@ async fn test_stream_checkpoints() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_event_filtering() {
-    let (cluster, client) = setup_test_cluster_and_client(None).await;
+    let (cluster, client) = setup_grpc_test(None, None).await;
 
     let sender_1 = cluster.get_address_0();
     let sender_2 = cluster.get_address_1();

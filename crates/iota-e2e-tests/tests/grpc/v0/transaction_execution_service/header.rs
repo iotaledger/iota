@@ -7,30 +7,24 @@ use iota_grpc_types::{
         bcs::BcsData,
         signatures::{UserSignature, UserSignatures},
         transaction::Transaction as ProtoTransaction,
-        transaction_execution_service::{
-            ExecuteTransactionRequest, SimulateTransactionRequest,
-            transaction_execution_service_client::TransactionExecutionServiceClient,
-        },
+        transaction_execution_service::{ExecuteTransactionRequest, SimulateTransactionRequest},
     },
 };
 use iota_macros::sim_test;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use iota_types::transaction::TransactionData;
-use test_cluster::TestClusterBuilder;
 
-use crate::v0::header::{parse_u64_header, verify_iota_headers};
+use crate::{
+    utils::setup_grpc_test_with_builder,
+    v0::header::{parse_u64_header, verify_iota_headers},
+};
 
 #[sim_test]
 async fn test_response_headers() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .with_epoch_duration_ms(5000)
-        .build()
-        .await;
+    let (test_cluster, client) =
+        setup_grpc_test_with_builder(|b| b.with_epoch_duration_ms(5000), None, None).await;
 
-    let mut client = TransactionExecutionServiceClient::connect(test_cluster.grpc_url())
-        .await
-        .unwrap();
+    let mut exec_client = client.execution_service_client();
 
     let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
     let amount = 9;
@@ -62,7 +56,7 @@ async fn test_response_headers() {
                 .collect(),
         };
 
-        let response = client
+        let response = exec_client
             .execute_transaction(ExecuteTransactionRequest {
                 transaction: Some(transaction),
                 signatures: Some(signatures),
@@ -114,7 +108,7 @@ async fn test_response_headers() {
         };
 
         // Simulate the transaction
-        let response = client.simulate_transaction(request).await.unwrap();
+        let response = exec_client.simulate_transaction(request).await.unwrap();
 
         let metadata = response.metadata();
         verify_iota_headers(metadata, "simulate_transaction");

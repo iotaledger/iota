@@ -17,19 +17,18 @@ use iota_grpc_types::{
 use iota_macros::sim_test;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use prost_types::FieldMask;
-use test_cluster::TestClusterBuilder;
 
-use crate::utils::assert_field_presence;
+use crate::utils::{assert_field_presence, setup_grpc_test};
 
 async fn assert_execute_transaction_request(
-    client: &mut TransactionExecutionServiceClient<tonic::transport::Channel>,
+    exec_client: &mut TransactionExecutionServiceClient<iota_grpc_client::InterceptedChannel>,
     transaction: ProtoTransaction,
     signatures: UserSignatures,
     read_mask: Option<FieldMask>,
     expected_fields: &[&str],
     scenario: &str,
 ) -> ExecuteTransactionResponse {
-    let response = client
+    let response = exec_client
         .execute_transaction(ExecuteTransactionRequest {
             transaction: Some(transaction),
             signatures: Some(signatures),
@@ -45,14 +44,9 @@ async fn assert_execute_transaction_request(
 
 #[sim_test]
 async fn execute_transaction_readmask_scenarios() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
+    let (test_cluster, client) = setup_grpc_test(None, None).await;
 
-    let mut client = TransactionExecutionServiceClient::connect(test_cluster.grpc_url())
-        .await
-        .unwrap();
+    let mut exec_client = client.execution_service_client();
 
     let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
     let amount = 9;
@@ -130,7 +124,7 @@ async fn execute_transaction_readmask_scenarios() {
         };
 
         assert_execute_transaction_request(
-            &mut client,
+            &mut exec_client,
             transaction,
             signatures,
             mask,
@@ -143,14 +137,9 @@ async fn execute_transaction_readmask_scenarios() {
 
 #[sim_test]
 async fn execute_transaction_invalid_bcs() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
+    let (test_cluster, client) = setup_grpc_test(None, None).await;
 
-    let mut client = TransactionExecutionServiceClient::connect(test_cluster.grpc_url())
-        .await
-        .unwrap();
+    let mut exec_client = client.execution_service_client();
 
     let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
     let amount = 9;
@@ -181,7 +170,7 @@ async fn execute_transaction_invalid_bcs() {
     };
 
     // Request should fail with invalid BCS
-    let result = client
+    let result = exec_client
         .execute_transaction(ExecuteTransactionRequest {
             transaction: Some(transaction),
             signatures: Some(signatures),
@@ -197,14 +186,9 @@ async fn execute_transaction_invalid_bcs() {
 
 #[sim_test]
 async fn execute_transaction_invalid_signatures() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
+    let (test_cluster, client) = setup_grpc_test(None, None).await;
 
-    let mut client = TransactionExecutionServiceClient::connect(test_cluster.grpc_url())
-        .await
-        .unwrap();
+    let mut exec_client = client.execution_service_client();
 
     let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
     let amount = 9;
@@ -229,7 +213,7 @@ async fn execute_transaction_invalid_signatures() {
     };
 
     // Request should fail with invalid signatures
-    let result = client
+    let result = exec_client
         .execute_transaction(ExecuteTransactionRequest {
             transaction: Some(transaction),
             signatures: Some(signatures),
@@ -245,14 +229,9 @@ async fn execute_transaction_invalid_signatures() {
 
 #[sim_test]
 async fn execute_transaction_empty_request() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
+    let (test_cluster, client) = setup_grpc_test(None, None).await;
 
-    let mut client = TransactionExecutionServiceClient::connect(test_cluster.grpc_url())
-        .await
-        .unwrap();
+    let mut exec_client = client.execution_service_client();
 
     let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
     let amount = 9;
@@ -275,7 +254,7 @@ async fn execute_transaction_empty_request() {
     };
 
     // Test missing transaction with valid signatures
-    let result = client
+    let result = exec_client
         .execute_transaction(ExecuteTransactionRequest {
             transaction: None,
             signatures: Some(signatures),

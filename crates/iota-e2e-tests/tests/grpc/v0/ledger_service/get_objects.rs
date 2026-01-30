@@ -16,12 +16,11 @@ use iota_grpc_types::{
 use iota_macros::sim_test;
 use iota_types::base_types::ObjectID;
 use prost_types::FieldMask;
-use test_cluster::TestClusterBuilder;
 
-use crate::utils::assert_field_presence;
+use crate::utils::{assert_field_presence, setup_grpc_test};
 
 async fn assert_get_objects_request(
-    client: &mut LedgerServiceClient<tonic::transport::Channel>,
+    ledger_client: &mut LedgerServiceClient<iota_grpc_client::InterceptedChannel>,
     requests: Vec<ObjectRequest>,
     read_mask: Option<FieldMask>,
     max_message_size_bytes: Option<u32>,
@@ -34,7 +33,11 @@ async fn assert_get_objects_request(
         max_message_size_bytes,
     };
 
-    let mut stream = client.get_objects(request).await.unwrap().into_inner();
+    let mut stream = ledger_client
+        .get_objects(request)
+        .await
+        .unwrap()
+        .into_inner();
 
     let mut responses = Vec::new();
     let mut response_count = 0;
@@ -90,14 +93,9 @@ async fn assert_get_objects_request(
 
 #[sim_test]
 async fn get_objects_readmask_scenarios() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
+    let (_test_cluster, client) = setup_grpc_test(None, None).await;
 
-    let mut grpc_client = LedgerServiceClient::connect(test_cluster.grpc_url())
-        .await
-        .unwrap();
+    let mut ledger_client = client.ledger_service_client();
 
     let object_id = ObjectID::from_hex_literal("0x5").unwrap().to_string();
 
@@ -152,7 +150,7 @@ async fn get_objects_readmask_scenarios() {
 
     for (scenario, mask, expected_paths) in test_cases {
         let responses = assert_get_objects_request(
-            &mut grpc_client,
+            &mut ledger_client,
             vec![ObjectRequest {
                 object_ref: Some(ObjectReference {
                     object_id: Some(object_id.clone()),
@@ -174,18 +172,13 @@ async fn get_objects_readmask_scenarios() {
 
 #[sim_test]
 async fn get_objects_batch() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
+    let (_test_cluster, client) = setup_grpc_test(None, None).await;
 
-    let mut grpc_client = LedgerServiceClient::connect(test_cluster.grpc_url())
-        .await
-        .unwrap();
+    let mut ledger_client = client.ledger_service_client();
 
     // Test batch request with multiple objects and partial readmask
     let responses = assert_get_objects_request(
-        &mut grpc_client,
+        &mut ledger_client,
         vec![
             ObjectRequest {
                 object_ref: Some(ObjectReference {
@@ -229,20 +222,15 @@ async fn get_objects_batch() {
 
 #[sim_test]
 async fn get_objects_with_version() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
+    let (_test_cluster, client) = setup_grpc_test(None, None).await;
 
-    let mut grpc_client = LedgerServiceClient::connect(test_cluster.grpc_url())
-        .await
-        .unwrap();
+    let mut ledger_client = client.ledger_service_client();
 
     let object_id = ObjectID::from_hex_literal("0x5").unwrap().to_string();
 
     // Request specific version
     let responses = assert_get_objects_request(
-        &mut grpc_client,
+        &mut ledger_client,
         vec![ObjectRequest {
             object_ref: Some(ObjectReference {
                 object_id: Some(object_id),
@@ -269,14 +257,9 @@ async fn get_objects_with_version() {
 
 #[sim_test]
 async fn get_objects_streaming() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
+    let (_test_cluster, client) = setup_grpc_test(None, None).await;
 
-    let mut grpc_client = LedgerServiceClient::connect(test_cluster.grpc_url())
-        .await
-        .unwrap();
+    let mut ledger_client = client.ledger_service_client();
 
     // Test streaming by requesting many objects with full readmask
     // Use only known-to-exist objects (0x1-0x6 commonly exist in test cluster)
@@ -300,7 +283,7 @@ async fn get_objects_streaming() {
     }
 
     let responses = assert_get_objects_request(
-        &mut grpc_client,
+        &mut ledger_client,
         requests,
         Some(FieldMask::from_paths([
             "reference.object_id",
@@ -337,18 +320,13 @@ async fn get_objects_streaming() {
 
 #[sim_test]
 async fn get_objects_empty_request() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
+    let (_test_cluster, client) = setup_grpc_test(None, None).await;
 
-    let mut grpc_client = LedgerServiceClient::connect(test_cluster.grpc_url())
-        .await
-        .unwrap();
+    let mut ledger_client = client.ledger_service_client();
 
     // Test empty request list
     let responses =
-        assert_get_objects_request(&mut grpc_client, vec![], None, None, &[], "empty request")
+        assert_get_objects_request(&mut ledger_client, vec![], None, None, &[], "empty request")
             .await;
 
     // Should return single response with 0 objects
@@ -362,18 +340,13 @@ async fn get_objects_empty_request() {
 
 #[sim_test]
 async fn get_objects_nonexistent() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .build()
-        .await;
+    let (_test_cluster, client) = setup_grpc_test(None, None).await;
 
-    let mut grpc_client = LedgerServiceClient::connect(test_cluster.grpc_url())
-        .await
-        .unwrap();
+    let mut ledger_client = client.ledger_service_client();
 
     // Request objects that don't exist
     let responses = assert_get_objects_request(
-        &mut grpc_client,
+        &mut ledger_client,
         vec![
             ObjectRequest {
                 object_ref: Some(ObjectReference {

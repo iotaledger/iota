@@ -3,11 +3,11 @@
 
 use iota_macros::sim_test;
 
-use super::common::{assert_grpc_not_found, setup_grpc_test};
+use super::{super::utils::setup_grpc_test, common::assert_grpc_not_found};
 
 #[sim_test]
 async fn get_checkpoint_scenarios() {
-    let (_test_cluster, client) = setup_grpc_test(2).await;
+    let (_test_cluster, client) = setup_grpc_test(Some(2), None).await;
 
     // Test: get latest checkpoint
     let latest = client

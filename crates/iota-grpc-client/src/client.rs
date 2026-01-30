@@ -14,7 +14,7 @@ use crate::{api::Result, interceptors::HeadersInterceptor};
 
 type BoxError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
-type InterceptedChannel =
+pub type InterceptedChannel =
     tonic::service::interceptor::InterceptedService<tonic::transport::Channel, HeadersInterceptor>;
 
 /// gRPC client factory for IOTA gRPC operations.

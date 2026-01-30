@@ -4,14 +4,14 @@
 use iota_macros::sim_test;
 use iota_sdk_types::ObjectId;
 
-use super::common::{assert_server_not_found, setup_grpc_test};
+use super::{super::utils::setup_grpc_test, common::assert_server_not_found};
 
 /// System package IDs that are always available.
 const SYSTEM_PACKAGE_IDS: [&str; 3] = ["0x1", "0x2", "0x3"];
 
 #[sim_test]
 async fn get_objects_scenarios() {
-    let (_test_cluster, client) = setup_grpc_test(1).await;
+    let (_test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
     // Test: get single object
     let object_id: ObjectId = "0x2".parse().expect("Invalid object ID");

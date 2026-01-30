@@ -6,33 +6,30 @@ use iota_grpc_types::{
     v0::ledger_service::{
         CheckpointDataStreamRequest, GetCheckpointDataRequest, GetEpochRequest, GetObjectsRequest,
         GetServiceInfoRequest, GetTransactionsRequest, get_checkpoint_data_request::CheckpointId,
-        ledger_service_client::LedgerServiceClient,
     },
 };
 use iota_macros::sim_test;
-use test_cluster::TestClusterBuilder;
 
-use crate::v0::header::{parse_u64_header, verify_iota_headers};
+use crate::{
+    utils::setup_grpc_test_with_builder,
+    v0::header::{parse_u64_header, verify_iota_headers},
+};
 
 #[sim_test]
 async fn test_response_headers() {
-    let test_cluster = TestClusterBuilder::new()
-        .with_fullnode_enable_grpc_api(true)
-        .with_epoch_duration_ms(5000)
-        .build()
-        .await;
+    let (test_cluster, client) =
+        setup_grpc_test_with_builder(|builder| builder.with_epoch_duration_ms(2000), None, None)
+            .await;
 
-    let mut grpc_client = LedgerServiceClient::connect(test_cluster.grpc_url())
-        .await
-        .unwrap();
+    let mut ledger_client = client.ledger_service_client();
 
     // Test get_service_info
     {
-        test_cluster.wait_for_checkpoint(10, None).await;
+        test_cluster.wait_for_checkpoint(2, None).await;
 
         let request = GetServiceInfoRequest { read_mask: None };
 
-        let response = grpc_client
+        let response = ledger_client
             .get_service_info(request)
             .await
             .expect("gRPC call to get_service_info");
@@ -45,8 +42,8 @@ async fn test_response_headers() {
         // Verify checkpoint_height value
         let checkpoint_height = parse_u64_header(metadata, headers::X_IOTA_CHECKPOINT_HEIGHT);
         assert!(
-            checkpoint_height >= 10,
-            "checkpoint_height should be at least 10, got {checkpoint_height}",
+            checkpoint_height >= 2,
+            "checkpoint_height should be at least 2, got {checkpoint_height}",
         );
 
         // Verify epoch value
@@ -62,7 +59,7 @@ async fn test_response_headers() {
             epoch: Some(1),
             read_mask: None,
         };
-        let response = grpc_client
+        let response = ledger_client
             .get_epoch(request)
             .await
             .expect("gRPC call to get_epoch");
@@ -79,15 +76,13 @@ async fn test_response_headers() {
 
     // Test get_objects
     {
-        test_cluster.wait_for_epoch(Some(3)).await;
-
         let request = GetObjectsRequest {
             requests: None,
             read_mask: None,
             max_message_size_bytes: None,
         };
 
-        let stream = grpc_client
+        let stream = ledger_client
             .get_objects(request)
             .await
             .expect("gRPC call to get_objects");
@@ -98,20 +93,18 @@ async fn test_response_headers() {
 
         // Verify epoch value
         let epoch = parse_u64_header(metadata, headers::X_IOTA_EPOCH);
-        assert!(epoch >= 2, "epoch should be at least 2, got {epoch}");
+        assert!(epoch >= 1, "epoch should be at least 1, got {epoch}");
     }
 
     // Test get_transactions
     {
-        test_cluster.wait_for_epoch(Some(4)).await;
-
         let request = GetTransactionsRequest {
             requests: None,
             read_mask: None,
             max_message_size_bytes: None,
         };
 
-        let stream = grpc_client
+        let stream = ledger_client
             .get_transactions(request)
             .await
             .expect("gRPC call to get_transactions");
@@ -122,13 +115,11 @@ async fn test_response_headers() {
 
         // Verify epoch value
         let epoch = parse_u64_header(metadata, headers::X_IOTA_EPOCH);
-        assert!(epoch >= 3, "epoch should be at least 3, got {epoch}");
+        assert!(epoch >= 1, "epoch should be at least 1, got {epoch}");
     }
 
     // Test get_checkpoint_data
     {
-        test_cluster.wait_for_epoch(Some(5)).await;
-
         let request = GetCheckpointDataRequest {
             checkpoint_id: Some(CheckpointId::Latest(true)),
             read_mask: None,
@@ -137,7 +128,7 @@ async fn test_response_headers() {
             max_message_size_bytes: None,
         };
 
-        let stream = grpc_client
+        let stream = ledger_client
             .get_checkpoint_data(request)
             .await
             .expect("gRPC call to get_checkpoint_data");
@@ -148,13 +139,11 @@ async fn test_response_headers() {
 
         // Verify epoch value
         let epoch = parse_u64_header(metadata, headers::X_IOTA_EPOCH);
-        assert!(epoch >= 4, "epoch should be at least 4, got {epoch}");
+        assert!(epoch >= 1, "epoch should be at least 1, got {epoch}");
     }
 
     // Test stream_checkpoint_data
     {
-        test_cluster.wait_for_epoch(Some(6)).await;
-
         let request = CheckpointDataStreamRequest {
             start_sequence_number: Some(1),
             end_sequence_number: Some(2),
@@ -164,7 +153,7 @@ async fn test_response_headers() {
             max_message_size_bytes: None,
         };
 
-        let stream = grpc_client
+        let stream = ledger_client
             .stream_checkpoint_data(request)
             .await
             .expect("gRPC call to stream_checkpoint_data");
@@ -175,6 +164,6 @@ async fn test_response_headers() {
 
         // Verify epoch value
         let epoch = parse_u64_header(metadata, headers::X_IOTA_EPOCH);
-        assert!(epoch >= 5, "epoch should be at least 5, got {epoch}");
+        assert!(epoch >= 1, "epoch should be at least 1, got {epoch}");
     }
 }

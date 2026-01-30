@@ -5,12 +5,14 @@ use iota_grpc_client::Error;
 use iota_macros::sim_test;
 use iota_sdk_types::UserSignature;
 
-use super::common::{create_signed_transaction, is_success, setup_grpc_test};
+use super::{
+    super::utils::setup_grpc_test,
+    common::{create_signed_transaction, is_success},
+};
 
 #[sim_test]
 async fn execute_transaction_transfer() {
-    let (test_cluster, client) = setup_grpc_test(1).await;
-
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
     let signed_tx = create_signed_transaction(&test_cluster).await;
 
     let result = client
@@ -47,7 +49,7 @@ async fn execute_transaction_transfer() {
 
 #[sim_test]
 async fn execute_transaction_minimal_mask() {
-    let (test_cluster, client) = setup_grpc_test(1).await;
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
     let signed_tx = create_signed_transaction(&test_cluster).await;
 
@@ -77,7 +79,7 @@ async fn execute_transaction_minimal_mask() {
 
 #[sim_test]
 async fn execute_transaction_invalid_signature() {
-    let (test_cluster, client) = setup_grpc_test(1).await;
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
     let mut signed_tx = create_signed_transaction(&test_cluster).await;
 
@@ -111,7 +113,7 @@ async fn execute_transaction_invalid_signature() {
 
 #[sim_test]
 async fn execute_transaction_idempotency() {
-    let (test_cluster, client) = setup_grpc_test(1).await;
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
     let signed_tx = create_signed_transaction(&test_cluster).await;
 

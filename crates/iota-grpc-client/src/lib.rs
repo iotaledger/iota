@@ -42,7 +42,7 @@ pub use api::{
 };
 
 mod client;
-pub use client::Client;
+pub use client::{Client, InterceptedChannel};
 
 mod response_ext;
 pub use response_ext::ResponseExt;
