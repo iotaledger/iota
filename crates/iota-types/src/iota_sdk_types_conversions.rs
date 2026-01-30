@@ -36,7 +36,7 @@ use iota_sdk_types::{
     object_id::ObjectId,
     transaction::{
         ActiveJwk, Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1,
-        CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, Command,
+        CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
         ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
         EndOfEpochTransactionKind, GasPayment, GenesisTransaction, Input, MakeMoveVector,
         MergeCoins, MoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate,
@@ -722,6 +722,31 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                     eligible_active_validators: change_epoch_v3.eligible_active_validators,
                 })
             }
+
+            crate::transaction::EndOfEpochTransactionKind::ChangeEpochV4(change_epoch_v4) => {
+                EndOfEpochTransactionKind::ChangeEpochV4(ChangeEpochV4 {
+                    epoch: change_epoch_v4.epoch,
+                    protocol_version: change_epoch_v4.protocol_version.as_u64(),
+                    storage_charge: change_epoch_v4.storage_charge,
+                    computation_charge: change_epoch_v4.computation_charge,
+                    computation_charge_burned: change_epoch_v4.computation_charge_burned,
+                    storage_rebate: change_epoch_v4.storage_rebate,
+                    non_refundable_storage_fee: change_epoch_v4.non_refundable_storage_fee,
+                    epoch_start_timestamp_ms: change_epoch_v4.epoch_start_timestamp_ms,
+                    system_packages: change_epoch_v4
+                        .system_packages
+                        .into_iter()
+                        .map(|(version, modules, dependencies)| SystemPackage {
+                            version: version.value(),
+                            modules,
+                            dependencies: dependencies.into_iter().map(Into::into).collect(),
+                        })
+                        .collect(),
+                    eligible_active_validators: change_epoch_v4.eligible_active_validators,
+                    scores: change_epoch_v4.scores,
+                    adjust_rewards_by_score: change_epoch_v4.adjust_rewards_by_score,
+                })
+            }
             crate::transaction::EndOfEpochTransactionKind::AuthenticatorStateCreate => {
                 EndOfEpochTransactionKind::AuthenticatorStateCreate
             }
@@ -809,8 +834,31 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                     eligible_active_validators: change_epoch_v3.eligible_active_validators,
                 })
             }
-            EndOfEpochTransactionKind::ChangeEpochV4(_change_epoch_v4) => {
-                todo!()
+            EndOfEpochTransactionKind::ChangeEpochV4(change_epoch_v4) => {
+                Self::ChangeEpochV4(crate::transaction::ChangeEpochV4 {
+                    epoch: change_epoch_v4.epoch,
+                    protocol_version: change_epoch_v4.protocol_version.into(),
+                    storage_charge: change_epoch_v4.storage_charge,
+                    computation_charge: change_epoch_v4.computation_charge,
+                    computation_charge_burned: change_epoch_v4.computation_charge_burned,
+                    storage_rebate: change_epoch_v4.storage_rebate,
+                    non_refundable_storage_fee: change_epoch_v4.non_refundable_storage_fee,
+                    epoch_start_timestamp_ms: change_epoch_v4.epoch_start_timestamp_ms,
+                    system_packages: change_epoch_v4
+                        .system_packages
+                        .into_iter()
+                        .map(|package| {
+                            (
+                                package.version.into(),
+                                package.modules,
+                                package.dependencies.into_iter().map(Into::into).collect(),
+                            )
+                        })
+                        .collect(),
+                    eligible_active_validators: change_epoch_v4.eligible_active_validators,
+                    scores: change_epoch_v4.scores,
+                    adjust_rewards_by_score: change_epoch_v4.adjust_rewards_by_score,
+                })
             }
             EndOfEpochTransactionKind::AuthenticatorStateCreate => Self::AuthenticatorStateCreate,
             EndOfEpochTransactionKind::AuthenticatorStateExpire(authenticator_state_expire) => {

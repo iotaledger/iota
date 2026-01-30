@@ -1307,6 +1307,8 @@
                 "accept_passkey_in_multisig": false,
                 "accept_zklogin_in_multisig": false,
                 "additional_multisig_checks": false,
+                "adjust_rewards_by_score": false,
+                "calculate_validator_scores": false,
                 "congestion_control_gas_price_feedback_mechanism": false,
                 "congestion_control_min_free_execution_slot": false,
                 "congestion_limit_overshoot_in_gas_price_feedback_mechanism": false,
@@ -1334,6 +1336,7 @@
                 "native_charging_v2": true,
                 "no_extraneous_module_bytes": true,
                 "normalize_ptb_arguments": false,
+                "pass_validator_scores_to_advance_epoch": false,
                 "passkey_auth": true,
                 "protocol_defined_base_fee": true,
                 "publish_package_metadata": false,
@@ -2078,6 +2081,7 @@
                 "reward_slashing_rate": {
                   "u64": "10000"
                 },
+                "scorer_version": null,
                 "storage_gas_price": {
                   "u64": "76"
                 },
@@ -8110,6 +8114,15 @@
           },
           "epoch_start_timestamp_ms": {
             "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "scores": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/BigInt_for_uint64"
+            }
           },
           "storage_charge": {
             "$ref": "#/components/schemas/BigInt_for_uint64"

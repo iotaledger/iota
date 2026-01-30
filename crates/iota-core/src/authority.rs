@@ -4968,6 +4968,7 @@ impl AuthorityState {
         gas_cost_summary: &GasCostSummary,
         checkpoint: CheckpointSequenceNumber,
         epoch_start_timestamp_ms: CheckpointTimestamp,
+        scores: Vec<u64>,
     ) -> anyhow::Result<(
         IotaSystemState,
         Option<SystemEpochInfoEvent>,
@@ -5022,9 +5023,8 @@ impl AuthorityState {
             bail!("missing system packages: cannot form ChangeEpochTx");
         };
 
-        // Use ChangeEpochV3 when the feature flag is enabled and ChangeEpochV2
-        // requirements are met
-
+        // Use ChangeEpochV3 or ChangeEpochV4 when the feature flags are enabled and
+        // ChangeEpochV2 requirements are met
         if config.select_committee_from_eligible_validators() {
             // Get the list of eligible validators that support the target protocol version
             let active_validators = epoch_store.epoch_start_state().get_active_validators();
@@ -5066,18 +5066,37 @@ impl AuthorityState {
                 }
             }
 
-            txns.push(EndOfEpochTransactionKind::new_change_epoch_v3(
-                next_epoch,
-                next_epoch_protocol_version,
-                gas_cost_summary.storage_cost,
-                gas_cost_summary.computation_cost,
-                gas_cost_summary.computation_cost_burned,
-                gas_cost_summary.storage_rebate,
-                gas_cost_summary.non_refundable_storage_fee,
-                epoch_start_timestamp_ms,
-                next_epoch_system_package_bytes,
-                eligible_active_validators,
-            ));
+            // Use ChangeEpochV4 when the pass_validator_scores_to_advance_epoch feature
+            // flag is enabled.
+            if config.pass_validator_scores_to_advance_epoch() {
+                txns.push(EndOfEpochTransactionKind::new_change_epoch_v4(
+                    next_epoch,
+                    next_epoch_protocol_version,
+                    gas_cost_summary.storage_cost,
+                    gas_cost_summary.computation_cost,
+                    gas_cost_summary.computation_cost_burned,
+                    gas_cost_summary.storage_rebate,
+                    gas_cost_summary.non_refundable_storage_fee,
+                    epoch_start_timestamp_ms,
+                    next_epoch_system_package_bytes,
+                    eligible_active_validators,
+                    scores,
+                    config.adjust_rewards_by_score(),
+                ));
+            } else {
+                txns.push(EndOfEpochTransactionKind::new_change_epoch_v3(
+                    next_epoch,
+                    next_epoch_protocol_version,
+                    gas_cost_summary.storage_cost,
+                    gas_cost_summary.computation_cost,
+                    gas_cost_summary.computation_cost_burned,
+                    gas_cost_summary.storage_rebate,
+                    gas_cost_summary.non_refundable_storage_fee,
+                    epoch_start_timestamp_ms,
+                    next_epoch_system_package_bytes,
+                    eligible_active_validators,
+                ));
+            }
         } else if config.protocol_defined_base_fee()
             && config.max_committee_members_count_as_option().is_some()
         {

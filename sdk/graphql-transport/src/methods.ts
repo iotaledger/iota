@@ -1440,6 +1440,7 @@ export const RPC_METHODS: {
             max_package_dependencies: 'u32',
             bridge_should_try_to_finalize_committee: 'bool',
             consensus_gc_depth: 'u32',
+            scorer_version: 'u16',
         };
 
         for (const { key, value } of protocolConfig.configs) {

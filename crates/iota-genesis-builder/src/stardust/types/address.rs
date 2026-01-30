@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_stardust_types::block::address::Address;
-
-use crate::{base_types::IotaAddress, object::Owner};
+use iota_types::{base_types::IotaAddress, object::Owner};
 
 /// Converts a ["Stardust" `Address`](Address) to a [`IotaAddress`].
 ///

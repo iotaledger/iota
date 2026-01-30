@@ -15,6 +15,7 @@ use fastcrypto::{error::FastCryptoResult, groups::bls12381, hash::HashFunction};
 use fastcrypto_tbls::dkg_v1;
 use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
 use iota_sdk_types::crypto::IntentScope;
+use once_cell::sync::OnceCell;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -22,8 +23,8 @@ use crate::{
     base_types::{
         AuthorityName, ConciseableName, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
     },
-    crypto::{AuthoritySignature, DefaultHash},
-    digests::{ConsensusCommitDigest, Digest},
+    crypto::{AuthoritySignature, DefaultHash, default_hash},
+    digests::{ConsensusCommitDigest, Digest, MisbehaviorReportDigest},
     message_envelope::{Envelope, Message, VerifiedEnvelope},
     messages_checkpoint::{CheckpointSequenceNumber, CheckpointSignatureMessage},
     supported_protocol_versions::{
@@ -90,6 +91,7 @@ pub enum ConsensusTransactionKey {
     NewJWKFetched(Box<(AuthorityName, JwkId, JWK)>),
     RandomnessDkgMessage(AuthorityName),
     RandomnessDkgConfirmation(AuthorityName),
+    MisbehaviorReport(MisbehaviorReportDigest),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -123,6 +125,9 @@ impl Debug for ConsensusTransactionKey {
             }
             Self::RandomnessDkgConfirmation(name) => {
                 write!(f, "RandomnessDkgConfirmation({:?})", name.concise())
+            }
+            Self::MisbehaviorReport(digest) => {
+                write!(f, "MisbehaviorReport({digest:?})")
             }
         }
     }
@@ -260,6 +265,11 @@ pub enum ConsensusTransactionKind {
     // of `RandomnessDkgMessages` have been received locally, to complete the key generation
     // process. Contents are a serialized `fastcrypto_tbls::dkg::Confirmation`.
     RandomnessDkgConfirmation(AuthorityName, Vec<u8>),
+    MisbehaviorReport(
+        AuthorityName,
+        VersionedMisbehaviorReport,
+        u64, // checkpoint_seq
+    ),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -271,6 +281,111 @@ impl ConsensusTransactionKind {
             ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                 | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _)
         )
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum VersionedMisbehaviorReport {
+    V1(
+        MisbehaviorsV1<Vec<u64>>,
+        #[serde(skip)] OnceCell<MisbehaviorReportDigest>,
+    ),
+}
+
+impl VersionedMisbehaviorReport {
+    pub fn new_v1(misbehaviors: MisbehaviorsV1<Vec<u64>>) -> Self {
+        VersionedMisbehaviorReport::V1(misbehaviors, OnceCell::new())
+    }
+
+    pub fn verify(&self, committee_size: usize) -> bool {
+        match self {
+            VersionedMisbehaviorReport::V1(report, _) => report.verify(committee_size),
+        }
+    }
+    /// Returns an iterator over references to some of the fields in the report.
+    pub fn iterate_over_metrics(&self) -> std::vec::IntoIter<&Vec<u64>> {
+        match self {
+            VersionedMisbehaviorReport::V1(report, _) => report.iter(),
+        }
+    }
+    /// Returns the digest of the misbehavior report, caching it if it has not
+    /// been computed yet.
+    pub fn digest(&self) -> &MisbehaviorReportDigest {
+        match self {
+            VersionedMisbehaviorReport::V1(_, digest) => {
+                digest.get_or_init(|| MisbehaviorReportDigest::new(default_hash(self)))
+            }
+        }
+    }
+}
+
+// MisbehaviorsV1 contains lists of all metrics used in v1 of misbehavior
+// reports, with a value for each metric. The metrics (misbeheaviors) include,
+// faulty blocks, equivocation and missing proposal counts for each authority.
+// This first version does not include any type of proof.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MisbehaviorsV1<T> {
+    pub faulty_blocks_provable: T,
+    pub faulty_blocks_unprovable: T,
+    pub missing_proposals: T,
+    pub equivocations: T,
+}
+
+impl MisbehaviorsV1<Vec<u64>> {
+    pub fn verify(&self, committee_size: usize) -> bool {
+        // This version of reports are valid as long as they contain the counts for all
+        // authorities. Future versions may contain proofs that need verification.
+        // However, since the validity of a proof is deeply coupled with the protocol
+        // version and the consensus mechanism being used, we cannot verify it here. In
+        // the future, reports should be unwrapped (or translated) to a type verifiable
+        // by the consensus crate, which means that the verification logic will probably
+        // move out of this crate.
+        if (self.faulty_blocks_provable.len() != committee_size)
+            | (self.faulty_blocks_unprovable.len() != committee_size)
+            | (self.equivocations.len() != committee_size)
+            | (self.missing_proposals.len() != committee_size)
+        {
+            return false;
+        }
+        true
+    }
+}
+impl<T> MisbehaviorsV1<T> {
+    pub fn iter(&self) -> std::vec::IntoIter<&T> {
+        vec![
+            &self.faulty_blocks_provable,
+            &self.faulty_blocks_unprovable,
+            &self.missing_proposals,
+            &self.equivocations,
+        ]
+        .into_iter()
+    }
+    // Returns an iterator over references to major misbehavior fields in the
+    // report. Major misbehaviors carry a higher penalty in the scoring system.
+    pub fn iter_major_misbehaviors(&self) -> std::vec::IntoIter<&T> {
+        vec![&self.equivocations].into_iter()
+    }
+    // Returns an iterator over references to minor misbehavior fields in the
+    // report. Minor misbehaviors carry a lower penalty in the scoring system.
+    pub fn iter_minor_misbehaviors(&self) -> std::vec::IntoIter<&T> {
+        vec![
+            &self.faulty_blocks_provable,
+            &self.faulty_blocks_unprovable,
+            &self.missing_proposals,
+        ]
+        .into_iter()
+    }
+}
+
+impl<T> FromIterator<T> for MisbehaviorsV1<T> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        let mut iterator = iter.into_iter();
+        Self {
+            faulty_blocks_provable: iterator.next().expect("Not enough elements in iterator"),
+            faulty_blocks_unprovable: iterator.next().expect("Not enough elements in iterator"),
+            missing_proposals: iterator.next().expect("Not enough elements in iterator"),
+            equivocations: iterator.next().expect("Not enough elements in iterator"),
+        }
     }
 }
 
@@ -464,6 +579,26 @@ impl ConsensusTransaction {
         }
     }
 
+    pub fn new_misbehavior_report(
+        authority: AuthorityName,
+        report: &VersionedMisbehaviorReport,
+        checkpoint_seq: u64,
+    ) -> Self {
+        let serialized_report =
+            bcs::to_bytes(report).expect("report serialization should not fail");
+        let mut hasher = DefaultHasher::new();
+        serialized_report.hash(&mut hasher);
+        let tracking_id = hasher.finish().to_le_bytes();
+        Self {
+            tracking_id,
+            kind: ConsensusTransactionKind::MisbehaviorReport(
+                authority,
+                report.clone(),
+                checkpoint_seq,
+            ),
+        }
+    }
+
     pub fn get_tracking_id(&self) -> u64 {
         (&self.tracking_id[..])
             .read_u64::<BigEndian>()
@@ -506,6 +641,9 @@ impl ConsensusTransaction {
             }
             ConsensusTransactionKind::RandomnessDkgConfirmation(authority, _) => {
                 ConsensusTransactionKey::RandomnessDkgConfirmation(*authority)
+            }
+            ConsensusTransactionKind::MisbehaviorReport(_, report, _) => {
+                ConsensusTransactionKey::MisbehaviorReport(*report.digest())
             }
         }
     }

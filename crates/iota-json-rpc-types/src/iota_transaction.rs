@@ -33,7 +33,7 @@ use iota_types::{
     signature::GenericSignature,
     storage::{DeleteKind, WriteKind},
     transaction::{
-        Argument, CallArg, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, Command,
+        Argument, CallArg, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
         EndOfEpochTransactionKind, GenesisObject, InputObjectKind, ObjectArg, ProgrammableMoveCall,
         ProgrammableTransaction, SenderSignedData, TransactionData, TransactionDataAPI,
         TransactionKind,
@@ -553,6 +553,9 @@ impl IotaTransactionBlockKind {
                             EndOfEpochTransactionKind::ChangeEpochV3(e) => {
                                 IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
+                            EndOfEpochTransactionKind::ChangeEpochV4(e) => {
+                                IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
+                            }
                             EndOfEpochTransactionKind::AuthenticatorStateCreate => {
                                 IotaEndOfEpochTransactionKind::AuthenticatorStateCreate
                             }
@@ -633,6 +636,9 @@ impl IotaTransactionBlockKind {
                                 IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
                             EndOfEpochTransactionKind::ChangeEpochV3(e) => {
+                                IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
+                            }
+                            EndOfEpochTransactionKind::ChangeEpochV4(e) => {
                                 IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
                             EndOfEpochTransactionKind::AuthenticatorStateCreate => {
@@ -728,6 +734,10 @@ pub struct IotaChangeEpochV2 {
     #[serde_as(as = "Option<Vec<BigInt<u64>>>")]
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub eligible_active_validators: Option<Vec<u64>>,
+    #[schemars(with = "Option<Vec<BigInt<u64>>>")]
+    #[serde_as(as = "Option<Vec<BigInt<u64>>>")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub scores: Option<Vec<u64>>,
 }
 
 impl From<ChangeEpochV2> for IotaChangeEpochV2 {
@@ -740,6 +750,7 @@ impl From<ChangeEpochV2> for IotaChangeEpochV2 {
             storage_rebate: e.storage_rebate,
             epoch_start_timestamp_ms: e.epoch_start_timestamp_ms,
             eligible_active_validators: None,
+            scores: None,
         }
     }
 }
@@ -754,6 +765,22 @@ impl From<ChangeEpochV3> for IotaChangeEpochV2 {
             storage_rebate: e.storage_rebate,
             epoch_start_timestamp_ms: e.epoch_start_timestamp_ms,
             eligible_active_validators: Some(e.eligible_active_validators),
+            scores: None,
+        }
+    }
+}
+
+impl From<ChangeEpochV4> for IotaChangeEpochV2 {
+    fn from(e: ChangeEpochV4) -> Self {
+        Self {
+            epoch: e.epoch,
+            storage_charge: e.storage_charge,
+            computation_charge: e.computation_charge,
+            computation_charge_burned: e.computation_charge_burned,
+            storage_rebate: e.storage_rebate,
+            epoch_start_timestamp_ms: e.epoch_start_timestamp_ms,
+            eligible_active_validators: Some(e.eligible_active_validators),
+            scores: Some(e.scores),
         }
     }
 }

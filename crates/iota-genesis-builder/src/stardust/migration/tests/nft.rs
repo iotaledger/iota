@@ -33,10 +33,9 @@ use iota_types::{
     stardust::{
         coin_type::CoinType,
         output::{
-            ALIAS_OUTPUT_MODULE_NAME, FixedPoint32, Irc27Metadata, NFT_DYNAMIC_OBJECT_FIELD_KEY,
+            ALIAS_OUTPUT_MODULE_NAME, FixedPoint32, NFT_DYNAMIC_OBJECT_FIELD_KEY,
             NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE, NFT_OUTPUT_MODULE_NAME, Nft, NftOutput,
         },
-        stardust_to_iota_address,
     },
 };
 use move_core_types::ident_str;
@@ -46,7 +45,11 @@ use crate::stardust::{
         ExpectedAssets, UnlockObjectTestResult, extract_native_tokens_from_bag,
         object_migration_with_object_owner, random_output_header, run_migration, unlock_object,
     },
-    types::output_header::OutputHeader,
+    types::{
+        address::stardust_to_iota_address,
+        output::nft::{FixedPoint32Ext, NftExt, default_irc27_metadata},
+        output_header::OutputHeader,
+    },
 };
 
 fn migrate_nft(
@@ -387,7 +390,7 @@ fn nft_migration_with_valid_irc27_metadata() {
             let bech32_addr: Bech32Address = entry.0.parse().unwrap();
             (
                 stardust_to_iota_address(bech32_addr.inner()).unwrap(),
-                FixedPoint32::try_from(*entry.1).unwrap(),
+                FixedPoint32::try_from_f64(*entry.1).unwrap(),
             )
         })
         .collect::<BTreeMap<_, _>>();
@@ -462,7 +465,7 @@ fn nft_migration_with_invalid_irc27_metadata() {
 
     // Since we removed non_standard_fields, the other fields of immutable_metadata
     // should be the defaults.
-    assert_eq!(immutable_metadata, Irc27Metadata::default());
+    assert_eq!(immutable_metadata, default_irc27_metadata());
 }
 
 #[test]
@@ -505,7 +508,7 @@ fn nft_migration_with_non_json_metadata() {
 
     // Since we removed non_standard_fields, the other fields of immutable_metadata
     // should be the defaults.
-    assert_eq!(immutable_metadata, Irc27Metadata::default());
+    assert_eq!(immutable_metadata, default_irc27_metadata());
 }
 
 #[test]
@@ -526,7 +529,7 @@ fn nft_migration_without_metadata() {
 
     // Since we removed non_standard_fields, the other fields of immutable_metadata
     // should be the defaults.
-    assert_eq!(immutable_metadata, Irc27Metadata::default());
+    assert_eq!(immutable_metadata, default_irc27_metadata());
 }
 
 #[test]

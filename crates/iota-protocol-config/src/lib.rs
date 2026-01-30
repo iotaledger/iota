@@ -105,6 +105,9 @@ pub const MAX_PROTOCOL_VERSION: u64 = 19;
 //             Increase the base cost for transfer receive object in devnet.
 //             Switch consensus protocol to Starfish in testnet.
 //             Enable passkey authentication support in mainnet.
+//             Change epoch transaction will contain validator scores.
+//             Enable validator scoring on testnet and enable adjustment of
+//             validator rewards based on scores on Devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -406,6 +409,18 @@ struct FeatureFlags {
     // If true, enables the authentication of account using Move code.
     #[serde(skip_serializing_if = "is_false")]
     enable_move_authentication: bool,
+
+    // If true, the change epoch transaction will contain validator scores.
+    #[serde(skip_serializing_if = "is_false")]
+    pass_validator_scores_to_advance_epoch: bool,
+
+    // If true, enables calculation of validator scores.
+    #[serde(skip_serializing_if = "is_false")]
+    calculate_validator_scores: bool,
+
+    // If true, validators will use the committee's score to adjust rewards.
+    #[serde(skip_serializing_if = "is_false")]
+    adjust_rewards_by_score: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1213,6 +1228,14 @@ pub struct ProtocolConfig {
     /// for any single commit. Any overshoot is tracked as a debt that must
     /// be accounted for in subsequent commits.
     max_congestion_limit_overshoot_per_commit: Option<u64>,
+
+    /// Scorer version. When set to `None`, MisbehaviorReports are not sent nor
+    /// considered valid. When set to `Some(version)`, scores are included in
+    /// the MisbehaviorReports messages, where `version` determines the scoring
+    /// formulas and metrics to be used. Even if set to None, the Scorer
+    /// component is created, having access to metrics and being able to expose
+    /// validator scores.
+    scorer_version: Option<u16>,
 }
 
 // feature flags
@@ -1508,6 +1531,28 @@ impl ProtocolConfig {
 
     pub fn enable_move_authentication(&self) -> bool {
         self.feature_flags.enable_move_authentication
+    }
+
+    pub fn pass_validator_scores_to_advance_epoch(&self) -> bool {
+        self.feature_flags.pass_validator_scores_to_advance_epoch
+    }
+
+    pub fn calculate_validator_scores(&self) -> bool {
+        let calculate_validator_scores = self.feature_flags.calculate_validator_scores;
+        assert!(
+            !calculate_validator_scores || self.scorer_version.is_some(),
+            "calculate_validator_scores requires scorer_version to be set"
+        );
+        calculate_validator_scores
+    }
+
+    pub fn adjust_rewards_by_score(&self) -> bool {
+        let adjust = self.feature_flags.adjust_rewards_by_score;
+        assert!(
+            !adjust || (self.scorer_version.is_some() && self.calculate_validator_scores()),
+            "adjust_rewards_by_score requires scorer_version to be set"
+        );
+        adjust
     }
 }
 
@@ -2071,6 +2116,8 @@ impl ProtocolConfig {
             consensus_max_acknowledgments_per_block: None,
 
             max_congestion_limit_overshoot_per_commit: None,
+
+            scorer_version: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -2412,16 +2459,26 @@ impl ProtocolConfig {
                         // Increase the base cost for transfer receive object in devnet, since the
                         // implementation now does check if parent is not an account.
                         cfg.transfer_receive_object_cost_base = Some(100);
+                        // Enable adjustment of validator rewards based on score in devnet.
+                        cfg.feature_flags.adjust_rewards_by_score = true;
                     }
 
                     if chain != Chain::Mainnet {
                         // Switch consensus protocol to Starfish in testnet.
                         cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
+
+                        // Enable validator score calculation on testnet
+                        cfg.feature_flags.calculate_validator_scores = true;
+                        cfg.scorer_version = Some(1);
                     }
+
+                    // Change epoch transaction will contain validator scores
+                    cfg.feature_flags.pass_validator_scores_to_advance_epoch = true;
 
                     // Enable passkey authentication support in mainnet
                     cfg.feature_flags.passkey_auth = true;
                 }
+
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
