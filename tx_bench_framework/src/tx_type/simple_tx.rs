@@ -11,7 +11,10 @@ use iota_sdk_types::crypto::Intent;
 use iota_types::{base_types::IotaAddress, signature::GenericSignature};
 
 use crate::{
-    tx_type::{SubmitResult, build_split_and_transfer_pt, execute_and_measure},
+    TxType,
+    tx_type::{
+        SubmitResult, build_request_add_stake_pt, build_split_and_transfer_pt, execute_and_measure,
+    },
     utils::get_two_distinct_coins,
 };
 
@@ -22,6 +25,7 @@ pub async fn submit_standard_tx<K: AccountKeystore>(
     recipient: IotaAddress,
     gas_budget: u64,
     split_amount: u64,
+    tx_type: TxType,
     wait_mode: ExecuteTransactionRequestType,
 ) -> Result<SubmitResult> {
     let gas_price = client
@@ -34,8 +38,14 @@ pub async fn submit_standard_tx<K: AccountKeystore>(
         .await
         .context("get_two_distinct_coins failed")?;
 
-    let pt = build_split_and_transfer_pt(pay_coin.object_ref(), recipient, split_amount)
-        .context("build_split_and_transfer_pt failed")?;
+    let pt = match tx_type {
+        TxType::OwnedObject => {
+            build_split_and_transfer_pt(pay_coin.object_ref(), recipient, split_amount)
+                .context("build_split_and_transfer_pt failed")?
+        }
+        TxType::SharedObject => build_request_add_stake_pt(pay_coin.object_ref(), recipient)
+            .context("build_request_add_stake_pt failed")?,
+    };
 
     let tx_data = TransactionData::new_programmable(
         sender,

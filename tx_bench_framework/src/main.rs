@@ -13,7 +13,7 @@ use anyhow::{Result, bail};
 use clap::Parser;
 
 use crate::{
-    cli::{AccountsCmd, Cli, Command},
+    cli::{AccountsCmd, Cli, Command, TxType},
     command_handlers::{handle_init_command, handle_submit_command},
     registry_state::{load_registry, save_registry},
 };
@@ -85,6 +85,7 @@ async fn main() -> Result<()> {
             split_amount,
             account,
             wait_mode,
+            tx_type,
         } => {
             handle_submit_command(
                 cli.state_out.clone(),
@@ -96,6 +97,7 @@ async fn main() -> Result<()> {
                 cli.gas_budget,
                 cli.use_faucet,
                 wait_mode,
+                tx_type,
             )
             .await?;
         }

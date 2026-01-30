@@ -7,7 +7,7 @@ use iota_types::base_types::{ObjectID, ObjectRef};
 
 use crate::{
     aa_initialization::create_abstract_account,
-    cli::{AuthenticatorKind, SubmitMode, WaitMode},
+    cli::{AuthenticatorKind, SubmitMode, TxType, WaitMode},
     registry_state::{AccountState, DeploymentState, load_registry, save_registry},
     tempo_query::print_tempo_traceql_queries,
     tx_type::{submit_aa_tx, submit_standard_tx},
@@ -232,6 +232,7 @@ pub async fn handle_submit_command(
     gas_budget: u64,
     use_faucet: bool,
     wait_mode: WaitMode,
+    tx_type: TxType,
 ) -> Result<()> {
     let registry = load_registry(&registry_path)?;
 
@@ -287,6 +288,7 @@ pub async fn handle_submit_command(
                 recipient_addr,
                 gas_budget,
                 split_amount,
+                tx_type,
                 wait_mode.clone(),
             )
             .await
@@ -299,6 +301,7 @@ pub async fn handle_submit_command(
                 recipient_addr,
                 gas_budget,
                 split_amount,
+                tx_type,
                 wait_mode.clone(),
             )
             .await
@@ -313,7 +316,12 @@ pub async fn handle_submit_command(
         SubmitMode::Aa => acc.aa_address.clone(),
     };
 
-    print_tempo_traceql_queries("iota", "handle_transaction", &tx_sender_for_query, &digests);
+    print_tempo_traceql_queries(
+        "iota-node",
+        "handle_transaction",
+        &tx_sender_for_query,
+        &digests,
+    );
 
     let total_ms = started.elapsed().as_millis() as f64;
     let tps = (count as f64) / (total_ms / 1000.0);

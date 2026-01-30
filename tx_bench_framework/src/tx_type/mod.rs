@@ -20,10 +20,13 @@ use iota_sdk::{
     },
 };
 use iota_types::{
-    TypeTag, base_types::ObjectRef,
-    programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::ObjectArg,
+    IOTA_SYSTEM_PACKAGE_ID, TypeTag,
+    base_types::ObjectRef,
+    iota_system_state::IOTA_SYSTEM_MODULE_NAME,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{CallArg, ObjectArg},
 };
-use move_core_types::{ident_str, language_storage::StructTag};
+use move_core_types::{ident_str, identifier::Identifier, language_storage::StructTag};
 pub use simple_tx::submit_standard_tx;
 
 pub struct SubmitResult {
@@ -76,6 +79,28 @@ pub fn build_split_and_transfer_pt(
         ident_str!("public_transfer").to_owned(),
         vec![COIN_IOTA_TYPE.clone()],
         vec![split_res, recipient_arg],
+    );
+
+    Ok(b.finish())
+}
+
+pub fn build_request_add_stake_pt(
+    pay_coin_ref: ObjectRef,
+    recipient: IotaAddress,
+) -> Result<iota_sdk::types::transaction::ProgrammableTransaction> {
+    let mut b = ProgrammableTransactionBuilder::new();
+
+    let pay_coin_arg = b.obj(ObjectArg::ImmOrOwnedObject(pay_coin_ref))?;
+    let addr_arg = b
+        .input(CallArg::Pure(bcs::to_bytes(&recipient).unwrap()))
+        .unwrap();
+    let state = b.input(CallArg::IOTA_SYSTEM_MUT).unwrap();
+    b.programmable_move_call(
+        IOTA_SYSTEM_PACKAGE_ID,
+        Identifier::new(IOTA_SYSTEM_MODULE_NAME.as_str())?,
+        Identifier::new("request_add_stake")?,
+        vec![],
+        vec![state, pay_coin_arg, addr_arg],
     );
 
     Ok(b.finish())

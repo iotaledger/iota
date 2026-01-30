@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result};
 use fastcrypto::{
     ed25519::Ed25519Signature,
     encoding::{Encoding, Hex},
@@ -23,9 +23,12 @@ use iota_types::{
 };
 
 use crate::{
+    TxType,
     cli::AuthenticatorKind,
     registry_state::AccountState,
-    tx_type::{SubmitResult, build_split_and_transfer_pt, execute_and_measure},
+    tx_type::{
+        SubmitResult, build_request_add_stake_pt, build_split_and_transfer_pt, execute_and_measure,
+    },
     utils::get_two_distinct_coins,
 };
 
@@ -75,6 +78,7 @@ pub async fn submit_aa_tx<K: AccountKeystore>(
     recipient: IotaAddress,
     gas_budget: u64,
     split_amount: u64,
+    tx_type: TxType,
     wait_mode: ExecuteTransactionRequestType,
 ) -> Result<SubmitResult> {
     let aa_addr: IotaAddress = state
@@ -93,8 +97,14 @@ pub async fn submit_aa_tx<K: AccountKeystore>(
         .await
         .context("get_two_distinct_coins failed")?;
 
-    let pt = build_split_and_transfer_pt(pay_coin.object_ref(), recipient, split_amount)
-        .context("build_split_and_transfer_pt failed")?;
+    let pt = match tx_type {
+        TxType::OwnedObject => {
+            build_split_and_transfer_pt(pay_coin.object_ref(), recipient, split_amount)
+                .context("build_split_and_transfer_pt failed")?
+        }
+        TxType::SharedObject => build_request_add_stake_pt(pay_coin.object_ref(), recipient)
+            .context("build_request_add_stake_pt failed")?,
+    };
 
     let tx_data = TransactionData::new_programmable(
         sender,

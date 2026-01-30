@@ -118,6 +118,9 @@ pub enum Command {
         #[arg(long)]
         account: Option<String>,
 
+        #[arg(long, value_enum, default_value_t = TxType::OwnedObject)]
+        tx_type: TxType,
+
         #[arg(long, value_enum, default_value_t = WaitMode::Effects)]
         wait_mode: WaitMode,
     },
@@ -127,6 +130,12 @@ pub enum Command {
 pub enum WaitMode {
     Effects,
     Local,
+}
+
+#[derive(ValueEnum, Debug, Clone, Copy)]
+pub enum TxType {
+    OwnedObject,
+    SharedObject,
 }
 
 impl WaitMode {
