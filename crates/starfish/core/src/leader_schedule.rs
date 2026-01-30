@@ -258,6 +258,21 @@ impl LeaderSchedule {
         if range_end == GENESIS_COMMIT_INDEX {
             return;
         }
+
+        // Skip stale scores: if the incoming scores are for a range we've already
+        // processed (i.e., range_end <= last_commit_info_index), don't update.
+        // This can happen after a crash when fast sync fetches old commits that
+        // the node already has, while the node has recovered scoring_subdag from
+        // commits after the last persisted CommitInfo.
+        let last_commit_info_index = dag_state.last_commit_info_index();
+        if range_end <= last_commit_info_index {
+            tracing::debug!(
+                "[AUTH {}] Skipping stale scores from commit {commit_index} (range_end={range_end} <= last_commit_info_index={last_commit_info_index})",
+                self.context.own_index
+            );
+            return;
+        }
+
         let range_start = range_end.saturating_sub(self.num_commits_per_schedule as u32 - 1);
         let commit_range = CommitRange::new(range_start..=range_end);
 
