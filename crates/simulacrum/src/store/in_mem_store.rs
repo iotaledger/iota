@@ -52,6 +52,9 @@ pub struct InMemoryStore {
     // Epoch data
     last_checkpoints_per_epoch: HashMap<EpochId, CheckpointSequenceNumber>,
 
+    // Historical system states by epoch
+    historical_system_states: HashMap<EpochId, iota_types::iota_system_state::IotaSystemState>,
+
     // Object data
     live_objects: HashMap<ObjectID, SequenceNumber>,
     objects: HashMap<ObjectID, BTreeMap<SequenceNumber, Object>>,
@@ -61,6 +64,11 @@ impl InMemoryStore {
     pub fn new(genesis: &genesis::Genesis) -> Self {
         let mut store = Self::default();
         store.init_with_genesis(genesis);
+
+        // Store the initial system state for epoch 0
+        let initial_system_state = store.get_system_state();
+        store.store_system_state_for_epoch(0, initial_system_state);
+
         store
     }
 
@@ -141,6 +149,26 @@ impl InMemoryStore {
         self.last_checkpoints_per_epoch.get(&epoch).cloned()
     }
 
+    /// Get the system state for a specific epoch.
+    /// Returns None if the system state for that epoch was not stored.
+    pub fn get_system_state_by_epoch(
+        &self,
+        epoch: EpochId,
+    ) -> Option<&iota_types::iota_system_state::IotaSystemState> {
+        self.historical_system_states.get(&epoch)
+    }
+
+    /// Store the system state for a specific epoch.
+    /// This should be called when an epoch ends to preserve the final system
+    /// state.
+    pub fn store_system_state_for_epoch(
+        &mut self,
+        epoch: EpochId,
+        system_state: iota_types::iota_system_state::IotaSystemState,
+    ) {
+        self.historical_system_states.insert(epoch, system_state);
+    }
+
     pub fn owned_objects(&self, owner: IotaAddress) -> impl Iterator<Item = &Object> {
         self.live_objects
             .iter()
@@ -167,6 +195,11 @@ impl InMemoryStore {
 impl InMemoryStore {
     pub fn insert_checkpoint(&mut self, checkpoint: VerifiedCheckpoint) {
         if let Some(end_of_epoch_data) = &checkpoint.data().end_of_epoch_data {
+            // Store the current system state for the ending epoch before transitioning
+            let current_epoch = checkpoint.epoch();
+            let current_system_state = self.get_system_state();
+            self.store_system_state_for_epoch(current_epoch, current_system_state);
+
             let next_committee = end_of_epoch_data
                 .next_epoch_committee
                 .iter()
@@ -579,6 +612,13 @@ impl SimulatorStore for InMemoryStore {
 
     fn get_last_checkpoint_of_epoch(&self, epoch: EpochId) -> Option<CheckpointSequenceNumber> {
         self.get_last_checkpoint_of_epoch(epoch)
+    }
+
+    fn get_system_state_by_epoch(
+        &self,
+        epoch: EpochId,
+    ) -> Option<&iota_types::iota_system_state::IotaSystemState> {
+        self.get_system_state_by_epoch(epoch)
     }
 
     fn owned_objects(&self, owner: IotaAddress) -> Box<dyn Iterator<Item = Object> + '_> {

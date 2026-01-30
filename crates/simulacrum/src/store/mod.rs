@@ -67,6 +67,11 @@ pub trait SimulatorStore:
 
     fn get_last_checkpoint_of_epoch(&self, epoch: EpochId) -> Option<CheckpointSequenceNumber>;
 
+    fn get_system_state_by_epoch(
+        &self,
+        epoch: EpochId,
+    ) -> Option<&iota_types::iota_system_state::IotaSystemState>;
+
     fn owned_objects(&self, owner: IotaAddress) -> Box<dyn Iterator<Item = Object> + '_>;
 
     fn insert_checkpoint(&mut self, checkpoint: VerifiedCheckpoint);

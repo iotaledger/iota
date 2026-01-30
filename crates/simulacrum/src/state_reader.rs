@@ -43,6 +43,26 @@ impl SimulacrumGrpcReader {
             chain_id,
         }
     }
+
+    /// Try to get the system state for a specific epoch.
+    /// This method retrieves historical system state data if available.
+    fn get_system_state_for_epoch(&self, epoch: u64) -> Result<IotaSystemState> {
+        self.simulacrum.with_store(|store| {
+            // First try to get historical system state for the requested epoch
+            if let Some(historical_state) = store.get_system_state_by_epoch(epoch) {
+                return Ok(historical_state.clone());
+            }
+
+            // If we're asking for the current epoch, return current system state
+            let current_system_state = store.get_system_state();
+            if epoch == current_system_state.epoch() {
+                return Ok(current_system_state);
+            }
+
+            // Historical system state not found
+            Err(anyhow::anyhow!("Historical system state for epoch {} not available. System states are only stored when epochs end.", epoch))
+        })
+    }
 }
 
 impl GrpcStateReader for SimulacrumGrpcReader {
@@ -126,24 +146,48 @@ impl GrpcStateReader for SimulacrumGrpcReader {
     fn get_epoch_info(&self, epoch: u64) -> Option<EpochInfo> {
         self.simulacrum.with_store(|store| {
             // Get the start checkpoint of the epoch
-            let start_checkpoint_seq = store
-                .get_last_checkpoint_of_epoch(epoch - 1)
-                .map(|seq| seq + 1)
-                .unwrap_or(0);
+            let start_checkpoint_seq = if epoch != 0 {
+                store
+                    .get_last_checkpoint_of_epoch(epoch - 1)
+                    .map(|seq| Some(seq + 1))
+                    .unwrap_or(None)?
+            } else {
+                0
+            };
 
             let start_checkpoint = store
                 .get_checkpoint_by_sequence_number(start_checkpoint_seq)
                 .cloned()?;
 
-            let system_state = store.get_system_state();
+            // Try to get the system state for the specific epoch
+            let system_state = self
+                .get_system_state_for_epoch(epoch)
+                .expect("valid system state should exist");
+
+            // Try to get the next epoch's system state to determine if current epoch is
+            // completed
+            let (end_timestamp_ms, end_checkpoint) =
+                if let Ok(next_epoch_state) = self.get_system_state_for_epoch(epoch + 1) {
+                    (
+                        Some(next_epoch_state.epoch_start_timestamp_ms()),
+                        Some(
+                            store
+                                .get_last_checkpoint_of_epoch(epoch)
+                                .expect("last checkpoint of completed epoch should exist"),
+                        ),
+                    )
+                } else {
+                    // Next epoch doesn't exist, so this epoch is current or incomplete
+                    (None, None)
+                };
 
             Some(EpochInfo {
                 epoch,
                 protocol_version: system_state.protocol_version(),
                 start_timestamp_ms: start_checkpoint.data().timestamp_ms,
-                end_timestamp_ms: None,
+                end_timestamp_ms,
                 start_checkpoint: start_checkpoint_seq,
-                end_checkpoint: None,
+                end_checkpoint,
                 reference_gas_price: system_state.reference_gas_price(),
                 system_state,
             })

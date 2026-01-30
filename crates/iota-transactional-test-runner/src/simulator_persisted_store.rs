@@ -229,6 +229,14 @@ impl SimulatorStore for PersistedStore {
             .expect("Fatal: DB read failed")
     }
 
+    fn get_system_state_by_epoch(
+        &self,
+        _epoch: EpochId,
+    ) -> Option<&iota_types::iota_system_state::IotaSystemState> {
+        // PersistedStore doesn't currently support historical system state storage
+        None
+    }
+
     fn owned_objects(&self, owner: IotaAddress) -> Box<dyn Iterator<Item = Object> + '_> {
         Box::new(self.read_write.live_objects
             .safe_iter()
