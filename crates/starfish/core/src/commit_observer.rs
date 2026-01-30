@@ -17,7 +17,9 @@ use tracing::{debug, info, instrument, warn};
 use crate::{
     CommitConsumer, CommittedSubDag,
     block_header::{BlockHeaderAPI, VerifiedBlockHeader},
-    commit::{CommitAPI, CommitIndex, PendingSubDag, load_pending_subdag_from_store},
+    commit::{
+        CommitAPI, CommitIndex, PendingSubDag, TrustedCommit, load_pending_subdag_from_store,
+    },
     commit_solidifier::CommitSolidifier,
     context::Context,
     dag_state::DagState,
@@ -177,58 +179,64 @@ impl CommitObserver {
             .linearizer
             .get_transaction_ack_authors(missing_transactions);
 
-        // Send solid subdags using the common function
-        // (flush will happen inside handle_committed_sub_dags_internal after updating
-        // GC round)
-        self.handle_committed_sub_dags_internal(&pending_sub_dags, solid_sub_dags, source)?;
+        self.finalize_and_send_solid_subdags(&pending_sub_dags, &solid_sub_dags, source)?;
 
         Ok((pending_sub_dags, missing_transaction_acknowledgers))
     }
 
-    pub(crate) fn handle_committed_sub_dags(
-        &mut self,
-        committed_subdags: Vec<CommittedSubDag>,
-        source: CommittedSubDagSource,
-    ) -> ConsensusResult<()> {
-        self.handle_committed_sub_dags_internal(&[], committed_subdags, source)
-    }
-
-    /// Evicts linearizer and updates dag_state with the last solid subdag.
-    fn update_and_evict_with_solid_subdags(&mut self, solid_subdags: &[CommittedSubDag]) {
-        if solid_subdags.is_empty() {
-            return;
+    /// Evicts linearizer, updates dag_state with the last solid subdag and
+    /// makes flush to storage.
+    fn update_with_solid_subdags_and_flush(&mut self, solid_subdags: &[CommittedSubDag]) {
+        if let Some(last_solid_subdag) = solid_subdags.last() {
+            // Evict linearizer up to the last solid subdag leader round
+            self.linearizer
+                .evict_linearizer(last_solid_subdag.leader.round);
+            // Update dag_state with the last solid subdag base
+            self.dag_state
+                .write()
+                .update_last_solid_subdag_base(last_solid_subdag.base.clone());
         }
-        let last_solid_subdag = solid_subdags
-            .last()
-            .expect("There should be at least one solid subdag");
-        self.linearizer
-            .evict_linearizer(last_solid_subdag.leader.round);
-        self.dag_state
-            .write()
-            .update_last_solid_subdag_base(last_solid_subdag.base.clone());
+        self.dag_state.write().flush();
     }
 
-    fn handle_committed_sub_dags_internal(
+    /// Finalizes solid subdags: updates state, flushes to storage, sends
+    /// through channel, and reports metrics.
+    pub(crate) fn finalize_and_send_solid_subdags(
         &mut self,
         pending_sub_dags: &[PendingSubDag],
-        committed_subdags: Vec<CommittedSubDag>,
+        solid_subdags: &[CommittedSubDag],
         source: CommittedSubDagSource,
     ) -> ConsensusResult<()> {
-        // Committed headers and sequenced transactions must be persisted to storage
-        // before sending them outside consensus.
-        if !pending_sub_dags.is_empty() || !committed_subdags.is_empty() {
-            // Evict the ack tracker and update GC round BEFORE flush so that eviction
-            // uses the correct GC round.
-            self.update_and_evict_with_solid_subdags(&committed_subdags);
-            self.dag_state.write().flush();
-        }
-        // Send committed sub-dags through the channel
-        let _sent_indices = self.send_sub_dags(&committed_subdags, source)?;
-
-        // Report metrics for both pending and committed sub-dags
-        self.report_metrics(pending_sub_dags, &committed_subdags, source);
-
+        self.update_with_solid_subdags_and_flush(solid_subdags);
+        self.send_sub_dags(solid_subdags, source)?;
+        self.report_metrics(pending_sub_dags, solid_subdags, source);
         Ok(())
+    }
+
+    /// Builds a CommittedSubDag from a stored commit by loading transactions
+    /// from dag_state and no headers. Returns None if any transactions are
+    /// missing.
+    fn build_committed_subdag_from_commit(
+        &self,
+        commit: &TrustedCommit,
+        reputation_scores: Vec<(AuthorityIndex, u64)>,
+    ) -> Option<CommittedSubDag> {
+        let tx_refs = commit.committed_transactions();
+        let transactions = self
+            .dag_state
+            .read()
+            .try_get_all_verified_transactions(&tx_refs)
+            .ok()?;
+
+        Some(CommittedSubDag::new(
+            commit.leader(),
+            vec![], // Empty headers for recovery
+            commit.block_headers().to_vec(),
+            transactions,
+            commit.timestamp_ms(),
+            commit.reference(),
+            reputation_scores,
+        ))
     }
 
     fn recover_and_send_commits(
@@ -236,7 +244,6 @@ impl CommitObserver {
         last_processed_commit_index: CommitIndex,
         source: CommittedSubDagSource,
     ) {
-        let now = Instant::now();
         let last_commit = self
             .store
             .read_last_commit()
@@ -255,7 +262,7 @@ impl CommitObserver {
         }
 
         // Phase 1: Resend all solid committed sub-dags that haven't been processed
-        let sent_commits = self.resend_unprocessed_solid_commits(
+        self.resend_unprocessed_solid_commits(
             last_processed_commit_index,
             last_commit_index,
             source,
@@ -263,14 +270,6 @@ impl CommitObserver {
 
         // Phase 2: Recover linearizer and solidifier state
         self.recover_linearizer_and_solidifier_state(last_commit_index, source);
-
-        info!(
-            "Commit observer recovery completed, resent {} commits with indices [{}..{}], took {:?}",
-            sent_commits.len(),
-            sent_commits.first().unwrap_or(&0),
-            sent_commits.last().unwrap_or(&0),
-            now.elapsed()
-        );
     }
 
     /// Recovers linearizer trackers from recent commits and seeds the
@@ -334,10 +333,8 @@ impl CommitObserver {
             let (solid_sub_dags, _missing) = self
                 .commit_solidifier
                 .try_get_solid_sub_dags(&pending_for_solidifier);
-            self.update_and_evict_with_solid_subdags(&solid_sub_dags);
-            self.send_sub_dags(&solid_sub_dags, source)
+            self.finalize_and_send_solid_subdags(&[], &solid_sub_dags, source)
                 .expect("We should successfully send solid commits during recovery");
-            self.report_metrics(&[], &solid_sub_dags, source);
         }
     }
 
@@ -394,21 +391,21 @@ impl CommitObserver {
 
     /// Resends solid commits that haven't been processed by the consumer.
     /// Creates CommittedSubDag with empty headers (like fast sync).
-    /// Returns the commit indices that were resent.
     /// Note: it is possible that some commits in interval
     /// last_processed_commit_index+1.. last_commit_index might be not yet
-    /// solid
+    /// solid.
     fn resend_unprocessed_solid_commits(
         &mut self,
         last_processed_commit_index: CommitIndex,
         last_commit_index: CommitIndex,
         source: CommittedSubDagSource,
-    ) -> Vec<CommitIndex> {
+    ) {
         if last_processed_commit_index >= last_commit_index {
             info!("No unprocessed commits to resend");
 
             // Even though there are no commits to resend, we still need to initialize
-            // last_solid_subdag_base so that fast sync knows where to start fetching.
+            // last solid subdag in dag state so that fast sync knows where to start
+            // fetching.
             if last_processed_commit_index > 0 {
                 if let Some(commit) = self
                     .store
@@ -418,19 +415,15 @@ impl CommitObserver {
                     .ok()
                     .and_then(|commits| commits.into_iter().next())
                 {
-                    let pending_subdag =
-                        load_pending_subdag_from_store(self.store.as_ref(), commit, vec![]);
-                    info!(
-                        "Initializing last_solid_subdag_base from last processed commit {}",
-                        last_processed_commit_index
-                    );
-                    self.dag_state
-                        .write()
-                        .update_last_solid_subdag_base(pending_subdag.base);
+                    if let Some(committed_subdag) =
+                        self.build_committed_subdag_from_commit(&commit, vec![])
+                    {
+                        self.update_with_solid_subdags_and_flush(&[committed_subdag]);
+                    }
                 }
             }
 
-            return Vec::new();
+            return;
         }
 
         let unprocessed_commits = self
@@ -464,53 +457,21 @@ impl CommitObserver {
                 vec![]
             };
 
-            let committed_tx_refs = commit.committed_transactions();
-            let transaction_results = {
-                self.dag_state
-                    .read()
-                    .get_verified_transactions(&committed_tx_refs)
-            };
-            if let Some((missing_index, missing_ref)) = transaction_results
-                .iter()
-                .enumerate()
-                .find_map(|(idx, tx)| tx.is_none().then_some((idx, committed_tx_refs[idx])))
-            {
+            let Some(committed_subdag) =
+                self.build_committed_subdag_from_commit(&commit, reputation_scores)
+            else {
                 info!(
-                    "Stopping resend at commit {} due to missing transaction {:?} (index {})",
-                    commit_index, missing_ref, missing_index
+                    "Stopping resend at commit {} due to missing transactions",
+                    commit_index
                 );
                 break;
-            }
-            let transactions = transaction_results
-                .into_iter()
-                .map(|tx| {
-                    tx.expect(
-                        "We should expect all committed transactions be present after the check",
-                    )
-                })
-                .collect();
-
-            let committed_subdag = CommittedSubDag::new(
-                commit.leader(),
-                vec![], // Empty headers is fine for resending during recovery or reinitialization
-                commit.block_headers().to_vec(),
-                transactions,
-                commit.timestamp_ms(),
-                commit.reference(),
-                reputation_scores,
-            );
+            };
 
             committed_subdags.push(committed_subdag);
         }
 
-        // Evict linearizer and update dag_state with solid subdags
-        self.update_and_evict_with_solid_subdags(&committed_subdags);
-
-        let sent_indices = self
-            .send_sub_dags(&committed_subdags, source)
-            .expect("We should expect successful sending committed subDags during recovery");
-        self.report_metrics(&[], &committed_subdags, source);
-        sent_indices
+        self.finalize_and_send_solid_subdags(&[], &committed_subdags, source)
+            .expect("We should successfully send committed subdags during resend");
     }
 
     /// Get all missing transactions from pending subdags along with authorities

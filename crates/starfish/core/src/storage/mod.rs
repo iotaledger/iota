@@ -238,7 +238,7 @@ impl WriteBatch {
 }
 
 /// Simulation-test-only helper that deletes all transactions from the consensus
-/// RocksDB store while preserving commits, block headers, and other data.
+/// RocksDB store while preserving other data.
 #[cfg(msim)]
 pub fn delete_all_transactions_from_store(
     db_path: &std::path::Path,
