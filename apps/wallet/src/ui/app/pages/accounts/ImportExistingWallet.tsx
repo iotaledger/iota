@@ -72,8 +72,7 @@ export function ImportExistingWallet() {
                 break;
             case AccountsFormType.ImportPasskey:
                 ampli.clickedCreatePasskey({ sourceFlow });
-                const flowType = 'import';
-                const url = `/accounts/passkey-account?flowType=${flowType}`;
+                const url = `/accounts/import-passkey`;
                 if (isPopup) {
                     openInNewTab(url);
                 } else {
