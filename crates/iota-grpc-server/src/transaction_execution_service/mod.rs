@@ -29,6 +29,8 @@ pub use transaction::{CommandResultsReadSource, TransactionReadSource};
 
 use crate::{error::RpcError, types::GrpcReader};
 
+pub const EXECUTE_TRANSACTION_READ_MASK_DEFAULT: &str = "transaction.effects";
+
 pub struct TransactionExecutionGrpcService {
     pub config: iota_config::node::GrpcApiConfig,
     pub reader: Arc<GrpcReader>,
@@ -85,8 +87,6 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         Ok(append_info_headers!(response, self.reader.clone()))
     }
 }
-
-pub const EXECUTE_TRANSACTION_READ_MASK_DEFAULT: &str = "transaction.effects";
 
 #[tracing::instrument(skip(reader, executor))]
 pub async fn execute_transaction(

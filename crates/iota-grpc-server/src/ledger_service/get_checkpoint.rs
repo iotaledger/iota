@@ -2,7 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use futures::Stream;
-use iota_grpc_types::{field::FieldMaskTree, v0::ledger_service as grpc_ledger_service};
+use iota_grpc_types::{
+    field::{FieldMaskTree, FieldMaskUtil, MessageField, MessageFields},
+    v0::{
+        checkpoint::Checkpoint, event::Event, ledger_service as grpc_ledger_service,
+        transaction::ExecutedTransaction,
+    },
+};
 use tonic::{Request, Status};
 use tracing::debug;
 
@@ -13,8 +19,7 @@ use crate::{
 };
 
 /// Default read_mask value when none is provided.
-/// As per proto comment: "If no mask is specified, defaults to `summary`."
-pub const CHECKPOINT_READ_MASK_DEFAULT: &str = "summary";
+pub const CHECKPOINT_READ_MASK_DEFAULT: &str = "checkpoint.summary";
 
 /// Helper function to convert proto filters to internal filters and validate
 /// their complexity
@@ -48,53 +53,71 @@ fn convert_and_validate_filters(
     Ok((transaction_filter, event_filter))
 }
 
+/// Represents the structure of checkpoint data response for read_mask
+/// validation. This is not a proto type but a helper struct to define valid
+/// read_mask paths.
+pub struct CheckpointDataResponse;
+
+impl CheckpointDataResponse {
+    pub const CHECKPOINT_FIELD: &'static MessageField = &MessageField {
+        name: "checkpoint",
+        json_name: "checkpoint",
+        number: 1i32,
+        is_optional: true,
+        message_fields: Some(Checkpoint::FIELDS),
+    };
+
+    pub const TRANSACTIONS_FIELD: &'static MessageField = &MessageField {
+        name: "transactions",
+        json_name: "transactions",
+        number: 2i32,
+        is_optional: true,
+        message_fields: Some(ExecutedTransaction::FIELDS),
+    };
+
+    pub const EVENTS_FIELD: &'static MessageField = &MessageField {
+        name: "events",
+        json_name: "events",
+        number: 3i32,
+        is_optional: true,
+        message_fields: Some(Event::FIELDS),
+    };
+}
+
+impl MessageFields for CheckpointDataResponse {
+    const FIELDS: &'static [&'static MessageField] = &[
+        Self::CHECKPOINT_FIELD,
+        Self::TRANSACTIONS_FIELD,
+        Self::EVENTS_FIELD,
+    ];
+}
+
 /// Parse read_mask from request and extract component masks for checkpoint,
 /// transactions, and events.
-fn parse_read_mask(
+fn parse_checkpoint_read_mask(
     read_mask: Option<prost_types::FieldMask>,
-) -> (FieldMaskTree, Option<FieldMaskTree>, Option<FieldMaskTree>) {
+) -> Result<(FieldMaskTree, Option<FieldMaskTree>, Option<FieldMaskTree>), Status> {
     let read_mask = read_mask.map(FieldMaskTree::from).unwrap_or_else(|| {
         CHECKPOINT_READ_MASK_DEFAULT
             .parse()
             .expect("valid default mask")
     });
 
+    // Validate the read_mask paths
+    read_mask
+        .validate::<CheckpointDataResponse>()
+        .map_err(|path| Status::invalid_argument(format!("invalid read_mask path: {path}")))?;
+
     // Extract checkpoint-related fields mask
-    // The Checkpoint message has: sequence_number, summary, contents, signature
-    let checkpoint_mask = {
-        let mut mask = FieldMaskTree::default();
-        for field in &["sequence_number", "summary", "contents", "signature"] {
-            if read_mask.contains(field) {
-                mask.add_field_path(field);
-            }
-        }
-        // If any checkpoint field is requested (or if it's a wildcard), use the full
-        // mask
-        if mask.to_field_mask().paths.is_empty()
-            && !read_mask.contains("transactions")
-            && !read_mask.contains("events")
-        {
-            // Default to summary if nothing specific requested
-            mask.add_field_path("summary");
-        }
-        mask
-    };
+    let checkpoint_mask = read_mask.subtree("checkpoint").unwrap_or_default();
 
     // Extract transactions mask if requested
     let transactions_mask = read_mask.subtree("transactions");
 
     // Extract events mask if requested
-    let events_mask = if read_mask.contains("events") {
-        Some(
-            read_mask
-                .subtree("events")
-                .unwrap_or_else(FieldMaskTree::new_wildcard),
-        )
-    } else {
-        None
-    };
+    let events_mask = read_mask.subtree("events");
 
-    (checkpoint_mask, transactions_mask, events_mask)
+    Ok((checkpoint_mask, transactions_mask, events_mask))
 }
 
 pub(crate) fn get_checkpoint_data(
@@ -137,7 +160,8 @@ pub(crate) fn get_checkpoint_data(
         .max_message_size_client_bytes(client_max_message_size_bytes);
 
     // Parse the read_mask to determine what data to include
-    let (checkpoint_mask, transactions_mask, events_mask) = parse_read_mask(req.read_mask);
+    let (checkpoint_mask, transactions_mask, events_mask) =
+        parse_checkpoint_read_mask(req.read_mask)?;
 
     debug!(
         "Parsed read_mask: checkpoint_mask={}, transactions={}, events={}",
@@ -180,7 +204,8 @@ pub(crate) fn stream_checkpoint_data(
         .max_message_size_client_bytes(client_max_message_size_bytes);
 
     // Parse the read_mask to determine what data to include
-    let (checkpoint_mask, transactions_mask, events_mask) = parse_read_mask(req.read_mask);
+    let (checkpoint_mask, transactions_mask, events_mask) =
+        parse_checkpoint_read_mask(req.read_mask)?;
 
     debug!(
         "Parsed read_mask: checkpoint_mask={}, transactions={}, events={}",

@@ -82,8 +82,10 @@ pub const TRANSACTIONS_READ_MASK: &str =
 pub const OBJECTS_READ_MASK: &str = "reference,bcs";
 
 /// Default field mask for checkpoint queries.
-/// possible fields: summary,contents,signature,transactions,events
-pub const CHECKPOINT_READ_MASK: &str = "summary";
+/// possible fields: checkpoint,transactions,events
+///
+/// checkpoint,transactions,events
+pub const CHECKPOINT_READ_MASK: &str = "checkpoint.summary";
 
 /// Default field mask for [`crate::Client::execute_transaction`] and
 /// [`crate::Client::simulate_transaction`].
