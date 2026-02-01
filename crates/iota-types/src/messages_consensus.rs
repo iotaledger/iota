@@ -94,7 +94,7 @@ pub enum ConsensusTransactionKey {
     MisbehaviorReport(
         AuthorityName,
         MisbehaviorReportDigest,
-        u64, // checkpoint_seq
+        CheckpointSequenceNumber,
     ),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
@@ -278,7 +278,7 @@ pub enum ConsensusTransactionKind {
     MisbehaviorReport(
         AuthorityName,
         VersionedMisbehaviorReport,
-        u64, // checkpoint_seq
+        CheckpointSequenceNumber,
     ),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
@@ -592,7 +592,7 @@ impl ConsensusTransaction {
     pub fn new_misbehavior_report(
         authority: AuthorityName,
         report: &VersionedMisbehaviorReport,
-        checkpoint_seq: u64,
+        checkpoint_seq: CheckpointSequenceNumber,
     ) -> Self {
         let serialized_report =
             bcs::to_bytes(report).expect("report serialization should not fail");
