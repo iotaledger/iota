@@ -80,17 +80,15 @@ impl StateReader {
 
         use super::transactions::TransactionNotFoundError;
 
-        let transaction_digest = digest;
-
         let transaction = (*self
             .inner()
-            .try_get_transaction(&transaction_digest)?
+            .try_get_transaction(&digest)?
             .ok_or(TransactionNotFoundError(digest))?)
         .clone()
         .into_inner();
         let effects = self
             .inner()
-            .try_get_transaction_effects(&transaction_digest)?
+            .try_get_transaction_effects(&digest)?
             .ok_or(TransactionNotFoundError(digest))?;
         let events = if let Some(event_digest) = effects.events_digest() {
             self.inner()
