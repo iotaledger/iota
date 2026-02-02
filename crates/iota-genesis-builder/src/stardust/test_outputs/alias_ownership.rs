@@ -3,42 +3,36 @@
 
 use std::collections::VecDeque;
 
-use iota_sdk::{
-    client::secret::{SecretManage, mnemonic::MnemonicSecretManager},
-    types::block::{
-        address::{Address, AliasAddress},
-        output::{
-            AliasId, AliasOutput, AliasOutputBuilder, BasicOutput, BasicOutputBuilder, Feature,
-            FoundryOutput, FoundryOutputBuilder, NftId, NftOutput, NftOutputBuilder,
-            OUTPUT_INDEX_RANGE, Output, SimpleTokenScheme, UnlockCondition,
-            feature::{Irc27Metadata, IssuerFeature, MetadataFeature},
-            unlock_condition::{
-                AddressUnlockCondition, GovernorAddressUnlockCondition,
-                ImmutableAliasAddressUnlockCondition, StateControllerAddressUnlockCondition,
-            },
+use iota_stardust_types::block::{
+    address::{Address, AliasAddress},
+    output::{
+        AliasId, AliasOutput, AliasOutputBuilder, BasicOutput, BasicOutputBuilder, Feature,
+        FoundryOutput, FoundryOutputBuilder, NftId, NftOutput, NftOutputBuilder,
+        OUTPUT_INDEX_RANGE, Output, SimpleTokenScheme, UnlockCondition,
+        feature::{Irc27Metadata, IssuerFeature, MetadataFeature},
+        unlock_condition::{
+            AddressUnlockCondition, GovernorAddressUnlockCondition,
+            ImmutableAliasAddressUnlockCondition, StateControllerAddressUnlockCondition,
         },
     },
 };
 use rand::{Rng, rngs::StdRng};
 
 use crate::stardust::{
-    test_outputs::{MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS},
+    test_outputs::{MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS, address_derivation},
     types::{output_header::OutputHeader, output_index::OutputIndex},
 };
 
 const MNEMONIC: &str = "few hood high omit camp keep burger give happy iron evolve draft few dawn pulp jazz box dash load snake gown bag draft car";
 const OWNING_ALIAS_COUNT: u32 = 10;
 
-pub(crate) async fn outputs(
+pub(crate) fn outputs(
     rng: &mut StdRng,
     coin_type: u32,
 ) -> anyhow::Result<Vec<(OutputHeader, Output)>> {
     let mut outputs = Vec::new();
-    let secret_manager = MnemonicSecretManager::try_from_mnemonic(MNEMONIC)?;
-
-    let alias_owners = secret_manager
-        .generate_ed25519_addresses(coin_type, 0, 0..OWNING_ALIAS_COUNT, None)
-        .await?;
+    let alias_owners =
+        address_derivation::derive_addresses(MNEMONIC, coin_type, 0, 0..OWNING_ALIAS_COUNT, false)?;
 
     // create 10 different alias outputs with each owning various other assets
     for alias_owner in alias_owners {
@@ -124,7 +118,7 @@ fn random_nft_output(
 ) -> anyhow::Result<(OutputHeader, NftOutput)> {
     let owner = owner.into();
     let nft_output_header = random_output_header(rng);
-    let nft_metadata = Irc27Metadata::new("image/png", "https://nft.org/nft.png".parse()?, "NFT")
+    let nft_metadata = Irc27Metadata::new("image/png", "https://nft.org/nft.png", "NFT")
         .with_issuer_name("issuer_name")
         .with_collection_name("collection_name")
         .with_description("description");

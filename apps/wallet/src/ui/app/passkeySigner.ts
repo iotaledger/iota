@@ -8,6 +8,11 @@ import { fromBase64, toBase64 } from '@iota/iota-sdk/utils';
 import { type BrowserPasskeyProvider, PasskeyKeypair } from '@iota/iota-sdk/keypairs/passkey';
 import { createBrowserPasskeyProvider } from './helpers/passkeys';
 
+enum SignatureType {
+    Transaction = 'transaction',
+    Message = 'message',
+}
+
 export class PasskeySigner extends WalletSigner {
     readonly #address: string;
     readonly #publicKey: string;
@@ -31,7 +36,7 @@ export class PasskeySigner extends WalletSigner {
     }
 
     async signMessage(input: { message: Uint8Array }): Promise<SignedMessage> {
-        const signature = await this.#requestSignature(input.message);
+        const signature = await this.#requestSignature(input.message, SignatureType.Message);
         return {
             bytes: toBase64(input.message),
             signature,
@@ -39,19 +44,22 @@ export class PasskeySigner extends WalletSigner {
     }
 
     async signTransactionBytes(bytes: Uint8Array): Promise<SignedTransaction> {
-        const signature = await this.#requestSignature(bytes);
+        const signature = await this.#requestSignature(bytes, SignatureType.Transaction);
         return {
             bytes: toBase64(bytes),
             signature,
         };
     }
 
-    async #requestSignature(data: Uint8Array): Promise<string> {
+    async #requestSignature(data: Uint8Array, signatureType: SignatureType): Promise<string> {
         try {
             const publicKeyBytes = fromBase64(this.#publicKey);
             const keypair = new PasskeyKeypair(publicKeyBytes, this.#provider, this.#credentialId);
 
-            const { signature } = await keypair.signTransaction(data);
+            const { signature } =
+                signatureType === SignatureType.Transaction
+                    ? await keypair.signTransaction(data)
+                    : await keypair.signPersonalMessage(data);
             return signature;
         } catch (error) {
             if (error instanceof Error) {

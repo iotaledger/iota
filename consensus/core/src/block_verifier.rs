@@ -142,8 +142,9 @@ impl BlockVerifier for SignedBlockVerifier {
         let mut parent_stakes = 0;
         for (i, ancestor) in block.ancestors().iter().enumerate() {
             if !committee.is_valid_index(ancestor.author) {
-                return Err(ConsensusError::InvalidAuthorityIndex {
-                    index: ancestor.author,
+                return Err(ConsensusError::InvalidAncestorAuthorityIndex {
+                    block_authority: block.author(),
+                    ancestor_index: ancestor.author,
                     max: committee.size() - 1,
                 });
             }

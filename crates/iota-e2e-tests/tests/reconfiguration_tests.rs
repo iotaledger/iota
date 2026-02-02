@@ -62,8 +62,9 @@ async fn advance_epoch_tx_test() {
                 .create_and_execute_advance_epoch_tx(
                     &state.epoch_store_for_testing(),
                     &GasCostSummary::new(0, 0, 0, 0, 0),
-                    0, // checkpoint
-                    0, // epoch_start_timestamp_ms
+                    0,      // checkpoint
+                    0,      // epoch_start_timestamp_ms
+                    vec![], // scores
                 )
                 .await
                 .unwrap();
@@ -1019,27 +1020,36 @@ async fn test_epoch_flag_upgrade() {
         if initial_flags_nodes.len() >= 2 || !initial_flags_nodes.insert(current_node) {
             return None;
         }
-        // By default WritebackCache is enabled, use empty flag set for the first epoch
-        // after cluster is started.
-        Some(Vec::<EpochFlag>::new())
+
+        Some(EpochFlag::mandatory_flags())
     });
 
-    // Start the cluster with 2 nodes with empty epoch flag set and the rest with
-    // non-empty.
+    // Start the cluster with 2 nodes with mandatory epoch flag set and the rest
+    // with non-empty.
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(30000)
         .build()
         .await;
-    let any_empty = test_cluster.all_node_handles().iter().any(|node| {
-        node.with(|node| {
+
+    let mut all_flags = vec![];
+    for node in test_cluster.all_node_handles() {
+        all_flags.push(node.with(|node| {
             node.state()
                 .epoch_store_for_testing()
                 .epoch_start_config()
                 .flags()
-                .is_empty()
-        })
-    });
-    assert!(any_empty);
+                .to_vec()
+        }));
+    }
+    all_flags.iter_mut().for_each(|flags| flags.sort());
+    all_flags.sort();
+    all_flags.dedup();
+    assert_eq!(
+        all_flags.len(),
+        2,
+        "expected 2 different sets of flags: {:?}",
+        all_flags
+    );
 
     // When the epoch changes, flags on some nodes should be re-initialized to be
     // non-empty.

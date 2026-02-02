@@ -510,7 +510,7 @@ impl ReadApiServer for ReadApi {
                             Err(e) => {
                                 return Ok(IotaObjectResponse::new(
                                     Some(IotaObjectData::new(
-                                        object_ref, o, layout, options, None,
+                                        object_ref, o, layout, &options, None,
                                     )?),
                                     Some(IotaObjectResponseError::Display {
                                         error: e.to_string(),
@@ -523,7 +523,7 @@ impl ReadApiServer for ReadApi {
                         object_ref,
                         o,
                         layout,
-                        options,
+                        &options,
                         display_fields,
                     )?))
                 }
@@ -625,7 +625,7 @@ impl ReadApiServer for ReadApi {
                         None
                     };
                     Ok(IotaPastObjectResponse::VersionFound(
-                        IotaObjectData::new(object_ref, o, layout, options, display_fields)?,
+                        IotaObjectData::new(object_ref, o, layout, &options, display_fields)?,
                     ))
                 }
                 PastObjectRead::ObjectDeleted(oref) => {
