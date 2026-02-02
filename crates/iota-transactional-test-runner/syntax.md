@@ -210,7 +210,7 @@ A: object(0,0)
 task 1 'programmable'. lines 3-5:
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 1976000, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2 'view-object'. lines 7-7:
 Owner: Account Address ( A )
@@ -223,7 +223,7 @@ Checkpoint created: 1
 task 4 'programmable'. lines 11-12:
 mutated: object(0,0)
 deleted: object(1,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 1976000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 988000, storage_rebate: 1976000, non_refundable_storage_fee: 0
 ```
 
 Explanation:
@@ -448,7 +448,7 @@ module test::transfer {
 +task 1 'publish'. lines 3-17:
 +created: object(1,0), object(1,1)
 +mutated: object(0,0)
-+gas summary: computation_cost: 1000000, storage_cost: 7083200,  storage_rebate: 0, non_refundable_storage_fee: 0
++gas summary: computation_cost: 1000000, storage_cost: 7083200, storage_rebate: 0, non_refundable_storage_fee: 0
 ```
 
 #### Options
@@ -533,12 +533,12 @@ acc1: object(0,0), acc2: object(0,1)
 task 1 'publish'. lines 3-18:
 created: object(1,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, storage_cost: 5449200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 5449200, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2 'run'. lines 20-20:
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 500000, storage_cost: 2363600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 500000, storage_cost: 2363600, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3 'view-object'. lines 22-22:
 Owner: Account Address ( acc2 )
@@ -615,7 +615,7 @@ The `transfer-object` subcommand (`TransferObject` in Rust) is used to transfer 
 ```
 task 3 'transfer-object'. lines 20-20:
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2371200,  storage_rebate: 2371200, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 2371200, storage_rebate: 2371200, non_refundable_storage_fee: 0
 ```
 
 ### `consensus-commit-prologue`
@@ -654,7 +654,7 @@ acc1: object(0,0), acc2: object(0,1)
 
 task 1 'consensus-commit-prologue'. lines 3-3:
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000006
-gas summary: computation_cost: 0, storage_cost: 0,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0
 ```
 
 ### `programmable`
@@ -713,12 +713,12 @@ acc1: object(0,0), acc2: object(0,1)
 task 1 'publish'. lines 3-14:
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 5069200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 5069200, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2 'programmable'. lines 16-18:
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2371200,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 2371200, storage_rebate: 988000, non_refundable_storage_fee: 0
 ```
 
 The `programmable` subcommand is constructed using the same input, result and command components of a Programmable Transaction Block (PTB).
@@ -809,12 +809,12 @@ acc1: object(0,0)
 task 1 'publish'. lines 3-9:
 created: object(1,0), object(1,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 5958400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 5958400, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2 'upgrade'. lines 11-19:
 created: object(2,0)
 mutated: object(0,0), object(1,0)
-gas summary: computation_cost: 1000000, storage_cost: 6171200,  storage_rebate: 2622000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 6171200, storage_rebate: 2622000, non_refundable_storage_fee: 0
 ```
 
 ### `stage-package`
@@ -941,7 +941,7 @@ A: object(0,0)
 task 3 'programmable'. lines 23-28:
 created: object(3,0), object(3,1), object(3,2), object(3,3), object(3,4)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 8876800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 8876800, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 4 'view-object'. lines 30-30:
 3,3::m
@@ -951,16 +951,16 @@ task 5 'view-object'. lines 32-32:
 
 task 8 'programmable'. lines 38-40:
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 988000, storage_rebate: 988000, non_refundable_storage_fee: 0
 
 task 9 'publish'. lines 42-47:
 created: object(9,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 5221200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 5221200, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 10 'run'. lines 49-49:
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 988000, storage_rebate: 988000, non_refundable_storage_fee: 0
 ```
 
 ### `create-checkpoint`
@@ -1413,7 +1413,7 @@ acc1: object(0,0)
 task 1 'publish'. lines 3-15:
 created: object(1,0), object(1,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 7220000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 7220000, storage_rebate: 0, non_refundable_storage_fee: 0
 ```
 
 ## How `run_test` Compares a Move File With the Corresponding `.snap` File
@@ -1592,7 +1592,7 @@ A: object(0,0)
 task 1 'programmable'. lines 8-10:
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, storage_cost: 1976000, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2 'create-checkpoint'. lines 12-12:
 Checkpoint created: 1
