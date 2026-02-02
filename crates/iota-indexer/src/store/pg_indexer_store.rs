@@ -32,7 +32,7 @@ use super::pg_partition_manager::{EpochPartitionData, PgPartitionManager};
 use crate::{
     blocking_call_is_ok_or_panic,
     db::ConnectionPool,
-    errors::{Context, IndexerError, IndexerResult},
+    errors::{Context, IndexerError},
     ingestion::{
         common::{
             persist::{CommitterWatermark, ObjectsSnapshotHandlerTables},
@@ -182,23 +182,6 @@ impl PgIndexerStore {
         self.blocking_cp.clone()
     }
 
-    pub(crate) async fn get_latest_epoch_id_in_blocking_worker(
-        &self,
-    ) -> Result<Option<u64>, IndexerError> {
-        self.execute_in_blocking_worker(move |this| this.get_latest_epoch_id())
-            .await
-    }
-
-    pub fn get_latest_epoch_id(&self) -> Result<Option<u64>, IndexerError> {
-        read_only_blocking!(&self.blocking_cp, |conn| {
-            epochs::dsl::epochs
-                .select(max(epochs::epoch))
-                .first::<Option<i64>>(conn)
-                .map(|v| v.map(|v| v as u64))
-        })
-        .context("Failed reading latest epoch id from PostgresDB")
-    }
-
     /// Get the range of the protocol versions that need to be indexed.
     pub fn get_protocol_version_index_range(&self) -> Result<(i64, i64), IndexerError> {
         // We start indexing from the next protocol version after the latest one stored
@@ -275,82 +258,45 @@ impl PgIndexerStore {
         .context("Failed reading min and max epoch numbers from PostgresDB")
     }
 
-    pub(crate) async fn get_global_order_for_tx_seq_in_blocking_worker(
+    fn approximate_first_optimistic_tx_seq_for_epoch(
         &self,
-        tx_seq: i64,
-    ) -> Result<TxGlobalOrderCursor, IndexerError> {
-        self.execute_in_blocking_worker(move |this| this.get_global_order_for_tx_seq(tx_seq))
-            .await
+        epoch: u64,
+    ) -> Result<Option<i64>, IndexerError> {
+        let epoch_mapping = self.map_epochs_to_cp_tx(&[epoch])?;
+        let (_, first_tx_of_epoch) = epoch_mapping.get(&epoch).ok_or_else(|| {
+            IndexerError::PersistentStorageDataCorruption(format!(
+                "epoch {epoch} not found in epoch mapping",
+            ))
+        })?;
+
+        // Approximate first optimistic transaction with global_seq >=first_tx_of_epoch.
+        // Note: This may be slightly higher than the actual
+        // first optimistic tx of the epoch. This happens when optimistic
+        // transactions are indexed right at epoch start before
+        // the first checkpoint of that epoch is indexed.
+        let optimistic_tx_seq = read_only_blocking!(&self.blocking_cp, |conn| {
+            optimistic_transactions::table
+                .filter(
+                    optimistic_transactions::global_sequence_number.ge(*first_tx_of_epoch as i64),
+                )
+                .select(optimistic_transactions::optimistic_sequence_number)
+                .order(optimistic_transactions::optimistic_sequence_number.asc())
+                .first::<i64>(conn)
+                .optional()
+        })
+        .context("Failed to get first optimistic transaction sequence number")?;
+
+        Ok(optimistic_tx_seq)
     }
 
-    fn get_global_order_for_tx_seq(
+    pub(crate) async fn update_optimistic_transactions_watermark_lower_bound(
         &self,
-        tx_seq: i64,
-    ) -> Result<TxGlobalOrderCursor, IndexerError> {
-        let result = read_only_blocking!(&self.blocking_cp, |conn| {
-            tx_global_order::dsl::tx_global_order
-                .select((
-                    tx_global_order::global_sequence_number,
-                    tx_global_order::optimistic_sequence_number,
-                ))
-                .filter(tx_global_order::chk_tx_sequence_number.eq(tx_seq))
-                .first::<(i64, i64)>(conn)
-        })
-        .context(
-            format!("failed reading global sequence number from PostgresDB for tx seq {tx_seq}")
-                .as_str(),
-        )?;
-        let (global_sequence_number, optimistic_sequence_number) = result;
-        Ok(TxGlobalOrderCursor {
-            global_sequence_number,
-            optimistic_sequence_number,
-        })
-    }
-
-    pub(crate) async fn prune_optimistic_transactions_up_to_in_blocking_worker(
-        &self,
-        to: TxGlobalOrderCursor,
-        limit: i64,
-    ) -> IndexerResult<usize> {
+        epoch: u64,
+    ) -> Result<(), IndexerError> {
         self.execute_in_blocking_worker(move |this| {
-            this.prune_optimistic_transactions_up_to(to, limit)
+            this.update_optimistic_transactions_watermark_lower_bound_impl(epoch)
         })
         .await
-    }
-
-    fn prune_optimistic_transactions_up_to(
-        &self,
-        to: TxGlobalOrderCursor,
-        limit: i64,
-    ) -> IndexerResult<usize> {
-        transactional_blocking_with_retry!(
-            &self.blocking_cp,
-            |conn| {
-                let sql = r#"
-                    WITH ids_to_delete AS (
-                         SELECT global_sequence_number, optimistic_sequence_number
-                         FROM optimistic_transactions
-                         WHERE (global_sequence_number, optimistic_sequence_number) <= ($1, $2)
-                         ORDER BY global_sequence_number, optimistic_sequence_number
-                         FOR UPDATE LIMIT $3
-                     )
-                     DELETE FROM optimistic_transactions otx
-                     USING ids_to_delete
-                     WHERE (otx.global_sequence_number, otx.optimistic_sequence_number) =
-                           (ids_to_delete.global_sequence_number, ids_to_delete.optimistic_sequence_number)
-                "#;
-                diesel::sql_query(sql)
-                    .bind::<BigInt, _>(to.global_sequence_number)
-                    .bind::<BigInt, _>(to.optimistic_sequence_number)
-                    .bind::<BigInt, _>(limit)
-                    .execute(conn)
-                    .map_err(IndexerError::from)
-                    .context(
-                        format!("failed to prune optimistic_transactions table to {to:?} with limit {limit}").as_str(),
-                    )
-            },
-            PG_DB_COMMIT_SLEEP_DURATION
-        )
     }
 
     fn get_latest_object_snapshot_watermark(
@@ -1525,7 +1471,6 @@ impl PgIndexerStore {
                             "Failed to prune tx_kinds table"
                         );
                     }
-
                     _ => {
                         return Err(IndexerError::InvalidArgument(format!(
                             "table {} is not a transaction or event index table",
@@ -1533,6 +1478,24 @@ impl PgIndexerStore {
                         )));
                     }
                 }
+                Ok::<(), IndexerError>(())
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+    }
+
+    fn prune_optimistic_tx_table(&self, min_tx: u64, max_tx: u64) -> Result<(), IndexerError> {
+        let (min_tx, max_tx) = (min_tx as i64, max_tx as i64);
+
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                diesel::delete(optimistic_transactions::table.filter(
+                    optimistic_transactions::optimistic_sequence_number.between(min_tx, max_tx),
+                ))
+                .execute(conn)
+                .map_err(IndexerError::from)
+                .context("Failed to prune optimistic_transactions table")?;
                 Ok::<(), IndexerError>(())
             },
             PG_DB_COMMIT_SLEEP_DURATION
@@ -1612,6 +1575,8 @@ impl PgIndexerStore {
     where
         E::Iterator: Iterator<Item: AsRef<str>>,
     {
+        use diesel::query_dsl::methods::FilterDsl;
+
         let guard = self
             .metrics
             .checkpoint_db_commit_latency_watermarks
@@ -1633,6 +1598,9 @@ impl PgIndexerStore {
                         watermarks::max_committed_cp.eq(excluded(watermarks::max_committed_cp)),
                         watermarks::max_committed_tx.eq(excluded(watermarks::max_committed_tx)),
                     ))
+                    .filter(excluded(watermarks::max_committed_cp).ge(watermarks::max_committed_cp))
+                    .filter(excluded(watermarks::max_committed_tx).ge(watermarks::max_committed_tx))
+                    .filter(excluded(watermarks::current_epoch).ge(watermarks::current_epoch))
                     .execute(conn)
                     .map_err(IndexerError::from)
                     .context("Failed to update watermarks upper bound")?;
@@ -1737,10 +1705,78 @@ impl PgIndexerStore {
         )
         .tap_ok(|_| {
             let elapsed = guard.stop_and_record();
-            info!(elapsed, "Persisted watermarks");
+            tracing::info!(elapsed, "Persisted watermarks lower bounds");
         })
         .tap_err(|e| {
             tracing::error!("Failed to persist watermarks with error: {}", e);
+        })?;
+        Ok(())
+    }
+
+    fn update_optimistic_transactions_watermark_lower_bound_impl(
+        &self,
+        epoch: u64,
+    ) -> Result<(), IndexerError> {
+        use diesel::query_dsl::methods::FilterDsl;
+
+        let Some(optimistic_tx_seq) = self.approximate_first_optimistic_tx_seq_for_epoch(epoch)?
+        else {
+            // No optimistic transactions found for this epoch yet, skip update
+            return Ok(());
+        };
+
+        let lower_bound_update = StoredWatermark {
+            entity: PrunableTable::OptimisticTransactions.as_ref().to_string(),
+            min_available_epoch: epoch as i64,
+            min_available_tx: optimistic_tx_seq,
+            ..StoredWatermark::default()
+        };
+
+        let guard = self
+            .metrics
+            .checkpoint_db_commit_latency_watermarks
+            .start_timer();
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                diesel::insert_into(watermarks::table)
+                    .values(&lower_bound_update)
+                    .on_conflict(watermarks::entity)
+                    .do_update()
+                    .set((
+                        watermarks::min_available_tx.eq(excluded(watermarks::min_available_tx)),
+                        watermarks::min_available_epoch
+                            .eq(excluded(watermarks::min_available_epoch)),
+                        watermarks::min_bounds_updated_at_timestamp_ms.eq(sql::<
+                            diesel::sql_types::BigInt,
+                        >(
+                            "(EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000)::bigint",
+                        )),
+                    ))
+                    .filter(excluded(watermarks::min_available_tx).ge(watermarks::min_available_tx))
+                    .filter(
+                        excluded(watermarks::min_available_epoch)
+                            .ge(watermarks::min_available_epoch),
+                    )
+                    .filter(
+                        diesel::dsl::sql::<diesel::sql_types::BigInt>(
+                            "(EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000)::bigint",
+                        )
+                        .gt(watermarks::min_bounds_updated_at_timestamp_ms),
+                    )
+                    .execute(conn)
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+        .tap_ok(|_| {
+            let elapsed = guard.stop_and_record();
+            tracing::info!(
+                elapsed,
+                "Persisted optimistic transactions watermark for epoch {epoch} with min_available_tx={optimistic_tx_seq}"
+            );
+        })
+        .tap_err(|e| {
+            tracing::error!("Failed to persist optimistic transactions watermark with error: {e}");
         })?;
         Ok(())
     }
@@ -2502,6 +2538,25 @@ impl IndexerStore for PgIndexerStore {
             this.prune_single_tx_or_event_table(&table_clone, min_tx, max_tx)
         })
         .await
+    }
+
+    async fn prune_table_by_optimistic_tx_range(
+        &self,
+        table: &crate::pruning::pruner::PrunableTable,
+        min_tx: u64,
+        max_tx: u64,
+    ) -> Result<(), IndexerError> {
+        use crate::pruning::pruner::PrunableTable;
+
+        if !matches!(table, PrunableTable::OptimisticTransactions) {
+            return Err(IndexerError::InvalidArgument(format!(
+                "table {} is not an optimistic transaction table",
+                table.as_ref()
+            )));
+        }
+
+        self.execute_in_blocking_worker(move |this| this.prune_optimistic_tx_table(min_tx, max_tx))
+            .await
     }
 
     async fn update_watermark_lowest_unpruned_key(

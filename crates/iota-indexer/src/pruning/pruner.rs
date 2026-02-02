@@ -95,6 +95,7 @@ pub enum PrunableTable {
 
     Checkpoints,
     PrunerCpWatermark,
+    OptimisticTransactions,
 }
 
 /// Represents how a table is pruned
@@ -106,6 +107,8 @@ pub enum PruningStrategy {
     ByCheckpoint,
     /// Delete rows by transaction sequence number
     ByTransaction,
+    /// Delete rows by optimistic transaction sequence number
+    ByOptimisticTxSeq,
 }
 
 /// Represents a specific chunk of data to be pruned
@@ -117,6 +120,8 @@ enum PruningChunk {
     Checkpoint(u64),
     /// Prune a range of transactions [start..=end] inclusive
     TransactionRange(u64, u64),
+    /// Prune a range of optimistic transactions [start..=end] inclusive
+    OptimisticTxRange(u64, u64),
 }
 
 impl PruningChunk {
@@ -127,6 +132,7 @@ impl PruningChunk {
             PruningChunk::Epoch(epoch) => epoch + 1,
             PruningChunk::Checkpoint(checkpoint) => checkpoint + 1,
             PruningChunk::TransactionRange(_, end) => end + 1,
+            PruningChunk::OptimisticTxRange(_, end) => end + 1,
         }
     }
 }
@@ -166,6 +172,9 @@ impl PrunableTable {
             | PrunableTable::TxRecipients
             | PrunableTable::TxSenders
             | PrunableTable::TxWrappedOrDeletedObjects => PruningStrategy::ByTransaction,
+
+            // Optimistic transactions table - pruned by optimistic tx sequence number
+            PrunableTable::OptimisticTransactions => PruningStrategy::ByOptimisticTxSeq,
         }
     }
 }
@@ -333,6 +342,21 @@ impl<'a> TablePruner<'a> {
                         }),
                 )
             }
+            PruningStrategy::ByOptimisticTxSeq => {
+                let range_end = min_available_tx;
+                info!(
+                    "pruning table {} in optimistic tx range: [{lowest_unpruned_key}..{range_end})",
+                    self.table.as_ref()
+                );
+                Box::new(
+                    (lowest_unpruned_key..range_end)
+                        .step_by(MAX_TRANSACTIONS_PER_PRUNE_BATCH as usize)
+                        .map(move |start| {
+                            let end = (start + MAX_TRANSACTIONS_PER_PRUNE_BATCH).min(range_end);
+                            PruningChunk::OptimisticTxRange(start, end - 1)
+                        }),
+                )
+            }
         }
     }
 
@@ -418,6 +442,24 @@ impl<'a> TablePruner<'a> {
                 }
                 info!(
                     "pruned table {} for transaction range [{start}..={end}]",
+                    self.table.as_ref(),
+                );
+            }
+
+            PruningChunk::OptimisticTxRange(start, end) => {
+                // Prune by optimistic transaction range
+                if let Err(e) = self
+                    .store
+                    .prune_table_by_optimistic_tx_range(&self.table, start, end)
+                    .await
+                {
+                    error!(
+                        "failed to prune table {} for optimistic tx range [{start}..={end}]: {e}",
+                        self.table.as_ref(),
+                    );
+                }
+                info!(
+                    "pruned table {} for optimistic tx range [{start}..={end}]",
                     self.table.as_ref(),
                 );
             }
@@ -532,11 +574,31 @@ async fn update_watermarks_lower_bounds(
             lower_bound_updates.push((prunable_table, new_min_available_epoch));
         };
     }
+
+    // Extract optimistic transactions epoch if present
+    let optimistic_transactions_epoch = lower_bound_updates
+        .iter()
+        .find(|(table, _)| matches!(table, PrunableTable::OptimisticTransactions))
+        .map(|(_, epoch)| *epoch);
+
+    // Filter out optimistic transactions from lower_bound_updates
+    let lower_bound_updates: Vec<_> = lower_bound_updates
+        .into_iter()
+        .filter(|(table, _)| !matches!(table, PrunableTable::OptimisticTransactions))
+        .collect();
+
     if !lower_bound_updates.is_empty() {
         store
             .update_watermarks_lower_bound(lower_bound_updates)
             .await?;
         info!("Finished updating lower bounds for watermarks");
+    }
+
+    if let Some(epoch) = optimistic_transactions_epoch {
+        store
+            .update_optimistic_transactions_watermark_lower_bound(epoch)
+            .await?;
+        info!("Finished updating lower bound for optimistic transactions watermark");
     }
 
     Ok(())

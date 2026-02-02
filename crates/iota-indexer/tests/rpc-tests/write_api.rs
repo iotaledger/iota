@@ -882,20 +882,18 @@ fn test_repeatedly_update_display() {
 
 #[tokio::test]
 async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
-    let optimistic_pruner_batch_size = 5;
     let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
         Some("test_optimistic_tables_pruning"),
         None,
         Some(PruningOptions {
-            epochs_to_keep: Some(2),
+            epochs_to_keep: Some(1),
             pruning_config_path: None,
-            optimistic_pruner_batch_size: Some(optimistic_pruner_batch_size),
+            optimistic_pruner_batch_size: None,
         }),
     )
     .await;
     indexer_wait_for_checkpoint(store, 1).await;
 
-    // arbitrary numbers, just need to be > optimistic_pruner_batch_size
     let txs_epoch_1 = 16;
     let txs_epoch_2 = 22;
     let txs_epoch_3 = 18;

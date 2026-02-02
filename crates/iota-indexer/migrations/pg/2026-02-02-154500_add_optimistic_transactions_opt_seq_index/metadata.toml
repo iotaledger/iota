@@ -1,0 +1,2 @@
+[migration]
+run_in_transaction = false

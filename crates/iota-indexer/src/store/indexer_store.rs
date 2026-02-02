@@ -168,6 +168,13 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         max_tx: u64,
     ) -> Result<(), IndexerError>;
 
+    async fn prune_table_by_optimistic_tx_range(
+        &self,
+        table: &PrunableTable,
+        min_tx: u64,
+        max_tx: u64,
+    ) -> Result<(), IndexerError>;
+
     async fn update_watermark_lowest_unpruned_key(
         &self,
         table: &PrunableTable,
