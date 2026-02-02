@@ -52,6 +52,7 @@ mod transaction_outputs;
 pub mod validator_client_monitor;
 pub mod validator_tx_finalizer;
 pub mod verify_indexes;
+pub(crate) mod white_flag;
 
 #[cfg(test)]
 #[path = "unit_tests/congestion_control_tests.rs"]
