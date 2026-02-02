@@ -308,11 +308,10 @@ impl ReadApi {
             trace!("getting events");
             let mut non_empty_digests = vec![];
             for cache_entry in temp_response.values() {
-                if let Some(effects) = &cache_entry.effects {
-                    if effects.events_digest().is_some() {
+                if let Some(effects) = &cache_entry.effects
+                    && effects.events_digest().is_some() {
                         non_empty_digests.push(cache_entry.digest);
                     }
-                }
             }
             // fetch events from the DB with retry, retry each 0.5s for 3s
             let backoff = ExponentialBackoff {
@@ -862,8 +861,8 @@ impl ReadApiServer for ReadApi {
 
             let object_cache =
                 ObjectProviderCache::new((self.state.clone(), self.transaction_kv_store.clone()));
-            if opts.show_balance_changes {
-                if let Some(effects) = &temp_response.effects {
+            if opts.show_balance_changes
+                && let Some(effects) = &temp_response.effects {
                     let balance_changes = get_balance_changes_from_effect(
                         &object_cache,
                         effects,
@@ -881,10 +880,9 @@ impl ReadApiServer for ReadApi {
                         ));
                     }
                 }
-            }
 
-            if opts.show_object_changes {
-                if let (Some(effects), Some(input)) =
+            if opts.show_object_changes
+                && let (Some(effects), Some(input)) =
                     (&temp_response.effects, &temp_response.transaction)
                 {
                     let sender = input.data().intent_message().value.sender();
@@ -906,7 +904,6 @@ impl ReadApiServer for ReadApi {
                         ));
                     }
                 }
-            }
             let epoch_store = self.state.load_epoch_store_one_call_per_task();
 
             convert_to_response(temp_response, &opts, epoch_store.module_cache())

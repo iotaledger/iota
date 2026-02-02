@@ -130,12 +130,11 @@ impl ObjectExecutionSlots {
     /// fit a transaction of duration `tx_duration`. If no such slot exists,
     /// returns None.
     fn max_object_free_slot_start_time(&self, tx_duration: ExecutionTime) -> Option<ExecutionTime> {
-        if let Some(last_free_slot) = self.0.last() {
-            if MAX_EXECUTION_TIME - last_free_slot.start_time >= tx_duration {
+        if let Some(last_free_slot) = self.0.last()
+            && MAX_EXECUTION_TIME - last_free_slot.start_time >= tx_duration {
                 // if the transaction will fit in the last free slot, return its start time.
                 return Some(last_free_slot.start_time);
             }
-        }
         None
     }
 

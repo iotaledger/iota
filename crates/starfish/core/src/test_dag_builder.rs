@@ -465,7 +465,8 @@ impl DagBuilder {
 
     fn get_blocks(&self, slot: Slot) -> Vec<BlockRef> {
         // note: special case for genesis blocks as they are cached separately
-        let block_refs = if slot.round == 0 {
+        
+        if slot.round == 0 {
             self.genesis_block_refs()
                 .into_iter()
                 .filter(|block| Slot::from(*block) == slot)
@@ -475,8 +476,7 @@ impl DagBuilder {
                 .iter()
                 .map(|block| block.reference())
                 .collect::<Vec<_>>()
-        };
-        block_refs
+        }
     }
 
     // Converts the ancestor selections into block references from the DagBuilder's

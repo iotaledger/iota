@@ -1103,8 +1103,8 @@ where
                         if let Ok(pinned_digest_index) = pinned_checkpoints.binary_search_by_key(
                             checkpoint.sequence_number(),
                             |(seq_num, _digest)| *seq_num
-                        ) {
-                            if pinned_checkpoints[pinned_digest_index].1 != *checkpoint_digest {
+                        )
+                            && pinned_checkpoints[pinned_digest_index].1 != *checkpoint_digest {
                                 tracing::debug!(
                                     "peer returned checkpoint with digest that does not match pinned digest: expected {:?}, got {:?}",
                                     pinned_checkpoints[pinned_digest_index].1,
@@ -1112,7 +1112,6 @@ where
                                 );
                                 continue;
                             }
-                        }
 
                         // Insert in our store in the event that things fail and we need to retry
                         peer_heights
@@ -1485,15 +1484,13 @@ where
             .ok()
             .and_then(Response::into_inner)
             .tap_none(|| trace!("peer unable to help sync"))
-        {
-            if contents.verify_digests(digest).is_ok() {
+            && contents.verify_digests(digest).is_ok() {
                 let verified_contents = VerifiedCheckpointContents::new_unchecked(contents.clone());
                 store
                     .try_insert_checkpoint_contents(checkpoint, verified_contents)
                     .expect("store operation should not fail");
                 return Some(contents);
             }
-        }
     }
     debug!("no peers had checkpoint contents");
     None

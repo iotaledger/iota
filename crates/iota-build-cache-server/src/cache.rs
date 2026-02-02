@@ -81,11 +81,10 @@ impl BuildCache {
         let mut key = format!("{commit}:{cpu_target}");
 
         // Add toolchain if present and not "stable" (stable is the default)
-        if let Some(tc) = toolchain {
-            if tc != "stable" {
+        if let Some(tc) = toolchain
+            && tc != "stable" {
                 key.push_str(&format!(":toolchain={tc}"));
             }
-        }
 
         // Add sorted features if present
         if !features.is_empty() {
@@ -123,11 +122,10 @@ impl BuildCache {
         let mut path = cpu_target.to_string();
 
         // Add toolchain to path if it's not stable (stable is the default)
-        if let Some(tc) = toolchain {
-            if tc != "stable" {
+        if let Some(tc) = toolchain
+            && tc != "stable" {
                 path.push_str(&format!("_{tc}"));
             }
-        }
 
         self.workspace_dir.join(path)
     }
@@ -896,13 +894,11 @@ impl BuildCache {
             let entry = entry?;
             let path = entry.path();
 
-            if path.is_dir() {
-                if let Ok(metadata) = fs::metadata(&path) {
-                    if let Ok(modified) = metadata.modified() {
+            if path.is_dir()
+                && let Ok(metadata) = fs::metadata(&path)
+                    && let Ok(modified) = metadata.modified() {
                         commit_dirs.push((path, modified));
                     }
-                }
-            }
         }
 
         // Sort by modification time (newest first)

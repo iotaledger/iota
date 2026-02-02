@@ -91,14 +91,13 @@ where
             .into_iter()
             .enumerate()
             .map(|(actual, (annotated, c))| {
-                if let Some(annotated) = annotated {
-                    if actual != annotated {
+                if let Some(annotated) = annotated
+                    && actual != annotated {
                         anyhow::bail!(
                             "Actual command index of {actual} \
                             does not match annotated index {annotated}",
                         );
                     }
-                }
                 Ok(c)
             })
             .collect::<Result<_>>()?;

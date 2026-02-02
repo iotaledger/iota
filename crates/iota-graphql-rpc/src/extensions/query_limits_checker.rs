@@ -793,15 +793,12 @@ impl Extension for QueryLimitsCheckerExt {
         // If the query is pure introspection, we don't need to check the limits. Pure
         // introspection queries are queries that only have one operation with
         // one field and that field is a `__schema` query
-        if let DocumentOperations::Single(op) = &doc.operations {
-            if let [field] = &op.node.selection_set.node.items[..] {
-                if let Selection::Field(f) = &field.node {
-                    if f.node.name.node == "__schema" {
+        if let DocumentOperations::Single(op) = &doc.operations
+            && let [field] = &op.node.selection_set.node.items[..]
+                && let Selection::Field(f) = &field.node
+                    && f.node.name.node == "__schema" {
                         return Ok(doc);
                     }
-                }
-            }
-        }
 
         let mut traversal =
             LimitsTraversal::new(*payload_size, &reporter, &doc.fragments, variables);

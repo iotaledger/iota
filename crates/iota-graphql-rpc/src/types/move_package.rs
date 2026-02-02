@@ -1023,14 +1023,14 @@ impl Loader<LatestKey> for Db {
                         let o_cp_seq_num = other.field(dsl::checkpoint_sequence_number);
                         let o_version = other.field(dsl::package_version);
 
-                        let query = dsl::packages
+                        
+                        dsl::packages
                             .inner_join(other.on(dsl::original_id.eq(o_original_id)))
                             .select((dsl::package_id, o_package_id))
                             .filter(dsl::package_id.eq_any(ids.iter().cloned()))
                             .filter(o_cp_seq_num.le(checkpoint_viewed_at as i64))
                             .order_by((dsl::package_id, dsl::original_id, o_version.desc()))
-                            .distinct_on((dsl::package_id, dsl::original_id));
-                        query
+                            .distinct_on((dsl::package_id, dsl::original_id))
                     })?;
 
                     Ok::<_, diesel::result::Error>(

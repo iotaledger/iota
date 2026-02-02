@@ -1158,15 +1158,13 @@ impl ValidatorService {
         if let Some(existing) = existing_capabilities
             .iter()
             .find(|cap| cap.authority == incoming_capability.authority)
-        {
-            if incoming_capability.generation <= existing.generation {
+            && incoming_capability.generation <= existing.generation {
                 // Return successfully if generation is lower or equal - already processed
                 return Ok((
                     tonic::Response::new(HandleCapabilityNotificationResponseV1 { _unused: false }),
                     Weight::one(),
                 ));
             }
-        }
         if let Err(error) = self.consensus_adapter.check_consensus_overload() {
             self.metrics
                 .num_rejected_capability_notifications_during_overload

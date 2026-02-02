@@ -338,17 +338,16 @@ impl<C: ServerProviderClient> Testbed<C> {
             available.extend(instances.into_iter().take(quantity));
         }
 
-        if !skip_monitoring {
-            if let Some(metrics_instance) = &self.metrics_instance {
+        if !skip_monitoring
+            && let Some(metrics_instance) = &self.metrics_instance {
                 if metrics_instance.is_stopped() {
                     available.push(metrics_instance.clone());
                 } else {
                     return Err(TestbedError::MetricsServerMissing());
                 }
             }
-        }
-        if dedicated_clients > 0 {
-            if let Some(dedicated_client_nodes) = &self.client_instances {
+        if dedicated_clients > 0
+            && let Some(dedicated_client_nodes) = &self.client_instances {
                 let stopped_client_instances_by_region = dedicated_client_nodes
                     .iter()
                     .filter(|i| i.is_stopped())
@@ -368,7 +367,6 @@ impl<C: ServerProviderClient> Testbed<C> {
                     available.extend(instances.into_iter().take(dedicated_clients));
                 }
             }
-        }
 
         // Start instances.
         self.client.start_instances(available.iter()).await?;

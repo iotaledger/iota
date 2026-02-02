@@ -131,7 +131,9 @@ async fn handle_request(
 
     info!("{method} {path}");
 
-    let response = match (method, path) {
+    
+
+    match (method, path) {
         // GET /resolve?commit=<commit>
         (&Method::GET, "/resolve") => handle_resolve_request(req, cache).await,
 
@@ -151,9 +153,7 @@ async fn handle_request(
         (&Method::GET, "/health") => Ok(text_response("OK", StatusCode::OK)),
 
         _ => Ok(not_found("Not Found")),
-    };
-
-    response
+    }
 }
 
 async fn handle_resolve_request(
@@ -265,9 +265,9 @@ async fn handle_download_request(
                     let etag = format!("\"sha256:{sha256_hash}\"");
 
                     // Check if client has cached version
-                    if let Some(if_none_match) = req.headers().get(IF_NONE_MATCH) {
-                        if let Ok(client_etag) = if_none_match.to_str() {
-                            if client_etag == etag {
+                    if let Some(if_none_match) = req.headers().get(IF_NONE_MATCH)
+                        && let Ok(client_etag) = if_none_match.to_str()
+                            && client_etag == etag {
                                 return Ok(Response::builder()
                                     .status(StatusCode::NOT_MODIFIED)
                                     .header(ETAG, etag)
@@ -279,8 +279,6 @@ async fn handle_download_request(
                                     )
                                     .unwrap());
                             }
-                        }
-                    }
 
                     // Handle full file download with resumable support
                     handle_full_file_download(&binary_path, file_size, &resolved_commit, &etag)

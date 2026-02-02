@@ -84,14 +84,13 @@ impl MockConsensusClient {
                         .unwrap();
                 }
             }
-            if let ConsensusTransactionKind::CertifiedTransaction(tx) = tx.kind {
-                if tx.contains_shared_object() {
+            if let ConsensusTransactionKind::CertifiedTransaction(tx) = tx.kind
+                && tx.contains_shared_object() {
                     validator.enqueue_certificates_for_execution(
                         vec![VerifiedCertificate::new_unchecked(*tx)],
                         &epoch_store,
                     );
                 }
-            }
         }
     }
 

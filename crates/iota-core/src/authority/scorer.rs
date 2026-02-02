@@ -244,11 +244,11 @@ fn calculate_median_report(
     }
 
     // Calculate and return the weighted median for each metric
-    let median_report = reports_and_voting_power_per_metric
+    
+    reports_and_voting_power_per_metric
         .iter_mut()
         .map(|vec| calculate_weighted_median(vec.as_mut_slice()))
-        .collect::<MisbehaviorsV1<MedianMetricVec>>();
-    median_report
+        .collect::<MisbehaviorsV1<MedianMetricVec>>()
 }
 
 // Given a vector of pairs (MetricVec, VotingPower), calculate the weighted

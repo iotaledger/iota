@@ -508,11 +508,10 @@ impl Operations {
             .iter()
             .fold(balances, |mut balances, balance_change| {
                 // Rosetta only care about address owner
-                if let Owner::AddressOwner(owner) = balance_change.owner {
-                    if balance_change.coin_type == GAS::type_tag() {
+                if let Owner::AddressOwner(owner) = balance_change.owner
+                    && balance_change.coin_type == GAS::type_tag() {
                         *balances.entry(owner).or_default() += balance_change.amount;
                     }
-                }
                 balances
             });
         // separate gas from balances

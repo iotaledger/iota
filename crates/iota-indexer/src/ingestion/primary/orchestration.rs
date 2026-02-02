@@ -83,7 +83,9 @@ impl PrimaryPipeline {
         let writer_cancel = self.cancel.clone();
         let cancel = self.cancel.clone();
 
-        let handle = tokio::spawn(async move {
+        
+
+        tokio::spawn(async move {
             info!("Starting primary writer...");
             let mut writer_handle = spawn_monitored_task!(start_writer_task(
                 self.writer,
@@ -118,9 +120,7 @@ impl PrimaryPipeline {
             }
 
             Ok(())
-        });
-
-        handle
+        })
     }
 }
 

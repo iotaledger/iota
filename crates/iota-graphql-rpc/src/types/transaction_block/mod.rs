@@ -431,14 +431,13 @@ impl TransactionBlock {
             ));
         }
 
-        if let Some(tx_ids) = &filter.transaction_ids {
-            if tx_ids.len() > limits.max_transaction_ids as usize {
+        if let Some(tx_ids) = &filter.transaction_ids
+            && tx_ids.len() > limits.max_transaction_ids as usize {
                 return Err(Error::Client(format!(
                     "Transaction IDs exceed max limit of '{}'",
                     limits.max_transaction_ids
                 )));
             }
-        }
 
         // If page size or scan limit is 0, we want to standardize behavior by returning
         // an empty connection

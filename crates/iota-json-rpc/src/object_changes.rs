@@ -54,24 +54,23 @@ pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
                 }),
                 _ => {}
             }
-        } else if let Some(p) = o.data.try_as_package() {
-            if kind == WriteKind::Create {
+        } else if let Some(p) = o.data.try_as_package()
+            && kind == WriteKind::Create {
                 object_changes.push(ObjectChange::Published {
                     package_id: p.id(),
                     version: p.version(),
                     digest,
                     modules: p.serialized_module_map().keys().cloned().collect(),
                 })
-            }
-        };
+            };
     }
 
     for ((id, version, _), kind) in all_removed_objects {
         let o = object_provider
             .find_object_lt_or_eq_version(&id, &version)
             .await?;
-        if let Some(o) = o {
-            if let Some(type_) = o.type_() {
+        if let Some(o) = o
+            && let Some(type_) = o.type_() {
                 let object_type = type_.clone().into();
                 match kind {
                     ObjectRemoveKind::Delete => object_changes.push(ObjectChange::Deleted {
@@ -87,8 +86,7 @@ pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
                         version,
                     }),
                 }
-            }
-        };
+            };
     }
 
     Ok(object_changes)

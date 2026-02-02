@@ -673,8 +673,7 @@ fn find_module_object(
                 digest,
                 ..
             } = change
-            {
-                if type_pred(object_type) {
+                && type_pred(object_type) {
                     return Some(OwnedObjectRef {
                         owner: *owner,
                         reference: IotaObjectRef {
@@ -683,8 +682,7 @@ fn find_module_object(
                             digest: *digest,
                         },
                     });
-                }
-            };
+                };
             None
         })
         .collect();

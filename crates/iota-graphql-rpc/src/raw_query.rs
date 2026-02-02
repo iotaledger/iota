@@ -190,8 +190,6 @@ macro_rules! or_filter {
 #[macro_export]
 macro_rules! inner_join {
     ($lhs:expr, $alias:expr => $rhs_query:expr, using: [$using:expr $(, $more_using:expr)*]) => {{
-        use $crate::raw_query::RawQuery;
-
         let (lhs_sql, mut binds) = $lhs.finish();
         let (rhs_sql, rhs_binds) = $rhs_query.finish();
 
@@ -203,7 +201,7 @@ macro_rules! inner_join {
             stringify!($using $(, $more_using)*),
         );
 
-        RawQuery::new(sql, binds)
+        $crate::raw_query::RawQuery::new(sql, binds)
     }};
 }
 
@@ -225,7 +223,6 @@ macro_rules! query {
     // braces for subqueries to be interpolated into. Use when the subqueries can be aliased
     // directly in the select statement.
     ($select:expr $(,$subquery:expr)+) => {{
-        use $crate::raw_query::RawQuery;
         let mut binds = vec![];
 
         let select = format!(
@@ -237,6 +234,6 @@ macro_rules! query {
             }),*
         );
 
-        RawQuery::new(select, binds)
+        $crate::raw_query::RawQuery::new(select, binds)
     }};
 }

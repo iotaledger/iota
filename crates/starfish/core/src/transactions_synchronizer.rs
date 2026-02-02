@@ -503,12 +503,11 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 },
                 () = &mut scheduler_timeout => {
                     // we want to start a new task only if the number of tasks is not too large.
-                    if self.fetch_transactions_scheduler_task.len() < PERIODIC_FETCH_TRANSACTIONS_CONCURRENCY {
-                        if let Err(err) = self.start_fetch_missing_transactions_task().await {
+                    if self.fetch_transactions_scheduler_task.len() < PERIODIC_FETCH_TRANSACTIONS_CONCURRENCY
+                        && let Err(err) = self.start_fetch_missing_transactions_task().await {
                             debug!("Core is shutting down, transactions synchronizer is shutting down: {err:?}");
                             return;
                         };
-                    }
 
                     scheduler_timeout
                         .as_mut()

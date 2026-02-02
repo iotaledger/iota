@@ -133,8 +133,8 @@ async fn fetch_coins<P: ObjectProvider<Error = E>, E>(
     for (id, version, digest_opt) in objects {
         // TODO: use multi get object
         let o = object_provider.get_object(id, version).await?;
-        if let Some(type_) = o.type_() {
-            if type_.is_coin() {
+        if let Some(type_) = o.type_()
+            && type_.is_coin() {
                 if let Some(digest) = digest_opt {
                     // TODO: can we return Err here instead?
                     assert_eq!(
@@ -152,7 +152,6 @@ async fn fetch_coins<P: ObjectProvider<Error = E>, E>(
                     Coin::extract_balance_if_coin(&o).unwrap().unwrap(),
                 ))
             }
-        }
     }
     Ok(all_mutated_coins)
 }

@@ -757,11 +757,10 @@ impl ToolCommand {
                 );
 
                 let mut custom_archive_enabled = false;
-                if let Ok(custom_archive_check) = env::var("CUSTOM_ARCHIVE_BUCKET") {
-                    if custom_archive_check == "true" {
+                if let Ok(custom_archive_check) = env::var("CUSTOM_ARCHIVE_BUCKET")
+                    && custom_archive_check == "true" {
                         custom_archive_enabled = true;
                     }
-                }
                 let archive_store_config = if custom_archive_enabled {
                     let aws_region = Some(
                         env::var("FORMAL_SNAPSHOT_ARCHIVE_REGION")

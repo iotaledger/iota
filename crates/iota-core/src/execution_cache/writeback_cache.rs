@@ -657,8 +657,8 @@ impl WritebackCache {
             .record_cache_request(request_type, "object_by_id");
         let entry = self.cached.object_by_id_cache.get(object_id);
 
-        if cfg!(debug_assertions) {
-            if let Some(entry) = &entry {
+        if cfg!(debug_assertions)
+            && let Some(entry) = &entry {
                 // check that cache is coherent
                 let highest: Option<ObjectEntry> = self
                     .dirty
@@ -698,7 +698,6 @@ impl WritebackCache {
                     panic!("object_by_id cache is incoherent for {object_id:?}");
                 }
             }
-        }
 
         if let Some(entry) = entry {
             let entry = entry.lock();

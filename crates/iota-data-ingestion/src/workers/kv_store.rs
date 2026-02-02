@@ -131,18 +131,15 @@ impl KVStoreWorker {
                         sdk_err.as_service_error().map(|e| e.meta().to_string())
                     )
                 })?;
-            if let Some(response) = response.unprocessed_items {
-                if let Some(unprocessed) = response.into_iter().next() {
-                    if !unprocessed.1.is_empty() {
-                        if queue.is_empty() {
-                            if let Some(duration) = backoff.next_backoff() {
+            if let Some(response) = response.unprocessed_items
+                && let Some(unprocessed) = response.into_iter().next()
+                    && !unprocessed.1.is_empty() {
+                        if queue.is_empty()
+                            && let Some(duration) = backoff.next_backoff() {
                                 tokio::time::sleep(duration).await;
                             }
-                        }
                         queue.push_back(unprocessed.1);
                     }
-                }
-            }
         }
         Ok(())
     }

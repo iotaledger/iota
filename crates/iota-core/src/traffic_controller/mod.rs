@@ -471,8 +471,8 @@ async fn handle_error_tally(
         .inc();
     let resp = policy.handle_tally(tally);
     metrics.error_tally_handled.inc();
-    if let Some(fw_config) = fw_config {
-        if fw_config.delegate_error_blocking && !mem_drainfile_present {
+    if let Some(fw_config) = fw_config
+        && fw_config.delegate_error_blocking && !mem_drainfile_present {
             let client = nodefw_client
                 .as_ref()
                 .expect("Expected NodeFWClient for blocklist delegation");
@@ -485,7 +485,6 @@ async fn handle_error_tally(
             )
             .await;
         }
-    }
     handle_policy_response(resp, policy_config, blocklists, metrics).await;
     Ok(())
 }
@@ -505,8 +504,8 @@ async fn handle_spam_tally(
     }
     let resp = policy.handle_tally(tally.clone());
     metrics.tally_handled.inc();
-    if let Some(fw_config) = fw_config {
-        if fw_config.delegate_spam_blocking && !mem_drainfile_present {
+    if let Some(fw_config) = fw_config
+        && fw_config.delegate_spam_blocking && !mem_drainfile_present {
             let client = nodefw_client
                 .as_ref()
                 .expect("Expected NodeFWClient for blocklist delegation");
@@ -519,7 +518,6 @@ async fn handle_spam_tally(
             )
             .await;
         }
-    }
     handle_policy_response(resp, policy_config, blocklists, metrics).await;
     Ok(())
 }
@@ -539,8 +537,8 @@ async fn handle_policy_response(
         proxy_blocklist_ttl_sec,
         ..
     } = policy_config;
-    if let Some(client) = block_client {
-        if blocklists
+    if let Some(client) = block_client
+        && blocklists
             .clients
             .insert(
                 client,
@@ -553,9 +551,8 @@ async fn handle_policy_response(
             metrics.requests_blocked_at_protocol.inc();
             metrics.connection_ip_blocklist_len.inc();
         }
-    }
-    if let Some(client) = block_proxied_client {
-        if blocklists
+    if let Some(client) = block_proxied_client
+        && blocklists
             .proxied_clients
             .insert(
                 client,
@@ -568,7 +565,6 @@ async fn handle_policy_response(
             metrics.requests_blocked_at_protocol.inc();
             metrics.proxy_ip_blocklist_len.inc();
         }
-    }
 }
 
 async fn delegate_policy_response(

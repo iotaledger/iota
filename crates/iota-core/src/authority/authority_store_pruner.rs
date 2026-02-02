@@ -280,15 +280,14 @@ impl AuthorityStorePruner {
             debug!("Pruning effects {:?}", effects_digest);
             effect_digests.push(effects_digest);
 
-            if let Some(event_digest) = effects.events_digest() {
-                if let Some(next_digest) = event_digest.next_lexicographical() {
+            if let Some(event_digest) = effects.events_digest()
+                && let Some(next_digest) = event_digest.next_lexicographical() {
                     perpetual_batch.schedule_delete_range(
                         &perpetual_db.events,
                         &(*event_digest, 0),
                         &(next_digest, 0),
                     )?;
                 }
-            }
         }
         perpetual_batch.delete_batch(&perpetual_db.effects, effect_digests)?;
 
@@ -407,8 +406,8 @@ impl AuthorityStorePruner {
                 perpetual_db.get_highest_pruned_checkpoint()?,
             );
         }
-        if config.smooth {
-            if let Some(num_epochs_to_retain) = config.num_epochs_to_retain_for_checkpoints {
+        if config.smooth
+            && let Some(num_epochs_to_retain) = config.num_epochs_to_retain_for_checkpoints {
                 max_eligible_checkpoint = Self::smoothed_max_eligible_checkpoint_number(
                     checkpoint_store,
                     max_eligible_checkpoint,
@@ -418,7 +417,6 @@ impl AuthorityStorePruner {
                     num_epochs_to_retain,
                 )?;
             }
-        }
         debug!("Max eligible checkpoint {}", max_eligible_checkpoint);
         Self::prune_for_eligible_epochs(
             perpetual_db,
@@ -617,11 +615,10 @@ impl AuthorityStorePruner {
             {
                 continue;
             }
-            if let Some(candidate) = &sst_file_for_compaction {
-                if candidate.size > sst_file.size {
+            if let Some(candidate) = &sst_file_for_compaction
+                && candidate.size > sst_file.size {
                     continue;
                 }
-            }
             sst_file_for_compaction = Some(sst_file);
         }
         let Some(sst_file) = sst_file_for_compaction else {
@@ -840,8 +837,8 @@ impl ObjectsCompactionFilter {
             .with_fixint_encoding()
             .deserialize(key)?;
         let object: StoreObjectWrapper = bcs::from_bytes(value)?;
-        if matches!(object.into_inner(), StoreObject::Value(_)) {
-            if let Some(db) = self.db.upgrade() {
+        if matches!(object.into_inner(), StoreObject::Value(_))
+            && let Some(db) = self.db.upgrade() {
                 match db.object_tombstones.get(&object_id)? {
                     Some(gc_version) => {
                         if version <= gc_version {
@@ -853,7 +850,6 @@ impl ObjectsCompactionFilter {
                     None => self.metrics.key_not_found.inc(),
                 }
             }
-        }
         Ok(Decision::Keep)
     }
 }

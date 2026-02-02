@@ -207,8 +207,8 @@ fn parse_rpc_method(trait_data: &mut syn::ItemTrait) -> Result<RpcDefinition, sy
 
                 let deprecated = attributes.find("deprecated").is_some();
 
-                if let Some(version_attr) = attributes.find("version") {
-                    if let (Some(token), Some(version)) = (&version_attr.token, &version_attr.value)
+                if let Some(version_attr) = attributes.find("version")
+                    && let (Some(token), Some(version)) = (&version_attr.token, &version_attr.value)
                     {
                         let route_to =
                             format!("{method_name}_{}", version.value().replace('.', "_"));
@@ -225,7 +225,6 @@ fn parse_rpc_method(trait_data: &mut syn::ItemTrait) -> Result<RpcDefinition, sy
                         attr.tokens = remove_iota_rpc_attributes(attributes);
                         continue;
                     }
-                }
                 attr.tokens = remove_iota_rpc_attributes(attributes);
                 (method_name, returns, false, deprecated)
             } else if let Some(attr) = find_attr(&mut method.attrs, "subscription") {
@@ -278,15 +277,12 @@ fn extract_type_from(ty: &Type, from_ty: &str) -> Option<Type> {
             && path.segments.iter().next().unwrap().ident == from_ty
     }
 
-    if let Type::Path(p) = ty {
-        if p.qself.is_none() && path_is(&p.path, from_ty) {
-            if let PathArguments::AngleBracketed(a) = &p.path.segments[0].arguments {
-                if let Some(GenericArgument::Type(ty)) = a.args.first() {
+    if let Type::Path(p) = ty
+        && p.qself.is_none() && path_is(&p.path, from_ty)
+            && let PathArguments::AngleBracketed(a) = &p.path.segments[0].arguments
+                && let Some(GenericArgument::Type(ty)) = a.args.first() {
                     return Some(ty.clone());
                 }
-            }
-        }
-    }
     None
 }
 

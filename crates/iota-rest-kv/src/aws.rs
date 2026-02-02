@@ -273,11 +273,10 @@ impl KvStoreClient {
             .send()
             .await?;
 
-        if let Some(item) = result.item {
-            if let Some(AttributeValue::B(blob)) = item.get("bcs") {
+        if let Some(item) = result.item
+            && let Some(AttributeValue::B(blob)) = item.get("bcs") {
                 return Ok(Some(Bytes::copy_from_slice(blob.as_ref())));
             }
-        }
 
         Ok(None)
     }

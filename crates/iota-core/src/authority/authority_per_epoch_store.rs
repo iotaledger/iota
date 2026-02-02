@@ -2562,15 +2562,14 @@ impl AuthorityPerEpochStore {
 
         // Read-compare-write pattern assumes we are only called from the consensus
         // handler task.
-        if let Some(cap) = tables.authority_capabilities_v1.get(authority)? {
-            if cap.generation >= capabilities.generation {
+        if let Some(cap) = tables.authority_capabilities_v1.get(authority)?
+            && cap.generation >= capabilities.generation {
                 debug!(
                     "ignoring new capabilities {:?} in favor of previous capabilities {:?}",
                     capabilities, cap
                 );
                 return Ok(());
             }
-        }
         tables
             .authority_capabilities_v1
             .insert(authority, capabilities)?;
@@ -3228,8 +3227,8 @@ impl AuthorityPerEpochStore {
                 // During crash recovery, the randomness update transaction may already have
                 // been created and executed before the crash. If it is
                 // available locally, we need to ensure it is executed.
-                if let Some(digest) = self.tables()?.transaction_key_to_digest.get(&key)? {
-                    if let Some(tx) = tx_reader.get_transaction_block(&digest) {
+                if let Some(digest) = self.tables()?.transaction_key_to_digest.get(&key)?
+                    && let Some(tx) = tx_reader.get_transaction_block(&digest) {
                         info!(
                             "Randomness update transaction {:?} already exists, scheduling for execution",
                             digest
@@ -3238,7 +3237,6 @@ impl AuthorityPerEpochStore {
                             VerifiedExecutableTransaction::new_system((*tx).clone(), self.epoch());
                         verified_transactions.push(tx);
                     }
-                }
 
                 randomness_roots.insert(key);
             }
@@ -3674,8 +3672,8 @@ impl AuthorityPerEpochStore {
             if !ignored {
                 output.record_consensus_message_processed(key.clone());
             }
-            if filter_roots {
-                if let Some(txn_key) =
+            if filter_roots
+                && let Some(txn_key) =
                     tx.0.transaction
                         .executable_transaction_digest()
                         .map(TransactionKey::Digest)
@@ -3683,7 +3681,6 @@ impl AuthorityPerEpochStore {
                     roots.remove(&txn_key);
                     randomness_roots.remove(&txn_key);
                 }
-            }
         }
 
         // sort the sequenced transactions based on their start_time from the
@@ -3758,13 +3755,12 @@ impl AuthorityPerEpochStore {
             );
         }
 
-        if randomness_state_updated {
-            if let Some(randomness_manager) = randomness_manager.as_mut() {
+        if randomness_state_updated
+            && let Some(randomness_manager) = randomness_manager.as_mut() {
                 randomness_manager
                     .advance_dkg(output, consensus_commit_info.round)
                     .await?;
             }
-        }
 
         // Add the consensus commit prologue transaction to the beginning of
         // `verified_certificates`.

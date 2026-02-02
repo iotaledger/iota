@@ -631,19 +631,18 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         )?;
 
         // 13. schedule the fetching of missing ancestors (if any) from this peer
-        if !missing_ancestors.is_empty() {
-            if let Err(err) = self
+        if !missing_ancestors.is_empty()
+            && let Err(err) = self
                 .synchronizer
                 .fetch_headers(missing_ancestors, peer)
                 .await
             {
                 warn!("Errored while trying to fetch missing ancestors via synchronizer: {err}");
             }
-        }
 
         // 14. schedule the fetching of missing committed transactions (if any)
-        if !missing_committed_txns.is_empty() {
-            if let Err(err) = self
+        if !missing_committed_txns.is_empty()
+            && let Err(err) = self
                 .transactions_synchronizer
                 .fetch_transactions(missing_committed_txns)
                 .await
@@ -652,7 +651,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     "Errored while trying to fetch missing transactions via transactions synchronizer: {err}"
                 );
             }
-        }
         Ok(())
     }
 

@@ -82,10 +82,10 @@ fn bcs_content_type(headers: &HeaderMap) -> bool {
         return false;
     };
 
-    let is_bcs_content_type = mime.type_() == "application"
-        && (mime.subtype() == "bcs" || mime.suffix().is_some_and(|name| name == "bcs"));
+    
 
-    is_bcs_content_type
+    mime.type_() == "application"
+        && (mime.subtype() == "bcs" || mime.suffix().is_some_and(|name| name == "bcs"))
 }
 
 pub enum BcsRejection {

@@ -421,8 +421,8 @@ async fn test_state_sync_using_archive() -> anyhow::Result<()> {
     loop {
         {
             let store = store_1.inner();
-            if let Some(highest_synced_checkpoint) = store.get_highest_synced_checkpoint() {
-                if highest_synced_checkpoint.sequence_number
+            if let Some(highest_synced_checkpoint) = store.get_highest_synced_checkpoint()
+                && highest_synced_checkpoint.sequence_number
                     == ordered_checkpoints.last().unwrap().sequence_number
                 {
                     // Node 1 is fully synced to the latest checkpoint on Node 2
@@ -442,7 +442,6 @@ async fn test_state_sync_using_archive() -> anyhow::Result<()> {
                     );
                     break;
                 }
-            }
         }
         if total_time.elapsed() > Duration::from_secs(120) {
             bail!("Test timed out");

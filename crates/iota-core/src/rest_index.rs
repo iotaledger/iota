@@ -319,8 +319,8 @@ impl IndexStoreTables {
 
                 // determine changes from changed objects
                 for (object, old_object) in tx.changed_objects() {
-                    if let Some(old_object) = old_object {
-                        if old_object.owner() != object.owner() {
+                    if let Some(old_object) = old_object
+                        && old_object.owner() != object.owner() {
                             match old_object.owner() {
                                 Owner::AddressOwner(address) => {
                                     let owner_key = OwnerIndexKey::new(*address, old_object.id());
@@ -337,7 +337,6 @@ impl IndexStoreTables {
                                 Owner::Shared { .. } | Owner::Immutable => {}
                             }
                         }
-                    }
 
                     match object.owner() {
                         Owner::AddressOwner(owner) => {

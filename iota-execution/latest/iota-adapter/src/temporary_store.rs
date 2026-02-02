@@ -1116,8 +1116,8 @@ impl BackingPackageStore for TemporaryStore<'_> {
         } else {
             self.store.get_package_object(package_id).inspect(|obj| {
                 // Track object but leave unchanged
-                if let Some(v) = obj {
-                    if !self
+                if let Some(v) = obj
+                    && !self
                         .runtime_packages_loaded_from_db
                         .read()
                         .contains_key(package_id)
@@ -1130,7 +1130,6 @@ impl BackingPackageStore for TemporaryStore<'_> {
                             .write()
                             .insert(*package_id, v.clone());
                     }
-                }
             })
         }
     }

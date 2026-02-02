@@ -56,8 +56,8 @@ impl Config {
             create_dir_all(&self.checkpoints_dir).await?;
         }
         // Download or copy the genesis blob if it doesn't exist yet
-        if !self.genesis_blob_file_path().is_file() {
-            if let Some(url) = &self.genesis_blob_download_url {
+        if !self.genesis_blob_file_path().is_file()
+            && let Some(url) = &self.genesis_blob_download_url {
                 match url.scheme() {
                     "file" => {
                         let path = url
@@ -71,7 +71,6 @@ impl Config {
                     }
                 }
             }
-        }
         // Create an empty `checkpoints.yaml` if it doesn't exist yet
         if !self.checkpoints_list_file_path().is_file() {
             write_checkpoint_list(self, &CheckpointList::default())?;

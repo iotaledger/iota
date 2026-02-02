@@ -130,8 +130,8 @@ async fn insert_checkpoints_and_verify_manifest(
     let mut prev_checkpoint = prev_checkpoint;
     let mut num_verified_iterations = 0;
     loop {
-        if test_state.remote_path.join("MANIFEST").exists() {
-            if let Ok(manifest) = read_manifest(test_state.remote_store.clone()).await {
+        if test_state.remote_path.join("MANIFEST").exists()
+            && let Ok(manifest) = read_manifest(test_state.remote_store.clone()).await {
                 for file in manifest.files().into_iter() {
                     let file_path =
                         path_to_filesystem(test_state.remote_path.clone(), &file.file_path())?;
@@ -152,7 +152,6 @@ async fn insert_checkpoints_and_verify_manifest(
                     break;
                 }
             }
-        }
         tokio::time::sleep(Duration::from_secs(1)).await;
         prev_checkpoint =
             write_new_checkpoints_to_store(test_state, test_store.clone(), 1, prev_checkpoint)

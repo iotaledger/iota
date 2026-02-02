@@ -301,15 +301,14 @@ impl PTB {
             _ => anyhow::bail!("Internal error, unexpected response from PTB execution."),
         };
 
-        if let Some(effects) = transaction_response.effects.as_ref() {
-            if effects.status().is_err() {
+        if let Some(effects) = transaction_response.effects.as_ref()
+            && effects.status().is_err() {
                 bail!(
                     "PTB execution {}. Transaction digest is: {}",
                     Pretty(effects.status()),
                     effects.transaction_digest()
                 );
             }
-        }
 
         if program_metadata.json_set || program_metadata.summary_set {
             let summary = {

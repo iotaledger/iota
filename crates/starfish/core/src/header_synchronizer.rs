@@ -521,12 +521,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 },
                 () = &mut scheduler_timeout => {
                     // we want to start a new task only if the previous one has already finished.
-                    if self.fetch_block_headers_scheduler_task.is_empty() {
-                        if let Err(err) = self.start_periodic_sync_task().await {
+                    if self.fetch_block_headers_scheduler_task.is_empty()
+                        && let Err(err) = self.start_periodic_sync_task().await {
                             debug!("Core is shutting down, synchronizer is shutting down: {err:?}");
                             return;
                         };
-                    }
 
                     scheduler_timeout
                         .as_mut()
@@ -2072,11 +2071,10 @@ mod tests {
         assert_eq!(added_blocks, expected_block_headers);
 
         // Stop synchronizer and ensure that no panic occurred
-        if let Err(err) = handle.stop().await {
-            if err.is_panic() {
+        if let Err(err) = handle.stop().await
+            && err.is_panic() {
                 std::panic::resume_unwind(err.into_panic());
             }
-        }
     }
 
     #[tokio::test]
@@ -2155,11 +2153,10 @@ mod tests {
             }
         }
         // Stop synchronizer and ensure that no panic occurred
-        if let Err(err) = handle.stop().await {
-            if err.is_panic() {
+        if let Err(err) = handle.stop().await
+            && err.is_panic() {
                 std::panic::resume_unwind(err.into_panic());
             }
-        }
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -2265,11 +2262,10 @@ mod tests {
         );
 
         // Stop synchronizer and ensure that no panic occurred
-        if let Err(err) = handle.stop().await {
-            if err.is_panic() {
+        if let Err(err) = handle.stop().await
+            && err.is_panic() {
                 std::panic::resume_unwind(err.into_panic());
             }
-        }
     }
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn synchronizer_periodic_task_when_commit_lagging_with_missing_blocks_in_acceptable_thresholds()
@@ -2392,11 +2388,10 @@ mod tests {
         sleep(4 * FETCH_REQUEST_TIMEOUT).await;
 
         // Stop synchronizer and ensure that no panic occurred
-        if let Err(err) = handle.stop().await {
-            if err.is_panic() {
+        if let Err(err) = handle.stop().await
+            && err.is_panic() {
                 std::panic::resume_unwind(err.into_panic());
             }
-        }
 
         // We should be in commit lag mode, but since there are missing blocks within
         // the acceptable round thresholds those ones should be fetched. Nothing above.
@@ -2548,11 +2543,10 @@ mod tests {
         assert_eq!(added_blocks, expected_headers);
 
         // Stop synchronizer and ensure that no panic occurred
-        if let Err(err) = handle.stop().await {
-            if err.is_panic() {
+        if let Err(err) = handle.stop().await
+            && err.is_panic() {
                 std::panic::resume_unwind(err.into_panic());
             }
-        }
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -2689,11 +2683,10 @@ mod tests {
         );
 
         // Stop synchronizer and ensure that no panic occurred
-        if let Err(err) = handle.stop().await {
-            if err.is_panic() {
+        if let Err(err) = handle.stop().await
+            && err.is_panic() {
                 std::panic::resume_unwind(err.into_panic());
             }
-        }
     }
     #[derive(Default)]
     struct SyncMockDispatcher {
@@ -3126,11 +3119,10 @@ mod tests {
         assert_eq!(added_block_headers[0], normal_block_header);
 
         // Stop synchronizer and ensure that no panic occurred
-        if let Err(err) = handle.stop().await {
-            if err.is_panic() {
+        if let Err(err) = handle.stop().await
+            && err.is_panic() {
                 std::panic::resume_unwind(err.into_panic());
             }
-        }
     }
 
     #[tokio::test]

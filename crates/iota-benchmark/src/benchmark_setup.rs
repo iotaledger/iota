@@ -260,11 +260,10 @@ impl Env {
 
             for obj in genesis.objects().iter() {
                 let owner = &obj.owner;
-                if let Owner::AddressOwner(addr) = owner {
-                    if *addr == primary_gas_owner_addr.into() {
+                if let Owner::AddressOwner(addr) = owner
+                    && *addr == primary_gas_owner_addr.into() {
                         genesis_gas_objects.push(obj.clone());
                     }
-                }
             }
 
             let genesis_gas_obj = genesis_gas_objects

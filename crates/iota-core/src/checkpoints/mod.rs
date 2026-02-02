@@ -1232,15 +1232,13 @@ impl CheckpointBuilder {
                 .tables
                 .locally_computed_checkpoints
                 .get(&summary.sequence_number)?
-            {
-                if previously_computed_summary != *summary {
+                && previously_computed_summary != *summary {
                     // Panic so that we don't send out an equivocating checkpoint sig.
                     fatal!(
                         "Checkpoint {} was previously built with a different result: {previously_computed_summary:?} vs {summary:?}",
                         summary.sequence_number,
                     );
                 }
-            }
 
             all_tx_digests.extend(contents.iter().map(|digests| digests.transaction));
 
@@ -1483,8 +1481,8 @@ impl CheckpointBuilder {
                 .map(|(_, c)| c.sequence_number + 1)
                 .unwrap_or_default();
             let mut timestamp_ms = details.timestamp_ms;
-            if let Some((_, last_checkpoint)) = &last_checkpoint {
-                if last_checkpoint.timestamp_ms > timestamp_ms {
+            if let Some((_, last_checkpoint)) = &last_checkpoint
+                && last_checkpoint.timestamp_ms > timestamp_ms {
                     // The first consensus commit of an epoch can have zero timestamp.
                     debug!(
                         "Decrease of checkpoint timestamp, possibly due to epoch change. Sequence: {}, previous: {}, current: {}",
@@ -1498,7 +1496,6 @@ impl CheckpointBuilder {
                         timestamp_ms = last_checkpoint.timestamp_ms;
                     }
                 }
-            }
 
             if self
                 .epoch_store
@@ -2519,8 +2516,7 @@ impl CheckpointServiceNotify for CheckpointService {
             .tables
             .get_highest_verified_checkpoint()?
             .map(|x| *x.sequence_number())
-        {
-            if sequence <= highest_verified_checkpoint {
+            && sequence <= highest_verified_checkpoint {
                 trace!(
                     checkpoint_seq = sequence,
                     "Ignore checkpoint signature from {} - already certified", signer,
@@ -2530,7 +2526,6 @@ impl CheckpointServiceNotify for CheckpointService {
                     .set(sequence as i64);
                 return Ok(());
             }
-        }
         trace!(
             checkpoint_seq = sequence,
             "Received checkpoint signature, digest {} from {}",

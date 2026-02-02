@@ -1026,8 +1026,8 @@ impl AuthorityState {
         let signed = self.handle_transaction_impl(transaction, epoch_store).await;
         match signed {
             Ok(s) => {
-                if self.is_committee_validator(epoch_store) {
-                    if let Some(validator_tx_finalizer) = &self.validator_tx_finalizer {
+                if self.is_committee_validator(epoch_store)
+                    && let Some(validator_tx_finalizer) = &self.validator_tx_finalizer {
                         let tx = s.clone();
                         let validator_tx_finalizer = validator_tx_finalizer.clone();
                         let cache_reader = self.get_transaction_cache_reader().clone();
@@ -1036,7 +1036,6 @@ impl AuthorityState {
                             validator_tx_finalizer.track_signed_tx(cache_reader, &epoch_store, tx)
                         ));
                     }
-                }
                 Ok(HandleTransactionResponse {
                     status: TransactionStatus::Signed(s.into_inner().into_sig()),
                 })
@@ -1396,8 +1395,8 @@ impl AuthorityState {
             Ok(res) => res,
         };
 
-        if let Some(expected_effects_digest) = expected_effects_digest {
-            if effects.digest() != expected_effects_digest {
+        if let Some(expected_effects_digest) = expected_effects_digest
+            && effects.digest() != expected_effects_digest {
                 // We dont want to mask the original error, so we log it and continue.
                 match self.debug_dump_transaction_state(
                     &digest,
@@ -1431,7 +1430,6 @@ impl AuthorityState {
                     effects.digest(),
                 );
             }
-        }
 
         fail_point!("crash");
 
@@ -3340,8 +3338,8 @@ impl AuthorityState {
         )?;
         self.get_reconfig_api()
             .try_set_epoch_start_configuration(&epoch_start_configuration)?;
-        if let Some(checkpoint_path) = &self.db_checkpoint_config.checkpoint_path {
-            if self
+        if let Some(checkpoint_path) = &self.db_checkpoint_config.checkpoint_path
+            && self
                 .db_checkpoint_config
                 .perform_db_checkpoints_at_epoch_end
             {
@@ -3357,7 +3355,6 @@ impl AuthorityState {
                     checkpoint_indexes,
                 )?;
             }
-        }
 
         self.get_reconfig_api()
             .reconfigure_cache(&epoch_start_configuration)
@@ -3449,12 +3446,11 @@ impl AuthorityState {
             );
         }
 
-        if expensive_safety_check_config.enable_secondary_index_checks() {
-            if let Some(indexes) = self.indexes.clone() {
+        if expensive_safety_check_config.enable_secondary_index_checks()
+            && let Some(indexes) = self.indexes.clone() {
                 verify_indexes(self.get_accumulator_store().as_ref(), indexes)
                     .expect("secondary indexes are inconsistent");
             }
-        }
 
         Ok(())
     }
@@ -3538,11 +3534,10 @@ impl AuthorityState {
         self.committee_store
             .checkpoint_db(&checkpoint_path_tmp.join("epochs"))?;
 
-        if checkpoint_indexes {
-            if let Some(indexes) = self.indexes.as_ref() {
+        if checkpoint_indexes
+            && let Some(indexes) = self.indexes.as_ref() {
                 indexes.checkpoint_db(&checkpoint_path_tmp.join("indexes"))?;
             }
-        }
 
         fs::rename(checkpoint_path_tmp, checkpoint_path)
             .map_err(|e| IotaError::FileIO(e.to_string()))?;
@@ -4874,8 +4869,7 @@ impl AuthorityState {
             if let Some(digest) = capability
                 .supported_protocol_versions
                 .get_version_digest(target_protocol_version)
-            {
-                if digest == target_digest {
+                && digest == target_digest {
                     // Find the validator's index in the active validators list
                     if let Some(index) = active_validators
                         .iter()
@@ -4884,7 +4878,6 @@ impl AuthorityState {
                         eligible_validators.push(index as u64);
                     }
                 }
-            }
         }
 
         // Sort indices for deterministic behavior

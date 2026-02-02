@@ -139,11 +139,10 @@ impl BuildCacheClient {
         }
 
         let features_str = features.map(|f| f.join(","));
-        if let Some(ref feats_str) = features_str {
-            if !feats_str.is_empty() {
+        if let Some(ref feats_str) = features_str
+            && !feats_str.is_empty() {
                 params.insert("features", feats_str);
             }
-        }
 
         let binaries_str = binaries.join(",");
         params.insert("binaries", &binaries_str);
@@ -188,11 +187,10 @@ impl BuildCacheClient {
         }
 
         let features_str = features.map(|f| f.join(","));
-        if let Some(ref feats_str) = features_str {
-            if !feats_str.is_empty() {
+        if let Some(ref feats_str) = features_str
+            && !feats_str.is_empty() {
                 params.insert("features", feats_str);
             }
-        }
 
         params.insert("binary", binary_name);
 

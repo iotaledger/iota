@@ -78,14 +78,12 @@ where
             let latest_stored_checkpoint = loop {
                 if let Some(latest_stored_checkpoint) =
                     self.store.get_latest_stored_checkpoint().await?
-                {
-                    if latest_stored_checkpoint.sequence_number
+                    && latest_stored_checkpoint.sequence_number
                         >= last_processed_cp_seq
                             + self.min_network_metrics_processor_batch_size as i64
                     {
                         break latest_stored_checkpoint;
                     }
-                }
                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             };
 

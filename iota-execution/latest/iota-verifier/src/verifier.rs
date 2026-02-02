@@ -37,14 +37,13 @@ pub fn iota_verify_module_metered_check_timeout_only(
     meter: &mut (impl Meter + ?Sized),
 ) -> Result<(), ExecutionError> {
     // Checks if the error counts as an IOTA verifier timeout
-    if let Err(error) = iota_verify_module_metered(module, fn_info_map, meter) {
-        if matches!(
+    if let Err(error) = iota_verify_module_metered(module, fn_info_map, meter)
+        && matches!(
             error.kind(),
             iota_types::execution_status::ExecutionFailureStatus::IotaMoveVerificationTimeout
         ) {
             return Err(error);
         }
-    }
     // Any other scenario, including a non-timeout error counts as Ok
     Ok(())
 }

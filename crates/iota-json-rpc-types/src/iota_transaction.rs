@@ -1979,20 +1979,18 @@ impl IotaProgrammableTransactionBlock {
                         return result_types;
                     };
                     for (arg, type_) in c.arguments.iter().zip(types) {
-                        if let (&Argument::Input(i), Some(type_)) = (arg, type_) {
-                            if let Some(x) = result_types.get_mut(i as usize) {
+                        if let (&Argument::Input(i), Some(type_)) = (arg, type_)
+                            && let Some(x) = result_types.get_mut(i as usize) {
                                 x.replace(type_);
                             }
-                        }
                     }
                 }
                 Command::SplitCoins(_, amounts) => {
                     for arg in amounts {
-                        if let &Argument::Input(i) = arg {
-                            if let Some(x) = result_types.get_mut(i as usize) {
+                        if let &Argument::Input(i) = arg
+                            && let Some(x) = result_types.get_mut(i as usize) {
                                 x.replace(MoveTypeLayout::U64);
                             }
-                        }
                     }
                 }
                 Command::TransferObjects(_, Argument::Input(i)) => {

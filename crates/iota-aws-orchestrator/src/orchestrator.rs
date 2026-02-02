@@ -171,8 +171,8 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         instances: Vec<Instance>,
         parameters: &BenchmarkParameters<T>,
     ) -> TestbedResult<()> {
-        if parameters.use_internal_ip_address {
-            if let Some(latency_topology) = parameters.latency_topology.clone() {
+        if parameters.use_internal_ip_address
+            && let Some(latency_topology) = parameters.latency_topology.clone() {
                 let latency_commands = NetworkLatencyCommandBuilder::new(&instances)
                     .with_perturbation_spec(parameters.perturbation_spec.clone())
                     .with_topology_layout(latency_topology)
@@ -182,7 +182,6 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                     .execute_per_instance(latency_commands, CommandContext::default())
                     .await?;
             }
-        }
 
         // Run one node per instance.
         let targets = self
@@ -1064,14 +1063,13 @@ done"#
             i += 1;
         }
 
-        if self.settings.enable_prometheus_snapshots {
-            if let Err(e) = self
+        if self.settings.enable_prometheus_snapshots
+            && let Err(e) = self
                 .download_prometheus_snapshot(&benchmark_dir, &timestamp)
                 .await
             {
                 display::error(format!("Failed to download prometheus snapshot: {}", e));
             }
-        }
 
         display::header("Benchmark completed");
         Ok(())

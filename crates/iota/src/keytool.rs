@@ -531,7 +531,9 @@ pub enum CommandOutput {
 
 impl KeyToolCommand {
     pub async fn execute(self, keystore: &mut Keystore) -> Result<CommandOutput, anyhow::Error> {
-        let cmd_result = Ok(match self {
+        
+
+        Ok(match self {
             KeyToolCommand::Convert { value } => {
                 let result = convert_private_key_to_bech32(value)?;
                 CommandOutput::Convert(result)
@@ -1405,9 +1407,7 @@ impl KeyToolCommand {
                *         _ => CommandOutput::Error("Not a zkLogin signature".to_string()),
                *     }
                * } */
-        });
-
-        cmd_result
+        })
     }
 }
 

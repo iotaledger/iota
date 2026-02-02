@@ -168,7 +168,9 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
             parameters.additional_gas_accounts
         );
 
-        let iota_command = self.run_binary_command(
+        
+
+        self.run_binary_command(
             "iota",
             &[&format!("mkdir -p {working_dir}")],
             &[
@@ -178,9 +180,7 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                 &chain_start_timestamp_flag,
                 &additional_gas_accounts_flag,
             ],
-        );
-
-        iota_command
+        )
     }
 
     fn monitor_command<I>(&self, _instances: I) -> Vec<(Instance, String)>

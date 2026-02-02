@@ -164,7 +164,8 @@ fn parse_specified_connections<'a>(
 
 fn get_blocks(slot: Slot, dag_builder: &DagBuilder) -> Vec<BlockRef> {
     // note: special case for genesis blocks as they are cached separately
-    let block_refs = if slot.round == 0 {
+    
+    if slot.round == 0 {
         dag_builder
             .genesis_block_refs()
             .into_iter()
@@ -176,8 +177,7 @@ fn get_blocks(slot: Slot, dag_builder: &DagBuilder) -> Vec<BlockRef> {
             .iter()
             .map(|block| block.reference())
             .collect::<Vec<_>>()
-    };
-    block_refs
+    }
 }
 
 fn parse_author_and_connections(input: &str) -> IResult<&str, (AuthorityIndex, Vec<&str>)> {

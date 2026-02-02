@@ -260,8 +260,8 @@ impl DagState {
                 state.context.clone(),
             );
 
-        if state.gc_enabled() {
-            if let Some(last_commit) = last_commit {
+        if state.gc_enabled()
+            && let Some(last_commit) = last_commit {
                 let mut index = last_commit.index();
                 let gc_round = state.gc_round();
                 info!(
@@ -307,7 +307,6 @@ impl DagState {
                     }
                 }
             }
-        }
 
         state
     }

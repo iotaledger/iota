@@ -1174,8 +1174,8 @@ impl IotaClientCommands {
                 )
                 .await?;
 
-                if let IotaClientCommandResult::TransactionBlock(ref response) = result {
-                    if let Err(e) = iota_package_management::update_lock_file(
+                if let IotaClientCommandResult::TransactionBlock(ref response) = result
+                    && let Err(e) = iota_package_management::update_lock_file(
                         context,
                         LockCommand::Upgrade,
                         build_config.install_dir,
@@ -1183,14 +1183,13 @@ impl IotaClientCommands {
                         response,
                     )
                     .await
-                    {
-                        eprintln!(
-                            "{} {e}",
-                            "Warning: Issue while updating `Move.lock` for published package."
-                                .bold()
-                                .yellow()
-                        )
-                    };
+                {
+                    eprintln!(
+                        "{} {e}",
+                        "Warning: Issue while updating `Move.lock` for published package."
+                            .bold()
+                            .yellow()
+                    )
                 };
                 result
             }
@@ -1294,8 +1293,8 @@ impl IotaClientCommands {
                 )
                 .await?;
 
-                if let IotaClientCommandResult::TransactionBlock(ref response) = result {
-                    if let Err(e) = iota_package_management::update_lock_file(
+                if let IotaClientCommandResult::TransactionBlock(ref response) = result
+                    && let Err(e) = iota_package_management::update_lock_file(
                         context,
                         LockCommand::Publish,
                         build_config.install_dir,
@@ -1303,14 +1302,13 @@ impl IotaClientCommands {
                         response,
                     )
                     .await
-                    {
-                        eprintln!(
-                            "{} {e}",
-                            "Warning: Issue while updating `Move.lock` for published package."
-                                .bold()
-                                .yellow()
-                        )
-                    };
+                {
+                    eprintln!(
+                        "{} {e}",
+                        "Warning: Issue while updating `Move.lock` for published package."
+                            .bold()
+                            .yellow()
+                    )
                 };
                 result
             }
@@ -2376,17 +2374,17 @@ pub(crate) async fn compile_package(
         }
     }
 
-    if !compiled_package.is_system_package() {
-        if let Some(already_published) = compiled_package.published_root_module() {
-            return Err(IotaError::ModulePublishFailure {
-                error: format!(
-                    "Modules must all have 0x0 as their addresses. \
+    if !compiled_package.is_system_package()
+        && let Some(already_published) = compiled_package.published_root_module()
+    {
+        return Err(IotaError::ModulePublishFailure {
+            error: format!(
+                "Modules must all have 0x0 as their addresses. \
                      Violated by module {:?}",
-                    already_published.self_id(),
-                ),
-            }
-            .into());
+                already_published.self_id(),
+            ),
         }
+        .into());
     }
     if with_unpublished_dependencies {
         compiled_package.verify_unpublished_dependencies(&dependencies.unpublished)?;
@@ -3606,13 +3604,12 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
 
         let mut signatures = vec![signature];
 
-        if let Some(gas_sponsor) = gas_sponsor {
-            if gas_sponsor != signer {
-                let signature =
-                    sign_transaction(context, &tx_data, &gas_sponsor, auth_args).await?;
+        if let Some(gas_sponsor) = gas_sponsor
+            && gas_sponsor != signer
+        {
+            let signature = sign_transaction(context, &tx_data, &gas_sponsor, auth_args).await?;
 
-                signatures.push(signature);
-            }
+            signatures.push(signature);
         }
 
         let sender_signed_data = SenderSignedData::new(tx_data, signatures);
@@ -3686,10 +3683,10 @@ pub(crate) async fn prerender_clever_errors(
     read_api: &ReadApi,
 ) {
     let IotaTransactionBlockEffects::V1(effects) = effects;
-    if let IotaExecutionStatus::Failure { error } = &mut effects.status {
-        if let Some(rendered) = render_clever_error_opt(error, read_api).await {
-            *error = rendered;
-        }
+    if let IotaExecutionStatus::Failure { error } = &mut effects.status
+        && let Some(rendered) = render_clever_error_opt(error, read_api).await
+    {
+        *error = rendered;
     }
 }
 

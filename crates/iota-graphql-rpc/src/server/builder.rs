@@ -651,7 +651,7 @@ async fn subscription_handler(
         Err(err) => return err.into_response(),
     };
 
-    let resp = upgrade
+    upgrade
         .protocols(ALL_WEBSOCKET_PROTOCOLS)
         .on_upgrade(move |stream| async move {
             // create connection data with per-connection values
@@ -667,8 +667,7 @@ async fn subscription_handler(
             let connection =
                 GraphQLWebSocket::new(stream, schema, protocol).with_data(connection_data);
             connection.serve().await;
-        });
-    resp
+        })
 }
 
 #[derive(Clone)]

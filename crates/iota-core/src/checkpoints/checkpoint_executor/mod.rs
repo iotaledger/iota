@@ -184,8 +184,8 @@ impl CheckpointExecutor {
             .get_highest_executed_checkpoint()
             .unwrap();
 
-        if let Some(highest_executed) = &highest_executed {
-            if self.epoch_store.epoch() == highest_executed.epoch()
+        if let Some(highest_executed) = &highest_executed
+            && self.epoch_store.epoch() == highest_executed.epoch()
                 && highest_executed.is_last_checkpoint_of_epoch()
             {
                 // We can arrive at this point if we bump the highest_executed_checkpoint
@@ -193,7 +193,6 @@ impl CheckpointExecutor {
                 info!(seq = ?highest_executed.sequence_number, "final checkpoint of epoch has already been executed");
                 return None;
             }
-        }
 
         Some(
             highest_executed

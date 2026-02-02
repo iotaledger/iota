@@ -487,12 +487,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 },
                 () = &mut scheduler_timeout => {
                     // we want to start a new task only if the previous one has already finished.
-                    if self.fetch_blocks_scheduler_task.is_empty() {
-                        if let Err(err) = self.start_fetch_missing_blocks_task().await {
+                    if self.fetch_blocks_scheduler_task.is_empty()
+                        && let Err(err) = self.start_fetch_missing_blocks_task().await {
                             debug!("Core is shutting down, synchronizer is shutting down: {err:?}");
                             return;
                         };
-                    }
 
                     scheduler_timeout
                         .as_mut()
@@ -2748,11 +2747,10 @@ mod tests {
         );
 
         // Ensure that no panic occurred
-        if let Err(err) = handle.stop().await {
-            if err.is_panic() {
+        if let Err(err) = handle.stop().await
+            && err.is_panic() {
                 std::panic::resume_unwind(err.into_panic());
             }
-        }
     }
     #[derive(Default)]
     struct SyncMockDispatcher {

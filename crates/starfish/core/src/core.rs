@@ -1072,11 +1072,10 @@ impl Core {
                 if ancestor.author() == self.context.own_index {
                     return None;
                 }
-                if let Some(last_block_ref) = self.last_included_ancestors[ancestor.author()] {
-                    if last_block_ref.round >= ancestor.round() {
+                if let Some(last_block_ref) = self.last_included_ancestors[ancestor.author()]
+                    && last_block_ref.round >= ancestor.round() {
                         return None;
                     }
-                }
                 Some(ancestor)
             }))
             .collect::<Vec<_>>();

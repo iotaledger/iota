@@ -618,8 +618,8 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         info_length: usize,
         key: &(BlockRef, TransactionsCommitment),
     ) -> ConsensusResult<()> {
-        if let Some(acc) = accumulators.get(key) {
-            if acc.is_ready_to_reconstruct(info_length) {
+        if let Some(acc) = accumulators.get(key)
+            && acc.is_ready_to_reconstruct(info_length) {
                 // take ownership out of map
                 let acc = accumulators
                     .remove(key)
@@ -630,7 +630,6 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                     .map_err(|_| ConsensusError::AccumulatorSenderClosed)?;
                 reconstruction_queue.insert(key.0);
             }
-        }
         Ok(())
     }
 }

@@ -626,8 +626,8 @@ impl CordialKnowledge {
 
                 let parent_author_map = &mut self.cordial_knowledge[parent_author];
 
-                if let Some(parent_round_map) = parent_author_map.get_mut(&parent_round) {
-                    if let Some((_, who_knows_parent)) = parent_round_map.get_mut(&parent_digest) {
+                if let Some(parent_round_map) = parent_author_map.get_mut(&parent_round)
+                    && let Some((_, who_knows_parent)) = parent_round_map.get_mut(&parent_digest) {
                         // Mark that block_author now knows this parent
                         if who_knows_parent.insert(block_author) {
                             vec_knowledge_msgs[block_author].push(
@@ -638,7 +638,6 @@ impl CordialKnowledge {
                             stack.push(*parent_ref);
                         }
                     }
-                }
             }
         }
         Some(vec_knowledge_msgs)

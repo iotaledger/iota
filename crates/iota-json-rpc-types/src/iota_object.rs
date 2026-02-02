@@ -417,13 +417,11 @@ impl TryFrom<&IotaMoveStruct> for GasCoin {
     fn try_from(move_struct: &IotaMoveStruct) -> Result<Self, Self::Error> {
         match move_struct {
             IotaMoveStruct::WithFields(fields) | IotaMoveStruct::WithTypes { type_: _, fields } => {
-                if let Some(IotaMoveValue::String(balance)) = fields.get("balance") {
-                    if let Ok(balance) = balance.parse::<u64>() {
-                        if let Some(IotaMoveValue::UID { id }) = fields.get("id") {
+                if let Some(IotaMoveValue::String(balance)) = fields.get("balance")
+                    && let Ok(balance) = balance.parse::<u64>()
+                        && let Some(IotaMoveValue::UID { id }) = fields.get("id") {
                             return Ok(GasCoin::new(*id, balance));
                         }
-                    }
-                }
             }
             _ => {}
         }

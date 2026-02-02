@@ -53,8 +53,8 @@ impl Extension for FeatureGate {
         // `ServiceConfig` from the `Context`). This is (probably) required to
         // hide disabled types and interfaces in the schema.
 
-        if let Some(group) = functional_group(parent_type, name) {
-            if disabled_features.contains(&group) {
+        if let Some(group) = functional_group(parent_type, name)
+            && disabled_features.contains(&group) {
                 return if *is_for_introspection {
                     Ok(None)
                 } else {
@@ -71,7 +71,6 @@ impl Extension for FeatureGate {
                     ))
                 };
             }
-        }
 
         next.run(ctx, info).await
     }

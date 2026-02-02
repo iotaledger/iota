@@ -144,7 +144,9 @@ impl SnapshotPipeline {
         remote_store_url: Option<String>,
         reader_options: ReaderOptions,
     ) -> JoinHandle<IndexerResult<()>> {
-        let handle = tokio::spawn(async move {
+        
+
+        tokio::spawn(async move {
             wait_for_initial_snapshot_lag(&self.writer, &self.cancel).await?;
             let cancel_clone = self.cancel.clone();
 
@@ -188,9 +190,7 @@ impl SnapshotPipeline {
             }
 
             Ok(())
-        });
-
-        handle
+        })
     }
 }
 

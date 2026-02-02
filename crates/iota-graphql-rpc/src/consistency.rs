@@ -188,7 +188,7 @@ pub(crate) fn build_objects_query(
             ))
             .group_by("object_id");
 
-            let history_objs = query!(
+            query!(
                 r#"WITH history_window AS ({}),
                     newest AS ({})
                     SELECT candidates.* FROM history_window candidates
@@ -197,8 +197,7 @@ pub(crate) fn build_objects_query(
                     AND candidates.object_version = newest.max_version"#,
                 history_window,
                 newest
-            );
-            history_objs
+            )
         }
         View::Historical => {
             // The cursor pagination logic refers to the table with the `candidates` alias

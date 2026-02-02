@@ -74,12 +74,12 @@ pub fn scale_amount_for_iota(amount: u64) -> Result<u64> {
 // Check if the output is basic and has a feature Tag using the Participation
 // Tag: https://github.com/iota-community/treasury/blob/main/specifications/hornet-participation-plugin.md
 pub fn is_participation_output(output: &Output) -> bool {
-    if let Some(feat) = output.features() {
-        if output.is_basic() && !feat.is_empty() {
-            if let Some(tag) = feat.tag() {
-                return tag.to_string() == Hex::encode_with_format(PARTICIPATION_TAG);
-            };
-        }
+    if let Some(feat) = output.features()
+        && output.is_basic()
+        && !feat.is_empty()
+        && let Some(tag) = feat.tag()
+    {
+        return tag.to_string() == Hex::encode_with_format(PARTICIPATION_TAG);
     };
     false
 }
@@ -199,68 +199,68 @@ where
     /// SwapSplit filter if that's the case.
     fn next(&mut self) -> Option<Self::Item> {
         for mut output in self.outputs.by_ref() {
-            if let Ok((header, inner)) = &mut output {
-                if let Output::Basic(basic_output) = inner {
-                    let uc = basic_output.unlock_conditions();
-                    // Only for outputs with timelock and/or address unlock conditions (and not
-                    // holding native tokens) the SwapSplit operation can be performed
-                    if uc.storage_deposit_return().is_none()
-                        && uc.expiration().is_none()
-                        && basic_output.native_tokens().is_empty()
+            if let Ok((header, inner)) = &mut output
+                && let Output::Basic(basic_output) = inner
+            {
+                let uc = basic_output.unlock_conditions();
+                // Only for outputs with timelock and/or address unlock conditions (and not
+                // holding native tokens) the SwapSplit operation can be performed
+                if uc.storage_deposit_return().is_none()
+                    && uc.expiration().is_none()
+                    && basic_output.native_tokens().is_empty()
+                {
+                    // Now check if the addressUC's address is to swap
+                    if let Some(destinations) = self
+                        .swap_split_map
+                        .get_destination_maybe_mut(uc.address().unwrap().address())
                     {
-                        // Now check if the addressUC's address is to swap
-                        if let Some(destinations) = self
-                            .swap_split_map
-                            .get_destination_maybe_mut(uc.address().unwrap().address())
-                        {
-                            if uc.timelock().is_some() {
-                                // If the output has a timelock UC (and it is a vested reward) and
-                                // at least one destination requires some timelocked tokens, then
-                                // store it as a candidate and continue with the iterator
-                                if is_vested_reward(header.output_id(), basic_output)
-                                    && destinations.contains_tokens_timelocked_target()
-                                {
-                                    // Here we store all the timelocked basic outputs we find,
-                                    // because we need all the ones owned by the origin address
-                                    // sorted by the unlocking timestamp; outside this loop,
-                                    // i.e., once all have been collected, we'll start the
-                                    // SwapSplit operation in order, starting from the one that
-                                    // unlocks later in time.
-                                    self.timelock_candidates.insert(TimelockOrderedOutput {
-                                        header: header.clone(),
-                                        output: inner.clone(),
-                                    });
-                                    continue;
-                                }
+                        if uc.timelock().is_some() {
+                            // If the output has a timelock UC (and it is a vested reward) and
+                            // at least one destination requires some timelocked tokens, then
+                            // store it as a candidate and continue with the iterator
+                            if is_vested_reward(header.output_id(), basic_output)
+                                && destinations.contains_tokens_timelocked_target()
+                            {
+                                // Here we store all the timelocked basic outputs we find,
+                                // because we need all the ones owned by the origin address
+                                // sorted by the unlocking timestamp; outside this loop,
+                                // i.e., once all have been collected, we'll start the
+                                // SwapSplit operation in order, starting from the one that
+                                // unlocks later in time.
+                                self.timelock_candidates.insert(TimelockOrderedOutput {
+                                    header: header.clone(),
+                                    output: inner.clone(),
+                                });
+                                continue;
+                            }
+                        } else {
+                            // If it is just a basic output, try to perform the SwapSplit
+                            // operation for several destinations once all tokens targets are
+                            // meet.
+                            let (original_output_opt, split_outputs) = swap_split_operation(
+                                destinations.iter_by_tokens_target_mut_filtered(),
+                                basic_output,
+                            );
+                            // If some SwapSplit were performed, their result are basic inputs
+                            // stored in split_outputs; so, we save them in
+                            // split_basic_outputs to return them later
+                            if !split_outputs.is_empty() {
+                                self.num_swapped_basic += 1;
+                            }
+                            self.split_basic_outputs.extend(
+                                split_outputs
+                                    .into_iter()
+                                    .map(|output| (header.clone(), output)),
+                            );
+                            // If there was a remainder, the original output is returned for the
+                            // iterator, possibly with a modified amount; else, continue the
+                            // loop
+                            if let Some(original_output) = original_output_opt {
+                                *inner = original_output;
                             } else {
-                                // If it is just a basic output, try to perform the SwapSplit
-                                // operation for several destinations once all tokens targets are
-                                // meet.
-                                let (original_output_opt, split_outputs) = swap_split_operation(
-                                    destinations.iter_by_tokens_target_mut_filtered(),
-                                    basic_output,
-                                );
-                                // If some SwapSplit were performed, their result are basic inputs
-                                // stored in split_outputs; so, we save them in
-                                // split_basic_outputs to return them later
-                                if !split_outputs.is_empty() {
-                                    self.num_swapped_basic += 1;
-                                }
-                                self.split_basic_outputs.extend(
-                                    split_outputs
-                                        .into_iter()
-                                        .map(|output| (header.clone(), output)),
-                                );
-                                // If there was a remainder, the original output is returned for the
-                                // iterator, possibly with a modified amount; else, continue the
-                                // loop
-                                if let Some(original_output) = original_output_opt {
-                                    *inner = original_output;
-                                } else {
-                                    continue;
-                                }
-                            };
-                        }
+                                continue;
+                            }
+                        };
                     }
                 }
             }
@@ -495,20 +495,19 @@ where
     /// processing only if the output is an unlocked vesting one
     fn next(&mut self) -> Option<Self::Item> {
         for output in self.outputs.by_ref() {
-            if let Ok((header, inner)) = &output {
-                if let Some(address) =
+            if let Ok((header, inner)) = &output
+                && let Some(address) =
                     get_address_if_vesting_output(header, inner, self.snapshot_timestamp_s)
-                {
-                    self.vesting_outputs.push(header.output_id());
-                    self.unlocked_address_balances
-                        .entry(address)
-                        .and_modify(|x| x.balance += inner.amount())
-                        .or_insert(OutputHeaderWithBalance {
-                            output_header: header.clone(),
-                            balance: inner.amount(),
-                        });
-                    continue;
-                }
+            {
+                self.vesting_outputs.push(header.output_id());
+                self.unlocked_address_balances
+                    .entry(address)
+                    .and_modify(|x| x.balance += inner.amount())
+                    .or_insert(OutputHeaderWithBalance {
+                        output_header: header.clone(),
+                        balance: inner.amount(),
+                    });
+                continue;
             }
             return Some(output);
         }
@@ -567,21 +566,21 @@ where
     /// processing only if the output has a participation tag
     fn next(&mut self) -> Option<Self::Item> {
         let mut output = self.outputs.next()?;
-        if let Ok((header, inner)) = &mut output {
-            if is_participation_output(inner) {
-                self.participation_outputs.push(header.output_id());
-                let basic_output = inner.as_basic();
-                // replace the inner output
-                *inner = BasicOutputBuilder::from(basic_output)
-                    .with_features(
-                        vec![basic_output.features().get(SenderFeature::KIND).cloned()]
-                            .into_iter()
-                            .flatten(),
-                    )
-                    .finish()
-                    .expect("failed to create basic output")
-                    .into()
-            }
+        if let Ok((header, inner)) = &mut output
+            && is_participation_output(inner)
+        {
+            self.participation_outputs.push(header.output_id());
+            let basic_output = inner.as_basic();
+            // replace the inner output
+            *inner = BasicOutputBuilder::from(basic_output)
+                .with_features(
+                    vec![basic_output.features().get(SenderFeature::KIND).cloned()]
+                        .into_iter()
+                        .flatten(),
+                )
+                .finish()
+                .expect("failed to create basic output")
+                .into()
         }
         Some(output)
     }

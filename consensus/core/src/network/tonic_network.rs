@@ -723,13 +723,11 @@ impl<S: NetworkService> NetworkManager<S> for TonicManager {
             .map_request(move |mut request: http::Request<_>| {
                 if let Some(peer_certificates) =
                     request.extensions().get::<iota_http::PeerCertificates>()
-                {
-                    if let Some(peer_info) =
+                    && let Some(peer_info) =
                         peer_info_from_certs(&connections_info, peer_certificates)
                     {
                         request.extensions_mut().insert(peer_info);
                     }
-                }
                 request
             })
             .layer(CallbackLayer::new(MetricsCallbackMaker::new(
