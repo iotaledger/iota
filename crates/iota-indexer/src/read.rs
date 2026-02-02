@@ -1653,12 +1653,12 @@ impl IndexerReader {
         } else {
             let main_where_clause = match filter {
                 EventFilter::Package(package_id) => {
-                    format!("package = '\\x{}'::bytea", package_id.to_hex())
+                    format!("package = '\\x{}'::bytea", package_id.to_raw_hex())
                 }
                 EventFilter::MoveModule { package, module } => {
                     format!(
                         "package = '\\x{}'::bytea AND module = '{}'",
-                        package.to_hex(),
+                        package.to_raw_hex(),
                         module,
                     )
                 }
