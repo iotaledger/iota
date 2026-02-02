@@ -854,7 +854,7 @@
           "name": "package",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -937,7 +937,7 @@
           "name": "package",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -1016,7 +1016,7 @@
           "name": "package",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -1074,7 +1074,7 @@
           "name": "package",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         }
       ],
@@ -1124,7 +1124,7 @@
           "name": "package",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -1196,7 +1196,7 @@
           "description": "the ID of the queried object",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -2448,7 +2448,7 @@
           "schema": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ObjectID"
+              "$ref": "#/components/schemas/ObjectId"
             }
           }
         },
@@ -3056,7 +3056,7 @@
           "description": "the ID of the queried object",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -3379,7 +3379,7 @@
           "name": "cursor",
           "description": "optional paging cursor",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -3396,7 +3396,7 @@
         "name": "CoinPage",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_Coin_and_ObjectID"
+          "$ref": "#/components/schemas/Page_for_Coin_and_ObjectId"
         }
       },
       "examples": [
@@ -3654,7 +3654,7 @@
           "name": "cursor",
           "description": "optional paging cursor",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -3671,7 +3671,7 @@
         "name": "CoinPage",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_Coin_and_ObjectID"
+          "$ref": "#/components/schemas/Page_for_Coin_and_ObjectId"
         }
       },
       "examples": [
@@ -3822,7 +3822,7 @@
           "description": "The ID of the queried parent object",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -3895,7 +3895,7 @@
           "description": "The ID of the queried parent object",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -3936,14 +3936,14 @@
           "description": "The ID of the parent object",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
           "name": "cursor",
           "description": "An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -3960,7 +3960,7 @@
         "name": "DynamicFieldPage",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_DynamicFieldInfo_and_ObjectID"
+          "$ref": "#/components/schemas/Page_for_DynamicFieldInfo_and_ObjectId"
         }
       },
       "examples": [
@@ -4236,7 +4236,7 @@
           "name": "cursor",
           "description": "An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -4253,7 +4253,7 @@
         "name": "ObjectsPage",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectID"
+          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectId"
         }
       },
       "examples": [
@@ -4488,7 +4488,7 @@
           "schema": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ObjectID"
+              "$ref": "#/components/schemas/ObjectId"
             }
           }
         }
@@ -4585,7 +4585,7 @@
           "schema": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ObjectID"
+              "$ref": "#/components/schemas/ObjectId"
             }
           }
         }
@@ -4723,7 +4723,7 @@
         {
           "name": "cursor",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -4745,7 +4745,7 @@
         "name": "ObjectsPage",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectID"
+          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectId"
         }
       }
     },
@@ -5136,7 +5136,7 @@
           "name": "gas",
           "description": "gas object to be used in this transaction, node will pick one from the signer's possession if not provided",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -5185,7 +5185,7 @@
           "description": "the coin object to merge into, this coin will remain after the transaction",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -5193,14 +5193,14 @@
           "description": "the coin object to be merged, this coin will be destroyed, the balance will be added to `primary_coin`",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
           "name": "gas",
           "description": "gas object to be used in this transaction, node will pick one from the signer's possession if not provided",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -5242,7 +5242,7 @@
           "description": "the Move package ID, e.g. `0x2`",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -5287,7 +5287,7 @@
           "name": "gas",
           "description": "gas object to be used in this transaction, node will pick one from the signer's possession if not provided",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -5338,7 +5338,7 @@
           "schema": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ObjectID"
+              "$ref": "#/components/schemas/ObjectId"
             }
           }
         },
@@ -5368,7 +5368,7 @@
           "name": "gas",
           "description": "gas object to be used in this transaction, node will pick one from the signer's possession if not provided",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -5412,7 +5412,7 @@
           "schema": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ObjectID"
+              "$ref": "#/components/schemas/ObjectId"
             }
           }
         },
@@ -5465,7 +5465,7 @@
           "schema": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ObjectID"
+              "$ref": "#/components/schemas/ObjectId"
             }
           }
         },
@@ -5543,7 +5543,7 @@
           "schema": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ObjectID"
+              "$ref": "#/components/schemas/ObjectId"
             }
           }
         },
@@ -5551,7 +5551,7 @@
           "name": "gas",
           "description": "gas object to be used in this transaction, node will pick one from the signer's possession if not provided",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -5595,7 +5595,7 @@
           "schema": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ObjectID"
+              "$ref": "#/components/schemas/ObjectId"
             }
           }
         },
@@ -5618,7 +5618,7 @@
           "name": "gas",
           "description": "gas object to be used in this transaction, node will pick one from the signer's possession if not provided",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -5660,7 +5660,7 @@
           "description": "TimeLock<Balance<IOTA>> object to stake",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -5676,7 +5676,7 @@
           "description": "gas object to be used in this transaction",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -5718,14 +5718,14 @@
           "description": "StakedIota object ID",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
           "name": "gas",
           "description": "gas object to be used in this transaction, node will pick one from the signer's possession if not provided",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -5767,7 +5767,7 @@
           "description": "TimelockedStakedIota object ID",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -5775,7 +5775,7 @@
           "description": "gas object to be used in this transaction",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -5817,7 +5817,7 @@
           "description": "the coin object to be spilt",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -5835,7 +5835,7 @@
           "name": "gas",
           "description": "gas object to be used in this transaction, node will pick one from the signer's possession if not provided",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -5877,7 +5877,7 @@
           "description": "the coin object to be spilt",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -5892,7 +5892,7 @@
           "name": "gas",
           "description": "gas object to be used in this transaction, node will pick one from the signer's possession if not provided",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -5934,7 +5934,7 @@
           "description": "the IOTA coin object to be used in this transaction",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -5991,14 +5991,14 @@
           "description": "the ID of the object to be transferred",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
           "name": "gas",
           "description": "gas object to be used in this transaction, node will pick one from the signer's possession if not provided",
           "schema": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         },
         {
@@ -6382,7 +6382,7 @@
             "$ref": "#/components/schemas/BigInt_for_uint64"
           },
           "coinObjectId": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           },
           "coinType": {
             "type": "string"
@@ -6530,7 +6530,7 @@
                         "type": "array",
                         "items": [
                           {
-                            "$ref": "#/components/schemas/ObjectID"
+                            "$ref": "#/components/schemas/ObjectId"
                           },
                           {
                             "type": "integer",
@@ -6615,7 +6615,7 @@
             "description": "Staking pool object id.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             ]
           },
@@ -6644,7 +6644,7 @@
             }
           },
           "stakingPool": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           },
           "validatorAddress": {
             "$ref": "#/components/schemas/Address"
@@ -6676,7 +6676,7 @@
               "type": "array",
               "items": [
                 {
-                  "$ref": "#/components/schemas/ObjectID"
+                  "$ref": "#/components/schemas/ObjectId"
                 },
                 {
                   "type": "integer",
@@ -6919,7 +6919,7 @@
             "$ref": "#/components/schemas/DynamicFieldName"
           },
           "objectId": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           },
           "objectType": {
             "type": "string"
@@ -7278,7 +7278,7 @@
             "description": "Move package where this event was emitted.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             ]
           },
@@ -7350,7 +7350,7 @@
             ],
             "properties": {
               "Package": {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             },
             "additionalProperties": false
@@ -7377,7 +7377,7 @@
                     "description": "the Move package ID",
                     "allOf": [
                       {
-                        "$ref": "#/components/schemas/ObjectID"
+                        "$ref": "#/components/schemas/ObjectId"
                       }
                     ]
                   }
@@ -7421,7 +7421,7 @@
                     "description": "the Move package ID",
                     "allOf": [
                       {
-                        "$ref": "#/components/schemas/ObjectID"
+                        "$ref": "#/components/schemas/ObjectId"
                       }
                     ]
                   }
@@ -7777,7 +7777,7 @@
             "description": "the ID of the queried object",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             ]
           },
@@ -7791,10 +7791,6 @@
           }
         }
       },
-      "Hex": {
-        "description": "Hex string encoding.",
-        "type": "string"
-      },
       "InputObjectKind": {
         "oneOf": [
           {
@@ -7804,7 +7800,7 @@
             ],
             "properties": {
               "MovePackage": {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             },
             "additionalProperties": false
@@ -7835,7 +7831,7 @@
                 ],
                 "properties": {
                   "id": {
-                    "$ref": "#/components/schemas/ObjectID"
+                    "$ref": "#/components/schemas/ObjectId"
                   },
                   "initial_shared_version": {
                     "$ref": "#/components/schemas/SequenceNumber"
@@ -7968,7 +7964,7 @@
                     "$ref": "#/components/schemas/ObjectDigest"
                   },
                   "objectId": {
-                    "$ref": "#/components/schemas/ObjectID"
+                    "$ref": "#/components/schemas/ObjectId"
                   },
                   "objectType": {
                     "type": "string",
@@ -7997,7 +7993,7 @@
                     "type": "boolean"
                   },
                   "objectId": {
-                    "$ref": "#/components/schemas/ObjectID"
+                    "$ref": "#/components/schemas/ObjectId"
                   },
                   "objectType": {
                     "type": "string",
@@ -8020,7 +8016,7 @@
                     "$ref": "#/components/schemas/ObjectDigest"
                   },
                   "objectId": {
-                    "$ref": "#/components/schemas/ObjectID"
+                    "$ref": "#/components/schemas/ObjectId"
                   },
                   "objectType": {
                     "type": "string",
@@ -8207,7 +8203,7 @@
             "description": "Object id for the CoinMetadata object",
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               },
               {
                 "type": "null"
@@ -8736,7 +8732,7 @@
             "description": "The ID of the registration NFT assigned to this record.\n\nThe owner of the corresponding NFT has the rights to be able to change and adjust the `target_address` of this name.\n\nIt is possible that the ID changes if the record expires and is purchased by someone else.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             ]
           },
@@ -8808,7 +8804,7 @@
             ],
             "properties": {
               "Package": {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             },
             "additionalProperties": false
@@ -8835,7 +8831,7 @@
                     "description": "the Move package ID",
                     "allOf": [
                       {
-                        "$ref": "#/components/schemas/ObjectID"
+                        "$ref": "#/components/schemas/ObjectId"
                       }
                     ]
                   }
@@ -8876,7 +8872,7 @@
             ],
             "properties": {
               "ObjectOwner": {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             },
             "additionalProperties": false
@@ -8888,7 +8884,7 @@
             ],
             "properties": {
               "ObjectId": {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             },
             "additionalProperties": false
@@ -8902,7 +8898,7 @@
               "ObjectIds": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/ObjectID"
+                  "$ref": "#/components/schemas/ObjectId"
                 }
               }
             },
@@ -8975,7 +8971,7 @@
             "description": "The package containing the module and function.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             ]
           },
@@ -9109,7 +9105,7 @@
             "description": "ID of the object that maps from a staking pool ID to the inactive validator that has that pool as its staking pool.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             ]
           },
@@ -9133,7 +9129,7 @@
             "description": "The `TreasuryCap<IOTA>` object ID.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             ]
           },
@@ -9165,7 +9161,7 @@
             "description": "ID of the object that contains the list of new validators that will join at the end of the epoch.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             ]
           },
@@ -9240,7 +9236,7 @@
             "description": "ID of the object that maps from staking pool's ID to the iota address of a validator.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             ]
           },
@@ -9288,7 +9284,7 @@
             "description": "ID of the object that stores preactive validators, mapping their addresses to their `Validator` structs.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             ]
           },
@@ -9447,7 +9443,7 @@
             "description": "ID of the object that maps from a staking pool ID to the inactive validator that has that pool as its staking pool.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             ]
           },
@@ -9471,7 +9467,7 @@
             "description": "The `TreasuryCap<IOTA>` object ID.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             ]
           },
@@ -9503,7 +9499,7 @@
             "description": "ID of the object that contains the list of new validators that will join at the end of the epoch.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             ]
           },
@@ -9586,7 +9582,7 @@
             "description": "ID of the object that maps from staking pool's ID to the iota address of a validator.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             ]
           },
@@ -9634,7 +9630,7 @@
             "description": "ID of the object that stores preactive validators, mapping their addresses to their `Validator` structs.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             ]
           },
@@ -9796,7 +9792,7 @@
               "Publish": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/ObjectID"
+                  "$ref": "#/components/schemas/ObjectId"
                 }
               }
             },
@@ -9815,11 +9811,11 @@
                   {
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/ObjectID"
+                      "$ref": "#/components/schemas/ObjectId"
                     }
                   },
                   {
-                    "$ref": "#/components/schemas/ObjectID"
+                    "$ref": "#/components/schemas/ObjectId"
                   },
                   {
                     "$ref": "#/components/schemas/IotaArgument"
@@ -9950,7 +9946,7 @@
             "description": "ID of the exchange rate table object.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             ]
           },
@@ -10052,7 +10048,7 @@
             "$ref": "#/components/schemas/BigInt_for_uint64"
           },
           "operationCapId": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           },
           "p2pAddress": {
             "type": "string"
@@ -10137,7 +10133,7 @@
             "description": "ID of the staking pool object.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             ]
           },
@@ -10273,7 +10269,7 @@
             "type": "string"
           },
           "packageObjectId": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           },
           "typeArguments": {
             "default": [],
@@ -10327,7 +10323,7 @@
             "description": "The package ID to which the function belongs.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             ]
           }
@@ -10396,7 +10392,7 @@
             ],
             "properties": {
               "id": {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             }
           },
@@ -10677,7 +10673,7 @@
                 }
               },
               "packageId": {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               },
               "type": {
                 "type": "string",
@@ -10707,7 +10703,7 @@
                 "$ref": "#/components/schemas/ObjectDigest"
               },
               "objectId": {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               },
               "objectType": {
                 "type": "string"
@@ -10747,7 +10743,7 @@
                 "$ref": "#/components/schemas/ObjectDigest"
               },
               "objectId": {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               },
               "objectType": {
                 "type": "string"
@@ -10784,7 +10780,7 @@
             ],
             "properties": {
               "objectId": {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               },
               "objectType": {
                 "type": "string"
@@ -10815,7 +10811,7 @@
             ],
             "properties": {
               "objectId": {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               },
               "objectType": {
                 "type": "string"
@@ -10851,7 +10847,7 @@
                 "$ref": "#/components/schemas/ObjectDigest"
               },
               "objectId": {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               },
               "objectType": {
                 "type": "string"
@@ -10925,7 +10921,7 @@
             ]
           },
           "objectId": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           },
           "owner": {
             "description": "The owner of this object. Default to be None unless IotaObjectDataOptions.showOwner is set to true",
@@ -11020,8 +11016,13 @@
       "ObjectDigest": {
         "$ref": "#/components/schemas/Digest"
       },
-      "ObjectID": {
-        "$ref": "#/components/schemas/Hex"
+      "ObjectId": {
+        "description": "An `ObjectId` is a 32-byte identifier used to uniquely identify an object on the IOTA blockchain.\n\n## Relationship to Address\n\n[`Address`]es and `ObjectId`s share the same 32-byte addressable space but are derived leveraging different domain-separator values to ensure, cryptographically, that there won't be any overlap, e.g. there can't be a valid `Object` whose `ObjectId` is equal to that of the `Address` of a user account.\n\n# BCS\n\nAn `ObjectId`'s BCS serialized form is defined by the following:\n\n```text object-id = 32*OCTET ```",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Address"
+          }
+        ]
       },
       "ObjectRead": {
         "oneOf": [
@@ -11053,7 +11054,7 @@
             ],
             "properties": {
               "details": {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               },
               "status": {
                 "type": "string",
@@ -11094,7 +11095,7 @@
                 "type": "array",
                 "items": [
                   {
-                    "$ref": "#/components/schemas/ObjectID"
+                    "$ref": "#/components/schemas/ObjectId"
                   },
                   {
                     "type": "integer",
@@ -11140,7 +11141,7 @@
                     "minimum": 0.0
                   },
                   "object_id": {
-                    "$ref": "#/components/schemas/ObjectID"
+                    "$ref": "#/components/schemas/ObjectId"
                   }
                 }
               },
@@ -11174,7 +11175,7 @@
             "description": "Hex code as string representing the object id",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             ]
           },
@@ -11202,7 +11203,7 @@
                 ]
               },
               "object_id": {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             }
           },
@@ -11220,7 +11221,7 @@
                 ]
               },
               "parent_object_id": {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             }
           },
@@ -11248,7 +11249,7 @@
                 ]
               },
               "object_id": {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               },
               "version": {
                 "description": "Object version.",
@@ -11434,7 +11435,7 @@
           }
         }
       },
-      "Page_for_Coin_and_ObjectID": {
+      "Page_for_Coin_and_ObjectId": {
         "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
         "type": "object",
         "required": [
@@ -11454,7 +11455,7 @@
           "nextCursor": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               },
               {
                 "type": "null"
@@ -11463,7 +11464,7 @@
           }
         }
       },
-      "Page_for_DynamicFieldInfo_and_ObjectID": {
+      "Page_for_DynamicFieldInfo_and_ObjectId": {
         "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
         "type": "object",
         "required": [
@@ -11483,7 +11484,7 @@
           "nextCursor": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               },
               {
                 "type": "null"
@@ -11579,7 +11580,7 @@
           }
         }
       },
-      "Page_for_IotaObjectResponse_and_ObjectID": {
+      "Page_for_IotaObjectResponse_and_ObjectId": {
         "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
         "type": "object",
         "required": [
@@ -11599,7 +11600,7 @@
           "nextCursor": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               },
               {
                 "type": "null"
@@ -11935,7 +11936,7 @@
                 ]
               },
               "id": {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               },
               "linkageTable": {
                 "type": "object",
@@ -12083,7 +12084,7 @@
             "description": "ID of the StakedIota receipt object.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             ]
           }
@@ -12177,7 +12178,7 @@
             "$ref": "#/components/schemas/BigInt_for_uint64"
           },
           "timelockedStakedIotaId": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           }
         }
       },
@@ -12402,7 +12403,7 @@
         ],
         "properties": {
           "objectId": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           },
           "sequenceNumber": {
             "$ref": "#/components/schemas/SequenceNumber"
@@ -12435,7 +12436,7 @@
               "objects": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/ObjectID"
+                  "$ref": "#/components/schemas/ObjectId"
                 }
               }
             }
@@ -12832,7 +12833,7 @@
                     ]
                   },
                   "package": {
-                    "$ref": "#/components/schemas/ObjectID"
+                    "$ref": "#/components/schemas/ObjectId"
                   }
                 }
               }
@@ -12847,7 +12848,7 @@
             ],
             "properties": {
               "InputObject": {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             },
             "additionalProperties": false
@@ -12860,7 +12861,7 @@
             ],
             "properties": {
               "ChangedObject": {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             },
             "additionalProperties": false
@@ -13009,7 +13010,7 @@
                     ]
                   },
                   "package": {
-                    "$ref": "#/components/schemas/ObjectID"
+                    "$ref": "#/components/schemas/ObjectId"
                   }
                 }
               }
@@ -13024,7 +13025,7 @@
             ],
             "properties": {
               "InputObject": {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             },
             "additionalProperties": false
@@ -13037,7 +13038,7 @@
             ],
             "properties": {
               "ChangedObject": {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             },
             "additionalProperties": false
@@ -13050,7 +13051,7 @@
             ],
             "properties": {
               "WrappedOrDeletedObject": {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             },
             "additionalProperties": false
@@ -13166,7 +13167,7 @@
         ],
         "properties": {
           "objectId": {
-            "$ref": "#/components/schemas/ObjectID"
+            "$ref": "#/components/schemas/ObjectId"
           },
           "recipient": {
             "$ref": "#/components/schemas/Address"
@@ -13215,7 +13216,7 @@
             "description": "`Storage ID`/`Package ID` of the referred package.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             ]
           },

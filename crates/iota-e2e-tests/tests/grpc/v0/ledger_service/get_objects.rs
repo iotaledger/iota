@@ -102,7 +102,7 @@ async fn get_objects_readmask_scenarios() {
 
     let mut ledger_client = client.ledger_service_client();
 
-    let object_id = ObjectID::from_hex_literal("0x5").unwrap().to_string();
+    let object_id = ObjectID::from_u16(0x5).to_string();
 
     // Tests for single-object readmask scenarios
     type TestCase<'a> = (&'a str, Option<FieldMask>, &'a [&'a str]);
@@ -208,7 +208,7 @@ async fn get_objects_with_version() {
 
     let mut ledger_client = client.ledger_service_client();
 
-    let object_id = ObjectID::from_hex_literal("0x5").unwrap().to_string();
+    let object_id = ObjectID::from_u16(0x5).to_string();
 
     // Request specific version
     let responses = assert_get_objects_request(

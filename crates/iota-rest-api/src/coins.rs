@@ -96,7 +96,7 @@ async fn get_coin_info(
                 )
             })?
             .map(|treasury| CoinTreasury {
-                id: treasury.id.id.bytes.into(),
+                id: treasury.id.id.bytes,
                 total_supply: treasury.total_supply.value,
             })
     } else if iota_types::gas_coin::GAS::is_gas(&core_coin_type) {
@@ -159,7 +159,7 @@ pub struct CoinMetadata {
 impl From<iota_types::coin::CoinMetadata> for CoinMetadata {
     fn from(value: iota_types::coin::CoinMetadata) -> Self {
         Self {
-            id: value.id.id.bytes.into(),
+            id: value.id.id.bytes,
             decimals: value.decimals,
             name: value.name,
             symbol: value.symbol,

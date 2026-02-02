@@ -51,7 +51,9 @@ use iota_types::{
     object::{Object, ObjectRead, PastObjectRead, bounded_visitor::BoundedVisitor},
 };
 use itertools::Itertools;
-use move_core_types::{annotated_value::MoveStructLayout, language_storage::StructTag};
+use move_core_types::{
+    account_address::AccountAddress, annotated_value::MoveStructLayout, language_storage::StructTag,
+};
 use tap::TapFallible;
 
 use crate::{
@@ -200,7 +202,7 @@ impl IndexerReader {
         object_id: &ObjectID,
         version: Option<VersionNumber>,
     ) -> Result<Option<StoredObject>, IndexerError> {
-        let object_id = object_id.to_vec();
+        let object_id = object_id.as_bytes();
 
         let stored_object = run_query!(&self.pool, |conn| {
             if let Some(version) = version {
@@ -256,7 +258,7 @@ impl IndexerReader {
     }
 
     fn get_object_raw(&self, object_id: ObjectID) -> Result<Option<StoredObject>, IndexerError> {
-        let id = object_id.to_vec();
+        let id = object_id.as_bytes();
         let stored_object = run_query!(&self.pool, |conn| {
             objects::dsl::objects
                 .filter(objects::dsl::object_id.eq(id))
@@ -387,7 +389,7 @@ impl IndexerReader {
     pub async fn get_package(&self, package_id: ObjectID) -> Result<Package, IndexerError> {
         let store = self.package_resolver.package_store();
         let pkg = store
-            .fetch(package_id.into())
+            .fetch(AccountAddress::new(package_id.into_bytes()))
             .await
             .map_err(|e| {
                 IndexerError::PostgresRead(format!(
@@ -1003,7 +1005,7 @@ impl IndexerReader {
             }
 
             if let Some(object_cursor) = cursor {
-                query = query.filter(objects::dsl::object_id.gt(object_cursor.to_vec()));
+                query = query.filter(objects::dsl::object_id.gt(object_cursor.as_bytes().to_vec()));
             }
 
             query
@@ -1045,7 +1047,7 @@ impl IndexerReader {
         &self,
         object_ids: Vec<ObjectID>,
     ) -> Result<Vec<StoredObject>, IndexerError> {
-        let object_ids = object_ids.into_iter().map(|id| id.to_vec()).collect_vec();
+        let object_ids = object_ids.iter().map(|id| id.as_bytes()).collect_vec();
         run_query!(&self.pool, |conn| {
             objects::dsl::objects
                 .filter(objects::object_id.eq_any(object_ids))
@@ -1174,7 +1176,7 @@ impl IndexerReader {
                 module,
                 function,
             })) => {
-                let package = Hex::encode(package.to_vec());
+                let package = Hex::encode(package.as_bytes());
                 match (module, function) {
                     (Some(module), Some(function)) => (
                         "tx_calls_fun".into(),
@@ -1199,7 +1201,7 @@ impl IndexerReader {
             }
             Some(TransactionFilterKind::V1(TransactionFilter::InputObject(object_id)))
             | Some(TransactionFilterKind::V2(TransactionFilterV2::InputObject(object_id))) => {
-                let object_id = Hex::encode(object_id.to_vec());
+                let object_id = Hex::encode(object_id.as_bytes());
                 (
                     "tx_input_objects".into(),
                     format!("object_id = '\\x{object_id}'::bytea"),
@@ -1207,7 +1209,7 @@ impl IndexerReader {
             }
             Some(TransactionFilterKind::V1(TransactionFilter::ChangedObject(object_id)))
             | Some(TransactionFilterKind::V2(TransactionFilterV2::ChangedObject(object_id))) => {
-                let object_id = Hex::encode(object_id.to_vec());
+                let object_id = Hex::encode(object_id.as_bytes());
                 (
                     "tx_changed_objects".into(),
                     format!("object_id = '\\x{object_id}'::bytea"),
@@ -1216,7 +1218,7 @@ impl IndexerReader {
             Some(TransactionFilterKind::V2(TransactionFilterV2::WrappedOrDeletedObject(
                 object_id,
             ))) => {
-                let object_id = Hex::encode(object_id.to_vec());
+                let object_id = Hex::encode(object_id.as_bytes());
                 (
                     "tx_wrapped_or_deleted_objects".into(),
                     format!("object_id = '\\x{object_id}'::bytea"),
@@ -1642,12 +1644,12 @@ impl IndexerReader {
         } else {
             let main_where_clause = match filter {
                 EventFilter::Package(package_id) => {
-                    format!("package = '\\x{}'::bytea", package_id.to_hex())
+                    format!("package = '\\x{}'::bytea", package_id.to_raw_hex())
                 }
                 EventFilter::MoveModule { package, module } => {
                     format!(
                         "package = '\\x{}'::bytea AND module = '{}'",
-                        package.to_hex(),
+                        package.to_raw_hex(),
                         module,
                     )
                 }
@@ -1656,7 +1658,7 @@ impl IndexerReader {
                     format!("event_type = '{formatted_struct_tag}'")
                 }
                 EventFilter::MoveEventModule { package, module } => {
-                    let package_module_prefix = format!("{}::{}", package.to_hex_literal(), module);
+                    let package_module_prefix = format!("{}::{}", package.to_short_hex(), module);
                     format!("event_type LIKE '{package_module_prefix}::%'")
                 }
                 EventFilter::Sender(_) => {
@@ -1781,12 +1783,12 @@ impl IndexerReader {
         let objects: Vec<StoredObject> = run_query!(&self.pool, |conn| {
             let mut query = objects::dsl::objects
                 .filter(objects::dsl::owner_type.eq(OwnerType::Object as i16))
-                .filter(objects::dsl::owner_id.eq(parent_object_id.to_vec()))
+                .filter(objects::dsl::owner_id.eq(parent_object_id.as_bytes()))
                 .order(objects::dsl::object_id.asc())
                 .limit(limit as i64)
                 .into_boxed();
             if let Some(object_cursor) = cursor {
-                query = query.filter(objects::dsl::object_id.gt(object_cursor.to_vec()));
+                query = query.filter(objects::dsl::object_id.gt(object_cursor.as_bytes().to_vec()));
             }
             query.load::<StoredObject>(conn)
         })?;
@@ -1858,7 +1860,7 @@ impl IndexerReader {
                     .ok_or_else(|| {
                         IndexerError::Uncategorized(anyhow!(
                             "Failed to find object_id {} when trying to create dynamic field info",
-                            object_id.to_canonical_display(/* with_prefix */ true),
+                            object_id.to_canonical_string(/* with_prefix */ true),
                         ))
                     })?;
 
@@ -1947,7 +1949,7 @@ impl IndexerReader {
         let mut query = objects::dsl::objects
             .filter(objects::dsl::owner_type.eq(OwnerType::Address as i16))
             .filter(objects::dsl::owner_id.eq(owner.as_bytes()))
-            .filter(objects::dsl::object_id.gt(cursor.to_vec()))
+            .filter(objects::dsl::object_id.gt(cursor.as_bytes()))
             .into_boxed();
         if let Some(coin_type) = coin_type {
             query = query.filter(objects::dsl::coin_type.eq(Some(coin_type)));
@@ -2681,7 +2683,7 @@ impl<'a> DBReader<'a> {
         // query objects_version to find the requested version
         run_query_async!(&pool, move |conn| {
             let mut query = objects_version::dsl::objects_version
-                .filter(objects_version::object_id.eq(object_id.as_ref()))
+                .filter(objects_version::object_id.eq(object_id.as_bytes()))
                 .into_boxed();
 
             if before_version {
@@ -2706,7 +2708,7 @@ impl<'a> DBReader<'a> {
 
         run_query_async!(&pool, move |conn| {
             objects_version::dsl::objects_version
-                .filter(objects_version::object_id.eq(object_id.as_ref()))
+                .filter(objects_version::object_id.eq(object_id.as_bytes()))
                 .order_by(objects_version::object_version.desc())
                 .select(objects_version::object_version)
                 .limit(1)
@@ -2726,7 +2728,7 @@ impl<'a> DBReader<'a> {
             // Match on the primary key.
             let query = objects_history::dsl::objects_history
                 .filter(objects_history::checkpoint_sequence_number.eq(checkpoint_sequence_number))
-                .filter(objects_history::object_id.eq(object_id.as_ref()))
+                .filter(objects_history::object_id.eq(object_id.as_bytes()))
                 .filter(objects_history::object_version.eq(object_version))
                 .into_boxed();
 

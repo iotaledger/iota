@@ -12,7 +12,6 @@ use crate::{
     base_types::{ObjectID, ObjectRef, SequenceNumber},
     digests::{ObjectDigest, TransactionDigest},
     event::Event,
-    is_system_package,
     object::{Data, Object, Owner},
     storage::BackingPackageStore,
     transaction::Argument,
@@ -129,7 +128,7 @@ impl ExecutionResultsV1 {
                     // only applies to system packages).  All other packages can only be created,
                     // and they are left alone.
                     if self.modified_objects.contains(id) {
-                        debug_assert!(is_system_package(*id));
+                        debug_assert!(id.is_system_package());
                         pkg.increment_version();
                     }
                 }
