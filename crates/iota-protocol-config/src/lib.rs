@@ -453,6 +453,13 @@ struct FeatureFlags {
     // commits and transactions.
     #[serde(skip_serializing_if = "is_false")]
     consensus_fast_commit_sync: bool,
+
+    // If true, enables white flag flow for post-consensus owned object conflict resolution.
+    // Transactions bypass pre-consensus certification and owned object locking.
+    // Conflicts are resolved deterministically post-consensus using persistent locks.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_white_flag_flow: bool,
+    // TODO: add getter function as well as set_enable_white_flag_flow_for_testing setter
 }
 
 fn is_true(b: &bool) -> bool {

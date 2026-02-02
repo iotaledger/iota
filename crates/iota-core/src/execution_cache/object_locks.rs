@@ -6,6 +6,7 @@ use dashmap::{DashMap, mapref::entry::Entry as DashMapEntry};
 use iota_common::debug_fatal;
 use iota_types::{
     base_types::{ObjectID, ObjectRef},
+    digests::TransactionDigest,
     error::{IotaError, IotaResult, UserInputError},
     object::Object,
     storage::ObjectStore,
@@ -256,6 +257,65 @@ impl ObjectLocks {
         epoch_store
             .tables()?
             .write_transaction_locks(transaction, locks_to_write.iter().cloned())?;
+
+        // remove pending locks from unbounded storage
+        self.clear_cached_locks(&locks_to_write);
+
+        Ok(())
+    }
+
+    /// White flag variant of acquire_transaction_locks. Acquires owned object
+    /// locks for a transaction that bypasses pre-consensus certification
+    /// (white flag flow). Unlike acquire_transaction_locks, this does NOT
+    /// write the signed transaction to the database, only the locks.
+    ///
+    /// Used post-consensus for white flag conflict resolution. Returns an error
+    /// if any owned input object is already locked by a different
+    /// transaction.
+    #[instrument(level = "debug", skip_all)]
+    pub(crate) fn acquire_white_flag_transaction_locks(
+        &self,
+        cache: &WritebackCache,
+        epoch_store: &AuthorityPerEpochStore,
+        owned_input_objects: &[ObjectRef],
+        tx_digest: TransactionDigest,
+    ) -> IotaResult {
+        let object_ids = owned_input_objects.iter().map(|o| o.0).collect::<Vec<_>>();
+        let live_objects = Self::multi_get_objects_must_exist(cache, &object_ids)?;
+
+        // Only live objects can be locked
+        for (obj_ref, live_object) in owned_input_objects.iter().zip(live_objects.iter()) {
+            Self::verify_live_object(obj_ref, live_object)?;
+        }
+
+        let mut locks_to_write: Vec<(_, LockDetails)> =
+            Vec::with_capacity(owned_input_objects.len());
+
+        // Sort the objects before locking to prevent deadlocks and confusing errors
+        // (same reasoning as in acquire_transaction_locks)
+        let owned_input_objects = {
+            let mut o = owned_input_objects.to_vec();
+            o.sort_by_key(|o| o.0);
+            o
+        };
+
+        // Atomic lock acquisition: if any object fails to lock, revert all pending
+        // locks
+        for obj_ref in owned_input_objects.iter() {
+            match self.try_set_transaction_lock(obj_ref, tx_digest, epoch_store) {
+                Ok(()) => locks_to_write.push((*obj_ref, tx_digest)),
+                Err(e) => {
+                    // revert all pending writes and return error
+                    self.clear_cached_locks(&locks_to_write);
+                    return Err(e);
+                }
+            }
+        }
+
+        // commit lock writes to DB (no signed transaction write for white flag)
+        epoch_store
+            .tables()?
+            .write_white_flag_transaction_locks(locks_to_write.iter().cloned())?;
 
         // remove pending locks from unbounded storage
         self.clear_cached_locks(&locks_to_write);

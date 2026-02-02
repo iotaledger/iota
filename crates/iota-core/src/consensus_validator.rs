@@ -85,7 +85,11 @@ impl IotaTxValidator {
                 ConsensusTransactionKind::EndOfPublish(_)
                 | ConsensusTransactionKind::NewJWKFetched(_, _, _)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_)
-                | ConsensusTransactionKind::MisbehaviorReport(_, _, _) => {}
+                | ConsensusTransactionKind::MisbehaviorReport(_, _, _)
+                | ConsensusTransactionKind::UserTransactionV1(_) => {
+                    // TODO: we should verify that the transaction signature
+                    // (not cert) is valid
+                }
             }
         }
 
