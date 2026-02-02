@@ -76,7 +76,7 @@ impl Client {
         let proto_transaction =
             build_proto_transaction(&signed_transaction.transaction, tx_digest)?;
 
-        // Convert signatures to proto format using existing TryFrom
+        // Convert signatures to proto format
         let proto_signatures = UserSignatures {
             signatures: signed_transaction
                 .signatures

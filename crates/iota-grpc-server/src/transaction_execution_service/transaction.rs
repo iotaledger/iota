@@ -6,7 +6,6 @@ use std::sync::Arc;
 
 use iota_grpc_types::{
     field::FieldMaskTree,
-    merge::Merge,
     proto::timestamp_ms_to_proto,
     v0::{
         bcs::{self as grpc_bcs, BcsData},
@@ -16,7 +15,7 @@ use iota_grpc_types::{
 };
 use iota_types::execution::ExecutionResult;
 
-use crate::{GrpcReader, utils::render_json};
+use crate::{GrpcReader, merge::Merge, utils::render_json};
 
 /// Source for building ExecutedTransaction using the Merge trait
 pub struct TransactionReadSource<'a> {

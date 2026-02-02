@@ -4,7 +4,6 @@
 
 use iota_grpc_types::{
     field::{FieldMaskTree, FieldMaskUtil},
-    merge::Merge,
     proto::timestamp_ms_to_proto,
     v0::{
         bcs::BcsData,
@@ -17,7 +16,7 @@ use iota_types::committee::EpochId;
 use prost_types::FieldMask;
 use tonic::Status;
 
-use crate::ledger_service::LedgerGrpcService;
+use crate::{ledger_service::LedgerGrpcService, merge::Merge};
 
 pub const READ_MASK_DEFAULT: &str = crate::field_mask!(
     "epoch",

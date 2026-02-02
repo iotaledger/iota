@@ -7,7 +7,6 @@ use anyhow::Result;
 use futures::StreamExt;
 use iota_grpc_types::{
     field::FieldMaskTree,
-    merge::Merge,
     proto::timestamp_ms_to_proto,
     v0::{
         checkpoint as grpc_checkpoint, event as grpc_event, ledger_service as grpc_ledger_service,
@@ -32,6 +31,8 @@ use tokio::sync::broadcast::{Receiver, Sender, error::RecvError};
 use tokio_util::sync::CancellationToken;
 use tonic::Status;
 use tracing::debug;
+
+use crate::merge::Merge;
 
 pub type GetObjectsStream = Pin<Box<dyn futures::Stream<Item = ObjectsStreamResult> + Send>>;
 pub type GetTransactionsStream =
@@ -483,11 +484,11 @@ impl GrpcReader {
             let sdk_signature = iota_sdk_types::ValidatorAggregatedSignature::from(checkpoint_summary.auth_sig().clone());
 
             // Use Merge to populate based on mask
-            iota_grpc_types::merge::Merge::merge(&mut checkpoint_proto, &sdk_summary, &checkpoint_mask)
+            Merge::merge(&mut checkpoint_proto, &sdk_summary, &checkpoint_mask)
                 .map_err(|e| Status::internal(format!("merge error for summary: {e}")))?;
-            iota_grpc_types::merge::Merge::merge(&mut checkpoint_proto, sdk_contents, &checkpoint_mask)
+            Merge::merge(&mut checkpoint_proto, sdk_contents, &checkpoint_mask)
                 .map_err(|e| Status::internal(format!("merge error for contents: {e}")))?;
-            iota_grpc_types::merge::Merge::merge(&mut checkpoint_proto, sdk_signature, &checkpoint_mask)
+            Merge::merge(&mut checkpoint_proto, sdk_signature, &checkpoint_mask)
                 .map_err(|e| Status::internal(format!("merge error for signature: {e}")))?;
 
             let checkpoint_message = grpc_ledger_service::CheckpointData {
@@ -1056,17 +1057,21 @@ impl Merge<CheckpointTransactionWithContext>
         }
 
         if let Some(submask) = mask.subtree(Self::EFFECTS_FIELD.name) {
-            self.effects = Some(iota_grpc_types::v0::transaction::TransactionEffects::merge_from(
-                source.transaction.effects.clone(),
-                &submask,
-            )?);
+            self.effects = Some(
+                iota_grpc_types::v0::transaction::TransactionEffects::merge_from(
+                    source.transaction.effects.clone(),
+                    &submask,
+                )?,
+            );
         }
 
         if let Some(submask) = mask.subtree(Self::EVENTS_FIELD.name) {
             if let Some(events) = source.transaction.events {
-                self.events = Some(iota_grpc_types::v0::transaction::TransactionEvents::merge_from(
-                    events, &submask,
-                )?);
+                self.events = Some(
+                    iota_grpc_types::v0::transaction::TransactionEvents::merge_from(
+                        events, &submask,
+                    )?,
+                );
             }
         }
 
