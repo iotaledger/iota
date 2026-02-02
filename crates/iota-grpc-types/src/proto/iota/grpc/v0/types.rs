@@ -13,14 +13,6 @@ impl From<iota_sdk_types::Digest> for Digest {
     }
 }
 
-impl From<iota_types::digests::TransactionDigest> for Digest {
-    fn from(value: iota_types::digests::TransactionDigest) -> Self {
-        Self {
-            digest: value.into_inner().to_vec().into(),
-        }
-    }
-}
-
 impl TryFrom<&Digest> for iota_sdk_types::Digest {
     type Error = crate::proto::TryFromProtoError;
 
@@ -108,5 +100,35 @@ impl ObjectReference {
         &self,
     ) -> Result<iota_sdk_types::ObjectReference, crate::proto::TryFromProtoError> {
         self.try_into()
+    }
+}
+
+impl From<&iota_sdk_types::TypeTag> for TypeTag {
+    fn from(ty: &iota_sdk_types::TypeTag) -> Self {
+        let type_tag = match ty {
+            iota_sdk_types::TypeTag::Bool => type_tag::TypeTag::BoolTag(true),
+            iota_sdk_types::TypeTag::U8 => type_tag::TypeTag::U8Tag(true),
+            iota_sdk_types::TypeTag::U16 => type_tag::TypeTag::U16Tag(true),
+            iota_sdk_types::TypeTag::U32 => type_tag::TypeTag::U32Tag(true),
+            iota_sdk_types::TypeTag::U64 => type_tag::TypeTag::U64Tag(true),
+            iota_sdk_types::TypeTag::U128 => type_tag::TypeTag::U128Tag(true),
+            iota_sdk_types::TypeTag::U256 => type_tag::TypeTag::U256Tag(true),
+            iota_sdk_types::TypeTag::Address => type_tag::TypeTag::AddressTag(true),
+            iota_sdk_types::TypeTag::Signer => type_tag::TypeTag::SignerTag(true),
+            iota_sdk_types::TypeTag::Vector(inner) => {
+                type_tag::TypeTag::VectorTag(Box::new(TypeTagVector {
+                    inner_type: Some(Box::new(inner.as_ref().into())),
+                }))
+            }
+            iota_sdk_types::TypeTag::Struct(struct_tag) => {
+                type_tag::TypeTag::StructTag(TypeTagStruct {
+                    struct_tag: struct_tag.to_canonical_string(true),
+                })
+            }
+        };
+
+        Self {
+            type_tag: Some(type_tag),
+        }
     }
 }

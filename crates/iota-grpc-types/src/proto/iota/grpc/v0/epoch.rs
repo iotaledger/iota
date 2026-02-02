@@ -81,27 +81,6 @@ impl TryFrom<&ValidatorCommittee> for iota_sdk_types::ValidatorCommittee {
     }
 }
 
-/// Convert iota_types::committee::Committee to protobuf ValidatorCommittee
-impl From<&iota_types::committee::Committee> for ValidatorCommittee {
-    fn from(committee: &iota_types::committee::Committee) -> Self {
-        let members_vec: Vec<ValidatorCommitteeMember> = committee
-            .voting_rights
-            .iter()
-            .map(|(public_key, weight)| ValidatorCommitteeMember {
-                public_key: Some(public_key.0.to_vec().into()),
-                weight: Some(*weight),
-            })
-            .collect();
-
-        ValidatorCommittee {
-            epoch: Some(committee.epoch),
-            members: Some(ValidatorCommitteeMembers {
-                members: members_vec,
-            }),
-        }
-    }
-}
-
 impl Epoch {
     pub fn committee(
         &self,
