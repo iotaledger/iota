@@ -1229,7 +1229,7 @@ mod tests {
         let objref = format!("{:?}", o.compute_object_reference());
         assert_eq!(
             objref,
-            "(ObjectId(\"0x0000000000000000000000000000000000000000000000000000000000000000\"), Version(1), o#Ba4YyVBcpc9jgX4PMLRoyt9dKLftYVSDvuKbtMr9f4NM)"
+            "(ObjectId(\"0x0000000000000000000000000000000000000000000000000000000000000000\"), Version(1), Digest(\"Ba4YyVBcpc9jgX4PMLRoyt9dKLftYVSDvuKbtMr9f4NM\"))"
         );
     }
 
