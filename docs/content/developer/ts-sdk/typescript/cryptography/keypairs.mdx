@@ -89,7 +89,7 @@ const { signature } = await keypair.signPersonalMessage(message);
 
 const publicKey = await verifyPersonalMessageSignature(message, signature);
 
-if (publicKey.verifyAddress(keypair.getPublicKey().toSuiAddress())) {
+if (publicKey.verifyAddress(keypair.getPublicKey().toIotaAddress())) {
     throw new Error('Signature was valid, but was signed by a different key pair');
 }
 ```
@@ -134,7 +134,7 @@ const { signature } = await keypair.signTransaction(bytes);
 
 await verifyTransactionSignature(bytes, signature, {
 	// optionally verify that the signature is valid for a specific address
-	address: keypair.getPublicKey().toSuiAddress(),
+	address: keypair.getPublicKey().toIotaAddress(),
 });
 ```
 
