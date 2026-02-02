@@ -938,10 +938,7 @@ impl TryFrom<crate::effects::TransactionEffects> for TransactionEffects {
                                 crate::effects::UnchangedSharedKind::ReadOnlyRoot((
                                     version,
                                     digest,
-                                )) => UnchangedSharedKind::ReadOnlyRoot {
-                                    version,
-                                    digest,
-                                },
+                                )) => UnchangedSharedKind::ReadOnlyRoot { version, digest },
                                 crate::effects::UnchangedSharedKind::MutateDeleted(
                                     sequence_number,
                                 ) => UnchangedSharedKind::MutateDeleted {
@@ -2369,10 +2366,7 @@ impl From<crate::effects::UnchangedSharedKind> for UnchangedSharedKind {
     fn from(value: crate::effects::UnchangedSharedKind) -> Self {
         match value {
             crate::effects::UnchangedSharedKind::ReadOnlyRoot((version, digest)) => {
-                Self::ReadOnlyRoot {
-                    version,
-                    digest,
-                }
+                Self::ReadOnlyRoot { version, digest }
             }
             crate::effects::UnchangedSharedKind::MutateDeleted(version) => {
                 Self::MutateDeleted { version }
