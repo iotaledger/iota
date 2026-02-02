@@ -222,7 +222,7 @@ impl ReadApiServer for ReadApi {
             stored_objects
                 .into_iter()
                 .map(|obj| {
-                    let object_id = ObjectID::try_from(obj.object_id.clone()).map_err(|_| {
+                    let object_id = ObjectID::from_bytes(obj.object_id.clone()).map_err(|_| {
                         IndexerError::PersistentStorageDataCorruption(format!(
                             "failed to parse ObjectID: {:?}",
                             obj.object_id

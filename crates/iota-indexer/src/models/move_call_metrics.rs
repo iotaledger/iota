@@ -72,7 +72,9 @@ impl TryFrom<QueriedMoveCallMetrics> for (MoveFunctionName, usize) {
     type Error = IndexerError;
 
     fn try_from(metrics: QueriedMoveCallMetrics) -> Result<(MoveFunctionName, usize), Self::Error> {
-        let package = ObjectID::from_str(&metrics.move_package)?;
+        let package = ObjectID::from_str(&metrics.move_package).map_err(|_| {
+            IndexerError::ObjectIdParse(iota_types::base_types::ObjectIDParseError::TryFromSlice)
+        })?;
         Ok((
             MoveFunctionName {
                 package,

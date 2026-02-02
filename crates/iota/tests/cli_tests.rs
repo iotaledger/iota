@@ -309,7 +309,7 @@ fn add_ids_to_manifest(
         if let Some(tbl) = tbl.as_table_mut() {
             tbl.insert(
                 "published-at".to_string(),
-                toml::Value::String(published_at_id.to_hex_uncompressed()),
+                toml::Value::String(published_at_id.to_hex()),
             );
         }
     }
@@ -320,7 +320,7 @@ fn add_ids_to_manifest(
             let first_key = tbl.keys().next().unwrap();
             tbl.insert(
                 first_key.to_string(),
-                toml::Value::String(address_id.to_hex_uncompressed()),
+                toml::Value::String(address_id.to_hex()),
             );
         }
     }
@@ -1402,7 +1402,7 @@ async fn test_delete_shared_object() -> Result<(), anyhow::Error> {
 
     // Start and then receive the object
     let start_call_result = IotaClientCommands::Call {
-        package: (*package_id.object_id).into(),
+        package: package_id.object_id,
         module: "sod".to_string(),
         function: "start".to_string(),
         type_args: vec![],
@@ -1426,7 +1426,7 @@ async fn test_delete_shared_object() -> Result<(), anyhow::Error> {
     };
 
     let delete_result = IotaClientCommands::Call {
-        package: (*package_id.object_id).into(),
+        package: package_id.object_id,
         module: "sod".to_string(),
         function: "delete".to_string(),
         type_args: vec![],
@@ -1525,7 +1525,7 @@ async fn test_receive_argument() -> Result<(), anyhow::Error> {
 
     // Start and then receive the object
     let start_call_result = IotaClientCommands::Call {
-        package: (*package_id.object_id).into(),
+        package: package_id.object_id,
         module: "tto".to_string(),
         function: "start".to_string(),
         type_args: vec![],
@@ -1566,7 +1566,7 @@ async fn test_receive_argument() -> Result<(), anyhow::Error> {
         };
 
     let receive_result = IotaClientCommands::Call {
-        package: (*package_id.object_id).into(),
+        package: package_id.object_id,
         module: "tto".to_string(),
         function: "receiver".to_string(),
         type_args: vec![],
@@ -1668,7 +1668,7 @@ async fn test_receive_argument_by_immut_ref() -> Result<(), anyhow::Error> {
 
     // Start and then receive the object
     let start_call_result = IotaClientCommands::Call {
-        package: (*package_id.object_id).into(),
+        package: package_id.object_id,
         module: "tto".to_string(),
         function: "start".to_string(),
         type_args: vec![],
@@ -1709,7 +1709,7 @@ async fn test_receive_argument_by_immut_ref() -> Result<(), anyhow::Error> {
         };
 
     let receive_result = IotaClientCommands::Call {
-        package: (*package_id.object_id).into(),
+        package: package_id.object_id,
         module: "tto".to_string(),
         function: "invalid_call_immut_ref".to_string(),
         type_args: vec![],
@@ -1811,7 +1811,7 @@ async fn test_receive_argument_by_mut_ref() -> Result<(), anyhow::Error> {
 
     // Start and then receive the object
     let start_call_result = IotaClientCommands::Call {
-        package: (*package_id.object_id).into(),
+        package: package_id.object_id,
         module: "tto".to_string(),
         function: "start".to_string(),
         type_args: vec![],
@@ -1852,7 +1852,7 @@ async fn test_receive_argument_by_mut_ref() -> Result<(), anyhow::Error> {
         };
 
     let receive_result = IotaClientCommands::Call {
-        package: (*package_id.object_id).into(),
+        package: package_id.object_id,
         module: "tto".to_string(),
         function: "invalid_call_mut_ref".to_string(),
         type_args: vec![],
@@ -2403,7 +2403,7 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
         idx + 1,
         format!(
             "published-at = \"{}\"",
-            package.reference.object_id.to_hex_uncompressed()
+            package.reference.object_id.to_hex()
         ),
     );
     let new = lines.join("\n");

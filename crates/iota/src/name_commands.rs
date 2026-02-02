@@ -2040,7 +2040,7 @@ async fn fetch_package_id_by_module_and_name(
             for param in &tag.type_params {
                 if let TypeTag::Struct(ref param_tag) = param {
                     if &param_tag.module == module_name && &param_tag.name == struct_name {
-                        return Ok(ObjectID::from(param_tag.address));
+                        return Ok(ObjectID::new(param_tag.address.into_bytes()));
                     }
                 }
             }

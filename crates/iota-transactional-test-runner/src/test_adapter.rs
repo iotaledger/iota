@@ -499,7 +499,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let Some(addr) = mapping.get(&d) else {
                     bail!("There is no published module address corresponding to name address {d}");
                 };
-                let id: ObjectID = addr.into_inner().into();
+                let id = ObjectID::new(addr.into_bytes());
                 Ok(id)
             })
             .collect::<Result<_, _>>()?;
@@ -1092,7 +1092,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                                 })
                                 .collect()
                         });
-                        let value: AccountAddress = id.into();
+                        let value = AccountAddress::new(id.into_bytes());
                         (value, package)
                     }
                     IotaValue::MoveValue(v) => {
@@ -1519,7 +1519,7 @@ impl IotaTestAdapter {
             .trim()
             .parse()?;
 
-        let mut bytes = bcs::to_bytes(&id.to_vec())?;
+        let mut bytes = bcs::to_bytes(&id.as_bytes().to_vec())?;
         for part in parts {
             let n: u64 = part.trim().parse()?;
             bytes.extend(bcs::to_bytes(&n)?);
@@ -1595,7 +1595,7 @@ impl IotaTestAdapter {
             vec![Argument::Input(0), upgrade_arg, digest_arg],
         );
 
-        let package_id = before_upgrade.into_inner().into();
+        let package_id = ObjectID::new(before_upgrade.into_bytes());
         let upgrade_receipt =
             builder.upgrade(package_id, upgrade_ticket, dependencies, modules_bytes);
 
@@ -1760,7 +1760,7 @@ impl IotaTestAdapter {
             .into_iter()
             .map(|arg| arg.into_argument(&mut builder, self))
             .collect::<anyhow::Result<_>>()?;
-        let package_id = ObjectID::from(*module_id.address());
+        let package_id = ObjectID::new(module_id.address().into_bytes());
 
         let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
         let gas_price = gas_price.unwrap_or(self.gas_price);
@@ -2119,10 +2119,7 @@ impl IotaTestAdapter {
         objs.iter()
             .map(|id| match self.real_to_fake_object_id(id) {
                 None => "object(_)".to_string(),
-                Some(FakeID::Known(id)) => {
-                    let id: AccountAddress = id.into();
-                    format!("0x{id:x}")
-                }
+                Some(FakeID::Known(id)) => id.to_string(),
                 Some(fake) => format!("object({fake})"),
             })
             .collect::<Vec<_>>()
@@ -2185,12 +2182,9 @@ impl IotaTestAdapter {
         {
             return known.clone();
         }
-        match self.real_to_fake_object_id(&parsed.into()) {
+        match self.real_to_fake_object_id(&ObjectID::new(parsed.into_bytes())) {
             None => "_".to_string(),
-            Some(FakeID::Known(id)) => {
-                let id: AccountAddress = id.into();
-                format!("0x{id:x}")
-            }
+            Some(FakeID::Known(id)) => id.to_string(),
             Some(fake) => format!("fake({fake})"),
         }
     }
@@ -2210,7 +2204,7 @@ impl IotaTestAdapter {
                 let Some(addr) = self.compiled_state.named_address_mapping.get(&d) else {
                     bail!("There is no published module address corresponding to name address {d}");
                 };
-                let id: ObjectID = addr.into_inner().into();
+                let id: ObjectID = ObjectID::new(addr.into_bytes());
                 Ok(id)
             })
             .collect::<Result<_, _>>()?;
@@ -2330,7 +2324,11 @@ impl IotaTestAdapter {
             .context("abstract account package address not found")?
             .into_inner();
 
-        Ok((aa_package_addr.into(), aa_module_name, create_fn_name))
+        Ok((
+            ObjectID::new(aa_package_addr.into_bytes()),
+            aa_module_name,
+            create_fn_name,
+        ))
     }
 
     fn resolve_account_type(
@@ -2411,10 +2409,7 @@ impl<'a> GetModule for &'a IotaTestAdapter {
 impl fmt::Display for FakeID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            FakeID::Known(id) => {
-                let addr: AccountAddress = (*id).into();
-                write!(f, "0x{addr:x}")
-            }
+            FakeID::Known(id) => id.fmt(f),
             FakeID::Enumerated(task, i) => write!(f, "{task},{i}"),
         }
     }

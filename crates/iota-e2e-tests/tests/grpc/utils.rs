@@ -74,7 +74,12 @@ where
 
 /// Helper to create a proto `ObjectId` from a hex literal (e.g. "0x5").
 pub fn object_id_from_hex(hex: &str) -> ProtoObjectId {
-    ProtoObjectId::default().with_object_id(ObjectID::from_hex_literal(hex).unwrap().to_vec())
+    ProtoObjectId::default().with_object_id(
+        ObjectID::from_prefixed_short_hex(hex)
+            .unwrap()
+            .into_bytes()
+            .to_vec(),
+    )
 }
 
 /// Helper to create a proto `Address` from an `IotaAddress`.

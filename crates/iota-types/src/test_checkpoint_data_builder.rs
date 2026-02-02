@@ -720,7 +720,7 @@ impl TestCheckpointDataBuilder {
 mod tests {
     use std::str::FromStr;
 
-    use move_core_types::ident_str;
+    use move_core_types::{account_address::AccountAddress, ident_str};
 
     use super::*;
     use crate::transaction::{Command, ProgrammableMoveCall, TransactionDataAPI};
@@ -1031,7 +1031,7 @@ mod tests {
         let checkpoint = TestCheckpointDataBuilder::new(1)
             .start_transaction(0)
             .with_events(vec![Event::new(
-                &ObjectID::ZERO,
+                &AccountAddress::ZERO,
                 ident_str!("test"),
                 TestCheckpointDataBuilder::derive_address(0),
                 GAS::type_(),

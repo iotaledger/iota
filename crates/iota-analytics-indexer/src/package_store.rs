@@ -90,12 +90,11 @@ impl LocalDBPackageStore {
         let object = if let Some(object) = self
             .package_store_tables
             .packages
-            .get(&ObjectID::from(id))
+            .get(&ObjectID::new(id.into_bytes()))
             .map_err(Error::TypedStore)?
         {
             object
         } else {
-            let object_id = ObjectID::from(id);
             fn grpc_err(e: impl std::error::Error + Send + Sync + 'static) -> PackageResolverError {
                 PackageResolverError::Store {
                     store: "gRPC",
@@ -104,7 +103,7 @@ impl LocalDBPackageStore {
             }
             let objects = self
                 .fallback_client
-                .get_objects(&[(object_id.into(), None)], Some("bcs"))
+                .get_objects(&[(ObjectID::new(id.into_bytes()), None)], Some("bcs"))
                 .await
                 .map_err(grpc_err)?
                 .into_inner();

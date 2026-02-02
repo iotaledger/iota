@@ -81,7 +81,7 @@ impl<'state> LinkageView<'state> {
     pub fn has_linkage(&self, context: ObjectID) -> bool {
         self.linkage_info
             .as_ref()
-            .is_some_and(|l| l.storage_id == *context)
+            .is_some_and(|l| l.storage_id.as_ref() == context.as_bytes())
     }
 
     /// Reset the linkage, but save the context that existed before, if there
@@ -191,11 +191,11 @@ impl<'state> LinkageView<'state> {
 
         match module_cache.entry(struct_) {
             Entry::Vacant(entry) => {
-                entry.insert(*defining_id);
+                entry.insert(AccountAddress::new(defining_id.into_bytes()));
             }
 
             Entry::Occupied(entry) => {
-                if entry.get() != &*defining_id {
+                if entry.get().as_ref() != defining_id.as_bytes() {
                     invariant_violation!(
                         "Conflicting defining ID for {}::{}: {} and {}",
                         runtime_id,
@@ -233,7 +233,7 @@ impl<'state> LinkageView<'state> {
             ));
         }
 
-        let runtime_id = ObjectID::from_address(*module_id.address());
+        let runtime_id = ObjectID::new(module_id.address().into_bytes());
         let Some(upgrade) = linkage.link_table.get(&runtime_id) else {
             invariant_violation!(
                 "Missing linkage for {runtime_id} in context {}, runtime_id is {}",
@@ -243,7 +243,7 @@ impl<'state> LinkageView<'state> {
         };
 
         Ok(ModuleId::new(
-            upgrade.upgraded_id.into(),
+            AccountAddress::new(upgrade.upgraded_id.into_bytes()),
             module_id.name().to_owned(),
         ))
     }
@@ -269,7 +269,7 @@ impl<'state> LinkageView<'state> {
             return Ok(ModuleId::new(cached, runtime_id.name().to_owned()));
         }
 
-        let storage_id = ObjectID::from(*self.relocate(runtime_id)?.address());
+        let storage_id = ObjectID::new(self.relocate(runtime_id)?.address().into_bytes());
         let Some(package) = self.resolver.get_package_object(&storage_id)? else {
             invariant_violation!("Missing dependent package in store: {storage_id}",)
         };
@@ -282,7 +282,10 @@ impl<'state> LinkageView<'state> {
         {
             if module_name == runtime_id.name().as_str() && struct_name == struct_.as_str() {
                 self.add_type_origin(runtime_id.clone(), struct_.to_owned(), *package)?;
-                return Ok(ModuleId::new(**package, runtime_id.name().to_owned()));
+                return Ok(ModuleId::new(
+                    AccountAddress::new(package.into_bytes()),
+                    runtime_id.name().to_owned(),
+                ));
             }
         }
 
@@ -296,8 +299,8 @@ impl<'state> LinkageView<'state> {
 impl From<&MovePackage> for LinkageInfo {
     fn from(package: &MovePackage) -> Self {
         Self {
-            storage_id: package.id().into(),
-            runtime_id: package.original_package_id().into(),
+            storage_id: AccountAddress::new(package.id().into_bytes()),
+            runtime_id: AccountAddress::new(package.original_package_id().into_bytes()),
             link_table: package.linkage_table().clone(),
         }
     }

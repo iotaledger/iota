@@ -71,13 +71,19 @@ async fn successful_verification() -> anyhow::Result<()> {
 
     // Skip deps but verify root
     verifier
-        .verify(&a_pkg, ValidationMode::root_at(a_ref.0.into()))
+        .verify(
+            &a_pkg,
+            ValidationMode::root_at(AccountAddress::new(a_ref.0.into_bytes())),
+        )
         .await
         .unwrap();
 
     // Verify both deps and root
     verifier
-        .verify(&a_pkg, ValidationMode::root_and_deps_at(a_ref.0.into()))
+        .verify(
+            &a_pkg,
+            ValidationMode::root_and_deps_at(AccountAddress::new(a_ref.0.into_bytes())),
+        )
         .await
         .unwrap();
 
@@ -103,7 +109,10 @@ async fn successful_verification_unpublished_deps() -> anyhow::Result<()> {
 
     // Verify the root package which now includes dependency modules
     verifier
-        .verify(&a_pkg, ValidationMode::root_at(a_ref.0.into()))
+        .verify(
+            &a_pkg,
+            ValidationMode::root_at(AccountAddress::new(a_ref.0.into_bytes())),
+        )
         .await
         .unwrap();
 
@@ -323,8 +332,9 @@ async fn package_not_found() -> anyhow::Result<()> {
         panic!("Expected verification to fail");
     };
 
-    let expected =
-        expect!["Dependency object does not exist or was deleted: NotExists { object_id: 0x<id> }"];
+    let expected = expect![[
+        r#"Dependency object does not exist or was deleted: NotExists { object_id: ObjectId("0x<id>") }"#
+    ]];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     let package_root = AccountAddress::random();
@@ -338,8 +348,9 @@ async fn package_not_found() -> anyhow::Result<()> {
 
     // <id> below may refer to either the package_root or dependent package `b`
     // (the check reports the first missing object nondeterministically)
-    let expected =
-        expect!["Dependency object does not exist or was deleted: NotExists { object_id: 0x<id> }"];
+    let expected = expect![[
+        r#"Dependency object does not exist or was deleted: NotExists { object_id: ObjectId("0x<id>") }"#
+    ]];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     let package_root = AccountAddress::random();
@@ -351,8 +362,9 @@ async fn package_not_found() -> anyhow::Result<()> {
         panic!("Expected verification to fail");
     };
 
-    let expected =
-        expect!["Dependency object does not exist or was deleted: NotExists { object_id: 0x<id> }"];
+    let expected = expect![[
+        r#"Dependency object does not exist or was deleted: NotExists { object_id: ObjectId("0x<id>") }"#
+    ]];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     Ok(())
@@ -714,12 +726,18 @@ async fn successful_verification_with_bytecode_dep() -> anyhow::Result<()> {
         .unwrap();
     // Skip deps but verify root
     verifier
-        .verify(&a_pkg, ValidationMode::root_at(a_ref.0.into()))
+        .verify(
+            &a_pkg,
+            ValidationMode::root_at(AccountAddress::new(a_ref.0.into_bytes())),
+        )
         .await
         .unwrap();
     // Verify both deps and root
     verifier
-        .verify(&a_pkg, ValidationMode::root_and_deps_at(a_ref.0.into()))
+        .verify(
+            &a_pkg,
+            ValidationMode::root_and_deps_at(AccountAddress::new(a_ref.0.into_bytes())),
+        )
         .await
         .unwrap();
     Ok(())

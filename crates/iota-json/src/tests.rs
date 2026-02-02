@@ -595,7 +595,7 @@ fn test_from_str() {
     assert!(test.0.is_boolean());
 
     // test id without quotes
-    let object_id = ObjectID::random().to_hex_uncompressed();
+    let object_id = ObjectID::random().to_hex();
     let test = IotaJsonValue::from_str(&object_id).unwrap();
     assert!(test.0.is_string());
     assert_eq!(object_id, test.0.as_str().unwrap());
