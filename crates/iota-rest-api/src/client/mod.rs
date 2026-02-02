@@ -4,10 +4,9 @@
 
 pub mod sdk;
 
-use iota_sdk_types::EpochId;
+use iota_sdk_types::{BalanceChange, EpochId};
 use iota_types::{
-    TypeTag,
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    base_types::{ObjectID, SequenceNumber},
     crypto::AuthorityStrongQuorumSignInfo,
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::CheckpointData,
@@ -165,16 +164,4 @@ pub enum EffectsFinality {
     Checkpointed {
         checkpoint: CheckpointSequenceNumber,
     },
-}
-
-#[derive(PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
-pub struct BalanceChange {
-    /// Owner of the balance change
-    pub address: IotaAddress,
-    /// Type of the Coin
-    pub coin_type: TypeTag,
-    /// The amount indicate the balance value changes,
-    /// negative amount means spending coin value and positive means receiving
-    /// coin value.
-    pub amount: i128,
 }
