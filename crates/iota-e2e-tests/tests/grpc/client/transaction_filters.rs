@@ -178,7 +178,7 @@ async fn test_transaction_filter_scenarios() {
     let move_call_filter = grpc_filter::TransactionFilter::default().with_command(
         grpc_filter::CommandFilter::default().with_move_call(
             grpc_filter::MoveCallCommandFilter::default().with_package_id(
-                grpc_types::Address::default().with_address(nft_package_id.to_vec()),
+                grpc_types::Address::default().with_address(nft_package_id.into_bytes().to_vec()),
             ),
         ),
     );
@@ -242,7 +242,8 @@ async fn test_transaction_filter_scenarios() {
             grpc_filter::TransactionFilter::default().with_command(
                 grpc_filter::CommandFilter::default().with_move_call(
                     grpc_filter::MoveCallCommandFilter::default().with_package_id(
-                        grpc_types::Address::default().with_address(basics_package_id.to_vec()),
+                        grpc_types::Address::default()
+                            .with_address(basics_package_id.into_bytes().to_vec()),
                     ),
                 ),
             ),

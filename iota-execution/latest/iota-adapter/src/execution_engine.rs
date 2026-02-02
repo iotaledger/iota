@@ -19,7 +19,7 @@ mod checked {
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
-        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
+        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
         IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, Identifier,
         account_abstraction::authenticator_function::{
             AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
@@ -1825,7 +1825,7 @@ mod checked {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let res = builder.move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
+                ObjectID::FRAMEWORK_PACKAGE,
                 CLOCK_MODULE_NAME.to_owned(),
                 CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME.to_owned(),
                 vec![],
@@ -1860,7 +1860,7 @@ mod checked {
     ) -> ProgrammableTransactionBuilder {
         builder
             .move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
+                ObjectID::FRAMEWORK_PACKAGE,
                 AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
                 AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME.to_owned(),
                 vec![],
@@ -1889,7 +1889,7 @@ mod checked {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let res = builder.move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
+                ObjectID::FRAMEWORK_PACKAGE,
                 AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
                 AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME.to_owned(),
                 vec![],
@@ -1930,7 +1930,7 @@ mod checked {
     ) -> ProgrammableTransactionBuilder {
         builder
             .move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
+                ObjectID::FRAMEWORK_PACKAGE,
                 AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
                 AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME.to_owned(),
                 vec![],
@@ -1965,7 +1965,7 @@ mod checked {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let res = builder.move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
+                ObjectID::FRAMEWORK_PACKAGE,
                 RANDOMNESS_MODULE_NAME.to_owned(),
                 RANDOMNESS_STATE_UPDATE_FUNCTION_NAME.to_owned(),
                 vec![],

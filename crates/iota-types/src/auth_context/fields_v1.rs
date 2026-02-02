@@ -201,7 +201,7 @@ mod tests {
     // ── helpers ─────────────────────────────────────────────────────────────
 
     fn obj_id() -> ObjectID {
-        ObjectID::from_hex_literal("0x0000000000000000000000000000000000000001").unwrap()
+        ObjectID::from_prefixed_short_hex("0x0000000000000000000000000000000000000001").unwrap()
     }
 
     fn obj_ref() -> (ObjectID, SequenceNumber, ObjectDigest) {

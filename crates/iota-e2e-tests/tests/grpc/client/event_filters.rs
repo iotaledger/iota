@@ -193,7 +193,8 @@ async fn test_event_filter_scenarios() {
     let basics_clock_filter = grpc_filter::EventFilter::default().with_move_package_and_module(
         grpc_filter::MovePackageAndModuleFilter::default()
             .with_package_id(
-                grpc_types::Address::default().with_address(basics_package_id.to_vec()),
+                grpc_types::Address::default()
+                    .with_address(basics_package_id.into_bytes().to_vec()),
             )
             .with_module(CLOCK_MODULE.to_string()),
     );
