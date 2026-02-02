@@ -523,15 +523,6 @@ impl DagState {
 
         self.recent_transactions_by_authority[block_ref.author]
             .insert(block_ref, transactions.clone());
-
-        // Record metrics
-        self.context
-            .metrics
-            .node_metrics
-            .accepted_transactions
-            .with_label_values(&[source.as_str()])
-            .inc();
-
         tracing::debug!("Adding transactions for block ref: {block_ref}");
 
         // Handle pending acknowledgments for recent blocks
@@ -542,6 +533,14 @@ impl DagState {
         if block_ref.round >= min_round {
             if has_transactions {
                 self.add_pending_acknowledgment(block_ref);
+
+                // Record metrics
+                self.context
+                    .metrics
+                    .node_metrics
+                    .accepted_transactions
+                    .with_label_values(&[source.as_str()])
+                    .inc();
             } else {
                 let hostname = self
                     .context
