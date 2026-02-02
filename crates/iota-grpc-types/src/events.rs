@@ -16,7 +16,7 @@ impl From<&IotaEvent> for grpc_events::Event {
                 }),
             }),
             package_id: Some(grpc_common::Address {
-                address: event.package_id.to_vec(),
+                address: event.package_id.as_bytes().to_vec(),
             }),
             transaction_module: event.transaction_module.to_string(),
             sender: Some(grpc_common::Address {

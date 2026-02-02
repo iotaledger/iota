@@ -31,7 +31,7 @@ use iota_types::{
         TransactionKind,
     },
 };
-use move_core_types::language_storage::StructTag;
+use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
 
 use crate::{
     crypto::combine_keys,
@@ -122,7 +122,7 @@ impl Client {
             bail!("It is not a Game object, it has type {}.", raw.type_);
         }
 
-        let package = ObjectID::from(raw.type_.address);
+        let package = ObjectID::new(raw.type_.address.into_bytes());
         if package != self.package {
             bail!(
                 "It is expected to be from package {} but is from package {}.",
@@ -221,7 +221,7 @@ impl Client {
         let (game_id, _, _) = game.object_ref();
 
         let turn_cap_type = StructTag {
-            address: self.package.into(),
+            address: AccountAddress::new(self.package.into_bytes()),
             module: Identifier::new("owned").unwrap(),
             name: Identifier::new("TurnCap").unwrap(),
             type_params: vec![],
@@ -512,7 +512,7 @@ impl Client {
                 return None;
             };
 
-            if ObjectID::from(object_type.address) != self.package {
+            if object_type.address.as_ref() != self.package.as_bytes() {
                 return None;
             }
 
@@ -582,7 +582,7 @@ impl Client {
                 return None;
             };
 
-            if ObjectID::from(object_type.address) != self.package {
+            if object_type.address.as_ref() != self.package.as_bytes() {
                 return None;
             }
 

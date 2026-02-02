@@ -98,7 +98,7 @@ pub fn generate_valid_and_invalid_type_factory_tags(
 pub fn base_type_factory_tag_gen(addr: ObjectID) -> impl Strategy<Value = TypeTag> {
     "[A-Z]".prop_map(move |name| {
         TypeTag::Struct(Box::new(StructTag {
-            address: AccountAddress::from(addr),
+            address: AccountAddress::new(addr.into_bytes()),
             module: Identifier::new("type_factory").unwrap(),
             name: Identifier::new(name).unwrap(),
             type_params: vec![],
@@ -110,7 +110,7 @@ pub fn nested_type_factory_tag_gen(addr: ObjectID) -> impl Strategy<Value = Type
     base_type_factory_tag_gen(addr).prop_recursive(20, 256, 10, move |inner| {
         (inner, "[A-Z]").prop_map(move |(instantiation, name)| {
             TypeTag::Struct(Box::new(StructTag {
-                address: AccountAddress::from(addr),
+                address: AccountAddress::new(addr.into_bytes()),
                 module: Identifier::new("type_factory").unwrap(),
                 name: Identifier::new(name.to_string() + &name).unwrap(),
                 type_params: vec![instantiation],
