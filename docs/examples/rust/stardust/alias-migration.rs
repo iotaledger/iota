@@ -61,9 +61,8 @@ async fn main() -> Result<(), anyhow::Error> {
         .ok_or(anyhow!("No coins found"))?;
 
     // Get an AliasOutput object id
-    let alias_output_object_id = ObjectID::from_hex_literal(
-        "0x354a1864c8af23fde393f7603bc133f755a9405353b30878e41b929eb7e37554",
-    )?;
+    let alias_output_object_id =
+        ObjectID::from_hex("0x354a1864c8af23fde393f7603bc133f755a9405353b30878e41b929eb7e37554")?;
 
     // Get an AliasOutput object
     let alias_output_object = iota_client

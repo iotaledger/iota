@@ -276,7 +276,7 @@ fn copy_with_published_at_manifest(
     let idx = lines.iter().position(|s| s == "[package]").unwrap();
     lines.insert(
         idx + 1,
-        format!("published-at = \"{}\"", package_id.to_hex_uncompressed()),
+        format!("published-at = \"{}\"", package_id.to_hex()),
     );
     let new = lines.join("\n");
 
@@ -449,19 +449,19 @@ paths = [
                                     Package {
                                         path: "crates/iota-framework/packages/move-stdlib",
                                         watch: Some(
-                                            0x0000000000000000000000000000000000000000000000000000000000000001,
+                                            ObjectId("0x0000000000000000000000000000000000000000000000000000000000000001"),
                                         ),
                                     },
                                     Package {
                                         path: "crates/iota-framework/packages/iota-framework",
                                         watch: Some(
-                                            0x0000000000000000000000000000000000000000000000000000000000000002,
+                                            ObjectId("0x0000000000000000000000000000000000000000000000000000000000000002"),
                                         ),
                                     },
                                     Package {
                                         path: "crates/iota-framework/packages/iota-system",
                                         watch: Some(
-                                            0x0000000000000000000000000000000000000000000000000000000000000003,
+                                            ObjectId("0x0000000000000000000000000000000000000000000000000000000000000003"),
                                         ),
                                     },
                                 ],
@@ -475,7 +475,7 @@ paths = [
                             Package {
                                 path: "home/user/some/upgradeable-package",
                                 watch: Some(
-                                    0x0000000000000000000000000000000000000000000000000000000000001234,
+                                    ObjectId("0x0000000000000000000000000000000000000000000000000000000000001234"),
                                 ),
                             },
                             Package {

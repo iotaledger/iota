@@ -751,7 +751,9 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
     /// Parse a numeric address literal (must be prefixed by an `@` symbol) as
     /// an ObjectID.
     fn parse_object_id_literal(&mut self) -> PTBResult<Spanned<ObjectID>> {
-        Ok(self.parse_address_literal()?.map(|a| a.into_inner().into()))
+        Ok(self
+            .parse_address_literal()?
+            .map(|a| ObjectID::new(a.into_bytes())))
     }
 
     // Parse an array of arguments. Each element of the array is separated by a

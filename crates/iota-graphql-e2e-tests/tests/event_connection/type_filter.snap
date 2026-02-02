@@ -14,7 +14,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 2, line 37:
 //# run Test::M2::emit_emit_a --sender A --args 20
-events: Event { package_id: Test, transaction_module: Identifier("M2"), sender: Address("A"), type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [20, 0, 0, 0, 0, 0, 0, 0] }
+events: Event { package_id: ObjectId("Test"), transaction_module: Identifier("M2"), sender: Address("A"), type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [20, 0, 0, 0, 0, 0, 0, 0] }
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
@@ -50,13 +50,13 @@ Response: {
 
 task 5, line 60:
 //# run Test::M2::emit_b --sender A --args 42
-events: Event { package_id: Test, transaction_module: Identifier("M2"), sender: Address("A"), type_: StructTag { address: Test, module: Identifier("M2"), name: Identifier("EventB"), type_params: [] }, contents: [42, 0, 0, 0, 0, 0, 0, 0] }
+events: Event { package_id: ObjectId("Test"), transaction_module: Identifier("M2"), sender: Address("A"), type_: StructTag { address: Test, module: Identifier("M2"), name: Identifier("EventB"), type_params: [] }, contents: [42, 0, 0, 0, 0, 0, 0, 0] }
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 6, line 62:
 //# run Test::M2::emit_b --sender B --args 43
-events: Event { package_id: Test, transaction_module: Identifier("M2"), sender: Address("B"), type_: StructTag { address: Test, module: Identifier("M2"), name: Identifier("EventB"), type_params: [] }, contents: [43, 0, 0, 0, 0, 0, 0, 0] }
+events: Event { package_id: ObjectId("Test"), transaction_module: Identifier("M2"), sender: Address("B"), type_: StructTag { address: Test, module: Identifier("M2"), name: Identifier("EventB"), type_params: [] }, contents: [43, 0, 0, 0, 0, 0, 0, 0] }
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 0, non_refundable_storage_fee: 0
 

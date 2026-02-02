@@ -7,7 +7,7 @@ use iota_json_rpc::coin_api::parse_to_struct_tag;
 use iota_json_rpc_types::{Balance, Coin as IotaCoin};
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber},
+    base_types::{ObjectID, ObjectIDParseError, ObjectRef, SequenceNumber},
     digests::ObjectDigest,
     dynamic_field::{DynamicFieldType, Field},
     object::{Object, ObjectRead, PastObjectRead},
@@ -92,7 +92,7 @@ impl From<IndexedObject> for StoredObjectSnapshot {
         };
 
         Self {
-            object_id: object.id().to_vec(),
+            object_id: object.id().as_bytes().to_vec(),
             object_version: object.version().as_u64() as i64,
             object_status: ObjectStatus::Active as i16,
             object_digest: Some(object.digest().into_inner().to_vec()),
@@ -119,7 +119,7 @@ impl From<IndexedObject> for StoredObjectSnapshot {
 impl From<IndexedDeletedObject> for StoredObjectSnapshot {
     fn from(o: IndexedDeletedObject) -> Self {
         Self {
-            object_id: o.object_id.to_vec(),
+            object_id: o.object_id.as_bytes().to_vec(),
             object_version: o.object_version as i64,
             object_status: ObjectStatus::WrappedOrDeleted as i16,
             object_digest: None,
@@ -173,7 +173,8 @@ impl StoredHistoryObject {
 
         if let ObjectStatus::WrappedOrDeleted = object_status {
             let object_ref = (
-                ObjectID::from_bytes(self.object_id.clone())?,
+                ObjectID::from_bytes(self.object_id.clone())
+                    .map_err(|_| IndexerError::ObjectIdParse(ObjectIDParseError::TryFromSlice))?,
                 SequenceNumber::from_u64(self.object_version as u64),
                 ObjectDigest::OBJECT_DIGEST_DELETED,
             );
@@ -252,7 +253,7 @@ impl From<IndexedObject> for StoredHistoryObject {
         };
 
         Self {
-            object_id: object.id().to_vec(),
+            object_id: object.id().as_bytes().to_vec(),
             object_version: object.version().as_u64() as i64,
             object_status: ObjectStatus::Active as i16,
             object_digest: Some(object.digest().into_inner().to_vec()),
@@ -279,7 +280,7 @@ impl From<IndexedObject> for StoredHistoryObject {
 impl From<IndexedDeletedObject> for StoredHistoryObject {
     fn from(o: IndexedDeletedObject) -> Self {
         Self {
-            object_id: o.object_id.to_vec(),
+            object_id: o.object_id.as_bytes().to_vec(),
             object_version: o.object_version as i64,
             object_status: ObjectStatus::WrappedOrDeleted as i16,
             object_digest: None,
@@ -308,7 +309,7 @@ pub struct StoredDeletedObject {
 impl From<IndexedDeletedObject> for StoredDeletedObject {
     fn from(o: IndexedDeletedObject) -> Self {
         Self {
-            object_id: o.object_id.to_vec(),
+            object_id: o.object_id.as_bytes().to_vec(),
             object_version: o.object_version as i64,
         }
     }
@@ -340,7 +341,7 @@ impl From<IndexedObject> for StoredObject {
             None
         };
         Self {
-            object_id: object.id().to_vec(),
+            object_id: object.id().as_bytes().to_vec(),
             object_version: object.version().as_u64() as i64,
             object_digest: object.digest().into_inner().to_vec(),
             owner_type: owner_type as i16,

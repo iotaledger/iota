@@ -80,7 +80,7 @@ async fn resolve_transaction_simple_transfer() {
         ptb: UnresolvedProgrammableTransaction {
             inputs: vec![
                 UnresolvedInputArgument::ImmutableOrOwned(UnresolvedObjectReference {
-                    object_id: obj_to_send.into(),
+                    object_id: obj_to_send,
                     version: None,
                     digest: None,
                 }),
@@ -145,7 +145,7 @@ async fn resolve_transaction_transfer_with_sponsor() {
         ptb: UnresolvedProgrammableTransaction {
             inputs: vec![
                 UnresolvedInputArgument::ImmutableOrOwned(UnresolvedObjectReference {
-                    object_id: obj_to_send.into(),
+                    object_id: obj_to_send,
                     version: None,
                     digest: None,
                 }),
@@ -300,7 +300,7 @@ async fn resolve_transaction_mutable_shared_object() {
                     mutable: None,
                 },
                 UnresolvedInputArgument::ImmutableOrOwned(UnresolvedObjectReference {
-                    object_id: obj_to_stake.into(),
+                    object_id: obj_to_stake,
                     version: None,
                     digest: None,
                 }),
