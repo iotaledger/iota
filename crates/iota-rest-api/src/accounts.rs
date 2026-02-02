@@ -70,7 +70,7 @@ async fn list_account_objects(
                 .and_then(|info| {
                     AccountOwnedObjectInfo {
                         owner: info.owner,
-                        object_id: info.object_id.into(),
+                        object_id: info.object_id,
                         version: info.version,
                         type_: struct_tag_core_to_sdk(info.type_.into())?,
                     }
@@ -107,7 +107,7 @@ impl ListAccountOwnedObjectsQueryParameters {
     }
 
     pub fn start(&self) -> Option<iota_types::base_types::ObjectID> {
-        self.start.map(Into::into)
+        self.start
     }
 }
 
