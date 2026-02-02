@@ -87,6 +87,14 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         }
     }
 
+    /// Unsubscribe from a specific peer. Used for testing scenarios where
+    /// we need to simulate network partitions without stopping the validator.
+    #[cfg(test)]
+    pub(crate) fn unsubscribe(&self, peer: AuthorityIndex) {
+        let mut subscriptions = self.subscriptions.lock();
+        self.unsubscribe_locked(peer, &mut subscriptions[peer.value()]);
+    }
+
     fn unsubscribe_locked(&self, peer: AuthorityIndex, subscription: &mut Option<JoinHandle<()>>) {
         let peer_hostname = &self.context.committee.authority(peer).hostname;
         if let Some(subscription) = subscription.take() {
