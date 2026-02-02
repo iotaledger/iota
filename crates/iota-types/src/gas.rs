@@ -11,11 +11,9 @@ pub mod checked {
     use enum_dispatch::enum_dispatch;
     use iota_protocol_config::ProtocolConfig;
     pub use iota_sdk_types::gas::GasCostSummary;
-    use itertools::MultiUnzip;
 
     use crate::{
         ObjectID,
-        effects::{TransactionEffects, TransactionEffectsAPI},
         error::{ExecutionError, IotaResult, UserInputError, UserInputResult},
         gas_model::{gas_v1::IotaGasStatus as IotaGasStatusV1, tables::GasStatus},
         object::Object,
@@ -104,48 +102,6 @@ pub mod checked {
                 Self::V1(status) => status.check_gas_balance(gas_objs, gas_budget),
             }
         }
-    }
-
-    #[expect(clippy::type_complexity)]
-    pub fn new_gas_cost_summary_from_txn_effects<'a>(
-        transactions: impl Iterator<Item = &'a TransactionEffects>,
-    ) -> GasCostSummary {
-        let (
-            storage_costs,
-            computation_costs,
-            computation_costs_burned,
-            storage_rebates,
-            non_refundable_storage_fee,
-        ): (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>) = transactions
-            .map(|e| {
-                (
-                    e.gas_cost_summary().storage_cost,
-                    e.gas_cost_summary().computation_cost,
-                    e.gas_cost_summary().computation_cost_burned,
-                    e.gas_cost_summary().storage_rebate,
-                    e.gas_cost_summary().non_refundable_storage_fee,
-                )
-            })
-            .multiunzip();
-
-        GasCostSummary::new(
-            computation_costs.iter().sum(),
-            computation_costs_burned.iter().sum(),
-            storage_costs.iter().sum(),
-            storage_rebates.iter().sum(),
-            non_refundable_storage_fee.iter().sum(),
-        )
-    }
-
-    /// Add the values of `other` to `summary` in place.
-    pub fn add_gas_cost_summary(summary: &mut GasCostSummary, other: &GasCostSummary) {
-        *summary = GasCostSummary::new(
-            summary.computation_cost + other.computation_cost,
-            summary.computation_cost_burned + other.computation_cost_burned,
-            summary.storage_cost + other.storage_cost,
-            summary.storage_rebate + other.storage_rebate,
-            summary.non_refundable_storage_fee + other.non_refundable_storage_fee,
-        );
     }
 
     // Helper functions to deal with gas coins operations.
