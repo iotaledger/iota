@@ -799,8 +799,29 @@ impl Merge<iota_types::transaction::Transaction> for Transaction {
         source: iota_types::transaction::Transaction,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        if !mask.contains(Self::DIGEST_FIELD.name) && !mask.contains(Self::BCS_FIELD.name) {
+            // No need to convert if no field is requested
+            return Ok(());
+        }
+
+        let sdk_transaction: iota_sdk_types::Transaction = source
+            .transaction_data()
+            .clone()
+            .try_into()
+            .map_err(|e| format!("failed to convert transaction to SDK type: {e}"))?;
+
+        Merge::merge(self, &sdk_transaction, mask)
+    }
+}
+
+impl Merge<&iota_sdk_types::Transaction> for Transaction {
+    fn merge(
+        &mut self,
+        source: &iota_sdk_types::Transaction,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::DIGEST_FIELD.name) {
-            self.digest = Some((*source.digest()).into());
+            self.digest = Some((source.digest()).into());
         }
 
         if mask.contains(Self::BCS_FIELD.name) {

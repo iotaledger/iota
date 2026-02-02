@@ -7,15 +7,7 @@ use iota_grpc_types::v0::epoch::{
     ValidatorCommitteeMembers as GrpcValidatorCommitteeMembers,
 };
 
-use crate::{committee::Committee, digests::TransactionDigest};
-
-impl From<TransactionDigest> for iota_grpc_types::v0::types::Digest {
-    fn from(value: TransactionDigest) -> Self {
-        Self {
-            digest: value.into_inner().to_vec().into(),
-        }
-    }
-}
+use crate::committee::Committee;
 
 impl From<&Committee> for GrpcValidatorCommittee {
     fn from(committee: &Committee) -> Self {
