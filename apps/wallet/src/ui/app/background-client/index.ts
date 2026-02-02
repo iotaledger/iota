@@ -634,7 +634,7 @@ export class BackgroundClient {
         );
     }
 
-    private handleIncomingMessage(msg: Message) {
+    private async handleIncomingMessage(msg: Message) {
         if (!this._initialized || !this._dispatch) {
             throw new Error('BackgroundClient is not initialized to handle incoming messages');
         }
@@ -648,7 +648,7 @@ export class BackgroundClient {
             action = setActiveOrigin(payload);
         } else if (isLoadedFeaturesPayload(payload)) {
             growthbook.setAttributes(payload.attributes);
-            growthbook.setFeatures(payload.features);
+            await growthbook.setPayload({ features: payload.features });
         } else if (isSetNetworkPayload(payload)) {
             action = changeActiveNetwork({
                 network: payload.network,
