@@ -8,6 +8,7 @@ use futures::StreamExt;
 use iota_grpc_types::{
     field::FieldMaskTree,
     merge::Merge,
+    proto::timestamp_ms_to_proto,
     v0::{
         checkpoint as grpc_checkpoint, event as grpc_event, ledger_service as grpc_ledger_service,
         transaction as grpc_transaction,
@@ -565,7 +566,7 @@ impl GrpcReader {
                                     }
                                 }
 
-                                let checkpoint_tx_ctx = iota_grpc_types::v0::transaction::CheckpointTransactionWithContext::new(
+                                let checkpoint_tx_ctx = CheckpointTransactionWithContext::new(
                                     checkpoint_transaction,
                                     Some(sequence_number),
                                     Some(checkpoint_summary.data().timestamp_ms),
@@ -1008,4 +1009,91 @@ pub struct TransactionReadData {
     pub timestamp_ms: Option<u64>,
     pub input_objects: Vec<Object>,
     pub output_objects: Vec<Object>,
+}
+
+/// Wrapper type that includes checkpoint context for a CheckpointTransaction.
+#[derive(Debug, Clone)]
+pub struct CheckpointTransactionWithContext {
+    pub transaction: iota_types::full_checkpoint_content::CheckpointTransaction,
+    pub checkpoint_sequence_number: Option<u64>,
+    pub checkpoint_timestamp_ms: Option<u64>,
+}
+
+impl CheckpointTransactionWithContext {
+    pub fn new(
+        transaction: iota_types::full_checkpoint_content::CheckpointTransaction,
+        checkpoint_sequence_number: Option<u64>,
+        checkpoint_timestamp_ms: Option<u64>,
+    ) -> Self {
+        Self {
+            transaction,
+            checkpoint_sequence_number,
+            checkpoint_timestamp_ms,
+        }
+    }
+}
+
+impl Merge<CheckpointTransactionWithContext>
+    for iota_grpc_types::v0::transaction::ExecutedTransaction
+{
+    fn merge(
+        &mut self,
+        source: CheckpointTransactionWithContext,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(submask) = mask.subtree(Self::TRANSACTION_FIELD.name) {
+            self.transaction = Some(iota_grpc_types::v0::transaction::Transaction::merge_from(
+                source.transaction.transaction.clone(),
+                &submask,
+            )?);
+        }
+
+        if let Some(submask) = mask.subtree(Self::SIGNATURES_FIELD.name) {
+            self.signatures = Some(iota_grpc_types::v0::signatures::UserSignatures::merge_from(
+                source.transaction.transaction.clone(),
+                &submask,
+            )?);
+        }
+
+        if let Some(submask) = mask.subtree(Self::EFFECTS_FIELD.name) {
+            self.effects = Some(iota_grpc_types::v0::transaction::TransactionEffects::merge_from(
+                source.transaction.effects.clone(),
+                &submask,
+            )?);
+        }
+
+        if let Some(submask) = mask.subtree(Self::EVENTS_FIELD.name) {
+            if let Some(events) = source.transaction.events {
+                self.events = Some(iota_grpc_types::v0::transaction::TransactionEvents::merge_from(
+                    events, &submask,
+                )?);
+            }
+        }
+
+        // Set checkpoint sequence number if requested
+        if mask.contains(Self::CHECKPOINT_FIELD.name) {
+            self.checkpoint = source.checkpoint_sequence_number;
+        }
+
+        // Set checkpoint timestamp if requested
+        if mask.contains(Self::TIMESTAMP_FIELD.name) {
+            self.timestamp = source.checkpoint_timestamp_ms.map(timestamp_ms_to_proto);
+        }
+
+        if let Some(submask) = mask.subtree(Self::INPUT_OBJECTS_FIELD.name) {
+            self.input_objects = Some(iota_grpc_types::v0::object::Objects::merge_from(
+                Some(source.transaction.input_objects),
+                &submask,
+            )?);
+        }
+
+        if let Some(submask) = mask.subtree(Self::OUTPUT_OBJECTS_FIELD.name) {
+            self.output_objects = Some(iota_grpc_types::v0::object::Objects::merge_from(
+                Some(source.transaction.output_objects),
+                &submask,
+            )?);
+        }
+
+        Ok(())
+    }
 }

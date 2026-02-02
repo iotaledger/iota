@@ -5,7 +5,7 @@
 include!("../../../generated/iota.grpc.v0.transaction.rs");
 include!("../../../generated/iota.grpc.v0.transaction.field_info.rs");
 
-use crate::{field::FieldMaskTree, merge::Merge, proto::timestamp_ms_to_proto, v0::bcs::BcsData};
+use crate::{field::FieldMaskTree, merge::Merge, v0::bcs::BcsData};
 
 impl Merge<iota_types::effects::TransactionEffects> for TransactionEffects {
     fn merge(
@@ -226,99 +226,6 @@ impl TransactionEvents {
 
 // ExecutedTransaction
 //
-
-/// Wrapper type that includes checkpoint context for a CheckpointTransaction.
-#[derive(Debug, Clone)]
-pub struct CheckpointTransactionWithContext {
-    pub transaction: iota_types::full_checkpoint_content::CheckpointTransaction,
-    pub checkpoint_sequence_number: Option<u64>,
-    pub checkpoint_timestamp_ms: Option<u64>,
-}
-
-impl CheckpointTransactionWithContext {
-    pub fn new(
-        transaction: iota_types::full_checkpoint_content::CheckpointTransaction,
-        checkpoint_sequence_number: Option<u64>,
-        checkpoint_timestamp_ms: Option<u64>,
-    ) -> Self {
-        Self {
-            transaction,
-            checkpoint_sequence_number,
-            checkpoint_timestamp_ms,
-        }
-    }
-}
-
-impl TryFrom<CheckpointTransactionWithContext> for ExecutedTransaction {
-    type Error = Box<dyn std::error::Error>;
-
-    fn try_from(transaction_ctx: CheckpointTransactionWithContext) -> Result<Self, Self::Error> {
-        Self::merge_from(transaction_ctx, &FieldMaskTree::new_wildcard())
-    }
-}
-
-impl Merge<CheckpointTransactionWithContext> for ExecutedTransaction {
-    fn merge(
-        &mut self,
-        source: CheckpointTransactionWithContext,
-        mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(submask) = mask.subtree(Self::TRANSACTION_FIELD.name) {
-            self.transaction = Some(crate::v0::transaction::Transaction::merge_from(
-                source.transaction.transaction.clone(),
-                &submask,
-            )?);
-        }
-
-        if let Some(submask) = mask.subtree(Self::SIGNATURES_FIELD.name) {
-            self.signatures = Some(crate::v0::signatures::UserSignatures::merge_from(
-                source.transaction.transaction.clone(),
-                &submask,
-            )?);
-        }
-
-        if let Some(submask) = mask.subtree(Self::EFFECTS_FIELD.name) {
-            self.effects = Some(crate::v0::transaction::TransactionEffects::merge_from(
-                source.transaction.effects.clone(),
-                &submask,
-            )?);
-        }
-
-        if let Some(submask) = mask.subtree(Self::EVENTS_FIELD.name) {
-            if let Some(events) = source.transaction.events {
-                self.events = Some(crate::v0::transaction::TransactionEvents::merge_from(
-                    events, &submask,
-                )?);
-            }
-        }
-
-        // Set checkpoint sequence number if requested
-        if mask.contains(Self::CHECKPOINT_FIELD.name) {
-            self.checkpoint = source.checkpoint_sequence_number;
-        }
-
-        // Set checkpoint timestamp if requested
-        if mask.contains(Self::TIMESTAMP_FIELD.name) {
-            self.timestamp = source.checkpoint_timestamp_ms.map(timestamp_ms_to_proto);
-        }
-
-        if let Some(submask) = mask.subtree(Self::INPUT_OBJECTS_FIELD.name) {
-            self.input_objects = Some(crate::v0::object::Objects::merge_from(
-                Some(source.transaction.input_objects),
-                &submask,
-            )?);
-        }
-
-        if let Some(submask) = mask.subtree(Self::OUTPUT_OBJECTS_FIELD.name) {
-            self.output_objects = Some(crate::v0::object::Objects::merge_from(
-                Some(source.transaction.output_objects),
-                &submask,
-            )?);
-        }
-
-        Ok(())
-    }
-}
 
 impl Merge<&ExecutedTransaction> for ExecutedTransaction {
     fn merge(
