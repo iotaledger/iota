@@ -22,7 +22,7 @@ impl StoredDisplay {
 
         Some(Self {
             object_type: ty.to_canonical_string(/* with_prefix */ true),
-            id: display_event.id.bytes.to_vec(),
+            id: display_event.id.bytes.as_bytes().to_vec(),
             version: display_event.version as i16,
             bcs: event.contents.clone(),
         })

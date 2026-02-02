@@ -131,7 +131,7 @@ mod checked {
         modules: &mut [CompiledModule],
         object_id: ObjectID,
     ) -> Result<(), ExecutionError> {
-        let new_address = AccountAddress::from(object_id);
+        let new_address = AccountAddress::new(object_id.into_bytes());
 
         for module in modules.iter_mut() {
             let self_handle = module.self_handle().clone();

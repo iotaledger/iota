@@ -276,7 +276,7 @@ async fn test_zklogin_conflicting_jwks() {
 
     test_cluster.fullnode_handle.iota_node.with(|node| {
         let mut txns = node.state().subscription_handler.subscribe_transactions(
-            TransactionFilter::ChangedObject(ObjectID::from_hex_literal("0x7").unwrap()),
+            TransactionFilter::ChangedObject(ObjectID::from_short_hex("0x7").unwrap()),
         );
         let state = node.state();
 

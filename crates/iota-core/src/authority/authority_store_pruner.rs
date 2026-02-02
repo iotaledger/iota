@@ -963,8 +963,8 @@ mod tests {
         let (mut to_keep, mut to_delete, mut tombstones) = (vec![], vec![], vec![]);
         let mut batch = db.objects.batch();
 
-        let ids = ObjectID::in_range(ObjectID::ZERO, total_unique_object_ids.into())?;
-        for id in ids {
+        let mut id = ObjectID::ZERO;
+        for _ in 0..total_unique_object_ids {
             for (counter, seq) in (0..num_versions_per_object).rev().enumerate() {
                 let object_key = ObjectKey(id, SequenceNumber::from_u64(seq));
                 if counter < num_object_versions_to_retain.try_into().unwrap() {
@@ -990,6 +990,7 @@ mod tests {
                 )?;
                 tombstones.push(tombstone_key);
             }
+            id = id.next_lexicographical();
         }
         batch.write().unwrap();
         assert_eq!(
@@ -1081,9 +1082,9 @@ mod tests {
         let perpetual_db = Arc::new(AuthorityPerpetualTables::open(tmp_dir.path(), None));
         let total_unique_object_ids = 10_000;
         let num_versions_per_object = 10;
-        let ids = ObjectID::in_range(ObjectID::ZERO, total_unique_object_ids)?;
+        let mut id = ObjectID::ZERO;
         let mut to_delete = vec![];
-        for id in ids {
+        for _ in 0..total_unique_object_ids {
             for i in (0..num_versions_per_object).rev() {
                 if i < num_versions_per_object - 2 {
                     to_delete.push((id, SequenceNumber::from(i)));
@@ -1093,6 +1094,7 @@ mod tests {
                     .objects
                     .insert(&ObjectKey(id, SequenceNumber::from(i)), &obj)?;
             }
+            id = id.next_lexicographical();
         }
 
         fn get_sst_size(path: &Path) -> u64 {

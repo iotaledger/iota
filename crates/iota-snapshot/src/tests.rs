@@ -23,10 +23,11 @@ pub fn insert_keys(
     db: &AuthorityPerpetualTables,
     total_unique_object_ids: u64,
 ) -> Result<(), anyhow::Error> {
-    let ids = ObjectID::in_range(ObjectID::ZERO, total_unique_object_ids)?;
-    for id in ids {
+    let mut id = ObjectID::ZERO;
+    for _ in 0..total_unique_object_ids {
         let object = Object::immutable_with_id_for_testing(id);
         db.insert_object_test_only(object)?;
+        id = id.next_lexicographical();
     }
     Ok(())
 }

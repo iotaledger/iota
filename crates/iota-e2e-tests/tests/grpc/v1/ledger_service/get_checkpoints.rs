@@ -247,7 +247,7 @@ async fn test_event_filtering() {
                         // Verify NFT filter logic: only NFT events
                         assert_eq!(
                             event.package_id.as_ref().unwrap().object_id.as_ref(),
-                            nft_package_id.as_ref(),
+                            nft_package_id.as_bytes(),
                             "MoveEventTypeFilter should only match NFT package events"
                         );
 
@@ -298,7 +298,7 @@ async fn test_event_filtering() {
                         let nft_package_matches = event
                             .package_id
                             .as_ref()
-                            .map(|p| p.object_id.as_ref() == nft_package_id.as_ref())
+                            .map(|p| p.object_id.as_ref() == nft_package_id.as_bytes())
                             .unwrap_or(false);
                         assert!(
                             sender_matches || nft_package_matches,

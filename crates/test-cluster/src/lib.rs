@@ -537,9 +537,7 @@ impl TestCluster {
                 .iota_node
                 .with_async(|node| async move {
                     let mut txns = node.state().subscription_handler.subscribe_transactions(
-                        TransactionFilter::ChangedObject(
-                            ObjectID::from_hex_literal("0x7").unwrap(),
-                        ),
+                        TransactionFilter::ChangedObject(ObjectID::AUTHENTICATOR_STATE),
                     );
                     let state = node.state();
 

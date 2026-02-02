@@ -401,7 +401,7 @@ mod sim_only_tests {
     async fn test_new_framework_package() {
         ProtocolConfig::poison_get_for_min_version();
 
-        let iota_extra = ObjectID::from_single_byte(0x42);
+        let iota_extra = ObjectID::from_u16(0x42);
         framework_injection::set_override(iota_extra, fixture_modules("extra_package"));
 
         let cluster = TestClusterBuilder::new()

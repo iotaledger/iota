@@ -368,9 +368,15 @@ pub fn end_transaction(
     }
 
     let effects = transaction_effects(
-        created,
-        written,
-        deleted,
+        created
+            .into_iter()
+            .map(|id| AccountAddress::new(id.into_bytes())),
+        written
+            .into_iter()
+            .map(|id| AccountAddress::new(id.into_bytes())),
+        deleted
+            .into_iter()
+            .map(|id| AccountAddress::new(id.into_bytes())),
         transferred,
         user_events.len() as u64,
     );
@@ -426,7 +432,11 @@ pub fn ids_for_address(
         .address_inventories
         .get(&account)
         .and_then(|inv| inv.get(&specified_ty))
-        .map(|s| s.iter().map(|id| pack_id(*id)).collect::<Vec<Value>>())
+        .map(|s| {
+            s.iter()
+                .map(|id| pack_id(AccountAddress::new(id.into_bytes())))
+                .collect::<Vec<Value>>()
+        })
         .unwrap_or_default();
     let ids_vector = Value::vector_for_testing_only(ids);
     Ok(NativeResult::ok(legacy_test_cost(), smallvec![ids_vector]))
@@ -786,7 +796,7 @@ fn most_recent_at_ty_opt(
 ) -> Option<Value> {
     let s = inv.get(&ty)?;
     let most_recent_id = s.iter().rfind(|id| !taken.contains_key(id))?;
-    Some(pack_id(*most_recent_id))
+    Some(pack_id(AccountAddress::new(most_recent_id.into_bytes())))
 }
 
 fn get_specified_ty(mut ty_args: Vec<Type>) -> Type {
@@ -804,9 +814,11 @@ fn pop_id(args: &mut VecDeque<Value>) -> PartialVMResult<ObjectID> {
         }
         Some(v) => v,
     };
-    Ok(get_nth_struct_field(v, 0)?
-        .value_as::<AccountAddress>()?
-        .into())
+    Ok(ObjectID::new(
+        get_nth_struct_field(v, 0)?
+            .value_as::<AccountAddress>()?
+            .into_bytes(),
+    ))
 }
 
 fn pack_id(a: impl Into<AccountAddress>) -> Value {
@@ -839,13 +851,15 @@ fn transaction_effects(
     for (id, owner) in transferred {
         match owner {
             Owner::AddressOwner(a) => transferred_to_account.push((
-                pack_id(id),
+                pack_id(AccountAddress::new(id.into_bytes())),
                 Value::address(AccountAddress::new(a.into_bytes())),
             )),
-            Owner::ObjectOwner(o) => transferred_to_object
-                .push((pack_id(id), pack_id(AccountAddress::new(o.into_bytes())))),
-            Owner::Shared { .. } => shared.push(id),
-            Owner::Immutable => frozen.push(id),
+            Owner::ObjectOwner(o) => transferred_to_object.push((
+                pack_id(AccountAddress::new(id.into_bytes())),
+                pack_id(AccountAddress::new(o.into_bytes())),
+            )),
+            Owner::Shared { .. } => shared.push(AccountAddress::new(id.into_bytes())),
+            Owner::Immutable => frozen.push(AccountAddress::new(id.into_bytes())),
         }
     }
 
@@ -950,7 +964,7 @@ fn find_all_wrapped_objects<'a, 'i>(
         ) -> Result<(), Self::Error> {
             // If we're looking for addresses, and we found one, then save it.
             if matches!(self.state, LookingFor::Address) {
-                self.ids.insert(address.into());
+                self.ids.insert(ObjectID::new(address.into_bytes()));
             }
             Ok(())
         }

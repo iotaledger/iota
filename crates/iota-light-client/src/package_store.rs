@@ -7,6 +7,7 @@ use std::{collections::HashMap, sync::Arc};
 use anyhow::Result;
 use async_trait::async_trait;
 use iota_package_resolver::{Package, PackageStore, error::Error as PackageResolverError};
+use iota_types::base_types::ObjectID;
 use move_core_types::account_address::AccountAddress;
 use tokio::sync::Mutex;
 use tracing::{error, info};
@@ -41,7 +42,7 @@ impl PackageStore for RemotePackageStore {
 
             info!("Fetch Package: {id}");
 
-            let object = get_verified_object(&self.config, id.into()).await?;
+            let object = get_verified_object(&self.config, ObjectID::new(id.into_bytes())).await?;
             let package = Arc::new(Package::read_from_object(&object)?);
 
             // Add to the cache

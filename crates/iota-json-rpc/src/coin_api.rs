@@ -216,7 +216,7 @@ impl CoinReadApiServer for CoinReadApi {
             let metadata_object = self
                 .internal
                 .find_package_object(
-                    &coin_struct.address.into(),
+                    &ObjectID::new(coin_struct.address.into_bytes()),
                     CoinMetadata::type_(coin_struct.clone()),
                 )
                 .await
@@ -226,7 +226,7 @@ impl CoinReadApiServer for CoinReadApi {
                     let manager_object = self
                         .internal
                         .find_package_object(
-                            &coin_struct.address.into(),
+                            &ObjectID::new(coin_struct.address.into_bytes()),
                             CoinManager::type_(coin_struct),
                         )
                         .await
@@ -406,7 +406,10 @@ where
     I: CoinReadInternal + Send + Sync + ?Sized,
 {
     if let Ok(obj) = internal
-        .find_package_object(&tag.address.into(), TreasuryCap::type_(tag.clone()))
+        .find_package_object(
+            &ObjectID::new(tag.address.into_bytes()),
+            TreasuryCap::type_(tag.clone()),
+        )
         .await
     {
         let data = obj
@@ -429,7 +432,10 @@ where
     I: CoinReadInternal + Send + Sync + ?Sized,
 {
     if let Ok(obj) = internal
-        .find_package_object(&tag.address.into(), CoinManager::type_(tag.clone()))
+        .find_package_object(
+            &ObjectID::new(tag.address.into_bytes()),
+            CoinManager::type_(tag.clone()),
+        )
         .await
     {
         let cm = CoinManager::try_from(obj).map_err(Error::from)?;
@@ -662,7 +668,7 @@ mod tests {
     }
 
     fn get_test_package_id() -> ObjectID {
-        ObjectID::from_hex_literal("0xf").unwrap()
+        ObjectID::from_u16(0xf)
     }
 
     fn get_test_coin_type(package_id: ObjectID) -> String {
@@ -690,9 +696,9 @@ mod tests {
         };
 
         let object_id = if let Some(literal) = id_hex_literal {
-            ObjectID::from_hex_literal(literal).unwrap()
+            ObjectID::from_prefixed_short_hex(literal).unwrap()
         } else {
-            ObjectID::from_hex_literal(default_hex).unwrap()
+            ObjectID::from_prefixed_short_hex(default_hex).unwrap()
         };
 
         Coin {

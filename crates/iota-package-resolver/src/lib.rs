@@ -539,7 +539,7 @@ impl<S: PackageStore> Resolver<S> {
                 Command::MoveCall(call) => {
                     let Ok(signature) = self
                         .function_signature(
-                            call.package.into(),
+                            AccountAddress::new(call.package.into_bytes()),
                             call.module.as_str(),
                             call.function.as_str(),
                         )
@@ -741,7 +741,7 @@ impl<T: PackageStore> PackageStore for PackageStoreWithLruCache<T> {
 
 impl Package {
     pub fn read_from_object(object: &Object) -> Result<Self> {
-        let storage_id = AccountAddress::from(object.id());
+        let storage_id = AccountAddress::new(object.id().into_bytes());
         let Some(package) = object.data.try_as_package() else {
             return Err(Error::NotAPackage(storage_id));
         };
@@ -750,7 +750,7 @@ impl Package {
     }
 
     pub fn read_from_package(package: &MovePackage) -> Result<Self> {
-        let storage_id = AccountAddress::from(package.id());
+        let storage_id = AccountAddress::new(package.id().into_bytes());
         let mut type_origins: BTreeMap<String, BTreeMap<String, AccountAddress>> = BTreeMap::new();
         for TypeOrigin {
             module_name,
@@ -761,7 +761,10 @@ impl Package {
             type_origins
                 .entry(module_name.to_string())
                 .or_default()
-                .insert(datatype_name.to_string(), AccountAddress::from(*package));
+                .insert(
+                    datatype_name.to_string(),
+                    AccountAddress::new(package.into_bytes()),
+                );
         }
 
         let mut runtime_id = None;
@@ -787,7 +790,12 @@ impl Package {
         let linkage = package
             .linkage_table()
             .iter()
-            .map(|(&dep, linkage)| (dep.into(), linkage.upgraded_id.into()))
+            .map(|(&dep, linkage)| {
+                (
+                    AccountAddress::new(dep.into_bytes()),
+                    AccountAddress::new(linkage.upgraded_id.into_bytes()),
+                )
+            })
             .collect();
 
         Ok(Package {
@@ -1848,7 +1856,11 @@ mod tests {
 
     use async_trait::async_trait;
     use iota_move_build::{BuildConfig, CompiledPackage};
-    use iota_types::{base_types::random_object_ref, error::IotaResult, transaction::ObjectArg};
+    use iota_types::{
+        base_types::{ObjectID, random_object_ref},
+        error::IotaResult,
+        transaction::ObjectArg,
+    };
     use move_binary_format::file_format::Ability;
     use move_compiler::compiled_unit::NamedCompiledModule;
     use move_core_types::ident_str;
@@ -2829,7 +2841,7 @@ mod tests {
                     I::Pure(bcs::to_bytes("world").unwrap()),
                 ],
                 commands: vec![Command::move_call(
-                    addr("0xe0").into(),
+                    obj_id("0xe0"),
                     ident_str!("m").to_owned(),
                     ident_str!("foo").to_owned(),
                     vec![t],
@@ -2909,14 +2921,14 @@ mod tests {
             ],
             commands: vec![
                 Command::move_call(
-                    addr("0xe0").into(),
+                    obj_id("0xe0"),
                     ident_str!("m").to_owned(),
                     ident_str!("foo").to_owned(),
                     vec![T::U64],
                     (0..=6).map(Argument::Input).collect(),
                 ),
                 Command::move_call(
-                    addr("0xe0").into(),
+                    obj_id("0xe0"),
                     ident_str!("m").to_owned(),
                     ident_str!("foo").to_owned(),
                     vec![T::U64],
@@ -2966,7 +2978,7 @@ mod tests {
             ],
             commands: vec![
                 Command::move_call(
-                    addr("0xe0").into(),
+                    obj_id("0xe0"),
                     ident_str!("m").to_owned(),
                     ident_str!("foo").to_owned(),
                     vec![T::U64],
@@ -3097,7 +3109,7 @@ mod tests {
                     .published
                     .values()
                     .map(|dep_id| {
-                        let storage_id = AccountAddress::from(*dep_id);
+                        let storage_id = AccountAddress::new(dep_id.into_bytes());
                         let runtime_id = package_runtime_id(
                             &packages_by_storage_id
                                 .get(&storage_id)
@@ -3166,12 +3178,18 @@ mod tests {
     }
 
     fn package_storage_id(package: &CompiledPackage) -> AccountAddress {
-        AccountAddress::from(*package.published_at.as_ref().unwrap_or_else(|_| {
-            panic!(
-                "Package {} doesn't have published-at set",
-                package.package.compiled_package_info.package_name,
-            )
-        }))
+        AccountAddress::new(
+            package
+                .published_at
+                .as_ref()
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Package {} doesn't have published-at set",
+                        package.package.compiled_package_info.package_name,
+                    )
+                })
+                .into_bytes(),
+        )
     }
 
     fn package_runtime_id(package: &CompiledPackage) -> AccountAddress {
@@ -3189,6 +3207,10 @@ mod tests {
 
     fn addr(a: &str) -> AccountAddress {
         AccountAddress::from_str(a).unwrap()
+    }
+
+    fn obj_id(a: &str) -> ObjectID {
+        ObjectID::from_str(a).unwrap()
     }
 
     fn datakey(a: &str, m: &'static str, n: &'static str) -> DatatypeKey {

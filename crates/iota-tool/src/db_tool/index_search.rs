@@ -11,7 +11,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, TxSequenceNumber},
     digests::TransactionDigest,
 };
-use move_core_types::language_storage::ModuleId;
+use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use serde::{Serialize, de::DeserializeOwned};
 use typed_store::{
     rocks::{DBMap, MetricConf},
@@ -322,7 +322,10 @@ fn from_module_id_and_event_id(
     let package = ObjectID::from_str(tokens[0].trim())?;
 
     Ok((
-        ModuleId::new(package.into(), Identifier::from_str(tokens[1].trim())?),
+        ModuleId::new(
+            AccountAddress::new(package.into_bytes()),
+            Identifier::from_str(tokens[1].trim())?,
+        ),
         (tx_seq, event_seq),
     ))
 }

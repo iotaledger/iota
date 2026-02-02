@@ -197,8 +197,10 @@ mod tests {
         let ptb = ProgrammableTransaction {
             inputs: vec![CallArg::Pure(vec![0xab])],
             commands: vec![Command::MoveCall(Box::new(ProgrammableMoveCall {
-                package: ObjectID::from_hex_literal("0x0000000000000000000000000000000000000001")
-                    .unwrap(),
+                package: ObjectID::from_prefixed_short_hex(
+                    "0x0000000000000000000000000000000000000001",
+                )
+                .unwrap(),
                 module: "mod".to_string(),
                 function: "fun".to_string(),
                 type_arguments: vec![TypeInput::U8],

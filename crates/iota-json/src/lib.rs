@@ -128,7 +128,7 @@ impl IotaJsonValue {
     }
 
     pub fn from_object_id(id: ObjectID) -> IotaJsonValue {
-        Self(JsonValue::String(id.to_hex_uncompressed()))
+        Self(JsonValue::String(id.to_hex()))
     }
 
     pub fn to_bcs_bytes(&self, ty: &MoveTypeLayout) -> Result<Vec<u8>, anyhow::Error> {
@@ -677,10 +677,7 @@ fn resolve_object_arg(idx: usize, arg: &JsonValue) -> Result<ObjectID, anyhow::E
     match arg {
         JsonValue::String(s) => {
             let s = s.trim().to_lowercase();
-            if !s.starts_with(HEX_PREFIX) {
-                bail!("ObjectID hex string must start with 0x.",);
-            }
-            Ok(ObjectID::from_hex_literal(&s)?)
+            Ok(ObjectID::from_prefixed_short_hex(&s)?)
         }
         _ => bail!(
             "Unable to parse arg {:?} as ObjectID at pos {}. Expected {:?}-byte hex string \

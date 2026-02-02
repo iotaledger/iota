@@ -47,7 +47,7 @@ impl TryFrom<&Address> for iota_sdk_types::Address {
 impl From<iota_sdk_types::ObjectId> for ObjectId {
     fn from(value: iota_sdk_types::ObjectId) -> Self {
         Self {
-            object_id: value.into_inner().to_vec().into(),
+            object_id: value.into_bytes().to_vec().into(),
         }
     }
 }
