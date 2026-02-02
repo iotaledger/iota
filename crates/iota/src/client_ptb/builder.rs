@@ -697,7 +697,7 @@ impl<'a> PTBBuilder<'a> {
                 self.resolve(arg_loc.wrap(PTBArg::Identifier(i)), ctx).await
             }
             PTBArg::Address(addr) => {
-                let object_id = ObjectID::from_address(addr.into_inner());
+                let object_id = ObjectID::new(addr.into_bytes());
                 ctx.resolve_object_id(self, arg_loc, object_id).await
             }
             PTBArg::VariableAccess(head, fields) => {
@@ -922,7 +922,7 @@ impl<'a> PTBBuilder<'a> {
                     }
                 })?;
 
-                let package_id = ObjectID::from_address(resolved_address);
+                let package_id = ObjectID::new(resolved_address.into_bytes());
                 let package = self.resolve_to_package(package_id, address.span).await?;
                 let args = self
                     .resolve_move_call_args(
@@ -1066,7 +1066,7 @@ impl<'a> PTBBuilder<'a> {
                     self.reader,
                     build_config.clone(),
                     &package_path,
-                    ObjectID::from_address(upgrade_cap_id.into_inner()),
+                    ObjectID::new(upgrade_cap_id.into_bytes()),
                     false, // with_unpublished_dependencies
                     true,  // skip_dependency_verification
                     None,

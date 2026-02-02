@@ -121,7 +121,7 @@ async fn test_get_objects_batching_within_limit() {
                 ObjectRequest::default().with_object_ref(
                     ObjectReference::default().with_object_id(
                         iota_grpc_types::v1::types::ObjectId::default()
-                            .with_object_id(id.as_ref().to_vec()),
+                            .with_object_id(id.into_bytes().to_vec()),
                     ),
                 )
             })

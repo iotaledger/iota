@@ -160,7 +160,7 @@ impl FromStr for MoveFunctionName {
             iota_types::parse_iota_fq_name(s).map_err(|e| UserInputError::InvalidIdentifier {
                 error: e.to_string(),
             })?;
-        let package = ObjectID::from_address(*module.address());
+        let package = ObjectID::new(module.address().into_bytes());
         Ok(Self {
             package,
             module: module.name().to_string(),
@@ -496,7 +496,7 @@ impl From<MoveValue> for IotaMoveValue {
                 IotaMoveValue::Struct(value.into())
             }
             MoveValue::Signer(value) | MoveValue::Address(value) => {
-                IotaMoveValue::Address(IotaAddress::from(ObjectID::from(value)))
+                IotaMoveValue::Address(IotaAddress::from(ObjectID::new(value.into_bytes())))
             }
             MoveValue::Variant(MoveVariant {
                 type_,

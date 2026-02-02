@@ -28,7 +28,7 @@ use iota_protocol_config::Chain;
 use iota_sdk_types::crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion};
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
-    base_types::IotaAddress,
+    base_types::{IotaAddress, ObjectID},
     crypto::default_hash,
     digests::TransactionDigest,
     effects::TransactionEffectsAPI,
@@ -497,7 +497,7 @@ impl IotaRpcModule for TransactionExecutionApi {
 impl PackageStore for TransactionExecutionApi {
     async fn fetch(&self, id: AccountAddress) -> Result<Arc<Package>, PackageResolverError> {
         let backing_store = self.state.get_backing_package_store();
-        match backing_store.get_package_object(&(id.into())) {
+        match backing_store.get_package_object(&ObjectID::new(id.into_bytes())) {
             Ok(Some(pkg)) => Ok(Arc::new(Package::read_from_package(pkg.move_package())?)),
             Ok(None) => Err(PackageResolverError::PackageNotFound(id)),
             Err(e) => Err(PackageResolverError::Store {

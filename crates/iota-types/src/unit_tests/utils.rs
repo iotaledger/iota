@@ -77,9 +77,8 @@ pub fn create_fake_transaction() -> Transaction {
 }
 
 pub fn make_transaction_data(sender: IotaAddress) -> TransactionData {
-    let object = Object::immutable_with_id_for_testing(ObjectID::random_from_rng(
-        &mut StdRng::from_seed([0; 32]),
-    ));
+    let object =
+        Object::immutable_with_id_for_testing(ObjectID::generate(StdRng::from_seed([0; 32])));
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.transfer_iota(dbg_addr(2), None);

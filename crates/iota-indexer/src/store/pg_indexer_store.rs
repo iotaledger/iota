@@ -454,7 +454,7 @@ impl PgIndexerStore {
             .into_iter()
             .map(|removed_object| {
                 (
-                    removed_object.object_id().to_vec(),
+                    removed_object.object_id().as_bytes().to_vec(),
                     removed_object.version() as i64,
                     removed_object.transaction_digest.into_inner().to_vec(),
                 )

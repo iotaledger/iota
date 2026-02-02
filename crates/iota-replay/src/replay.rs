@@ -2303,7 +2303,7 @@ impl ResourceResolver for LocalExec {
         ) -> IotaResult<Option<Vec<u8>>> {
             // If package not present fetch it from the network or some remote location
             let Some(object) = self_.get_or_download_object(
-                &ObjectID::from(*address),
+                &ObjectID::new(address.into_bytes()),
                 false, // we expect a Move obj
             )?
             else {

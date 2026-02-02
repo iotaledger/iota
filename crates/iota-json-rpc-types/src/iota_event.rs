@@ -425,7 +425,8 @@ impl EventFilter {
                 }
             }
             EventFilter::MoveEventModule { package, module } => {
-                &item.type_.module == module && &ObjectID::from(item.type_.address) == package
+                &item.type_.module == module
+                    && &ObjectID::new(item.type_.address.into_bytes()) == package
             }
         })
     }

@@ -12,8 +12,6 @@ use super::{
     EffectsObjectChange, IDOperation, ObjectChange,
     object_change::{ObjectIn, ObjectOut},
 };
-#[cfg(debug_assertions)]
-use crate::is_system_package;
 use crate::{
     base_types::{
         EpochId, IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
@@ -560,7 +558,7 @@ impl TransactionEffectsV1 {
                 ) => {
                     // system package upgrade.
                     assert!(
-                        old_owner.is_immutable() && is_system_package(*id),
+                        old_owner.is_immutable() && id.is_system_package(),
                         "Must be a system package"
                     );
                     assert_eq!(*old_version + 1, *new_version);

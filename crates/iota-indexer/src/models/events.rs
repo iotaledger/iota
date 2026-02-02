@@ -62,7 +62,7 @@ impl From<IndexedEvent> for StoredEvent {
                 .into_iter()
                 .map(|sender| Some(sender.as_bytes().to_vec()))
                 .collect(),
-            package: event.package.to_vec(),
+            package: event.package.as_bytes().to_vec(),
             module: event.module.clone(),
             event_type: event.event_type.clone(),
             bcs: event.bcs.clone(),

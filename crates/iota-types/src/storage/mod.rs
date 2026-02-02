@@ -332,7 +332,7 @@ pub fn get_module(
     module_id: &ModuleId,
 ) -> Result<Option<Vec<u8>>, IotaError> {
     Ok(store
-        .get_package_object(&ObjectID::from(*module_id.address()))?
+        .get_package_object(&ObjectID::new(module_id.address().into_bytes()))?
         .and_then(|package| {
             package
                 .move_package()

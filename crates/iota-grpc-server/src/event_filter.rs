@@ -149,7 +149,7 @@ impl EventFilter {
                         || matches!(module,  Some(m2) if m2 == &item.transaction_module))
             }
             EventFilter::MoveEventPackageAndModule { package, module } => {
-                ObjectID::from(item.type_.address) == *package
+                item.type_.address.as_ref() == package.as_bytes()
                     && (module.is_none() || matches!(module,  Some(m2) if m2 == &item.type_.module))
             }
             EventFilter::MoveEventType(event_type) => item.type_ == *event_type,
@@ -253,6 +253,8 @@ impl EventFilter {
 
 #[cfg(test)]
 mod tests {
+    use move_core_types::account_address::AccountAddress;
+
     use super::*;
 
     #[test]
@@ -271,7 +273,7 @@ mod tests {
                     module: Some(Identifier::new("MyModule").unwrap()),
                 },
                 EventFilter::Not(Box::new(EventFilter::MoveEventType(StructTag {
-                    address: ObjectID::random().into(),
+                    address: AccountAddress::new(ObjectID::random().into_bytes()),
                     module: Identifier::new("MyModule").unwrap(),
                     name: Identifier::new("MyEvent").unwrap(),
                     type_params: vec![],

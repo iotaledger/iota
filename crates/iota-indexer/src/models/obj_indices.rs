@@ -26,7 +26,7 @@ impl TryFrom<&IndexedObject> for StoredObjectVersion {
 
     fn try_from(o: &IndexedObject) -> Result<Self, Self::Error> {
         Ok(Self {
-            object_id: o.object.id().to_vec(),
+            object_id: o.object.id().as_bytes().to_vec(),
             object_version: o.object.version().as_u64() as i64,
             cp_sequence_number: o.checkpoint_sequence_number.ok_or_else(|| {
                 IndexerError::InvalidArgument(
@@ -40,7 +40,7 @@ impl TryFrom<&IndexedObject> for StoredObjectVersion {
 impl From<&IndexedDeletedObject> for StoredObjectVersion {
     fn from(o: &IndexedDeletedObject) -> Self {
         Self {
-            object_id: o.object_id.to_vec(),
+            object_id: o.object_id.as_bytes().to_vec(),
             object_version: o.object_version as i64,
             cp_sequence_number: o.checkpoint_sequence_number as i64,
         }

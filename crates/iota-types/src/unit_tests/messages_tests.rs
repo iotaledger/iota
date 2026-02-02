@@ -8,8 +8,11 @@ use std::{
     hash::Hasher,
 };
 
-use fastcrypto::traits::{AggregateAuthenticator, KeyPair};
-use move_core_types::language_storage::StructTag;
+use fastcrypto::{
+    ed25519::Ed25519KeyPair,
+    traits::{AggregateAuthenticator, KeyPair},
+};
+use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
 use roaring::RoaringBitmap;
 
 use super::*;
@@ -1107,7 +1110,7 @@ fn test_move_input_objects() {
     let gas_object_ref = random_object_ref();
     let mk_st = |package: ObjectID, type_args| {
         TypeTag::Struct(Box::new(StructTag {
-            address: package.into(),
+            address: AccountAddress::new(package.into_bytes()),
             module: Identifier::new("foo").unwrap(),
             name: Identifier::new("bar").unwrap(),
             type_params: type_args,
@@ -1196,7 +1199,7 @@ fn test_unique_input_objects() {
 
     let mk_st = |package: ObjectID, type_args| {
         TypeTag::Struct(Box::new(StructTag {
-            address: package.into(),
+            address: AccountAddress::new(package.into_bytes()),
             module: Identifier::new("foo").unwrap(),
             name: Identifier::new("bar").unwrap(),
             type_params: type_args,
@@ -1275,7 +1278,7 @@ fn test_certificate_digest() {
     let (sender2, sender2_sec): (_, AccountKeyPair) = get_key_pair();
 
     let gas_price = 10;
-    let make_tx = |sender, sender_sec| {
+    let make_tx = |sender, sender_sec: Ed25519KeyPair| {
         Transaction::from_data_and_signer(
             TransactionData::new_transfer(
                 receiver,

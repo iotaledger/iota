@@ -305,7 +305,6 @@ impl TryFrom<proto_filter::TransactionFilter> for TransactionFilter {
                     .as_ref()
                     .ok_or("object_id is missing")?
                     .object_id()
-                    .map(Into::into)
                     .map_err(|e| format!("invalid object_id: {}", e))?;
                 Ok(TransactionFilter::AffectedObject(object_id))
             }

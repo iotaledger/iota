@@ -20,10 +20,10 @@ pub fn build_test_modules_with_dep_addr(
 ) -> CompiledPackage {
     let mut build_config = BuildConfig::new_for_testing();
     for (addr_name, obj_id) in dep_original_addresses {
-        build_config
-            .config
-            .additional_named_addresses
-            .insert(addr_name.to_string(), AccountAddress::from(obj_id));
+        build_config.config.additional_named_addresses.insert(
+            addr_name.to_string(),
+            AccountAddress::new(obj_id.into_bytes()),
+        );
     }
     let mut package = build_config.build(path).unwrap();
 
@@ -69,10 +69,10 @@ pub async fn publish_package_on_single_authority(
 ) -> IotaResult<(TransactionDigest, (ObjectID, ObjectRef))> {
     let mut build_config = BuildConfig::new_for_testing();
     for (addr_name, obj_id) in dep_original_addresses {
-        build_config
-            .config
-            .additional_named_addresses
-            .insert(addr_name.to_string(), AccountAddress::from(obj_id));
+        build_config.config.additional_named_addresses.insert(
+            addr_name.to_string(),
+            AccountAddress::new(obj_id.into_bytes()),
+        );
     }
     let modules = build_config.build(path).unwrap().get_package_bytes(false);
 

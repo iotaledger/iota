@@ -162,7 +162,7 @@ mod ingestion_tests {
         // Read the transaction from the database directly.
         let db_object: StoredObject = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
             objects::table
-                .filter(objects::object_id.eq(obj_id.to_vec()))
+                .filter(objects::object_id.eq(obj_id.as_bytes()))
                 .first::<StoredObject>(conn)
         })
         .context("Failed reading object from PostgresDB")?;
@@ -176,7 +176,7 @@ mod ingestion_tests {
         );
         assert_eq!(
             db_object.object_type_package,
-            Some(IOTA_FRAMEWORK_PACKAGE_ID.to_vec())
+            Some(IOTA_FRAMEWORK_PACKAGE_ID.as_bytes().to_vec())
         );
         assert_eq!(db_object.object_type_module, Some("coin".to_string()));
         assert_eq!(db_object.object_type_name, Some("Coin".to_string()));
@@ -240,7 +240,7 @@ mod ingestion_tests {
 
         let snapshot_object = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
             objects_snapshot::table
-                .filter(objects_snapshot::object_id.eq(obj_id.to_vec()))
+                .filter(objects_snapshot::object_id.eq(obj_id.as_bytes()))
                 .filter(
                     objects_snapshot::checkpoint_sequence_number
                         .eq(max_expected_checkpoint_sequence_number as i64),
@@ -250,7 +250,7 @@ mod ingestion_tests {
         .context("failed reading snapshot object from PostgresDB")?;
         // Assert that the object state is as expected at checkpoint
         // max_expected_checkpoint_sequence_number
-        assert_eq!(snapshot_object.object_id, obj_id.to_vec());
+        assert_eq!(snapshot_object.object_id, obj_id.as_bytes());
         assert_eq!(
             snapshot_object.checkpoint_sequence_number,
             max_expected_checkpoint_sequence_number as i64

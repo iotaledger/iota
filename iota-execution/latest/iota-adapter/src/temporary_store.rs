@@ -29,7 +29,6 @@ use iota_types::{
     gas::GasCostSummary,
     inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{AdvanceEpochParams, get_iota_system_state_wrapper},
-    is_system_package,
     layout_resolver::LayoutResolver,
     object::{Data, Object, Owner},
     storage::{
@@ -362,7 +361,7 @@ impl<'backing> TemporaryStore<'backing> {
     /// input objects. We could probably fix above to make it less special.
     pub fn upgrade_system_package(&mut self, package: Object) {
         let id = package.id();
-        assert!(package.is_package() && is_system_package(id));
+        assert!(package.is_package() && id.is_system_package());
         self.execution_results.modified_objects.insert(id);
         self.execution_results.written_objects.insert(id, package);
     }
@@ -523,7 +522,7 @@ impl<'backing> TemporaryStore<'backing> {
                     )
                     .or_else(|| self.loaded_runtime_objects.get(object_id).cloned())
                     .unwrap_or_else(|| {
-                        debug_assert!(is_system_package(*object_id));
+                        debug_assert!(object_id.is_system_package());
                         let package_obj =
                             self.store.get_package_object(object_id).unwrap().unwrap();
                         let obj = package_obj.object();
@@ -648,7 +647,7 @@ impl TemporaryStore<'_> {
                         // tx can update are system packages,
                         // but in principle we could allow others.
                         assert!(
-                            is_system_package(to_authenticate),
+                            to_authenticate.is_system_package(),
                             "Only system packages can be upgraded"
                         );
                         continue;
@@ -740,7 +739,7 @@ impl TemporaryStore<'_> {
             self.execution_results.modified_objects.iter().all(|id| {
                 self.mutable_input_refs.contains_key(id)
                     || self.loaded_runtime_objects.contains_key(id)
-                    || is_system_package(*id)
+                    || id.is_system_package()
             }),
             "A modified object must be either a mutable input, a loaded child object, or a system package"
         );
@@ -1147,9 +1146,9 @@ impl ResourceResolver for TemporaryStore<'_> {
         address: &AccountAddress,
         struct_tag: &StructTag,
     ) -> Result<Option<Vec<u8>>, Self::Error> {
-        let object = match self.read_object(&ObjectID::from(*address)) {
+        let object = match self.read_object(&ObjectID::new(address.into_bytes())) {
             Some(x) => x,
-            None => match self.read_object(&ObjectID::from(*address)) {
+            None => match self.read_object(&ObjectID::new(address.into_bytes())) {
                 None => return Ok(None),
                 Some(x) => {
                     if !x.is_immutable() {

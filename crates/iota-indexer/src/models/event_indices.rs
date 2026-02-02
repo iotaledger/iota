@@ -98,13 +98,13 @@ impl EventIndex {
             StoredEventEmitPackage {
                 tx_sequence_number,
                 event_sequence_number,
-                package: self.emit_package.to_vec(),
+                package: self.emit_package.as_bytes().to_vec(),
                 sender: self.sender.as_bytes().to_vec(),
             },
             StoredEventEmitModule {
                 tx_sequence_number,
                 event_sequence_number,
-                package: self.emit_package.to_vec(),
+                package: self.emit_package.as_bytes().to_vec(),
                 module: self.emit_module.clone(),
                 sender: self.sender.as_bytes().to_vec(),
             },
@@ -116,20 +116,20 @@ impl EventIndex {
             StoredEventStructPackage {
                 tx_sequence_number,
                 event_sequence_number,
-                package: self.type_package.to_vec(),
+                package: self.type_package.as_bytes().to_vec(),
                 sender: self.sender.as_bytes().to_vec(),
             },
             StoredEventStructModule {
                 tx_sequence_number,
                 event_sequence_number,
-                package: self.type_package.to_vec(),
+                package: self.type_package.as_bytes().to_vec(),
                 module: self.type_module.clone(),
                 sender: self.sender.as_bytes().to_vec(),
             },
             StoredEventStructName {
                 tx_sequence_number,
                 event_sequence_number,
-                package: self.type_package.to_vec(),
+                package: self.type_package.as_bytes().to_vec(),
                 module: self.type_module.clone(),
                 type_name: self.type_name.clone(),
                 sender: self.sender.as_bytes().to_vec(),
@@ -137,7 +137,7 @@ impl EventIndex {
             StoredEventStructInstantiation {
                 tx_sequence_number,
                 event_sequence_number,
-                package: self.type_package.to_vec(),
+                package: self.type_package.as_bytes().to_vec(),
                 module: self.type_module.clone(),
                 type_instantiation: self.type_instantiation.clone(),
                 sender: self.sender.as_bytes().to_vec(),

@@ -42,7 +42,6 @@ pub(crate) fn require_object_id(
                 .with_reason(ErrorReason::FieldMissing)
         })?
         .object_id()
-        .map(Into::into)
         .map_err(|e| {
             FieldViolation::new(field_name)
                 .with_description(format!("invalid {field_name}: {e}"))
@@ -119,5 +118,5 @@ pub(crate) fn page_token_mismatch() -> RpcError {
 
 /// Convert an `ObjectID` to a gRPC `ObjectId` proto.
 pub(crate) fn object_id_proto(id: &ObjectID) -> ObjectId {
-    ObjectId::default().with_object_id(id.as_ref().to_vec())
+    ObjectId::default().with_object_id(id.into_bytes().to_vec())
 }

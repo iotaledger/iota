@@ -39,6 +39,7 @@ use iota_types::{
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{
+    account_address::AccountAddress,
     annotated_value::MoveTypeLayout,
     identifier::{IdentStr, Identifier},
     language_storage::{ModuleId, StructTag, TypeTag},
@@ -1084,19 +1085,14 @@ impl<T: TransactionEffectsAPI> From<T> for IotaTransactionBlockEffectsV1 {
 fn owned_objref_string(obj: &OwnedObjectRef) -> String {
     format!(
         " ┌──\n │ ID: {} \n │ Owner: {} \n │ Version: {} \n │ Digest: {}\n └──",
-        obj.reference.0,
-        obj.owner,
-        obj.reference.1,
-        obj.reference.2
+        obj.reference.0, obj.owner, obj.reference.1, obj.reference.2
     )
 }
 
 fn objref_string(obj: &ObjectRef) -> String {
     format!(
         " ┌──\n │ ID: {} \n │ Version: {} \n │ Digest: {}\n └──",
-        obj.0,
-        obj.1,
-        obj.2
+        obj.0, obj.1, obj.2
     )
 }
 
@@ -2062,7 +2058,7 @@ impl IotaProgrammableTransactionBlock {
                         return result_types;
                     };
 
-                    let id = ModuleId::new(c.package.into(), module);
+                    let id = ModuleId::new(AccountAddress::new(c.package.into_bytes()), module);
                     let Some(types) =
                         get_signature_types(id, function.as_ident_str(), module_cache)
                     else {
