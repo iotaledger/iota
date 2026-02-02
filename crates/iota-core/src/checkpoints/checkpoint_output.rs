@@ -136,6 +136,7 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
                 &misbehavior_report,
                 checkpoint_seq,
             );
+            info!(?transaction, "submitting misbehavior report to consensus");
             self.sender
                 .submit_to_consensus(&[transaction], epoch_store)?;
         }

@@ -18,7 +18,7 @@ import Permissions from './permissions';
 import { initSentry } from './sentry';
 import Transactions from './transactions';
 
-growthbook.loadFeatures().catch(() => {
+growthbook.refreshFeatures().catch(() => {
     // silence the error
 });
 initSentry();
