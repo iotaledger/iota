@@ -326,9 +326,10 @@ impl AuthorityPerpetualTables {
         )?;
 
         if let Some(Ok((object_key, value))) = iterator.next()
-            && object_key.0 == object_id {
-                return Ok(Some(self.object_reference(&object_key, value)?));
-            }
+            && object_key.0 == object_id
+        {
+            return Ok(Some(self.object_reference(&object_key, value)?));
+        }
         Ok(None)
     }
 
@@ -342,9 +343,10 @@ impl AuthorityPerpetualTables {
         )?;
 
         if let Some(Ok((object_key, value))) = iterator.next()
-            && object_key.0 == object_id {
-                return Ok(Some((object_key, value)));
-            }
+            && object_key.0 == object_id
+        {
+            return Ok(Some((object_key, value)));
+        }
         Ok(None)
     }
 
@@ -623,13 +625,14 @@ impl Iterator for LiveSetIter<'_> {
                 self.prev = Some((next_key, next_value));
 
                 if let Some((prev_key, prev_value)) = prev
-                    && prev_key.0 != next_key.0 {
-                        let live_object =
-                            self.store_object_wrapper_to_live_object(prev_key, prev_value);
-                        if live_object.is_some() {
-                            return live_object;
-                        }
+                    && prev_key.0 != next_key.0
+                {
+                    let live_object =
+                        self.store_object_wrapper_to_live_object(prev_key, prev_value);
+                    if live_object.is_some() {
+                        return live_object;
                     }
+                }
                 continue;
             }
             if let Some((key, value)) = self.prev.take() {

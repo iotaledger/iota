@@ -131,27 +131,28 @@ async fn insert_checkpoints_and_verify_manifest(
     let mut num_verified_iterations = 0;
     loop {
         if test_state.remote_path.join("MANIFEST").exists()
-            && let Ok(manifest) = read_manifest(test_state.remote_store.clone()).await {
-                for file in manifest.files().into_iter() {
-                    let file_path =
-                        path_to_filesystem(test_state.remote_path.clone(), &file.file_path())?;
-                    assert!(file_path.exists());
-                }
+            && let Ok(manifest) = read_manifest(test_state.remote_store.clone()).await
+        {
+            for file in manifest.files().into_iter() {
+                let file_path =
+                    path_to_filesystem(test_state.remote_path.clone(), &file.file_path())?;
+                assert!(file_path.exists());
+            }
 
-                if let Some(prev_tail) = prev_tail {
-                    // Ensure checkpoint sequence number in manifest never moves back
-                    assert!(manifest.next_checkpoint_seq_num() >= prev_tail);
-                    if manifest.next_checkpoint_seq_num() > prev_tail {
-                        num_verified_iterations += 1;
-                    }
-                }
-                prev_tail = Some(manifest.next_checkpoint_seq_num());
-                // Break out of the loop once we have ensured that we noticed MANIFEST
-                // got updated at least 5 times
-                if num_verified_iterations > 5 {
-                    break;
+            if let Some(prev_tail) = prev_tail {
+                // Ensure checkpoint sequence number in manifest never moves back
+                assert!(manifest.next_checkpoint_seq_num() >= prev_tail);
+                if manifest.next_checkpoint_seq_num() > prev_tail {
+                    num_verified_iterations += 1;
                 }
             }
+            prev_tail = Some(manifest.next_checkpoint_seq_num());
+            // Break out of the loop once we have ensured that we noticed MANIFEST
+            // got updated at least 5 times
+            if num_verified_iterations > 5 {
+                break;
+            }
+        }
         tokio::time::sleep(Duration::from_secs(1)).await;
         prev_checkpoint =
             write_new_checkpoints_to_store(test_state, test_store.clone(), 1, prev_checkpoint)

@@ -1121,15 +1121,15 @@ impl BackingPackageStore for TemporaryStore<'_> {
                         .runtime_packages_loaded_from_db
                         .read()
                         .contains_key(package_id)
-                    {
-                        // TODO: Can this lock ever block execution?
-                        // TODO: Another way to avoid the cost of maintaining this map is to not
-                        // enable it in normal runs, and if a fork is detected, rerun it with a flag
-                        // turned on and start populating this field.
-                        self.runtime_packages_loaded_from_db
-                            .write()
-                            .insert(*package_id, v.clone());
-                    }
+                {
+                    // TODO: Can this lock ever block execution?
+                    // TODO: Another way to avoid the cost of maintaining this map is to not
+                    // enable it in normal runs, and if a fork is detected, rerun it with a flag
+                    // turned on and start populating this field.
+                    self.runtime_packages_loaded_from_db
+                        .write()
+                        .insert(*package_id, v.clone());
+                }
             })
         }
     }

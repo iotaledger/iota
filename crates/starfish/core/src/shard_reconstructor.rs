@@ -619,17 +619,18 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         key: &(BlockRef, TransactionsCommitment),
     ) -> ConsensusResult<()> {
         if let Some(acc) = accumulators.get(key)
-            && acc.is_ready_to_reconstruct(info_length) {
-                // take ownership out of map
-                let acc = accumulators
-                    .remove(key)
-                    .expect("We should expect the shard accumulator to be present");
-                sender
-                    .send(acc)
-                    .await
-                    .map_err(|_| ConsensusError::AccumulatorSenderClosed)?;
-                reconstruction_queue.insert(key.0);
-            }
+            && acc.is_ready_to_reconstruct(info_length)
+        {
+            // take ownership out of map
+            let acc = accumulators
+                .remove(key)
+                .expect("We should expect the shard accumulator to be present");
+            sender
+                .send(acc)
+                .await
+                .map_err(|_| ConsensusError::AccumulatorSenderClosed)?;
+            reconstruction_queue.insert(key.0);
+        }
         Ok(())
     }
 }

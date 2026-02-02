@@ -317,22 +317,24 @@ fn add_ids_to_manifest(
     let content = std::fs::read_to_string(package_path.join("Move.toml"))?;
     let mut toml: toml::Value = toml::from_str(&content)?;
     if let Some(tbl) = toml.get_mut("package")
-        && let Some(tbl) = tbl.as_table_mut() {
-            tbl.insert(
-                "published-at".to_string(),
-                toml::Value::String(published_at_id.to_hex_uncompressed()),
-            );
-        }
+        && let Some(tbl) = tbl.as_table_mut()
+    {
+        tbl.insert(
+            "published-at".to_string(),
+            toml::Value::String(published_at_id.to_hex_uncompressed()),
+        );
+    }
 
     if let (Some(address_id), Some(tbl)) = (address_id, toml.get_mut("addresses"))
-        && let Some(tbl) = tbl.as_table_mut() {
-            // Get the first address item
-            let first_key = tbl.keys().next().unwrap();
-            tbl.insert(
-                first_key.to_string(),
-                toml::Value::String(address_id.to_hex_uncompressed()),
-            );
-        }
+        && let Some(tbl) = tbl.as_table_mut()
+    {
+        // Get the first address item
+        let first_key = tbl.keys().next().unwrap();
+        tbl.insert(
+            first_key.to_string(),
+            toml::Value::String(address_id.to_hex_uncompressed()),
+        );
+    }
 
     let toml_str = toml::to_string(&toml)?;
     std::fs::write(package_path.join("Move.toml"), toml_str)?;

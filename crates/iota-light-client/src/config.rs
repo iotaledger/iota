@@ -57,20 +57,21 @@ impl Config {
         }
         // Download or copy the genesis blob if it doesn't exist yet
         if !self.genesis_blob_file_path().is_file()
-            && let Some(url) = &self.genesis_blob_download_url {
-                match url.scheme() {
-                    "file" => {
-                        let path = url
-                            .to_file_path()
-                            .map_err(|_| anyhow!("invalid file path '{url}'"))?;
-                        tokio::fs::copy(path, self.genesis_blob_file_path()).await?;
-                    }
-                    _ => {
-                        let contents = reqwest::get(url.as_str()).await?.bytes().await?;
-                        tokio::fs::write(self.genesis_blob_file_path(), contents).await?;
-                    }
+            && let Some(url) = &self.genesis_blob_download_url
+        {
+            match url.scheme() {
+                "file" => {
+                    let path = url
+                        .to_file_path()
+                        .map_err(|_| anyhow!("invalid file path '{url}'"))?;
+                    tokio::fs::copy(path, self.genesis_blob_file_path()).await?;
+                }
+                _ => {
+                    let contents = reqwest::get(url.as_str()).await?.bytes().await?;
+                    tokio::fs::write(self.genesis_blob_file_path(), contents).await?;
                 }
             }
+        }
         // Create an empty `checkpoints.yaml` if it doesn't exist yet
         if !self.checkpoints_list_file_path().is_file() {
             write_checkpoint_list(self, &CheckpointList::default())?;

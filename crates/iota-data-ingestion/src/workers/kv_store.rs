@@ -133,13 +133,15 @@ impl KVStoreWorker {
                 })?;
             if let Some(response) = response.unprocessed_items
                 && let Some(unprocessed) = response.into_iter().next()
-                    && !unprocessed.1.is_empty() {
-                        if queue.is_empty()
-                            && let Some(duration) = backoff.next_backoff() {
-                                tokio::time::sleep(duration).await;
-                            }
-                        queue.push_back(unprocessed.1);
-                    }
+                && !unprocessed.1.is_empty()
+            {
+                if queue.is_empty()
+                    && let Some(duration) = backoff.next_backoff()
+                {
+                    tokio::time::sleep(duration).await;
+                }
+                queue.push_back(unprocessed.1);
+            }
         }
         Ok(())
     }

@@ -194,9 +194,10 @@ impl<T> Drop for Permit<'_, T> {
         // the occupancy of the channel. Otherwise, receiver should be
         // responsible for decreasing the inflight gauge.
         if self.permit.is_some()
-            && let Some(inflight_ref) = self.inflight_ref {
-                inflight_ref.dec();
-            }
+            && let Some(inflight_ref) = self.inflight_ref
+        {
+            inflight_ref.dec();
+        }
     }
 }
 

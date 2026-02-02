@@ -1027,15 +1027,16 @@ impl AuthorityState {
         match signed {
             Ok(s) => {
                 if self.is_committee_validator(epoch_store)
-                    && let Some(validator_tx_finalizer) = &self.validator_tx_finalizer {
-                        let tx = s.clone();
-                        let validator_tx_finalizer = validator_tx_finalizer.clone();
-                        let cache_reader = self.get_transaction_cache_reader().clone();
-                        let epoch_store = epoch_store.clone();
-                        spawn_monitored_task!(epoch_store.within_alive_epoch(
-                            validator_tx_finalizer.track_signed_tx(cache_reader, &epoch_store, tx)
-                        ));
-                    }
+                    && let Some(validator_tx_finalizer) = &self.validator_tx_finalizer
+                {
+                    let tx = s.clone();
+                    let validator_tx_finalizer = validator_tx_finalizer.clone();
+                    let cache_reader = self.get_transaction_cache_reader().clone();
+                    let epoch_store = epoch_store.clone();
+                    spawn_monitored_task!(epoch_store.within_alive_epoch(
+                        validator_tx_finalizer.track_signed_tx(cache_reader, &epoch_store, tx)
+                    ));
+                }
                 Ok(HandleTransactionResponse {
                     status: TransactionStatus::Signed(s.into_inner().into_sig()),
                 })
@@ -1396,40 +1397,41 @@ impl AuthorityState {
         };
 
         if let Some(expected_effects_digest) = expected_effects_digest
-            && effects.digest() != expected_effects_digest {
-                // We dont want to mask the original error, so we log it and continue.
-                match self.debug_dump_transaction_state(
-                    &digest,
-                    &effects,
-                    expected_effects_digest,
-                    &inner_temporary_store,
-                    certificate,
-                    &self.config.state_debug_dump_config,
-                ) {
-                    Ok(out_path) => {
-                        info!(
-                            "Dumped node state for transaction {} to {}",
-                            digest,
-                            out_path.as_path().display().to_string()
-                        );
-                    }
-                    Err(e) => {
-                        error!("Error dumping state for transaction {}: {e}", digest);
-                    }
+            && effects.digest() != expected_effects_digest
+        {
+            // We dont want to mask the original error, so we log it and continue.
+            match self.debug_dump_transaction_state(
+                &digest,
+                &effects,
+                expected_effects_digest,
+                &inner_temporary_store,
+                certificate,
+                &self.config.state_debug_dump_config,
+            ) {
+                Ok(out_path) => {
+                    info!(
+                        "Dumped node state for transaction {} to {}",
+                        digest,
+                        out_path.as_path().display().to_string()
+                    );
                 }
-                error!(
-                    tx_digest = ?digest,
-                    ?expected_effects_digest,
-                    actual_effects = ?effects,
-                    "fork detected!"
-                );
-                panic!(
-                    "Transaction {} is expected to have effects digest {}, but got {}!",
-                    digest,
-                    expected_effects_digest,
-                    effects.digest(),
-                );
+                Err(e) => {
+                    error!("Error dumping state for transaction {}: {e}", digest);
+                }
             }
+            error!(
+                tx_digest = ?digest,
+                ?expected_effects_digest,
+                actual_effects = ?effects,
+                "fork detected!"
+            );
+            panic!(
+                "Transaction {} is expected to have effects digest {}, but got {}!",
+                digest,
+                expected_effects_digest,
+                effects.digest(),
+            );
+        }
 
         fail_point!("crash");
 
@@ -3342,19 +3344,15 @@ impl AuthorityState {
             && self
                 .db_checkpoint_config
                 .perform_db_checkpoints_at_epoch_end
-            {
-                let checkpoint_indexes = self
-                    .db_checkpoint_config
-                    .perform_index_db_checkpoints_at_epoch_end
-                    .unwrap_or(false);
-                let current_epoch = cur_epoch_store.epoch();
-                let epoch_checkpoint_path = checkpoint_path.join(format!("epoch_{current_epoch}"));
-                self.checkpoint_all_dbs(
-                    &epoch_checkpoint_path,
-                    cur_epoch_store,
-                    checkpoint_indexes,
-                )?;
-            }
+        {
+            let checkpoint_indexes = self
+                .db_checkpoint_config
+                .perform_index_db_checkpoints_at_epoch_end
+                .unwrap_or(false);
+            let current_epoch = cur_epoch_store.epoch();
+            let epoch_checkpoint_path = checkpoint_path.join(format!("epoch_{current_epoch}"));
+            self.checkpoint_all_dbs(&epoch_checkpoint_path, cur_epoch_store, checkpoint_indexes)?;
+        }
 
         self.get_reconfig_api()
             .reconfigure_cache(&epoch_start_configuration)
@@ -3447,10 +3445,11 @@ impl AuthorityState {
         }
 
         if expensive_safety_check_config.enable_secondary_index_checks()
-            && let Some(indexes) = self.indexes.clone() {
-                verify_indexes(self.get_accumulator_store().as_ref(), indexes)
-                    .expect("secondary indexes are inconsistent");
-            }
+            && let Some(indexes) = self.indexes.clone()
+        {
+            verify_indexes(self.get_accumulator_store().as_ref(), indexes)
+                .expect("secondary indexes are inconsistent");
+        }
 
         Ok(())
     }
@@ -3534,10 +3533,9 @@ impl AuthorityState {
         self.committee_store
             .checkpoint_db(&checkpoint_path_tmp.join("epochs"))?;
 
-        if checkpoint_indexes
-            && let Some(indexes) = self.indexes.as_ref() {
-                indexes.checkpoint_db(&checkpoint_path_tmp.join("indexes"))?;
-            }
+        if checkpoint_indexes && let Some(indexes) = self.indexes.as_ref() {
+            indexes.checkpoint_db(&checkpoint_path_tmp.join("indexes"))?;
+        }
 
         fs::rename(checkpoint_path_tmp, checkpoint_path)
             .map_err(|e| IotaError::FileIO(e.to_string()))?;
@@ -4869,15 +4867,16 @@ impl AuthorityState {
             if let Some(digest) = capability
                 .supported_protocol_versions
                 .get_version_digest(target_protocol_version)
-                && digest == target_digest {
-                    // Find the validator's index in the active validators list
-                    if let Some(index) = active_validators
-                        .iter()
-                        .position(|name| AuthorityName::from(name) == capability.authority)
-                    {
-                        eligible_validators.push(index as u64);
-                    }
+                && digest == target_digest
+            {
+                // Find the validator's index in the active validators list
+                if let Some(index) = active_validators
+                    .iter()
+                    .position(|name| AuthorityName::from(name) == capability.authority)
+                {
+                    eligible_validators.push(index as u64);
                 }
+            }
         }
 
         // Sort indices for deterministic behavior

@@ -465,7 +465,7 @@ impl DagBuilder {
 
     fn get_blocks(&self, slot: Slot) -> Vec<BlockRef> {
         // note: special case for genesis blocks as they are cached separately
-        
+
         if slot.round == 0 {
             self.genesis_block_refs()
                 .into_iter()

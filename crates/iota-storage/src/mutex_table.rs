@@ -232,7 +232,7 @@ impl<K: Hash + Eq + Send + Sync + 'static, L: Lock + 'static> LockTable<K, L> {
             element
         } else {
             // element doesn't exist
-            
+
             {
                 let mut map = self.lock_table[lock_idx].write();
                 map.entry(k)

@@ -795,10 +795,11 @@ impl Extension for QueryLimitsCheckerExt {
         // one field and that field is a `__schema` query
         if let DocumentOperations::Single(op) = &doc.operations
             && let [field] = &op.node.selection_set.node.items[..]
-                && let Selection::Field(f) = &field.node
-                    && f.node.name.node == "__schema" {
-                        return Ok(doc);
-                    }
+            && let Selection::Field(f) = &field.node
+            && f.node.name.node == "__schema"
+        {
+            return Ok(doc);
+        }
 
         let mut traversal =
             LimitsTraversal::new(*payload_size, &reporter, &doc.fragments, variables);

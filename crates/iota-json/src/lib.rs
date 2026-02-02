@@ -457,10 +457,12 @@ impl FromStr for IotaJsonValue {
     fn from_str(s: &str) -> Result<Self, anyhow::Error> {
         fn try_escape_array(s: &str) -> JsonValue {
             let s = s.trim();
-            if s.starts_with('[') && s.ends_with(']')
-                && let Some(s) = s.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
-                    return JsonValue::Array(s.split(',').map(try_escape_array).collect());
-                }
+            if s.starts_with('[')
+                && s.ends_with(']')
+                && let Some(s) = s.strip_prefix('[').and_then(|s| s.strip_suffix(']'))
+            {
+                return JsonValue::Array(s.split(',').map(try_escape_array).collect());
+            }
             json!(s)
         }
         // if serde_json fails, the failure usually cause by missing quote escapes, try

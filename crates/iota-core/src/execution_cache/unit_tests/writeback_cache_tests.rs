@@ -105,10 +105,11 @@ impl Scenario {
     fn count_action(&mut self) {
         let prev = self.action_count.fetch_add(1, Ordering::Relaxed);
         if let Some((count, _)) = &self.do_after
-            && prev == *count {
-                let (_, f) = self.do_after.take().unwrap();
-                f(self);
-            }
+            && prev == *count
+        {
+            let (_, f) = self.do_after.take().unwrap();
+            f(self);
+        }
     }
 
     // This method runs a test scenario multiple times, and each time it clears the

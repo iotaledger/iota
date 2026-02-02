@@ -320,23 +320,24 @@ impl IndexStoreTables {
                 // determine changes from changed objects
                 for (object, old_object) in tx.changed_objects() {
                     if let Some(old_object) = old_object
-                        && old_object.owner() != object.owner() {
-                            match old_object.owner() {
-                                Owner::AddressOwner(address) => {
-                                    let owner_key = OwnerIndexKey::new(*address, old_object.id());
-                                    batch.delete_batch(&self.owner, [owner_key])?;
-                                }
-
-                                Owner::ObjectOwner(object_id) => {
-                                    batch.delete_batch(
-                                        &self.dynamic_field,
-                                        [DynamicFieldKey::new(*object_id, old_object.id())],
-                                    )?;
-                                }
-
-                                Owner::Shared { .. } | Owner::Immutable => {}
+                        && old_object.owner() != object.owner()
+                    {
+                        match old_object.owner() {
+                            Owner::AddressOwner(address) => {
+                                let owner_key = OwnerIndexKey::new(*address, old_object.id());
+                                batch.delete_batch(&self.owner, [owner_key])?;
                             }
+
+                            Owner::ObjectOwner(object_id) => {
+                                batch.delete_batch(
+                                    &self.dynamic_field,
+                                    [DynamicFieldKey::new(*object_id, old_object.id())],
+                                )?;
+                            }
+
+                            Owner::Shared { .. } | Owner::Immutable => {}
                         }
+                    }
 
                     match object.owner() {
                         Owner::AddressOwner(owner) => {

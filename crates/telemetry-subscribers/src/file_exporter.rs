@@ -55,9 +55,10 @@ impl CachedOpenFile {
         let file_path = file_path.as_ref().to_owned();
 
         if let Some((old_file_path, _)) = &*inner
-            && old_file_path == &file_path {
-                return Ok(());
-            }
+            && old_file_path == &file_path
+        {
+            return Ok(());
+        }
 
         let file = Self::open_file(file_path.as_path())?;
         *inner = Some((file_path, file));

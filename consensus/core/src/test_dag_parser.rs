@@ -164,7 +164,7 @@ fn parse_specified_connections<'a>(
 
 fn get_blocks(slot: Slot, dag_builder: &DagBuilder) -> Vec<BlockRef> {
     // note: special case for genesis blocks as they are cached separately
-    
+
     if slot.round == 0 {
         dag_builder
             .genesis_block_refs()

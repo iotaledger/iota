@@ -164,9 +164,9 @@ fn snapshot_path_for_version(version: u64) -> anyhow::Result<PathBuf> {
                 .file_name()
                 .and_then(|n| n.to_str())
                 .and_then(|n| n.parse::<u64>().ok())
-            {
-                snapshots.insert(snapshot_number);
-            }
+        {
+            snapshots.insert(snapshot_number);
+        }
     }
 
     snapshots

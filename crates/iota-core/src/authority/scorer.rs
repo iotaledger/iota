@@ -244,7 +244,7 @@ fn calculate_median_report(
     }
 
     // Calculate and return the weighted median for each metric
-    
+
     reports_and_voting_power_per_metric
         .iter_mut()
         .map(|vec| calculate_weighted_median(vec.as_mut_slice()))

@@ -186,13 +186,13 @@ impl CheckpointExecutor {
 
         if let Some(highest_executed) = &highest_executed
             && self.epoch_store.epoch() == highest_executed.epoch()
-                && highest_executed.is_last_checkpoint_of_epoch()
-            {
-                // We can arrive at this point if we bump the highest_executed_checkpoint
-                // watermark, and then crash before completing reconfiguration.
-                info!(seq = ?highest_executed.sequence_number, "final checkpoint of epoch has already been executed");
-                return None;
-            }
+            && highest_executed.is_last_checkpoint_of_epoch()
+        {
+            // We can arrive at this point if we bump the highest_executed_checkpoint
+            // watermark, and then crash before completing reconfiguration.
+            info!(seq = ?highest_executed.sequence_number, "final checkpoint of epoch has already been executed");
+            return None;
+        }
 
         Some(
             highest_executed

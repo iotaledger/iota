@@ -82,9 +82,10 @@ impl BuildCache {
 
         // Add toolchain if present and not "stable" (stable is the default)
         if let Some(tc) = toolchain
-            && tc != "stable" {
-                key.push_str(&format!(":toolchain={tc}"));
-            }
+            && tc != "stable"
+        {
+            key.push_str(&format!(":toolchain={tc}"));
+        }
 
         // Add sorted features if present
         if !features.is_empty() {
@@ -123,9 +124,10 @@ impl BuildCache {
 
         // Add toolchain to path if it's not stable (stable is the default)
         if let Some(tc) = toolchain
-            && tc != "stable" {
-                path.push_str(&format!("_{tc}"));
-            }
+            && tc != "stable"
+        {
+            path.push_str(&format!("_{tc}"));
+        }
 
         self.workspace_dir.join(path)
     }
@@ -896,9 +898,10 @@ impl BuildCache {
 
             if path.is_dir()
                 && let Ok(metadata) = fs::metadata(&path)
-                    && let Ok(modified) = metadata.modified() {
-                        commit_dirs.push((path, modified));
-                    }
+                && let Ok(modified) = metadata.modified()
+            {
+                commit_dirs.push((path, modified));
+            }
         }
 
         // Sort by modification time (newest first)

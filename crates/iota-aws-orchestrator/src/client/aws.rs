@@ -274,9 +274,10 @@ impl AwsClient {
         // Return true if the response contains references to NVMe drives.
         if let Some(info) = response.instance_types().first()
             && let Some(info) = info.instance_storage_info()
-                && info.nvme_support() == Some(&EphemeralNvmeSupport::Required) {
-                    return Ok(true);
-                }
+            && info.nvme_support() == Some(&EphemeralNvmeSupport::Required)
+        {
+            return Ok(true);
+        }
         Ok(false)
     }
     fn spot_options() -> InstanceMarketOptionsRequest {

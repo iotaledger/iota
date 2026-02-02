@@ -453,18 +453,22 @@ fn verify_unlock_conditions(
 ) -> Result<(), Error> {
     if let Some(unlock_condition) = unlock_conditions.state_controller_address() {
         if let Address::Alias(alias_address) = unlock_condition.address()
-            && !alias_id.is_null() && alias_address.alias_id() == alias_id {
-                return Err(Error::SelfControlledAliasOutput(*alias_id));
-            }
+            && !alias_id.is_null()
+            && alias_address.alias_id() == alias_id
+        {
+            return Err(Error::SelfControlledAliasOutput(*alias_id));
+        }
     } else {
         return Err(Error::MissingStateControllerUnlockCondition);
     }
 
     if let Some(unlock_condition) = unlock_conditions.governor_address() {
         if let Address::Alias(alias_address) = unlock_condition.address()
-            && !alias_id.is_null() && alias_address.alias_id() == alias_id {
-                return Err(Error::SelfControlledAliasOutput(*alias_id));
-            }
+            && !alias_id.is_null()
+            && alias_address.alias_id() == alias_id
+        {
+            return Err(Error::SelfControlledAliasOutput(*alias_id));
+        }
     } else {
         return Err(Error::MissingGovernorUnlockCondition);
     }

@@ -497,12 +497,13 @@ impl Core {
         // Make sure that the first commit we find is the next one in line and there is
         // no gap.
         if let Some(commit) = commits.first()
-            && commit.index() != last_commit_index + 1 {
-                return Err(ConsensusError::UnexpectedCertifiedCommitIndex {
-                    expected_commit_index: last_commit_index + 1,
-                    commit_index: commit.index(),
-                });
-            }
+            && commit.index() != last_commit_index + 1
+        {
+            return Err(ConsensusError::UnexpectedCertifiedCommitIndex {
+                expected_commit_index: last_commit_index + 1,
+                commit_index: commit.index(),
+            });
+        }
 
         Ok(commits)
     }
@@ -1109,8 +1110,6 @@ impl Core {
             to_commit.len(),
             to_commit.iter().map(|c| c.leader().to_string()).join(",")
         );
-
-        
 
         to_commit
             .into_iter()

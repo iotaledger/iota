@@ -658,46 +658,47 @@ impl WritebackCache {
         let entry = self.cached.object_by_id_cache.get(object_id);
 
         if cfg!(debug_assertions)
-            && let Some(entry) = &entry {
-                // check that cache is coherent
-                let highest: Option<ObjectEntry> = self
-                    .dirty
-                    .objects
-                    .get(object_id)
-                    .and_then(|entry| entry.get_highest().map(|(_, o)| o.clone()))
-                    .or_else(|| {
-                        let obj: Option<ObjectEntry> = self
-                            .store
-                            .get_latest_object_or_tombstone(*object_id)
-                            .unwrap()
-                            .map(|(_, o)| o.into());
-                        obj
-                    });
+            && let Some(entry) = &entry
+        {
+            // check that cache is coherent
+            let highest: Option<ObjectEntry> = self
+                .dirty
+                .objects
+                .get(object_id)
+                .and_then(|entry| entry.get_highest().map(|(_, o)| o.clone()))
+                .or_else(|| {
+                    let obj: Option<ObjectEntry> = self
+                        .store
+                        .get_latest_object_or_tombstone(*object_id)
+                        .unwrap()
+                        .map(|(_, o)| o.into());
+                    obj
+                });
 
-                let cache_entry = match &*entry.lock() {
-                    LatestObjectCacheEntry::Object(_, entry) => Some(entry.clone()),
-                    LatestObjectCacheEntry::NonExistent => None,
-                };
+            let cache_entry = match &*entry.lock() {
+                LatestObjectCacheEntry::Object(_, entry) => Some(entry.clone()),
+                LatestObjectCacheEntry::NonExistent => None,
+            };
 
-                // If the cache entry is a tombstone, the db entry may be missing if it was
-                // pruned.
-                let tombstone_possibly_pruned = highest.is_none()
-                    && cache_entry
-                        .as_ref()
-                        .map(|e| e.is_tombstone())
-                        .unwrap_or(false);
+            // If the cache entry is a tombstone, the db entry may be missing if it was
+            // pruned.
+            let tombstone_possibly_pruned = highest.is_none()
+                && cache_entry
+                    .as_ref()
+                    .map(|e| e.is_tombstone())
+                    .unwrap_or(false);
 
-                if highest != cache_entry && !tombstone_possibly_pruned {
-                    tracing::error!(
-                        ?highest,
-                        ?cache_entry,
-                        ?tombstone_possibly_pruned,
-                        "object_by_id cache is incoherent for {:?}",
-                        object_id
-                    );
-                    panic!("object_by_id cache is incoherent for {object_id:?}");
-                }
+            if highest != cache_entry && !tombstone_possibly_pruned {
+                tracing::error!(
+                    ?highest,
+                    ?cache_entry,
+                    ?tombstone_possibly_pruned,
+                    "object_by_id cache is incoherent for {:?}",
+                    object_id
+                );
+                panic!("object_by_id cache is incoherent for {object_id:?}");
             }
+        }
 
         if let Some(entry) = entry {
             let entry = entry.lock();

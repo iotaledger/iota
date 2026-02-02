@@ -81,9 +81,9 @@ where
                     && latest_stored_checkpoint.sequence_number
                         >= last_processed_cp_seq
                             + self.min_network_metrics_processor_batch_size as i64
-                    {
-                        break latest_stored_checkpoint;
-                    }
+                {
+                    break latest_stored_checkpoint;
+                }
                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             };
 

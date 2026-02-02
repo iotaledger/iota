@@ -360,9 +360,10 @@ async fn find_package_object_id(
         for ((id, _, _), _) in effect.created() {
             if let Ok(object_read) = state.get_object_read(&id)
                 && let Ok(object) = object_read.into_object()
-                    && matches!(object.type_(), Some(type_) if type_.is(&object_struct_tag)) {
-                        return Ok(id);
-                    }
+                && matches!(object.type_(), Some(type_) if type_.is(&object_struct_tag))
+            {
+                return Ok(id);
+            }
         }
         Err(IotaRpcInputError::GenericNotFound(format!(
             "Cannot find object [{object_struct_tag}] from [{package_id}] package event.",

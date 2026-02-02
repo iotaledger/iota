@@ -2438,9 +2438,11 @@ async fn fetch_package_id_by_module_and_name(
         if let TypeTag::Struct(tag) = dynamic_field.name.type_ {
             for param in &tag.type_params {
                 if let TypeTag::Struct(param_tag) = param
-                    && &param_tag.module == module_name && &param_tag.name == struct_name {
-                        return Ok(ObjectID::from(param_tag.address));
-                    }
+                    && &param_tag.module == module_name
+                    && &param_tag.name == struct_name
+                {
+                    return Ok(ObjectID::from(param_tag.address));
+                }
             }
         }
     }

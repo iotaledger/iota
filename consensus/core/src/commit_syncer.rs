@@ -79,9 +79,10 @@ impl CommitSyncerHandle {
         let _ = self.tx_shutdown.send(());
         // Do not abort schedule task, which waits for fetches to shut down.
         if let Err(e) = self.schedule_task.await
-            && e.is_panic() {
-                std::panic::resume_unwind(e.into_panic());
-            }
+            && e.is_panic()
+        {
+            std::panic::resume_unwind(e.into_panic());
+        }
     }
 }
 

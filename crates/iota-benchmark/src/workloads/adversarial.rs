@@ -496,9 +496,10 @@ impl Workload<dyn Payload> for AdversarialWorkload {
         for o in &created {
             let obj = proxy.get_object(o.0.0).await.unwrap();
             if let Some(tag) = obj.data.struct_tag()
-                && tag.to_string().contains("::adversarial::Obj") {
-                    self.df_parent_obj_ref = o.0;
-                }
+                && tag.to_string().contains("::adversarial::Obj")
+            {
+                self.df_parent_obj_ref = o.0;
+            }
         }
         assert!(
             self.df_parent_obj_ref.0 != ObjectID::ZERO,

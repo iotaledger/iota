@@ -125,7 +125,7 @@ impl StressTestRunner {
     pub fn pick_random_committee_member(&mut self) -> IotaValidatorSummary {
         let system_state = self.system_state();
         let n = system_state.iter_committee_members().count();
-        
+
         system_state
             .iter_committee_members()
             .nth(self.rng.gen_range(0..n))

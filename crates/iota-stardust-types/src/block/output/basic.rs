@@ -240,9 +240,11 @@ impl BasicOutput {
     /// used to return storage deposits.
     pub fn simple_deposit_address(&self) -> Option<&Address> {
         if let [UnlockCondition::Address(address)] = self.unlock_conditions().as_ref()
-            && self.native_tokens.is_empty() && self.features.is_empty() {
-                return Some(address.address());
-            }
+            && self.native_tokens.is_empty()
+            && self.features.is_empty()
+        {
+            return Some(address.address());
+        }
 
         None
     }

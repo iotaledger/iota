@@ -168,8 +168,6 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
             parameters.additional_gas_accounts
         );
 
-        
-
         self.run_binary_command(
             "iota",
             &[&format!("mkdir -p {working_dir}")],

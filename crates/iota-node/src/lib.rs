@@ -810,13 +810,14 @@ impl IotaNode {
         if config
             .expensive_safety_check_config
             .enable_secondary_index_checks()
-            && let Some(indexes) = state.indexes.clone() {
-                iota_core::verify_indexes::verify_indexes(
-                    state.get_accumulator_store().as_ref(),
-                    indexes,
-                )
-                .expect("secondary indexes are inconsistent");
-            }
+            && let Some(indexes) = state.indexes.clone()
+        {
+            iota_core::verify_indexes::verify_indexes(
+                state.get_accumulator_store().as_ref(),
+                indexes,
+            )
+            .expect("secondary indexes are inconsistent");
+        }
 
         let (end_of_epoch_channel, end_of_epoch_receiver) =
             broadcast::channel(config.end_of_epoch_broadcast_channel_capacity);
@@ -1867,12 +1868,13 @@ impl IotaNode {
             debug_assert!(!latest_system_state.safe_mode());
 
             if let Err(err) = self.end_of_epoch_channel.send(latest_system_state.clone())
-                && self.state.is_fullnode(&cur_epoch_store) {
-                    warn!(
-                        "Failed to send end of epoch notification to subscriber: {:?}",
-                        err
-                    );
-                }
+                && self.state.is_fullnode(&cur_epoch_store)
+            {
+                warn!(
+                    "Failed to send end of epoch notification to subscriber: {:?}",
+                    err
+                );
+            }
 
             cur_epoch_store.record_is_safe_mode_metric(latest_system_state.safe_mode());
             let new_epoch_start_state = latest_system_state.into_epoch_start_state();

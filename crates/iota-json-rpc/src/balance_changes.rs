@@ -134,24 +134,24 @@ async fn fetch_coins<P: ObjectProvider<Error = E>, E>(
         // TODO: use multi get object
         let o = object_provider.get_object(id, version).await?;
         if let Some(type_) = o.type_()
-            && type_.is_coin() {
-                if let Some(digest) = digest_opt {
-                    // TODO: can we return Err here instead?
-                    assert_eq!(
-                        *digest,
-                        o.digest(),
-                        "Object digest mismatch--got bad data from object_provider?"
-                    )
-                }
-                let [coin_type]: [TypeTag; 1] =
-                    type_.clone().into_type_params().try_into().unwrap();
-                all_mutated_coins.push((
-                    o.owner,
-                    coin_type,
-                    // we know this is a coin, safe to unwrap
-                    Coin::extract_balance_if_coin(&o).unwrap().unwrap(),
-                ))
+            && type_.is_coin()
+        {
+            if let Some(digest) = digest_opt {
+                // TODO: can we return Err here instead?
+                assert_eq!(
+                    *digest,
+                    o.digest(),
+                    "Object digest mismatch--got bad data from object_provider?"
+                )
             }
+            let [coin_type]: [TypeTag; 1] = type_.clone().into_type_params().try_into().unwrap();
+            all_mutated_coins.push((
+                o.owner,
+                coin_type,
+                // we know this is a coin, safe to unwrap
+                Coin::extract_balance_if_coin(&o).unwrap().unwrap(),
+            ))
+        }
     }
     Ok(all_mutated_coins)
 }

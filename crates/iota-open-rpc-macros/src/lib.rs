@@ -209,22 +209,21 @@ fn parse_rpc_method(trait_data: &mut syn::ItemTrait) -> Result<RpcDefinition, sy
 
                 if let Some(version_attr) = attributes.find("version")
                     && let (Some(token), Some(version)) = (&version_attr.token, &version_attr.value)
-                    {
-                        let route_to =
-                            format!("{method_name}_{}", version.value().replace('.', "_"));
-                        version_routing.push(Routing {
-                            name: method_name,
-                            route_to: route_to.clone(),
-                            token: token.to_token_stream(),
-                            version: version.value(),
-                        });
-                        if let Some(name) = attributes.find_mut("name") {
-                            name.value
-                                .replace(LitStr::new(&route_to, Span::call_site()));
-                        }
-                        attr.tokens = remove_iota_rpc_attributes(attributes);
-                        continue;
+                {
+                    let route_to = format!("{method_name}_{}", version.value().replace('.', "_"));
+                    version_routing.push(Routing {
+                        name: method_name,
+                        route_to: route_to.clone(),
+                        token: token.to_token_stream(),
+                        version: version.value(),
+                    });
+                    if let Some(name) = attributes.find_mut("name") {
+                        name.value
+                            .replace(LitStr::new(&route_to, Span::call_site()));
                     }
+                    attr.tokens = remove_iota_rpc_attributes(attributes);
+                    continue;
+                }
                 attr.tokens = remove_iota_rpc_attributes(attributes);
                 (method_name, returns, false, deprecated)
             } else if let Some(attr) = find_attr(&mut method.attrs, "subscription") {
@@ -278,11 +277,13 @@ fn extract_type_from(ty: &Type, from_ty: &str) -> Option<Type> {
     }
 
     if let Type::Path(p) = ty
-        && p.qself.is_none() && path_is(&p.path, from_ty)
-            && let PathArguments::AngleBracketed(a) = &p.path.segments[0].arguments
-                && let Some(GenericArgument::Type(ty)) = a.args.first() {
-                    return Some(ty.clone());
-                }
+        && p.qself.is_none()
+        && path_is(&p.path, from_ty)
+        && let PathArguments::AngleBracketed(a) = &p.path.segments[0].arguments
+        && let Some(GenericArgument::Type(ty)) = a.args.first()
+    {
+        return Some(ty.clone());
+    }
     None
 }
 

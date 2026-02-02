@@ -104,9 +104,10 @@ impl ProgressStore for PerTaskInMemProgressStore {
         checkpoint_number: CheckpointSequenceNumber,
     ) -> Result<(), Self::Error> {
         if checkpoint_number >= self.exit_checkpoint
-            && let Some(token) = self.token.take() {
-                token.cancel();
-            }
+            && let Some(token) = self.token.take()
+        {
+            token.cancel();
+        }
         self.current_checkpoint = checkpoint_number;
         Ok(())
     }

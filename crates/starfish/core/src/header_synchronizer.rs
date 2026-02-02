@@ -2072,9 +2072,10 @@ mod tests {
 
         // Stop synchronizer and ensure that no panic occurred
         if let Err(err) = handle.stop().await
-            && err.is_panic() {
-                std::panic::resume_unwind(err.into_panic());
-            }
+            && err.is_panic()
+        {
+            std::panic::resume_unwind(err.into_panic());
+        }
     }
 
     #[tokio::test]
@@ -2154,9 +2155,10 @@ mod tests {
         }
         // Stop synchronizer and ensure that no panic occurred
         if let Err(err) = handle.stop().await
-            && err.is_panic() {
-                std::panic::resume_unwind(err.into_panic());
-            }
+            && err.is_panic()
+        {
+            std::panic::resume_unwind(err.into_panic());
+        }
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -2263,9 +2265,10 @@ mod tests {
 
         // Stop synchronizer and ensure that no panic occurred
         if let Err(err) = handle.stop().await
-            && err.is_panic() {
-                std::panic::resume_unwind(err.into_panic());
-            }
+            && err.is_panic()
+        {
+            std::panic::resume_unwind(err.into_panic());
+        }
     }
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn synchronizer_periodic_task_when_commit_lagging_with_missing_blocks_in_acceptable_thresholds()
@@ -2389,9 +2392,10 @@ mod tests {
 
         // Stop synchronizer and ensure that no panic occurred
         if let Err(err) = handle.stop().await
-            && err.is_panic() {
-                std::panic::resume_unwind(err.into_panic());
-            }
+            && err.is_panic()
+        {
+            std::panic::resume_unwind(err.into_panic());
+        }
 
         // We should be in commit lag mode, but since there are missing blocks within
         // the acceptable round thresholds those ones should be fetched. Nothing above.
@@ -2544,9 +2548,10 @@ mod tests {
 
         // Stop synchronizer and ensure that no panic occurred
         if let Err(err) = handle.stop().await
-            && err.is_panic() {
-                std::panic::resume_unwind(err.into_panic());
-            }
+            && err.is_panic()
+        {
+            std::panic::resume_unwind(err.into_panic());
+        }
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -2684,9 +2689,10 @@ mod tests {
 
         // Stop synchronizer and ensure that no panic occurred
         if let Err(err) = handle.stop().await
-            && err.is_panic() {
-                std::panic::resume_unwind(err.into_panic());
-            }
+            && err.is_panic()
+        {
+            std::panic::resume_unwind(err.into_panic());
+        }
     }
     #[derive(Default)]
     struct SyncMockDispatcher {
@@ -3120,9 +3126,10 @@ mod tests {
 
         // Stop synchronizer and ensure that no panic occurred
         if let Err(err) = handle.stop().await
-            && err.is_panic() {
-                std::panic::resume_unwind(err.into_panic());
-            }
+            && err.is_panic()
+        {
+            std::panic::resume_unwind(err.into_panic());
+        }
     }
 
     #[tokio::test]

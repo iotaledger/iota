@@ -348,9 +348,10 @@ impl Processor for RpcCommandProcessor {
 
     fn dump_cache_to_file(&self, config: &LoadTestConfig) {
         if let CommandData::GetCheckpoints(data) = &config.command.data
-            && data.record {
-                self.dump_cache_to_file();
-            }
+            && data.record
+        {
+            self.dump_cache_to_file();
+        }
     }
 }
 

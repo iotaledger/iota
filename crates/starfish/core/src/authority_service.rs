@@ -636,9 +636,9 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .synchronizer
                 .fetch_headers(missing_ancestors, peer)
                 .await
-            {
-                warn!("Errored while trying to fetch missing ancestors via synchronizer: {err}");
-            }
+        {
+            warn!("Errored while trying to fetch missing ancestors via synchronizer: {err}");
+        }
 
         // 14. schedule the fetching of missing committed transactions (if any)
         if !missing_committed_txns.is_empty()
@@ -646,11 +646,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .transactions_synchronizer
                 .fetch_transactions(missing_committed_txns)
                 .await
-            {
-                warn!(
-                    "Errored while trying to fetch missing transactions via transactions synchronizer: {err}"
-                );
-            }
+        {
+            warn!(
+                "Errored while trying to fetch missing transactions via transactions synchronizer: {err}"
+            );
+        }
         Ok(())
     }
 

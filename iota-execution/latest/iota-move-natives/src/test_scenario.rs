@@ -345,12 +345,13 @@ pub fn end_transaction(
             .taken_immutable_values
             .get(&ty)
             .and_then(|values| values.get(&id))
-            && !value.equals(prev_value)? {
-                return Ok(NativeResult::err(
-                    legacy_test_cost(),
-                    E_INVALID_SHARED_OR_IMMUTABLE_USAGE,
-                ));
-            }
+            && !value.equals(prev_value)?
+        {
+            return Ok(NativeResult::err(
+                legacy_test_cost(),
+                E_INVALID_SHARED_OR_IMMUTABLE_USAGE,
+            ));
+        }
         object_runtime_ref
             .test_inventories
             .objects

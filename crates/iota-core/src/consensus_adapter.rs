@@ -1042,7 +1042,6 @@ impl CheckConnection for ConnectionMonitorStatus {
             }
         };
 
-        
         match self.connection_statuses.try_get(peer_id) {
             TryResult::Present(c) => Some(c.value().clone()),
             TryResult::Absent => None,

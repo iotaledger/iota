@@ -62,9 +62,10 @@ pub(crate) trait LocalRead {
             let entry = entry?;
             let filename = entry.file_name();
             if let Some(sequence_number) = self.checkpoint_number_from_file_path(&filename)
-                && sequence_number >= self.current_checkpoint_number() {
-                    files.insert(sequence_number, entry.path());
-                }
+                && sequence_number >= self.current_checkpoint_number()
+            {
+                files.insert(sequence_number, entry.path());
+            }
         }
         Ok(files)
     }
@@ -134,9 +135,10 @@ pub(crate) trait LocalRead {
             let entry = entry?;
             let filename = entry.file_name();
             if let Some(sequence_number) = self.checkpoint_number_from_file_path(&filename)
-                && sequence_number < watermark {
-                    fs::remove_file(entry.path())?;
-                }
+                && sequence_number < watermark
+            {
+                fs::remove_file(entry.path())?;
+            }
         }
         Ok(())
     }

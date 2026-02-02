@@ -503,13 +503,15 @@ impl DagState {
             .accepted_block_headers_source
             .with_label_values(&[source.as_str()])
             .inc();
-        if source != DataSource::CommitSyncer && source != DataSource::Recover
-            && let Some((sender, _)) = &self.cordial_knowledge_senders {
-                let cordial_message = CordialKnowledgeMessage::NewHeader(block_header.clone());
-                if let Err(TrySendError::Closed(_)) = sender.try_send(cordial_message) {
-                    warn!("Failed to send cordial knowledge update: channel closed");
-                }
+        if source != DataSource::CommitSyncer
+            && source != DataSource::Recover
+            && let Some((sender, _)) = &self.cordial_knowledge_senders
+        {
+            let cordial_message = CordialKnowledgeMessage::NewHeader(block_header.clone());
+            if let Err(TrySendError::Closed(_)) = sender.try_send(cordial_message) {
+                warn!("Failed to send cordial knowledge update: channel closed");
             }
+        }
     }
 
     /// Updates internal metadata for accepted transactions.
@@ -937,15 +939,16 @@ impl DagState {
     pub(crate) fn get_last_own_non_genesis_block(&self) -> Option<VerifiedBlock> {
         if let Some(last) = self.recent_headers_refs_by_authority[self.context.own_index].last()
             && last.round > GENESIS_ROUND
-                && let (Some(last_header), Some(last_transactions)) = (
-                    self.recent_block_headers.get(last),
-                    self.recent_transactions_by_authority[last.author].get(last),
-                ) {
-                    return Some(VerifiedBlock::new(
-                        last_header.clone(),
-                        last_transactions.clone(),
-                    ));
-                }
+            && let (Some(last_header), Some(last_transactions)) = (
+                self.recent_block_headers.get(last),
+                self.recent_transactions_by_authority[last.author].get(last),
+            )
+        {
+            return Some(VerifiedBlock::new(
+                last_header.clone(),
+                last_transactions.clone(),
+            ));
+        }
         None
     }
 

@@ -82,8 +82,6 @@ fn bcs_content_type(headers: &HeaderMap) -> bool {
         return false;
     };
 
-    
-
     mime.type_() == "application"
         && (mime.subtype() == "bcs" || mime.suffix().is_some_and(|name| name == "bcs"))
 }

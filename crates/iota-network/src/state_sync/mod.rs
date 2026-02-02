@@ -1484,13 +1484,14 @@ where
             .ok()
             .and_then(Response::into_inner)
             .tap_none(|| trace!("peer unable to help sync"))
-            && contents.verify_digests(digest).is_ok() {
-                let verified_contents = VerifiedCheckpointContents::new_unchecked(contents.clone());
-                store
-                    .try_insert_checkpoint_contents(checkpoint, verified_contents)
-                    .expect("store operation should not fail");
-                return Some(contents);
-            }
+            && contents.verify_digests(digest).is_ok()
+        {
+            let verified_contents = VerifiedCheckpointContents::new_unchecked(contents.clone());
+            store
+                .try_insert_checkpoint_contents(checkpoint, verified_contents)
+                .expect("store operation should not fail");
+            return Some(contents);
+        }
     }
     debug!("no peers had checkpoint contents");
     None

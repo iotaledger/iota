@@ -54,23 +54,24 @@ impl Extension for FeatureGate {
         // hide disabled types and interfaces in the schema.
 
         if let Some(group) = functional_group(parent_type, name)
-            && disabled_features.contains(&group) {
-                return if *is_for_introspection {
-                    Ok(None)
-                } else {
-                    Err(ServerError::new(
-                        format!(
-                            "Cannot query field \"{name}\" on type \"{parent_type}\". \
+            && disabled_features.contains(&group)
+        {
+            return if *is_for_introspection {
+                Ok(None)
+            } else {
+                Err(ServerError::new(
+                    format!(
+                        "Cannot query field \"{name}\" on type \"{parent_type}\". \
                              Feature {} is disabled.",
-                            group.name(),
-                        ),
-                        // TODO: Fork `async-graphl` to add field position information to
-                        // `ResolveInfo`, so the error can take advantage of it.  Similarly for
-                        // utilising the `path_node` to set the error path.
-                        None,
-                    ))
-                };
-            }
+                        group.name(),
+                    ),
+                    // TODO: Fork `async-graphl` to add field position information to
+                    // `ResolveInfo`, so the error can take advantage of it.  Similarly for
+                    // utilising the `path_node` to set the error path.
+                    None,
+                ))
+            };
+        }
 
         next.run(ctx, info).await
     }

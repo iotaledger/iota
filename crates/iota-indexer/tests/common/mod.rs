@@ -320,10 +320,11 @@ pub async fn indexer_wait_for_transaction(
             if let Ok(tx) = indexer_client
                 .get_transaction_block(tx_digest, Some(IotaTransactionBlockResponseOptions::new()))
                 .await
-                && let Some(checkpoint) = tx.checkpoint {
-                    indexer_wait_for_checkpoint(pg_store, checkpoint).await;
-                    break;
-                }
+                && let Some(checkpoint) = tx.checkpoint
+            {
+                indexer_wait_for_checkpoint(pg_store, checkpoint).await;
+                break;
+            }
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
     })

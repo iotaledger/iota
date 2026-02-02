@@ -41,9 +41,10 @@ pub fn iota_verify_module_metered_check_timeout_only(
         && matches!(
             error.kind(),
             iota_types::execution_status::ExecutionFailureStatus::IotaMoveVerificationTimeout
-        ) {
-            return Err(error);
-        }
+        )
+    {
+        return Err(error);
+    }
     // Any other scenario, including a non-timeout error counts as Ok
     Ok(())
 }

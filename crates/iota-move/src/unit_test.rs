@@ -111,9 +111,10 @@ pub fn run_move_unit_tests(
     );
     result.map(|(test_result, warning_diags)| {
         if test_result == UnitTestResult::Success
-            && let Some(diags) = warning_diags {
-                decorate_warnings(diags, None);
-            }
+            && let Some(diags) = warning_diags
+        {
+            decorate_warnings(diags, None);
+        }
         test_result
     })
 }

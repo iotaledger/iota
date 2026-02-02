@@ -99,9 +99,10 @@ pub fn read_key(path: &PathBuf, require_secp256k1: bool) -> Result<IotaKeyPair, 
 
     // Try hex encoded Raw key `privkey`
     if let Ok(bytes) = Hex::decode(contents).map_err(|e| anyhow!("Error decoding hex: {:?}", e))
-        && let Ok(key) = Secp256k1KeyPair::from_bytes(&bytes) {
-            return Ok(IotaKeyPair::Secp256k1(key));
-        }
+        && let Ok(key) = Secp256k1KeyPair::from_bytes(&bytes)
+    {
+        return Ok(IotaKeyPair::Secp256k1(key));
+    }
 
     Err(anyhow!("Error decoding key from {:?}", path))
 }

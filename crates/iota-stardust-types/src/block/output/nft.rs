@@ -326,9 +326,11 @@ fn verify_unlock_conditions(
 ) -> Result<(), Error> {
     if let Some(unlock_condition) = unlock_conditions.address() {
         if let Address::Nft(nft_address) = unlock_condition.address()
-            && !nft_id.is_null() && nft_address.nft_id() == nft_id {
-                return Err(Error::SelfDepositNft(*nft_id));
-            }
+            && !nft_id.is_null()
+            && nft_address.nft_id() == nft_id
+        {
+            return Err(Error::SelfDepositNft(*nft_id));
+        }
     } else {
         return Err(Error::MissingAddressUnlockCondition);
     }

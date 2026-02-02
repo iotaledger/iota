@@ -392,9 +392,10 @@ impl InMemoryStore {
             panic!("store should already contain checkpoint");
         }
         if let Some(highest_synced_checkpoint) = self.highest_synced_checkpoint
-            && highest_synced_checkpoint.0 >= checkpoint.sequence_number {
-                return;
-            }
+            && highest_synced_checkpoint.0 >= checkpoint.sequence_number
+        {
+            return;
+        }
         self.highest_synced_checkpoint =
             Some((*checkpoint.sequence_number(), *checkpoint.digest()));
     }
@@ -404,9 +405,10 @@ impl InMemoryStore {
             panic!("store should already contain checkpoint");
         }
         if let Some(highest_verified_checkpoint) = self.highest_verified_checkpoint
-            && highest_verified_checkpoint.0 >= checkpoint.sequence_number {
-                return;
-            }
+            && highest_verified_checkpoint.0 >= checkpoint.sequence_number
+        {
+            return;
+        }
         self.highest_verified_checkpoint =
             Some((*checkpoint.sequence_number(), *checkpoint.digest()));
     }

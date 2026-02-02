@@ -554,9 +554,10 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                     builder = builder.with_supported_protocol_versions(supported_versions);
                 }
                 if let Some(num_unpruned_validators) = self.num_unpruned_validators
-                    && idx < num_unpruned_validators {
-                        builder = builder.with_unpruned_checkpoints();
-                    }
+                    && idx < num_unpruned_validators
+                {
+                    builder = builder.with_unpruned_checkpoints();
+                }
                 if let Some(admin_interface_address) = self.admin_interface_address {
                     validator.admin_interface_address = admin_interface_address;
                 }

@@ -419,9 +419,10 @@ impl TryFrom<&IotaMoveStruct> for GasCoin {
             IotaMoveStruct::WithFields(fields) | IotaMoveStruct::WithTypes { type_: _, fields } => {
                 if let Some(IotaMoveValue::String(balance)) = fields.get("balance")
                     && let Ok(balance) = balance.parse::<u64>()
-                        && let Some(IotaMoveValue::UID { id }) = fields.get("id") {
-                            return Ok(GasCoin::new(*id, balance));
-                        }
+                    && let Some(IotaMoveValue::UID { id }) = fields.get("id")
+                {
+                    return Ok(GasCoin::new(*id, balance));
+                }
             }
             _ => {}
         }

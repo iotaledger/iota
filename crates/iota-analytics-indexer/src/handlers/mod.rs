@@ -246,14 +246,15 @@ fn parse_struct_field(
             } else if "0x1::option::Option" == struct_name {
                 // Option in iota move is implemented as vector of size 1
                 if let Some(MoveValue::Vector(vec_values)) = values.get("vec").cloned()
-                    && let Some(first_value) = vec_values.first() {
-                        parse_struct_field(
-                            &format!("{path}[0]"),
-                            first_value.clone(),
-                            curr_struct,
-                            all_structs,
-                        );
-                    }
+                    && let Some(first_value) = vec_values.first()
+                {
+                    parse_struct_field(
+                        &format!("{path}[0]"),
+                        first_value.clone(),
+                        curr_struct,
+                        all_structs,
+                    );
+                }
             } else if !WRAPPED_INDEXING_DISALLOW_LIST.contains(&&*struct_name) {
                 // Do not index most common struct types i.e. string, url, etc
                 parse_struct(path, move_struct, all_structs)

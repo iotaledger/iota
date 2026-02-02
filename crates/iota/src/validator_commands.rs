@@ -202,7 +202,6 @@ impl IotaValidatorCommand {
     ) -> Result<IotaValidatorCommandResponse, anyhow::Error> {
         let iota_address = context.active_address()?;
 
-        
         Ok(match self {
             IotaValidatorCommand::MakeValidatorInfo {
                 name,

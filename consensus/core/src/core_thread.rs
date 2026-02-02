@@ -225,7 +225,6 @@ impl ChannelCoreThreadDispatcher {
         // Initialize highest received rounds.
         let highest_received_rounds = {
             let dag_state = dag_state.read();
-            
 
             context
                 .committee
@@ -260,9 +259,10 @@ impl ChannelCoreThreadDispatcher {
         let join_handle = spawn_logged_monitored_task!(
             async move {
                 if let Err(err) = core_thread.run().await
-                    && !matches!(err, ConsensusError::Shutdown) {
-                        panic!("Fatal error occurred: {err}");
-                    }
+                    && !matches!(err, ConsensusError::Shutdown)
+                {
+                    panic!("Fatal error occurred: {err}");
+                }
             },
             "ConsensusCoreThread"
         );
@@ -290,12 +290,13 @@ impl ChannelCoreThreadDispatcher {
     async fn send(&self, command: CoreThreadCommand) {
         self.context.metrics.node_metrics.core_lock_enqueued.inc();
         if let Some(sender) = self.sender.upgrade()
-            && let Err(err) = sender.send(command).await {
-                warn!(
-                    "Couldn't send command to core thread, probably is shutting down: {}",
-                    err
-                );
-            }
+            && let Err(err) = sender.send(command).await
+        {
+            warn!(
+                "Couldn't send command to core thread, probably is shutting down: {}",
+                err
+            );
+        }
     }
 }
 

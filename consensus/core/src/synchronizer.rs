@@ -2748,9 +2748,10 @@ mod tests {
 
         // Ensure that no panic occurred
         if let Err(err) = handle.stop().await
-            && err.is_panic() {
-                std::panic::resume_unwind(err.into_panic());
-            }
+            && err.is_panic()
+        {
+            std::panic::resume_unwind(err.into_panic());
+        }
     }
     #[derive(Default)]
     struct SyncMockDispatcher {

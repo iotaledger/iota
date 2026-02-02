@@ -1073,9 +1073,10 @@ impl Core {
                     return None;
                 }
                 if let Some(last_block_ref) = self.last_included_ancestors[ancestor.author()]
-                    && last_block_ref.round >= ancestor.round() {
-                        return None;
-                    }
+                    && last_block_ref.round >= ancestor.round()
+                {
+                    return None;
+                }
                 Some(ancestor)
             }))
             .collect::<Vec<_>>();

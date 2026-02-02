@@ -81,9 +81,10 @@ pub fn run_pt_success(
 ) -> ObjectRef {
     for i in 0..pt.inputs.len() {
         if let CallArg::Object(ObjectArg::ImmOrOwnedObject(obj_ref)) = pt.inputs[i]
-            && obj_ref.0 == cap.0 {
-                pt.inputs[i] = CallArg::Object(ObjectArg::ImmOrOwnedObject(cap));
-            }
+            && obj_ref.0 == cap.0
+        {
+            pt.inputs[i] = CallArg::Object(ObjectArg::ImmOrOwnedObject(cap));
+        }
     }
 
     let effects = run_pt_effects(account, exec, pt).unwrap();

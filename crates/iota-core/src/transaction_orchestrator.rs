@@ -339,7 +339,7 @@ where
             let digests = [tx_digest];
             let effects_await = cache_reader.try_notify_read_executed_effects(&digests);
             // let-and-return necessary to satisfy borrow checker.
-            
+
             match select(ticket, effects_await.boxed()).await {
                 Either::Left((quorum_driver_response, _)) => Ok(quorum_driver_response),
                 Either::Right((_, unfinished_quorum_driver_task)) => {

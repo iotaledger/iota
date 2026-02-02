@@ -172,16 +172,17 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         parameters: &BenchmarkParameters<T>,
     ) -> TestbedResult<()> {
         if parameters.use_internal_ip_address
-            && let Some(latency_topology) = parameters.latency_topology.clone() {
-                let latency_commands = NetworkLatencyCommandBuilder::new(&instances)
-                    .with_perturbation_spec(parameters.perturbation_spec.clone())
-                    .with_topology_layout(latency_topology)
-                    .with_max_latency(parameters.maximum_latency)
-                    .build_network_latency_matrix();
-                self.ssh_manager
-                    .execute_per_instance(latency_commands, CommandContext::default())
-                    .await?;
-            }
+            && let Some(latency_topology) = parameters.latency_topology.clone()
+        {
+            let latency_commands = NetworkLatencyCommandBuilder::new(&instances)
+                .with_perturbation_spec(parameters.perturbation_spec.clone())
+                .with_topology_layout(latency_topology)
+                .with_max_latency(parameters.maximum_latency)
+                .build_network_latency_matrix();
+            self.ssh_manager
+                .execute_per_instance(latency_commands, CommandContext::default())
+                .await?;
+        }
 
         // Run one node per instance.
         let targets = self
@@ -1067,9 +1068,9 @@ done"#
             && let Err(e) = self
                 .download_prometheus_snapshot(&benchmark_dir, &timestamp)
                 .await
-            {
-                display::error(format!("Failed to download prometheus snapshot: {}", e));
-            }
+        {
+            display::error(format!("Failed to download prometheus snapshot: {}", e));
+        }
 
         display::header("Benchmark completed");
         Ok(())

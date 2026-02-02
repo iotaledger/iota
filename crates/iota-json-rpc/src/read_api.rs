@@ -309,9 +309,10 @@ impl ReadApi {
             let mut non_empty_digests = vec![];
             for cache_entry in temp_response.values() {
                 if let Some(effects) = &cache_entry.effects
-                    && effects.events_digest().is_some() {
-                        non_empty_digests.push(cache_entry.digest);
-                    }
+                    && effects.events_digest().is_some()
+                {
+                    non_empty_digests.push(cache_entry.digest);
+                }
             }
             // fetch events from the DB with retry, retry each 0.5s for 3s
             let backoff = ExponentialBackoff {

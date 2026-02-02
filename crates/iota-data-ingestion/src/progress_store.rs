@@ -64,9 +64,10 @@ impl ProgressStore for DynamoDBProgressStore {
             .send()
             .await?;
         if let Some(output) = item.item()
-            && let AttributeValue::N(checkpoint_number) = &output["nstate"] {
-                return Ok(CheckpointSequenceNumber::from_str(checkpoint_number)?);
-            }
+            && let AttributeValue::N(checkpoint_number) = &output["nstate"]
+        {
+            return Ok(CheckpointSequenceNumber::from_str(checkpoint_number)?);
+        }
         Ok(0)
     }
     async fn save(

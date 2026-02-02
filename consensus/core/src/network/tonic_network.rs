@@ -725,9 +725,9 @@ impl<S: NetworkService> NetworkManager<S> for TonicManager {
                     request.extensions().get::<iota_http::PeerCertificates>()
                     && let Some(peer_info) =
                         peer_info_from_certs(&connections_info, peer_certificates)
-                    {
-                        request.extensions_mut().insert(peer_info);
-                    }
+                {
+                    request.extensions_mut().insert(peer_info);
+                }
                 request
             })
             .layer(CallbackLayer::new(MetricsCallbackMaker::new(

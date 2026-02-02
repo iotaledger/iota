@@ -66,7 +66,7 @@ pub fn create_rustls_client_config(
     client_key: Option<Ed25519PrivateKey>, // optional self-signed cert for client verification
 ) -> ClientConfig {
     let tls_config = ServerCertVerifier::new(target_public_key, server_name.clone());
-    
+
     if let Some(private_key) = client_key {
         let self_signed_cert = SelfSignedCertificate::new(private_key, server_name.as_str());
         let tls_cert = self_signed_cert.rustls_certificate();

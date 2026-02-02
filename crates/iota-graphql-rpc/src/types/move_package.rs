@@ -1023,7 +1023,6 @@ impl Loader<LatestKey> for Db {
                         let o_cp_seq_num = other.field(dsl::checkpoint_sequence_number);
                         let o_version = other.field(dsl::package_version);
 
-                        
                         dsl::packages
                             .inner_join(other.on(dsl::original_id.eq(o_original_id)))
                             .select((dsl::package_id, o_package_id))

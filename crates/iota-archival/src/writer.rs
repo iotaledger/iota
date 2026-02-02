@@ -446,15 +446,14 @@ impl ArchiveWriter {
                 && let Some(checkpoint_contents) = store
                     .try_get_full_checkpoint_contents(&checkpoint_summary.content_digest)
                     .map_err(|_| anyhow!("Failed to read checkpoint content from store"))?
-                {
-                    checkpoint_writer
-                        .write(checkpoint_contents, checkpoint_summary.into_inner())?;
-                    checkpoint_sequence_number = checkpoint_sequence_number
-                        .checked_add(1)
-                        .context("checkpoint seq number overflow")?;
-                    // There is more checkpoints to tail, so continue without sleeping
-                    continue;
-                }
+            {
+                checkpoint_writer.write(checkpoint_contents, checkpoint_summary.into_inner())?;
+                checkpoint_sequence_number = checkpoint_sequence_number
+                    .checked_add(1)
+                    .context("checkpoint seq number overflow")?;
+                // There is more checkpoints to tail, so continue without sleeping
+                continue;
+            }
             // Checkpoint with `checkpoint_sequence_number` is not available to read from
             // store yet, sleep for sometime and then retry
             sleep(Duration::from_secs(3));

@@ -566,9 +566,10 @@ impl TransactionManager {
         // arrived since we released the lock on self.inner.
         for (key, value) in object_availability.iter_mut() {
             if !value.expect("all objects must have been checked by now")
-                && let Some(true) = inner.available_objects_cache.is_object_available(key) {
-                    *value = Some(true);
-                }
+                && let Some(true) = inner.available_objects_cache.is_object_available(key)
+            {
+                *value = Some(true);
+            }
         }
 
         inner.available_objects_cache.disable_unbounded_cache();

@@ -295,9 +295,10 @@ pub mod checked {
             if self.smashed_gas_coin.is_some() {
                 // bucketize computation cost
                 if let Err(err) = self.gas_status.bucketize_computation()
-                    && execution_result.is_ok() {
-                        *execution_result = Err(err);
-                    }
+                    && execution_result.is_ok()
+                {
+                    *execution_result = Err(err);
+                }
 
                 // On error we need to dump writes, deletes, etc before charging storage gas
                 if execution_result.is_err() {

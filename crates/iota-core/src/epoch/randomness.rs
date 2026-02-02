@@ -707,9 +707,9 @@ impl RandomnessManager {
                 < epoch_store
                     .protocol_config()
                     .random_beacon_min_round_interval_ms()
-            {
-                return Ok(None);
-            }
+        {
+            return Ok(None);
+        }
 
         let randomness_round = self.next_randomness_round;
         self.next_randomness_round = self

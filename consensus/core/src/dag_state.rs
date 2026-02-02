@@ -261,37 +261,36 @@ impl DagState {
             );
 
         if state.gc_enabled()
-            && let Some(last_commit) = last_commit {
-                let mut index = last_commit.index();
-                let gc_round = state.gc_round();
-                info!(
-                    "Recovering block commit statuses from commit index {} and backwards until leader of round <= gc_round {:?}",
-                    index, gc_round
-                );
+            && let Some(last_commit) = last_commit
+        {
+            let mut index = last_commit.index();
+            let gc_round = state.gc_round();
+            info!(
+                "Recovering block commit statuses from commit index {} and backwards until leader of round <= gc_round {:?}",
+                index, gc_round
+            );
 
-                loop {
-                    let commits = store
-                        .scan_commits((index..=index).into())
-                        .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
-                    let Some(commit) = commits.first() else {
-                        info!(
-                            "Recovering finished up to index {index}, no more commits to recover"
-                        );
-                        break;
-                    };
+            loop {
+                let commits = store
+                    .scan_commits((index..=index).into())
+                    .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
+                let Some(commit) = commits.first() else {
+                    info!("Recovering finished up to index {index}, no more commits to recover");
+                    break;
+                };
 
-                    // Check the commit leader round to see if it is within the gc_round. If it is
-                    // not then we can stop the recovery process.
-                    if gc_round > 0 && commit.leader().round <= gc_round {
-                        info!(
-                            "Recovering finished, reached commit leader round {} <= gc_round {}",
-                            commit.leader().round,
-                            gc_round
-                        );
-                        break;
-                    }
+                // Check the commit leader round to see if it is within the gc_round. If it is
+                // not then we can stop the recovery process.
+                if gc_round > 0 && commit.leader().round <= gc_round {
+                    info!(
+                        "Recovering finished, reached commit leader round {} <= gc_round {}",
+                        commit.leader().round,
+                        gc_round
+                    );
+                    break;
+                }
 
-                    commit.blocks().iter().filter(|b| b.round > gc_round).for_each(|block_ref|{
+                commit.blocks().iter().filter(|b| b.round > gc_round).for_each(|block_ref|{
                         debug!(
                             "Setting block {:?} as committed based on commit {:?}",
                             block_ref,
@@ -300,13 +299,13 @@ impl DagState {
                         assert!(state.set_committed(block_ref), "Attempted to set again a block {block_ref:?} as committed when recovering commit {commit:?}");
                     });
 
-                    // All commits are indexed starting from 1, so one reach zero exit.
-                    index = index.saturating_sub(1);
-                    if index == 0 {
-                        break;
-                    }
+                // All commits are indexed starting from 1, so one reach zero exit.
+                index = index.saturating_sub(1);
+                if index == 0 {
+                    break;
                 }
             }
+        }
 
         state
     }

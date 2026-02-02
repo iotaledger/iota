@@ -243,11 +243,12 @@ impl TransactionBuilder {
         let gas = gas.into();
 
         if let Some(gas) = gas
-            && input_coins.contains(&gas) {
-                bail!(
-                    "Gas coin is in input coins of Pay transaction, use PayIota transaction instead!"
-                );
-            }
+            && input_coins.contains(&gas)
+        {
+            bail!(
+                "Gas coin is in input coins of Pay transaction, use PayIota transaction instead!"
+            );
+        }
 
         let coin_refs = self.input_refs(&input_coins).await?;
         let gas_price = self.0.get_reference_gas_price().await?;

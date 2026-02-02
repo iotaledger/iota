@@ -65,9 +65,10 @@ impl AuthorityPerEpochStorePruner {
         for directory in directories {
             let path = directory.path();
             if let Some(filename) = directory.file_name().to_str()
-                && let Ok(epoch) = filename.split_at(EPOCH_DB_PREFIX.len()).1.parse::<u64>() {
-                    candidates.push((epoch, path));
-                }
+                && let Ok(epoch) = filename.split_at(EPOCH_DB_PREFIX.len()).1.parse::<u64>()
+            {
+                candidates.push((epoch, path));
+            }
         }
         let mut pruned = 0;
         let mut gc_results = vec![];

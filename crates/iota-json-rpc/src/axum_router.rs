@@ -214,9 +214,9 @@ async fn process_raw_request<L: Logger>(
         if let Some(traffic_controller) = &service.traffic_controller
             && let Err(blocked_response) =
                 handle_traffic_req(traffic_controller.clone(), &client).await
-            {
-                return blocked_response;
-            }
+        {
+            return blocked_response;
+        }
 
         // handle response tallying
         let response = process_request(request, api_version, service.call_data()).await;

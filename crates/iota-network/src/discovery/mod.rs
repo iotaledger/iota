@@ -410,9 +410,10 @@ impl DiscoveryEventLoop {
         self.pending_dials.retain(|_k, v| !v.is_finished());
         // Cleans out the dial_seed_peers_task if it's done.
         if let Some(abort_handle) = &self.dial_seed_peers_task
-            && abort_handle.is_finished() {
-                self.dial_seed_peers_task = None;
-            }
+            && abort_handle.is_finished()
+        {
+            self.dial_seed_peers_task = None;
+        }
 
         // Selects a subset of known peers to dial if we're not connected to enough
         // peers.

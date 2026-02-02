@@ -133,8 +133,6 @@ impl CommitteeFixture {
             })
             .collect();
 
-        
-
         CertifiedCheckpointSummary::new(checkpoint, signatures, self.committee())
             .unwrap()
             .try_into_verified(self.committee())

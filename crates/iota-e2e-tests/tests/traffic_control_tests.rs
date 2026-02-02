@@ -268,9 +268,10 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
     for _ in 0..n {
         let response = auth_client.handle_transaction(tx.clone(), None).await;
         if let Err(err) = response
-            && err.to_string().contains("Too many requests") {
-                return Ok(());
-            }
+            && err.to_string().contains("Too many requests")
+        {
+            return Ok(());
+        }
     }
     panic!("Expected error policy to trigger within {n} requests");
 }
@@ -459,9 +460,10 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
     for _ in 0..n {
         let response = auth_client.handle_transaction(tx.clone(), None).await;
         if let Err(err) = response
-            && err.to_string().contains("Too many requests") {
-                return Ok(());
-            }
+            && err.to_string().contains("Too many requests")
+        {
+            return Ok(());
+        }
     }
     let fw_blocklist = server.list_addresses_rpc().await;
     assert!(
