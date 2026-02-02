@@ -80,7 +80,7 @@ impl StateReader {
 
         use super::transactions::TransactionNotFoundError;
 
-        let transaction_digest = digest.into();
+        let transaction_digest = digest;
 
         let transaction = (*self
             .inner()
@@ -131,7 +131,7 @@ impl StateReader {
             events,
         ) = self.get_transaction(digest)?;
 
-        let checkpoint = self.get_transaction_checkpoint(&(digest.into()));
+        let checkpoint = self.get_transaction_checkpoint(&digest);
         let timestamp_ms = if let Some(checkpoint) = checkpoint {
             self.inner()
                 .try_get_checkpoint_by_sequence_number(checkpoint)?
