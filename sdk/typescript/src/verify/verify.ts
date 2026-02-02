@@ -12,7 +12,6 @@ import { Secp256r1PublicKey } from '../keypairs/secp256r1/publickey.js';
 // eslint-disable-next-line import/no-cycle
 import { MultiSigPublicKey } from '../multisig/publickey.js';
 import { PasskeyPublicKey } from '../keypairs/passkey/publickey.js';
-import type { IotaGraphQLClient } from '../graphql/client.js';
 
 export async function verifySignature(
     bytes: Uint8Array,
@@ -37,7 +36,7 @@ export async function verifySignature(
 export async function verifyPersonalMessageSignature(
     message: Uint8Array,
     signature: string,
-    options: { client?: IotaGraphQLClient; address?: string } = {},
+    options: { address?: string } = {},
 ): Promise<PublicKey> {
     const parsedSignature = parseSignature(signature);
 
@@ -60,7 +59,7 @@ export async function verifyPersonalMessageSignature(
 export async function verifyTransactionSignature(
     transaction: Uint8Array,
     signature: string,
-    options: { client?: IotaGraphQLClient; address?: string } = {},
+    options: { address?: string } = {},
 ): Promise<PublicKey> {
     const parsedSignature = parseSignature(signature);
 
