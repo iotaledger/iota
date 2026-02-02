@@ -1489,7 +1489,7 @@ mod tests {
 
         assert!(
             caught_up,
-            "Validator {} should have caught up via fast sync (may fail with pending subdags)",
+            "Validator {} should have caught up via fast sync",
             test_validator_index
         );
 
