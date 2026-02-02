@@ -17,7 +17,7 @@ use iota_grpc_types::{
     },
 };
 use iota_protocol_config::{ProtocolConfig as IotaProtocolConfig, ProtocolConfigValue};
-use iota_types::{base_types::ObjectID, iota_sdk_types_conversions::SdkTypeConversionError};
+use iota_types::iota_sdk_types_conversions::SdkTypeConversionError;
 
 use crate::{error::RpcError, validation::object_id_proto};
 
@@ -249,7 +249,7 @@ impl Merge<&iota_sdk_types::Event> for Event {
         }
 
         if mask.contains(Self::PACKAGE_ID_FIELD.name) {
-            self.package_id = Some(object_id_proto(&ObjectID::from(source.package_id)));
+            self.package_id = Some(object_id_proto(&source.package_id));
         }
 
         if mask.contains(Self::MODULE_FIELD.name) {

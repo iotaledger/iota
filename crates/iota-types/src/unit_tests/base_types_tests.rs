@@ -8,7 +8,10 @@
 use std::str::FromStr;
 
 use base_types_tests::timelock::TimeLock;
-use fastcrypto::{encoding::Base58, traits::EncodeDecodeBase64};
+use fastcrypto::{
+    encoding::{Base58, Encoding},
+    traits::EncodeDecodeBase64,
+};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use move_binary_format::file_format;
@@ -136,7 +139,7 @@ fn test_object_id_conversions() {}
 #[test]
 fn test_object_id_display() {
     let id = ObjectID::from_str(SAMPLE_ADDRESS).unwrap();
-    assert_eq!(format!("{id:?}"), SAMPLE_ADDRESS);
+    assert_eq!(format!("{id}"), SAMPLE_ADDRESS);
 }
 
 #[test]
@@ -150,9 +153,9 @@ fn test_object_id_str_lossless() {
         ObjectID::from_str("0000000000000000000000000000000000000000000000000000000000000001")
             .unwrap();
 
-    assert_eq!(id.short_str_lossless(), "c0f1f95c5b1c5f0eda533eff269000",);
-    assert_eq!(id_empty.short_str_lossless(), "0",);
-    assert_eq!(id_one.short_str_lossless(), "1",);
+    assert_eq!(id.to_raw_short_hex(), "c0f1f95c5b1c5f0eda533eff269000",);
+    assert_eq!(id_empty.to_raw_short_hex(), "0",);
+    assert_eq!(id_one.to_raw_short_hex(), "1",);
 }
 
 #[test]
@@ -160,22 +163,22 @@ fn test_object_id_from_hex_literal() {
     let hex_literal = "0x1";
     let hex = "0000000000000000000000000000000000000000000000000000000000000001";
 
-    let obj_id_from_literal = ObjectID::from_hex_literal(hex_literal).unwrap();
+    let obj_id_from_literal = ObjectID::from_short_hex(hex_literal).unwrap();
     let obj_id = ObjectID::from_str(hex).unwrap();
 
     assert_eq!(obj_id_from_literal, obj_id);
-    assert_eq!(hex_literal, obj_id.to_hex_literal());
+    assert_eq!(hex_literal, obj_id.to_short_hex());
 
     // Missing '0x'
-    ObjectID::from_hex_literal(hex).unwrap_err();
+    ObjectID::from_prefixed_short_hex(hex).unwrap_err();
     // Too long
-    ObjectID::from_hex_literal(
+    ObjectID::from_prefixed_short_hex(
         "0x10000000000000000000000000000000000000000000000000000000000000001",
     )
     .unwrap_err();
     assert_eq!(
         "0x0000000000000000000000000000000000000000000000000000000000000001",
-        obj_id.to_hex_uncompressed()
+        obj_id.to_hex()
     );
 }
 
@@ -204,7 +207,7 @@ fn test_object_id_deserialize_from_json_value() {
 fn test_object_id_serde_json() {
     let json_hex = format!("\"{SAMPLE_ADDRESS}\"");
 
-    let obj_id = ObjectID::from_hex_literal(SAMPLE_ADDRESS).unwrap();
+    let obj_id = ObjectID::from_hex(SAMPLE_ADDRESS).unwrap();
 
     let json = serde_json::to_string(&obj_id).unwrap();
     let json_obj_id: ObjectID = serde_json::from_str(&json_hex).unwrap();
@@ -217,7 +220,7 @@ fn test_object_id_serde_json() {
 fn test_object_id_serde_not_human_readable() {
     let obj_id = ObjectID::random();
     let serialized = bcs::to_bytes(&obj_id).unwrap();
-    assert_eq!(obj_id.0.to_vec(), serialized);
+    assert_eq!(obj_id.as_bytes().to_vec(), serialized);
     let deserialized: ObjectID = bcs::from_bytes(&serialized).unwrap();
     assert_eq!(deserialized, obj_id);
 }
@@ -225,7 +228,7 @@ fn test_object_id_serde_not_human_readable() {
 #[test]
 fn test_object_id_serde_with_expected_value() {
     let object_id_vec = SAMPLE_ADDRESS_VEC.to_vec();
-    let object_id = ObjectID::try_from(object_id_vec.clone()).unwrap();
+    let object_id = ObjectID::from_bytes(&object_id_vec).unwrap();
     let json_serialized = serde_json::to_string(&object_id).unwrap();
     let bcs_serialized = bcs::to_bytes(&object_id).unwrap();
 
@@ -245,12 +248,12 @@ fn test_object_id_zero_padding() {
     let obj_id_4: ObjectID = serde_json::from_str(&format!("\"{hex}\"")).unwrap();
     let obj_id_5: ObjectID = serde_json::from_str(&format!("\"{long_hex}\"")).unwrap();
     let obj_id_6: ObjectID = serde_json::from_str(&format!("\"{long_hex_alt}\"")).unwrap();
-    assert_eq!(IOTA_FRAMEWORK_ADDRESS, obj_id_1.0);
-    assert_eq!(IOTA_FRAMEWORK_ADDRESS, obj_id_2.0);
-    assert_eq!(IOTA_FRAMEWORK_ADDRESS, obj_id_3.0);
-    assert_eq!(IOTA_FRAMEWORK_ADDRESS, obj_id_4.0);
-    assert_eq!(IOTA_FRAMEWORK_ADDRESS, obj_id_5.0);
-    assert_eq!(IOTA_FRAMEWORK_ADDRESS, obj_id_6.0);
+    assert_eq!(IOTA_FRAMEWORK_ADDRESS.as_ref(), obj_id_1.as_bytes());
+    assert_eq!(IOTA_FRAMEWORK_ADDRESS.as_ref(), obj_id_2.as_bytes());
+    assert_eq!(IOTA_FRAMEWORK_ADDRESS.as_ref(), obj_id_3.as_bytes());
+    assert_eq!(IOTA_FRAMEWORK_ADDRESS.as_ref(), obj_id_4.as_bytes());
+    assert_eq!(IOTA_FRAMEWORK_ADDRESS.as_ref(), obj_id_5.as_bytes());
+    assert_eq!(IOTA_FRAMEWORK_ADDRESS.as_ref(), obj_id_6.as_bytes());
 }
 
 #[test]

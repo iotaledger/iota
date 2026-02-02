@@ -117,7 +117,7 @@ impl Event {
         contents: Vec<u8>,
     ) -> Self {
         Self {
-            package_id: ObjectID::from(*package_id),
+            package_id: ObjectID::new(package_id.into_bytes()),
             transaction_module: Identifier::from(module),
             sender,
             type_,

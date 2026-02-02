@@ -1333,11 +1333,11 @@ impl IotaObjectDataFilter {
                 }
             }
             IotaObjectDataFilter::MoveModule { package, module } => {
-                matches!(&object.type_, ObjectType::Struct(s) if &ObjectID::from(s.address()) == package
+                matches!(&object.type_, ObjectType::Struct(s) if &ObjectID::new(s.address().into_bytes()) == package
                         && s.module() == module.as_ident_str())
             }
             IotaObjectDataFilter::Package(p) => {
-                matches!(&object.type_, ObjectType::Struct(s) if &ObjectID::from(s.address()) == p)
+                matches!(&object.type_, ObjectType::Struct(s) if &ObjectID::new(s.address().into_bytes()) == p)
             }
             IotaObjectDataFilter::AddressOwner(a) => {
                 matches!(object.owner, Owner::AddressOwner(addr) if &addr == a)

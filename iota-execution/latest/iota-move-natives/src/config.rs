@@ -4,7 +4,10 @@
 
 use std::collections::VecDeque;
 
-use iota_types::{TypeTag, base_types::MoveObjectType};
+use iota_types::{
+    TypeTag,
+    base_types::{MoveObjectType, ObjectID},
+};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
     account_address::AccountAddress, gas_algebra::InternalGas, language_storage::StructTag,
@@ -125,8 +128,8 @@ fn consistent_value_before_current_epoch(
 ) -> PartialVMResult<Value> {
     let field_setting_obj_ty = MoveObjectType::from(field_setting_tag);
     let Some(field) = object_runtime.config_setting_unsequenced_read(
-        config_addr.into(),
-        name_df_addr.into(),
+        ObjectID::new(config_addr.into_bytes()),
+        ObjectID::new(name_df_addr.into_bytes()),
         field_setting_ty,
         field_setting_layout,
         &field_setting_obj_ty,

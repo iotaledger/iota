@@ -29,7 +29,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::crypto::Intent;
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, TypeTag,
+    IOTA_FRAMEWORK_PACKAGE_ID, TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{PublicKey, SignatureScheme},
     effects::{TransactionEffects, TransactionEffectsAPI},
@@ -1615,7 +1615,7 @@ impl TestEnvironment {
                 builder.pure(authenticate_fn_name)?,
             ];
             if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
+                IOTA_FRAMEWORK_PACKAGE_ID,
                 ident_str!("authenticator_function").to_owned(),
                 ident_str!("create_auth_function_ref_v1").to_owned(),
                 vec![delayed_abstract_account_type_tag(&aa_package_id)],
@@ -1827,7 +1827,7 @@ impl TestEnvironment {
             builder.pure(authenticate_fn_name)?,
         ];
         if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
-            IOTA_FRAMEWORK_ADDRESS.into(),
+            IOTA_FRAMEWORK_PACKAGE_ID,
             ident_str!("authenticator_function").to_owned(),
             ident_str!("create_auth_function_ref_v1").to_owned(),
             vec![abstract_account_type_tag(&aa_package_id)],
@@ -1901,7 +1901,7 @@ impl TestEnvironment {
                 builder.pure(authenticate_fn_name)?,
             ];
             if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
+                IOTA_FRAMEWORK_PACKAGE_ID,
                 ident_str!("authenticator_function").to_owned(),
                 ident_str!("create_auth_function_ref_v1").to_owned(),
                 vec![abstract_account_type_tag(&aa_package_id)],

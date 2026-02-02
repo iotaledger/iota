@@ -16,6 +16,7 @@ use iota_macros::sim_test;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
+use iota_sdk_types::Address;
 use iota_types::{
     IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
     IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_PACKAGE_ID,
@@ -766,7 +767,7 @@ async fn test_dev_inspect_return_values() {
     assert_eq!(return_values.len(), 1);
     let (_return_value, return_type) = return_values.pop().unwrap();
     let expected_type = TypeTag::Struct(Box::new(StructTag {
-        address: object_basics.0.into(),
+        address: AccountAddress::new(object_basics.0.into_bytes()),
         module: Identifier::new("object_basics").unwrap(),
         name: Identifier::new("Wrapper").unwrap(),
         type_params: vec![],
@@ -1709,7 +1710,7 @@ async fn test_publish_dependent_module_ok() {
         sender,
         gas_payment_object_ref,
         vec![dependent_module_bytes],
-        vec![ObjectID::from(*genesis_module.address())],
+        vec![ObjectID::new(genesis_module.address().into_bytes())],
         gas_budget,
         gas_price,
     );
@@ -1817,7 +1818,7 @@ async fn test_publish_non_existing_dependent_module() {
     let not_on_chain = ObjectID::random();
     dependent_module
         .address_identifiers
-        .push(AccountAddress::from(not_on_chain));
+        .push(AccountAddress::new(not_on_chain.into_bytes()));
     dependent_module.module_handles.push(ModuleHandle {
         address: AddressIdentifierIndex((dependent_module.address_identifiers.len() - 1) as u16),
         name: IdentifierIndex(0),
@@ -1837,7 +1838,10 @@ async fn test_publish_non_existing_dependent_module() {
         sender,
         gas_payment_object_ref,
         vec![dependent_module_bytes],
-        vec![ObjectID::from(*genesis_module.address()), not_on_chain],
+        vec![
+            ObjectID::new(genesis_module.address().into_bytes()),
+            not_on_chain,
+        ],
         rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         rgp,
     );
@@ -2210,7 +2214,7 @@ async fn test_type_argument_dependencies() {
         ident_str!("object_basics").to_owned(),
         ident_str!("generic_test").to_owned(),
         vec![TypeTag::Struct(Box::new(StructTag {
-            address: object_basics.into(),
+            address: AccountAddress::new(object_basics.into_bytes()),
             module: ident_str!("object_basics").to_owned(),
             name: ident_str!("Object").to_owned(),
             type_params: vec![],
@@ -2236,7 +2240,7 @@ async fn test_type_argument_dependencies() {
         ident_str!("object_basics").to_owned(),
         ident_str!("generic_test").to_owned(),
         vec![TypeTag::Struct(Box::new(StructTag {
-            address: ObjectID::MAX.into(),
+            address: AccountAddress::new(ObjectID::MAX.into_bytes()),
             module: ident_str!("object_basics").to_owned(),
             name: ident_str!("Object").to_owned(),
             type_params: vec![],
@@ -2729,11 +2733,11 @@ async fn test_get_latest_parent_entry() {
     // Test get_latest_parent_entry function
 
     // The objects just after the gas object also returns None
-    let mut x = gas_object_id.to_vec();
+    let mut x = gas_object_id.as_bytes().to_vec();
     let last_index = x.len() - 1;
     // Prevent overflow
     x[last_index] = u8::MAX - x[last_index];
-    let unknown_object_id: ObjectID = x.try_into().unwrap();
+    let unknown_object_id = ObjectID::from_bytes(x).unwrap();
     assert!(
         authority_state
             .get_object_or_tombstone(unknown_object_id)
@@ -3026,7 +3030,7 @@ async fn test_invalid_object_ownership() {
         UserInputError::try_from(e).unwrap(),
         UserInputError::IncorrectUserSignature {
             error: format!(
-                "Object {invalid_ownership_object_id:?} is owned by account address {invalid_owner}, but given owner/signer address is {sender}"
+                "Object {invalid_ownership_object_id} is owned by account address {invalid_owner}, but given owner/signer address is {sender}"
             )
         }
     );
@@ -5686,7 +5690,7 @@ async fn test_function_not_found() {
     let mut builder = ProgrammableTransactionBuilder::new();
     builder
         .move_call(
-            ObjectID::from_single_byte(1),
+            Address::STD.into(),
             ident_str!("option").to_owned(),
             ident_str!("bad_function").to_owned(),
             vec![],
@@ -5742,7 +5746,7 @@ async fn test_arity_mismatch() {
     let mut builder = ProgrammableTransactionBuilder::new();
     builder
         .move_call(
-            ObjectID::from_single_byte(1),
+            Address::STD.into(),
             ident_str!("option").to_owned(),
             ident_str!("is_none").to_owned(),
             vec![TypeTag::U64],
@@ -5847,7 +5851,10 @@ async fn test_publish_transitive_dependencies_ok() {
     let mut build_config = BuildConfig::new_for_testing();
     build_config.config.additional_named_addresses.extend([
         ("b".to_string(), AccountAddress::ZERO),
-        ("c".to_string(), (package_c_id).into()),
+        (
+            "c".to_string(),
+            AccountAddress::new(package_c_id.into_bytes()),
+        ),
     ]);
 
     let modules = build_config
@@ -5883,8 +5890,14 @@ async fn test_publish_transitive_dependencies_ok() {
     let mut build_config = BuildConfig::new_for_testing();
     build_config.config.additional_named_addresses.extend([
         ("a".to_string(), AccountAddress::ZERO),
-        ("b".to_string(), (package_b_id).into()),
-        ("c".to_string(), (package_c_id).into()),
+        (
+            "b".to_string(),
+            AccountAddress::new(package_b_id.into_bytes()),
+        ),
+        (
+            "c".to_string(),
+            AccountAddress::new(package_c_id.into_bytes()),
+        ),
     ]);
 
     let modules = build_config
@@ -5926,9 +5939,18 @@ async fn test_publish_transitive_dependencies_ok() {
     let mut build_config = BuildConfig::new_for_testing();
     build_config.config.additional_named_addresses.extend([
         ("examples".to_string(), AccountAddress::ZERO),
-        ("a".to_string(), (package_a_id).into()),
-        ("b".to_string(), (package_b_id).into()),
-        ("c".to_string(), (package_c_id).into()),
+        (
+            "a".to_string(),
+            AccountAddress::new(package_a_id.into_bytes()),
+        ),
+        (
+            "b".to_string(),
+            AccountAddress::new(package_b_id.into_bytes()),
+        ),
+        (
+            "c".to_string(),
+            AccountAddress::new(package_c_id.into_bytes()),
+        ),
     ]);
 
     let modules = build_config

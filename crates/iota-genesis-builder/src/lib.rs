@@ -32,7 +32,7 @@ use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_conf
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_ADDRESS,
+    IOTA_FRAMEWORK_PACKAGE_ID,
     balance::{BALANCE_MODULE_NAME, Balance},
     base_types::{
         ExecutionDigests, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
@@ -53,7 +53,6 @@ use iota_types::{
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{IotaSystemState, IotaSystemStateTrait, get_iota_system_state},
-    is_system_package,
     message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary,
@@ -1226,7 +1225,7 @@ fn update_system_packages_from_objects(
         .iter()
         .filter_map(|obj| {
             let pkg = obj.data.try_as_package()?;
-            is_system_package(pkg.id()).then(|| {
+            pkg.id().is_system_package().then(|| {
                 (
                     pkg.id(),
                     pkg.serialized_module_map().values().cloned().collect(),
@@ -1429,7 +1428,8 @@ pub(crate) fn process_package(
                 .iter()
                 .zip(dependency_objects.iter())
                 .all(|(dependency, obj_opt)| obj_opt.is_some()
-                    || to_be_published_addresses.contains(&AccountAddress::from(*dependency)))
+                    || to_be_published_addresses
+                        .contains(&AccountAddress::new(dependency.into_bytes())))
         );
     }
     let loaded_dependencies: Vec<_> = dependencies
@@ -1578,7 +1578,7 @@ pub fn generate_genesis_system_object(
         arguments.append(&mut call_arg_arguments);
         arguments.push(system_admin_cap);
         builder.programmable_move_call(
-            IOTA_SYSTEM_ADDRESS.into(),
+            ObjectID::SYSTEM_PACKAGE,
             ident_str!("genesis").to_owned(),
             ident_str!("create").to_owned(),
             vec![],

@@ -190,7 +190,7 @@ pub async fn verify_package(
     let address = compiled_package
         .published_at
         .as_ref()
-        .map(|id| **id)
+        .map(|id| AccountAddress::new(id.into_bytes()))
         .map_err(|_| anyhow!("could not resolve published-at field in package manifest"))?;
     info!("verifying {} at {address}", package_path.as_ref().display());
     for v in &compiled_package.package.root_compiled_units {

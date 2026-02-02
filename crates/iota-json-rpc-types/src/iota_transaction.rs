@@ -39,6 +39,7 @@ use iota_types::{
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{
+    account_address::AccountAddress,
     annotated_value::MoveTypeLayout,
     identifier::{IdentStr, Identifier},
     language_storage::{ModuleId, StructTag, TypeTag},
@@ -2057,7 +2058,7 @@ impl IotaProgrammableTransactionBlock {
                         return result_types;
                     };
 
-                    let id = ModuleId::new(c.package.into(), module);
+                    let id = ModuleId::new(AccountAddress::new(c.package.into_bytes()), module);
                     let Some(types) =
                         get_signature_types(id, function.as_ident_str(), module_cache)
                     else {

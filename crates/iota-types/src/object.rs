@@ -33,7 +33,6 @@ use crate::{
         ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError, UserInputResult,
     },
     gas_coin::{GAS, GasCoin},
-    is_system_package,
     layout_resolver::LayoutResolver,
     move_package::MovePackage,
     timelock::timelock::TimeLock,
@@ -145,7 +144,8 @@ impl MoveObject {
         if ID_END_INDEX > contents.len() {
             return Err(ObjectIDParseError::TryFromSlice);
         }
-        ObjectID::try_from(&contents[0..ID_END_INDEX])
+        ObjectID::from_bytes(&contents[0..ID_END_INDEX])
+            .map_err(|_| ObjectIDParseError::TryFromSlice)
     }
 
     /// Return the `value: u64` field of a `Coin<T>` type.
@@ -711,7 +711,7 @@ impl std::ops::DerefMut for Object {
 impl ObjectInner {
     /// Returns true if the object is a system package.
     pub fn is_system_package(&self) -> bool {
-        self.is_package() && is_system_package(self.id())
+        self.is_package() && self.id().is_system_package()
     }
 
     pub fn is_immutable(&self) -> bool {
@@ -1226,7 +1226,7 @@ mod tests {
         let objref = format!("{:?}", o.compute_object_reference());
         assert_eq!(
             objref,
-            "(0x0000000000000000000000000000000000000000000000000000000000000000, Version(1), o#Ba4YyVBcpc9jgX4PMLRoyt9dKLftYVSDvuKbtMr9f4NM)"
+            "(ObjectId(\"0x0000000000000000000000000000000000000000000000000000000000000000\"), Version(1), o#Ba4YyVBcpc9jgX4PMLRoyt9dKLftYVSDvuKbtMr9f4NM)"
         );
     }
 

@@ -1956,8 +1956,12 @@ impl IotaClientCommands {
                     (false, true, _) => ValidationMode::deps(),
                     (true, false, None) => ValidationMode::root(),
                     (true, true, None) => ValidationMode::root_and_deps(),
-                    (true, false, Some(at)) => ValidationMode::root_at(*at),
-                    (true, true, Some(at)) => ValidationMode::root_and_deps_at(*at),
+                    (true, false, Some(at)) => {
+                        ValidationMode::root_at(AccountAddress::new(at.into_bytes()))
+                    }
+                    (true, true, Some(at)) => {
+                        ValidationMode::root_and_deps_at(AccountAddress::new(at.into_bytes()))
+                    }
                 };
 
                 build_config.implicit_dependencies = implicit_deps(latest_system_packages());
@@ -3689,7 +3693,7 @@ pub(crate) async fn pkg_tree_shake(
         .package
         .deps_compiled_units
         .iter()
-        .map(|(pkg_name, module)| (*pkg_name, ObjectID::from(module.unit.address.into_inner())))
+        .map(|(pkg_name, module)| (*pkg_name, ObjectID::new(module.unit.address.into_bytes())))
         .collect();
 
     // for every published package in the original list of published dependencies,

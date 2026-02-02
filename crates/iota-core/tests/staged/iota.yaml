@@ -61,7 +61,7 @@ ChangeEpoch:
             - SEQ:
                 SEQ: U8
             - SEQ:
-                TYPENAME: ObjectID
+                TYPENAME: ObjectId
 ChangeEpochV2:
   STRUCT:
     - epoch: U64
@@ -80,7 +80,7 @@ ChangeEpochV2:
             - SEQ:
                 SEQ: U8
             - SEQ:
-                TYPENAME: ObjectID
+                TYPENAME: ObjectId
 ChangeEpochV3:
   STRUCT:
     - epoch: U64
@@ -99,7 +99,7 @@ ChangeEpochV3:
             - SEQ:
                 SEQ: U8
             - SEQ:
-                TYPENAME: ObjectID
+                TYPENAME: ObjectId
     - eligible_active_validators:
         SEQ: U64
 ChangeEpochV4:
@@ -120,7 +120,7 @@ ChangeEpochV4:
             - SEQ:
                 SEQ: U8
             - SEQ:
-                TYPENAME: ObjectID
+                TYPENAME: ObjectId
     - eligible_active_validators:
         SEQ: U64
     - scores:
@@ -228,7 +228,7 @@ Command:
           - SEQ:
               SEQ: U8
           - SEQ:
-              TYPENAME: ObjectID
+              TYPENAME: ObjectId
     5:
       MakeMoveVec:
         TUPLE:
@@ -242,8 +242,8 @@ Command:
           - SEQ:
               SEQ: U8
           - SEQ:
-              TYPENAME: ObjectID
-          - TYPENAME: ObjectID
+              TYPENAME: ObjectId
+          - TYPENAME: ObjectId
           - TYPENAME: Argument
 CommandArgumentError:
   ENUM:
@@ -303,7 +303,7 @@ CompressedSignature:
 CongestedObjects:
   NEWTYPESTRUCT:
     SEQ:
-      TYPENAME: ObjectID
+      TYPENAME: ObjectId
 ConsensusCommitDigest:
   NEWTYPESTRUCT:
     TYPENAME: Digest
@@ -328,7 +328,7 @@ ConsensusDeterminedVersionAssignments:
               - TYPENAME: TransactionDigest
               - SEQ:
                   TUPLE:
-                    - TYPENAME: ObjectID
+                    - TYPENAME: ObjectId
                     - U64
 Data:
   ENUM:
@@ -401,7 +401,7 @@ EndOfEpochTransactionKind:
 Event:
   STRUCT:
     - package_id:
-        TYPENAME: ObjectID
+        TYPENAME: ObjectId
     - transaction_module: STR
     - sender:
         TYPENAME: Address
@@ -444,7 +444,7 @@ ExecutionFailureStatus:
       CircularObjectOwnership:
         STRUCT:
           - object:
-              TYPENAME: ObjectID
+              TYPENAME: ObjectId
     7:
       InsufficientCoinBalance: UNIT
     8:
@@ -581,7 +581,7 @@ GasData:
     - payment:
         SEQ:
           TUPLE:
-            - TYPENAME: ObjectID
+            - TYPENAME: ObjectId
             - U64
             - TYPENAME: ObjectDigest
     - owner:
@@ -670,7 +670,7 @@ MoveObjectType_:
 MovePackage:
   STRUCT:
     - id:
-        TYPENAME: ObjectID
+        TYPENAME: ObjectId
     - version: U64
     - module_map:
         MAP:
@@ -682,7 +682,7 @@ MovePackage:
     - linkage_table:
         MAP:
           KEY:
-            TYPENAME: ObjectID
+            TYPENAME: ObjectId
           VALUE:
             TYPENAME: UpgradeInfo
 MultiSig:
@@ -716,29 +716,29 @@ ObjectArg:
       ImmOrOwnedObject:
         NEWTYPE:
           TUPLE:
-            - TYPENAME: ObjectID
+            - TYPENAME: ObjectId
             - U64
             - TYPENAME: ObjectDigest
     1:
       SharedObject:
         STRUCT:
           - id:
-              TYPENAME: ObjectID
+              TYPENAME: ObjectId
           - initial_shared_version: U64
           - mutable: BOOL
     2:
       Receiving:
         NEWTYPE:
           TUPLE:
-            - TYPENAME: ObjectID
+            - TYPENAME: ObjectId
             - U64
             - TYPENAME: ObjectDigest
 ObjectDigest:
   NEWTYPESTRUCT:
     TYPENAME: Digest
-ObjectID:
+ObjectId:
   NEWTYPESTRUCT:
-    TYPENAME: AccountAddress
+    TYPENAME: Address
 ObjectIn:
   ENUM:
     0:
@@ -796,12 +796,12 @@ PackageUpgradeError:
       UnableToFetchPackage:
         STRUCT:
           - package_id:
-              TYPENAME: ObjectID
+              TYPENAME: ObjectId
     1:
       NotAPackage:
         STRUCT:
           - object_id:
-              TYPENAME: ObjectID
+              TYPENAME: ObjectId
     2:
       IncompatibleUpgrade: UNIT
     3:
@@ -817,13 +817,13 @@ PackageUpgradeError:
       PackageIDDoesNotMatch:
         STRUCT:
           - package_id:
-              TYPENAME: ObjectID
+              TYPENAME: ObjectId
           - ticket_id:
-              TYPENAME: ObjectID
+              TYPENAME: ObjectId
 ProgrammableMoveCall:
   STRUCT:
     - package:
-        TYPENAME: ObjectID
+        TYPENAME: ObjectId
     - module: STR
     - function: STR
     - type_arguments:
@@ -950,12 +950,12 @@ TransactionEffectsV1:
     - changed_objects:
         SEQ:
           TUPLE:
-            - TYPENAME: ObjectID
+            - TYPENAME: ObjectId
             - TYPENAME: EffectsObjectChange
     - unchanged_shared_objects:
         SEQ:
           TUPLE:
-            - TYPENAME: ObjectID
+            - TYPENAME: ObjectId
             - TYPENAME: UnchangedSharedKind
     - aux_data_digest:
         OPTION:
@@ -1039,7 +1039,7 @@ TypeOrigin:
     - module_name: STR
     - datatype_name: STR
     - package:
-        TYPENAME: ObjectID
+        TYPENAME: ObjectId
 TypeTag:
   ENUM:
     0:
@@ -1107,7 +1107,7 @@ UnchangedSharedKind:
 UpgradeInfo:
   STRUCT:
     - upgraded_id:
-        TYPENAME: ObjectID
+        TYPENAME: ObjectId
     - upgraded_version: U64
 "iota_types::message_envelope::Envelope<iota_types::messages_checkpoint::CheckpointSummary, iota_types::crypto::AuthorityQuorumSignInfo<true>>":
   STRUCT:

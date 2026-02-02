@@ -106,7 +106,7 @@ macro_rules! built_in_ids {
     ($($addr:ident / $id:ident = $init:expr);* $(;)?) => {
         $(
             pub const $addr: AccountAddress = builtin_address($init);
-            pub const $id: ObjectID = ObjectID::from_address($addr);
+            pub const $id: ObjectID = ObjectID::new($addr.into_bytes());
         )*
     }
 }

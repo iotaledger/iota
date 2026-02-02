@@ -114,7 +114,10 @@ where
     type Item = Arc<CompiledModule>;
 
     fn get_module_by_id(&self, id: &ModuleId) -> anyhow::Result<Option<Self::Item>, Self::Error> {
-        let obj = self.temp_store.written.get(&ObjectID::from(*id.address()));
+        let obj = self
+            .temp_store
+            .written
+            .get(&ObjectID::new(id.address().into_bytes()));
         if let Some(o) = obj {
             if let Some(p) = o.data.try_as_package() {
                 return Ok(Some(Arc::new(p.deserialize_module(

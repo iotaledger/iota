@@ -9,14 +9,9 @@ use std::{
     str::FromStr,
 };
 
-use anyhow::{anyhow, bail};
-use fastcrypto::{
-    encoding::{Encoding, Hex, decode_bytes_hex},
-    hash::HashFunction,
-    traits::AllowedRng,
-};
+use anyhow::anyhow;
+use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::crypto::HashingIntentScope;
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
@@ -25,15 +20,13 @@ use move_core_types::{
     identifier::IdentStr,
     language_storage::{ModuleId, StructTag, TypeTag},
 };
-use rand::Rng;
 use serde::{
-    Deserialize, Deserializer, Serialize, Serializer,
+    Deserialize, Serialize, Serializer,
     ser::{Error, SerializeSeq},
 };
-use serde_with::{DeserializeAs, SerializeAs, serde_as};
 
 use crate::{
-    IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
+    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
     account_abstraction::authenticator_function::AuthenticatorFunctionRefV1,
     balance::Balance,
     coin::{COIN_MODULE_NAME, COIN_STRUCT_NAME, Coin, CoinMetadata, TreasuryCap},
@@ -49,7 +42,7 @@ use crate::{
     gas_coin::{GAS, GasCoin},
     governance::{STAKED_IOTA_STRUCT_NAME, STAKING_POOL_MODULE_NAME, StakedIota},
     id::RESOLVED_IOTA_ID,
-    iota_serde::{Readable, to_custom_deser_error, to_iota_struct_tag_string},
+    iota_serde::to_iota_struct_tag_string,
     messages_checkpoint::CheckpointTimestamp,
     multisig::MultiSigPublicKey,
     object::{Object, Owner},
@@ -90,9 +83,7 @@ pub trait ConciseableName<'a> {
     fn concise_owned(&self) -> Self::ConciseType;
 }
 
-#[serde_as]
-#[derive(Eq, PartialEq, Clone, Copy, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct ObjectID(#[serde_as(as = "Readable<HexAccountAddress, _>")] AccountAddress);
+pub use iota_sdk_types::ObjectId as ObjectID;
 
 pub type VersionDigest = (SequenceNumber, ObjectDigest);
 
@@ -602,12 +593,6 @@ pub const IOTA_ADDRESS_LENGTH: usize = ObjectID::LENGTH;
 
 pub use iota_sdk_types::Address as IotaAddress;
 
-impl From<ObjectID> for IotaAddress {
-    fn from(value: ObjectID) -> Self {
-        Self::new(value.into_bytes())
-    }
-}
-
 pub fn address_from_iota_pub_key<T: IotaPublicKey>(pk: &T) -> IotaAddress {
     let mut hasher = DefaultHash::default();
     T::SIGNATURE_SCHEME.update_hasher_with_flag(&mut hasher);
@@ -983,10 +968,6 @@ impl TxContext {
         self.epoch
     }
 
-    pub fn sender(&self) -> IotaAddress {
-        IotaAddress::from(ObjectID(self.sender))
-    }
-
     pub fn epoch_timestamp_ms(&self) -> u64 {
         self.epoch_timestamp_ms
     }
@@ -1019,9 +1000,13 @@ impl TxContext {
     /// Derive a globally unique object ID by hashing self.digest |
     /// self.ids_created
     pub fn fresh_id(&mut self) -> ObjectID {
-        let id = ObjectID::derive_id(self.digest(), self.ids_created);
+        let id = ObjectID::derive_id(self.digest().into(), self.ids_created);
         self.ids_created += 1;
         id
+    }
+
+    pub fn sender(&self) -> IotaAddress {
+        IotaAddress::new(self.sender.into_bytes())
     }
 
     pub fn to_vec(&self) -> Vec<u8> {
@@ -1111,211 +1096,6 @@ impl TxContext {
     }
 }
 
-impl ObjectID {
-    /// The number of bytes in an address.
-    pub const LENGTH: usize = AccountAddress::LENGTH;
-    /// Hex address: 0x0
-    pub const ZERO: Self = Self::new([0u8; Self::LENGTH]);
-    pub const MAX: Self = Self::new([0xff; Self::LENGTH]);
-    /// Create a new ObjectID
-    pub const fn new(obj_id: [u8; Self::LENGTH]) -> Self {
-        Self(AccountAddress::new(obj_id))
-    }
-
-    /// Const fn variant of `<ObjectID as From<AccountAddress>>::from`
-    pub const fn from_address(addr: AccountAddress) -> Self {
-        Self(addr)
-    }
-
-    /// Return a random ObjectID.
-    pub fn random() -> Self {
-        Self::from(AccountAddress::random())
-    }
-
-    /// Return a random ObjectID from a given RNG.
-    pub fn random_from_rng<R>(rng: &mut R) -> Self
-    where
-        R: AllowedRng,
-    {
-        let buf: [u8; Self::LENGTH] = rng.gen();
-        ObjectID::new(buf)
-    }
-
-    /// Return the underlying bytes buffer of the ObjectID.
-    pub fn to_vec(&self) -> Vec<u8> {
-        self.0.to_vec()
-    }
-
-    /// Parse the ObjectID from byte array or buffer.
-    pub fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, ObjectIDParseError> {
-        <[u8; Self::LENGTH]>::try_from(bytes.as_ref())
-            .map_err(|_| ObjectIDParseError::TryFromSlice)
-            .map(ObjectID::new)
-    }
-
-    /// Return the underlying bytes array of the ObjectID.
-    pub fn into_bytes(self) -> [u8; Self::LENGTH] {
-        self.0.into_bytes()
-    }
-
-    /// Make an ObjectID with padding 0s before the single byte.
-    pub const fn from_single_byte(byte: u8) -> ObjectID {
-        let mut bytes = [0u8; Self::LENGTH];
-        bytes[Self::LENGTH - 1] = byte;
-        ObjectID::new(bytes)
-    }
-
-    /// Convert from hex string to ObjectID where the string is prefixed with 0x
-    /// Padding 0s if the string is too short.
-    pub fn from_hex_literal(literal: &str) -> Result<Self, ObjectIDParseError> {
-        if !literal.starts_with("0x") {
-            return Err(ObjectIDParseError::HexLiteralPrefixMissing);
-        }
-
-        let hex_len = literal.len() - 2;
-
-        // If the string is too short, pad it
-        if hex_len < Self::LENGTH * 2 {
-            let mut hex_str = String::with_capacity(Self::LENGTH * 2);
-            for _ in 0..Self::LENGTH * 2 - hex_len {
-                hex_str.push('0');
-            }
-            hex_str.push_str(&literal[2..]);
-            Self::from_str(&hex_str)
-        } else {
-            Self::from_str(&literal[2..])
-        }
-    }
-
-    /// Create an ObjectID from `TransactionDigest` and `creation_num`.
-    /// Caller is responsible for ensuring that `creation_num` is fresh
-    pub fn derive_id(digest: TransactionDigest, creation_num: u64) -> Self {
-        let mut hasher = DefaultHash::default();
-        hasher.update([HashingIntentScope::RegularObjectId as u8]);
-        hasher.update(digest);
-        hasher.update(creation_num.to_le_bytes());
-        let hash = hasher.finalize();
-
-        // truncate into an ObjectID.
-        // OK to access slice because digest should never be shorter than
-        // ObjectID::LENGTH.
-        ObjectID::try_from(&hash.as_ref()[0..ObjectID::LENGTH]).unwrap()
-    }
-
-    /// Increment the ObjectID by one, assuming the ObjectID hex is a number
-    /// represented as an array of bytes
-    pub fn next_increment(&self) -> Result<ObjectID, anyhow::Error> {
-        let mut prev_val = self.to_vec();
-        let mx = [0xFF; Self::LENGTH];
-
-        if prev_val == mx {
-            bail!("Increment will cause overflow");
-        }
-
-        // This logic increments the integer representation of an ObjectID u8 array
-        for idx in (0..Self::LENGTH).rev() {
-            if prev_val[idx] == 0xFF {
-                prev_val[idx] = 0;
-            } else {
-                prev_val[idx] += 1;
-                break;
-            };
-        }
-        ObjectID::try_from(prev_val.clone()).map_err(|w| w.into())
-    }
-
-    /// Create `count` object IDs starting with one at `offset`
-    pub fn in_range(offset: ObjectID, count: u64) -> Result<Vec<ObjectID>, anyhow::Error> {
-        let mut ret = Vec::new();
-        let mut prev = offset;
-        for o in 0..count {
-            if o != 0 {
-                prev = prev.next_increment()?;
-            }
-            ret.push(prev);
-        }
-        Ok(ret)
-    }
-
-    /// Return the full hex string with 0x prefix without removing trailing 0s.
-    /// Prefer this over [fn to_hex_literal] if the string needs to be fully
-    /// preserved.
-    pub fn to_hex_uncompressed(&self) -> String {
-        format!("{self}")
-    }
-
-    pub fn is_clock(&self) -> bool {
-        *self == IOTA_CLOCK_OBJECT_ID
-    }
-}
-
-impl From<IotaAddress> for ObjectID {
-    fn from(address: IotaAddress) -> ObjectID {
-        let tmp = AccountAddress::new(address.into_bytes());
-        tmp.into()
-    }
-}
-
-impl From<AccountAddress> for ObjectID {
-    fn from(address: AccountAddress) -> Self {
-        Self(address)
-    }
-}
-
-impl fmt::Display for ObjectID {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "0x{}", Hex::encode(self.0))
-    }
-}
-
-impl fmt::Debug for ObjectID {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "0x{}", Hex::encode(self.0))
-    }
-}
-
-impl AsRef<[u8]> for ObjectID {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_slice()
-    }
-}
-
-impl TryFrom<&[u8]> for ObjectID {
-    type Error = ObjectIDParseError;
-
-    /// Tries to convert the provided byte array into ObjectID.
-    fn try_from(bytes: &[u8]) -> Result<ObjectID, ObjectIDParseError> {
-        Self::from_bytes(bytes)
-    }
-}
-
-impl TryFrom<Vec<u8>> for ObjectID {
-    type Error = ObjectIDParseError;
-
-    /// Tries to convert the provided byte buffer into ObjectID.
-    fn try_from(bytes: Vec<u8>) -> Result<ObjectID, ObjectIDParseError> {
-        Self::from_bytes(bytes)
-    }
-}
-
-impl FromStr for ObjectID {
-    type Err = ObjectIDParseError;
-
-    /// Parse ObjectID from hex string with or without 0x prefix, pad with 0s if
-    /// needed.
-    fn from_str(s: &str) -> Result<Self, ObjectIDParseError> {
-        decode_bytes_hex(s).or_else(|_| Self::from_hex_literal(s))
-    }
-}
-
-impl std::ops::Deref for ObjectID {
-    type Target = AccountAddress;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
 /// Generate a fake ObjectID with repeated one byte.
 pub fn dbg_object_id(name: u8) -> ObjectID {
     ObjectID::new([name; ObjectID::LENGTH])
@@ -1328,39 +1108,6 @@ pub enum ObjectIDParseError {
 
     #[error("Could not convert from bytes slice")]
     TryFromSlice,
-}
-
-impl From<ObjectID> for AccountAddress {
-    fn from(obj_id: ObjectID) -> Self {
-        obj_id.0
-    }
-}
-
-/// Hex serde for AccountAddress
-struct HexAccountAddress;
-
-impl SerializeAs<AccountAddress> for HexAccountAddress {
-    fn serialize_as<S>(value: &AccountAddress, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        Hex::serialize_as(value, serializer)
-    }
-}
-
-impl<'de> DeserializeAs<'de, AccountAddress> for HexAccountAddress {
-    fn deserialize_as<D>(deserializer: D) -> Result<AccountAddress, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        if s.starts_with("0x") {
-            AccountAddress::from_hex_literal(&s)
-        } else {
-            AccountAddress::from_hex(&s)
-        }
-        .map_err(to_custom_deser_error::<'de, D, _>)
-    }
 }
 
 impl fmt::Display for MoveObjectType {

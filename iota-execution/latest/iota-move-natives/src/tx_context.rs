@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::VecDeque, convert::TryFrom};
+use std::collections::VecDeque;
 
 use iota_types::{base_types::ObjectID, digests::TransactionDigest};
 use move_binary_format::errors::PartialVMResult;
@@ -52,13 +52,13 @@ pub fn derive_id(
     // unwrap safe because all digests in Move are serialized from the Rust
     // `TransactionDigest`
     let digest = TransactionDigest::try_from(tx_hash.as_slice()).unwrap();
-    let address = AccountAddress::from(ObjectID::derive_id(digest, ids_created));
+    let object_id = ObjectID::derive_id(digest.into(), ids_created);
     let obj_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
-    obj_runtime.new_id(address.into())?;
+    obj_runtime.new_id(object_id)?;
 
     Ok(NativeResult::ok(
         context.gas_used(),
-        smallvec![Value::address(address)],
+        smallvec![Value::address(AccountAddress::new(object_id.into_bytes()))],
     ))
 }
 #[derive(Clone)]
@@ -95,7 +95,7 @@ pub fn fresh_id(
 
     Ok(NativeResult::ok(
         context.gas_used(),
-        smallvec![Value::address(fresh_id.into())],
+        smallvec![Value::address(AccountAddress::new(fresh_id.into_bytes()))],
     ))
 }
 
@@ -521,9 +521,10 @@ pub fn last_created_id(
     }
     ids_created -= 1;
     let digest = transaction_context.digest();
-    let address = AccountAddress::from(ObjectID::derive_id(digest, ids_created));
+    let object_id = ObjectID::derive_id(digest.into(), ids_created);
+    let address = AccountAddress::from(object_id.into_bytes());
     let obj_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
-    obj_runtime.new_id(address.into())?;
+    obj_runtime.new_id(object_id)?;
 
     Ok(NativeResult::ok(
         context.gas_used(),

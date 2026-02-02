@@ -69,7 +69,7 @@ pub(crate) async fn render_clever_error_opt(
 
         let IotaRawData::Package(package) = read_api
             .get_object_with_options(
-                ObjectID::from_address(address),
+                ObjectID::new(address.into_bytes()),
                 IotaObjectDataOptions::bcs_lossless(),
             )
             .await

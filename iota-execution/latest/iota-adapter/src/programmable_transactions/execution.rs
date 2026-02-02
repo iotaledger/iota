@@ -357,7 +357,8 @@ mod checked {
                 }
 
                 let original_address = context.set_link_context(package)?;
-                let storage_id = ModuleId::new(*package, module.clone());
+                let storage_id =
+                    ModuleId::new(AccountAddress::new(package.into_bytes()), module.clone());
                 let runtime_id = ModuleId::new(original_address, module);
                 let return_values = execute_move_call::<Mode>(
                     context,
@@ -566,7 +567,7 @@ mod checked {
         // since Move objects and Move packages cannot interact
         let runtime_id = if Mode::packages_are_predefined() {
             // do not calculate or substitute id for predefined packages
-            (*modules[0].self_id().address()).into()
+            ObjectID::new(modules[0].self_id().address().into_bytes())
         } else {
             let id = context.tx_context.borrow_mut().fresh_id();
             substitute_package_id(&mut modules, id)?;
@@ -1152,7 +1153,10 @@ mod checked {
             })
             .collect();
         context
-            .publish_module_bundle(new_module_bytes, AccountAddress::from(package_id))
+            .publish_module_bundle(
+                new_module_bytes,
+                AccountAddress::new(package_id.into_bytes()),
+            )
             .map_err(|e| context.convert_vm_error(e))?;
 
         // run the IOTA verifier
@@ -1561,7 +1565,7 @@ mod checked {
         let mut by_mut_ref = vec![];
         let mut serialized_args = Vec::with_capacity(num_args);
         let command_kind = CommandKind::MoveCall {
-            package: (*module_id.address()).into(),
+            package: ObjectID::new(module_id.address().into_bytes()),
             module: module_id.name(),
             function,
         };

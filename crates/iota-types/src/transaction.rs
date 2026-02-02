@@ -774,7 +774,7 @@ fn add_type_input_packages(packages: &mut BTreeSet<ObjectID>, type_argument: &Ty
             | TypeInput::U256 => (),
             TypeInput::Vector(inner) => stack.push(inner),
             TypeInput::Struct(struct_tag) => {
-                packages.insert(struct_tag.address.into());
+                packages.insert(ObjectID::new(struct_tag.address.into_bytes()));
                 stack.extend(struct_tag.type_params.iter())
             }
         }

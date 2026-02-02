@@ -68,13 +68,15 @@ pub fn receive_object_internal(
     let child_ty = ty_args.pop().unwrap();
     let child_receiver_sequence_number: SequenceNumber = pop_arg!(args, u64).into();
     let child_receiver_object_id = args.pop_back().unwrap();
-    let parent = pop_arg!(args, AccountAddress).into();
+    let parent = ObjectID::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());
-    let child_id: ObjectID = get_receiver_object_id(child_receiver_object_id.copy_value().unwrap())
-        .unwrap()
-        .value_as::<AccountAddress>()
-        .unwrap()
-        .into();
+    let child_id = ObjectID::new(
+        get_receiver_object_id(child_receiver_object_id.copy_value().unwrap())
+            .unwrap()
+            .value_as::<AccountAddress>()
+            .unwrap()
+            .into_bytes(),
+    );
     assert!(ty_args.is_empty());
 
     let Some((tag, layout, annotated_layout)) = get_tag_and_layouts(context, &child_ty)? else {

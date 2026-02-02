@@ -253,7 +253,7 @@ pub fn extract_id_value(id_value: &MoveValue) -> Option<ObjectID> {
     };
     // the bytes field should be an address
     match id_bytes_value {
-        MoveValue::Address(addr) => Some(ObjectID::from(*addr)),
+        MoveValue::Address(addr) => Some(ObjectID::new(addr.into_bytes())),
         _ => None,
     }
 }
@@ -294,7 +294,7 @@ where
     // truncate into an ObjectID and return
     // OK to access slice because digest should never be shorter than
     // ObjectID::LENGTH.
-    let id = ObjectID::try_from(&hash.as_ref()[0..ObjectID::LENGTH]).unwrap();
+    let id = ObjectID::from_bytes(&hash.as_ref()[0..ObjectID::LENGTH]).unwrap();
     tracing::trace!("derive_dynamic_field_id result: {:?}", id);
     Ok(id)
 }

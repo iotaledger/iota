@@ -428,7 +428,7 @@ impl ModuleResolver for PersistedStore {
 
     fn get_module(&self, module_id: &ModuleId) -> Result<Option<Vec<u8>>, Self::Error> {
         Ok(self
-            .get_package_object(&ObjectID::from(*module_id.address()))?
+            .get_package_object(&ObjectID::new(module_id.address().into_bytes()))?
             .and_then(|package| {
                 package
                     .move_package()

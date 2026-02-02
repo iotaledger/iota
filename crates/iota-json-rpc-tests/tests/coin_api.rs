@@ -20,7 +20,7 @@ use iota_move_build::BuildConfig;
 use iota_sdk::{PagedFn, wallet_context::WalletContext};
 use iota_swarm_config::genesis_config::{DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT};
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
+    IOTA_FRAMEWORK_PACKAGE_ID,
     balance::Supply,
     base_types::{IotaAddress, ObjectID},
     coin::{COIN_MODULE_NAME, TreasuryCap},
@@ -89,10 +89,7 @@ async fn create_and_mint_coins(
         })
         .unwrap();
 
-    let coin_name = format!(
-        "{}::trusted_coin::TRUSTED_COIN",
-        package_id.to_hex_literal()
-    );
+    let coin_name = format!("{}::trusted_coin::TRUSTED_COIN", package_id.to_short_hex());
     let result: Supply = http_client
         .get_total_supply(coin_name.clone())
         .await
@@ -121,7 +118,7 @@ async fn create_and_mint_coins(
     let transaction_bytes: TransactionBlockBytes = http_client
         .move_call(
             address,
-            IOTA_FRAMEWORK_ADDRESS.into(),
+            IOTA_FRAMEWORK_PACKAGE_ID,
             COIN_MODULE_NAME.to_string(),
             "mint_and_transfer".into(),
             type_args![coin_name.clone()].unwrap(),
