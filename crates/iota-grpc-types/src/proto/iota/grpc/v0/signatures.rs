@@ -61,7 +61,7 @@ impl TryFrom<&UserSignature> for iota_sdk_types::UserSignature {
 
 // TryFrom implementation for UserSignatures
 impl TryFrom<&UserSignatures> for Vec<iota_sdk_types::UserSignature> {
-    type Error = crate::proto::TryFromProtoError;
+    type Error = TryFromProtoError;
 
     fn try_from(value: &UserSignatures) -> Result<Self, Self::Error> {
         value
@@ -70,9 +70,7 @@ impl TryFrom<&UserSignatures> for Vec<iota_sdk_types::UserSignature> {
             .enumerate()
             .map(|(i, sig)| {
                 <&UserSignature as TryInto<iota_sdk_types::UserSignature>>::try_into(sig).map_err(
-                    |e: crate::proto::TryFromProtoError| {
-                        e.nested_at(UserSignatures::SIGNATURES_FIELD.name, i)
-                    },
+                    |e: TryFromProtoError| e.nested_at(UserSignatures::SIGNATURES_FIELD.name, i),
                 )
             })
             .collect()
@@ -82,9 +80,7 @@ impl TryFrom<&UserSignatures> for Vec<iota_sdk_types::UserSignature> {
 // Convenience methods for UserSignatures (delegate to TryFrom)
 impl UserSignatures {
     /// Deserialize all user signatures.
-    pub fn signatures(
-        &self,
-    ) -> Result<Vec<iota_sdk_types::UserSignature>, crate::proto::TryFromProtoError> {
+    pub fn signatures(&self) -> Result<Vec<iota_sdk_types::UserSignature>, TryFromProtoError> {
         self.try_into()
     }
 }

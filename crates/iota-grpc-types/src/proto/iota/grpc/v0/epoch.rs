@@ -82,12 +82,10 @@ impl TryFrom<&ValidatorCommittee> for iota_sdk_types::ValidatorCommittee {
 }
 
 impl Epoch {
-    pub fn committee(
-        &self,
-    ) -> Result<iota_sdk_types::ValidatorCommittee, crate::proto::TryFromProtoError> {
+    pub fn committee(&self) -> Result<iota_sdk_types::ValidatorCommittee, TryFromProtoError> {
         match &self.committee {
             Some(committee) => Ok(committee.try_into()?),
-            None => Err(crate::proto::TryFromProtoError::missing("committee")),
+            None => Err(TryFromProtoError::missing("committee")),
         }
     }
 }
@@ -95,7 +93,7 @@ impl Epoch {
 impl ValidatorCommittee {
     pub fn validator_committee(
         &self,
-    ) -> Result<iota_sdk_types::ValidatorCommittee, crate::proto::TryFromProtoError> {
+    ) -> Result<iota_sdk_types::ValidatorCommittee, TryFromProtoError> {
         self.try_into()
     }
 }
@@ -103,7 +101,7 @@ impl ValidatorCommittee {
 impl ValidatorCommitteeMember {
     pub fn committee_member(
         &self,
-    ) -> Result<iota_sdk_types::ValidatorCommitteeMember, crate::proto::TryFromProtoError> {
+    ) -> Result<iota_sdk_types::ValidatorCommitteeMember, TryFromProtoError> {
         self.try_into()
     }
 }
