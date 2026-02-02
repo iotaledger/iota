@@ -210,7 +210,7 @@ impl Env {
             proxy.get_current_epoch(),
         );
 
-        let primary_gas_owner_addr = ObjectID::from_hex_literal(primary_gas_owner_id)?;
+        let primary_gas_owner_addr = ObjectID::from_prefixed_short_hex(primary_gas_owner_id)?;
         let keystore_path = Some(&keystore_path)
             .filter(|s| !s.is_empty())
             .map(PathBuf::from)

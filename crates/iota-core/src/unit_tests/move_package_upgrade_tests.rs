@@ -27,7 +27,7 @@ use iota_types::{
     storage::ObjectStore,
     transaction::{Argument, ObjectArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
 };
-use move_core_types::{ident_str, language_storage::StructTag};
+use move_core_types::{account_address::AccountAddress, ident_str, language_storage::StructTag};
 
 use crate::authority::{
     AuthorityState,
@@ -422,7 +422,7 @@ async fn test_upgrade_introduces_type_then_uses_it() {
     assert_eq!(
         b.data.struct_tag().unwrap(),
         StructTag {
-            address: *package_v2,
+            address: AccountAddress::new(package_v2.into_bytes()),
             module: ident_str!("base").to_owned(),
             name: ident_str!("B").to_owned(),
             type_params: vec![],

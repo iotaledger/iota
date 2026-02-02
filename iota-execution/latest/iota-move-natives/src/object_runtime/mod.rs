@@ -250,9 +250,11 @@ impl<'a> ObjectRuntime<'a> {
         ty: Type,
         obj: Value,
     ) -> PartialVMResult<TransferResult> {
-        let id: ObjectID = get_object_id(obj.copy_value()?)?
-            .value_as::<AccountAddress>()?
-            .into();
+        let id = ObjectID::new(
+            get_object_id(obj.copy_value()?)?
+                .value_as::<AccountAddress>()?
+                .into_bytes(),
+        );
         // - An object is new if it is contained in the new ids or if it is one of the
         //   objects created during genesis (the system state object or clock).
         // - Otherwise, check the input objects for the previous owner
@@ -847,7 +849,7 @@ pub fn get_all_uids(
             _driver: &AV::ValueDriver<'_, 'b, 'l>,
             value: AccountAddress,
         ) -> Result<(), Self::Error> {
-            self.0.insert(value.into());
+            self.0.insert(ObjectID::new(value.into_bytes()));
             Ok(())
         }
     }

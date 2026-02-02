@@ -30,8 +30,8 @@ async fn test_manage_package_update() {
         .update_lock_file_toolchain_version(&path, "0.0.1".into())
         .expect("Could not update lock file");
 
-    let original_id = ObjectID::from_hex_literal("0xa").unwrap();
-    let latest_id = ObjectID::from_hex_literal("0xb").unwrap();
+    let original_id = ObjectID::from_short_hex("0xa").unwrap();
+    let latest_id = ObjectID::from_short_hex("0xb").unwrap();
 
     let manage_package = ManagePackage {
         environment: "mainnet".to_string(),

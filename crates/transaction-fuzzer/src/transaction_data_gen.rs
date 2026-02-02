@@ -42,7 +42,11 @@ pub fn gen_object_ref() -> impl Strategy<Value = ObjectRef> {
         any::<[u8; 32]>(),
     )
         .prop_map(move |(addr, seq, seed)| {
-            (ObjectID::from_address(addr), seq, ObjectDigest::new(seed))
+            (
+                ObjectID::new(addr.into_bytes()),
+                seq,
+                ObjectDigest::new(seed),
+            )
         })
 }
 

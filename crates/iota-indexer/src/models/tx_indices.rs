@@ -170,7 +170,7 @@ impl From<TxIndex> for TxIndexSplit {
             .iter()
             .map(|p| StoredTxPkg {
                 tx_sequence_number,
-                package: p.to_vec(),
+                package: p.as_bytes().to_vec(),
                 sender: value.sender.as_bytes().to_vec(),
             })
             .collect();
@@ -179,7 +179,7 @@ impl From<TxIndex> for TxIndexSplit {
             .iter()
             .map(|(p, m)| StoredTxMod {
                 tx_sequence_number,
-                package: p.to_vec(),
+                package: p.as_bytes().to_vec(),
                 module: m.to_string(),
                 sender: value.sender.as_bytes().to_vec(),
             })
@@ -189,7 +189,7 @@ impl From<TxIndex> for TxIndexSplit {
             .iter()
             .map(|(p, m, f)| StoredTxFun {
                 tx_sequence_number,
-                package: p.to_vec(),
+                package: p.as_bytes().to_vec(),
                 module: m.to_string(),
                 func: f.to_string(),
                 sender: value.sender.as_bytes().to_vec(),
