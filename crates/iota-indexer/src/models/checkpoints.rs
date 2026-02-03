@@ -90,7 +90,7 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
     type Error = IndexerError;
     fn try_from(checkpoint: StoredCheckpoint) -> Result<RpcCheckpoint, IndexerError> {
         let computation_cost_burned = checkpoint.computation_cost_burned();
-        let parsed_digest = CheckpointDigest::try_from(checkpoint.checkpoint_digest.clone())
+        let parsed_digest = CheckpointDigest::from_bytes(checkpoint.checkpoint_digest.clone())
             .map_err(|e| {
                 IndexerError::PersistentStorageDataCorruption(format!(
                     "Failed to decode checkpoint digest: {:?} with err: {:?}",
@@ -101,7 +101,7 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
         let parsed_previous_digest: Option<CheckpointDigest> = checkpoint
             .previous_checkpoint_digest
             .map(|digest| {
-                CheckpointDigest::try_from(digest.clone()).map_err(|e| {
+                CheckpointDigest::from_bytes(digest.clone()).map_err(|e| {
                     IndexerError::PersistentStorageDataCorruption(format!(
                         "Failed to decode previous checkpoint digest: {digest:?} with err: {e:?}"
                     ))
@@ -118,7 +118,7 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
                         None => Err(IndexerError::PersistentStorageDataCorruption(
                             "tx_digests should not contain null elements".to_string(),
                         )),
-                        Some(tx_digest) => TransactionDigest::try_from(tx_digest.as_slice())
+                        Some(tx_digest) => TransactionDigest::from_bytes(tx_digest.as_slice())
                             .map_err(|e| {
                                 IndexerError::PersistentStorageDataCorruption(format!(
                                     "Failed to decode transaction digest: {tx_digest:?} with err: {e:?}"

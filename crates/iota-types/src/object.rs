@@ -910,7 +910,7 @@ impl Object {
         ObjectInner {
             owner: Owner::Immutable,
             data,
-            previous_transaction: TransactionDigest::genesis_marker(),
+            previous_transaction: TransactionDigest::GENESIS_MARKER,
             storage_rebate: 0,
         }
         .into()
@@ -931,7 +931,7 @@ impl Object {
         let owner = Owner::Shared {
             initial_shared_version: obj.version(),
         };
-        Object::new_move(obj, owner, TransactionDigest::genesis_marker())
+        Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
     }
 
     pub fn with_id_owner_gas_for_testing(id: ObjectID, owner: IotaAddress, gas: u64) -> Self {
@@ -943,7 +943,7 @@ impl Object {
         ObjectInner {
             owner: Owner::AddressOwner(owner),
             data,
-            previous_transaction: TransactionDigest::genesis_marker(),
+            previous_transaction: TransactionDigest::GENESIS_MARKER,
             storage_rebate: 0,
         }
         .into()
@@ -958,7 +958,7 @@ impl Object {
         ObjectInner {
             owner: Owner::Immutable,
             data,
-            previous_transaction: TransactionDigest::genesis_marker(),
+            previous_transaction: TransactionDigest::GENESIS_MARKER,
             storage_rebate: 0,
         }
         .into()
@@ -973,7 +973,7 @@ impl Object {
         ObjectInner {
             owner: Owner::Immutable,
             data,
-            previous_transaction: TransactionDigest::genesis_marker(),
+            previous_transaction: TransactionDigest::GENESIS_MARKER,
             storage_rebate: 0,
         }
         .into()
@@ -988,7 +988,7 @@ impl Object {
         ObjectInner {
             owner: Owner::ObjectOwner(owner.into()),
             data,
-            previous_transaction: TransactionDigest::genesis_marker(),
+            previous_transaction: TransactionDigest::GENESIS_MARKER,
             storage_rebate: 0,
         }
         .into()
@@ -1012,7 +1012,7 @@ impl Object {
         ObjectInner {
             owner,
             data,
-            previous_transaction: TransactionDigest::genesis_marker(),
+            previous_transaction: TransactionDigest::GENESIS_MARKER,
             storage_rebate: 0,
         }
         .into()
@@ -1029,7 +1029,7 @@ impl Object {
         Object::new_move(
             obj,
             Owner::AddressOwner(owner),
-            TransactionDigest::genesis_marker(),
+            TransactionDigest::GENESIS_MARKER,
         )
     }
 
@@ -1226,7 +1226,7 @@ mod tests {
         let objref = format!("{:?}", o.compute_object_reference());
         assert_eq!(
             objref,
-            "(ObjectId(\"0x0000000000000000000000000000000000000000000000000000000000000000\"), Version(1), o#Ba4YyVBcpc9jgX4PMLRoyt9dKLftYVSDvuKbtMr9f4NM)"
+            "(ObjectId(\"0x0000000000000000000000000000000000000000000000000000000000000000\"), Version(1), Digest(\"Ba4YyVBcpc9jgX4PMLRoyt9dKLftYVSDvuKbtMr9f4NM\"))"
         );
     }
 

@@ -269,7 +269,7 @@ async fn test_wait_for_package_impl<C: NotifyReadTestCache>(cache: Arc<C>) {
         .into_modules();
     let package = Object::new_package_for_testing(
         &compiled_modules,
-        TransactionDigest::genesis_marker(),
+        TransactionDigest::GENESIS_MARKER,
         BuiltInFramework::genesis_move_packages(),
     )
     .unwrap();

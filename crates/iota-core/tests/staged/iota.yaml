@@ -138,9 +138,6 @@ CheckpointContents:
       V1:
         NEWTYPE:
           TYPENAME: CheckpointContentsV1
-CheckpointContentsDigest:
-  NEWTYPESTRUCT:
-    TYPENAME: Digest
 CheckpointContentsV1:
   STRUCT:
     - transactions:
@@ -159,19 +156,16 @@ CheckpointData:
     - transactions:
         SEQ:
           TYPENAME: CheckpointTransaction
-CheckpointDigest:
-  NEWTYPESTRUCT:
-    TYPENAME: Digest
 CheckpointSummary:
   STRUCT:
     - epoch: U64
     - sequence_number: U64
     - network_total_transactions: U64
     - content_digest:
-        TYPENAME: CheckpointContentsDigest
+        TYPENAME: Digest
     - previous_digest:
         OPTION:
-          TYPENAME: CheckpointDigest
+          TYPENAME: Digest
     - epoch_rolling_gas_cost_summary:
         TYPENAME: GasCostSummary
     - timestamp_ms: U64
@@ -304,9 +298,6 @@ CongestedObjects:
   NEWTYPESTRUCT:
     SEQ:
       TYPENAME: ObjectId
-ConsensusCommitDigest:
-  NEWTYPESTRUCT:
-    TYPENAME: Digest
 ConsensusCommitPrologueV1:
   STRUCT:
     - epoch: U64
@@ -315,7 +306,7 @@ ConsensusCommitPrologueV1:
         OPTION: U64
     - commit_timestamp_ms: U64
     - consensus_commit_digest:
-        TYPENAME: ConsensusCommitDigest
+        TYPENAME: Digest
     - consensus_determined_version_assignments:
         TYPENAME: ConsensusDeterminedVersionAssignments
 ConsensusDeterminedVersionAssignments:
@@ -325,7 +316,7 @@ ConsensusDeterminedVersionAssignments:
         NEWTYPE:
           SEQ:
             TUPLE:
-              - TYPENAME: TransactionDigest
+              - TYPENAME: Digest
               - SEQ:
                   TUPLE:
                     - TYPENAME: ObjectId
@@ -354,9 +345,6 @@ ECMHLiveObjectSetDigest:
   STRUCT:
     - digest:
         TYPENAME: Digest
-EffectsAuxDataDigest:
-  NEWTYPESTRUCT:
-    TYPENAME: Digest
 EffectsObjectChange:
   STRUCT:
     - input_state:
@@ -417,9 +405,9 @@ ExecutionData:
 ExecutionDigests:
   STRUCT:
     - transaction:
-        TYPENAME: TransactionDigest
+        TYPENAME: Digest
     - effects:
-        TYPENAME: TransactionEffectsDigest
+        TYPENAME: Digest
 ExecutionFailureStatus:
   ENUM:
     0:
@@ -583,7 +571,7 @@ GasData:
           TUPLE:
             - TYPENAME: ObjectId
             - U64
-            - TYPENAME: ObjectDigest
+            - TYPENAME: Digest
     - owner:
         TYPENAME: Address
     - price: U64
@@ -708,7 +696,7 @@ Object:
     - owner:
         TYPENAME: Owner
     - previous_transaction:
-        TYPENAME: TransactionDigest
+        TYPENAME: Digest
     - storage_rebate: U64
 ObjectArg:
   ENUM:
@@ -718,7 +706,7 @@ ObjectArg:
           TUPLE:
             - TYPENAME: ObjectId
             - U64
-            - TYPENAME: ObjectDigest
+            - TYPENAME: Digest
     1:
       SharedObject:
         STRUCT:
@@ -732,10 +720,7 @@ ObjectArg:
           TUPLE:
             - TYPENAME: ObjectId
             - U64
-            - TYPENAME: ObjectDigest
-ObjectDigest:
-  NEWTYPESTRUCT:
-    TYPENAME: Digest
+            - TYPENAME: Digest
 ObjectId:
   NEWTYPESTRUCT:
     TYPENAME: Address
@@ -749,7 +734,7 @@ ObjectIn:
           TUPLE:
             - TUPLE:
                 - U64
-                - TYPENAME: ObjectDigest
+                - TYPENAME: Digest
             - TYPENAME: Owner
 ObjectInfoRequestKind:
   ENUM:
@@ -766,14 +751,14 @@ ObjectOut:
       ObjectWrite:
         NEWTYPE:
           TUPLE:
-            - TYPENAME: ObjectDigest
+            - TYPENAME: Digest
             - TYPENAME: Owner
     2:
       PackageWrite:
         NEWTYPE:
           TUPLE:
             - U64
-            - TYPENAME: ObjectDigest
+            - TYPENAME: Digest
 Owner:
   ENUM:
     0:
@@ -917,18 +902,12 @@ TransactionDataV1:
         TYPENAME: GasData
     - expiration:
         TYPENAME: TransactionExpiration
-TransactionDigest:
-  NEWTYPESTRUCT:
-    TYPENAME: Digest
 TransactionEffects:
   ENUM:
     0:
       V1:
         NEWTYPE:
           TYPENAME: TransactionEffectsV1
-TransactionEffectsDigest:
-  NEWTYPESTRUCT:
-    TYPENAME: Digest
 TransactionEffectsV1:
   STRUCT:
     - status:
@@ -937,15 +916,15 @@ TransactionEffectsV1:
     - gas_used:
         TYPENAME: GasCostSummary
     - transaction_digest:
-        TYPENAME: TransactionDigest
+        TYPENAME: Digest
     - gas_object_index:
         OPTION: U32
     - events_digest:
         OPTION:
-          TYPENAME: TransactionEventsDigest
+          TYPENAME: Digest
     - dependencies:
         SEQ:
-          TYPENAME: TransactionDigest
+          TYPENAME: Digest
     - lamport_version: U64
     - changed_objects:
         SEQ:
@@ -959,15 +938,12 @@ TransactionEffectsV1:
             - TYPENAME: UnchangedSharedKind
     - aux_data_digest:
         OPTION:
-          TYPENAME: EffectsAuxDataDigest
+          TYPENAME: Digest
 TransactionEvents:
   STRUCT:
     - data:
         SEQ:
           TYPENAME: Event
-TransactionEventsDigest:
-  NEWTYPESTRUCT:
-    TYPENAME: Digest
 TransactionExpiration:
   ENUM:
     0:
@@ -1092,7 +1068,7 @@ UnchangedSharedKind:
         NEWTYPE:
           TUPLE:
             - U64
-            - TYPENAME: ObjectDigest
+            - TYPENAME: Digest
     1:
       MutateDeleted:
         NEWTYPE: U64

@@ -246,7 +246,7 @@ mod checked {
         // Genesis writes a special digest to indicate that an object was created during
         // genesis and not written by any normal transaction - remove that from the
         // dependencies
-        transaction_dependencies.remove(&TransactionDigest::genesis_marker());
+        transaction_dependencies.remove(&TransactionDigest::GENESIS_MARKER);
 
         if enable_expensive_checks && !Mode::allow_arbitrary_function_calls() {
             temporary_store

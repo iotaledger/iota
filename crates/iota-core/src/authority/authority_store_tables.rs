@@ -288,16 +288,8 @@ impl AuthorityPerpetualTables {
             StoreObject::Value(object) => self
                 .construct_object(object_key, object)?
                 .compute_object_reference(),
-            StoreObject::Deleted => (
-                object_key.0,
-                object_key.1,
-                ObjectDigest::OBJECT_DIGEST_DELETED,
-            ),
-            StoreObject::Wrapped => (
-                object_key.0,
-                object_key.1,
-                ObjectDigest::OBJECT_DIGEST_WRAPPED,
-            ),
+            StoreObject::Deleted => (object_key.0, object_key.1, ObjectDigest::OBJECT_DELETED),
+            StoreObject::Wrapped => (object_key.0, object_key.1, ObjectDigest::OBJECT_WRAPPED),
         };
         Ok(obj_ref)
     }
@@ -308,16 +300,12 @@ impl AuthorityPerpetualTables {
         store_object: &StoreObjectWrapper,
     ) -> Result<Option<ObjectRef>, IotaError> {
         let obj_ref = match store_object.inner() {
-            StoreObject::Deleted => Some((
-                object_key.0,
-                object_key.1,
-                ObjectDigest::OBJECT_DIGEST_DELETED,
-            )),
-            StoreObject::Wrapped => Some((
-                object_key.0,
-                object_key.1,
-                ObjectDigest::OBJECT_DIGEST_WRAPPED,
-            )),
+            StoreObject::Deleted => {
+                Some((object_key.0, object_key.1, ObjectDigest::OBJECT_DELETED))
+            }
+            StoreObject::Wrapped => {
+                Some((object_key.0, object_key.1, ObjectDigest::OBJECT_WRAPPED))
+            }
             _ => None,
         };
         Ok(obj_ref)
@@ -575,7 +563,7 @@ impl LiveObject {
     pub fn object_reference(&self) -> ObjectRef {
         match self {
             LiveObject::Normal(obj) => obj.compute_object_reference(),
-            LiveObject::Wrapped(key) => (key.0, key.1, ObjectDigest::OBJECT_DIGEST_WRAPPED),
+            LiveObject::Wrapped(key) => (key.0, key.1, ObjectDigest::OBJECT_WRAPPED),
         }
     }
 

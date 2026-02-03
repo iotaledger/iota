@@ -79,7 +79,7 @@ async fn test_nft_display_object() -> Result<(), anyhow::Error> {
     let nft_object = ObjectInner {
         owner: Owner::AddressOwner(address),
         data: Data::Move(nft_move_object),
-        previous_transaction: TransactionDigest::genesis_marker(),
+        previous_transaction: TransactionDigest::GENESIS_MARKER,
         storage_rebate: 0,
     };
 

@@ -229,10 +229,9 @@ pub(crate) fn get_checkpoint(
             let sdk_digest: iota_sdk_types::Digest = (&digest)
                 .try_into()
                 .map_err(|e| Status::invalid_argument(format!("invalid checkpoint digest: {e}")))?;
-            let digest: iota_types::digests::CheckpointDigest = sdk_digest.into();
             service
                 .reader
-                .get_checkpoint_sequence_number_by_digest(&digest)
+                .get_checkpoint_sequence_number_by_digest(&sdk_digest)
                 .map_err(|e| Status::internal(format!("failed to get checkpoint by digest: {e}")))?
                 .ok_or(Status::not_found("checkpoint not found"))?
         }

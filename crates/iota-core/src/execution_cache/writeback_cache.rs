@@ -150,9 +150,9 @@ impl From<ObjectOrTombstone> for ObjectEntry {
         match object {
             ObjectOrTombstone::Object(o) => o.into(),
             ObjectOrTombstone::Tombstone(obj_ref) => {
-                if obj_ref.2.is_deleted() {
+                if obj_ref.2.is_object_deleted() {
                     ObjectEntry::Deleted
-                } else if obj_ref.2.is_wrapped() {
+                } else if obj_ref.2.is_object_wrapped() {
                     ObjectEntry::Wrapped
                 } else {
                     panic!("tombstone digest must either be deleted or wrapped");
@@ -1496,8 +1496,8 @@ impl ObjectCacheRead for WritebackCache {
         match self.get_object_entry_by_id_cache_only("latest_objref_or_tombstone", &object_id) {
             CacheResult::Hit((version, entry)) => Ok(Some(match entry {
                 ObjectEntry::Object(object) => object.compute_object_reference(),
-                ObjectEntry::Deleted => (object_id, version, ObjectDigest::OBJECT_DIGEST_DELETED),
-                ObjectEntry::Wrapped => (object_id, version, ObjectDigest::OBJECT_DIGEST_WRAPPED),
+                ObjectEntry::Deleted => (object_id, version, ObjectDigest::OBJECT_DELETED),
+                ObjectEntry::Wrapped => (object_id, version, ObjectDigest::OBJECT_WRAPPED),
             })),
             CacheResult::NegativeHit => Ok(None),
             CacheResult::Miss => self
@@ -1521,7 +1521,7 @@ impl ObjectCacheRead for WritebackCache {
                         ObjectOrTombstone::Tombstone((
                             object_id,
                             version,
-                            ObjectDigest::OBJECT_DIGEST_DELETED,
+                            ObjectDigest::OBJECT_DELETED,
                         )),
                     ),
                     ObjectEntry::Wrapped => (
@@ -1529,7 +1529,7 @@ impl ObjectCacheRead for WritebackCache {
                         ObjectOrTombstone::Tombstone((
                             object_id,
                             version,
-                            ObjectDigest::OBJECT_DIGEST_WRAPPED,
+                            ObjectDigest::OBJECT_WRAPPED,
                         )),
                     ),
                 }))

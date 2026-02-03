@@ -51,8 +51,8 @@ pub fn derive_id(
 
     // unwrap safe because all digests in Move are serialized from the Rust
     // `TransactionDigest`
-    let digest = TransactionDigest::try_from(tx_hash.as_slice()).unwrap();
-    let object_id = ObjectID::derive_id(digest.into(), ids_created);
+    let digest = TransactionDigest::from_bytes(tx_hash.as_slice()).unwrap();
+    let object_id = ObjectID::derive_id(digest, ids_created);
     let obj_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     obj_runtime.new_id(object_id)?;
 
@@ -521,7 +521,7 @@ pub fn last_created_id(
     }
     ids_created -= 1;
     let digest = transaction_context.digest();
-    let object_id = ObjectID::derive_id(digest.into(), ids_created);
+    let object_id = ObjectID::derive_id(digest, ids_created);
     let address = AccountAddress::from(object_id.into_bytes());
     let obj_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     obj_runtime.new_id(object_id)?;
