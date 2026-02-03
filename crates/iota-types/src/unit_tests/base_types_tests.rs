@@ -369,7 +369,7 @@ fn test_move_package_size_for_gas_metering() {
     let config = ProtocolConfig::get_for_max_version_UNSAFE();
     let package = Object::new_package(
         &[module],
-        TransactionDigest::genesis_marker(),
+        TransactionDigest::GENESIS_MARKER,
         &config,
         &[], // empty dependencies for empty package (no modules)
     )
@@ -486,16 +486,16 @@ fn next_lexicographical_digest() {
     output[31] = 1;
     assert_eq!(
         TransactionDigest::ZERO.next_lexicographical(),
-        Some(TransactionDigest::from(output))
+        TransactionDigest::from(output)
     );
 
     let max = [255; 32];
     let mut input = max;
     input[31] = 254;
-    assert_eq!(Digest::from(max).next_lexicographical(), None);
+    assert_eq!(Digest::from(max).next_lexicographical(), Digest::ZERO);
     assert_eq!(
         Digest::from(input).next_lexicographical(),
-        Some(Digest::from(max))
+        Digest::from(max)
     );
 
     input = max;
@@ -504,6 +504,6 @@ fn next_lexicographical_digest() {
     output[0] = 1;
     assert_eq!(
         Digest::from(input).next_lexicographical(),
-        Some(Digest::from(output))
+        Digest::from(output)
     );
 }

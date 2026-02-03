@@ -182,6 +182,6 @@ fn parse_tx_digest(
     let digest = digest
         .as_ref()
         .ok_or_else(|| Status::invalid_argument(format!("{field_name} is required")))?;
-    TransactionDigest::try_from(digest.digest.as_slice())
+    TransactionDigest::from_bytes(&digest.digest)
         .map_err(|e| Status::invalid_argument(format!("Invalid {field_name}: {e}")))
 }

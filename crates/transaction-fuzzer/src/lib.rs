@@ -28,7 +28,7 @@ fn new_gas_coin_with_balance_and_owner(balance: u64, owner: Owner) -> Object {
     Object::new_move(
         MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectID::random(), balance),
         owner,
-        TransactionDigest::genesis_marker(),
+        TransactionDigest::GENESIS_MARKER,
     )
 }
 

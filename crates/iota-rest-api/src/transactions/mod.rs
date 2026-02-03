@@ -180,7 +180,7 @@ async fn list_transactions(
             let (cursor_info, digest) = entry?;
             next_cursor = cursor_info.next_cursor;
             state
-                .get_transaction(digest.into())
+                .get_transaction(digest)
                 .map(|(transaction, effects, events)| TransactionResponse {
                     digest: transaction.transaction.digest(),
                     transaction: transaction.transaction,
