@@ -7,14 +7,11 @@ use std::{
 };
 
 use consensus_config::AuthorityIndex;
-use iota_common::scoring_metrics::VersionedScoringMetrics;
+use iota_common::scoring_metrics::{VersionedScoringMetrics, VersionedStorageScoringMetrics};
 use iota_protocol_config::ProtocolConfig;
 use itertools::izip;
 
-use crate::{
-    BlockRef, context::Context, error::ConsensusError, metrics::NodeMetrics,
-    storage::VersionedStorageScoringMetrics,
-};
+use crate::{BlockRef, context::Context, error::ConsensusError, metrics::NodeMetrics};
 /// Struct that holds the scoring metrics for all authorities in the committee,
 /// both cached and uncached. It also holds a shared reference to the current
 /// local metrics count used by Scorer.
@@ -545,6 +542,7 @@ mod tests {
     use std::{collections::BTreeSet, sync::Arc, vec};
 
     use consensus_config::{AuthorityIndex, NetworkKeyPair, ProtocolKeyPair};
+    use iota_common::scoring_metrics::VersionedStorageScoringMetrics;
     use parking_lot::RwLock;
     use tokio::sync::broadcast;
 
@@ -561,7 +559,7 @@ mod tests {
         dag_state::DagState,
         error::ConsensusError,
         scoring_metrics_store::{ErrorSource, MysticetiScoringMetricsStore},
-        storage::{VersionedStorageScoringMetrics, mem_store::MemStore},
+        storage::mem_store::MemStore,
         synchronizer::Synchronizer,
         test_dag_builder::DagBuilder,
     };

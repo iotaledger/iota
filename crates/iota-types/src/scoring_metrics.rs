@@ -4,6 +4,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use iota_protocol_config::ProtocolConfig;
+use serde::{Deserialize, Serialize};
 
 use crate::{messages_consensus::VersionedMisbehaviorReport, misbehavior_counts::MisbehaviorsV1};
 
@@ -237,5 +238,56 @@ impl VersionedScoringMetrics {
         match (self, report) {
             (VersionedScoringMetrics::V1(_), VersionedMisbehaviorReport::V1(_, _)) => true,
         }
+    }
+}
+
+/// Misbehavior counts using u64, used for storage. Given an authrity, each
+/// field of this type is a u64 with the metric value for that specific
+/// authority.
+type StorageScoringMetricsV1 = MisbehaviorsV1<u64>;
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub enum VersionedStorageScoringMetrics {
+    V1(StorageScoringMetricsV1),
+}
+
+impl VersionedStorageScoringMetrics {
+    pub fn new_zeroed(protocol_config: &ProtocolConfig) -> Self {
+        match protocol_config.scorer_version_as_option() {
+            None | Some(1) => {
+                VersionedStorageScoringMetrics::V1(StorageScoringMetricsV1::new_zeroed())
+            }
+            _ => panic!("Unsupported scorer version"),
+        }
+    }
+
+    pub fn new_from(scoring_metrics: &VersionedScoringMetrics, authority_index: usize) -> Self {
+        match scoring_metrics {
+            VersionedScoringMetrics::V1(misbehavior_vectors) => {
+                let inner = misbehavior_vectors.misbehaviors_from_authority(authority_index);
+                VersionedStorageScoringMetrics::V1(inner)
+            }
+        }
+    }
+
+    /// Returns an iterator over references to the metric values.
+    pub fn iterate_over_metrics(&self) -> std::vec::IntoIter<&u64> {
+        match self {
+            VersionedStorageScoringMetrics::V1(inner) => inner.iter(),
+        }
+    }
+
+    pub fn new_v1_for_test(
+        faulty_blocks_provable: u64,
+        faulty_blocks_unprovable: u64,
+        missing_proposals: u64,
+        equivocations: u64,
+    ) -> Self {
+        VersionedStorageScoringMetrics::V1(StorageScoringMetricsV1::new(
+            faulty_blocks_provable,
+            faulty_blocks_unprovable,
+            missing_proposals,
+            equivocations,
+        ))
     }
 }

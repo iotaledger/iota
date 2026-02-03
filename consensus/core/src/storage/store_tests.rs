@@ -304,7 +304,7 @@ async fn read_and_scan_commits(
 async fn scan_scoring_metrics(
     #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
 ) {
-    use crate::storage::VersionedStorageScoringMetrics;
+    use iota_common::scoring_metrics::VersionedStorageScoringMetrics;
 
     let store = test_store.store();
     let metrics_updates = [

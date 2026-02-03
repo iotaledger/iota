@@ -8,6 +8,7 @@ use std::{
 };
 
 use consensus_config::AuthorityIndex;
+use iota_common::scoring_metrics::VersionedStorageScoringMetrics;
 use parking_lot::RwLock;
 
 use super::{Store, WriteBatch};
@@ -18,7 +19,6 @@ use crate::{
         TrustedCommit,
     },
     error::ConsensusResult,
-    storage::VersionedStorageScoringMetrics,
 };
 /// In-memory storage for testing.
 pub(crate) struct MemStore {
