@@ -8,7 +8,7 @@
 use std::str::FromStr;
 
 use anyhow::anyhow;
-use docs_examples::utils::{clean_keystore, setup_keystore};
+use docs_examples::utils::{clean_keystore, get_coin, setup_keystore};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
     IotaClientBuilder,
@@ -43,14 +43,7 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("Sender address: {sender}");
 
     // Get a gas coin
-    let gas_coin = iota_client
-        .coin_read_api()
-        .get_coins(sender, None, None, None)
-        .await?
-        .data
-        .into_iter()
-        .next()
-        .ok_or(anyhow!("No coins found for sender"))?;
+    let gas_coin = get_coin(&iota_client, sender).await?;
 
     // This object id was fetched manually. It refers to a Basic Output object that
     // contains some Native Tokens.

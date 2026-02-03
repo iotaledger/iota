@@ -6,7 +6,7 @@
 //! generated from iota-genesis-builder/src/stardust/test_outputs.
 
 use anyhow::{Result, anyhow};
-use docs_examples::utils::{clean_keystore, publish_custom_nft_package, setup_keystore};
+use docs_examples::utils::{clean_keystore, get_coin, publish_custom_nft_package, setup_keystore};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
     IotaClientBuilder,
@@ -43,17 +43,10 @@ async fn main() -> Result<(), anyhow::Error> {
     // The custom NFT module is obtained from a Move example in the docs.
     // It is the same used in the Alias migration example.
     let custom_nft_package_id =
-        publish_custom_nft_package(sender, &mut keystore, &iota_client).await?;
+        publish_custom_nft_package(&iota_client, &mut keystore, sender).await?;
 
     // Get a gas coin
-    let gas_coin = iota_client
-        .coin_read_api()
-        .get_coins(sender, None, None, None)
-        .await?
-        .data
-        .into_iter()
-        .next()
-        .ok_or(anyhow!("No coins found"))?;
+    let gas_coin = get_coin(&iota_client, sender).await?;
 
     // Get an NftOutput object id
     let nft_output_object_id =

@@ -9,7 +9,7 @@ use std::str::FromStr;
 
 use anyhow::anyhow;
 use bip32::DerivationPath;
-use docs_examples::utils::{clean_keystore, fund_address, setup_keystore};
+use docs_examples::utils::{clean_keystore, fund_address, get_coin, setup_keystore};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
     IotaClientBuilder,
@@ -61,14 +61,7 @@ async fn main() -> Result<(), anyhow::Error> {
     fund_address(&iota_client, &mut keystore, sender).await?;
 
     // Get a gas coin
-    let gas_coin = iota_client
-        .coin_read_api()
-        .get_coins(sender, None, None, None)
-        .await?
-        .data
-        .into_iter()
-        .next()
-        .ok_or(anyhow!("No coins found"))?;
+    let gas_coin = get_coin(&iota_client, sender).await?;
 
     // This object id was fetched manually. It refers to an Alias Output object that
     // owns a NftOutput.
