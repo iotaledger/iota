@@ -33,7 +33,7 @@ async fn main() -> Result<(), anyhow::Error> {
     println!(" *** Owned Objects ***\n");
 
     // Dynamic Fields
-    let parent_object_id = ObjectID::new(active_address.into_bytes());
+    let parent_object_id = ObjectID::from_address(active_address);
     let dynamic_fields = client
         .read_api()
         .get_dynamic_fields(parent_object_id, None, None)
