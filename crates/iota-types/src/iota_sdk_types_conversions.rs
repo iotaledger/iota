@@ -288,7 +288,7 @@ impl TryFrom<crate::transaction::TransactionDataV1> for TransactionV1 {
         Self {
             sender: value.sender(),
             gas_payment: GasPayment {
-                objects: value.gas().iter().map(|o| o.clone()).collect(),
+                objects: value.gas().to_vec(),
                 owner: value.gas_data().owner,
                 price: value.gas_data().price,
                 budget: value.gas_data().budget,
@@ -317,7 +317,6 @@ impl TryFrom<TransactionV1> for crate::transaction::TransactionDataV1 {
                     .gas_payment
                     .objects
                     .into_iter()
-                    .map(|o| o.clone())
                     .collect(),
                 owner: value.gas_payment.owner,
                 price: value.gas_payment.price,

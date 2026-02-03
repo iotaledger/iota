@@ -37,7 +37,7 @@ impl CheckpointData {
                 latest_live_objects.insert(obj.id(), obj);
             }
             for obj_ref in tx.removed_object_refs_post_version() {
-                latest_live_objects.remove(&(&obj_ref.object_id));
+                latest_live_objects.remove(&obj_ref.object_id);
             }
         }
         latest_live_objects.into_values().collect()

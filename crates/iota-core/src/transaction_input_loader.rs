@@ -281,7 +281,7 @@ impl TransactionInputLoader {
 
             let Some(object) = self.cache.try_get_object(&object_id)? else {
                 return Err(UserInputError::ObjectNotFound {
-                    object_id: object_id,
+                    object_id,
                     version: Some(version),
                 }
                 .into());
