@@ -151,9 +151,9 @@ impl From<ObjectOrTombstone> for ObjectEntry {
         match object {
             ObjectOrTombstone::Object(o) => o.into(),
             ObjectOrTombstone::Tombstone(obj_ref) => {
-                if obj_ref.2.is_deleted() {
+                if obj_ref.2.is_object_deleted() {
                     ObjectEntry::Deleted
-                } else if obj_ref.2.is_wrapped() {
+                } else if obj_ref.2.is_object_wrapped() {
                     ObjectEntry::Wrapped
                 } else {
                     panic!("tombstone digest must either be deleted or wrapped");

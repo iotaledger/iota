@@ -3517,7 +3517,7 @@ impl AuthorityState {
             });
         }
 
-        if !obj_ref.2.is_alive() {
+        if !obj_ref.2.is_object_alive() {
             return Ok(PastObjectRead::ObjectDeleted(obj_ref));
         }
 
