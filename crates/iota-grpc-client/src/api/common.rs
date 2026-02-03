@@ -70,6 +70,19 @@ pub type Result<T> = std::result::Result<T, Error>;
 //
 // If `None` is passed, these defaults are used.
 
+/// Default field mask for [`crate::Client::get_service_info`].
+/// possible fields:
+/// chain_id,chain,epoch,executed_checkpoint_height,
+/// executed_checkpoint_timestamp,lowest_available_checkpoint,
+/// lowest_available_checkpoint_objects,server
+pub const SERVICE_INFO_READ_MASK: &str = "chain_id,epoch,executed_checkpoint_height";
+
+/// Default field mask for [`crate::Client::get_epoch`].
+/// possible fields:
+/// epoch,committee,bcs_system_state,first_checkpoint,last_checkpoint,
+/// start,end,reference_gas_price,protocol_config
+pub const EPOCH_READ_MASK: &str = "epoch,first_checkpoint,last_checkpoint,start,end,reference_gas_price,protocol_config.protocol_version";
+
 /// Default field mask for [`crate::Client::get_transactions`].
 /// possible fields:
 /// transaction,signatures,effects,events,checkpoint,timestamp,input_objects,
