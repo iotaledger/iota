@@ -11,3 +11,5 @@ export {
     IotaGraphQLClient,
     IotaGraphQLRequestError,
 } from './client.js';
+
+export { IotaGraphQLClient as GraphqlTransport } from './client.js';
