@@ -179,13 +179,7 @@ impl TestEnvironment {
         let new_child_ref =
             fx.0.mutated_excluding_gas()
                 .iter()
-                .find_map(|(oref, _)| {
-                    if oref.object_id == child.object_id {
-                        Some(*oref)
-                    } else {
-                        None
-                    }
-                })
+                .find_map(|(oref, _)| (oref.object_id == child.object_id).then_some(*oref))
                 .unwrap();
         let new_parent_ref =
             fx.0.mutated_excluding_gas()
