@@ -431,6 +431,13 @@ const developer = [
                 items: [
                     {
                         type: 'category',
+                        label: 'Account Abstraction',
+                        items: [
+                            'developer/move/how-tos/account-abstraction/place-holder',
+                        ],
+                    },
+                    {
+                        type: 'category',
                         label: 'Create Coins and Tokens',
                         link: {
                             type: 'doc',
