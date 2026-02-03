@@ -72,7 +72,7 @@ export function ImportExistingWallet() {
                 break;
             case AccountsFormType.ImportPasskey:
                 ampli.clickedCreatePasskey({ sourceFlow });
-                const url = "/accounts/import-passkey";
+                const url = '/accounts/import-passkey';
                 if (isPopup) {
                     openInNewTab(url);
                 } else {

@@ -55,7 +55,7 @@ export function CreateNewWallet() {
                 break;
             case AccountsFormType.Passkey:
                 ampli.clickedCreatePasskey({ sourceFlow });
-                const url = "/accounts/passkey-account";
+                const url = '/accounts/passkey-account';
                 if (isPopup) {
                     openInNewTab(url);
                 } else {
