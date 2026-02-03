@@ -155,7 +155,7 @@ def parse_args():
 
     test_p = sub_parser.add_parser(
         "test",
-        description="Test generating release notes from git commits.",
+        description="Test generating release notes from local git commits.",
     )
 
     test_p.add_argument(
@@ -242,7 +242,6 @@ def extract_notes_from_local_commit(commit):
 def extract_rollout(notes, crate_names):
     """Extract rollout entries under the Breaking Changes Rollout section."""
     if not notes:
-        print("no notes")
         return {}
 
     match = RE_BREAKING.search(notes)
@@ -253,11 +252,9 @@ def extract_rollout(notes, crate_names):
     next_heading = re.search(r"^\s*####\s", section, re.MULTILINE)
     if next_heading:
         section = section[: next_heading.start()]
-        print(section)
 
     crate_matches = list(RE_BREAKING_CRATE.finditer(section))
     if not crate_matches:
-        print("no crate matches")
         if RE_BREAKING_NOTE.search(section):
             raise ValueError(
                 "Breaking Changes Rollout entries must be placed under a crate heading."
