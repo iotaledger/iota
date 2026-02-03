@@ -109,7 +109,7 @@ async fn test_object_wrapping_unwrapping() {
     let expected_child_object_ref = (
         child_object_ref.0,
         wrapped_version,
-        ObjectDigest::OBJECT_DIGEST_WRAPPED,
+        ObjectDigest::OBJECT_WRAPPED,
     );
     // Make sure that the child's version gets increased after wrapped.
     assert_eq!(new_child_object_ref, expected_child_object_ref);
@@ -190,7 +190,7 @@ async fn test_object_wrapping_unwrapping() {
     let expected_child_object_ref = (
         child_object_ref.0,
         rewrap_version,
-        ObjectDigest::OBJECT_DIGEST_WRAPPED,
+        ObjectDigest::OBJECT_WRAPPED,
     );
     assert_eq!(effects.wrapped()[0], expected_child_object_ref);
     check_latest_object_ref(&authority, &expected_child_object_ref, true).await;
@@ -225,7 +225,7 @@ async fn test_object_wrapping_unwrapping() {
     let expected_child_object_ref = (
         child_object_ref.0,
         deleted_version,
-        ObjectDigest::OBJECT_DIGEST_DELETED,
+        ObjectDigest::OBJECT_DELETED,
     );
     assert!(
         effects
@@ -236,7 +236,7 @@ async fn test_object_wrapping_unwrapping() {
     let expected_parent_object_ref = (
         parent_object_ref.0,
         deleted_version,
-        ObjectDigest::OBJECT_DIGEST_DELETED,
+        ObjectDigest::OBJECT_DELETED,
     );
     assert!(effects.deleted().contains(&expected_parent_object_ref));
     check_latest_object_ref(&authority, &expected_parent_object_ref, true).await;

@@ -95,7 +95,7 @@ async fn get_checkpoint(
 
             state.inner().try_get_checkpoint_by_sequence_number(s)
         }
-        CheckpointId::Digest(d) => state.inner().try_get_checkpoint_by_digest(&d.into()),
+        CheckpointId::Digest(d) => state.inner().try_get_checkpoint_by_digest(&d),
     }?
     .ok_or(CheckpointNotFoundError(checkpoint_id))?
     .into_inner()
@@ -434,7 +434,7 @@ async fn get_full_checkpoint(
 
             state.inner().try_get_checkpoint_by_sequence_number(s)
         }
-        CheckpointId::Digest(d) => state.inner().try_get_checkpoint_by_digest(&d.into()),
+        CheckpointId::Digest(d) => state.inner().try_get_checkpoint_by_digest(&d),
     }?
     .ok_or(CheckpointNotFoundError(checkpoint_id))?;
 
