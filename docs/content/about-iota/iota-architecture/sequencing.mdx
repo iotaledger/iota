@@ -40,7 +40,7 @@ In the IOTA sequencing algorithm, a transaction is deferred only if there is no 
 ### Causal ordering of transactions: Placement algorithm
 
 The IOTA sequencing algorithm orders transactions with a strong emphasis on execution efficiency.
-When a transaction is evaluated, the algorithm searches for a suitable position in the execution trace (relative to previously scheduled transactions) where it can be placed without causing conflicts.
+When a transaction is evaluated, the algorithm searches for a suitable position in the execution trace where it can be placed without causing conflicts.
 This allows for parallel execution of transactions that operate on disjoint sets of shared objects.
 
 To achieve this, the algorithm maintains an allocation map that tracks access to shared objects.
