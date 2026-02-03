@@ -12,7 +12,7 @@ import { useGetNetworkMetrics } from '~/hooks';
 import { ampli } from '~/lib/utils';
 import { useEpochProgress } from '~/pages/epochs/utils';
 
-export function CurrentEpoch(): JSX.Element {
+export function CurrentEpoch() {
     const { epoch, progress, label, end, start } = useEpochProgress();
     const { data: networkData } = useGetNetworkMetrics();
 

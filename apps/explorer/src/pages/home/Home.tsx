@@ -21,7 +21,7 @@ import type { Network } from '@iota/iota-sdk/client';
 
 const TRANSACTIONS_LIMIT = 15;
 
-export function Home(): JSX.Element {
+export function Home() {
     const [network] = useNetworkContext();
     const isIotaTokenCardEnabled = useFeatureEnabledByNetwork(
         Feature.FiatConversion,

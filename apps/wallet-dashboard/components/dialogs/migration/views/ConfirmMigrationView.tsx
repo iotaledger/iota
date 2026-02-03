@@ -62,7 +62,7 @@ export function ConfirmMigrationView({
     isMigrationError,
     isPartialMigration,
     isSendingTransaction,
-}: ConfirmMigrationViewProps): JSX.Element {
+}: ConfirmMigrationViewProps) {
     const account = useCurrentAccount();
     const { data: balance, isLoading: isLoadingBalance } = useBalance(account?.address || '');
     const hasBalance = BigInt(balance?.totalBalance || 0) > BigInt(0);

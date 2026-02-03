@@ -6,7 +6,7 @@ import { useProductAnalyticsConfig } from '@iota/core';
 import { LEGAL_LINKS } from '~/lib/constants';
 import { Link } from '~/components/ui';
 
-export function LegalText(): JSX.Element {
+export function LegalText() {
     return (
         <div className="flex justify-center md:justify-start">
             <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
@@ -17,7 +17,7 @@ export function LegalText(): JSX.Element {
     );
 }
 
-export function LegalLinks(): JSX.Element {
+export function LegalLinks() {
     const { data: productAnalyticsConfig } = useProductAnalyticsConfig();
 
     return (

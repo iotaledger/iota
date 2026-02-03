@@ -54,7 +54,7 @@ export function ReviewValuesFormView({
     onClose,
     onBack,
     totalGas,
-}: ReviewValuesFormProps): JSX.Element {
+}: ReviewValuesFormProps) {
     const { data: nameRecord } = useGetIotaNameRecord(to);
     const { data: metadata } = useCoinMetadata(coinType);
     const amountWithoutDecimals = parseAmount(amount, metadata?.decimals ?? 0);

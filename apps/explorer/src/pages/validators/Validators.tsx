@@ -35,7 +35,7 @@ import { useEnhancedRpcClient } from '~/hooks';
 import { sanitizePendingValidators } from '~/lib';
 import { IOTA_TYPE_ARG, normalizeIotaAddress } from '@iota/iota-sdk/utils';
 
-function ValidatorPageResult(): JSX.Element {
+function ValidatorPageResult() {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
     const {
         data: maxCommitteeSize,

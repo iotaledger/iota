@@ -12,12 +12,7 @@ interface SettingsDialogProps {
     setView: (view: SettingsDialogView) => void;
 }
 
-export function SettingsDialog({
-    isOpen,
-    handleClose,
-    view,
-    setView,
-}: SettingsDialogProps): JSX.Element {
+export function SettingsDialog({ isOpen, handleClose, view, setView }: SettingsDialogProps) {
     function onBack(): void {
         setView(SettingsDialogView.SelectSetting);
     }

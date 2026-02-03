@@ -11,7 +11,7 @@ import { Network } from '@iota/iota-sdk/client';
 import { usePersistedNetwork } from '@/hooks';
 import { LEGAL_LINKS } from '@/lib/constants/routes.constants';
 
-function HomeDashboardPage(): JSX.Element {
+function HomeDashboardPage() {
     const { theme } = useTheme();
     const { persistedNetwork } = usePersistedNetwork();
     const iotaNamesEnabled = useFeatureEnabledByNetwork(

@@ -21,11 +21,7 @@ function PlaceholderCell() {
     );
 }
 
-export function PlaceholderTable({
-    rowCount,
-    rowHeight,
-    colHeadings,
-}: PlaceholderTableProps): JSX.Element {
+export function PlaceholderTable({ rowCount, rowHeight, colHeadings }: PlaceholderTableProps) {
     const rowEntry = useMemo(
         () => Object.fromEntries(colHeadings.map((index) => [`a${index}`, null])),
         [colHeadings, rowHeight],

@@ -50,13 +50,7 @@ export function usePaginationStack<Cursor = string>() {
     };
 }
 
-export function Pagination({
-    hasNext,
-    hasPrev,
-    onFirst,
-    onPrev,
-    onNext,
-}: PaginationProps): JSX.Element {
+export function Pagination({ hasNext, hasPrev, onFirst, onPrev, onNext }: PaginationProps) {
     return (
         <div className="flex gap-2 self-center md:self-start">
             <Button

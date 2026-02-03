@@ -19,7 +19,7 @@ interface TooltipContentProps {
 
 function TooltipContent({
     data: { epochTotalTransactions, epochStartTimestamp, epoch },
-}: TooltipContentProps): JSX.Element {
+}: TooltipContentProps) {
     const dateFormatted = formatDate(new Date(epochStartTimestamp), ['day', 'month']);
     const totalFormatted = formatAmount(epochTotalTransactions);
 

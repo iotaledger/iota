@@ -14,7 +14,7 @@ interface ObjectDisplayProps {
     display: DisplayFieldsResponse;
 }
 
-export function ObjectDisplay({ objectId, display }: ObjectDisplayProps): JSX.Element | null {
+export function ObjectDisplay({ objectId, display }: ObjectDisplayProps) {
     const [open, handleOpenModal] = useState(false);
     if (!display.data) return null;
     const { description, name, image_url: imageUrl } = display.data ?? {};

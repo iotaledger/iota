@@ -36,7 +36,7 @@ const INITIAL_VALUES: SendNftFormValues = {
     resolvedAddress: '',
 };
 
-export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps): JSX.Element {
+export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps) {
     const kioskClient = useKioskClient();
     const account = useCurrentAccount();
     const iotaClient = useIotaClient();

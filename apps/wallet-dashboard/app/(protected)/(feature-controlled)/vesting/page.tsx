@@ -66,7 +66,7 @@ import { ampli } from '@/lib/utils/analytics';
 import clsx from 'clsx';
 import BigNumber from 'bignumber.js';
 
-export default function VestingDashboardPage(): JSX.Element {
+export default function VestingDashboardPage() {
     const [timelockedObjectsToUnstake, setTimelockedObjectsToUnstake] =
         useState<TimelockedStakedObjectsGrouped | null>(null);
     const account = useCurrentAccount();

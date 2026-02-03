@@ -35,7 +35,7 @@ import { StardustOutputMigrationStatus } from '@/lib/enums';
 import { MigrationObjectsPanel, MigrationDialog } from '@/components';
 import { useRouter } from 'next/navigation';
 
-function MigrationDashboardPage(): JSX.Element {
+function MigrationDashboardPage() {
     const account = useCurrentAccount();
     const address = account?.address || '';
     const bech32Address = addressToStardustBech32(address);

@@ -61,7 +61,7 @@ enum SearchPhase {
     Idle, // search has finished and is idle, ready to start again
 }
 
-export function AccountsFinderView(): JSX.Element {
+export function AccountsFinderView() {
     const navigate = useNavigate();
     const { accountSourceId } = useParams();
     const { data: accountSources } = useAccountSources();

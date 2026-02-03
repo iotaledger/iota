@@ -26,7 +26,7 @@ interface SignaturePanelProps {
     signature: SignaturePubkeyPair;
 }
 
-function SignaturePanel({ title, signature: data }: SignaturePanelProps): JSX.Element {
+function SignaturePanel({ title, signature: data }: SignaturePanelProps) {
     const { signature, signatureScheme } = data;
     return (
         <div className="flex w-full flex-col gap-md">

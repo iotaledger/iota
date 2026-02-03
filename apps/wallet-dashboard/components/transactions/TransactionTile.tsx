@@ -36,7 +36,7 @@ interface TransactionTileProps {
     transaction: ExtendedTransaction;
 }
 
-export function TransactionTile({ transaction }: TransactionTileProps): JSX.Element {
+export function TransactionTile({ transaction }: TransactionTileProps) {
     const account = useCurrentAccount();
     const address = account?.address;
     const [open, setOpen] = useState(false);

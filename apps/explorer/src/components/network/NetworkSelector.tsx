@@ -19,7 +19,7 @@ interface NetworkOption {
     label: string;
 }
 
-export function NetworkSelector(): JSX.Element {
+export function NetworkSelector() {
     const elementRef = useRef<HTMLDivElement>(null);
     const [network, setNetwork] = useContext(NetworkContext);
     const { data } = useIotaClientQuery('getLatestIotaSystemState');

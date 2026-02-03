@@ -83,7 +83,7 @@ function ResizeHandle({
     togglePanelCollapse,
     noHoverHidden,
     size,
-}: ResizeHandleProps): JSX.Element {
+}: ResizeHandleProps) {
     const [isDragging, setIsDragging] = useState(false);
 
     const ChevronButton = isHorizontal ? ArrowRight : ArrowUp;
@@ -139,7 +139,7 @@ function SplitPanel({
     dividerSize,
     onCollapse,
     ...props
-}: SplitPanelProps): JSX.Element {
+}: SplitPanelProps) {
     const ref = useRef<ImperativePanelHandle>(null);
     const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -183,12 +183,7 @@ export interface SplitPanesProps extends PanelGroupProps {
     onCollapse?: (isCollapsed: boolean) => void;
 }
 
-export function SplitPanes({
-    splitPanels,
-    dividerSize,
-    onCollapse,
-    ...props
-}: SplitPanesProps): JSX.Element {
+export function SplitPanes({ splitPanels, dividerSize, onCollapse, ...props }: SplitPanesProps) {
     const { direction } = props;
 
     return (

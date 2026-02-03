@@ -26,7 +26,7 @@ export function CheckpointsTable({
     initialLimit = DEFAULT_CHECKPOINTS_LIMIT,
     initialCursor,
     maxCursor,
-}: CheckpointsTableProps): JSX.Element {
+}: CheckpointsTableProps) {
     const [limit, setLimit] = useState(initialLimit);
 
     const countQuery = useIotaClientQuery('getLatestCheckpointSequenceNumber');

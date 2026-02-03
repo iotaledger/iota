@@ -8,7 +8,7 @@ import { useCurrentAccount } from '@iota/dapp-kit';
 import { redirect } from 'next/navigation';
 import { CONNECT_ROUTE } from '@/lib/constants/routes.constants';
 
-function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
+function DashboardLayout({ children }: PropsWithChildren) {
     const currentAccount = useCurrentAccount();
 
     useEffect(() => {

@@ -14,7 +14,7 @@ import { useFeature } from '@growthbook/growthbook-react';
 import { Feature } from '@iota/core';
 import { useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
 
-function HomeDashboardPage(): JSX.Element {
+function HomeDashboardPage() {
     const { connectionStatus } = useCurrentWallet();
     const account = useCurrentAccount();
 

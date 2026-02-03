@@ -49,7 +49,7 @@ function unwrapTypeReference(type: IotaMoveNormalizedType): null | TypeReference
     return null;
 }
 
-export function ModuleView({ id, name, code }: ModuleViewProps): JSX.Element {
+export function ModuleView({ id, name, code }: ModuleViewProps) {
     const { data: normalizedModule } = useNormalizedMoveModule(id, name);
     const normalizedModuleReferences = useMemo(() => {
         const typeReferences: Record<string, TypeReference> = {};

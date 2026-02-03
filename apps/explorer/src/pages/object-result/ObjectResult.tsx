@@ -15,7 +15,7 @@ import { onCopySuccess } from '~/lib';
 
 const PACKAGE_TYPE_NAME = 'Move Package';
 
-export function ObjectResult(): JSX.Element {
+export function ObjectResult() {
     const { id: objID } = useParams();
     const { data, isPending, isError, isFetched } = useGetObjectOrPastObject(objID);
     const copyToClipboard = useCopyToClipboard(onCopySuccess);

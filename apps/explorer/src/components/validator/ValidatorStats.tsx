@@ -19,7 +19,7 @@ export function ValidatorStats({
     epochRewards,
     apy,
     tallyingScore,
-}: StatsCardProps): JSX.Element {
+}: StatsCardProps) {
     // TODO: Add logic for validator stats https://github.com/iotaledger/iota/issues/2449
     const numberOfDelegators = 0;
     const networkStakingParticipation = 0;

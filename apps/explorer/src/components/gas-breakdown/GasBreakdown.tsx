@@ -19,7 +19,7 @@ interface GasProps {
     burnedAmount?: bigint | number | string | undefined;
 }
 
-function GasAmount({ amount, burnedAmount }: GasProps): JSX.Element | null {
+function GasAmount({ amount, burnedAmount }: GasProps) {
     const [formattedAmount, symbol] = useFormatCoin({ balance: amount, format: CoinFormat.Full });
     const [formattedBurnedAmount, burnedSymbol] = useFormatCoin({
         balance: burnedAmount,
@@ -52,7 +52,7 @@ function GasAmount({ amount, burnedAmount }: GasProps): JSX.Element | null {
     );
 }
 
-function GasPaymentLinks({ objectIds }: { objectIds: string[] }): JSX.Element {
+function GasPaymentLinks({ objectIds }: { objectIds: string[] }) {
     return (
         <div className="flex max-h-20 min-h-[20px] flex-wrap items-center gap-x-4 gap-y-2 overflow-y-auto">
             {objectIds.map((objectId, index) => (
@@ -91,7 +91,7 @@ interface GasData {
     divider?: true;
 }
 
-export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null {
+export function GasBreakdown({ summary }: GasBreakdownProps) {
     const gasData = summary?.gas;
     const { data: nameRecord } = useGetIotaNameRecord(gasData?.owner);
 

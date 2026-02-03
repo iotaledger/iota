@@ -17,9 +17,7 @@ interface TransactionProps<T> {
     data: T;
 }
 
-function ArrayArgument({
-    data,
-}: TransactionProps<(IotaArgument | IotaArgument[])[] | undefined>): JSX.Element {
+function ArrayArgument({ data }: TransactionProps<(IotaArgument | IotaArgument[])[] | undefined>) {
     return (
         <>
             {data && (
@@ -31,7 +29,7 @@ function ArrayArgument({
     );
 }
 
-function MoveCall({ data }: TransactionProps<MoveCallIotaTransaction>): JSX.Element {
+function MoveCall({ data }: TransactionProps<MoveCallIotaTransaction>) {
     const {
         module,
         package: movePackage,
@@ -75,7 +73,7 @@ export function Transaction({
     data,
 }: TransactionProps<
     (IotaArgument | IotaArgument[])[] | MoveCallIotaTransaction | IotaMovePackage
->): JSX.Element {
+>) {
     if (type === 'MoveCall') {
         return (
             <ErrorBoundary>

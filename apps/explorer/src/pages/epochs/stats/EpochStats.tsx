@@ -6,10 +6,7 @@ import { Panel, Title } from '@iota/apps-ui-kit';
 import type { ComponentProps } from 'react';
 
 type TitleProps = ComponentProps<typeof Title>;
-export function EpochStats({
-    children,
-    ...titleProps
-}: React.PropsWithChildren<TitleProps>): JSX.Element {
+export function EpochStats({ children, ...titleProps }: React.PropsWithChildren<TitleProps>) {
     return (
         <Panel>
             <div className="flex flex-col">

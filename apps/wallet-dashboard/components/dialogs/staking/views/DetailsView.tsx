@@ -52,7 +52,7 @@ export function DetailsView({
     handleStake,
     stakedDetails,
     showActiveStatus,
-}: StakeDialogProps): JSX.Element {
+}: StakeDialogProps) {
     const totalStake = BigInt(stakedDetails?.principal || 0n);
     const validatorAddress = stakedDetails?.validatorAddress;
     const {

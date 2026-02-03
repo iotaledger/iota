@@ -21,7 +21,7 @@ interface DynamicFieldRowProps {
     defaultOpen: boolean;
 }
 
-function DynamicFieldRow({ id, result, defaultOpen }: DynamicFieldRowProps): JSX.Element {
+function DynamicFieldRow({ id, result, defaultOpen }: DynamicFieldRowProps) {
     const [open, onOpenChange] = useState(defaultOpen);
 
     return (

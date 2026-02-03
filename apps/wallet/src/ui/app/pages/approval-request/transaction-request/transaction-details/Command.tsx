@@ -13,7 +13,7 @@ import { ErrorBoundary } from '_src/ui/app/components';
 type TransactionType = ReturnType<(typeof Commands)[keyof typeof Commands]>;
 type CommandArgTypes = string | string[] | IotaArgument | IotaArgument[] | null;
 
-function CommandArgument({ data }: { data: TransactionType }): JSX.Element {
+function CommandArgument({ data }: { data: TransactionType }) {
     return (
         <>
             {data &&
@@ -27,7 +27,7 @@ function CommandArgument({ data }: { data: TransactionType }): JSX.Element {
     );
 }
 
-function MoveCall({ data }: { data: MoveCallIotaTransaction }): JSX.Element {
+function MoveCall({ data }: { data: MoveCallIotaTransaction }) {
     const {
         module,
         package: movePackage,

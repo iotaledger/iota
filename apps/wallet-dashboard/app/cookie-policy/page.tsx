@@ -6,7 +6,7 @@
 import { CookiePolicy } from '@/components/disclaimer/CookiePolicy';
 import { Sidebar, TopNav } from '../(protected)/components';
 
-export default function CookiePolicyPage(): JSX.Element {
+export default function CookiePolicyPage() {
     return (
         <div className="min-h-full">
             <div className="fixed left-0 top-0 z-50 h-full">

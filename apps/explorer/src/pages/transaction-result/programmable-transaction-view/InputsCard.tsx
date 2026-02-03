@@ -15,7 +15,7 @@ interface InputsCardProps {
     inputs: IotaCallArg[];
 }
 
-export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
+export function InputsCard({ inputs }: InputsCardProps) {
     const isMediumOrAbove = useBreakpoint('md');
     if (!inputs?.length) {
         return null;

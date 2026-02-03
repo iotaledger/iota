@@ -19,7 +19,7 @@ export function TransactionDetails({
     checkpoint,
     executedEpoch,
     timestamp,
-}: TransactionDetailsProps): JSX.Element {
+}: TransactionDetailsProps) {
     return (
         <div className="grid grid-cols-1 gap-sm md:grid-cols-4">
             {sender && (

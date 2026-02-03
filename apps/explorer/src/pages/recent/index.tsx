@@ -7,7 +7,7 @@ import { useSearchParamsMerged } from '~/components/ui';
 
 const TRANSACTIONS_LIMIT = 20;
 
-export function Recent(): JSX.Element {
+export function Recent() {
     const [searchParams] = useSearchParamsMerged();
 
     return (

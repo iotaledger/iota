@@ -15,7 +15,7 @@ import { GraphTooltipContent } from './GraphTooltipContent';
 const GRAPH_DATA_FIELD = 'cumulativeAddresses';
 const GRAPH_DATA_TEXT = 'Total addresses';
 
-function TooltipContent({ data }: { data: AllEpochsAddressMetrics[number] }): JSX.Element {
+function TooltipContent({ data }: { data: AllEpochsAddressMetrics[number] }) {
     const dateFormatted = formatDate(new Date(data.timestampMs), ['day', 'month']);
     const totalFormatted = formatAmount(data[GRAPH_DATA_FIELD]);
 
@@ -31,7 +31,7 @@ function TooltipContent({ data }: { data: AllEpochsAddressMetrics[number] }): JS
 
 const FALLBACK = '--';
 
-export function AddressesCardGraph(): JSX.Element {
+export function AddressesCardGraph() {
     const { data: addressMetrics } = useGetAddressMetrics();
     const { data: allEpochMetrics, isPending } = useGetAllEpochAddressMetrics({
         descendingOrder: false,

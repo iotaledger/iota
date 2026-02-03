@@ -49,7 +49,7 @@ const AUTO_REFRESH_ID = 'auto-refresh';
 const REFETCH_INTERVAL_SECONDS = 10;
 const REFETCH_INTERVAL = REFETCH_INTERVAL_SECONDS * 1000;
 
-export function Activity({ initialLimit, disablePagination }: ActivityProps): JSX.Element {
+export function Activity({ initialLimit, disablePagination }: ActivityProps) {
     const pollingTxnTableEnabled = useFeatureIsOn(Feature.PollingTxnTable as string);
 
     const [paused, setPaused] = useState(false);

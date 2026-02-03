@@ -24,7 +24,7 @@ interface EpochsActivityTableProps {
 export function EpochsActivityTable({
     disablePagination,
     initialLimit = DEFAULT_EPOCHS_LIMIT,
-}: EpochsActivityTableProps): JSX.Element {
+}: EpochsActivityTableProps) {
     const [limit, setLimit] = useState(initialLimit);
     const client = useIotaClient();
     const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');

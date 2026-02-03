@@ -21,7 +21,7 @@ function TransactionResultPageHeader({
     transaction,
     error,
     loading,
-}: TransactionResultPageHeaderProps): JSX.Element {
+}: TransactionResultPageHeaderProps) {
     const txnKindName = transaction?.transaction?.data.transaction?.kind;
     const txnDigest = transaction?.digest ?? '';
     const txnStatus = transaction?.effects?.status.status;
@@ -40,7 +40,7 @@ function TransactionResultPageHeader({
     );
 }
 
-export function TransactionResult(): JSX.Element {
+export function TransactionResult() {
     const { id } = useParams();
     const {
         isPending,

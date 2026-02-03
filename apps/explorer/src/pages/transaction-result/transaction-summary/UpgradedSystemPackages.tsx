@@ -14,7 +14,7 @@ import {
 } from '@iota/apps-ui-kit';
 import type { OwnedObjectRef } from '@iota/iota-sdk/client';
 
-export function UpgradedSystemPackages({ data }: { data: OwnedObjectRef[] }): JSX.Element | null {
+export function UpgradedSystemPackages({ data }: { data: OwnedObjectRef[] }) {
     const [isExpanded, setIsExpanded] = useState(true);
     if (!data?.length) return null;
 

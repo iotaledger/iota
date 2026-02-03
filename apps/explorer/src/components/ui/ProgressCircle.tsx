@@ -8,7 +8,7 @@ export interface ProgressCircleProps {
     progress: number;
 }
 
-export function ProgressCircle({ progress }: ProgressCircleProps): JSX.Element {
+export function ProgressCircle({ progress }: ProgressCircleProps) {
     return (
         <motion.svg className="rotate-90" viewBox="0 0 16 16">
             <motion.circle

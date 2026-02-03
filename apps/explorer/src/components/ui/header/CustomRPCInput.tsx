@@ -15,7 +15,7 @@ interface CustomRPCInputProps {
     onChange(networkUrl: string): void;
 }
 
-export function CustomRPCInput({ value, onChange }: CustomRPCInputProps): JSX.Element {
+export function CustomRPCInput({ value, onChange }: CustomRPCInputProps) {
     const { register, handleSubmit, formState } = useZodForm({
         schema: CustomRPCSchema,
         mode: 'all',

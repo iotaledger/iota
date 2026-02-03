@@ -25,7 +25,7 @@ export function InactiveValidators({
     },
 }: {
     validatorData: InactiveValidatorData;
-}): JSX.Element {
+}) {
     return (
         <div className="flex flex-col gap-y-md">
             <Panel>
@@ -89,7 +89,7 @@ export function InactiveValidators({
     );
 }
 
-export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Element {
+export function ValidatorMeta({ validatorData }: ValidatorMetaProps) {
     const validatorPublicKey = validatorData.protocolPubkeyBytes;
     const validatorName = validatorData.name;
     const logo = validatorData.imageUrl;

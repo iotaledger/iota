@@ -55,7 +55,7 @@ enum ItemLabel {
 
 const DEFAULT_ITEMS_TO_SHOW = 5;
 
-function Item({ label, packageId, moduleName, typeName }: ItemProps): JSX.Element | null {
+function Item({ label, packageId, moduleName, typeName }: ItemProps) {
     switch (label) {
         case ItemLabel.Package:
             return (
@@ -89,7 +89,7 @@ interface ObjectDetailPanelProps {
     hideBorder?: boolean;
 }
 
-function ObjectDetailPanel({ panelContent, headerContent }: ObjectDetailPanelProps): JSX.Element {
+function ObjectDetailPanel({ panelContent, headerContent }: ObjectDetailPanelProps) {
     const [open, setOpen] = useState(false);
     return (
         <Accordion hideBorder>
@@ -116,13 +116,7 @@ function ObjectDetailPanel({ panelContent, headerContent }: ObjectDetailPanelPro
         </Accordion>
     );
 }
-function ObjectDetailBalance({
-    objectId,
-    typeArg,
-}: {
-    objectId: string;
-    typeArg: string;
-}): JSX.Element {
+function ObjectDetailBalance({ objectId, typeArg }: { objectId: string; typeArg: string }) {
     const { data: objectData, isPending } = useGetObject(objectId);
     const content = objectData?.data?.content;
     const balance =
@@ -146,7 +140,7 @@ interface ObjectDetailProps {
     display?: DisplayFieldsResponse;
 }
 
-function ObjectDetail({ objectType, objectId, display }: ObjectDetailProps): JSX.Element | null {
+function ObjectDetail({ objectType, objectId, display }: ObjectDetailProps) {
     const separator = '::';
     const objectTypeSplit = objectType?.split(separator) || [];
     const typeName = objectTypeSplit.slice(2).join(separator);
@@ -194,11 +188,7 @@ interface ObjectChangeEntriesProps {
     isDisplay?: boolean;
 }
 
-function ObjectChangeEntries({
-    changeEntries,
-    type,
-    isDisplay,
-}: ObjectChangeEntriesProps): JSX.Element {
+function ObjectChangeEntries({ changeEntries, type, isDisplay }: ObjectChangeEntriesProps) {
     let expandableItems = [];
 
     if (type === 'published') {
@@ -270,7 +260,7 @@ interface ObjectChangeEntriesCardFooterProps {
 function ObjectChangeEntriesCardFooter({
     ownerType,
     ownerAddress,
-}: ObjectChangeEntriesCardFooterProps): JSX.Element {
+}: ObjectChangeEntriesCardFooterProps) {
     return (
         <div className="flex flex-wrap justify-between px-md--rs py-sm--rs">
             <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
@@ -353,7 +343,7 @@ interface ObjectChangesProps {
     objectSummary: ObjectChangeSummary;
 }
 
-export function ObjectChanges({ objectSummary }: ObjectChangesProps): JSX.Element | null {
+export function ObjectChanges({ objectSummary }: ObjectChangesProps) {
     if (!objectSummary) return null;
 
     return (

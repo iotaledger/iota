@@ -26,7 +26,7 @@ export function ProgrammableTxnBlockCard({
     count,
     initialClose,
     defaultItemsToShow,
-}: ProgrammableTxnBlockCardProps): JSX.Element | null {
+}: ProgrammableTxnBlockCardProps) {
     if (!items?.length) {
         return null;
     }

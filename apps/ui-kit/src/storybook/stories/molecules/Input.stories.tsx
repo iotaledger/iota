@@ -20,7 +20,7 @@ function InputStory({
     onClearInput,
     type,
     ...props
-}: ComponentProps<typeof Input> & CustomStoryProps): JSX.Element {
+}: ComponentProps<typeof Input> & CustomStoryProps) {
     const [inputValue, setInputValue] = useState(value ?? '');
 
     useEffect(() => {

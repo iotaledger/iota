@@ -60,7 +60,7 @@ export function MyCoins(): React.JSX.Element {
         }
     }
 
-    const virtualItem = (isRecognized: boolean, coin: CoinBalance): JSX.Element => {
+    const virtualItem = (isRecognized: boolean, coin: CoinBalance) => {
         return (
             <CoinItem
                 coinType={coin.coinType}

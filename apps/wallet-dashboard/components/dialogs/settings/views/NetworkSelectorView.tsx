@@ -12,10 +12,7 @@ interface NetworkSelectorViewProps {
     onBack: () => void;
 }
 
-export function NetworkSelectorView({
-    handleClose,
-    onBack,
-}: NetworkSelectorViewProps): JSX.Element {
+export function NetworkSelectorView({ handleClose, onBack }: NetworkSelectorViewProps) {
     const clientContext = useIotaClientContext();
     // Dashboard doesn't support RPCs yet
     const networks = clientContext.networks as Record<string, NetworkConfiguration>;

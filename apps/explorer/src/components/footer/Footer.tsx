@@ -8,7 +8,7 @@ import { Link } from '~/components/ui';
 import { FOOTER_LINKS } from '~/lib/constants';
 import { ThemedIotaLogo } from '../ThemedIotaLogo';
 
-function FooterLinks(): JSX.Element {
+function FooterLinks() {
     return (
         <div className="flex flex-col items-center justify-center gap-6 md:flex-row md:justify-end">
             <ul className="flex flex-wrap justify-center gap-4 md:flex-row md:gap-6">
@@ -28,7 +28,7 @@ function FooterLinks(): JSX.Element {
     );
 }
 
-export function Footer(): JSX.Element {
+export function Footer() {
     return (
         <footer className="sticky top-[100%] bg-iota-neutral-96 px-5 py-10 md:px-10 md:py-14 dark:bg-iota-neutral-10">
             <nav className="container flex flex-col justify-center gap-md md:gap-lg">

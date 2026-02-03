@@ -55,7 +55,7 @@ export function TableCard<DataType extends object>({
     heightFull,
     rowLimit,
     allowManualTableSort = true,
-}: TableCardProps<DataType>): JSX.Element {
+}: TableCardProps<DataType>) {
     const [sorting, setSorting] = useState<SortingState>(defaultSorting || []);
 
     const table = useReactTable({

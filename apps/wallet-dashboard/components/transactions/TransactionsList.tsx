@@ -12,10 +12,7 @@ interface TransactionsListProps {
     displayImage?: boolean;
 }
 
-export function TransactionsList({
-    heightClassName,
-    displayImage,
-}: TransactionsListProps): JSX.Element {
+export function TransactionsList({ heightClassName, displayImage }: TransactionsListProps) {
     const currentAccount = useCurrentAccount();
     const { allTransactions, fetchNextPage, hasNextPage, isFetchingNextPage, error } =
         useQueryTransactionsByAddress(currentAccount?.address);
@@ -24,7 +21,7 @@ export function TransactionsList({
         return <div>{error?.message}</div>;
     }
 
-    const virtualItem = (rawTransaction: IotaTransactionBlockResponse): JSX.Element => {
+    const virtualItem = (rawTransaction: IotaTransactionBlockResponse) => {
         const transaction = getExtendedTransaction(rawTransaction, currentAccount?.address || '');
         return <TransactionTile transaction={transaction} />;
     };

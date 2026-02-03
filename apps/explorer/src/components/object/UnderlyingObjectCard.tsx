@@ -18,7 +18,7 @@ export function UnderlyingObjectCard({
     parentId,
     name,
     dynamicFieldType,
-}: UnderlyingObjectCardProps): JSX.Element | null {
+}: UnderlyingObjectCardProps) {
     const { data, isPending, isError, isFetched } = useIotaClientQuery('getDynamicFieldObject', {
         parentObjectId: parentId,
         name,

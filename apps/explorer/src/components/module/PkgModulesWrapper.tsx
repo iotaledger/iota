@@ -29,11 +29,7 @@ interface PkgModulesWrapperProps {
     splitPanelOrientation: Direction;
 }
 
-export function PkgModulesWrapper({
-    id,
-    modules,
-    splitPanelOrientation,
-}: PkgModulesWrapperProps): JSX.Element {
+export function PkgModulesWrapper({ id, modules, splitPanelOrientation }: PkgModulesWrapperProps) {
     const [searchParams, setSearchParams] = useSearchParamsMerged();
     const [query, setQuery] = useState('');
 

@@ -45,7 +45,7 @@ export function ObjectFieldsCard({
     loading,
     error,
     objectType,
-}: ObjectFieldsProps): JSX.Element | null {
+}: ObjectFieldsProps) {
     const [query, setQuery] = useState('');
     const [activeFieldName, setActiveFieldName] = useState('');
     const [openFieldsName, setOpenFieldsName] = useState<{

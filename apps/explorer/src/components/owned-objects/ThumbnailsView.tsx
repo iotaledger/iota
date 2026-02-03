@@ -8,7 +8,7 @@ import { Loader } from '@iota/apps-ui-icons';
 import { ObjectLink, ObjectVideoImage } from '~/components/ui';
 import { parseObjectType, trimStdLibPrefix } from '~/lib/utils';
 
-function Thumbnail({ obj }: { obj: IotaObjectResponse }): JSX.Element {
+function Thumbnail({ obj }: { obj: IotaObjectResponse }) {
     const displayMeta = obj.data?.display?.data;
     const src = displayMeta?.image_url || '';
     const name = displayMeta?.name ?? displayMeta?.description;
@@ -43,7 +43,7 @@ function Thumbnail({ obj }: { obj: IotaObjectResponse }): JSX.Element {
     );
 }
 
-function ThumbnailsOnlyLoading({ limit }: { limit: number }): JSX.Element {
+function ThumbnailsOnlyLoading({ limit }: { limit: number }) {
     return (
         <>
             {new Array(limit).fill(0).map((_, index) => (
@@ -61,7 +61,7 @@ interface ThumbnailsViewViewProps {
     loading?: boolean;
 }
 
-export function ThumbnailsView({ data, loading, limit }: ThumbnailsViewViewProps): JSX.Element {
+export function ThumbnailsView({ data, loading, limit }: ThumbnailsViewViewProps) {
     return (
         <div className="flex flex-row flex-wrap gap-2 overflow-auto md:gap-4">
             {loading ? (

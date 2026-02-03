@@ -13,7 +13,7 @@ import {
 import { PAGE_SIZES_RANGE_20_60 } from '~/lib/constants';
 import { generateTransactionsTableColumns } from '~/lib/ui';
 
-export function CheckpointTransactionBlocks({ id }: { id: string }): JSX.Element {
+export function CheckpointTransactionBlocks({ id }: { id: string }) {
     const [limit, setLimit] = useState(DEFAULT_TRANSACTIONS_LIMIT);
     const transactions = useGetTransactionBlocks(
         {

@@ -45,7 +45,7 @@ export function EnterTimelockedAmountView({
     onBack,
     handleClose,
     onSuccess,
-}: EnterTimelockedAmountViewProps): JSX.Element {
+}: EnterTimelockedAmountViewProps) {
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { values, resetForm } = useFormikContext<FormValues>();
     const [possibleAmount, setPossibleAmount] = useState<bigint | null>(null);

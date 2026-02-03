@@ -7,7 +7,7 @@ import { Theme, useTheme } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { RingChart, RingChartLegend } from '~/components/ui';
 
-export function ValidatorStatus(): JSX.Element | null {
+export function ValidatorStatus() {
     const { data } = useIotaClientQuery('getLatestIotaSystemState');
     const { theme } = useTheme();
 

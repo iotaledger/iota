@@ -17,7 +17,7 @@ type ExpandableListContextType = {
 
 const ExpandableListContext = createContext<ExpandableListContextType | null>(null);
 
-export function ExpandableListItems(): JSX.Element {
+export function ExpandableListItems() {
     const listContext = useContext(ExpandableListContext);
 
     if (!listContext) {
@@ -34,7 +34,7 @@ export function ExpandableListItems(): JSX.Element {
     return <>{itemsDisplayed}</>;
 }
 
-export function ExpandableListControl(): JSX.Element | null {
+export function ExpandableListControl() {
     const listContext = useContext(ExpandableListContext);
 
     if (!listContext) {
@@ -92,7 +92,7 @@ export function ExpandableList({
     defaultItemsToShow,
     itemsLabel,
     children,
-}: ExpandableListProps): JSX.Element {
+}: ExpandableListProps) {
     const [showAll, setShowAll] = useState(false);
 
     const handleShowAllClick = () => setShowAll((prevShowAll: boolean) => !prevShowAll);

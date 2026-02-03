@@ -48,7 +48,7 @@ export function StakeDialog({
     selectedValidator = '',
     setSelectedValidator,
     onUnstakeClick,
-}: StakeDialogProps): JSX.Element {
+}: StakeDialogProps) {
     const account = useCurrentAccount();
     const senderAddress = account?.address ?? '';
     const { data: iotaBalance } = useBalance(senderAddress!);

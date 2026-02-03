@@ -30,7 +30,7 @@ export function VirtualList<T>({
     onClick,
     heightClassName = 'h-fit',
     getItemKey,
-}: VirtualListProps<T>): JSX.Element {
+}: VirtualListProps<T>) {
     const containerRef = useRef<HTMLDivElement>(null);
     const measuredHeights = useRef<Map<number, number>>(new Map());
 

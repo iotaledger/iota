@@ -68,7 +68,7 @@ export function ObjectVideoImage({
     rounded = 'md',
     disableVideoControls,
     disableAutoPlay = false,
-}: ObjectVideoImageProps): JSX.Element {
+}: ObjectVideoImageProps) {
     const close = () => {
         if (disablePreview) {
             return;

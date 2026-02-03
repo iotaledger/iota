@@ -17,7 +17,7 @@ export function OffBalanceAddressesInfo({
     hasMigration,
     onOpenVestingInfo,
     onOpenMigrationInfo,
-}: OffBalanceAddressesInfoProps): JSX.Element | null {
+}: OffBalanceAddressesInfoProps) {
     const [dialogMissingAddressesOpen, setDialogMissingAddressesOpen] = useState(false);
     return (
         <>

@@ -18,7 +18,7 @@ import { CoinFormat, formatBalance, IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/i
 
 const FALLBACK = '--';
 
-export function OnTheNetwork(): JSX.Element {
+export function OnTheNetwork() {
     const { data: networkMetrics } = useGetNetworkMetrics();
     const { data: totalSupply } = useIotaClientQuery('getTotalSupply', {
         coinType: IOTA_TYPE_ARG,

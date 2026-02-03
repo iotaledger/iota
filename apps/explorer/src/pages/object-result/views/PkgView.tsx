@@ -41,7 +41,7 @@ interface PkgViewProps {
     data: DataType;
 }
 
-export function PkgView({ data }: PkgViewProps): JSX.Element {
+export function PkgView({ data }: PkgViewProps) {
     const [selectedSplitPanelOrientation, setSplitPanelOrientation] = useState(
         SPLIT_PANELS_ORIENTATION[1].value,
     );

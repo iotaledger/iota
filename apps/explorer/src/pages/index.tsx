@@ -21,7 +21,7 @@ interface RedirectWithIdProps {
     base: string;
 }
 
-function RedirectWithId({ base }: RedirectWithIdProps): JSX.Element {
+function RedirectWithId({ base }: RedirectWithIdProps) {
     const params = useParams();
     const { search } = useLocation();
     return <Navigate to={`/${base}/${params.id}${search}`} replace />;

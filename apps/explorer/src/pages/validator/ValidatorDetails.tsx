@@ -21,7 +21,7 @@ const getAtRiskRemainingEpochs = (
     return atRisk ? VALIDATOR_LOW_STAKE_GRACE_PERIOD - Number(atRisk[1]) : null;
 };
 
-function ValidatorDetails(): JSX.Element {
+function ValidatorDetails() {
     const { id } = useParams();
     const { data: systemStateData, isLoading: isLoadingSystemState } = useIotaClientQuery(
         'getLatestIotaSystemState',

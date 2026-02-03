@@ -10,7 +10,7 @@ import { ThemeSwitcher } from '@iota/core';
 import { useBreakpoint } from '~/hooks';
 import clsx from 'clsx';
 
-export function Header(): JSX.Element {
+export function Header() {
     const isSm = useBreakpoint('sm');
     return (
         <header

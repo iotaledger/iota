@@ -10,14 +10,7 @@ interface InputProps {
     error?: string;
 }
 
-export function Input({
-    label,
-    value,
-    onChange,
-    placeholder,
-    type = 'text',
-    error,
-}: InputProps): JSX.Element {
+export function Input({ label, value, onChange, placeholder, type = 'text', error }: InputProps) {
     return (
         <div className="flex flex-col gap-1">
             {label && <label>{label}</label>}

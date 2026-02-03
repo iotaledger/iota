@@ -66,7 +66,7 @@ export function Link({
     display,
     gap,
     ...props
-}: LinkProps): JSX.Element {
+}: LinkProps) {
     return (
         <ButtonOrLink className={linkStyles({ variant, size, uppercase })} {...props}>
             <div className={linkContentStyles({ gap, display })}>

@@ -54,7 +54,7 @@ const EMPTY_OBJECT_SUMMARY: ObjectChangeSummary = {
     created: {},
 };
 
-export function TransactionSummary({ transaction }: TransactionSummaryProps): JSX.Element {
+export function TransactionSummary({ transaction }: TransactionSummaryProps) {
     const recognizedPackagesList = useRecognizedPackages();
     const summary = useTransactionSummary({
         transaction,

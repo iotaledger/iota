@@ -32,7 +32,7 @@ interface BalanceChangesProps {
     changes: BalanceChangeSummary;
 }
 
-function BalanceChangeEntry({ change }: { change: BalanceChange }): JSX.Element | null {
+function BalanceChangeEntry({ change }: { change: BalanceChange }) {
     const { amount, coinType, recipient, unRecognizedToken } = change;
     const isMdScreen = useMediaQuery(
         `(min-width: ${BREAK_POINT.md}px) and (max-width: ${BREAK_POINT.lg - 1}px)`,

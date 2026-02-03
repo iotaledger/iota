@@ -34,7 +34,7 @@ export function MigrationDialog({
     open,
     setOpen,
     isTimelocked,
-}: MigrationDialogProps): JSX.Element {
+}: MigrationDialogProps) {
     const account = useCurrentAccount();
     const [basicOutputs, setBasicOutputs] = useState<IotaObjectData[]>(basicOutputObjects);
     const [nftOutputs, setNftOutputs] = useState<IotaObjectData[]>(nftOutputObjects);

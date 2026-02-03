@@ -15,7 +15,7 @@ interface TransactionDataProps {
     transaction: IotaTransactionBlockResponse;
 }
 
-export function TransactionData({ transaction }: TransactionDataProps): JSX.Element {
+export function TransactionData({ transaction }: TransactionDataProps) {
     const recognizedPackagesList = useRecognizedPackages();
     const summary = useTransactionSummary({
         transaction,

@@ -31,7 +31,7 @@ export function SyntaxHighlighter({
     language,
     normalizedModuleReferences,
     id,
-}: SyntaxHighlighterBaseProps): JSX.Element {
+}: SyntaxHighlighterBaseProps) {
     const observerElem = useRef<HTMLDivElement | null>(null);
     const { isIntersecting } = useOnScreen(observerElem);
     const [loadedLines, setLoadedLines] = useState(MAX_LINES);

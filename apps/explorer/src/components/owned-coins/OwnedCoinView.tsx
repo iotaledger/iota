@@ -24,7 +24,7 @@ type OwnedCoinViewProps = {
     id: string;
 };
 
-export function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Element {
+export function OwnedCoinView({ coin, id }: OwnedCoinViewProps) {
     const isIotaCoin = coin.coinType === IOTA_TYPE_ARG;
     const [areCoinDetailsOpen, setAreCoinDetailsOpen] = useState<boolean>(isIotaCoin);
     const [formattedTotalBalance, symbol] = useFormatCoin({

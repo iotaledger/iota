@@ -5,7 +5,7 @@
 import { useTooltipPosition } from '@visx/tooltip';
 import clsx from 'clsx';
 
-export function GraphTooltipContainer({ children }: React.PropsWithChildren): JSX.Element {
+export function GraphTooltipContainer({ children }: React.PropsWithChildren) {
     const { isFlippedHorizontally } = useTooltipPosition();
     return (
         <div

@@ -6,7 +6,7 @@
 import { Panel, Title, TitleSize } from '@iota/apps-ui-kit';
 import { TransactionsList } from '@/components';
 
-function ActivityPage(): JSX.Element {
+function ActivityPage() {
     return (
         <div className="flex justify-center">
             <div className="w-full md:w-3/4">

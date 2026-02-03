@@ -40,7 +40,7 @@ export function PageHeader({
     status,
     showCopyButton = true,
     isLoadingSubtitle,
-}: PageHeaderProps): JSX.Element {
+}: PageHeaderProps) {
     async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
         event.stopPropagation();
         if (!navigator.clipboard) {

@@ -18,12 +18,7 @@ const TYPE_ADDRESS = 'Address';
 const TYPE_URL = '0x2::url::Url';
 const TYPE_OBJECT_ID = ['0x2::object::UID', '0x2::object::ID'];
 
-export function FieldItem({
-    value,
-    type,
-    truncate = false,
-    objectType,
-}: FieldItemProps): JSX.Element {
+export function FieldItem({ value, type, truncate = false, objectType }: FieldItemProps) {
     // for object types, use SyntaxHighlighter
     if (typeof value === 'object') {
         return <SyntaxHighlighter code={JSON.stringify(value, null, 2)} language="json" />;

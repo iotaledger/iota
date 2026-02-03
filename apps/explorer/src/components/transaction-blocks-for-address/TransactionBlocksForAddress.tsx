@@ -77,7 +77,7 @@ interface FiltersControlProps {
     setFilterValue: Dispatch<SetStateAction<ObjectFilterValue>>;
 }
 
-export function FiltersControl({ filterValue, setFilterValue }: FiltersControlProps): JSX.Element {
+export function FiltersControl({ filterValue, setFilterValue }: FiltersControlProps) {
     return (
         <SegmentedButton type={SegmentedButtonType.Outlined}>
             {FILTER_OPTIONS.map(({ label, value }) => (
@@ -97,7 +97,7 @@ export function TransactionBlocksForAddress({
     address,
     filter = ObjectFilterValue.Changed,
     header,
-}: TransactionBlocksForAddressProps): JSX.Element {
+}: TransactionBlocksForAddressProps) {
     const [filterValue, setFilterValue] = useState(filter);
     const [currentPageState, dispatch] = useReducer(reducer, {
         [ObjectFilterValue.Input]: 0,

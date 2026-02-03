@@ -36,7 +36,7 @@ enum NestedTabs {
     Aggregated = 'aggregated',
 }
 
-export function CheckpointDetail(): JSX.Element {
+export function CheckpointDetail() {
     const [activeFeesTabId, setActiveFeesTabId] = useState(FeesTabs.GasAndStorageFees);
     const [activeDetailsTabId, setActiveDetailsTabId] = useState(DetailsTabs.Details);
     const [activeNestedTabId, setActiveNestedTabId] = useState(NestedTabs.Aggregated);

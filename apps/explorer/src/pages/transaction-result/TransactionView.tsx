@@ -33,7 +33,7 @@ enum TabCategory {
     Signatures = 'signatures',
 }
 
-export function TransactionView({ transaction }: TransactionViewProps): JSX.Element {
+export function TransactionView({ transaction }: TransactionViewProps) {
     const [activeTab, setActiveTab] = useState<string>(TabCategory.Summary);
     const [isCollapsed, setIsCollapsed] = useState(false);
 

@@ -55,7 +55,7 @@ export function EnterValuesFormView({
     coinBalance,
     iotaBalance,
     showLoading,
-}: EnterValuesFormProps): JSX.Element {
+}: EnterValuesFormProps) {
     const formik = useFormikContext<FormDataValues>();
 
     // Get all coins of the type

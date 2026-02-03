@@ -7,7 +7,7 @@ interface ButtonProps {
     disabled?: boolean;
 }
 
-export function Button({ onClick, children, disabled }: ButtonProps): JSX.Element {
+export function Button({ onClick, children, disabled }: ButtonProps) {
     return (
         <button
             onClick={onClick}

@@ -44,7 +44,7 @@ function AddressResultPageHeader({ address }: AddressResultPageHeaderProps): Rea
     );
 }
 
-function AddressOrNameResult({ addressOrName }: { addressOrName: string }): JSX.Element {
+function AddressOrNameResult({ addressOrName }: { addressOrName: string }) {
     const isName = isValidIotaName(addressOrName);
     const { data } = useGetDefaultIotaName(isName ? addressOrName : undefined);
 
@@ -68,7 +68,7 @@ function AddressOrNameResult({ addressOrName }: { addressOrName: string }): JSX.
     );
 }
 
-export function AddressResultPage(): JSX.Element {
+export function AddressResultPage() {
     const { id } = useParams();
 
     return (

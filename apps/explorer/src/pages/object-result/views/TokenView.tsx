@@ -130,7 +130,7 @@ interface TokenViewProps {
     data: IotaObjectResponse;
 }
 
-export function TokenView({ data }: TokenViewProps): JSX.Element {
+export function TokenView({ data }: TokenViewProps) {
     // eslint-disable-next-line @typescript-eslint/no-non-null-asserted-optional-chain
     const objectId = data.data?.objectId!;
 

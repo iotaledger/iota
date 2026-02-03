@@ -10,7 +10,7 @@ import type { FallbackProps } from 'react-error-boundary';
 import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
 import { Warning } from '@iota/apps-ui-icons';
 
-function Fallback({ error }: FallbackProps): JSX.Element {
+function Fallback({ error }: FallbackProps) {
     return (
         <InfoBox
             title="Error"
@@ -26,7 +26,7 @@ type ErrorBoundaryProps = {
     children: ReactNode | ReactNode[];
 };
 
-export function ErrorBoundary({ children }: ErrorBoundaryProps): JSX.Element {
+export function ErrorBoundary({ children }: ErrorBoundaryProps) {
     const location = useLocation();
     return (
         <ReactErrorBoundary

@@ -35,7 +35,7 @@ function getColorFromGradient({ deg, values }: Gradient): string {
     return `linear-gradient(${gradientResult.join(',')})`;
 }
 
-export function RingChartLegend({ data }: RingChartLegendProps): JSX.Element {
+export function RingChartLegend({ data }: RingChartLegendProps) {
     return (
         <>
             {data.map(({ color, gradient, label, value }) => {
@@ -70,13 +70,7 @@ interface RingChartProperties {
 export interface RingChartProps extends RingChartProperties {
     data: RingChartData;
 }
-export function RingChart({
-    data,
-    cx = 25,
-    cy = 25,
-    radius = 20,
-    width = 5,
-}: RingChartProps): JSX.Element {
+export function RingChart({ data, cx = 25, cy = 25, radius = 20, width = 5 }: RingChartProps) {
     const dashArray = 2 * Math.PI * radius;
     const startAngle = -90;
     const total = data.reduce((acc, { value }) => acc + value, 0);

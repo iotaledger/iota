@@ -105,7 +105,7 @@ const MIN_OBJECT_COUNT_TO_HEIGHT_MAP: Record<number, OwnedObjectsContainerHeight
 interface OwnedObjectsProps {
     id: string;
 }
-export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
+export function OwnedObjects({ id }: OwnedObjectsProps) {
     const [limit, setLimit] = useState(50);
     const [filter, setFilter] = useLocalStorage<string | undefined>(
         OWNED_OBJECTS_LOCAL_STORAGE_FILTER,

@@ -25,7 +25,7 @@ interface HeroVideoImageProps {
     src: string;
 }
 
-function HeroVideoImage({ title, subtitle, src }: HeroVideoImageProps): JSX.Element {
+function HeroVideoImage({ title, subtitle, src }: HeroVideoImageProps) {
     const [open, setOpen] = useState(false);
 
     return (
@@ -57,7 +57,7 @@ interface NameCardProps {
     name: string;
 }
 
-function NameCard({ name }: NameCardProps): JSX.Element {
+function NameCard({ name }: NameCardProps) {
     return <DisplayStats label="Name" value={name} />;
 }
 
@@ -67,7 +67,7 @@ interface DescriptionCardProps {
     };
 }
 
-function DescriptionCard({ display }: DescriptionCardProps): JSX.Element {
+function DescriptionCard({ display }: DescriptionCardProps) {
     return <DisplayStats label="Description" value={display?.description ?? ''} />;
 }
 
@@ -75,7 +75,7 @@ interface ObjectIdCardProps {
     objectId: string;
 }
 
-function ObjectIdCard({ objectId }: ObjectIdCardProps): JSX.Element {
+function ObjectIdCard({ objectId }: ObjectIdCardProps) {
     return (
         <DisplayStats
             label="Object ID"
@@ -92,7 +92,7 @@ interface TypeCardCardProps {
     objectType: string;
 }
 
-function TypeCard({ objectType }: TypeCardCardProps): JSX.Element {
+function TypeCard({ objectType }: TypeCardCardProps) {
     const { address, module, typeParams, ...rest } = parseStructTag(objectType);
 
     const formattedTypeParams = typeParams.map((typeParam) => {
@@ -134,7 +134,7 @@ interface VersionCardProps {
     version?: string;
 }
 
-function VersionCard({ version }: VersionCardProps): JSX.Element {
+function VersionCard({ version }: VersionCardProps) {
     return <DisplayStats label="Version" value={version ?? '--'} />;
 }
 
@@ -142,7 +142,7 @@ interface LastTxBlockCardProps {
     digest: string;
 }
 
-function LastTxBlockCard({ digest }: LastTxBlockCardProps): JSX.Element {
+function LastTxBlockCard({ digest }: LastTxBlockCardProps) {
     return (
         <DisplayStats
             label="Last Transaction Block Digest"
@@ -166,7 +166,7 @@ interface OwnerCardProps {
     objOwner: ObjectOwner;
 }
 
-function OwnerCard({ objOwner }: OwnerCardProps): JSX.Element | null {
+function OwnerCard({ objOwner }: OwnerCardProps) {
     return (
         <DisplayStats
             label="Owner"
@@ -196,7 +196,7 @@ interface StorageRebateCardProps {
     storageRebate: string;
 }
 
-function StorageRebateCard({ storageRebate }: StorageRebateCardProps): JSX.Element | null {
+function StorageRebateCard({ storageRebate }: StorageRebateCardProps) {
     const [storageRebateFormatted, symbol] = useFormatCoin({
         balance: storageRebate,
         format: CoinFormat.Full,
@@ -215,7 +215,7 @@ interface ObjectViewProps {
     data: IotaObjectResponse;
 }
 
-export function ObjectView({ data }: ObjectViewProps): JSX.Element {
+export function ObjectView({ data }: ObjectViewProps) {
     const display = data.data?.display?.data;
     const src = display?.image_url || '';
     const { data: nftMediaHeaders } = useNFTMediaHeaders(src);

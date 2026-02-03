@@ -29,7 +29,7 @@ export interface PlayPauseProps {
     };
 }
 
-export function PlayPause({ paused, onChange, animate }: PlayPauseProps): JSX.Element {
+export function PlayPause({ paused, onChange, animate }: PlayPauseProps) {
     const Icon = paused ? Play : Pause;
 
     const isAnimating = animate?.start && !paused;

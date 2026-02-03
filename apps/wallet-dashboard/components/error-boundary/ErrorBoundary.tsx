@@ -13,7 +13,7 @@ import type { ReactNode } from 'react';
 import type { FallbackProps } from 'react-error-boundary';
 import { ErrorBoundary as ReactErrorBoundary } from 'react-error-boundary';
 
-function Fallback({ error }: FallbackProps): JSX.Element {
+function Fallback({ error }: FallbackProps) {
     const isCompatibilityError =
         error.message?.includes('structuredClone') || error.name === 'TypeError';
 

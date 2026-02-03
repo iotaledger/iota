@@ -24,7 +24,7 @@ export function SelectValidatorView({
     onNext,
     selectedValidator,
     handleClose,
-}: SelectValidatorViewProps): JSX.Element {
+}: SelectValidatorViewProps) {
     const [searchValidator, setSearchValidator] = useState('');
 
     const { isCommitteeMember } = useIsValidatorCommitteeMember();

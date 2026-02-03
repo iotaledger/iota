@@ -24,7 +24,7 @@ interface SettingsListViewProps {
     setView: (view: SettingsDialogView) => void;
 }
 
-export function SettingsListView({ handleClose, setView }: SettingsListViewProps): JSX.Element {
+export function SettingsListView({ handleClose, setView }: SettingsListViewProps) {
     const { persistedNetwork } = usePersistedNetwork();
     const MENU_ITEMS = [
         {

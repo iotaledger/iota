@@ -30,10 +30,7 @@ interface AccountBalanceItemProps {
     accountIndex: string;
 }
 
-export function AccountBalanceItem({
-    accounts,
-    accountIndex,
-}: AccountBalanceItemProps): JSX.Element {
+export function AccountBalanceItem({ accounts, accountIndex }: AccountBalanceItemProps) {
     const queryClient = useQueryClient();
     const iotaContext = useIotaClientContext();
 

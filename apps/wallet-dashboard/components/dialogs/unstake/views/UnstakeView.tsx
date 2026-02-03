@@ -48,7 +48,7 @@ export function UnstakeView({
     onBack,
     onSuccess,
     showActiveStatus,
-}: UnstakeDialogProps): JSX.Element {
+}: UnstakeDialogProps) {
     const activeAddress = useCurrentAccount()?.address ?? '';
     const {
         data: unstakeData,

@@ -24,7 +24,7 @@ export interface ProgressBarProps {
     progress: number;
 }
 
-export function ProgressBar({ progress }: ProgressBarProps): JSX.Element {
+export function ProgressBar({ progress }: ProgressBarProps) {
     return (
         <div className="relative w-full rounded-full bg-iota-primary-90 dark:bg-iota-primary-10">
             <motion.div

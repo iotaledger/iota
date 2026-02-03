@@ -14,14 +14,7 @@ export interface ObjectModalProps extends Omit<ModalProps, 'children'> {
     src: string;
 }
 
-export function ObjectModal({
-    open,
-    onClose,
-    alt,
-    title,
-    subtitle,
-    src,
-}: ObjectModalProps): JSX.Element {
+export function ObjectModal({ open, onClose, alt, title, subtitle, src }: ObjectModalProps) {
     const { data: nftMediaHeaders, isLoading } = useNFTMediaHeaders(src);
     const { type, shouldAutoPlayVideo, isMediaSupported } = resolveNFTMedia(src, nftMediaHeaders);
 

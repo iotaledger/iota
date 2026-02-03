@@ -19,7 +19,7 @@ export function FilterList<T extends string>({
     selected,
     onSelected,
     filtersAsChip,
-}: FilterListProps<T>): JSX.Element {
+}: FilterListProps<T>) {
     const FilterComponent = filtersAsChip ? Chip : ButtonSegment;
 
     return (

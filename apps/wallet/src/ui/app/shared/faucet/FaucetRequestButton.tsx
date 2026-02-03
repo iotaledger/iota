@@ -11,7 +11,7 @@ import { useFaucetRateLimiter } from './useFaucetRateLimiter';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
 import { FaucetMessageInfo } from './FaucetMessageInfo';
 
-export function FaucetRequestButton(): JSX.Element | null {
+export function FaucetRequestButton() {
     const network = useAppSelector(({ app }) => app.network);
     const customRpc = useAppSelector(({ app }) => app.customRpc);
     const networkConfig = customRpc ? getCustomNetwork(customRpc) : getNetwork(network);

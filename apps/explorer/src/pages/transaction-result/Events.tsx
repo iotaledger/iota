@@ -17,7 +17,7 @@ import { useState } from 'react';
 import { SyntaxHighlighter } from '~/components';
 import { ObjectLink } from '~/components/ui';
 
-function Event({ event, divider }: { event: IotaEvent; divider: boolean }): JSX.Element {
+function Event({ event, divider }: { event: IotaEvent; divider: boolean }) {
     const [open, setOpen] = useState(false);
     const { address, module, name } = parseStructTag(event.type);
     const objectLinkLabel = [formatAddress(address), module, name].join('::');

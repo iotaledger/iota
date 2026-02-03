@@ -39,7 +39,7 @@ export function EnterAmountView({
     availableBalance,
     senderAddress,
     onSuccess,
-}: EnterAmountViewProps): JSX.Element {
+}: EnterAmountViewProps) {
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { values, resetForm, setFieldValue } = useFormikContext<FormValues>();
 

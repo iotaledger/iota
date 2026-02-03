@@ -21,7 +21,7 @@ interface OwnObjectContainerProps {
     children: ReactNode;
 }
 
-function OwnObjectContainer({ id, children }: OwnObjectContainerProps): JSX.Element {
+function OwnObjectContainer({ id, children }: OwnObjectContainerProps) {
     return (
         <div className="max-w-full rounded-xl p-xs hover:bg-iota-neutral-92 dark:hover:bg-iota-neutral-12">
             <ObjectLink display="block" objectId={id} label={children} className="max-w-full" />
@@ -29,7 +29,7 @@ function OwnObjectContainer({ id, children }: OwnObjectContainerProps): JSX.Elem
     );
 }
 
-function SmallThumbnailsViewLoading({ limit }: { limit: number }): JSX.Element {
+function SmallThumbnailsViewLoading({ limit }: { limit: number }) {
     return (
         <>
             {new Array(limit).fill(0).map((_, index) => (
@@ -41,7 +41,7 @@ function SmallThumbnailsViewLoading({ limit }: { limit: number }): JSX.Element {
     );
 }
 
-function SmallThumbnail({ obj }: { obj: IotaObjectResponse }): JSX.Element {
+function SmallThumbnail({ obj }: { obj: IotaObjectResponse }) {
     const displayMeta = obj.data?.display?.data;
     const src = displayMeta?.image_url || '';
     const name = displayMeta?.name ?? displayMeta?.description ?? '--';
@@ -76,11 +76,7 @@ function SmallThumbnail({ obj }: { obj: IotaObjectResponse }): JSX.Element {
     );
 }
 
-export function SmallThumbnailsView({
-    data,
-    loading,
-    limit,
-}: SmallThumbnailsViewProps): JSX.Element {
+export function SmallThumbnailsView({ data, loading, limit }: SmallThumbnailsViewProps) {
     return (
         <div className="h-full overflow-auto">
             <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-y-xxs">

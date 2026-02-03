@@ -18,7 +18,7 @@ type PageLayoutProps = {
     loading?: boolean;
 };
 
-export function PageLayout({ content, loading }: PageLayoutProps): JSX.Element {
+export function PageLayout({ content, loading }: PageLayoutProps) {
     const [network] = useNetworkContext();
     const { request } = useAppsBackend();
     const outageOverride = useFeatureIsOn(Feature.NetworkOutageOverride as string);

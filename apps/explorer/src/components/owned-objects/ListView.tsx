@@ -12,7 +12,7 @@ interface ListViewProps {
     loading?: boolean;
 }
 
-export function ListView({ data, loading }: ListViewProps): JSX.Element {
+export function ListView({ data, loading }: ListViewProps) {
     const tableColumns = generateObjectListColumns();
 
     return (

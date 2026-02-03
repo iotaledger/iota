@@ -56,7 +56,7 @@ export function ModuleFunction({
     moduleName,
     functionName,
     functionDetails,
-}: ModuleFunctionProps): JSX.Element {
+}: ModuleFunctionProps) {
     const currentAccount = useCurrentAccount();
     const iotaClient = useIotaClient();
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction({

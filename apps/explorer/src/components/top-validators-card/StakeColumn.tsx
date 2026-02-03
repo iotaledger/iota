@@ -12,11 +12,7 @@ type StakeColumnProps = {
     inNano?: boolean;
 };
 
-export function StakeColumn({
-    stake,
-    hideCoinSymbol,
-    inNano = false,
-}: StakeColumnProps): JSX.Element {
+export function StakeColumn({ stake, hideCoinSymbol, inNano = false }: StakeColumnProps) {
     const coinFormat = hideCoinSymbol ? CoinFormat.Full : CoinFormat.Rounded;
     const [amount, symbol] = useFormatCoin({ balance: stake, format: coinFormat });
 

@@ -4,6 +4,6 @@
 import { CookiePolicy } from '~/components/disclaimer/CookiePolicy';
 import { PageLayout } from '~/components';
 
-export function CookiePolicyPage(): JSX.Element {
+export function CookiePolicyPage() {
     return <PageLayout content={<CookiePolicy />} />;
 }

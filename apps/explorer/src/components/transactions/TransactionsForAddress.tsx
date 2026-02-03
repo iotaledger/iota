@@ -46,7 +46,7 @@ export function TransactionsForAddressTable({
     limit,
     setLimit,
     pagination,
-}: TransactionsForAddressTableProps): JSX.Element {
+}: TransactionsForAddressTableProps) {
     if (isLoading) {
         return (
             <div className="flex flex-col gap-y-6">
@@ -109,7 +109,7 @@ export function TransactionsForAddressTable({
     );
 }
 
-export function TransactionsForAddress({ address }: TransactionsForAddressProps): JSX.Element {
+export function TransactionsForAddress({ address }: TransactionsForAddressProps) {
     const [limit, setLimit] = useState(PAGE_RANGE[0]);
     const client = useIotaClient();
 

@@ -8,7 +8,7 @@ interface BoxProps {
     title?: string;
 }
 
-export function Box({ children, title }: BoxProps): JSX.Element {
+export function Box({ children, title }: BoxProps) {
     return (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-white p-4">
             {title && <h2>{title}</h2>}
