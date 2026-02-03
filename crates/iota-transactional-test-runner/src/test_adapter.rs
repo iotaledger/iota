@@ -97,6 +97,7 @@ use move_transactional_test_runner::{
 use move_vm_runtime::session::SerializedReturnValues;
 use once_cell::sync::Lazy;
 use rand::{Rng, SeedableRng, rngs::StdRng};
+use simulacrum::SimulatorStore;
 use tempfile::{NamedTempFile, tempdir};
 
 use crate::{
@@ -2681,57 +2682,56 @@ async fn init_sim_executor(
     // Create the simulator with the specific account configs, which also crates
     // objects
 
-    let (mut sim, read_replica) =
-        PersistedStore::new_sim_replica_with_protocol_version_and_accounts(
-            rng,
-            DEFAULT_CHAIN_START_TIMESTAMP,
-            protocol_config.version,
-            acc_cfgs,
-            key_copy.map(|q| vec![q]),
-            reference_gas_price,
-            None,
-        );
+    let (sim, read_replica) = PersistedStore::new_sim_replica_with_protocol_version_and_accounts(
+        rng,
+        DEFAULT_CHAIN_START_TIMESTAMP,
+        protocol_config.version,
+        acc_cfgs,
+        key_copy.map(|q| vec![q]),
+        reference_gas_price,
+        None,
+    );
 
     sim.set_data_ingestion_path(data_ingestion_path.clone());
 
     // Get the actual object values from the simulator
-    for (name, (addr, kp)) in account_kps {
-        let o = sim.store().owned_objects(addr).next().unwrap();
-        objects.push(o.clone());
-        account_objects.insert(name.clone(), o.id());
+    let default_account = sim.with_store(|store| {
+        for (name, (addr, kp)) in account_kps {
+            let o = store.owned_objects(addr).next().unwrap();
+            objects.push(o.clone());
+            account_objects.insert(name.clone(), o.id());
 
-        accounts.insert(
-            name.to_owned(),
-            TestAccount {
-                address: addr,
-                key_pair: Some(kp),
-                gas: o.id(),
-            },
-        );
-    }
-    let o = sim
-        .store()
-        .owned_objects(default_account_kp.0)
-        .next()
-        .unwrap();
-    let default_account = TestAccount {
-        address: default_account_kp.0,
-        key_pair: Some(default_account_kp.1),
-        gas: o.id(),
-    };
-    objects.push(o.clone());
-
-    if let (Some(v_addr), Some(v_key)) = (validator_addr, validator_key) {
-        let o = sim.store().owned_objects(v_addr).next().unwrap();
-        let validator_account = TestAccount {
-            address: v_addr,
-            key_pair: Some(v_key),
+            accounts.insert(
+                name.to_owned(),
+                TestAccount {
+                    address: addr,
+                    key_pair: Some(kp),
+                    gas: o.id(),
+                },
+            );
+        }
+        let o = store.owned_objects(default_account_kp.0).next().unwrap();
+        let default_account = TestAccount {
+            address: default_account_kp.0,
+            key_pair: Some(default_account_kp.1),
             gas: o.id(),
         };
         objects.push(o.clone());
-        account_objects.insert("validator_0".to_string(), o.id());
-        accounts.insert("validator_0".to_string(), validator_account);
-    }
+
+        if let (Some(v_addr), Some(v_key)) = (validator_addr, validator_key) {
+            let o = store.owned_objects(v_addr).next().unwrap();
+            let validator_account = TestAccount {
+                address: v_addr,
+                key_pair: Some(v_key),
+                gas: o.id(),
+            };
+            objects.push(o.clone());
+            account_objects.insert("validator_0".to_string(), o.id());
+            accounts.insert("validator_0".to_string(), validator_account);
+        }
+
+        default_account
+    });
 
     let sim = Box::new(sim);
     update_named_address_mapping(

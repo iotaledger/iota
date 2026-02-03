@@ -7,7 +7,7 @@ use std::{fs, path::PathBuf, time::Duration};
 use iota_config::node::AuthorityStorePruningConfig;
 use itertools::Itertools;
 use tokio::sync::oneshot;
-use tracing::{error, info};
+use tracing::{info, warn};
 use typed_store::rocks::safe_drop_db;
 
 use crate::authority::authority_per_epoch_store::EPOCH_DB_PREFIX;
@@ -39,9 +39,9 @@ impl AuthorityPerEpochStorePruner {
                 tokio::select! {
                     _ = prune_interval.tick() => {
                         info!("Starting pruning of epoch tables");
-                        match Self::prune_old_directories(&parent_path, num_latest_epoch_dbs_to_retain) {
+                        match Self::prune_old_directories(&parent_path, num_latest_epoch_dbs_to_retain).await {
                             Ok(pruned_count) => info!("Finished pruning old epoch databases. Pruned {} dbs", pruned_count),
-                            Err(err) => error!("Error while removing old epoch databases {:?}", err),
+                            Err(err) => warn!("Error while removing old epoch databases {:?}", err),
                         }
                     }
                     _ = &mut recv => break,
@@ -56,7 +56,7 @@ impl AuthorityPerEpochStorePruner {
     /// identifies epoch directories, sorts them, and deletes the older
     /// ones. Returns the number of directories pruned or an error if the
     /// pruning process encounters an issue.
-    fn prune_old_directories(
+    async fn prune_old_directories(
         parent_path: &PathBuf,
         num_latest_epoch_dbs_to_retain: usize,
     ) -> Result<usize, anyhow::Error> {
@@ -71,17 +71,23 @@ impl AuthorityPerEpochStorePruner {
             }
         }
         let mut pruned = 0;
-        let mut gc_results = vec![];
+        let mut gc_tasks = vec![];
         if num_latest_epoch_dbs_to_retain < candidates.len() {
             let to_prune = candidates.len() - num_latest_epoch_dbs_to_retain;
             for (_, path) in candidates.into_iter().sorted().take(to_prune) {
                 info!("Dropping epoch directory {:?}", path);
                 pruned += 1;
-                gc_results.push(safe_drop_db(path.join("recovery_log")));
-                gc_results.push(safe_drop_db(path));
+                gc_tasks.push(safe_drop_db(
+                    path.join("recovery_log"),
+                    Duration::from_secs(30),
+                ));
+                gc_tasks.push(safe_drop_db(path, Duration::from_secs(30)));
             }
         }
-        gc_results.into_iter().collect::<Result<Vec<_>, _>>()?;
+        futures::future::join_all(gc_tasks)
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(pruned)
     }
 }
@@ -92,8 +98,8 @@ mod tests {
 
     use crate::authority::authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner;
 
-    #[test]
-    fn test_basic_epoch_pruner() {
+    #[tokio::test]
+    async fn test_basic_epoch_pruner() {
         let parent_directory = tempfile::tempdir().unwrap().keep();
         let directories: Vec<_> = vec!["epoch_0", "epoch_1", "epoch_3", "epoch_4"]
             .into_iter()
@@ -103,8 +109,9 @@ mod tests {
             fs::create_dir(directory).expect("failed to create directory");
         }
 
-        let pruned =
-            AuthorityPerEpochStorePruner::prune_old_directories(&parent_directory, 2).unwrap();
+        let pruned = AuthorityPerEpochStorePruner::prune_old_directories(&parent_directory, 2)
+            .await
+            .unwrap();
         assert_eq!(pruned, 2);
         assert_eq!(
             directories

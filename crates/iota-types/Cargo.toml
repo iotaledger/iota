@@ -13,6 +13,7 @@ workspace = true
 # external dependencies
 anemo.workspace = true
 anyhow.workspace = true
+async-stream.workspace = true
 async-trait.workspace = true
 base64.workspace = true
 bcs.workspace = true
@@ -26,6 +27,7 @@ eyre.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
 fastcrypto-tbls.workspace = true
 fastcrypto-zkp.workspace = true
+futures.workspace = true
 hex.workspace = true
 im.workspace = true
 indexmap.workspace = true
@@ -41,7 +43,7 @@ passkey-types.workspace = true
 prometheus.workspace = true
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
-prost-types = "0.14"
+prost-types.workspace = true
 rand.workspace = true
 roaring.workspace = true
 schemars.workspace = true

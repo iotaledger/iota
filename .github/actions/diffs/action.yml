@@ -68,6 +68,7 @@ runs:
             - "crates/iota-grpc-client/**"
             - "crates/iota-grpc-server/**"
             - "crates/iota-grpc-types/**"
+            - "crates/iota-proto-build/**"
             - ".github/workflows/hierarchy.yml"
             - ".github/workflows/_e2e.yml"
             - "Cargo.toml"

@@ -389,14 +389,6 @@ pub enum TransactionKind {
     /// A transaction that allows the interleaving of native commands and Move
     /// calls
     ProgrammableTransaction(ProgrammableTransaction),
-    /// A system transaction that will update epoch information on-chain.
-    /// It will only ever be executed once in an epoch.
-    /// The argument is the next epoch number, which is critical
-    /// because it ensures that this transaction has a unique digest.
-    /// This will eventually be translated to a Move call during execution.
-    /// It also doesn't require/use a gas object.
-    /// A validator will not sign a transaction of this kind from outside. It
-    /// only signs internally during epoch changes.
     Genesis(GenesisTransaction),
     ConsensusCommitPrologueV1(ConsensusCommitPrologueV1),
     AuthenticatorStateUpdateV1(AuthenticatorStateUpdateV1),
