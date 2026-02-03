@@ -4,7 +4,6 @@
 
 import { Slot } from '@radix-ui/react-slot';
 import clsx from 'clsx';
-import { forwardRef } from 'react';
 
 import { headingVariants } from './Heading.css.js';
 import type { HeadingVariants } from './Heading.css.js';
@@ -21,33 +20,31 @@ type HeadingAsProps = {
 
 type HeadingProps = (HeadingAsChildProps | HeadingAsProps) &
     React.HTMLAttributes<HTMLHeadingElement> &
-    HeadingVariants;
+    HeadingVariants & {
+        ref?: React.Ref<HTMLHeadingElement>;
+    };
 
-const Heading = forwardRef<HTMLHeadingElement, HeadingProps>(
-    (
-        {
-            children,
-            className,
-            asChild = false,
-            as: Tag = 'h1',
-            size,
-            weight,
-            truncate,
-            ...headingProps
-        },
-        forwardedRef,
-    ) => {
-        return (
-            <Slot
-                {...headingProps}
-                ref={forwardedRef}
-                className={clsx(headingVariants({ size, weight, truncate }), className)}
-            >
-                {asChild ? children : <Tag>{children}</Tag>}
-            </Slot>
-        );
-    },
-);
+const Heading = ({
+    children,
+    className,
+    asChild = false,
+    as: Tag = 'h1',
+    size,
+    weight,
+    truncate,
+    ref,
+    ...headingProps
+}: HeadingProps) => {
+    return (
+        <Slot
+            {...headingProps}
+            ref={ref}
+            className={clsx(headingVariants({ size, weight, truncate }), className)}
+        >
+            {asChild ? children : <Tag>{children}</Tag>}
+        </Slot>
+    );
+};
 Heading.displayName = 'Heading';
 
 export { Heading };

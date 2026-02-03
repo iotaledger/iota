@@ -4,7 +4,6 @@
 
 import { Slot } from '@radix-ui/react-slot';
 import clsx from 'clsx';
-import { forwardRef } from 'react';
 
 import { textVariants } from './Text.css.js';
 import type { TextVariants } from './Text.css.js';
@@ -18,34 +17,32 @@ type TextDivProps = { as: 'div'; asChild?: never };
 
 type TextProps = (TextAsChildProps | TextDivProps) &
     React.HTMLAttributes<HTMLDivElement> &
-    TextVariants;
+    TextVariants & {
+        ref?: React.Ref<HTMLDivElement>;
+    };
 
-const Text = forwardRef<HTMLDivElement, TextProps>(
-    (
-        {
-            children,
-            className,
-            asChild = false,
-            as: Tag = 'div',
-            size,
-            weight,
-            color,
-            mono,
-            ...textProps
-        },
-        forwardedRef,
-    ) => {
-        return (
-            <Slot
-                {...textProps}
-                ref={forwardedRef}
-                className={clsx(textVariants({ size, weight, color, mono }), className)}
-            >
-                {asChild ? children : <Tag>{children}</Tag>}
-            </Slot>
-        );
-    },
-);
+const Text = ({
+    children,
+    className,
+    asChild = false,
+    as: Tag = 'div',
+    size,
+    weight,
+    color,
+    mono,
+    ref,
+    ...textProps
+}: TextProps) => {
+    return (
+        <Slot
+            {...textProps}
+            ref={ref}
+            className={clsx(textVariants({ size, weight, color, mono }), className)}
+        >
+            {asChild ? children : <Tag>{children}</Tag>}
+        </Slot>
+    );
+};
 Text.displayName = 'Text';
 
 export { Text };

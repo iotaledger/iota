@@ -3,23 +3,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Slot } from '@radix-ui/react-slot';
-import type { ComponentPropsWithoutRef, ElementRef, ReactNode } from 'react';
-import { forwardRef } from 'react';
+import type { ComponentPropsWithoutRef, ComponentRef, ReactNode } from 'react';
 
 import { styleDataAttribute } from '../../constants/styleDataAttribute.js';
 
 import './StyleMarker.css.js';
 
-type StyleMarker = {
+type StyleMarkerProps = {
     children: ReactNode;
-};
+    ref?: React.Ref<ComponentRef<typeof Slot>>;
+} & ComponentPropsWithoutRef<typeof Slot>;
 
-export const StyleMarker = forwardRef<
-    ElementRef<typeof Slot>,
-    ComponentPropsWithoutRef<typeof Slot>
->(({ children, ...props }, forwardedRef) => (
-    <Slot ref={forwardedRef} {...props} {...styleDataAttribute}>
+export const StyleMarker = ({ children, ref, ...props }: StyleMarkerProps) => (
+    <Slot ref={ref} {...props} {...styleDataAttribute}>
         {children}
     </Slot>
-));
+);
 StyleMarker.displayName = 'StyleMarker';

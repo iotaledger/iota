@@ -85,7 +85,7 @@ export function Table({
     children,
     pageSizeSelector,
     heightFull = false,
-}: PropsWithChildren<TableProps>): JSX.Element {
+}: PropsWithChildren<TableProps>): React.JSX.Element {
     return (
         <TableProvider selectedRowIndexes={selectedRowIndexes} rowIndexes={rowIndexes}>
             <div className={cx('w-full', { 'h-full': heightFull })}>
@@ -166,14 +166,14 @@ export function TableActionButton(props: PropsWithChildren<ButtonProps>) {
     return <Button type={ButtonType.Secondary} size={ButtonSize.Small} {...props} />;
 }
 
-export function TableHeader({ children }: PropsWithChildren): JSX.Element {
+export function TableHeader({ children }: PropsWithChildren): React.JSX.Element {
     return <thead>{children}</thead>;
 }
 
 export function TableRow({
     children,
     leading,
-}: PropsWithChildren<{ leading?: React.ReactNode }>): JSX.Element {
+}: PropsWithChildren<{ leading?: React.ReactNode }>): React.JSX.Element {
     return (
         <tr>
             {leading}
@@ -185,7 +185,7 @@ export function TableRow({
 const TEXT_COLOR_CLASS = 'table-text-color';
 const TEXT_SIZE_CLASS = 'text-body-md';
 
-export function TableBody({ children }: PropsWithChildren): JSX.Element {
+export function TableBody({ children }: PropsWithChildren): React.JSX.Element {
     return <tbody className={cx(TEXT_COLOR_CLASS, TEXT_SIZE_CLASS)}>{children}</tbody>;
 }
 
@@ -216,7 +216,9 @@ export interface TableHeaderCheckboxProps {
     onCheckboxChange: (checked: boolean) => void;
 }
 
-export function TableHeaderCheckbox({ onCheckboxChange }: TableHeaderCheckboxProps): JSX.Element {
+export function TableHeaderCheckbox({
+    onCheckboxChange,
+}: TableHeaderCheckboxProps): React.JSX.Element {
     const { isHeaderChecked, isHeaderIndeterminate } = useTableContext();
 
     return (

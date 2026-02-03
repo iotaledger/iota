@@ -5,7 +5,7 @@ import { Link as LinkIcon } from '@iota/apps-ui-icons';
 import { ConnectModal } from '@iota/dapp-kit';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import clsx from 'clsx';
-import { type ComponentPropsWithoutRef, forwardRef } from 'react';
+import { type ComponentPropsWithoutRef } from 'react';
 
 interface ConnectInputProps {
     label: string;
@@ -32,10 +32,14 @@ export function WalletConnectInput({ label, isDestination, isLayer1 }: ConnectIn
         </div>
     );
 }
-export const WalletConnectionInputButton = forwardRef<
-    HTMLButtonElement,
-    ComponentPropsWithoutRef<'button'>
->(function WalletConnectInputButton(props, ref) {
+interface WalletConnectionInputButtonProps extends ComponentPropsWithoutRef<'button'> {
+    ref?: React.Ref<HTMLButtonElement>;
+}
+
+export function WalletConnectionInputButton({
+    ref,
+    ...props
+}: WalletConnectionInputButtonProps): React.JSX.Element {
     return (
         <button
             type="button"
@@ -49,4 +53,6 @@ export const WalletConnectionInputButton = forwardRef<
             </div>
         </button>
     );
-});
+}
+
+WalletConnectionInputButton.displayName = 'WalletConnectionInputButton';

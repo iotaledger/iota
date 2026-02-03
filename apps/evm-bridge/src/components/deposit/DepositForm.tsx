@@ -12,7 +12,7 @@ import {
     KeyValueInfo,
 } from '@iota/apps-ui-kit';
 import { useCurrentAccount } from '@iota/dapp-kit';
-import { type ComponentProps, forwardRef, useCallback, useEffect } from 'react';
+import { type ComponentProps, useCallback, useEffect } from 'react';
 import { type SubmitHandler, useFormContext } from 'react-hook-form';
 import { WalletConnectInput } from '..';
 import { DepositFormData } from '../../lib/schema/bridgeForm.schema';
@@ -239,11 +239,12 @@ export function DepositForm({
     );
 }
 
-type InputProps = Omit<ComponentProps<typeof Input>, 'label' | 'caption' | 'required'>;
-const DestinationInput = forwardRef<HTMLInputElement, InputProps>(function DestinationInput(
-    { ...props },
-    ref,
-) {
+interface DestinationInputProps
+    extends Omit<ComponentProps<typeof Input>, 'label' | 'caption' | 'required'> {
+    ref?: React.Ref<HTMLInputElement>;
+}
+
+function DestinationInput({ ref, ...props }: DestinationInputProps): React.JSX.Element {
     const { setValue, watch } = useFormContext<DepositFormData>();
     const { isFromLayer1, isDepositAddressManualInput: isManualInput } = watch();
 
@@ -300,4 +301,6 @@ const DestinationInput = forwardRef<HTMLInputElement, InputProps>(function Desti
             </ButtonUnstyled>
         </div>
     );
-});
+}
+
+DestinationInput.displayName = 'DestinationInput';

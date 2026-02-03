@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { forwardRef, Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import cx from 'classnames';
 import type { InputWrapperProps } from './InputWrapper';
 import { InputWrapper } from './InputWrapper';
@@ -20,6 +20,10 @@ import type { InputPropsByType, NumericFormatInputProps } from './input.types';
 import { NumericFormat } from 'react-number-format';
 
 export interface BaseInputProps extends InputWrapperProps {
+    /**
+     * Ref for the input element.
+     */
+    ref?: React.Ref<HTMLInputElement>;
     /**
      * A leading icon that is shown before the input
      */
@@ -64,27 +68,25 @@ export interface BaseInputProps extends InputWrapperProps {
 
 export type InputProps = BaseInputProps & InputPropsByType;
 
-export const Input = forwardRef<HTMLInputElement, InputProps>(function InputComponent(
-    {
-        label,
-        caption,
-        disabled,
-        errorMessage,
-        leadingIcon,
-        supportingText,
-        amountCounter,
-        trailingElement,
-        isContentVisible,
-        value,
-        supportingValue,
-        defaultValue,
-        onClearInput,
-        isVisibilityToggleEnabled,
-        type,
-        ...inputProps
-    },
-    forwardRef,
-) {
+export const Input = ({
+    label,
+    caption,
+    disabled,
+    errorMessage,
+    leadingIcon,
+    supportingText,
+    amountCounter,
+    trailingElement,
+    isContentVisible,
+    value,
+    supportingValue,
+    defaultValue,
+    onClearInput,
+    isVisibilityToggleEnabled,
+    type,
+    ref,
+    ...inputProps
+}: InputProps): React.JSX.Element => {
     isVisibilityToggleEnabled ??= type === InputType.Password;
     const inputWrapperRef = useRef<HTMLDivElement | null>(null);
 
@@ -127,7 +129,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function InputComp
                 <div className="flex flex-1 flex-col items-start">
                     <InputElement
                         {...inputProps}
-                        inputRef={forwardRef}
+                        inputRef={ref}
                         value={value}
                         type={
                             type === InputType.Password && isInputContentVisible
@@ -162,14 +164,15 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function InputComp
             </div>
         </InputWrapper>
     );
-});
+};
+Input.displayName = 'Input';
 
 function InputElement({
     type,
     inputRef,
     ...inputProps
 }: InputProps & {
-    inputRef: React.ForwardedRef<HTMLInputElement>;
+    inputRef: React.Ref<HTMLInputElement> | undefined;
     className: string;
 }) {
     function preventScrollInputChange(e: React.WheelEvent<HTMLInputElement>) {
@@ -205,7 +208,7 @@ function NumericFormatInput({
     ...inputProps
 }: NumericFormatInputProps &
     InputProps & {
-        inputRef: React.ForwardedRef<HTMLInputElement>;
+        inputRef: React.Ref<HTMLInputElement> | undefined;
         className: string;
         value?: string | number;
     }) {

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { forwardRef, useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import {
     // eslint-disable-next-line no-restricted-imports
     Link,
@@ -16,7 +16,9 @@ import {
     type LinkProps,
 } from 'react-router-dom';
 
-export { LinkProps as RouterLinkProps };
+export interface RouterLinkProps extends LinkProps {
+    ref?: React.Ref<HTMLAnchorElement>;
+}
 
 /** Query params that we want to be preserved between all pages. */
 export const PRESERVE_QUERY = ['network'];
@@ -55,7 +57,7 @@ export function useSearchParamsMerged() {
     return [searchParams, setSearchParamsMerged] as const;
 }
 
-export const LinkWithQuery = forwardRef<HTMLAnchorElement, LinkProps>(({ to, ...props }, ref) => {
+export function LinkWithQuery({ to, ref, ...props }: RouterLinkProps): React.JSX.Element {
     const href = useHref(to);
     const [searchParams] = useSearchParams();
     const [toBaseURL, toSearchParamString] = href.split('?');
@@ -80,4 +82,6 @@ export const LinkWithQuery = forwardRef<HTMLAnchorElement, LinkProps>(({ to, ...
             {...props}
         />
     );
-});
+}
+
+LinkWithQuery.displayName = 'LinkWithQuery';

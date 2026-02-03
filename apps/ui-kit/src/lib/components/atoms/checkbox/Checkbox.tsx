@@ -1,11 +1,15 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { forwardRef, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import cx from 'classnames';
 import { Dash, Checkmark } from '@iota/apps-ui-icons';
 
 interface CheckboxProps {
+    /**
+     * Ref for the input element.
+     */
+    ref?: React.Ref<HTMLInputElement>;
     /**
      * The label of the checkbox.
      */
@@ -36,84 +40,81 @@ interface CheckboxProps {
     name?: string;
 }
 
-export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
-    (
-        {
-            isChecked,
-            isIndeterminate,
-            label,
-            isLabelFirst,
-            isDisabled,
-            onCheckedChange,
-            name,
-        }: CheckboxProps,
-        ref,
-    ) => {
-        const inputRef = useRef<HTMLInputElement | null>(null);
+export const Checkbox = ({
+    isChecked,
+    isIndeterminate,
+    label,
+    isLabelFirst,
+    isDisabled,
+    onCheckedChange,
+    name,
+    ref,
+}: CheckboxProps) => {
+    const inputRef = useRef<HTMLInputElement | null>(null);
 
-        useEffect(() => {
-            if (inputRef.current) {
-                inputRef.current.indeterminate = isIndeterminate ?? false;
-            }
-        }, [isIndeterminate, inputRef]);
-
-        const CheckmarkIcon = isIndeterminate ? Dash : Checkmark;
-
-        function assignRefs(element: HTMLInputElement) {
-            if (ref) {
-                if (typeof ref === 'function') {
-                    ref(element);
-                } else {
-                    ref.current = element;
-                }
-            }
-            inputRef.current = element;
+    useEffect(() => {
+        if (inputRef.current) {
+            inputRef.current.indeterminate = isIndeterminate ?? false;
         }
+    }, [isIndeterminate, inputRef]);
 
-        return (
-            <div
+    const CheckmarkIcon = isIndeterminate ? Dash : Checkmark;
+
+    function assignRefs(element: HTMLInputElement) {
+        if (ref) {
+            if (typeof ref === 'function') {
+                ref(element);
+            } else {
+                ref.current = element;
+            }
+        }
+        inputRef.current = element;
+    }
+
+    return (
+        <div
+            className={cx(
+                'group inline-flex has-[:disabled]:opacity-40',
+                isLabelFirst ? 'flex-row-reverse' : 'flex-row',
+                {
+                    disabled: isDisabled,
+                    'gap-x-2': label,
+                },
+            )}
+        >
+            <input
+                id={name}
+                name={name}
+                type="checkbox"
+                className="peer hidden appearance-none"
+                checked={isChecked}
+                ref={assignRefs}
+                disabled={isDisabled}
+                onChange={(e) => {
+                    onCheckedChange?.(e);
+                }}
+            />
+            <span
+                onClick={() => inputRef.current?.click()}
                 className={cx(
-                    'group inline-flex has-[:disabled]:opacity-40',
-                    isLabelFirst ? 'flex-row-reverse' : 'flex-row',
-                    {
-                        disabled: isDisabled,
-                        'gap-x-2': label,
-                    },
+                    'checkbox-base checkbox-state checkbox-icon checkbox-icon-hidden',
+                    'checkbox-border-default',
+                    'peer-[&:is(:checked,:indeterminate)]:checkbox-border-checked',
+                    'peer-[&:is(:checked,:indeterminate)]:checkbox-bg-checked',
+                    'peer-[&:is(:checked,:indeterminate)]:checkbox-text-checked',
+                    'peer-disabled:peer-[&:not(:checked,:indeterminate)]:checkbox-border-color-disabled',
+                    'peer-disabled:peer-[&:is(:checked,:indeterminate)]:checkbox-border-color-disabled-checked',
+                    'peer-disabled:peer-[&:is(:checked,:indeterminate)]:checkbox-bg-color-disabled-checked',
                 )}
             >
-                <input
-                    id={name}
-                    name={name}
-                    type="checkbox"
-                    className="peer hidden appearance-none"
-                    checked={isChecked}
-                    ref={assignRefs}
-                    disabled={isDisabled}
-                    onChange={(e) => {
-                        onCheckedChange?.(e);
-                    }}
-                />
-                <span
-                    onClick={() => inputRef.current?.click()}
-                    className={cx(
-                        'checkbox-base checkbox-state checkbox-icon checkbox-icon-hidden',
-                        'checkbox-border-default',
-                        'peer-[&:is(:checked,:indeterminate)]:checkbox-border-checked',
-                        'peer-[&:is(:checked,:indeterminate)]:checkbox-bg-checked',
-                        'peer-[&:is(:checked,:indeterminate)]:checkbox-text-checked',
-                        'peer-disabled:peer-[&:not(:checked,:indeterminate)]:checkbox-border-color-disabled',
-                        'peer-disabled:peer-[&:is(:checked,:indeterminate)]:checkbox-border-color-disabled-checked',
-                        'peer-disabled:peer-[&:is(:checked,:indeterminate)]:checkbox-bg-color-disabled-checked',
-                    )}
-                >
-                    <CheckmarkIcon />
-                </span>
+                <CheckmarkIcon />
+            </span>
 
-                <LabelText label={label} name={name} />
-            </div>
-        );
-    },
-);
+            <LabelText label={label} name={name} />
+        </div>
+    );
+};
+Checkbox.displayName = 'Checkbox';
 
 function LabelText({ label, name }: Pick<CheckboxProps, 'label' | 'name'>) {
     return (

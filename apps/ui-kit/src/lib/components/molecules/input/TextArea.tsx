@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { forwardRef, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { InputWrapperProps } from './InputWrapper';
 import { InputWrapper } from './InputWrapper';
 import {
@@ -20,6 +20,10 @@ type TextAreaProps = Omit<
 >;
 
 interface TextFieldBaseProps extends TextAreaProps, InputWrapperProps {
+    /**
+     * Ref for the textarea element.
+     */
+    ref?: React.Ref<HTMLTextAreaElement>;
     /**
      * Shows a label with the text above the input field.
      */
@@ -50,23 +54,21 @@ interface TextFieldBaseProps extends TextAreaProps, InputWrapperProps {
     isResizeEnabled?: boolean;
 }
 
-export const TextArea = forwardRef<HTMLTextAreaElement, TextFieldBaseProps>(function TextArea(
-    {
-        label,
-        caption,
-        disabled,
-        errorMessage,
-        value,
-        amountCounter,
-        isVisibilityToggleEnabled,
-        isResizeEnabled,
-        required,
-        isContentVisible,
-        defaultValue,
-        ...textareaProps
-    },
+export const TextArea = ({
+    label,
+    caption,
+    disabled,
+    errorMessage,
+    value,
+    amountCounter,
+    isVisibilityToggleEnabled,
+    isResizeEnabled,
+    required,
+    isContentVisible,
+    defaultValue,
     ref,
-) {
+    ...textareaProps
+}: TextFieldBaseProps) => {
     const [isInputContentVisible, setIsInputContentVisible] = useState<boolean>(
         isContentVisible ?? true,
     );
@@ -126,7 +128,8 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextFieldBaseProps>(func
             </div>
         </InputWrapper>
     );
-});
+};
+TextArea.displayName = 'TextArea';
 
 interface VisibilityOffBarProps {
     rows: number;

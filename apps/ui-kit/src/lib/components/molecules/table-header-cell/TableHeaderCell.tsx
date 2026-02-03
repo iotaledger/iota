@@ -68,7 +68,7 @@ export function TableHeaderCell({
     onSortClick,
     onCheckboxChange,
     sortOrder,
-}: TableHeaderCellProps): JSX.Element {
+}: TableHeaderCellProps): React.JSX.Element {
     const handleSort = () => {
         const newSortOrder =
             sortOrder === TableHeaderCellSortOrder.Asc

@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { forwardRef, useRef } from 'react';
+import { useRef } from 'react';
 import { ToggleLabelPosition, ToggleSize } from './toggle.enums';
 import {
     TOGGLE,
@@ -17,6 +17,10 @@ import {
 import cx from 'classnames';
 
 interface ToggleProps {
+    /**
+     * Ref for the input element.
+     */
+    ref?: React.Ref<HTMLInputElement>;
     /**
      * The label for the toggle.
      */
@@ -51,90 +55,83 @@ interface ToggleProps {
     testId?: string;
 }
 
-export const Toggle = forwardRef<HTMLInputElement, ToggleProps>(
-    (
-        {
-            label,
-            isToggled,
-            labelPosition = ToggleLabelPosition.Right,
-            isDisabled = false,
-            onChange,
-            name,
-            size = ToggleSize.Default,
-            testId,
-        }: ToggleProps,
-        ref,
-    ) => {
-        const inputRef = useRef<HTMLInputElement | null>(null);
+export const Toggle = ({
+    label,
+    isToggled,
+    labelPosition = ToggleLabelPosition.Right,
+    isDisabled = false,
+    onChange,
+    name,
+    size = ToggleSize.Default,
+    testId,
+    ref,
+}: ToggleProps) => {
+    const inputRef = useRef<HTMLInputElement | null>(null);
 
-        function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-            const newChecked = e.target.checked;
-            onChange?.(newChecked, e);
-        }
+    function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+        const newChecked = e.target.checked;
+        onChange?.(newChecked, e);
+    }
 
-        function assignRefs(element: HTMLInputElement) {
-            if (ref) {
-                if (typeof ref === 'function') {
-                    ref(element);
-                } else {
-                    ref.current = element;
-                }
+    function assignRefs(element: HTMLInputElement) {
+        if (ref) {
+            if (typeof ref === 'function') {
+                ref(element);
+            } else {
+                ref.current = element;
             }
-            inputRef.current = element;
         }
+        inputRef.current = element;
+    }
 
-        const toggleClasses = cx(TOGGLE, {
-            [TOGGLE_STATES.active]: isToggled && !isDisabled,
-            [TOGGLE_STATES.inactive]: !isToggled,
-            [TOGGLE_STATES.disabledActive]: isDisabled && isToggled,
-            [TOGGLE_STATES.disabled]: isDisabled,
-            [TOGGLE_SIZE[size]]: true,
-        });
+    const toggleClasses = cx(TOGGLE, {
+        [TOGGLE_STATES.active]: isToggled && !isDisabled,
+        [TOGGLE_STATES.inactive]: !isToggled,
+        [TOGGLE_STATES.disabledActive]: isDisabled && isToggled,
+        [TOGGLE_STATES.disabled]: isDisabled,
+        [TOGGLE_SIZE[size]]: true,
+    });
 
-        const thumbClasses = cx(TOGGLE_THUMB, {
-            [TOGGLE_THUMB_POSITION[size].unchecked]: !isToggled,
-            [TOGGLE_THUMB_POSITION[size].checked]: isToggled,
-            [TOGGLE_THUMB_COLOR.unchecked]: !isToggled,
-            [TOGGLE_THUMB_COLOR.checked]: isToggled,
-            [TOGGLE_THUMB_SIZE[size]]: true,
-        });
+    const thumbClasses = cx(TOGGLE_THUMB, {
+        [TOGGLE_THUMB_POSITION[size].unchecked]: !isToggled,
+        [TOGGLE_THUMB_POSITION[size].checked]: isToggled,
+        [TOGGLE_THUMB_COLOR.unchecked]: !isToggled,
+        [TOGGLE_THUMB_COLOR.checked]: isToggled,
+        [TOGGLE_THUMB_SIZE[size]]: true,
+    });
 
-        const containerClasses = cx(TOGGLE_CONTAINER, {
-            'flex-row-reverse': labelPosition === ToggleLabelPosition.Left,
-            'cursor-not-allowed': isDisabled,
-        });
-        const labelClasses = cx(TOGGLE_LABEL, {
-            'opacity-40': isDisabled && !isToggled,
-        });
+    const containerClasses = cx(TOGGLE_CONTAINER, {
+        'flex-row-reverse': labelPosition === ToggleLabelPosition.Left,
+        'cursor-not-allowed': isDisabled,
+    });
+    const labelClasses = cx(TOGGLE_LABEL, {
+        'opacity-40': isDisabled && !isToggled,
+    });
 
-        return (
-            <div className={containerClasses}>
-                <input
-                    id={name}
-                    name={name}
-                    type="checkbox"
-                    className="sr-only"
-                    checked={isToggled}
-                    ref={assignRefs}
-                    disabled={isDisabled}
-                    onChange={handleChange}
-                    data-testid={testId}
-                />
+    return (
+        <div className={containerClasses}>
+            <input
+                id={name}
+                name={name}
+                type="checkbox"
+                className="sr-only"
+                checked={isToggled}
+                ref={assignRefs}
+                disabled={isDisabled}
+                onChange={handleChange}
+                data-testid={testId}
+            />
 
-                <span
-                    role="switch"
-                    onClick={() => inputRef.current?.click()}
-                    className={toggleClasses}
-                >
-                    <span className={thumbClasses} />
-                </span>
+            <span role="switch" onClick={() => inputRef.current?.click()} className={toggleClasses}>
+                <span className={thumbClasses} />
+            </span>
 
-                {label && (
-                    <label htmlFor={name} className={labelClasses}>
-                        {label}
-                    </label>
-                )}
-            </div>
-        );
-    },
-);
+            {label && (
+                <label htmlFor={name} className={labelClasses}>
+                    {label}
+                </label>
+            )}
+        </div>
+    );
+};
+Toggle.displayName = 'Toggle';

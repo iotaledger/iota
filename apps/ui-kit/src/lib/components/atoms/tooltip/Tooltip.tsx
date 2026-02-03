@@ -31,12 +31,12 @@ export function Tooltip({
     const [visible, setVisible] = useState(false);
     const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
 
-    const openTimer = useRef<ReturnType<typeof setTimeout>>();
-    const closeTimer = useRef<ReturnType<typeof setTimeout>>();
+    const openTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+    const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
     const clearTimers = () => {
-        clearTimeout(openTimer.current);
-        clearTimeout(closeTimer.current);
+        if (openTimer.current !== undefined) clearTimeout(openTimer.current);
+        if (closeTimer.current !== undefined) clearTimeout(closeTimer.current);
     };
 
     const open = () => {

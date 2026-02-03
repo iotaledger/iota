@@ -7,7 +7,7 @@ import { Close } from '@iota/apps-ui-icons';
 import { SnackbarType } from './snackbar.enums';
 import { BACKGROUND_COLOR, TEXT_COLOR } from './snackbar.classes';
 
-type Renderable = JSX.Element | string | null;
+type Renderable = React.JSX.Element | string | null;
 export interface SnackbarProps {
     /**
      * The message to display in the snackbar.

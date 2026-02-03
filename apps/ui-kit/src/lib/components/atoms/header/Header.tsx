@@ -34,7 +34,7 @@ export function Header({
     onBack,
     onClose,
     testId,
-}: HeaderProps): JSX.Element {
+}: HeaderProps): React.JSX.Element {
     const titleCenteredClasses = titleCentered ? 'text-center' : onBack ? 'ml-1' : '';
     const keepSpaceForIcon = titleCentered && (!onBack || !onClose);
 
