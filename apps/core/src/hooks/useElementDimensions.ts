@@ -5,7 +5,7 @@
 import { RefObject, useEffect, useState } from 'react';
 
 export function useElementDimensions(
-    elementRef: RefObject<HTMLElement>,
+    elementRef: RefObject<HTMLElement | null>,
     defaultHeight: number = 0,
     defaultWidth: number = 0,
 ) {

@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { wrapCreateBrowserRouter } from '@sentry/react';
 import { createBrowserRouter, Navigate, useLocation, useParams } from 'react-router-dom';
 import { AddressResultPage } from './address-result/AddressResult';
 import { CheckpointDetail } from './checkpoints/CheckpointDetail';
@@ -16,6 +15,7 @@ import { ValidatorDetails } from './validator/ValidatorDetails';
 import { ValidatorPageResult } from './validators/Validators';
 import { Layout } from '~/components';
 import { DidResult } from './trust-framework/didResult';
+import { wrapCreateBrowserRouterV6 } from '@sentry/react';
 
 interface RedirectWithIdProps {
     base: string;
@@ -27,7 +27,7 @@ function RedirectWithId({ base }: RedirectWithIdProps) {
     return <Navigate to={`/${base}/${params.id}${search}`} replace />;
 }
 
-const sentryCreateBrowserRouter = wrapCreateBrowserRouter(createBrowserRouter);
+const sentryCreateBrowserRouter = wrapCreateBrowserRouterV6(createBrowserRouter);
 
 export const router = sentryCreateBrowserRouter([
     {

@@ -15,24 +15,22 @@ export class SentryHttpTransport extends IotaHTTPTransport {
     }
 
     async withRequest<T>(input: { method: string; params: unknown[] }, handler: () => Promise<T>) {
+        let scope = new Sentry.Scope();
+        scope.setAttribute('params', input.params);
+        scope.setTags({ url: this.url });
         return Sentry.startSpan(
             {
                 name: input.method,
                 op: 'http.rpc-request',
-                data: input.params,
-                tags: {
-                    url: this.url,
-                },
+                scope,
             },
             async (span) => {
                 try {
                     const res = await handler();
-                    const status: Sentry.SpanStatusType = 'ok';
-                    span?.setStatus(status);
+                    span?.setStatus({ code: 1 });
                     return res;
                 } catch (e) {
-                    const status: Sentry.SpanStatusType = 'internal_error';
-                    span?.setStatus(status);
+                    span?.setStatus({ code: 2 });
                     throw e;
                 } finally {
                     span?.end();

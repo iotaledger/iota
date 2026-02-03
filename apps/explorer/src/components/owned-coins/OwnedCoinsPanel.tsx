@@ -17,7 +17,7 @@ type CoinsPanelProps = {
 
 export function CoinsPanel({ coinType, id }: CoinsPanelProps) {
     const containerRef = useRef(null);
-    const coinsSectionRef = useRef(null);
+    const coinsSectionRef = useRef<HTMLDivElement | null>(null);
     const { isIntersecting } = useOnScreen(containerRef);
     const { data, isPending, isFetchingNextPage, fetchNextPage, hasNextPage } = useGetCoins(
         coinType,

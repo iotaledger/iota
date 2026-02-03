@@ -20,9 +20,9 @@ export function ProgressCircle({ progress }: ProgressCircleProps) {
                 strokeWidth={1.5}
                 stroke="currentColor"
                 pathLength={0}
+                transition={{ type: 'spring' }}
                 animate={{
                     pathLength: progress === 100 ? 1.5 : progress / 100,
-                    type: 'spring',
                     transition: { duration: 1 },
                 }}
             />

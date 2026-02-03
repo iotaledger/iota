@@ -36,8 +36,8 @@
         "@fontsource-variable/roboto-flex": "^5.2.6",
         "@fontsource/inter": "^5.0.17",
         "@iota/apps-ui-icons": "workspace:*",
-        "@radix-ui/react-dialog": "^1.1.1",
-        "@radix-ui/react-visually-hidden": "^1.1.0",
+        "@radix-ui/react-dialog": "^1.1.15",
+        "@radix-ui/react-visually-hidden": "^1.2.4",
         "classnames": "^2.5.1",
         "lodash.merge": "^4.6.2",
         "react-number-format": "^5.2.2"

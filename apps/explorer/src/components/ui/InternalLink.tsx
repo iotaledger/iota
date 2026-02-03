@@ -27,7 +27,7 @@ function createInternalLink<T extends string>(
     base: string,
     propName: T,
     formatter: (id: string) => string = (id) => id,
-): (props: BaseInternalLinkProps & Record<T, string>) => JSX.Element {
+): (props: BaseInternalLinkProps & Record<T, string>) => React.JSX.Element {
     return ({
         [propName]: id,
         noTruncate,
