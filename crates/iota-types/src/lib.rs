@@ -74,6 +74,7 @@ pub mod messages_consensus;
 pub mod messages_grpc;
 pub mod messages_safe_client;
 pub mod metrics;
+pub mod misbehavior_counts;
 pub mod mock_checkpoint_builder;
 pub mod move_authenticator;
 pub mod move_package;

@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use iota_protocol_config::ProtocolConfig;
 
-use crate::messages_consensus::{MisbehaviorsV1, VersionedMisbehaviorReport};
+use crate::{messages_consensus::VersionedMisbehaviorReport, misbehavior_counts::MisbehaviorsV1};
 
 // This struct represents the scoring metrics collected by all authorities. They
 // are stored locally by each authority and then converted to a misbehavior
@@ -193,16 +193,16 @@ impl VersionedScoringMetrics {
                 VersionedScoringMetrics::V1(metrics),
                 VersionedMisbehaviorReport::V1(report_v1, _),
             ) => {
-                for (i, value) in report_v1.faulty_blocks_provable.iter().enumerate() {
+                for (i, value) in report_v1.faulty_blocks_provable().iter().enumerate() {
                     metrics.faulty_blocks_provable[i].fetch_max(*value, Ordering::Relaxed);
                 }
-                for (i, value) in report_v1.faulty_blocks_unprovable.iter().enumerate() {
+                for (i, value) in report_v1.faulty_blocks_unprovable().iter().enumerate() {
                     metrics.faulty_blocks_unprovable[i].fetch_max(*value, Ordering::Relaxed);
                 }
-                for (i, value) in report_v1.equivocations.iter().enumerate() {
+                for (i, value) in report_v1.equivocations().iter().enumerate() {
                     metrics.equivocations[i].fetch_max(*value, Ordering::Relaxed);
                 }
-                for (i, value) in report_v1.missing_proposals.iter().enumerate() {
+                for (i, value) in report_v1.missing_proposals().iter().enumerate() {
                     metrics.missing_proposals[i].fetch_max(*value, Ordering::Relaxed);
                 }
             }
@@ -215,18 +215,18 @@ impl VersionedScoringMetrics {
     pub fn from_report(report: &VersionedMisbehaviorReport) -> Self {
         match report {
             VersionedMisbehaviorReport::V1(report_v1, _) => {
-                let committee_size = report_v1.faulty_blocks_provable.len();
+                let committee_size = report_v1.faulty_blocks_provable().len();
                 let metrics = ScoringMetricsV1::new(committee_size);
-                for (i, value) in report_v1.faulty_blocks_provable.iter().enumerate() {
+                for (i, value) in report_v1.faulty_blocks_provable().iter().enumerate() {
                     metrics.faulty_blocks_provable[i].store(*value, Ordering::Relaxed);
                 }
-                for (i, value) in report_v1.faulty_blocks_unprovable.iter().enumerate() {
+                for (i, value) in report_v1.faulty_blocks_unprovable().iter().enumerate() {
                     metrics.faulty_blocks_unprovable[i].store(*value, Ordering::Relaxed);
                 }
-                for (i, value) in report_v1.equivocations.iter().enumerate() {
+                for (i, value) in report_v1.equivocations().iter().enumerate() {
                     metrics.equivocations[i].store(*value, Ordering::Relaxed);
                 }
-                for (i, value) in report_v1.missing_proposals.iter().enumerate() {
+                for (i, value) in report_v1.missing_proposals().iter().enumerate() {
                     metrics.missing_proposals[i].store(*value, Ordering::Relaxed);
                 }
                 VersionedScoringMetrics::V1(metrics)
@@ -260,12 +260,12 @@ impl VersionedScoringMetrics {
                     .iter()
                     .map(|metric| metric.load(Ordering::Relaxed))
                     .collect();
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
                     faulty_blocks_provable,
                     faulty_blocks_unprovable,
                     missing_proposals,
                     equivocations,
-                })
+                ))
             }
         }
     }
