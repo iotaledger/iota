@@ -19,8 +19,7 @@ export const DEFAULT_ED25519_DERIVATION_PATH = "m/44'/4218'/0'/0'/0'";
 
 /**
  * Ed25519 Keypair data. The publickey is the 32-byte public key and
- * the secretkey is 64-byte, where the first 32 bytes is the secret
- * key and the last 32 bytes is the public key.
+ * the secretkey is the 32-byte secret key.
  */
 export interface Ed25519KeypairData {
     publicKey: Uint8Array;
@@ -42,6 +41,8 @@ export class Ed25519Keypair extends Keypair {
     constructor(keypair?: Ed25519KeypairData) {
         super();
         if (keypair) {
+            // Slice to 32 bytes for backward compatibility with the old tweetnacl format
+            // which used 64-byte secret keys (first 32 bytes: secret, last 32 bytes: public key)
             this.keypair = {
                 publicKey: keypair.publicKey,
                 secretKey: keypair.secretKey.slice(0, 32),
