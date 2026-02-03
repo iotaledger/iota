@@ -108,7 +108,7 @@ const message = new TextEncoder().encode('hello world');
 const { signature } = await keypair.signPersonalMessage(message);
 
 await verifyPersonalMessageSignature(message, signature, {
-	address: keypair.getPublicKey().toSuiAddress(),
+	address: keypair.getPublicKey().toIotaAddress(),
 });
 ```
 
