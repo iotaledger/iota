@@ -244,6 +244,7 @@ pub enum CommitterTables {
     TxRecipients,
     TxSenders,
     TxWrappedOrDeletedObjects,
+    TxGlobalOrder,
     Checkpoints,
     PrunerCpWatermark,
 }
