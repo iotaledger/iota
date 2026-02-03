@@ -5,8 +5,12 @@
 include!("../../../generated/iota.grpc.v0.command.rs");
 include!("../../../generated/iota.grpc.v0.command.field_info.rs");
 
-impl From<iota_sdk_types::transaction::Argument> for Argument {
-    fn from(arg: iota_sdk_types::transaction::Argument) -> Self {
+use crate::proto::GrpcConversionError;
+
+impl TryFrom<iota_sdk_types::transaction::Argument> for Argument {
+    type Error = GrpcConversionError;
+
+    fn try_from(arg: iota_sdk_types::transaction::Argument) -> Result<Self, Self::Error> {
         let kind = match arg {
             iota_sdk_types::transaction::Argument::Gas => {
                 argument::Kind::GasCoin(argument::GasCoin {})
@@ -28,9 +32,13 @@ impl From<iota_sdk_types::transaction::Argument> for Argument {
                     nested_result_index: Some(nested_idx as u32),
                 })
             }
-            _ => panic!("Unsupported argument type for gRPC conversion"),
+            _ => {
+                return Err(GrpcConversionError::UnsupportedArgumentType {
+                    arg_type: format!("{:?}", arg),
+                });
+            }
         };
 
-        Self { kind: Some(kind) }
+        Ok(Self { kind: Some(kind) })
     }
 }

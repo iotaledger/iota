@@ -5,7 +5,10 @@
 include!("../../../generated/iota.grpc.v0.signatures.rs");
 include!("../../../generated/iota.grpc.v0.signatures.field_info.rs");
 
-use crate::{proto::TryFromProtoError, v0::bcs::BcsData};
+use crate::{
+    proto::{GrpcConversionError, TryFromProtoError},
+    v0::bcs::BcsData,
+};
 
 // ValidatorAggregatedSignature
 //
@@ -34,11 +37,15 @@ impl TryFrom<&ValidatorAggregatedSignature> for iota_sdk_types::ValidatorAggrega
 //
 
 impl TryFrom<iota_sdk_types::UserSignature> for UserSignature {
-    type Error = Box<dyn std::error::Error>;
+    type Error = GrpcConversionError;
 
     fn try_from(value: iota_sdk_types::UserSignature) -> Result<Self, Self::Error> {
         Ok(Self {
-            bcs: Some(BcsData::serialize(&value)?),
+            bcs: Some(BcsData::serialize(&value).map_err(|e| {
+                GrpcConversionError::BcsSerializationFailed {
+                    message: e.to_string(),
+                }
+            })?),
         })
     }
 }

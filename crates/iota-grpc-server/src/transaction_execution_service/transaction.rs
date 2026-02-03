@@ -334,10 +334,13 @@ impl Merge<&CommandOutputReadSource<'_>> for CommandOutput {
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::ARGUMENT_FIELD.name) {
-            self.argument = source.arg.map(|arg| {
-                let sdk_arg: iota_sdk_types::Argument = arg.into();
-                sdk_arg.into()
-            });
+            self.argument = source
+                .arg
+                .map(|arg| -> Result<_, Box<dyn std::error::Error>> {
+                    let sdk_arg: iota_sdk_types::Argument = arg.into();
+                    sdk_arg.try_into().map_err(Into::into)
+                })
+                .transpose()?;
         }
 
         if mask.contains(Self::TYPE_TAG_FIELD.name) {
