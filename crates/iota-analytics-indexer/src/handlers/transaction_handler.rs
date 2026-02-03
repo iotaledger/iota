@@ -102,7 +102,7 @@ impl TransactionHandler {
             .map(|s| s.as_str())
             .collect::<Vec<_>>()
             .join("-");
-        let transaction_digest = transaction.digest().base58_encode();
+        let transaction_digest = transaction.digest().to_base58();
 
         let mut transfers: u64 = 0;
         let mut split_coins: u64 = 0;

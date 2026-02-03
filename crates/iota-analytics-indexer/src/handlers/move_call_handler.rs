@@ -45,7 +45,7 @@ impl Worker for MoveCallHandler {
                 checkpoint_summary.epoch,
                 checkpoint_summary.sequence_number,
                 checkpoint_summary.timestamp_ms,
-                checkpoint_transaction.transaction.digest().base58_encode(),
+                checkpoint_transaction.transaction.digest().to_base58(),
                 &move_calls,
                 &mut state,
             );
