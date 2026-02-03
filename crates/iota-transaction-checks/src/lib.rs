@@ -554,7 +554,7 @@ mod checked {
                             owner == &actual_owner,
                             UserInputError::IncorrectUserSignature {
                                 error: format!(
-                                    "Object {object_id:?} is owned by account address {actual_owner:?}, but given owner/signer address is {owner:?}"
+                                    "Object {object_id:?} is owned by account address {actual_owner}, but given owner/signer address is {owner}"
                                 ),
                             }
                         );

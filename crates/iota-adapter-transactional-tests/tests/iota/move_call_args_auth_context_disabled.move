@@ -7,8 +7,6 @@
 
 module Test::M;
 
-use iota::auth_context::AuthContext;
-
 public fun authenticate(_: &AuthContext, _: &TxContext) {}
 
 // using `iota::auth_context::AuthContext` is not allowed by the protocol config

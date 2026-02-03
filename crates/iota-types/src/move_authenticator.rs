@@ -158,15 +158,18 @@ impl MoveAuthenticator {
         // `validity_check` is not called for `object_to_authenticate` because it is
         // already validated with a dedicated function.
 
-        // `ProtocolConfig::max_arguments` is used to check the call arguments because
-        // MoveAuthenticator is considered as a simple programmable Move call.
+        // `ProtocolConfig::max_function_parameters` is used to check the call arguments
+        // because MoveAuthenticator is considered as a simple programmable call to a
+        // Move function.
         //
-        // The limit includes the object to authenticate, so we subtract 1 here.
+        // The limit includes the object to authenticate, the auth context and the tx
+        // context, so we subtract 3 here.
+        let max_args = (config.max_function_parameters() - 3) as usize;
         fp_ensure!(
-            self.call_args().len() < (config.max_arguments() - 1) as usize,
+            self.call_args().len() < max_args,
             UserInputError::SizeLimitExceeded {
                 limit: "maximum arguments in MoveAuthenticator".to_string(),
-                value: config.max_arguments().to_string()
+                value: max_args.to_string()
             }
         );
 

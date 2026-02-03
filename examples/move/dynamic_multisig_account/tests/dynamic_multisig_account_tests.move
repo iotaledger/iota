@@ -7,7 +7,6 @@ module dynamic_multisig_account::dynamic_multisig_account_tests;
 use dynamic_multisig_account::dynamic_multisig_account::{Self, DynamicMultisigAccount};
 use dynamic_multisig_account::members;
 use dynamic_multisig_account::transactions;
-use iota::auth_context::{Self, AuthContext};
 use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{assert_eq, assert_ref_eq};

@@ -8,7 +8,7 @@ pub use checked::*;
 mod checked {
 
     use std::{
-        collections::{BTreeSet, HashSet},
+        collections::{BTreeMap, BTreeSet, HashSet},
         sync::Arc,
     };
 
@@ -19,7 +19,10 @@ mod checked {
     use iota_types::{
         IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
         IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, Identifier,
-        account_abstraction::authenticator_function::AuthenticatorFunctionRefV1,
+        account_abstraction::authenticator_function::{
+            AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+            AuthenticatorFunctionRefV1,
+        },
         auth_context::AuthContext,
         authenticator_state::{
             AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME,
@@ -55,9 +58,9 @@ mod checked {
         storage::{BackingStore, Storage},
         transaction::{
             Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, CallArg, ChangeEpoch,
-            ChangeEpochV2, ChangeEpochV3, CheckedInputObjects, Command, EndOfEpochTransactionKind,
-            GenesisTransaction, InputObjects, ObjectArg, ProgrammableTransaction,
-            RandomnessStateUpdate, TransactionKind,
+            ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, CheckedInputObjects, Command,
+            EndOfEpochTransactionKind, GenesisTransaction, InputObjects, ObjectArg,
+            ProgrammableTransaction, RandomnessStateUpdate, TransactionKind,
         },
     };
     use move_binary_format::CompiledModule;
@@ -299,7 +302,7 @@ mod checked {
         gas_coins: Vec<ObjectRef>,
         // Authenticator
         authenticator: MoveAuthenticator,
-        authenticator_function_ref: AuthenticatorFunctionRefV1,
+        authenticator_function_ref_for_execution: AuthenticatorFunctionRefForExecution,
         authenticator_input_objects: CheckedInputObjects,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
@@ -365,21 +368,38 @@ mod checked {
         // It does not alter the state, if not for command execution gas charging, and
         // produces no effects other than possible errors.
 
-        // Run the authentication execution.
-        let authentication_execution_result = authenticate_transaction_inner(
-            &mut temporary_store,
-            protocol_config,
-            metrics.clone(),
-            &mut gas_charger,
-            authenticator,
+        let AuthenticatorFunctionRefForExecution {
             authenticator_function_ref,
-            &authenticator_input_objects.into_inner(),
-            transaction_kind.clone(),
-            transaction_digest,
-            &mut tx_ctx,
-            trace_builder_opt,
-            move_vm,
-        );
+            loaded_object_id,
+            loaded_object_metadata,
+        } = authenticator_function_ref_for_execution;
+
+        let authentication_execution_result = match authenticator_function_ref {
+            AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
+                // Save the loaded object metadata, i.e., the field object containing the
+                // AuthenticatorFunctionRef, in the temporary store.
+                temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
+                    loaded_object_id,
+                    loaded_object_metadata,
+                )]));
+
+                // Run the authentication execution.
+                authenticate_transaction_inner(
+                    &mut temporary_store,
+                    protocol_config,
+                    metrics.clone(),
+                    &mut gas_charger,
+                    authenticator,
+                    authenticator_function_ref_v1,
+                    &authenticator_input_objects.into_inner(),
+                    transaction_kind.clone(),
+                    transaction_digest,
+                    &mut tx_ctx,
+                    trace_builder_opt,
+                    move_vm,
+                )
+            }
+        };
 
         // Transaction execution.
         // At this stage we arrive with gas charged for the execution of the
@@ -428,7 +448,7 @@ mod checked {
         gas_status: IotaGasStatus,
         // Authenticator
         authenticator: MoveAuthenticator,
-        authenticator_function_ref: AuthenticatorFunctionRefV1,
+        authenticator_function_ref: AuthenticatorFunctionRef,
         authenticator_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
@@ -466,20 +486,24 @@ mod checked {
         );
 
         // Run the authentication.
-        authenticate_transaction_inner(
-            &mut temporary_store,
-            protocol_config,
-            metrics.clone(),
-            &mut gas_charger,
-            authenticator,
-            authenticator_function_ref,
-            &input_objects,
-            transaction_kind.clone(),
-            transaction_digest,
-            &mut tx_ctx,
-            trace_builder_opt,
-            move_vm,
-        )
+        match authenticator_function_ref {
+            AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
+                authenticate_transaction_inner(
+                    &mut temporary_store,
+                    protocol_config,
+                    metrics.clone(),
+                    &mut gas_charger,
+                    authenticator,
+                    authenticator_function_ref_v1,
+                    &input_objects,
+                    transaction_kind.clone(),
+                    transaction_digest,
+                    &mut tx_ctx,
+                    trace_builder_opt,
+                    move_vm,
+                )
+            }
+        }
     }
 
     // This function implements the authentication execution. It checks that the
@@ -1208,6 +1232,21 @@ mod checked {
                             )?;
                             return Ok(Mode::empty_results());
                         }
+                        EndOfEpochTransactionKind::ChangeEpochV4(change_epoch_v4) => {
+                            assert_eq!(i, len - 1);
+                            advance_epoch_v4(
+                                builder,
+                                change_epoch_v4,
+                                temporary_store,
+                                tx_ctx,
+                                move_vm,
+                                gas_charger,
+                                protocol_config,
+                                metrics,
+                                trace_builder_opt,
+                            )?;
+                            return Ok(Mode::empty_results());
+                        }
                         EndOfEpochTransactionKind::AuthenticatorStateCreate => {
                             assert!(protocol_config.enable_jwk_consensus_updates());
                             builder = setup_authenticator_state_create(builder);
@@ -1419,6 +1458,32 @@ mod checked {
         construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
     }
 
+    pub fn construct_advance_epoch_pt_v4(
+        builder: ProgrammableTransactionBuilder,
+        params: &AdvanceEpochParams,
+    ) -> Result<ProgrammableTransaction, ExecutionError> {
+        // the first three arguments to the advance_epoch function, namely
+        // validator_subsidy, storage_charges and computation_charges, are
+        // common to both v1, v2, v3 and v4 and are added in
+        // `construct_advance_epoch_pt_impl`. The remaining arguments are added
+        // here.
+        let call_arg_vec = vec![
+            CallArg::Pure(bcs::to_bytes(&params.computation_charge_burned).unwrap()), /* computation_charge_burned: u64 */
+            CallArg::IOTA_SYSTEM_MUT, // wrapper: &mut IotaSystemState
+            CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()), // new_epoch: u64
+            CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()), /* next_protocol_version: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.storage_rebate).unwrap()), // storage_rebate: u64
+            CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()), /* non_refundable_storage_fee: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()), /* reward_slashing_rate: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()), /* epoch_start_timestamp_ms: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.max_committee_members_count).unwrap()), /* max_committee_members_count: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.eligible_active_validators).unwrap()), /* eligible_active_validators: Vec<u64> */
+            CallArg::Pure(bcs::to_bytes(&params.scores).unwrap()), // scores: Vec<u64>
+            CallArg::Pure(bcs::to_bytes(&params.adjust_rewards_by_score).unwrap()), /* adjust_rewards_by_score: bool */
+        ];
+        construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
+    }
+
     /// Advances the epoch by executing a `ProgrammableTransaction`. If the
     /// transaction fails, it switches to safe mode and retries the epoch
     /// advancement in a more controlled environment. The function also
@@ -1516,6 +1581,8 @@ mod checked {
             // separate AdvanceEpochParams struct.
             max_committee_members_count: 0,
             eligible_active_validators: vec![],
+            scores: vec![],
+            adjust_rewards_by_score: false,
         };
         let advance_epoch_pt = construct_advance_epoch_pt_v1(builder, &params)?;
         advance_epoch_impl(
@@ -1558,9 +1625,11 @@ mod checked {
             reward_slashing_rate: protocol_config.reward_slashing_rate(),
             epoch_start_timestamp_ms: change_epoch_v2.epoch_start_timestamp_ms,
             max_committee_members_count: protocol_config.max_committee_members_count(),
-            // AdvanceEpochV2 does not use this field, but keeping them to avoid creating a
+            // AdvanceEpochV2 does not use these fields, but keeping them to avoid creating a
             // separate AdvanceEpochParams struct.
             eligible_active_validators: vec![],
+            scores: vec![],
+            adjust_rewards_by_score: false,
         };
         let advance_epoch_pt = construct_advance_epoch_pt_v2(builder, &params)?;
         advance_epoch_impl(
@@ -1604,12 +1673,61 @@ mod checked {
             epoch_start_timestamp_ms: change_epoch_v3.epoch_start_timestamp_ms,
             max_committee_members_count: protocol_config.max_committee_members_count(),
             eligible_active_validators: change_epoch_v3.eligible_active_validators,
+            // AdvanceEpochV3 does not use these fields, but keeping them to avoid creating a
+            // separate AdvanceEpochParams struct.
+            scores: vec![],
+            adjust_rewards_by_score: false,
         };
         let advance_epoch_pt = construct_advance_epoch_pt_v3(builder, &params)?;
         advance_epoch_impl(
             advance_epoch_pt,
             params,
             change_epoch_v3.system_packages,
+            temporary_store,
+            tx_ctx,
+            move_vm,
+            gas_charger,
+            protocol_config,
+            metrics,
+            trace_builder_opt,
+        )
+    }
+
+    /// Advances the epoch for the given `ChangeEpochV4` transaction kind by
+    /// constructing a programmable transaction, executing it and processing the
+    /// system packages.
+    fn advance_epoch_v4(
+        builder: ProgrammableTransactionBuilder,
+        change_epoch_v4: ChangeEpochV4,
+        temporary_store: &mut TemporaryStore<'_>,
+        tx_ctx: &mut TxContext,
+        move_vm: &Arc<MoveVM>,
+        gas_charger: &mut GasCharger,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> Result<(), ExecutionError> {
+        let params = AdvanceEpochParams {
+            epoch: change_epoch_v4.epoch,
+            next_protocol_version: change_epoch_v4.protocol_version,
+            validator_subsidy: protocol_config.validator_target_reward(),
+            storage_charge: change_epoch_v4.storage_charge,
+            computation_charge: change_epoch_v4.computation_charge,
+            computation_charge_burned: change_epoch_v4.computation_charge_burned,
+            storage_rebate: change_epoch_v4.storage_rebate,
+            non_refundable_storage_fee: change_epoch_v4.non_refundable_storage_fee,
+            reward_slashing_rate: protocol_config.reward_slashing_rate(),
+            epoch_start_timestamp_ms: change_epoch_v4.epoch_start_timestamp_ms,
+            max_committee_members_count: protocol_config.max_committee_members_count(),
+            eligible_active_validators: change_epoch_v4.eligible_active_validators,
+            scores: change_epoch_v4.scores,
+            adjust_rewards_by_score: change_epoch_v4.adjust_rewards_by_score,
+        };
+        let advance_epoch_pt = construct_advance_epoch_pt_v4(builder, &params)?;
+        advance_epoch_impl(
+            advance_epoch_pt,
+            params,
+            change_epoch_v4.system_packages,
             temporary_store,
             tx_ctx,
             move_vm,

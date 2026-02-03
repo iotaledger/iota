@@ -56,7 +56,11 @@ use iota_types::committee::CommitteeTrait;
 use iota_types::{
     IOTA_SYSTEM_ADDRESS, TypeTag,
     account_abstraction::{
-        account::AuthenticatorFunctionRefV1Key, authenticator_function::AuthenticatorFunctionRefV1,
+        account::AuthenticatorFunctionRefV1Key,
+        authenticator_function::{
+            AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+            AuthenticatorFunctionRefV1,
+        },
     },
     authenticator_state::get_authenticator_state,
     base_types::*,
@@ -1659,7 +1663,7 @@ impl AuthorityState {
             // that the account object is loaded.
             let account_object = account_object.expect("Account object must be provided");
 
-            let authenticator_function_ref = self.check_move_account(
+            let authenticator_function_ref_for_execution = self.check_move_account(
                 auth_account_object_id,
                 auth_account_object_seq_number,
                 auth_account_object_digest,
@@ -1709,7 +1713,7 @@ impl AuthorityState {
                     gas_status,
                     gas,
                     move_authenticator.to_owned(),
-                    authenticator_function_ref,
+                    authenticator_function_ref_for_execution,
                     authenticator_checked_input_objects,
                     authenticator_and_tx_checked_input_objects,
                     kind,
@@ -3940,56 +3944,16 @@ impl AuthorityState {
         &self,
         effects: &TransactionEffects,
     ) -> anyhow::Result<Vec<Object>> {
-        let input_object_keys = effects
-            .modified_at_versions()
-            .into_iter()
-            .map(|(object_id, version)| ObjectKey(object_id, version))
-            .collect::<Vec<_>>();
-
-        let input_objects = self
-            .get_object_store()
-            .try_multi_get_objects_by_key(&input_object_keys)?
-            .into_iter()
-            .enumerate()
-            .map(|(idx, maybe_object)| {
-                maybe_object.ok_or_else(|| {
-                    anyhow::anyhow!(
-                        "missing input object key {:?} from tx {}",
-                        input_object_keys[idx],
-                        effects.transaction_digest()
-                    )
-                })
-            })
-            .collect::<anyhow::Result<Vec<_>>>()?;
-        Ok(input_objects)
+        iota_types::storage::get_transaction_input_objects(self.get_object_store(), effects)
+            .map_err(Into::into)
     }
 
     pub fn get_transaction_output_objects(
         &self,
         effects: &TransactionEffects,
     ) -> anyhow::Result<Vec<Object>> {
-        let output_object_keys = effects
-            .all_changed_objects()
-            .into_iter()
-            .map(|(object_ref, _owner, _kind)| ObjectKey::from(object_ref))
-            .collect::<Vec<_>>();
-
-        let output_objects = self
-            .get_object_store()
-            .try_multi_get_objects_by_key(&output_object_keys)?
-            .into_iter()
-            .enumerate()
-            .map(|(idx, maybe_object)| {
-                maybe_object.ok_or_else(|| {
-                    anyhow::anyhow!(
-                        "missing output object key {:?} from tx {}",
-                        output_object_keys[idx],
-                        effects.transaction_digest()
-                    )
-                })
-            })
-            .collect::<anyhow::Result<Vec<_>>>()?;
-        Ok(output_objects)
+        iota_types::storage::get_transaction_output_objects(self.get_object_store(), effects)
+            .map_err(Into::into)
     }
 
     fn get_indexes(&self) -> IotaResult<Arc<IndexStore>> {
@@ -4067,6 +4031,8 @@ impl AuthorityState {
         self.database_for_testing()
             .perpetual_tables
             .get_highest_pruned_checkpoint()
+            .map(|c| c.unwrap_or(0))
+            .map_err(Into::into)
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -4968,6 +4934,7 @@ impl AuthorityState {
         gas_cost_summary: &GasCostSummary,
         checkpoint: CheckpointSequenceNumber,
         epoch_start_timestamp_ms: CheckpointTimestamp,
+        scores: Vec<u64>,
     ) -> anyhow::Result<(
         IotaSystemState,
         Option<SystemEpochInfoEvent>,
@@ -5022,9 +4989,8 @@ impl AuthorityState {
             bail!("missing system packages: cannot form ChangeEpochTx");
         };
 
-        // Use ChangeEpochV3 when the feature flag is enabled and ChangeEpochV2
-        // requirements are met
-
+        // Use ChangeEpochV3 or ChangeEpochV4 when the feature flags are enabled and
+        // ChangeEpochV2 requirements are met
         if config.select_committee_from_eligible_validators() {
             // Get the list of eligible validators that support the target protocol version
             let active_validators = epoch_store.epoch_start_state().get_active_validators();
@@ -5066,18 +5032,37 @@ impl AuthorityState {
                 }
             }
 
-            txns.push(EndOfEpochTransactionKind::new_change_epoch_v3(
-                next_epoch,
-                next_epoch_protocol_version,
-                gas_cost_summary.storage_cost,
-                gas_cost_summary.computation_cost,
-                gas_cost_summary.computation_cost_burned,
-                gas_cost_summary.storage_rebate,
-                gas_cost_summary.non_refundable_storage_fee,
-                epoch_start_timestamp_ms,
-                next_epoch_system_package_bytes,
-                eligible_active_validators,
-            ));
+            // Use ChangeEpochV4 when the pass_validator_scores_to_advance_epoch feature
+            // flag is enabled.
+            if config.pass_validator_scores_to_advance_epoch() {
+                txns.push(EndOfEpochTransactionKind::new_change_epoch_v4(
+                    next_epoch,
+                    next_epoch_protocol_version,
+                    gas_cost_summary.storage_cost,
+                    gas_cost_summary.computation_cost,
+                    gas_cost_summary.computation_cost_burned,
+                    gas_cost_summary.storage_rebate,
+                    gas_cost_summary.non_refundable_storage_fee,
+                    epoch_start_timestamp_ms,
+                    next_epoch_system_package_bytes,
+                    eligible_active_validators,
+                    scores,
+                    config.adjust_rewards_by_score(),
+                ));
+            } else {
+                txns.push(EndOfEpochTransactionKind::new_change_epoch_v3(
+                    next_epoch,
+                    next_epoch_protocol_version,
+                    gas_cost_summary.storage_cost,
+                    gas_cost_summary.computation_cost,
+                    gas_cost_summary.computation_cost_burned,
+                    gas_cost_summary.storage_rebate,
+                    gas_cost_summary.non_refundable_storage_fee,
+                    epoch_start_timestamp_ms,
+                    next_epoch_system_package_bytes,
+                    eligible_active_validators,
+                ));
+            }
         } else if config.protocol_defined_base_fee()
             && config.max_committee_members_count_as_option().is_some()
         {
@@ -5279,7 +5264,7 @@ impl AuthorityState {
         auth_account_object_digest: Option<ObjectDigest>,
         account_object: ObjectReadResult,
         signer: &IotaAddress,
-    ) -> IotaResult<AuthenticatorFunctionRefV1> {
+    ) -> IotaResult<AuthenticatorFunctionRefForExecution> {
         let account_object = match account_object.object {
             ObjectReadResultKind::Object(object) => Ok(object),
             ObjectReadResultKind::DeletedSharedObject(version, digest) => {
@@ -5378,7 +5363,13 @@ impl AuthorityState {
                     },
                 )?;
 
-            Ok(field.value)
+            Ok(AuthenticatorFunctionRefForExecution::new_v1(
+                field.value,
+                authenticator_function_ref_field_obj.compute_object_reference(),
+                authenticator_function_ref_field_obj.owner,
+                authenticator_function_ref_field_obj.storage_rebate,
+                authenticator_function_ref_field_obj.previous_transaction,
+            ))
         } else {
             Err(UserInputError::MoveAuthenticatorNotFound {
                 authenticator_function_ref_id: authenticator_function_ref_field_id,
@@ -5432,7 +5423,7 @@ impl AuthorityState {
         IotaGasStatus,
         CheckedInputObjects,
         Option<CheckedInputObjects>,
-        Option<AuthenticatorFunctionRefV1>,
+        Option<AuthenticatorFunctionRef>,
     )> {
         let (
             auth_checked_input_objects_union,
@@ -5451,7 +5442,10 @@ impl AuthorityState {
             ) = move_authenticator.object_to_authenticate_components()?;
 
             // Make sure the sender is a Move account.
-            let authenticator_function_ref = self.check_move_account(
+            let AuthenticatorFunctionRefForExecution {
+                authenticator_function_ref,
+                ..
+            } = self.check_move_account(
                 auth_account_object_id,
                 auth_account_object_seq_number,
                 auth_account_object_digest,

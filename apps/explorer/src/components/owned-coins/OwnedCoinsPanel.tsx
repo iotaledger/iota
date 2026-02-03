@@ -19,16 +19,19 @@ export function CoinsPanel({ coinType, id }: CoinsPanelProps): JSX.Element {
     const containerRef = useRef(null);
     const coinsSectionRef = useRef(null);
     const { isIntersecting } = useOnScreen(containerRef);
-    const { data, isPending, isFetching, fetchNextPage, hasNextPage } = useGetCoins(coinType, id);
+    const { data, isPending, isFetchingNextPage, fetchNextPage, hasNextPage } = useGetCoins(
+        coinType,
+        id,
+    );
     const [_, containerWidth] = useElementDimensions(coinsSectionRef);
 
-    const isSpinnerVisible = hasNextPage || isPending || isFetching;
+    const isSpinnerVisible = (hasNextPage && isFetchingNextPage) || isPending;
 
     useEffect(() => {
-        if (isIntersecting && hasNextPage && !isFetching) {
+        if (isIntersecting && hasNextPage && !isFetchingNextPage) {
             fetchNextPage();
         }
-    }, [isIntersecting, hasNextPage, isFetching, fetchNextPage]);
+    }, [isIntersecting, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
     const multiCols = containerWidth > MIN_CONTAINER_WIDTH_SIZE;
 
@@ -47,13 +50,13 @@ export function CoinsPanel({ coinType, id }: CoinsPanelProps): JSX.Element {
                         )),
                     )}
             </div>
-            {isSpinnerVisible && (
-                <div className="flex justify-center" ref={containerRef}>
+            <div className="flex justify-center" ref={containerRef}>
+                {isSpinnerVisible && (
                     <div className="mt-5 flex">
                         <LoadingIndicator />
                     </div>
-                </div>
-            )}
+                )}
+            </div>
         </div>
     );
 }
