@@ -209,7 +209,7 @@ impl EpochState {
             let mock_gas_object = Object::new_move(
                 MoveObject::new_gas_coin(1.into(), ObjectID::MAX, SIMULATION_GAS_COIN_VALUE),
                 Owner::AddressOwner(transaction.gas_data().owner),
-                TransactionDigest::genesis_marker(),
+                TransactionDigest::GENESIS_MARKER,
             );
             let mock_gas_object_ref = mock_gas_object.compute_object_reference();
             transaction.gas_data_mut().payment = vec![mock_gas_object_ref];

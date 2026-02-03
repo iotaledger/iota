@@ -598,12 +598,14 @@ impl IndexerReader {
             "chain identifier not found".to_string(),
         ))?;
 
-        let checkpoint_digest =
-            CheckpointDigest::try_from(stored_chain_identifier.checkpoint_digest).map_err(|e| {
-                IndexerError::PersistentStorageDataCorruption(format!(
-                    "failed to decode chain identifier with err: {e:?}"
-                ))
-            })?;
+        let checkpoint_digest = CheckpointDigest::from_bytes(
+            stored_chain_identifier.checkpoint_digest,
+        )
+        .map_err(|e| {
+            IndexerError::PersistentStorageDataCorruption(format!(
+                "failed to decode chain identifier with err: {e:?}"
+            ))
+        })?;
 
         Ok(checkpoint_digest.into())
     }
@@ -834,7 +836,7 @@ impl IndexerReader {
         let missing_digests = Self::check_for_missing_tx_digests(&digests, &fetched_transactions)
             .iter()
             .map(|digest| {
-                TransactionDigest::try_from(digest.as_slice()).map_err(|e| {
+                TransactionDigest::from_bytes(digest.as_slice()).map_err(|e| {
                     IndexerError::PersistentStorageDataCorruption(format!(
                         "can't convert {digest:?} as tx_digest. Error: {e}",
                     ))

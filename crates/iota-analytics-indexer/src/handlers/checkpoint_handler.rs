@@ -106,8 +106,8 @@ impl CheckpointHandler {
 
         let checkpoint_entry = CheckpointEntry {
             sequence_number: *sequence_number,
-            checkpoint_digest: summary.digest().base58_encode(),
-            previous_checkpoint_digest: previous_digest.map(|d| d.base58_encode()),
+            checkpoint_digest: summary.digest().to_base58(),
+            previous_checkpoint_digest: previous_digest.map(|d| d.to_base58()),
             epoch: *epoch,
             end_of_epoch: end_of_epoch_data.is_some(),
             total_gas_cost,

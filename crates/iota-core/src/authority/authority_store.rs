@@ -696,7 +696,7 @@ impl AuthorityStore {
     /// TODO: delete this method entirely (still used by authority_tests.rs)
     pub(crate) fn insert_genesis_object(&self, object: Object) -> IotaResult {
         // We only side load objects with a genesis parent transaction.
-        debug_assert!(object.previous_transaction == TransactionDigest::genesis_marker());
+        debug_assert!(object.previous_transaction == TransactionDigest::GENESIS_MARKER);
         let object_ref = object.compute_object_reference();
         self.insert_object_direct(object_ref, &object)
     }
@@ -1330,7 +1330,7 @@ impl AuthorityStore {
         object_id: ObjectID,
     ) -> Result<Option<ObjectRef>, IotaError> {
         match self.get_latest_object_ref_or_tombstone(object_id)? {
-            Some(objref) if objref.2.is_alive() => Ok(Some(objref)),
+            Some(objref) if objref.2.is_object_alive() => Ok(Some(objref)),
             _ => Ok(None),
         }
     }

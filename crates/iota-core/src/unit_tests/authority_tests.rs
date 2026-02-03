@@ -165,7 +165,7 @@ async fn construct_shared_object_transaction_with_sequence_number(
                 initial_shared_version,
             };
         }
-        shared_object.previous_transaction = TransactionDigest::genesis_marker();
+        shared_object.previous_transaction = TransactionDigest::GENESIS_MARKER;
         (shared_object_id, shared_object)
     };
     let initial_shared_version = shared_object.version();
@@ -2760,7 +2760,7 @@ async fn test_get_latest_parent_entry() {
         .unwrap();
     assert_eq!(obj_ref.0, new_object_id1);
     assert_eq!(obj_ref.1, delete_version);
-    assert_eq!(obj_ref.2, ObjectDigest::OBJECT_DIGEST_DELETED);
+    assert_eq!(obj_ref.2, ObjectDigest::OBJECT_DELETED);
 }
 
 #[tokio::test]
@@ -4082,7 +4082,7 @@ pub async fn publish_object_basics(state: Arc<AuthorityState>) -> (Arc<Authority
         .get_modules()
         .cloned()
         .collect();
-    let digest = TransactionDigest::genesis_marker();
+    let digest = TransactionDigest::GENESIS_MARKER;
     let pkg = Object::new_package_for_testing(
         &modules,
         digest,
@@ -4118,7 +4118,7 @@ pub async fn init_state_with_ids_and_object_basics_with_fullnode<
         .get_modules()
         .cloned()
         .collect();
-    let digest = TransactionDigest::genesis_marker();
+    let digest = TransactionDigest::GENESIS_MARKER;
     let pkg = Object::new_package_for_testing(
         &modules,
         digest,
@@ -4564,7 +4564,7 @@ async fn prepare_authority_and_shared_object_cert()
         let owner = Owner::Shared {
             initial_shared_version: obj.version(),
         };
-        Object::new_move(obj, owner, TransactionDigest::genesis_marker())
+        Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
     };
     let initial_shared_version = shared_object.version();
 
@@ -4651,7 +4651,7 @@ async fn test_consensus_commit_prologue_generation() {
         let owner = Owner::Shared {
             initial_shared_version: obj.version(),
         };
-        Object::new_move(obj, owner, TransactionDigest::genesis_marker())
+        Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
     };
     let initial_shared_version = shared_object.version();
     let (authority_state, package_object_ref) = init_state_with_objects_and_object_basics(
@@ -4751,7 +4751,7 @@ async fn test_consensus_message_processed() {
         let owner = Owner::Shared {
             initial_shared_version: obj.version(),
         };
-        Object::new_move(obj, owner, TransactionDigest::genesis_marker())
+        Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
     };
     let initial_shared_version = shared_object.version();
 
@@ -6152,7 +6152,7 @@ fn create_shared_objects(num: u32) -> Vec<Object> {
             let owner = Owner::Shared {
                 initial_shared_version: obj.version(),
             };
-            Object::new_move(obj, owner, TransactionDigest::genesis_marker())
+            Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
         };
         objects.push(shared_object);
     }

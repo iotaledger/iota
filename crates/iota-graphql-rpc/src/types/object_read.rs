@@ -31,7 +31,7 @@ impl ObjectRead {
     /// 32-byte hash that identifies the object's contents at this version,
     /// encoded as a Base58 string.
     async fn digest(&self) -> String {
-        self.native.2.base58_encode()
+        self.native.2.to_base58()
     }
 
     /// The object at this version.  May not be available due to pruning.

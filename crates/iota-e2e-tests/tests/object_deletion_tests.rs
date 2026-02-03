@@ -209,7 +209,7 @@ mod sim_only_tests {
                 .get_object_or_tombstone_from_fullnode_store(child_id)
                 .await
                 .2
-                .is_wrapped()
+                .is_object_wrapped()
         );
         effects
     }

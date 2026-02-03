@@ -173,7 +173,7 @@ impl TestSetup {
     // a genesis marker.
     fn convert_to_genesis_obj(obj: Object) -> Object {
         let mut genesis_obj = obj;
-        genesis_obj.previous_transaction = TransactionDigest::genesis_marker();
+        genesis_obj.previous_transaction = TransactionDigest::GENESIS_MARKER;
         genesis_obj
     }
 

@@ -543,7 +543,7 @@ pub trait ObjectCacheRead: Send + Sync {
                     .expect("read cannot fail")
                 {
                     None => false,
-                    Some(entry) => entry.2.is_alive(),
+                    Some(entry) => entry.2.is_object_alive(),
                 },
             )
         });

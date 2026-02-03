@@ -196,10 +196,10 @@ impl ObjectChange {
             } => (*object_id, *version, *digest),
             ObjectChange::Deleted {
                 object_id, version, ..
-            } => (*object_id, *version, ObjectDigest::OBJECT_DIGEST_DELETED),
+            } => (*object_id, *version, ObjectDigest::OBJECT_DELETED),
             ObjectChange::Wrapped {
                 object_id, version, ..
-            } => (*object_id, *version, ObjectDigest::OBJECT_DIGEST_WRAPPED),
+            } => (*object_id, *version, ObjectDigest::OBJECT_WRAPPED),
         }
     }
 
