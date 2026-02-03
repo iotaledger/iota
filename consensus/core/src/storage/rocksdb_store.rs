@@ -6,6 +6,7 @@ use std::{ops::Bound::Included, time::Duration};
 
 use bytes::Bytes;
 use consensus_config::AuthorityIndex;
+use iota_common::scoring_metrics::VersionedStorageScoringMetrics;
 use iota_macros::fail_point;
 use typed_store::{
     Map as _,
@@ -19,7 +20,6 @@ use crate::{
     block::{BlockAPI as _, BlockDigest, BlockRef, Round, SignedBlock, VerifiedBlock},
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
-    storage::VersionedStorageScoringMetrics,
 };
 
 /// Persistent storage with RocksDB.
