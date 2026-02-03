@@ -42,6 +42,6 @@ For each box you select, include information after the relevant heading that des
 
 ##### iota-
 
-- [ ] devnet: 
+- [ ] devnet:
 - [ ] testnet:
 - [ ] mainnet:
