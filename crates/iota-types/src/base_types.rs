@@ -82,7 +82,6 @@ pub trait ConciseableName<'a> {
 
 pub type VersionDigest = (SequenceNumber, ObjectDigest);
 
-// TODO add to SDK?
 pub fn random_object_ref() -> ObjectRef {
     ObjectRef::new(
         ObjectID::random(),
