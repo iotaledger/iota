@@ -7,26 +7,17 @@
 //! for future core type evolution. When core types themselves
 //! need versioning, these wrappers will evolve naturally.
 
-mod proto {
-    pub mod iota {
-        pub mod grpc {
-            pub mod v0 {
-                pub mod common {
-                    tonic::include_proto!("iota.grpc.v0.common");
-                }
-                pub mod checkpoints {
-                    tonic::include_proto!("iota.grpc.v0.checkpoints");
-                }
-                pub mod events {
-                    tonic::include_proto!("iota.grpc.v0.events");
-                }
-            }
-        }
-    }
+pub mod field;
+pub mod headers;
+pub mod merge;
+pub mod proto;
+
+// Re-export google namespace
+pub mod google {
+    pub use super::proto::google::*;
 }
 
-pub use proto::iota::grpc::v0;
-
-pub mod bcs;
-pub mod checkpoints;
-pub mod events;
+// Re-export under v0 namespace
+pub mod v0 {
+    pub use super::proto::iota::grpc::v0::*;
+}
