@@ -100,7 +100,11 @@ export function MenuList() {
     }
 
     function onSidePanelClick() {
-        sidePanelMutation.mutate(!sidePanel.data);
+        sidePanelMutation.mutateAsync(!sidePanel.data).then(() => {
+            if (!sidePanel.data) {
+                window.close();
+            }
+        });
     }
 
     function onSupportClick() {
