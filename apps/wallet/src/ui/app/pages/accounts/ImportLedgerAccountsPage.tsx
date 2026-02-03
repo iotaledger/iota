@@ -71,7 +71,7 @@ export function ImportLedgerAccountsPage() {
     const isUnlockButtonDisabled = numSelectedAccounts === 0;
     const [, setAccountsFormValues] = useAccountsFormContext();
 
-    let importLedgerAccountsBody: JSX.Element | null = null;
+    let importLedgerAccountsBody = null;
     if (areLedgerAccountsLoading) {
         importLedgerAccountsBody = <LedgerViewLoading />;
     } else if (areAllAccountsImported) {

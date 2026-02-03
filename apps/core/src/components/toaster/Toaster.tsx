@@ -56,7 +56,7 @@ type ToastOptions = Partial<
 >;
 
 const enhancedToast = toast as typeof toast & {
-    warning: (message: JSX.Element | string | null, options?: ToastOptions) => string;
+    warning: (message: React.JSX.Element | string | null, options?: ToastOptions) => string;
 };
 
 // Implement the warning function
