@@ -133,27 +133,26 @@ export function PasswordModalDialog({
     return (
         <Dialog open={open}>
             <DialogContent containerId="overlay-portal-container">
-                {!showForgotPassword && <Header title={title} onClose={onClose} />}
+                {!showForgotPassword && <Header title="" onClose={onClose} />}
                 <DialogBody>
                     <div
-                        className={clsx(
-                            showForgotPassword ? 'flex flex-col items-center gap-y-sm pt-2xl' : '',
+                        className={clsx("flex flex-col items-center gap-y-sm",
+                            showForgotPassword ? 'pt-2xl' : '',
                         )}
                     >
-                        {showForgotPassword && (
-                            <>
-                                <img
-                                    src={theme === Theme.Dark ? UnlockWalletDarkmode : UnlockWallet}
-                                    alt="Unlock wallet"
-                                    height={210}
-                                    width="auto"
-                                    className="aspect-[4/3] h-[210px] w-auto object-cover"
-                                />
-                                <span className="py-xs text-headline-md  text-iota-neutral-10 dark:text-iota-neutral-92">
-                                    {title}
-                                </span>
-                            </>
-                        )}
+                        <>
+                            <img
+                                src={theme === Theme.Dark ? UnlockWalletDarkmode : UnlockWallet}
+                                alt="Unlock wallet"
+                                height={210}
+                                width="auto"
+                                className="aspect-[4/3] h-[210px] w-auto object-cover"
+                            />
+                            <span className="dark:text-iota-neutral-92 py-xs  text-headline-sm text-iota-neutral-10">
+                                {title}
+                            </span>
+                        </>
+
                         <Form form={form} id={formID} onSubmit={handleOnSubmit}>
                             <div className="flex flex-col gap-y-lg">
                                 <div className="flex flex-col gap-y-sm">
@@ -172,18 +171,13 @@ export function PasswordModalDialog({
                                     {showForgotPassword && (
                                         <span
                                             onClick={onForgotPassword}
-                                            className="cursor-pointer self-center text-body-sm text-iota-neutral-40 underline dark:text-iota-neutral-60"
+                                            className="dark:text-iota-neutral-60 cursor-pointer self-center text-body-sm text-iota-neutral-40 underline"
                                         >
                                             Forgot Password?
                                         </span>
                                     )}
                                 </div>
-                                <div
-                                    className={clsx(
-                                        'flex gap-2.5',
-                                        showForgotPassword ? ' pt-2xl' : '',
-                                    )}
-                                >
+                                <div className="flex gap-2.5 pt-2xl">
                                     {!showForgotPassword && (
                                         <Button
                                             type={ButtonType.Secondary}

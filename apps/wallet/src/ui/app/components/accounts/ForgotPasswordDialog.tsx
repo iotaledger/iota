@@ -55,20 +55,23 @@ export function ForgotPasswordDialog({ isOpen, setOpen }: ForgotPasswordDialogPr
     return (
         <Dialog open={isOpen} onOpenChange={setOpen}>
             <DialogContent containerId="overlay-portal-container">
-                <Header title="Forgot password" onClose={onClose} />
+                <Header title="" onClose={onClose} />
                 <DialogBody>
-                    <div className="flex flex-col gap-y-lg">
+                    <div className="flex flex-col gap-y-md">
                         <div className="flex flex-col gap-y-sm">
-                            <div className="self-center rounded-full bg-iota-neutral-96 p-md dark:bg-iota-neutral-10">
-                                <Warning className="h-12 w-12 text-iota-neutral-60 dark:text-iota-neutral-40" />
+                            <div className="dark:bg-iota-neutral-10 self-center rounded-full bg-iota-neutral-96 p-md">
+                                <Warning className="dark:text-iota-neutral-40 h-12 w-12 text-iota-neutral-60" />
                             </div>
                             <div className="flex flex-col gap-y-xs py-xs text-center">
-                                <span className="text-headline-md text-iota-neutral-10 dark:text-iota-neutral-92">
+                                <span className="dark:text-iota-neutral-92 text-headline-sm text-iota-neutral-10">
                                     Forgot password?
                                 </span>
-                                <p className="text-title-md text-iota-neutral-40 dark:text-iota-neutral-60">
-                                    To reset your password, you need to reset your wallet. IOTA
-                                    wallet cannot recover your password for you.
+                                <p className="dark:text-iota-neutral-60 text-body-md text-iota-neutral-40">
+                                    Resetting your password requires resetting your wallet. <br />
+                                    This will permanently delete all wallet data from this device,
+                                    and you’ll need to set up your accounts again.
+                                    <br />
+                                    IOTA Wallet cannot recover your password.
                                 </p>
                             </div>
                         </div>
