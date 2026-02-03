@@ -140,7 +140,7 @@ impl ObjectHandler {
                 owner_address: None,
                 object_status: ObjectStatus::Deleted,
                 initial_shared_version: None,
-                previous_transaction: checkpoint_transaction.transaction.digest().base58_encode(),
+                previous_transaction: checkpoint_transaction.transaction.digest().to_base58(),
                 storage_rebate: None,
                 bcs: None,
                 coin_type: None,
@@ -199,7 +199,7 @@ impl ObjectHandler {
                 .get_object_status(&object_id)
                 .expect("object must be in output objects"),
             initial_shared_version: initial_shared_version(object),
-            previous_transaction: object.previous_transaction.base58_encode(),
+            previous_transaction: object.previous_transaction.to_base58(),
             storage_rebate: Some(object.storage_rebate),
             bcs: Some(Base64::encode(bcs::to_bytes(object).unwrap())),
             coin_type: object.coin_type_maybe().map(|t| t.to_string()),
