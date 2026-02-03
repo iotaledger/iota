@@ -28,7 +28,7 @@ In IOTA, transactions are initially ordered based on their gas prices.
 Each transaction is then evaluated individually using the placement algorithm described below to determine its position in the execution trace.
 During this evaluation, every transaction is subject to a binary decision: **Schedule** or **Defer**.
 
--   **Deferred** transactions are carried over to the transaction set of the next consensus commit. If this set grows too large, the lowest-paying transactions may eventually be **cancelled**.
+-   **Deferred** transactions are carried over to the transaction set of the next consensus commit. If a transaction is deferred a specific number of times (currently 10), is it eventually **cancelled**.
 -   **Scheduled** transactions are forwarded to the execution phase in the order determined by the placement algorithm.
 
 :::info Best-effort sequencing
