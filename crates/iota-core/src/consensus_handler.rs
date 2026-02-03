@@ -328,6 +328,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                     if matches!(
                         &transaction.kind,
                         ConsensusTransactionKind::CertifiedTransaction(_)
+                            | ConsensusTransactionKind::UserTransactionV1(_)
                     ) {
                         self.last_consensus_stats
                             .stats
@@ -601,6 +602,13 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
                 "owned_certificate"
             }
         }
+        ConsensusTransactionKind::UserTransactionV1(transaction) => {
+            if transaction.contains_shared_object() {
+                "shared_user_transaction"
+            } else {
+                "owned_user_transaction"
+            }
+        }
         ConsensusTransactionKind::CheckpointSignature(_) => "checkpoint_signature",
         ConsensusTransactionKind::EndOfPublish(_) => "end_of_publish",
         ConsensusTransactionKind::CapabilityNotificationV1(_) => "capability_notification_v1",
@@ -707,20 +715,20 @@ impl SequencedConsensusTransactionKind {
 
     pub fn is_executable_transaction(&self) -> bool {
         match self {
-            SequencedConsensusTransactionKind::External(ext) => ext.is_user_certificate(),
+            SequencedConsensusTransactionKind::External(ext) => {
+                ext.is_user_certificate() || ext.kind.is_user_transaction()
+            }
             SequencedConsensusTransactionKind::System(_) => true,
         }
     }
 
     pub fn executable_transaction_digest(&self) -> Option<TransactionDigest> {
         match self {
-            SequencedConsensusTransactionKind::External(ext) => {
-                if let ConsensusTransactionKind::CertifiedTransaction(txn) = &ext.kind {
-                    Some(*txn.digest())
-                } else {
-                    None
-                }
-            }
+            SequencedConsensusTransactionKind::External(ext) => match &ext.kind {
+                ConsensusTransactionKind::CertifiedTransaction(txn) => Some(*txn.digest()),
+                ConsensusTransactionKind::UserTransactionV1(txn) => Some(*txn.digest()),
+                _ => None,
+            },
             SequencedConsensusTransactionKind::System(txn) => Some(*txn.digest()),
         }
     }
@@ -760,14 +768,17 @@ impl SequencedConsensusTransaction {
     }
 
     pub fn is_user_tx_with_randomness(&self) -> bool {
-        let SequencedConsensusTransactionKind::External(ConsensusTransaction {
-            kind: ConsensusTransactionKind::CertifiedTransaction(certificate),
-            ..
-        }) = &self.transaction
-        else {
-            return false;
-        };
-        certificate.uses_randomness()
+        match &self.transaction {
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::CertifiedTransaction(certificate),
+                ..
+            }) => certificate.uses_randomness(),
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(transaction),
+                ..
+            }) => transaction.uses_randomness(),
+            _ => false,
+        }
     }
 
     pub fn as_shared_object_txn(&self) -> Option<&SenderSignedData> {
@@ -776,11 +787,25 @@ impl SequencedConsensusTransaction {
                 kind: ConsensusTransactionKind::CertifiedTransaction(certificate),
                 ..
             }) if certificate.contains_shared_object() => Some(certificate.data()),
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(transaction),
+                ..
+            }) if transaction.contains_shared_object() => Some(transaction.data()),
             SequencedConsensusTransactionKind::System(txn) if txn.contains_shared_object() => {
                 Some(txn.data())
             }
             _ => None,
         }
+    }
+
+    pub fn is_user_transaction(&self) -> bool {
+        matches!(
+            &self.transaction,
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(_),
+                ..
+            })
+        )
     }
 }
 

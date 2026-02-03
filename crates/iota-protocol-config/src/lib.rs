@@ -1628,6 +1628,10 @@ impl ProtocolConfig {
         );
         res
     }
+
+    pub fn enable_white_flag_flow(&self) -> bool {
+        self.feature_flags.enable_white_flag_flow
+    }
 }
 
 #[cfg(not(msim))]
@@ -2856,6 +2860,10 @@ impl ProtocolConfig {
     }
     pub fn set_consensus_fast_commit_sync_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_fast_commit_sync = val;
+    }
+
+    pub fn set_enable_white_flag_flow_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_white_flag_flow = val;
     }
 }
 
