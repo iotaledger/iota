@@ -172,7 +172,7 @@ impl StoredHistoryObject {
         })?;
 
         if let ObjectStatus::WrappedOrDeleted = object_status {
-            let object_ref = (
+            let object_ref = ObjectRef::new(
                 ObjectID::from_bytes(self.object_id.clone())
                     .map_err(|_| IndexerError::ObjectIdParse(ObjectIDParseError::TryFromSlice))?,
                 SequenceNumber::from_u64(self.object_version as u64),
@@ -420,7 +420,7 @@ impl StoredObject {
                     self.object_digest
                 ))
             })?;
-        Ok((
+        Ok(ObjectRef::new(
             object_id,
             (self.object_version as u64).into(),
             object_digest,
@@ -516,29 +516,32 @@ impl TryFrom<StoredObject> for IotaCoin {
 
     fn try_from(o: StoredObject) -> Result<Self, Self::Error> {
         let object: Object = o.clone().try_into()?;
-        let (coin_object_id, version, digest) = o.get_object_ref()?;
+        let object_ref = o.get_object_ref()?;
         let coin_type_canonical =
             o.coin_type
                 .ok_or(IndexerError::PersistentStorageDataCorruption(format!(
-                    "Object {coin_object_id} is supposed to be a coin but has an empty coin_type column",
+                    "Object {} is supposed to be a coin but has an empty coin_type column",
+                    object_ref.object_id
                 )))?;
         let coin_type = parse_to_struct_tag(coin_type_canonical.as_str())
             .map_err(|_| {
                 IndexerError::PersistentStorageDataCorruption(format!(
-                    "The type of object {coin_object_id} cannot be parsed as a struct tag",
+                    "The type of object {} cannot be parsed as a struct tag",
+                    object_ref.object_id
                 ))
             })?
             .to_string();
         let balance = o
             .coin_balance
             .ok_or(IndexerError::PersistentStorageDataCorruption(format!(
-                "Object {coin_object_id} is supposed to be a coin but has an empty coin_balance column",
+                "Object {} is supposed to be a coin but has an empty coin_balance column",
+                object_ref.object_id
             )))?;
         Ok(IotaCoin {
             coin_type,
-            coin_object_id,
-            version,
-            digest,
+            coin_object_id: object_ref.object_id,
+            version: object_ref.version,
+            digest: object_ref.digest,
             balance: balance as u64,
             previous_transaction: object.previous_transaction,
         })

@@ -111,7 +111,8 @@ async fn test_transfer_iota() -> Result<(), anyhow::Error> {
         .wallet
         .get_one_gas_object_owned_by_address(address)
         .await?
-        .unwrap();
+        .unwrap()
+        .into_parts();
 
     let amount_to_transfer: i128 = 1234;
     let transaction_bytes: TransactionBlockBytes = http_client
@@ -157,8 +158,8 @@ async fn test_pay() -> Result<(), anyhow::Error> {
         .wallet
         .get_gas_objects_owned_by_address(address, Some(2))
         .await?;
-    let (gas_to_send, _, _) = gas_objs[0];
-    let (gas_to_pay_for_tx, _, _) = gas_objs[1];
+    let (gas_to_send, _, _) = gas_objs[0].into_parts();
+    let (gas_to_pay_for_tx, _, _) = gas_objs[1].into_parts();
 
     let amount_to_transfer: i128 = 123;
     let transaction_bytes: TransactionBlockBytes = http_client
@@ -216,7 +217,10 @@ async fn test_pay_iota() -> Result<(), anyhow::Error> {
     let transaction_bytes: TransactionBlockBytes = http_client
         .pay_iota(
             address,
-            coins.iter().map(|coin| coin.object_ref().0).collect(),
+            coins
+                .iter()
+                .map(|coin| coin.object_ref().object_id)
+                .collect(),
             vec![recipient_1, recipient_2],
             vec![recipient_1_amount.into(), recipient_2_amount.into()],
             budget.into(),
@@ -271,7 +275,10 @@ async fn test_pay_all_iota() -> Result<(), anyhow::Error> {
     let transaction_bytes: TransactionBlockBytes = http_client
         .pay_all_iota(
             address,
-            coins.iter().map(|coin| coin.object_ref().0).collect(),
+            coins
+                .iter()
+                .map(|coin| coin.object_ref().object_id)
+                .collect(),
             recipient,
             budget.into(),
         )

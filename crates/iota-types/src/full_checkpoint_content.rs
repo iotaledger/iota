@@ -37,7 +37,7 @@ impl CheckpointData {
                 latest_live_objects.insert(obj.id(), obj);
             }
             for obj_ref in tx.removed_object_refs_post_version() {
-                latest_live_objects.remove(&(obj_ref.0));
+                latest_live_objects.remove(&(&obj_ref.object_id));
             }
         }
         latest_live_objects.into_values().collect()
@@ -49,7 +49,7 @@ impl CheckpointData {
         let mut eventually_removed_object_refs = BTreeMap::new();
         for tx in self.transactions.iter() {
             for obj_ref in tx.removed_object_refs_post_version() {
-                eventually_removed_object_refs.insert(obj_ref.0, obj_ref);
+                eventually_removed_object_refs.insert(obj_ref.object_id, obj_ref);
             }
             for obj in tx.output_objects.iter() {
                 eventually_removed_object_refs.remove(&(obj.id()));

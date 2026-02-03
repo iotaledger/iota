@@ -146,13 +146,13 @@ impl ObjectStatusTracker {
         let created: BTreeSet<ObjectID> = effects
             .created()
             .iter()
-            .map(|(obj_ref, _)| obj_ref.0)
+            .map(|(obj_ref, _)| obj_ref.object_id)
             .collect();
         let mutated: BTreeSet<ObjectID> = effects
             .mutated()
             .iter()
             .chain(effects.unwrapped().iter())
-            .map(|(obj_ref, _)| obj_ref.0)
+            .map(|(obj_ref, _)| obj_ref.object_id)
             .collect();
         let deleted: BTreeSet<ObjectID> = effects
             .all_tombstones()

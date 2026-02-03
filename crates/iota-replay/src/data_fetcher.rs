@@ -406,7 +406,7 @@ impl DataFetcher for RemoteFetcher {
                     let r = obj.compute_object_reference();
                     self.versioned_object_cache
                         .write()
-                        .put((r.0, r.1), obj.clone());
+                        .put((r.object_id, r.version), obj.clone());
                 }
                 x
             })

@@ -162,7 +162,7 @@ impl TreeShakingTest {
         )
         .await;
 
-        obj_ref.0
+        obj_ref.object_id
     }
 
     async fn upgrade_package(
@@ -1457,7 +1457,8 @@ async fn test_package_management_on_publish_command() -> Result<(), anyhow::Erro
                 .ok_or_else(|| anyhow::anyhow!("No package object response"))?
         } else {
             unreachable!("Invalid response");
-        };
+        }
+        .into_parts();
 
     // Get lock file that recorded Package ID and version
     let lock_file = build_config.lock_file.expect("Lock file for testing");
@@ -2721,7 +2722,8 @@ async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Erro
 
     // Get Original Package ID and version
     let (expect_original_id, _, _) = get_new_package_obj_from_response(&publish_response)
-        .ok_or_else(|| anyhow::anyhow!("No package object response"))?;
+        .ok_or_else(|| anyhow::anyhow!("No package object response"))?
+        .into_parts();
 
     // Get Upgraded Package ID and version
     let (expect_upgrade_latest_id, expect_upgrade_version, _) =
@@ -2734,7 +2736,8 @@ async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Erro
                 .ok_or_else(|| anyhow::anyhow!("No package object response"))?
         } else {
             unreachable!("Invalid response");
-        };
+        }
+        .into_parts();
 
     // Get lock file that recorded Package ID and version
     let lock_file = build_config.lock_file.expect("Lock file for testing");

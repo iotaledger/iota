@@ -154,8 +154,8 @@ async fn resolve_transaction(
             .map_err(anyhow::Error::from)?
             .iter()
             .flat_map(|obj| match obj {
-                iota_types::transaction::InputObjectKind::ImmOrOwnedMoveObject((id, _, _)) => {
-                    Some(*id)
+                iota_types::transaction::InputObjectKind::ImmOrOwnedMoveObject(object_ref) => {
+                    Some(object_ref.object_id)
                 }
                 _ => None,
             })
@@ -353,7 +353,7 @@ fn resolve_object_reference(
         ));
     }
 
-    Ok((object_id, v, d))
+    Ok(ObjectRef::new(object_id, v, d))
 }
 
 fn resolve_ptb(

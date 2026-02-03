@@ -748,7 +748,7 @@ impl ObjectInner {
     }
 
     pub fn compute_object_reference(&self) -> ObjectRef {
-        (self.id(), self.version(), self.digest())
+        ObjectRef::new(self.id(), self.version(), self.digest())
     }
 
     pub fn digest(&self) -> ObjectDigest {
@@ -1092,9 +1092,9 @@ impl ObjectRead {
 
     pub fn object_id(&self) -> ObjectID {
         match self {
-            Self::Deleted(oref) => oref.0,
+            Self::Deleted(oref) => oref.object_id,
             Self::NotExists(id) => *id,
-            Self::Exists(oref, _, _) => oref.0,
+            Self::Exists(oref, _, _) => oref.object_id,
         }
     }
 }

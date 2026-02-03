@@ -671,7 +671,7 @@ impl IndexStore {
                 &self.tables.transactions_by_mutated_object_id,
                 mutated_objects
                     .clone()
-                    .map(|(obj_ref, _)| ((obj_ref.0, sequence), *digest)),
+                    .map(|(obj_ref, _)| ((obj_ref.object_id, sequence), *digest)),
             )?;
         }
 

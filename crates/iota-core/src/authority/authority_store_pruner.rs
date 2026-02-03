@@ -899,7 +899,7 @@ mod tests {
     use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
     use iota_types::{
-        base_types::{ObjectDigest, ObjectID, SequenceNumber},
+        base_types::{ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
         effects::{TransactionEffects, TransactionEffectsAPI},
         object::Object,
         storage::ObjectKey,
@@ -1024,14 +1024,14 @@ mod tests {
             .unwrap();
             let mut effects = TransactionEffects::default();
             for object in to_delete {
-                effects.unsafe_add_deleted_live_object_for_testing((
+                effects.unsafe_add_deleted_live_object_for_testing(ObjectRef::new(
                     object.0,
                     object.1,
                     ObjectDigest::MIN,
                 ));
             }
             for object in tombstones {
-                effects.unsafe_add_object_tombstone_for_testing((
+                effects.unsafe_add_object_tombstone_for_testing(ObjectRef::new(
                     object.0,
                     object.1,
                     ObjectDigest::MIN,
@@ -1119,7 +1119,7 @@ mod tests {
 
         let mut effects = TransactionEffects::default();
         for object in to_delete {
-            effects.unsafe_add_deleted_live_object_for_testing((
+            effects.unsafe_add_deleted_live_object_for_testing(ObjectRef::new(
                 object.0,
                 object.1,
                 ObjectDigest::MIN,

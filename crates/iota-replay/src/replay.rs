@@ -455,18 +455,18 @@ impl LocalExec {
                 .live_objects_store
                 .lock()
                 .expect("Can't lock")
-                .insert(o_ref.0, obj.clone());
+                .insert(o_ref.object_id, obj.clone());
             self.storage
                 .object_version_cache
                 .lock()
                 .expect("Cannot lock")
-                .insert((o_ref.0, o_ref.1), obj.clone());
+                .insert((o_ref.object_id, o_ref.version), obj.clone());
             if obj.is_package() {
                 self.storage
                     .package_cache
                     .lock()
                     .expect("Cannot lock")
-                    .insert(o_ref.0, obj.clone());
+                    .insert(o_ref.object_id, obj.clone());
             }
         }
         tokio::task::yield_now().await;
@@ -501,18 +501,18 @@ impl LocalExec {
         for obj in objs.clone() {
             let o_ref = obj.compute_object_reference();
             // We dont always want the latest in store
-            // self.storage.store.insert(o_ref.0, obj.clone());
+            // self.storage.store.insert(o_ref.object_id, obj.clone());
             self.storage
                 .object_version_cache
                 .lock()
                 .expect("Cannot lock")
-                .insert((o_ref.0, o_ref.1), obj.clone());
+                .insert((o_ref.object_id, o_ref.version), obj.clone());
             if obj.is_package() {
                 self.storage
                     .package_cache
                     .lock()
                     .expect("Cannot lock")
-                    .insert(o_ref.0, obj.clone());
+                    .insert(o_ref.object_id, obj.clone());
             }
         }
         Ok(objs.collect())
@@ -559,7 +559,7 @@ impl LocalExec {
             .object_version_cache
             .lock()
             .expect("Cannot lock")
-            .insert((o_ref.0, o_ref.1), o.clone());
+            .insert((o_ref.object_id, o_ref.version), o.clone());
         Ok(o)
     }
 
@@ -632,7 +632,7 @@ impl LocalExec {
                     .object_version_cache
                     .lock()
                     .expect("Can't lock")
-                    .insert((obj_ref.0, obj_ref.1), object.clone());
+                    .insert((obj_ref.object_id, obj_ref.version), object.clone());
                 Ok(Some(object))
             }
             Err(ReplayEngineError::ObjectNotExist { id }) => {
@@ -1083,7 +1083,7 @@ impl LocalExec {
             .object_version_cache
             .lock()
             .expect("Cannot lock")
-            .insert((o_ref.0, o_ref.1), o.clone());
+            .insert((o_ref.object_id, o_ref.version), o.clone());
         Ok(Some(o))
     }
 
@@ -1285,8 +1285,11 @@ impl LocalExec {
                 .map(|o| (o.compute_object_reference(), o.previous_transaction))
                 .collect();
 
-            previous_txs.iter().for_each(|((id, ver, _), tx)| {
-                mapping.entry(*id).or_insert(vec![]).push((*ver, *tx));
+            previous_txs.iter().for_each(|(object_ref, tx)| {
+                mapping
+                    .entry(object_ref.object_id)
+                    .or_insert(vec![])
+                    .push((object_ref.version, *tx));
             });
 
             // Next round
@@ -1294,11 +1297,11 @@ impl LocalExec {
             let previous_ver_refs: Vec<_> = previous_txs
                 .iter()
                 .filter_map(|(q, _)| {
-                    let prev_ver = q.1 - 1;
+                    let prev_ver = q.version - 1;
                     if prev_ver == 0 {
                         None
                     } else {
-                        Some((q.0, prev_ver))
+                        Some((q.object_id, prev_ver))
                     }
                 })
                 .collect();
@@ -1524,7 +1527,7 @@ impl LocalExec {
             .transaction_data()
             .receiving_objects()
             .into_iter()
-            .map(|(obj_id, version, _)| (obj_id, version))
+            .map(|obj_ref| (obj_ref.object_id, obj_ref.version))
             .collect();
 
         let epoch_id = effects.executed_epoch;
@@ -1612,7 +1615,7 @@ impl LocalExec {
             .transaction_data()
             .receiving_objects()
             .into_iter()
-            .map(|(obj_id, version, _)| (obj_id, version))
+            .map(|obj_ref| (obj_ref.object_id, obj_ref.version))
             .collect();
 
         let epoch_id = dp.node_state_dump.executed_epoch;
@@ -1666,8 +1669,9 @@ impl LocalExec {
         if !deleted_shared_objects.is_empty() {
             for tx_digest in tx_info.dependencies.iter() {
                 let tx_info = self.resolve_tx_components(tx_digest).await?;
-                for (obj_id, version, _) in tx_info.shared_object_refs.iter() {
-                    deleted_shared_info_map.insert(*obj_id, (tx_info.tx_digest, *version));
+                for obj_ref in tx_info.shared_object_refs.iter() {
+                    deleted_shared_info_map
+                        .insert(obj_ref.object_id, (tx_info.tx_digest, obj_ref.version));
                 }
             }
         }
@@ -1681,7 +1685,7 @@ impl LocalExec {
                     Ok(())
                 }
                 InputObjectKind::ImmOrOwnedMoveObject(o_ref) => {
-                    imm_owned_inputs.push((o_ref.0, o_ref.1));
+                    imm_owned_inputs.push((o_ref.object_id, o_ref.version));
                     Ok(())
                 }
                 InputObjectKind::SharedMoveObject {
@@ -1756,7 +1760,7 @@ impl LocalExec {
                         .object_version_cache
                         .lock()
                         .expect("Cannot lock")
-                        .get(&(o_ref.0, o_ref.1))
+                        .get(&(o_ref.object_id, o_ref.version))
                         .unwrap()
                         .clone()
                         .into(),
@@ -1806,10 +1810,13 @@ impl LocalExec {
         let (shared_refs, deleted_shared_refs): (Vec<ObjectRef>, Vec<ObjectRef>) = tx_info
             .shared_object_refs
             .iter()
-            .partition(|r| r.2 != ObjectDigest::OBJECT_DELETED);
+            .partition(|r| r.digest != ObjectDigest::OBJECT_DELETED);
 
         // Download shared objects at the version right before the execution of this TX
-        let shared_refs: Vec<_> = shared_refs.iter().map(|r| (r.0, r.1)).collect();
+        let shared_refs: Vec<_> = shared_refs
+            .iter()
+            .map(|r| (r.object_id, r.version))
+            .collect();
         self.multi_download_and_store(&shared_refs).await?;
 
         // Download gas (although this should already be in cache from modified at
@@ -1817,7 +1824,7 @@ impl LocalExec {
         let gas_refs: Vec<_> = tx_info
             .gas
             .iter()
-            .filter_map(|w| (w.0 != ObjectID::ZERO).then_some((w.0, w.1)))
+            .filter_map(|w| (w.object_id != ObjectID::ZERO).then_some((w.object_id, w.version)))
             .collect();
         self.multi_download_and_store(&gas_refs).await?;
 

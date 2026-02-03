@@ -58,7 +58,7 @@ impl InnerTemporaryStore {
         let deleted: HashMap<_, _> = effects
             .deleted()
             .iter()
-            .map(|oref| (oref.0, oref.1))
+            .map(|oref| (oref.object_id, oref.version))
             .collect();
 
         // add deleted shared objects to the outputkeys that then get sent to
