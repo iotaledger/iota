@@ -157,6 +157,15 @@ export default function OfflineSigner() {
                                 <EffectsPreview output={dryRunData} network={dryRunNetwork} />
                             </DryRunProvider>
                         )}
+
+                        {dryRunData?.effects?.transactionDigest && (
+                            <div>
+                                <h4 className="text-lg font-semibold">Transaction Digest</h4>
+                                <div className="border text-mono break-all rounded p-4">
+                                    {dryRunData.effects.transactionDigest}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </TabsContent>
 
