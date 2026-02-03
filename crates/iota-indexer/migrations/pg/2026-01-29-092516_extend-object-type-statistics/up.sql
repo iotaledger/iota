@@ -27,7 +27,7 @@ BEGIN
     LOOP
         EXECUTE format(
             'CREATE STATISTICS IF NOT EXISTS %I (dependencies, mcv)
-             ON object_type_package, object_type_module, object_type_name
+             ON object_type_package, object_type_module, object_type_name, object_type
              FROM %I',
             partition_name || '_type_stats',
             partition_name
