@@ -14,8 +14,8 @@ pub mod execution;
 pub mod ledger;
 
 pub use common::{
-    CHECKPOINT_READ_MASK, EXECUTION_READ_MASK, Error, OBJECTS_READ_MASK, Result,
-    TRANSACTIONS_READ_MASK,
+    CHECKPOINT_READ_MASK, EPOCH_READ_MASK, EXECUTION_READ_MASK, Error, OBJECTS_READ_MASK, Result,
+    SERVICE_INFO_READ_MASK, TRANSACTIONS_READ_MASK,
 };
 pub(crate) use common::{
     ProtoResult, TryFromProtoError, build_proto_transaction, field_mask_with_default,
@@ -23,7 +23,9 @@ pub(crate) use common::{
 // Re-export proto types as the primary API
 pub use iota_grpc_types::v0::{
     checkpoint::Checkpoint,
+    epoch::Epoch,
     event::Event,
+    ledger_service::GetServiceInfoResponse,
     object::{Object, Objects},
     transaction::{ExecutedTransaction, Transaction, TransactionEffects, TransactionEvents},
 };

@@ -10,10 +10,64 @@ use iota_grpc_types::{
 
 use crate::{
     Client,
-    api::{Result, TryFromProtoError},
+    api::{EPOCH_READ_MASK, Result, TryFromProtoError, field_mask_with_default},
 };
 
 impl Client {
+    /// Get epoch information.
+    ///
+    /// Returns the [`Epoch`] proto type with fields populated according to the
+    /// `read_mask`.
+    ///
+    /// # Parameters
+    ///
+    /// * `epoch` - The epoch to query. If `None`, returns the current epoch.
+    /// * `read_mask` - Optional field mask specifying which fields to include.
+    ///   If `None`, uses [`EPOCH_READ_MASK`].
+    ///
+    /// **Optional fields:**
+    /// - `epoch` - The epoch number
+    /// - `committee` - The validator committee for this epoch
+    /// - `bcs_system_state` - BCS-encoded system state snapshot
+    /// - `first_checkpoint` - First checkpoint in this epoch
+    /// - `last_checkpoint` - Last checkpoint in this epoch
+    /// - `start` - Epoch start timestamp
+    /// - `end` - Epoch end timestamp
+    /// - `reference_gas_price` - Reference gas price in NANOS
+    /// - `protocol_config` - Protocol configuration for this epoch
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use iota_grpc_client::Client;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = Client::connect("http://localhost:9000").await?;
+    ///
+    /// // Get current epoch with default fields
+    /// let epoch = client.get_epoch(None, None).await?;
+    /// println!("Epoch: {:?}", epoch.epoch);
+    ///
+    /// // Get specific epoch with custom fields
+    /// let epoch = client
+    ///     .get_epoch(Some(0), Some("epoch,reference_gas_price,first_checkpoint"))
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn get_epoch(&self, epoch: Option<u64>, read_mask: Option<&str>) -> Result<Epoch> {
+        let request = GetEpochRequest {
+            epoch,
+            read_mask: Some(field_mask_with_default(read_mask, EPOCH_READ_MASK)),
+        };
+
+        let mut client = self.ledger_service_client();
+        let response = client.get_epoch(request).await?.into_inner();
+
+        response
+            .epoch
+            .ok_or(TryFromProtoError::missing("epoch").into())
+    }
+
     /// Get the reference gas price for the current epoch.
     ///
     /// # Example
