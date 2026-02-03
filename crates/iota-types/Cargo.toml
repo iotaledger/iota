@@ -63,7 +63,6 @@ tracing.workspace = true
 # internal dependencies
 consensus-config.workspace = true
 iota-enum-compat-util.workspace = true
-iota-grpc-types.workspace = true
 iota-macros.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true

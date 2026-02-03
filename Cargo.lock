@@ -8163,7 +8163,6 @@ dependencies = [
  "im",
  "indexmap 2.11.0",
  "iota-enum-compat-util",
- "iota-grpc-types",
  "iota-macros",
  "iota-network-stack",
  "iota-protocol-config",
