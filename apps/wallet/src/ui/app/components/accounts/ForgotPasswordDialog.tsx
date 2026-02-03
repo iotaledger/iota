@@ -60,14 +60,14 @@ export function ForgotPasswordDialog({ isOpen, setOpen }: ForgotPasswordDialogPr
                 <DialogBody>
                     <div className="flex flex-col gap-y-lg">
                         <div className="flex flex-col gap-y-sm">
-                            <div className="dark:bg-iota-neutral-10 self-center rounded-full bg-iota-neutral-96 p-md">
-                                <Warning className="dark:text-iota-neutral-40 h-12 w-12 text-iota-neutral-60" />
+                            <div className="self-center rounded-full bg-iota-neutral-96 p-md dark:bg-iota-neutral-10">
+                                <Warning className="h-12 w-12 text-iota-neutral-60 dark:text-iota-neutral-40" />
                             </div>
                             <div className="flex flex-col gap-y-xs py-xs text-center">
-                                <span className="dark:text-iota-neutral-92 text-headline-md text-iota-neutral-10">
+                                <span className="text-headline-md text-iota-neutral-10 dark:text-iota-neutral-92">
                                     Forgot password?
                                 </span>
-                                <p className="dark:text-iota-neutral-60 text-title-md text-iota-neutral-40">
+                                <p className="text-title-md text-iota-neutral-40 dark:text-iota-neutral-60">
                                     To reset your password, you need to reset your wallet. IOTA
                                     wallet cannot recover your password for you.
                                 </p>

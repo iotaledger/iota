@@ -172,7 +172,7 @@ export function PasswordModalDialog({
                                     {showForgotPassword && (
                                         <span
                                             onClick={onForgotPassword}
-                                            className="self-center text-body-sm text-iota-neutral-40 underline dark:text-iota-neutral-60 cursor-pointer"
+                                            className="cursor-pointer self-center text-body-sm text-iota-neutral-40 underline dark:text-iota-neutral-60"
                                         >
                                             Forgot Password?
                                         </span>
