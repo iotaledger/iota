@@ -210,11 +210,9 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
                     &change.output_state,
                     &change.id_operation,
                 ) {
-                    (ObjectIn::Exist(_), ObjectOut::NotExist, IDOperation::Deleted) => Some((
-                        *id,
-                        self.lamport_version,
-                        ObjectDigest::OBJECT_DIGEST_DELETED,
-                    )),
+                    (ObjectIn::Exist(_), ObjectOut::NotExist, IDOperation::Deleted) => {
+                        Some((*id, self.lamport_version, ObjectDigest::OBJECT_DELETED))
+                    }
                     _ => None,
                 }
             })
@@ -230,11 +228,9 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
                     &change.output_state,
                     &change.id_operation,
                 ) {
-                    (ObjectIn::NotExist, ObjectOut::NotExist, IDOperation::Deleted) => Some((
-                        *id,
-                        self.lamport_version,
-                        ObjectDigest::OBJECT_DIGEST_DELETED,
-                    )),
+                    (ObjectIn::NotExist, ObjectOut::NotExist, IDOperation::Deleted) => {
+                        Some((*id, self.lamport_version, ObjectDigest::OBJECT_DELETED))
+                    }
                     _ => None,
                 }
             })
@@ -250,11 +246,9 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
                     &change.output_state,
                     &change.id_operation,
                 ) {
-                    (ObjectIn::Exist(_), ObjectOut::NotExist, IDOperation::None) => Some((
-                        *id,
-                        self.lamport_version,
-                        ObjectDigest::OBJECT_DIGEST_WRAPPED,
-                    )),
+                    (ObjectIn::Exist(_), ObjectOut::NotExist, IDOperation::None) => {
+                        Some((*id, self.lamport_version, ObjectDigest::OBJECT_WRAPPED))
+                    }
                     _ => None,
                 }
             })

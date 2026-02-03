@@ -107,7 +107,7 @@ async fn extract_one_no_system_tx(
     mut txs: Vec<TransactionDigest>,
 ) -> Option<TransactionDigest> {
     let opts = IotaTransactionBlockResponseOptions::full_content();
-    txs.retain(|q| *q != TransactionDigest::genesis_marker());
+    txs.retain(|q| *q != TransactionDigest::GENESIS_MARKER);
 
     for ch in txs.chunks(*QUERY_MAX_RESULT_LIMIT) {
         match rpc_client

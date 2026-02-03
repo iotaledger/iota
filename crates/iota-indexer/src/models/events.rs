@@ -118,13 +118,12 @@ impl StoredEvent {
             .map_err(|e| IndexerError::Serde(e.to_string()))?;
         let (_, parsed_json) = type_and_fields_from_move_event_data(move_object)
             .map_err(|e| IndexerError::Serde(e.to_string()))?;
-        let tx_digest =
-            TransactionDigest::try_from(self.transaction_digest.as_slice()).map_err(|e| {
-                IndexerError::Serde(format!(
-                    "Failed to parse transaction digest: {:?}, error: {}",
-                    self.transaction_digest, e
-                ))
-            })?;
+        let tx_digest = TransactionDigest::from_bytes(&self.transaction_digest).map_err(|e| {
+            IndexerError::Serde(format!(
+                "Failed to parse transaction digest: {:?}, error: {}",
+                self.transaction_digest, e
+            ))
+        })?;
         Ok(IotaEvent {
             id: EventID {
                 tx_digest,

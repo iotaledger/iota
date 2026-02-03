@@ -211,7 +211,7 @@ pub async fn perform_zk_login_test_tx(
             None,
         )
         .await?;
-    Ok(transaction_response.digest.base58_encode())
+    Ok(transaction_response.digest.to_base58())
 }
 
 fn get_config(network: &str) -> (&str, &str) {

@@ -619,7 +619,7 @@ fn test_parallel_shared_object_updates() {
                 let mut seen_digests: HashSet<TransactionDigest> = HashSet::new();
                 for stored_global_order in stored_global_orders.iter() {
                     let tx_digest =
-                        TransactionDigest::try_from(&stored_global_order.tx_digest[..]).unwrap();
+                        TransactionDigest::from_bytes(&stored_global_order.tx_digest[..]).unwrap();
                     let tx_deps = &transaction_dependencies[&tx_digest];
                     let relevant_deps: HashSet<_> = tx_deps
                         .intersection(&executed_transactions_digests)
