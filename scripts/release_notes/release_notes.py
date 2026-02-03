@@ -205,7 +205,6 @@ def git(*args):
     """Run a git command and return the output as a string."""
     return subprocess.check_output(["git"] + list(args)).decode().strip()
 
-
 def extract_notes_from_commit(commit):
     # we'll need to go one level deeper to find the PR number
     url = f"https://api.github.com/repos/iotaledger/iota/commits/{commit}/pulls"
@@ -402,10 +401,10 @@ def extract_protocol_version(commit):
         return match[0]
 
 
-def print_changelog(pr, log, commit=None):
+def print_changelog(pr, log, commit=None, is_test=False):
     if pr:
-        print(f"https://github.com/iotaledger/iota/pull/{pr}: ", end="")
-    elif commit:
+        print(f"[#{pr}](https://github.com/iotaledger/iota/pull/{pr}): ", end="")
+    elif commit and is_test:
         print(f"https://github.com/iotaledger/iota/commit/{commit}: ", end="")
     print(log)
 
@@ -547,7 +546,7 @@ def do_generate(from_, to, is_test):
 
         if notes:
             for pr, note in reversed(notes):
-                print_changelog(pr, note)
+                print_changelog(pr, note, is_test=is_test)
                 print()
 
     # Print any remaining impact areas
@@ -568,7 +567,7 @@ def do_generate(from_, to, is_test):
                 print(f"#### {network}\n")
                 for pr, commit, note in reversed(entries):
                     print("- ", end="")
-                    print_changelog(pr, note, commit)
+                    print_changelog(pr, note, commit, is_test=is_test)
                 print()
 
 
