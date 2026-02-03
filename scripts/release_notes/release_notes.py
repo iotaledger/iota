@@ -303,7 +303,7 @@ def extract_rollout(notes, crate_names):
     return rollout
 
 
-def extract_notes(commit_or_pr, seen, is_pr, crate_names, is_test):
+def extract_notes(commit_or_pr, seen, is_pr, crate_names, is_dry_run):
     """Get release notes from a commit message or a PR description.
 
     Finds the 'Release notes' section in the message, and
@@ -319,7 +319,7 @@ def extract_notes(commit_or_pr, seen, is_pr, crate_names, is_test):
     if is_pr:
         pr = commit_or_pr
         notes = extract_notes_from_pr(pr)
-    elif is_test:
+    elif is_dry_run:
         pr = None
         notes = extract_notes_from_local_commit(commit_or_pr)
     else:
@@ -398,10 +398,10 @@ def extract_protocol_version(commit):
         return match[0]
 
 
-def print_changelog(pr, log, commit=None, is_test=False):
+def print_changelog(pr, log, commit=None, is_dry_run=False):
     if pr:
         print(f"[#{pr}](https://github.com/iotaledger/iota/pull/{pr}): ", end="")
-    elif commit and is_test:
+    elif commit and is_dry_run:
         print(f"https://github.com/iotaledger/iota/commit/{commit}: ", end="")
     print(log)
 
@@ -474,7 +474,7 @@ def do_check(commit_or_pr, is_pr):
     sys.exit(1)
 
 
-def do_generate(from_, to, is_test):
+def do_generate(from_, to, is_dry_run):
     """Generate release notes from git commits.
 
     This will extract the release notes from all commits between
@@ -512,7 +512,7 @@ def do_generate(from_, to, is_test):
     seen_prs = set()
     for commit in commits.split("\n"):
         try:
-            pr, notes, rollout = extract_notes(commit, seen_prs, False, crate_names, is_test)
+            pr, notes, rollout = extract_notes(commit, seen_prs, False, crate_names, is_dry_run)
         except ValueError as exc:
             print(f"Error while processing release notes in commit {commit}: {exc}")
             sys.exit(1)
@@ -543,7 +543,7 @@ def do_generate(from_, to, is_test):
 
         if notes:
             for pr, note in reversed(notes):
-                print_changelog(pr, note, is_test=is_test)
+                print_changelog(pr, note, is_dry_run=is_dry_run)
                 print()
 
     # Print any remaining impact areas
@@ -564,7 +564,7 @@ def do_generate(from_, to, is_test):
                 print(f"#### {network}\n")
                 for pr, commit, note in reversed(entries):
                     print("- ", end="")
-                    print_changelog(pr, note, commit, is_test=is_test)
+                    print_changelog(pr, note, commit, is_dry_run=is_dry_run)
                 print()
 
 
