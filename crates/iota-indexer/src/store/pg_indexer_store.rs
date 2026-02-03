@@ -2210,7 +2210,7 @@ impl IndexerStore for PgIndexerStore {
         chain_id: Vec<u8>,
     ) -> Result<(), IndexerError> {
         let chain_id = ChainIdentifier::from(
-            CheckpointDigest::try_from(chain_id).expect("unable to convert chain id"),
+            CheckpointDigest::from_bytes(chain_id).expect("unable to convert chain id"),
         );
 
         let mut all_configs = vec![];

@@ -632,7 +632,7 @@ impl ObjectImpl<'_> {
     pub(crate) async fn digest(&self) -> Option<String> {
         self.0
             .native_impl()
-            .map(|native| native.digest().base58_encode())
+            .map(|native| native.digest().to_base58())
     }
 
     pub(crate) async fn owner(&self, ctx: &Context<'_>) -> Option<ObjectOwner> {

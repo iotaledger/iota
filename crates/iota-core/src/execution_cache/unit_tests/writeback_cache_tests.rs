@@ -191,7 +191,7 @@ impl Scenario {
             .get_modules()
             .cloned()
             .collect();
-        let digest = TransactionDigest::genesis_marker();
+        let digest = TransactionDigest::GENESIS_MARKER;
         Object::new_package_for_testing(&modules, digest, BuiltInFramework::genesis_move_packages())
             .unwrap()
     }

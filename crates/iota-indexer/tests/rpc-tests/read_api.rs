@@ -375,7 +375,7 @@ fn get_checkpoint_by_digest_not_found() {
 
         assert!(rpc_call_error_msg_matches(
             result,
-            r#"{"code":-32603,"message":"Invalid argument with error: `Checkpoint Digest(CheckpointDigest(11111111111111111111111111111111)) not found`"}"#,
+            r#"{"code":-32603,"message":"Invalid argument with error: `Checkpoint Digest(Digest(\"11111111111111111111111111111111\")) not found`"}"#,
         ));
     });
 }
@@ -1664,7 +1664,7 @@ fn try_get_past_object_object_deleted() {
             IotaPastObjectResponse::ObjectDeleted(IotaObjectRef {
                 object_id: nft_object_ref.0,
                 version: deleted_version,
-                digest: ObjectDigest::OBJECT_DIGEST_DELETED,
+                digest: ObjectDigest::OBJECT_DELETED,
             }),
             "mismatch in ObjectDeleted response"
         );
@@ -1680,7 +1680,7 @@ fn try_get_past_object_object_deleted() {
             IotaPastObjectResponse::ObjectDeleted(IotaObjectRef {
                 object_id: nft_object_ref.0,
                 version: deleted_version,
-                digest: ObjectDigest::OBJECT_DIGEST_DELETED,
+                digest: ObjectDigest::OBJECT_DELETED,
             }),
             "mismatch in ObjectDeleted response"
         );

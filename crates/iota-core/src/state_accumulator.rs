@@ -116,7 +116,7 @@ impl WrappedObject {
         Self {
             id,
             wrapped_at,
-            digest: ObjectDigest::OBJECT_DIGEST_WRAPPED,
+            digest: ObjectDigest::OBJECT_WRAPPED,
         }
     }
 }

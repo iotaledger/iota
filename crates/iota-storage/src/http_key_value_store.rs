@@ -154,11 +154,11 @@ impl Key {
             .map_err(|err| anyhow::anyhow!("invalid base64 url string: {err}"))?;
 
         match item_type {
-            ItemType::Transaction => Ok(Key::Transaction(TransactionDigest::try_from(
+            ItemType::Transaction => Ok(Key::Transaction(TransactionDigest::from_bytes(
                 decoded_key.as_slice(),
             )?)),
             ItemType::TransactionEffects => Ok(Key::TransactionEffects(
-                TransactionDigest::try_from(decoded_key.as_slice())?,
+                TransactionDigest::from_bytes(decoded_key.as_slice())?,
             )),
             ItemType::CheckpointContents => {
                 let tagged_key = bcs::from_bytes(&decoded_key).map_err(|err| {
@@ -170,7 +170,7 @@ impl Key {
             }
             ItemType::CheckpointSummary => {
                 // first try to decode as digest, otherwise try to decode as tagged key
-                match CheckpointDigest::try_from(decoded_key.clone()) {
+                match CheckpointDigest::from_bytes(decoded_key.clone()) {
                     Err(_) => {
                         let tagged_key = bcs::from_bytes(&decoded_key).map_err(|err| {
                             anyhow::anyhow!(
@@ -187,7 +187,7 @@ impl Key {
                 }
             }
             ItemType::TransactionToCheckpoint => Ok(Key::TransactionToCheckpoint(
-                TransactionDigest::try_from(decoded_key.as_slice())?,
+                TransactionDigest::from_bytes(decoded_key.as_slice())?,
             )),
             ItemType::Object => {
                 let object_key: ObjectKey = bcs::from_bytes(&decoded_key)
@@ -196,7 +196,7 @@ impl Key {
                 Ok(Key::ObjectKey(ObjectKey(object_key.0, object_key.1)))
             }
             ItemType::EventTransactionDigest => Ok(Key::EventsByTransactionDigest(
-                TransactionDigest::try_from(decoded_key.as_slice())?,
+                TransactionDigest::from_bytes(decoded_key.as_slice())?,
             )),
         }
     }

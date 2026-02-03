@@ -1969,7 +1969,7 @@ impl AuthorityState {
                     SIMULATION_GAS_COIN_VALUE,
                 ),
                 Owner::AddressOwner(sender),
-                TransactionDigest::genesis_marker(),
+                TransactionDigest::GENESIS_MARKER,
             );
             let gas_object_ref = gas_object.compute_object_reference();
             // Add gas object to transaction gas payment
@@ -2169,7 +2169,7 @@ impl AuthorityState {
                     SIMULATION_GAS_COIN_VALUE,
                 ),
                 Owner::AddressOwner(transaction.gas_data().owner),
-                TransactionDigest::genesis_marker(),
+                TransactionDigest::GENESIS_MARKER,
             );
             let mock_gas_object_ref = mock_gas_object.compute_object_reference();
             transaction.gas_data_mut().payment = vec![mock_gas_object_ref];
@@ -3832,7 +3832,7 @@ impl AuthorityState {
             });
         }
 
-        if !obj_ref.2.is_alive() {
+        if !obj_ref.2.is_object_alive() {
             return Ok(PastObjectRead::ObjectDeleted(obj_ref));
         }
 
@@ -4817,7 +4817,7 @@ impl AuthorityState {
                 }
 
                 Some(cur_object) => cur_object.previous_transaction,
-                None => TransactionDigest::genesis_marker(),
+                None => TransactionDigest::GENESIS_MARKER,
             };
 
             #[cfg(msim)]

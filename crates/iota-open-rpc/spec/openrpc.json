@@ -761,7 +761,7 @@
           "description": "the event query criteria.",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/TransactionDigest"
+            "$ref": "#/components/schemas/Digest"
           }
         }
       ],
@@ -2246,7 +2246,7 @@
           "description": "the digest of the queried transaction",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/TransactionDigest"
+            "$ref": "#/components/schemas/Digest"
           }
         },
         {
@@ -2422,7 +2422,7 @@
           "description": "the digest of the queried transaction",
           "required": true,
           "schema": {
-            "$ref": "#/components/schemas/TransactionDigest"
+            "$ref": "#/components/schemas/Digest"
           }
         }
       ],
@@ -2653,7 +2653,7 @@
           "schema": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/TransactionDigest"
+              "$ref": "#/components/schemas/Digest"
             }
           }
         },
@@ -4981,7 +4981,7 @@
           "name": "cursor",
           "description": "An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.",
           "schema": {
-            "$ref": "#/components/schemas/TransactionDigest"
+            "$ref": "#/components/schemas/Digest"
           }
         },
         {
@@ -5005,7 +5005,7 @@
         "name": "TransactionBlocksPage",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_TransactionBlockResponse_and_TransactionDigest"
+          "$ref": "#/components/schemas/Page_for_TransactionBlockResponse_and_Digest"
         }
       },
       "examples": [
@@ -6249,7 +6249,7 @@
             "description": "Checkpoint digest",
             "allOf": [
               {
-                "$ref": "#/components/schemas/CheckpointDigest"
+                "$ref": "#/components/schemas/Digest"
               }
             ]
           },
@@ -6292,7 +6292,7 @@
             "description": "Digest of the previous checkpoint",
             "anyOf": [
               {
-                "$ref": "#/components/schemas/CheckpointDigest"
+                "$ref": "#/components/schemas/Digest"
               },
               {
                 "type": "null"
@@ -6319,7 +6319,7 @@
             "description": "Transaction digests",
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/TransactionDigest"
+              "$ref": "#/components/schemas/Digest"
             }
           },
           "validatorSignature": {
@@ -6348,21 +6348,13 @@
           }
         ]
       },
-      "CheckpointDigest": {
-        "description": "Representation of a Checkpoint's digest",
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Digest"
-          }
-        ]
-      },
       "CheckpointId": {
         "anyOf": [
           {
             "$ref": "#/components/schemas/BigInt_for_uint64"
           },
           {
-            "$ref": "#/components/schemas/CheckpointDigest"
+            "$ref": "#/components/schemas/Digest"
           }
         ]
       },
@@ -6405,10 +6397,10 @@
             "type": "string"
           },
           "digest": {
-            "$ref": "#/components/schemas/ObjectDigest"
+            "$ref": "#/components/schemas/Digest"
           },
           "previousTransaction": {
-            "$ref": "#/components/schemas/TransactionDigest"
+            "$ref": "#/components/schemas/Digest"
           },
           "version": {
             "$ref": "#/components/schemas/SequenceNumber"
@@ -6521,9 +6513,6 @@
           }
         ]
       },
-      "ConsensusCommitDigest": {
-        "$ref": "#/components/schemas/Digest"
-      },
       "ConsensusDeterminedVersionAssignments": {
         "description": "Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments.",
         "oneOf": [
@@ -6539,7 +6528,7 @@
                   "type": "array",
                   "items": [
                     {
-                      "$ref": "#/components/schemas/TransactionDigest"
+                      "$ref": "#/components/schemas/Digest"
                     },
                     {
                       "type": "array",
@@ -6701,7 +6690,7 @@
                   "minimum": 0.0
                 },
                 {
-                  "$ref": "#/components/schemas/ObjectDigest"
+                  "$ref": "#/components/schemas/Digest"
                 }
               ],
               "maxItems": 3,
@@ -6796,12 +6785,9 @@
         }
       },
       "Digest": {
-        "description": "A representation of a 32 byte digest",
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Base58"
-          }
-        ]
+        "description": "A 32-byte Blake2b256 hash output.\n\n# BCS\n\nA `Digest`'s BCS serialized form is defined by the following:\n\n```text digest = %x20 32OCTET ```\n\nDue to historical reasons, even though a `Digest` has a fixed-length of 32, IOTA's binary representation of a `Digest` is prefixed with its length meaning its serialized binary form (in bcs) is 33 bytes long vs a more compact 32 bytes.",
+        "type": "string",
+        "format": "base58"
       },
       "DisplayFieldsResponse": {
         "type": "object",
@@ -6930,7 +6916,7 @@
         ],
         "properties": {
           "digest": {
-            "$ref": "#/components/schemas/ObjectDigest"
+            "$ref": "#/components/schemas/Digest"
           },
           "name": {
             "$ref": "#/components/schemas/DynamicFieldName"
@@ -7354,7 +7340,7 @@
             ],
             "properties": {
               "Transaction": {
-                "$ref": "#/components/schemas/TransactionDigest"
+                "$ref": "#/components/schemas/Digest"
               }
             },
             "additionalProperties": false
@@ -7592,7 +7578,7 @@
             "$ref": "#/components/schemas/BigInt_for_uint64"
           },
           "txDigest": {
-            "$ref": "#/components/schemas/TransactionDigest"
+            "$ref": "#/components/schemas/Digest"
           }
         }
       },
@@ -7978,7 +7964,7 @@
                 ],
                 "properties": {
                   "digest": {
-                    "$ref": "#/components/schemas/ObjectDigest"
+                    "$ref": "#/components/schemas/Digest"
                   },
                   "objectId": {
                     "$ref": "#/components/schemas/ObjectId"
@@ -8030,7 +8016,7 @@
                 ],
                 "properties": {
                   "digest": {
-                    "$ref": "#/components/schemas/ObjectDigest"
+                    "$ref": "#/components/schemas/Digest"
                   },
                   "objectId": {
                     "$ref": "#/components/schemas/ObjectId"
@@ -10715,7 +10701,7 @@
             ],
             "properties": {
               "digest": {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "$ref": "#/components/schemas/Digest"
               },
               "modules": {
                 "type": "array",
@@ -10751,7 +10737,7 @@
             ],
             "properties": {
               "digest": {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "$ref": "#/components/schemas/Digest"
               },
               "objectId": {
                 "$ref": "#/components/schemas/ObjectId"
@@ -10791,7 +10777,7 @@
             ],
             "properties": {
               "digest": {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "$ref": "#/components/schemas/Digest"
               },
               "objectId": {
                 "$ref": "#/components/schemas/ObjectId"
@@ -10934,7 +10920,7 @@
             ],
             "properties": {
               "digest": {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "$ref": "#/components/schemas/Digest"
               },
               "objectId": {
                 "$ref": "#/components/schemas/ObjectId"
@@ -10995,7 +10981,7 @@
             "description": "Base64 string representing the object digest",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "$ref": "#/components/schemas/Digest"
               }
             ]
           },
@@ -11028,7 +11014,7 @@
             "description": "The digest of the transaction that created or last mutated this object. Default to be None unless IotaObjectDataOptions. showPreviousTransaction is set to true",
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TransactionDigest"
+                "$ref": "#/components/schemas/Digest"
               },
               {
                 "type": "null"
@@ -11102,9 +11088,6 @@
             "type": "boolean"
           }
         }
-      },
-      "ObjectDigest": {
-        "$ref": "#/components/schemas/Digest"
       },
       "ObjectId": {
         "description": "An `ObjectId` is a 32-byte identifier used to uniquely identify an object on the IOTA blockchain.\n\n## Relationship to Address\n\n[`Address`]es and `ObjectId`s share the same 32-byte addressable space but are derived leveraging different domain-separator values to ensure, cryptographically, that there won't be any overlap, e.g. there can't be a valid `Object` whose `ObjectId` is equal to that of the `Address` of a user account.\n\n# BCS\n\nAn `ObjectId`'s BCS serialized form is defined by the following:\n\n```text object-id = 32*OCTET ```",
@@ -11257,7 +11240,7 @@
             "description": "Base64 string representing the object digest",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "$ref": "#/components/schemas/Digest"
               }
             ]
           },
@@ -11334,7 +11317,7 @@
                 "description": "Base64 string representing the object digest",
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/ObjectDigest"
+                    "$ref": "#/components/schemas/Digest"
                   }
                 ]
               },
@@ -11699,7 +11682,7 @@
           }
         }
       },
-      "Page_for_TransactionBlockResponse_and_TransactionDigest": {
+      "Page_for_TransactionBlockResponse_and_Digest": {
         "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
         "type": "object",
         "required": [
@@ -11719,7 +11702,7 @@
           "nextCursor": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TransactionDigest"
+                "$ref": "#/components/schemas/Digest"
               },
               {
                 "type": "null"
@@ -12384,14 +12367,14 @@
                 "description": "The set of transaction digests this transaction depends on.",
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/TransactionDigest"
+                  "$ref": "#/components/schemas/Digest"
                 }
               },
               "eventsDigest": {
                 "description": "The digest of the events emitted during execution, can be None if the transaction does not emit any event.",
                 "anyOf": [
                   {
-                    "$ref": "#/components/schemas/TransactionEventsDigest"
+                    "$ref": "#/components/schemas/Digest"
                   },
                   {
                     "type": "null"
@@ -12456,7 +12439,7 @@
                 "description": "The transaction digest",
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/TransactionDigest"
+                    "$ref": "#/components/schemas/Digest"
                   }
                 ]
               },
@@ -12547,7 +12530,7 @@
                 "$ref": "#/components/schemas/BigInt_for_uint64"
               },
               "consensus_commit_digest": {
-                "$ref": "#/components/schemas/ConsensusCommitDigest"
+                "$ref": "#/components/schemas/Digest"
               },
               "consensus_determined_version_assignments": {
                 "$ref": "#/components/schemas/ConsensusDeterminedVersionAssignments"
@@ -12727,7 +12710,7 @@
             ]
           },
           "digest": {
-            "$ref": "#/components/schemas/TransactionDigest"
+            "$ref": "#/components/schemas/Digest"
           },
           "effects": {
             "anyOf": [
@@ -12870,17 +12853,6 @@
             ]
           }
         }
-      },
-      "TransactionDigest": {
-        "description": "A transaction will have a (unique) digest.",
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Digest"
-          }
-        ]
-      },
-      "TransactionEventsDigest": {
-        "$ref": "#/components/schemas/Digest"
       },
       "TransactionFilter": {
         "oneOf": [

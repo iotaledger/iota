@@ -1741,7 +1741,7 @@ impl LocalExec {
             .shared_objects()
             .iter()
             .map(|so_ref| {
-                if so_ref.digest == ObjectDigest::OBJECT_DIGEST_DELETED {
+                if so_ref.digest == ObjectDigest::OBJECT_DELETED {
                     unimplemented!(
                         "Replay of deleted shared object transactions is not supported yet"
                     );
@@ -1840,7 +1840,7 @@ impl LocalExec {
             .shared_objects()
             .iter()
             .map(|so_ref| {
-                if so_ref.digest == ObjectDigest::OBJECT_DIGEST_DELETED {
+                if so_ref.digest == ObjectDigest::OBJECT_DELETED {
                     unimplemented!(
                         "Replay of deleted shared object transactions is not supported yet"
                     );
@@ -2050,7 +2050,7 @@ impl LocalExec {
         let (shared_refs, deleted_shared_refs): (Vec<ObjectRef>, Vec<ObjectRef>) = tx_info
             .shared_object_refs
             .iter()
-            .partition(|r| r.2 != ObjectDigest::OBJECT_DIGEST_DELETED);
+            .partition(|r| r.2 != ObjectDigest::OBJECT_DELETED);
 
         // Download shared objects at the version right before the execution of this TX
         let shared_refs: Vec<_> = shared_refs.iter().map(|r| (r.0, r.1)).collect();

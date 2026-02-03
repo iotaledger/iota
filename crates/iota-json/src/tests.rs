@@ -437,7 +437,7 @@ fn test_basic_args_linter_top_level() {
         .into_modules();
     let example_package = Object::new_package_for_testing(
         &compiled_modules,
-        TransactionDigest::genesis_marker(),
+        TransactionDigest::GENESIS_MARKER,
         BuiltInFramework::genesis_move_packages(),
     )
     .unwrap();

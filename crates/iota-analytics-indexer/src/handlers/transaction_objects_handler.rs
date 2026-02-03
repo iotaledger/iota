@@ -95,7 +95,7 @@ impl TransactionObjectsHandler {
         let input_object_tracker = InputObjectTracker::new(transaction.data());
         let object_status_tracker = ObjectStatusTracker::new(effects);
 
-        let transaction_digest = transaction.digest().base58_encode();
+        let transaction_digest = transaction.digest().to_base58();
 
         // input
         //

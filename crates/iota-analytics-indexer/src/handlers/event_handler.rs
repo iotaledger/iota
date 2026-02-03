@@ -130,7 +130,7 @@ impl EventHandler {
             let move_value = MoveValue::simple_deserialize(contents, &layout)?;
             let (_, event_json) = type_and_fields_from_move_event_data(move_value)?;
             let entry = EventEntry {
-                transaction_digest: digest.base58_encode(),
+                transaction_digest: digest.to_base58(),
                 event_index: idx as u64,
                 checkpoint,
                 epoch,
