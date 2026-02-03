@@ -25,7 +25,6 @@ The IOTA sequencing algorithm addresses both of these tasks simultaneously.
 ## Sequencing Algorithm
 
 In IOTA, transactions are initially ordered based on their gas prices.
-However, this preliminary order does not define the final execution sequence.
 Each transaction is then evaluated individually using the placement algorithm described below to determine its position in the execution trace.
 During this evaluation, every transaction is subject to a binary decision: **Schedule** or **Defer**.
 
