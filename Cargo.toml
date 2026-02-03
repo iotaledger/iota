@@ -317,7 +317,7 @@ num-bigint = "0.4.4"
 num-rational = "0.4"
 num_cpus = "1.15.0"
 num_enum = "0.7"
-object_store = { version = "0.10", features = ["aws", "gcp", "azure", "http"] }
+object_store = { version = "0.13", features = ["aws", "gcp", "azure", "http"] }
 once_cell = "1.18.0"
 p256 = { version = "0.13.2", features = ["ecdsa"] }
 packable = { version = "0.8.3", features = ["io"], default-features = false }
