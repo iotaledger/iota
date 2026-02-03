@@ -403,12 +403,6 @@ pub enum TransactionKind {
     // and use a new variant for `ConsensusDeterminedVersionAssignments`.
     // See https://github.com/iotaledger/iota/issues/7692 and
     // https://github.com/iotaledger/iota/pull/7697 for detail.
-    /// White flag user transaction. Bypasses pre-consensus certification and
-    /// owned object locking. Submitted directly to consensus as a raw
-    /// transaction. Conflicts are resolved post-consensus using persistent
-    /// locks. INVARIANT: A transaction is issued through either white-flag
-    /// flow OR certificate flow, never both.
-    UserTransactionV1(ProgrammableTransaction),
 }
 
 /// EndOfEpochTransactionKind
@@ -1451,9 +1445,7 @@ impl TransactionKind {
             | TransactionKind::AuthenticatorStateUpdateV1(_)
             | TransactionKind::RandomnessStateUpdate(_)
             | TransactionKind::EndOfEpochTransaction(_) => true,
-            TransactionKind::ProgrammableTransaction(_) | TransactionKind::UserTransactionV1(_) => {
-                false
-            }
+            TransactionKind::ProgrammableTransaction(_) => false,
         }
     }
 
@@ -1462,10 +1454,7 @@ impl TransactionKind {
     }
 
     pub fn is_programmable_transaction(&self) -> bool {
-        matches!(
-            self,
-            TransactionKind::ProgrammableTransaction(_) | TransactionKind::UserTransactionV1(_) /* TODO: verify that Sui also does it like that */
-        )
+        matches!(self, TransactionKind::ProgrammableTransaction(_))
     }
 
     /// If this is advance epoch transaction, returns (total gas charged, total
@@ -1526,7 +1515,7 @@ impl TransactionKind {
             Self::EndOfEpochTransaction(txns) => Either::Left(Either::Right(
                 txns.iter().flat_map(|txn| txn.shared_input_objects()),
             )),
-            Self::ProgrammableTransaction(pt) | Self::UserTransactionV1(pt) => {
+            Self::ProgrammableTransaction(pt) => {
                 Either::Right(Either::Left(pt.shared_input_objects()))
             }
             _ => Either::Right(Either::Right(iter::empty())),
@@ -1535,7 +1524,7 @@ impl TransactionKind {
 
     fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)> {
         match &self {
-            Self::ProgrammableTransaction(pt) | Self::UserTransactionV1(pt) => pt.move_calls(),
+            Self::ProgrammableTransaction(pt) => pt.move_calls(),
             _ => vec![],
         }
     }
@@ -1547,8 +1536,7 @@ impl TransactionKind {
             | TransactionKind::AuthenticatorStateUpdateV1(_)
             | TransactionKind::RandomnessStateUpdate(_)
             | TransactionKind::EndOfEpochTransaction(_) => vec![],
-            TransactionKind::ProgrammableTransaction(pt)
-            | TransactionKind::UserTransactionV1(pt) => pt.receiving_objects(),
+            TransactionKind::ProgrammableTransaction(pt) => pt.receiving_objects(),
         }
     }
 
@@ -1597,7 +1585,7 @@ impl TransactionKind {
                 }
                 after_dedup
             }
-            Self::ProgrammableTransaction(p) | Self::UserTransactionV1(p) => {
+            Self::ProgrammableTransaction(p) => {
                 return p.input_objects();
             }
         };
@@ -1617,9 +1605,7 @@ impl TransactionKind {
 
     pub fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
         match self {
-            TransactionKind::ProgrammableTransaction(p) | TransactionKind::UserTransactionV1(p) => {
-                p.validity_check(config)?
-            }
+            TransactionKind::ProgrammableTransaction(p) => p.validity_check(config)?,
             // All transaction kinds below are assumed to be system,
             // and no validity or limit checks are performed.
             TransactionKind::Genesis(_) | TransactionKind::ConsensusCommitPrologueV1(_) => (),
@@ -1644,16 +1630,14 @@ impl TransactionKind {
     /// number of commands, or 0 if it is a system transaction
     pub fn num_commands(&self) -> usize {
         match self {
-            TransactionKind::ProgrammableTransaction(pt)
-            | TransactionKind::UserTransactionV1(pt) => pt.commands.len(),
+            TransactionKind::ProgrammableTransaction(pt) => pt.commands.len(),
             _ => 0,
         }
     }
 
     pub fn iter_commands(&self) -> impl Iterator<Item = &Command> {
         match self {
-            TransactionKind::ProgrammableTransaction(pt)
-            | TransactionKind::UserTransactionV1(pt) => pt.commands.iter(),
+            TransactionKind::ProgrammableTransaction(pt) => pt.commands.iter(),
             _ => [].iter(),
         }
     }
@@ -1661,8 +1645,7 @@ impl TransactionKind {
     /// number of transactions, or 1 if it is a system transaction
     pub fn tx_count(&self) -> usize {
         match self {
-            TransactionKind::ProgrammableTransaction(pt)
-            | TransactionKind::UserTransactionV1(pt) => pt.commands.len(),
+            TransactionKind::ProgrammableTransaction(pt) => pt.commands.len(),
             _ => 1,
         }
     }
@@ -1675,7 +1658,6 @@ impl TransactionKind {
             Self::AuthenticatorStateUpdateV1(_) => "AuthenticatorStateUpdateV1",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
             Self::EndOfEpochTransaction(_) => "EndOfEpochTransaction",
-            Self::UserTransactionV1(_) => "UserTransactionV1",
         }
     }
 }
@@ -1699,10 +1681,6 @@ impl Display for TransactionKind {
             }
             Self::ProgrammableTransaction(p) => {
                 writeln!(writer, "Transaction Kind : Programmable")?;
-                write!(writer, "{p}")?;
-            }
-            Self::UserTransactionV1(p) => {
-                writeln!(writer, "Transaction Kind : User Transaction V1")?;
                 write!(writer, "{p}")?;
             }
             Self::AuthenticatorStateUpdateV1(_) => {
@@ -2350,10 +2328,7 @@ impl TransactionDataAPI for TransactionDataV1 {
         if self.gas_owner() == self.sender() {
             return Ok(());
         }
-        if matches!(
-            &self.kind,
-            TransactionKind::ProgrammableTransaction(_) | TransactionKind::UserTransactionV1(_)
-        ) {
+        if matches!(&self.kind, TransactionKind::ProgrammableTransaction(_)) {
             return Ok(());
         }
         Err(UserInputError::UnsupportedSponsoredTransactionKind)
