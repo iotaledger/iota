@@ -129,6 +129,7 @@ members = [
   "crates/iota-package-management",
   "crates/iota-package-resolver",
   "crates/iota-proc-macros",
+  "crates/iota-proto-build",
   "crates/iota-protocol-config",
   "crates/iota-protocol-config-macros",
   "crates/iota-proxy",
@@ -160,6 +161,7 @@ members = [
   "crates/iota-verifier-transactional-tests",
   "crates/prometheus-closure-metric",
   "crates/simulacrum",
+  "crates/simulacrum-server",
   "crates/starfish/config",
   "crates/starfish/core",
   "crates/starfish/simtests",
@@ -323,6 +325,7 @@ parking_lot = { version = "0.12.3", features = ["arc_lock"] }
 passkey-authenticator = "0.4.0"
 passkey-client = "0.4.0"
 passkey-types = "0.4.0"
+petgraph = { version = ">=0.6, <=0.7", default-features = false }
 pin-project-lite = "0.2.15"
 prefix-hex = { version = "0.7.1", default-features = false }
 pretty_assertions = { version = "1.4.0" }
@@ -332,6 +335,7 @@ prometheus = "0.14.0"
 proptest = "1.6.0"
 proptest-derive = "0.5.1"
 prost = "0.14"
+prost-types = "0.14"
 quinn-proto = "0.11.7"
 quote = "1.0.23"
 rand = "0.8.5"
@@ -375,7 +379,6 @@ tonic = { version = "0.14", features = ["zstd", "transport"] }
 tonic-build = "0.14"
 tonic-health = "0.14"
 tonic-prost = "0.14"
-tonic-prost-build = "0.14"
 tonic-rustls = "0.3.0"
 tower = { version = "0.4.12", features = ["util", "timeout", "load-shed", "limit"] }
 tower-http = { version = "0.5", features = ["cors", "timeout", "trace", "set-header", "propagate-header"] }
@@ -449,6 +452,7 @@ iota-package-dump = { path = "crates/iota-package-dump" }
 iota-package-management = { path = "crates/iota-package-management" }
 iota-package-resolver = { path = "crates/iota-package-resolver" }
 iota-proc-macros = { path = "crates/iota-proc-macros" }
+iota-proto-build = { path = "crates/iota-proto-build" }
 iota-protocol-config = { path = "crates/iota-protocol-config" }
 iota-protocol-config-macros = { path = "crates/iota-protocol-config-macros" }
 iota-replay = { path = "crates/iota-replay" }
@@ -502,6 +506,7 @@ move-vm-profiler = { path = "external-crates/move/crates/move-vm-profiler" }
 move-vm-test-utils = { path = "external-crates/move/crates/move-vm-test-utils/", features = ["tiered-gas"] }
 prometheus-closure-metric = { path = "crates/prometheus-closure-metric" }
 simulacrum = { path = "crates/simulacrum" }
+simulacrum-server = { path = "crates/simulacrum-server" }
 starfish-config = { path = "crates/starfish/config" }
 starfish-core = { path = "crates/starfish/core" }
 starfish-simtests = { path = "crates/starfish/simtests" }
