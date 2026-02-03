@@ -24,6 +24,14 @@ Be sure to reference any related issues by adding `fixes #(issue)`.
 - [ ] Rust SDK:
 - [ ] gRPC:
 
-#### Attention
+#### Breaking Changes Rollout
 
-- [ ] Protocol Types Changed
+If your PR introduces breaking changes, add a sub-section for each affected crate that users might depend on as shown below.
+
+For each box you select, include information after the relevant heading that describes the rollout plan for your changes that a user might notice and any actions they must take to stay compatible with the changes.
+
+##### iota-
+
+- [ ] devnet: 
+- [ ] testnet:
+- [ ] mainnet:
