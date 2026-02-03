@@ -8,7 +8,7 @@ use std::sync::{
 
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    messages_consensus::{MisbehaviorsV1, VersionedMisbehaviorReport},
+    messages_consensus::VersionedMisbehaviorReport, misbehavior_counts::MisbehaviorsV1,
     scoring_metrics::VersionedScoringMetrics,
 };
 
@@ -68,24 +68,24 @@ impl Scorer {
                         })
                         .collect();
                 let parameters = ParametersV1 {
-                    allowances: MisbehaviorsV1 {
-                        faulty_blocks_provable: 1,
-                        faulty_blocks_unprovable: 2,
-                        missing_proposals: 48_000, // roughly 3% of consensus rounds in an epoch
-                        equivocations: 0,
-                    },
-                    maximums: MisbehaviorsV1 {
-                        faulty_blocks_provable: 5,
-                        faulty_blocks_unprovable: 10,
-                        missing_proposals: 160_000, // roughly 10% of consensus rounds in an epoch
-                        equivocations: 1,
-                    },
-                    weights: MisbehaviorsV1 {
-                        faulty_blocks_provable: SCALE_FACTOR * 30 / 100,
-                        faulty_blocks_unprovable: SCALE_FACTOR * 10 / 100,
-                        missing_proposals: SCALE_FACTOR * 35 / 100,
-                        equivocations: 1,
-                    },
+                    allowances: MisbehaviorsV1::new(
+                        1,      // faulty_blocks_provable
+                        2,      // faulty_blocks_unprovable
+                        48_000, // missing_proposals - roughly 3% of consensus rounds in an epoch
+                        0,      // equivocations
+                    ),
+                    maximums: MisbehaviorsV1::new(
+                        5,       // faulty_blocks_provable
+                        10,      // faulty_blocks_unprovable
+                        160_000, // missing_proposals - roughly 10% of consensus rounds in an epoch
+                        1,       // equivocations
+                    ),
+                    weights: MisbehaviorsV1::new(
+                        SCALE_FACTOR * 30 / 100, // faulty_blocks_provable
+                        SCALE_FACTOR * 10 / 100, // faulty_blocks_unprovable
+                        SCALE_FACTOR * 35 / 100, // missing_proposals
+                        1,                       // equivocations
+                    ),
                 };
                 // Assert that the allowance for major misbehaviors is 0,
                 // maximum is 1 and weight is 1. This is because major misbehaviors should
@@ -445,7 +445,9 @@ mod tests {
     use std::sync::atomic::Ordering;
 
     use iota_protocol_config::{ConsensusChoice, ProtocolConfig};
-    use iota_types::messages_consensus::{MisbehaviorsV1, VersionedMisbehaviorReport};
+    use iota_types::{
+        messages_consensus::VersionedMisbehaviorReport, misbehavior_counts::MisbehaviorsV1,
+    };
 
     use crate::authority::authority_per_epoch_store::scorer::{
         MAX_SCORE, ParametersV1, SCALE_FACTOR, Scorer, calculate_median_report, calculate_scores_v1,
@@ -548,30 +550,30 @@ mod tests {
         // Set some reports for testing
         let reports_and_authorities = vec![
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                    faulty_blocks_provable: vec![5, 0, 0],
-                    faulty_blocks_unprovable: vec![0, 0, 0],
-                    missing_proposals: vec![0, 0, 0],
-                    equivocations: vec![0, 0, 0],
-                }),
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+                    vec![5, 0, 0], // faulty_blocks_provable
+                    vec![0, 0, 0], // faulty_blocks_unprovable
+                    vec![0, 0, 0], // missing_proposals
+                    vec![0, 0, 0], // equivocations
+                )),
                 0_u32,
             ),
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                    faulty_blocks_provable: vec![0, 10, 0],
-                    faulty_blocks_unprovable: vec![0, 0, 0],
-                    missing_proposals: vec![0, 0, 0],
-                    equivocations: vec![0, 0, 0],
-                }),
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+                    vec![0, 10, 0], // faulty_blocks_provable
+                    vec![0, 0, 0],  // faulty_blocks_unprovable
+                    vec![0, 0, 0],  // missing_proposals
+                    vec![0, 0, 0],  // equivocations
+                )),
                 1_u32,
             ),
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                    faulty_blocks_provable: vec![0, 0, 15],
-                    faulty_blocks_unprovable: vec![0, 0, 0],
-                    missing_proposals: vec![0, 0, 0],
-                    equivocations: vec![5, 0, 0],
-                }),
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+                    vec![0, 0, 15], // faulty_blocks_provable
+                    vec![0, 0, 0],  // faulty_blocks_unprovable
+                    vec![0, 0, 0],  // missing_proposals
+                    vec![5, 0, 0],  // equivocations
+                )),
                 2_u32,
             ),
         ];
@@ -594,43 +596,43 @@ mod tests {
     #[test]
     fn test_calculate_median_report() {
         let reports_and_voting_power = vec![(
-            VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                faulty_blocks_provable: vec![7, 8, 9],
-                faulty_blocks_unprovable: vec![10, 11, 12],
-                missing_proposals: vec![4, 5, 6],
-                equivocations: vec![1, 2, 3],
-            }),
+            VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+                vec![7, 8, 9],    // faulty_blocks_provable
+                vec![10, 11, 12], // faulty_blocks_unprovable
+                vec![4, 5, 6],    // missing_proposals
+                vec![1, 2, 3],    // equivocations
+            )),
             10_u64,
         )];
         let median_report = calculate_median_report(&reports_and_voting_power);
 
         assert_eq!(
             median_report,
-            MisbehaviorsV1 {
-                faulty_blocks_provable: vec![7, 8, 9],
-                faulty_blocks_unprovable: vec![10, 11, 12],
-                missing_proposals: vec![4, 5, 6],
-                equivocations: vec![1, 2, 3]
-            }
+            MisbehaviorsV1::new(
+                vec![7, 8, 9],    // faulty_blocks_provable
+                vec![10, 11, 12], // faulty_blocks_unprovable
+                vec![4, 5, 6],    // missing_proposals
+                vec![1, 2, 3]     // equivocations
+            )
         );
 
         let reports_and_voting_power = vec![
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                    faulty_blocks_provable: vec![7, 8, 9],
-                    faulty_blocks_unprovable: vec![10, 11, 12],
-                    missing_proposals: vec![4, 5, 6],
-                    equivocations: vec![1, 2, 3],
-                }),
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+                    vec![7, 8, 9],    // faulty_blocks_provable
+                    vec![10, 11, 12], // faulty_blocks_unprovable
+                    vec![4, 5, 6],    // missing_proposals
+                    vec![1, 2, 3],    // equivocations
+                )),
                 20_u64,
             ),
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                    faulty_blocks_provable: vec![70, 80, 90],
-                    faulty_blocks_unprovable: vec![100, 110, 120],
-                    missing_proposals: vec![40, 50, 60],
-                    equivocations: vec![10, 20, 30],
-                }),
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+                    vec![70, 80, 90],    // faulty_blocks_provable
+                    vec![100, 110, 120], // faulty_blocks_unprovable
+                    vec![40, 50, 60],    // missing_proposals
+                    vec![10, 20, 30],    // equivocations
+                )),
                 10_u64,
             ),
         ];
@@ -639,40 +641,40 @@ mod tests {
 
         assert_eq!(
             median_report,
-            MisbehaviorsV1 {
-                faulty_blocks_provable: vec![7, 8, 9],
-                faulty_blocks_unprovable: vec![10, 11, 12],
-                missing_proposals: vec![4, 5, 6],
-                equivocations: vec![1, 2, 3]
-            }
+            MisbehaviorsV1::new(
+                vec![7, 8, 9],    // faulty_blocks_provable
+                vec![10, 11, 12], // faulty_blocks_unprovable
+                vec![4, 5, 6],    // missing_proposals
+                vec![1, 2, 3]     // equivocations
+            )
         );
 
         let reports_and_voting_power = vec![
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                    faulty_blocks_provable: vec![1, 8, 9],
-                    faulty_blocks_unprovable: vec![10, 15, 12],
-                    missing_proposals: vec![4, 5, 6],
-                    equivocations: vec![1, 20, 3],
-                }),
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+                    vec![1, 8, 9],    // faulty_blocks_provable
+                    vec![10, 15, 12], // faulty_blocks_unprovable
+                    vec![4, 5, 6],    // missing_proposals
+                    vec![1, 20, 3],   // equivocations
+                )),
                 10_u64,
             ),
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                    faulty_blocks_provable: vec![7, 8, 9],
-                    faulty_blocks_unprovable: vec![10, 11, 12],
-                    missing_proposals: vec![4, 5, 6],
-                    equivocations: vec![1, 2, 0],
-                }),
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+                    vec![7, 8, 9],    //   faulty_blocks_provable
+                    vec![10, 11, 12], // faulty_blocks_unprovable
+                    vec![4, 5, 6],    // missing_proposals
+                    vec![1, 2, 0],    // equivocations
+                )),
                 10_u64,
             ),
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                    faulty_blocks_provable: vec![6, 8, 9],
-                    faulty_blocks_unprovable: vec![10, 11, 12],
-                    missing_proposals: vec![4, 22, 6],
-                    equivocations: vec![1, 2, 30],
-                }),
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+                    vec![6, 8, 9],    //  faulty_blocks_provable
+                    vec![10, 11, 12], // faulty_blocks_unprovable
+                    vec![4, 22, 6],   // missing_proposals
+                    vec![1, 2, 30],   // equivocations
+                )),
                 10_u64,
             ),
         ];
@@ -681,44 +683,44 @@ mod tests {
 
         assert_eq!(
             median_report,
-            MisbehaviorsV1 {
-                faulty_blocks_provable: vec![6, 8, 9],
-                faulty_blocks_unprovable: vec![10, 11, 12],
-                missing_proposals: vec![4, 5, 6],
-                equivocations: vec![1, 2, 3]
-            }
+            MisbehaviorsV1::new(
+                vec![6, 8, 9],    // faulty_blocks_provable
+                vec![10, 11, 12], // faulty_blocks_unprovable
+                vec![4, 5, 6],    // missing_proposals
+                vec![1, 2, 3]     // equivocations
+            )
         );
     }
 
     #[test]
     fn test_calculate_scores_v1() {
         let parameters = ParametersV1 {
-            allowances: MisbehaviorsV1 {
-                faulty_blocks_provable: 1,
-                faulty_blocks_unprovable: 2,
-                missing_proposals: 1000,
-                equivocations: 0,
-            },
-            maximums: MisbehaviorsV1 {
-                faulty_blocks_provable: 5,
-                faulty_blocks_unprovable: 10,
-                missing_proposals: 5000,
-                equivocations: 1,
-            },
-            weights: MisbehaviorsV1 {
-                faulty_blocks_provable: SCALE_FACTOR * 30 / 100,
-                faulty_blocks_unprovable: SCALE_FACTOR * 10 / 100,
-                missing_proposals: SCALE_FACTOR * 35 / 100,
-                equivocations: 1,
-            },
+            allowances: MisbehaviorsV1::new(
+                1,    // faulty_blocks_provable
+                2,    // faulty_blocks_unprovable
+                1000, // missing_proposals
+                0,    // equivocations
+            ),
+            maximums: MisbehaviorsV1::new(
+                5,    // faulty_blocks_provable
+                10,   // faulty_blocks_unprovable
+                5000, // missing_proposals
+                1,    // equivocations
+            ),
+            weights: MisbehaviorsV1::new(
+                SCALE_FACTOR * 30 / 100, // faulty_blocks_provable
+                SCALE_FACTOR * 10 / 100, // faulty_blocks_unprovable
+                SCALE_FACTOR * 35 / 100, // missing_proposals
+                1,                       // equivocations
+            ),
         };
 
-        let median_reports = MisbehaviorsV1 {
-            faulty_blocks_provable: vec![6, 7, 8],
-            faulty_blocks_unprovable: vec![9, 10, 11],
-            missing_proposals: vec![3, 4, 5],
-            equivocations: vec![0, 1, 2],
-        };
+        let median_reports = MisbehaviorsV1::new(
+            vec![6, 7, 8],   // faulty_blocks_provable
+            vec![9, 10, 11], // faulty_blocks_unprovable
+            vec![3, 4, 5],   // missing_proposals
+            vec![0, 1, 2],   // equivocations
+        );
 
         let scores = calculate_scores_v1(median_reports, parameters);
 
