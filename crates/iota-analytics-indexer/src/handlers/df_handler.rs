@@ -151,7 +151,7 @@ impl DynamicFieldHandler {
         let entry = match type_ {
             DynamicFieldType::DynamicField => DynamicFieldEntry {
                 parent_object_id: parent_id.to_string(),
-                transaction_digest: object.previous_transaction.base58_encode(),
+                transaction_digest: object.previous_transaction.to_base58(),
                 checkpoint,
                 epoch,
                 timestamp_ms,
@@ -176,7 +176,7 @@ impl DynamicFieldHandler {
                 let object_type = object.data.type_().unwrap().clone();
                 DynamicFieldEntry {
                     parent_object_id: parent_id.to_string(),
-                    transaction_digest: object.previous_transaction.base58_encode(),
+                    transaction_digest: object.previous_transaction.to_base58(),
                     checkpoint,
                     epoch,
                     timestamp_ms,

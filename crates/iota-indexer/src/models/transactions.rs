@@ -265,7 +265,7 @@ impl StoredTransaction {
     ) -> IndexerResult<IotaTransactionBlockResponse> {
         let options = options.clone();
         let tx_digest =
-            TransactionDigest::try_from(self.transaction_digest.as_slice()).map_err(|e| {
+            TransactionDigest::from_bytes(self.transaction_digest.as_slice()).map_err(|e| {
                 IndexerError::PersistentStorageDataCorruption(format!(
                     "Can't convert {:?} as tx_digest. Error: {e}",
                     self.transaction_digest

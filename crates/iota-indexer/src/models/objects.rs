@@ -190,7 +190,7 @@ impl StoredHistoryObject {
                 ObjectID::from_bytes(self.object_id.clone())
                     .map_err(|_| IndexerError::ObjectIdParse(ObjectIDParseError::TryFromSlice))?,
                 SequenceNumber::from_u64(self.object_version as u64),
-                ObjectDigest::OBJECT_DIGEST_DELETED,
+                ObjectDigest::OBJECT_DELETED,
             );
             return Ok(PastObjectRead::ObjectDeleted(object_ref));
         }
@@ -436,7 +436,7 @@ impl StoredObject {
             IndexerError::Serde(format!("Can't convert {:?} to object_id", self.object_id))
         })?;
         let object_digest =
-            ObjectDigest::try_from(self.object_digest.as_slice()).map_err(|_| {
+            ObjectDigest::from_bytes(self.object_digest.as_slice()).map_err(|_| {
                 IndexerError::Serde(format!(
                     "Can't convert {:?} to object_digest",
                     self.object_digest
@@ -693,7 +693,7 @@ mod tests {
         let object = ObjectInner {
             owner: Owner::AddressOwner(owner),
             data,
-            previous_transaction: TransactionDigest::genesis_marker(),
+            previous_transaction: TransactionDigest::GENESIS_MARKER,
             storage_rebate: 0,
         }
         .into();

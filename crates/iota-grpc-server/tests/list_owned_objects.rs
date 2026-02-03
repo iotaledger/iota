@@ -50,7 +50,7 @@ fn make_gas_coin(owner: IotaAddress, object_id: ObjectID, balance: u64) -> Objec
     Object::new_move(
         move_obj,
         Owner::AddressOwner(owner),
-        TransactionDigest::genesis_marker(),
+        TransactionDigest::GENESIS_MARKER,
     )
 }
 
@@ -73,7 +73,7 @@ fn make_large_gas_coin(
     Object::new_move(
         move_obj,
         Owner::AddressOwner(owner),
-        TransactionDigest::genesis_marker(),
+        TransactionDigest::GENESIS_MARKER,
     )
 }
 

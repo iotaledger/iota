@@ -51,7 +51,7 @@ fn create_large_object(padding_bytes_len: usize) -> (ObjectID, Object) {
     let obj = Object::new_move(
         move_obj,
         Owner::AddressOwner(owner),
-        TransactionDigest::genesis_marker(),
+        TransactionDigest::GENESIS_MARKER,
     );
     (id, obj)
 }

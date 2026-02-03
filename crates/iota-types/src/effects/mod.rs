@@ -270,10 +270,10 @@ impl InputSharedObject {
             InputSharedObject::Mutate(oref) | InputSharedObject::ReadOnly(oref) => *oref,
             InputSharedObject::ReadDeleted(id, version)
             | InputSharedObject::MutateDeleted(id, version) => {
-                (*id, *version, ObjectDigest::OBJECT_DIGEST_DELETED)
+                (*id, *version, ObjectDigest::OBJECT_DELETED)
             }
             InputSharedObject::Cancelled(id, version) => {
-                (*id, *version, ObjectDigest::OBJECT_DIGEST_CANCELLED)
+                (*id, *version, ObjectDigest::OBJECT_CANCELLED)
             }
         }
     }
