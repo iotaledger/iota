@@ -259,7 +259,11 @@ impl IotaObjectData {
             ..
         } = options;
 
-        let (object_id, version, digest) = object_ref;
+        let ObjectRef {
+            object_id,
+            version,
+            digest,
+        } = object_ref;
         let type_ = if *show_type {
             Some(Into::<ObjectType>::into(&obj))
         } else {

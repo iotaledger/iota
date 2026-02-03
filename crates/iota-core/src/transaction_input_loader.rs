@@ -266,7 +266,9 @@ impl TransactionInputLoader {
         let mut receiving_results = Vec::with_capacity(receiving_objects.len());
         for objref in receiving_objects {
             // Note: the digest is checked later in check_transaction_input
-            let (object_id, version, _) = objref.into_parts();
+            let ObjectRef {
+                object_id, version, ..
+            } = *objref;
 
             if self
                 .cache

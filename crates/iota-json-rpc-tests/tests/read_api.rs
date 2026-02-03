@@ -280,8 +280,11 @@ async fn try_get_past_object_with_options(options: IotaObjectDataOptions) {
 
     assert_eq!(transaction.status_ok(), Some(true));
 
-    let (mutated_obj_id, mutated_obj_version, _) =
-        transaction.mutated_objects().next().unwrap().into_parts();
+    let ObjectRef {
+        object_id: mutated_obj_id,
+        version: mutated_obj_version,
+        ..
+    } = transaction.mutated_objects().next().unwrap();
 
     let rpc_past_obj = http_client
         .try_get_past_object(mutated_obj_id, mutated_obj_version, Some(options.clone()))
@@ -1681,8 +1684,11 @@ async fn try_get_object_before_version() {
 
     assert_eq!(transaction.status_ok(), Some(true));
 
-    let (mutated_obj_id, mutated_obj_version, _) =
-        transaction.mutated_objects().next().unwrap().into_parts();
+    let ObjectRef {
+        object_id: mutated_obj_id,
+        version: mutated_obj_version,
+        ..
+    } = transaction.mutated_objects().next().unwrap();
 
     let rpc_obj_before_ver = http_client
         .try_get_object_before_version(mutated_obj_id, mutated_obj_version)

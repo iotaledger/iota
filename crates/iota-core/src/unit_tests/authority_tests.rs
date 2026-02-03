@@ -2401,7 +2401,11 @@ async fn test_move_call_mutable_object_not_mutated() {
     .unwrap();
     assert!(effects.status().is_ok());
     assert_eq!((effects.created().len(), effects.mutated().len()), (1, 1));
-    let (new_object_id1, seq1, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: new_object_id1,
+        version: seq1,
+        ..
+    } = effects.created()[0].0;
 
     let effects = create_move_object(
         &pkg_ref.object_id,
@@ -2414,7 +2418,11 @@ async fn test_move_call_mutable_object_not_mutated() {
     .unwrap();
     assert!(effects.status().is_ok());
     assert_eq!((effects.created().len(), effects.mutated().len()), (1, 1));
-    let (new_object_id2, seq2, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: new_object_id2,
+        version: seq2,
+        ..
+    } = effects.created()[0].0;
 
     let gas_version = authority_state
         .get_object(&gas_object_id)
@@ -2570,7 +2578,10 @@ async fn test_move_call_delete() {
     .unwrap();
     assert!(effects.status().is_ok());
     assert_eq!((effects.created().len(), effects.mutated().len()), (1, 1));
-    let (new_object_id1, _seq1, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: new_object_id1,
+        ..
+    } = effects.created()[0].0;
 
     let effects = create_move_object(
         &pkg_ref.object_id,
@@ -2583,7 +2594,10 @@ async fn test_move_call_delete() {
     .unwrap();
     assert!(effects.status().is_ok());
     assert_eq!((effects.created().len(), effects.mutated().len()), (1, 1));
-    let (new_object_id2, _seq2, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: new_object_id2,
+        ..
+    } = effects.created()[0].0;
 
     let effects = call_move(
         &authority_state,
@@ -2651,7 +2665,11 @@ async fn test_get_latest_parent_entry() {
     )
     .await
     .unwrap();
-    let (new_object_id1, seq1, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: new_object_id1,
+        version: seq1,
+        ..
+    } = effects.created()[0].0;
 
     let effects = create_move_object(
         &pkg_ref.object_id,
@@ -2662,7 +2680,11 @@ async fn test_get_latest_parent_entry() {
     )
     .await
     .unwrap();
-    let (new_object_id2, seq2, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: new_object_id2,
+        version: seq2,
+        ..
+    } = effects.created()[0].0;
 
     let update_version =
         SequenceNumber::lamport_increment([seq1, seq2, effects.gas_object().0.version]).unwrap();

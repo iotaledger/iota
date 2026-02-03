@@ -19,6 +19,9 @@ use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_types::{
     base_types::{ObjectID, SequenceNumber, StructTag},
+    IOTA_FRAMEWORK_ADDRESS,
+    base_types::{ObjectID, ObjectRef, SequenceNumber},
+    coin::Coin,
     digests::ObjectDigest,
     gas_coin::GAS,
     object::Owner,
@@ -107,12 +110,11 @@ async fn test_transfer_iota() -> Result<(), anyhow::Error> {
     let address = cluster.get_address_0();
     let other_address = cluster.get_address_1();
 
-    let (gas, _, _) = cluster
+    let ObjectRef { object_id: gas, .. } = cluster
         .wallet
         .get_one_gas_object_owned_by_address(address)
         .await?
-        .unwrap()
-        .into_parts();
+        .unwrap();
 
     let amount_to_transfer: i128 = 1234;
     let transaction_bytes: TransactionBlockBytes = http_client
@@ -158,8 +160,14 @@ async fn test_pay() -> Result<(), anyhow::Error> {
         .wallet
         .get_gas_objects_owned_by_address(address, Some(2))
         .await?;
-    let (gas_to_send, _, _) = gas_objs[0].into_parts();
-    let (gas_to_pay_for_tx, _, _) = gas_objs[1].into_parts();
+    let ObjectRef {
+        object_id: gas_to_send,
+        ..
+    } = gas_objs[0];
+    let ObjectRef {
+        object_id: gas_to_pay_for_tx,
+        ..
+    } = gas_objs[1];
 
     let amount_to_transfer: i128 = 123;
     let transaction_bytes: TransactionBlockBytes = http_client

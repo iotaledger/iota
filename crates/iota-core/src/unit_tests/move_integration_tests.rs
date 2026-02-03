@@ -66,12 +66,18 @@ async fn test_object_wrapping_unwrapping() {
         "{:?}",
         effects.status()
     );
-    let child_object_ref = effects.created()[0].0.into_parts();
-    assert_eq!(child_object_ref.1, create_child_version);
+    let ObjectRef {
+        object_id: child_object_ref_id,
+        version: child_object_ref_version,
+        ..
+    } = effects.created()[0].0;
+    assert_eq!(child_object_ref_version, create_child_version);
 
-    let wrapped_version =
-        SequenceNumber::lamport_increment([child_object_ref.1, effects.gas_object().0.version])
-            .unwrap();
+    let wrapped_version = SequenceNumber::lamport_increment([
+        child_object_ref_version,
+        effects.gas_object().0.version,
+    ])
+    .unwrap();
 
     // Create a Parent object, by wrapping the child object.
     let effects = call_move(
@@ -83,7 +89,7 @@ async fn test_object_wrapping_unwrapping() {
         "object_wrapping",
         "create_parent",
         vec![],
-        vec![TestCallArg::Object(child_object_ref.0)],
+        vec![TestCallArg::Object(child_object_ref_id)],
     )
     .await
     .unwrap();
@@ -104,7 +110,7 @@ async fn test_object_wrapping_unwrapping() {
     );
     let new_child_object_ref = effects.wrapped()[0];
     let expected_child_object_ref = ObjectRef::new(
-        child_object_ref.0,
+        child_object_ref_id,
         wrapped_version,
         ObjectDigest::OBJECT_WRAPPED,
     );
@@ -112,12 +118,18 @@ async fn test_object_wrapping_unwrapping() {
     assert_eq!(new_child_object_ref, expected_child_object_ref);
     check_latest_object_ref(&authority, &expected_child_object_ref, true).await;
 
-    let parent_object_ref = effects.created()[0].0.into_parts();
-    assert_eq!(parent_object_ref.1, wrapped_version);
+    let ObjectRef {
+        object_id: parent_object_ref_id,
+        version: parent_object_ref_version,
+        ..
+    } = effects.created()[0].0;
+    assert_eq!(parent_object_ref_version, wrapped_version);
 
-    let unwrapped_version =
-        SequenceNumber::lamport_increment([parent_object_ref.1, effects.gas_object().0.version])
-            .unwrap();
+    let unwrapped_version = SequenceNumber::lamport_increment([
+        parent_object_ref_version,
+        effects.gas_object().0.version,
+    ])
+    .unwrap();
 
     // Extract the child out of the parent.
     let effects = call_move(
@@ -129,7 +141,7 @@ async fn test_object_wrapping_unwrapping() {
         "object_wrapping",
         "extract_child",
         vec![],
-        vec![TestCallArg::Object(parent_object_ref.0)],
+        vec![TestCallArg::Object(parent_object_ref_id)],
     )
     .await
     .unwrap();
@@ -154,7 +166,7 @@ async fn test_object_wrapping_unwrapping() {
     let child_object_ref = effects.unwrapped()[0].0;
 
     let rewrap_version = SequenceNumber::lamport_increment([
-        parent_object_ref.1,
+        parent_object_ref_version,
         child_object_ref.version,
         effects.gas_object().0.version,
     ])
@@ -171,7 +183,7 @@ async fn test_object_wrapping_unwrapping() {
         "set_child",
         vec![],
         vec![
-            TestCallArg::Object(parent_object_ref.0),
+            TestCallArg::Object(parent_object_ref_id),
             TestCallArg::Object(child_object_ref.object_id),
         ],
     )
@@ -276,7 +288,10 @@ async fn test_object_owning_another_object() {
     .await
     .unwrap();
     assert!(effects.status().is_ok());
-    let parent = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: parent_id,
+        ..
+    } = effects.created()[0].0;
 
     // Create a child.
     let effects = call_move(
@@ -294,7 +309,10 @@ async fn test_object_owning_another_object() {
     .unwrap();
 
     assert!(effects.status().is_ok());
-    let child = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: child_id,
+        ..
+    } = effects.created()[0].0;
 
     // Mutate the child directly should work fine.
     let effects = call_move(
@@ -306,7 +324,7 @@ async fn test_object_owning_another_object() {
         "object_owner",
         "mutate_child",
         vec![],
-        vec![TestCallArg::Object(child.0)],
+        vec![TestCallArg::Object(child_id)],
     )
     .await
     .unwrap();
@@ -322,7 +340,10 @@ async fn test_object_owning_another_object() {
         "object_owner",
         "add_child",
         vec![],
-        vec![TestCallArg::Object(parent.0), TestCallArg::Object(child.0)],
+        vec![
+            TestCallArg::Object(parent_id),
+            TestCallArg::Object(child_id),
+        ],
     )
     .await
     .unwrap();
@@ -330,7 +351,7 @@ async fn test_object_owning_another_object() {
     let child_effect = effects
         .mutated()
         .into_iter()
-        .find(|(object_ref, _)| object_ref.object_id == child.0)
+        .find(|(object_ref, _)| object_ref.object_id == child_id)
         .unwrap();
     // Check that the child is now owned by the parent.
     let field_id = match child_effect.1 {
@@ -338,7 +359,7 @@ async fn test_object_owning_another_object() {
         Owner::Shared { .. } | Owner::Immutable | Owner::AddressOwner(_) => panic!(),
     };
     let field_object = authority.get_object(&field_id).await.unwrap();
-    assert_eq!(field_object.owner, parent.0);
+    assert_eq!(field_object.owner, parent_id);
 
     // Mutate the child directly will now fail because we need the parent to
     // authenticate.
@@ -351,7 +372,7 @@ async fn test_object_owning_another_object() {
         "object_owner",
         "mutate_child",
         vec![],
-        vec![TestCallArg::Object(child.0)],
+        vec![TestCallArg::Object(child_id)],
     )
     .await;
     assert!(result.is_err());
@@ -366,7 +387,10 @@ async fn test_object_owning_another_object() {
         "object_owner",
         "mutate_child_with_parent",
         vec![],
-        vec![TestCallArg::Object(child.0), TestCallArg::Object(parent.0)],
+        vec![
+            TestCallArg::Object(child_id),
+            TestCallArg::Object(parent_id),
+        ],
     )
     .await;
     assert!(effects.is_err());
@@ -388,7 +412,10 @@ async fn test_object_owning_another_object() {
     .unwrap();
 
     assert!(effects.status().is_ok());
-    let new_parent = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: new_parent_id,
+        ..
+    } = effects.created()[0].0;
 
     // Transfer the child to the new_parent.
     let effects = call_move(
@@ -401,8 +428,8 @@ async fn test_object_owning_another_object() {
         "transfer_child",
         vec![],
         vec![
-            TestCallArg::Object(parent.0),
-            TestCallArg::Object(new_parent.0),
+            TestCallArg::Object(parent_id),
+            TestCallArg::Object(new_parent_id),
         ],
     )
     .await
@@ -421,7 +448,7 @@ async fn test_object_owning_another_object() {
         "object_owner",
         "delete_child",
         vec![],
-        vec![TestCallArg::Object(child.0)],
+        vec![TestCallArg::Object(child_id)],
     )
     .await;
     assert!(effects.is_err());
@@ -713,7 +740,10 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
     .unwrap();
 
     assert!(effects.status().is_ok());
-    let parent = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: parent_id,
+        ..
+    } = effects.created()[0].0;
 
     // Create a child.
     let effects = call_move(
@@ -731,7 +761,10 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
     .unwrap();
 
     assert!(effects.status().is_ok());
-    let child = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: child_id,
+        ..
+    } = effects.created()[0].0;
 
     // Add the child to the parent.
     let effects = call_move(
@@ -743,7 +776,10 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
         "object_owner",
         "add_child_wrapped",
         vec![],
-        vec![TestCallArg::Object(parent.0), TestCallArg::Object(child.0)],
+        vec![
+            TestCallArg::Object(parent_id),
+            TestCallArg::Object(child_id),
+        ],
     )
     .await
     .unwrap();
@@ -762,7 +798,7 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
         "object_owner",
         "delete_parent_and_child_wrapped",
         vec![],
-        vec![TestCallArg::Object(parent.0)],
+        vec![TestCallArg::Object(parent_id)],
     )
     .await
     .unwrap();
@@ -997,7 +1033,9 @@ async fn test_entry_point_vector() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: obj_id, ..
+    } = effects.created()[0].0;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
@@ -1038,7 +1076,10 @@ async fn test_entry_point_vector() {
         "{:?}",
         effects.status()
     );
-    let (parent_id, _, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: parent_id,
+        ..
+    } = effects.created()[0].0;
     let effects = call_move(
         &authority,
         &gas,
@@ -1060,7 +1101,10 @@ async fn test_entry_point_vector() {
         "{:?}",
         effects.status()
     );
-    let (child_id, _, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: child_id,
+        ..
+    } = effects.created()[0].0;
     // call a function with a vector containing the same owned object as another one
     // passed as a reference argument
     let effects = call_move(
@@ -1119,7 +1163,9 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: obj_id, ..
+    } = effects.created()[0].0;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
@@ -1160,7 +1206,10 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let (wrong_obj_id, _, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: wrong_obj_id,
+        ..
+    } = effects.created()[0].0;
     let effects = call_move(
         &authority,
         &gas,
@@ -1179,7 +1228,10 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let (correct_obj_id, _, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: correct_obj_id,
+        ..
+    } = effects.created()[0].0;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
@@ -1221,7 +1273,10 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let (shared_obj_id, _, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: shared_obj_id,
+        ..
+    } = effects.created()[0].0;
     // call a function with a vector containing one shared object
     let effects = call_move_(
         &authority,
@@ -1264,7 +1319,9 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: obj_id, ..
+    } = effects.created()[0].0;
     // call a function with a vector containing the same owned object as another one
     // passed as argument
     let result = call_move(
@@ -1314,7 +1371,9 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: obj_id, ..
+    } = effects.created()[0].0;
     // call a function with a vector containing the same owned object as another one
     // passed as a reference argument
     let result = call_move(
@@ -1387,7 +1446,9 @@ async fn test_entry_point_vector_any() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: obj_id, ..
+    } = effects.created()[0].0;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
@@ -1428,7 +1489,10 @@ async fn test_entry_point_vector_any() {
         "{:?}",
         effects.status()
     );
-    let (parent_id, _, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: parent_id,
+        ..
+    } = effects.created()[0].0;
     let effects = call_move(
         &authority,
         &gas,
@@ -1450,7 +1514,10 @@ async fn test_entry_point_vector_any() {
         "{:?}",
         effects.status()
     );
-    let (child_id, _, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: child_id,
+        ..
+    } = effects.created()[0].0;
     // call a function with a vector containing the same owned object as another one
     // passed as a reference argument
     let effects = call_move(
@@ -1513,7 +1580,9 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: obj_id, ..
+    } = effects.created()[0].0;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
@@ -1554,7 +1623,10 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let (wrong_obj_id, _, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: wrong_obj_id,
+        ..
+    } = effects.created()[0].0;
     let effects = call_move(
         &authority,
         &gas,
@@ -1573,7 +1645,10 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let (correct_obj_id, _, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: correct_obj_id,
+        ..
+    } = effects.created()[0].0;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
@@ -1615,7 +1690,10 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let (shared_obj_id, _, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: shared_obj_id,
+        ..
+    } = effects.created()[0].0;
     // call a function with a vector containing one shared object
     let effects = call_move_(
         &authority,
@@ -1658,7 +1736,9 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: obj_id, ..
+    } = effects.created()[0].0;
     // call a function with a vector containing the same owned object as another one
     // passed as argument
     let result = call_move(
@@ -1708,7 +1788,9 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let (obj_id, _, _) = effects.created()[0].0.into_parts();
+    let ObjectRef {
+        object_id: obj_id, ..
+    } = effects.created()[0].0;
     // call a function with a vector containing the same owned object as another one
     // passed as a reference argument
     let result = call_move(
