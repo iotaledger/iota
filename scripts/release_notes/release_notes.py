@@ -154,8 +154,8 @@ def parse_args():
     )
 
     test_p = sub_parser.add_parser(
-        "test",
-        description="Test generating release notes from local git commits.",
+        "dry-run",
+        description="Generate release notes from local git commits without PR lookup.",
     )
 
     test_p.add_argument(
@@ -571,7 +571,7 @@ def do_generate(from_, to, is_test):
 args = parse_args()
 if args["command"] == "generate":
     do_generate(args["from"], args["to"], False)
-if args["command"] == "test":
+if args["command"] == "dry-run":
     do_generate(args["from"], args["to"], True)
 elif args["command"] == "check":
     do_check(args["commit"], False)
