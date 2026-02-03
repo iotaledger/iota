@@ -22,11 +22,10 @@ The sequencing phase is responsible for two main tasks:
 
 The IOTA sequencing algorithm addresses both of these tasks simultaneously.
 
-### Sequencing Algorithm
+## Sequencing Algorithm
 
 In IOTA, transactions are initially ordered based on their gas prices.
 However, this preliminary order does not define the final execution sequence.
-
 Each transaction is then evaluated individually using the placement algorithm described below to determine its position in the execution trace.
 During this evaluation, every transaction is subject to a binary decision: **Schedule** or **Defer**.
 
@@ -49,6 +48,10 @@ This ensures that no shared object is written to by more than one transaction at
 Once all transactions have been evaluated, the allocation map implicitly defines the causal ordering of the scheduled transactions.
 
 The sequencing algorithm guarantees that the longest sequential execution trace remains within a predefined load threshold.
+
+:::info Fairness in sequencing
+In IOTA, transactions included in the same consensus commit that write to an identical set of shared objects are guaranteed to be executed in descending order of their gas prices.
+:::
 
 ### Example
 
@@ -84,6 +87,3 @@ The case is illustrated in the following image.
     }}
 />
 
-### Fairness in sequencing
-
-In IOTA, transactions included in the same consensus commit that write to an identical set of shared objects are guaranteed to be executed in descending order of their gas prices.
