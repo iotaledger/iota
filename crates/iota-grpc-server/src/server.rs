@@ -6,15 +6,17 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
-use iota_grpc_types::v0::{checkpoints as grpc_checkpoints, events as grpc_events};
+use iota_grpc_types::v0::{
+    ledger_service as grpc_ledger_service, transaction_execution_service as grpc_tx_service,
+};
+use iota_types::transaction_executor::TransactionExecutor;
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::TcpListenerStream;
 use tokio_util::sync::CancellationToken;
-use tonic::transport::Server;
+use tonic::transport::{Identity, Server, ServerTlsConfig};
 
 use crate::{
-    CheckpointGrpcService, EventGrpcService, GrpcCheckpointDataBroadcaster,
-    GrpcCheckpointSummaryBroadcaster, GrpcReader,
+    GrpcCheckpointDataBroadcaster, GrpcReader, LedgerGrpcService, TransactionExecutionGrpcService,
 };
 
 /// Handle to control a running gRPC server
@@ -23,8 +25,6 @@ pub struct GrpcServerHandle {
     pub server_handle: tokio::task::JoinHandle<Result<(), tonic::transport::Error>>,
     /// Shutdown signal sender
     shutdown_token: CancellationToken,
-    /// Broadcaster for checkpoint summaries
-    pub checkpoint_summary_broadcaster: GrpcCheckpointSummaryBroadcaster,
     /// Broadcaster for checkpoint data
     pub checkpoint_data_broadcaster: GrpcCheckpointDataBroadcaster,
     /// Actual server address (with resolved port)
@@ -46,11 +46,6 @@ impl GrpcServerHandle {
         self.address
     }
 
-    /// Get a reference to the checkpoint summary broadcaster
-    pub fn checkpoint_summary_broadcaster(&self) -> &GrpcCheckpointSummaryBroadcaster {
-        &self.checkpoint_summary_broadcaster
-    }
-
     /// Get a reference to the checkpoint data broadcaster
     pub fn checkpoint_data_broadcaster(&self) -> &GrpcCheckpointDataBroadcaster {
         &self.checkpoint_data_broadcaster
@@ -65,39 +60,31 @@ impl GrpcServerHandle {
 /// services in the future.
 pub async fn start_grpc_server(
     grpc_reader: Arc<GrpcReader>,
-    event_subscriber: Arc<dyn crate::EventSubscriber>,
+    executor: Option<Arc<dyn TransactionExecutor>>,
     config: iota_config::node::GrpcApiConfig,
     shutdown_token: CancellationToken,
+    chain_id: iota_types::digests::ChainIdentifier,
 ) -> Result<GrpcServerHandle> {
     // Create broadcast channels
-    let (checkpoint_summary_tx, _) = broadcast::channel(config.checkpoint_broadcast_buffer_size);
-    let (checkpoint_data_tx, _) = broadcast::channel(config.checkpoint_broadcast_buffer_size);
+    let (checkpoint_data_tx, _) = broadcast::channel(config.broadcast_buffer_size as usize);
 
     // Create broadcasters
-    let checkpoint_summary_broadcaster =
-        GrpcCheckpointSummaryBroadcaster::new(checkpoint_summary_tx);
     let checkpoint_data_broadcaster = GrpcCheckpointDataBroadcaster::new(checkpoint_data_tx);
 
-    // Create the gRPC services - both get the cancellation token directly from
+    // Create the gRPC services - get the cancellation token directly from
     // server level
-    let checkpoint_service = CheckpointGrpcService::new(
+    let ledger_service = LedgerGrpcService::new(
+        config.clone(),
         grpc_reader.clone(),
-        checkpoint_summary_broadcaster.clone(),
         checkpoint_data_broadcaster.clone(),
         shutdown_token.clone(),
+        chain_id,
     );
-    let event_service = EventGrpcService::new(event_subscriber, shutdown_token.clone());
 
-    // Create the server with proper address binding
-    let server_builder = Server::builder()
-        .add_service(
-            grpc_checkpoints::checkpoint_service_server::CheckpointServiceServer::new(
-                checkpoint_service,
-            ),
-        )
-        .add_service(grpc_events::event_service_server::EventServiceServer::new(
-            event_service,
-        ));
+    // Create TransactionExecutionService if executor is provided
+    let tx_service = executor.map(|executor| {
+        TransactionExecutionGrpcService::new(config.clone(), grpc_reader.clone(), executor)
+    });
 
     // Bind to the address to get the actual local address (especially important for
     // port 0)
@@ -110,24 +97,78 @@ pub async fn start_grpc_server(
         actual_addr
     );
 
+    // Build the router with services (common for both TLS and non-TLS)
+    let mut router_builder = Server::builder();
+
+    // Configure TLS if enabled
+    if let Some(tls_config) = config.tls_config() {
+        let cert = std::fs::read_to_string(tls_config.cert()).map_err(|e| {
+            anyhow::anyhow!(
+                "failed to read TLS cert file '{}': {}",
+                tls_config.cert(),
+                e
+            )
+        })?;
+        let key = std::fs::read_to_string(tls_config.key()).map_err(|e| {
+            anyhow::anyhow!("failed to read TLS key file '{}': {}", tls_config.key(), e)
+        })?;
+
+        let identity = Identity::from_pem(cert, key);
+        let tls = ServerTlsConfig::new().identity(identity);
+
+        tracing::info!("gRPC server TLS enabled");
+
+        router_builder = router_builder
+            .tls_config(tls)
+            .map_err(|e| anyhow::anyhow!("failed to configure TLS: {}", e))?;
+    }
+
+    // Add services to the router and configure services with
+    // message size limits
+    let mut router = router_builder.add_service(
+        grpc_ledger_service::ledger_service_server::LedgerServiceServer::new(ledger_service)
+            .max_encoding_message_size(config.max_message_size_bytes() as usize),
+    );
+
+    if let Some(tx_service) = tx_service {
+        router = router.add_service(
+            grpc_tx_service::transaction_execution_service_server::TransactionExecutionServiceServer::new(tx_service)
+            .max_encoding_message_size(config.max_message_size_bytes() as usize),
+        );
+    }
+
     // Spawn the server task with graceful shutdown
     let shutdown_token_for_server = shutdown_token.clone();
-    let server_handle = tokio::spawn(async move {
-        let result = server_builder
-            .serve_with_incoming_shutdown(
-                TcpListenerStream::new(listener),
-                shutdown_token_for_server.cancelled(),
-            )
-            .await;
+    let server_handle = if config.tls_config().is_some() {
+        // TLS case: tonic needs to control the entire transport stack for TLS,
+        // so we let it handle binding. We drop our pre-bound listener since
+        // tonic will create its own with proper TLS configuration.
+        drop(listener);
 
-        tracing::info!("gRPC server shutdown completed");
-        result
-    });
+        tokio::spawn(async move {
+            let result = router
+                .serve_with_shutdown(actual_addr, shutdown_token_for_server.cancelled())
+                .await;
+            tracing::info!("gRPC server shutdown completed");
+            result
+        })
+    } else {
+        // Non-TLS case: use the existing listener
+        tokio::spawn(async move {
+            let result = router
+                .serve_with_incoming_shutdown(
+                    TcpListenerStream::new(listener),
+                    shutdown_token_for_server.cancelled(),
+                )
+                .await;
+            tracing::info!("gRPC server shutdown completed");
+            result
+        })
+    };
 
     Ok(GrpcServerHandle {
         server_handle,
         shutdown_token,
-        checkpoint_summary_broadcaster,
         checkpoint_data_broadcaster,
         address: actual_addr,
     })

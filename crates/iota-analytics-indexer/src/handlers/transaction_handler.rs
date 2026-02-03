@@ -213,7 +213,7 @@ mod tests {
 
     #[tokio::test]
     pub async fn test_transaction_handler() -> anyhow::Result<()> {
-        let mut sim = Simulacrum::new();
+        let sim = Simulacrum::new();
 
         // Execute a simple transaction.
         let transfer_recipient = IotaAddress::random_for_testing_only();
