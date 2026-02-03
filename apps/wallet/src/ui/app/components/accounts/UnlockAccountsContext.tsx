@@ -36,7 +36,7 @@ export function UnlockAccountsProvider({ children }: UnlockAccountsProviderProps
     const lockAccounts = useCallback(async () => {
         try {
             await backgroundClient.lockAllAccountsAndSources({});
-            toast('Accounts locked');
+            toast('Wallet locked');
         } catch (e) {
             toast.error((e as Error).message || 'Failed to lock account');
         }

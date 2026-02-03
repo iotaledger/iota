@@ -19,15 +19,15 @@ export function UnlockAccountModal({ onClose, onSuccess, open }: UnlockAccountMo
             {...{
                 open,
                 onClose,
-                title: 'Unlock Account',
-                confirmText: 'Unlock',
+                title: 'Unlock wallet',
+                confirmText: 'Unlock wallet',
                 cancelText: 'Back',
                 showForgotPassword: true,
                 onSubmit: async (password: string) => {
                     await backgroundService.unlockAllAccountsAndSources({
                         password,
                     });
-                    toast('Accounts unlocked');
+                    toast('Wallet unlocked');
                     onSuccess();
                 },
                 // this is not necessary for unlocking but will show the wrong password error as a form error
