@@ -39,13 +39,11 @@ const PRIMARY_COIN_VALUE: u64 = 100 * NANOS_PER_IOTA;
 /// Number of nanos sent to each address on each batch transfer
 const BATCH_TRANSFER_AMOUNT: u64 = 1;
 
-fn dummy_gas() -> ObjectRef {
-    ObjectRef::new(
-        ObjectID::ZERO,
-        SequenceNumber::MIN_VALID_INCL,
-        ObjectDigest::MIN,
-    )
-}
+const DUMMY_GAS: ObjectRef = ObjectRef::new(
+    ObjectID::ZERO,
+    SequenceNumber::MIN_VALID_INCL,
+    ObjectDigest::MIN,
+);
 #[derive(Debug)]
 pub struct BatchPaymentTestPayload {
     state: InMemoryWallet,
@@ -276,7 +274,7 @@ impl Workload<dyn Payload> for BatchPaymentWorkload {
             for _ in 0..self.batch_size - 1 {
                 let (a, key) = get_key_pair();
                 // we'll replace this after the first send
-                let gas = dummy_gas();
+                let gas = DUMMY_GAS;
                 state.add_account(a, Arc::new(key), gas, Vec::new());
             }
             payloads.push(Box::new(BatchPaymentTestPayload {

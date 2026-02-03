@@ -1228,9 +1228,15 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-ec2"
+<<<<<<< HEAD
 version = "1.211.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bedb3080c7585181d7e536424fcd32db29262fe6158baa7282dc072e6bb2e6af"
+=======
+version = "1.211.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9aa90518a76338c91df77704301fcde55e2c7e1346437f2c54e5ea8dfe85c6f8"
+>>>>>>> 8de9848cca (const new)
 dependencies = [
  "aws-credential-types",
  "aws-runtime",
@@ -8125,6 +8131,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
+<<<<<<< HEAD
 source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=d8cdab6ab3f2fd9ba8059ba56e80ba950badc88d#d8cdab6ab3f2fd9ba8059ba56e80ba950badc88d"
 dependencies = [
  "base64ct",
@@ -8149,6 +8156,13 @@ dependencies = [
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
 source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e7dde3b255e30354b895d15a010bf26bdfd10c90#e7dde3b255e30354b895d15a010bf26bdfd10c90"
+=======
+<<<<<<< HEAD
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=3eaf79d7efdc1c4d05f2c2454d0b361cea292142#3eaf79d7efdc1c4d05f2c2454d0b361cea292142"
+=======
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b863acabc4379bfb5fbb4fb0773fdfad7f107fc3#b863acabc4379bfb5fbb4fb0773fdfad7f107fc3"
+>>>>>>> 8de9848cca (const new)
+>>>>>>> e46745c273 (const new)
 dependencies = [
  "base64ct",
  "bcs",
@@ -15647,9 +15661,15 @@ dependencies = [
 
 [[package]]
 name = "toml_parser"
+<<<<<<< HEAD
 version = "1.0.9+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "702d4415e08923e7e1ef96cd5727c0dfed80b4d2fa25db9647fe5eb6f7c5a4c4"
+=======
+version = "1.0.8+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0742ff5ff03ea7e67c8ae6c93cac239e0d9784833362da3f9a9c1da8dfefcbdc"
+>>>>>>> 8de9848cca (const new)
 dependencies = [
  "winnow 0.7.14",
 ]
