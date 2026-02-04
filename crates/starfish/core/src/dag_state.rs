@@ -326,6 +326,7 @@ impl DagState {
                     .collect::<Vec<BlockRef>>()
             );
         }
+
         state
     }
 
