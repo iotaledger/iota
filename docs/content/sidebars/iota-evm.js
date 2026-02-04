@@ -113,8 +113,18 @@ const iotaEvm = [
             },
             {
                 type: 'doc',
+                label: 'Send ERC20 Tokens Between IOTA EVM and IOTA L1',
+                id: 'developer/iota-evm/how-tos/send-ERC20-across-chains',
+            },
+            {
+                type: 'doc',
                 label: 'Create NFTs - ERC721',
                 id: 'developer/iota-evm/how-tos/ERC721',
+            },
+            {
+                type: 'doc',
+                label: 'Send NFTs Across Chains',
+                id: 'developer/iota-evm/how-tos/send-NFTs-across-chains',
             },
             {
                 type: 'doc',
