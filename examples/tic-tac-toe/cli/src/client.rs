@@ -154,7 +154,9 @@ impl Client {
                 mutable: false,
             })?
         } else {
-            builder.obj(ObjectArg::ImmOrOwnedObject(ObjectRef::new(object_id, version, digest)))?
+            builder.obj(ObjectArg::ImmOrOwnedObject(ObjectRef::new(
+                object_id, version, digest,
+            )))?
         };
 
         builder.programmable_move_call(
