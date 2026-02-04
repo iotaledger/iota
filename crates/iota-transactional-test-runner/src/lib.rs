@@ -454,26 +454,27 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
         tx_digest: &TransactionDigest,
         _limit: usize,
     ) -> IotaResult<Vec<Event>> {
-        Ok(self
-            .store()
-            .get_transaction_events_by_tx_digest(tx_digest)
-            .map(|x| x.data)
-            .unwrap_or_default())
+        Ok(self.with_store(|store| {
+            store
+                .get_transaction_events_by_tx_digest(tx_digest)
+                .map(|x| x.data)
+                .unwrap_or_default()
+        }))
     }
 
     async fn create_checkpoint(&mut self) -> anyhow::Result<VerifiedCheckpoint> {
-        Ok(self.create_checkpoint())
+        Ok(Simulacrum::create_checkpoint(self))
     }
 
     async fn advance_clock(
         &mut self,
         duration: std::time::Duration,
     ) -> anyhow::Result<TransactionEffects> {
-        Ok(self.advance_clock(duration))
+        Ok(Simulacrum::advance_clock(self, duration))
     }
 
     async fn advance_epoch(&mut self) -> anyhow::Result<()> {
-        self.advance_epoch();
+        Simulacrum::advance_epoch(self);
         Ok(())
     }
 
@@ -482,7 +483,7 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
         address: IotaAddress,
         amount: u64,
     ) -> anyhow::Result<TransactionEffects> {
-        self.request_gas(address, amount)
+        Simulacrum::request_gas(self, address, amount)
     }
 
     async fn get_active_validator_addresses(&self) -> IotaResult<Vec<IotaAddress>> {

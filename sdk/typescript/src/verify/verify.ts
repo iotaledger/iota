@@ -13,11 +13,21 @@ import { Secp256r1PublicKey } from '../keypairs/secp256r1/publickey.js';
 import { MultiSigPublicKey } from '../multisig/publickey.js';
 import { PasskeyPublicKey } from '../keypairs/passkey/publickey.js';
 
-export async function verifySignature(bytes: Uint8Array, signature: string): Promise<PublicKey> {
+export async function verifySignature(
+    bytes: Uint8Array,
+    signature: string,
+    options?: {
+        address?: string;
+    },
+): Promise<PublicKey> {
     const parsedSignature = parseSignature(signature);
 
     if (!(await parsedSignature.publicKey.verify(bytes, parsedSignature.serializedSignature))) {
         throw new Error(`Signature is not valid for the provided data`);
+    }
+
+    if (options?.address && !parsedSignature.publicKey.verifyAddress(options.address)) {
+        throw new Error(`Signature is not valid for the provided address`);
     }
 
     return parsedSignature.publicKey;
@@ -26,6 +36,7 @@ export async function verifySignature(bytes: Uint8Array, signature: string): Pro
 export async function verifyPersonalMessageSignature(
     message: Uint8Array,
     signature: string,
+    options: { address?: string } = {},
 ): Promise<PublicKey> {
     const parsedSignature = parseSignature(signature);
 
@@ -38,12 +49,17 @@ export async function verifyPersonalMessageSignature(
         throw new Error(`Signature is not valid for the provided message`);
     }
 
+    if (options?.address && !parsedSignature.publicKey.verifyAddress(options.address)) {
+        throw new Error(`Signature is not valid for the provided address`);
+    }
+
     return parsedSignature.publicKey;
 }
 
 export async function verifyTransactionSignature(
     transaction: Uint8Array,
     signature: string,
+    options: { address?: string } = {},
 ): Promise<PublicKey> {
     const parsedSignature = parseSignature(signature);
 
@@ -54,6 +70,10 @@ export async function verifyTransactionSignature(
         ))
     ) {
         throw new Error(`Signature is not valid for the provided Transaction`);
+    }
+
+    if (options?.address && !parsedSignature.publicKey.verifyAddress(options.address)) {
+        throw new Error(`Signature is not valid for the provided address`);
     }
 
     return parsedSignature.publicKey;
