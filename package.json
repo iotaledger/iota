@@ -5,7 +5,7 @@
 	"scripts": {
 		"test": "turbo run test",
 		"test:dev": "turbo run test -- --run",
-		"icons": "pnpm --filter ./apps/icons",
+		"icons": "pnpm --filter ./apps/ui-icons",
 		"explorer-dev": "turbo --filter iota-explorer --filter apps-backend dev",
 		"wallet-dev": "turbo --filter ./apps/wallet --filter apps-backend dev",
 		"wallet-dashboard-dev": "turbo --filter ./apps/wallet-dashboard --filter apps-backend dev",
@@ -24,13 +24,6 @@
 		"iota-docs": "turbo --filter iota-docs",
 		"changeset-publish": "pnpm changeset publish",
 		"changeset-version": "pnpm changeset version && pnpm --filter @iota/iota-sdk codegen:version",
-		"prettier:check": "prettier -c --ignore-unknown .",
-		"prettier:fix": "prettier -w --ignore-unknown .",
-		"prettier:fix:watch": "onchange '**' -i -f add -f change -j 5 -- prettier -w --ignore-unknown {{file}}",
-		"eslint:check": "eslint --max-warnings=0 .",
-		"eslint:fix": "pnpm run eslint:check --fix",
-		"lint": "pnpm run eslint:check && pnpm run prettier:check",
-		"lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
 		"prepare": "husky",
 		"codegen": "turbo run codegen"
 	},
