@@ -63,10 +63,10 @@ pub enum IngestionError {
 
     #[error("checkpoint not available yet")]
     CheckpointNotAvailableYet,
-}
 
-impl From<tonic::Status> for IngestionError {
-    fn from(value: tonic::Status) -> Self {
-        Self::Grpc(value.to_string())
-    }
+    #[error(transparent)]
+    NodeGrpc(#[from] iota_grpc_client::Error),
+
+    #[error(transparent)]
+    Sdk(#[from] iota_types::iota_sdk_types_conversions::SdkTypeConversionError),
 }
