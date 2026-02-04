@@ -85,8 +85,9 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
         (stakeData as Extract<StakeObject, { estimatedReward: string }>)?.estimatedReward || '0';
 
     // Parse the unstake amount in nanos
-    const unstakeAmountNanos = partialUnstakeAmount
-        ? BigInt(Math.floor(parseFloat(partialUnstakeAmount) * Number(NANOS_PER_IOTA)))
+    const parsedAmount = parseFloat(partialUnstakeAmount);
+    const unstakeAmountNanos = partialUnstakeAmount && !isNaN(parsedAmount) && parsedAmount > 0
+        ? BigInt(Math.floor(parsedAmount * Number(NANOS_PER_IOTA)))
         : 0n;
 
     // Calculate principal and reward amounts
