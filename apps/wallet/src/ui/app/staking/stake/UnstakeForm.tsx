@@ -99,7 +99,7 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
         : principalAmount;
 
     // Calculate proportional rewards for partial unstake
-    const proportionalRewards = totalStaked > 0n && principalAmount > 0n
+    const proportionalRewards = principalAmount > 0n
         ? (rewardAmount * unstakeAmount) / principalAmount
         : 0n;
 
