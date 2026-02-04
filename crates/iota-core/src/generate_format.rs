@@ -86,6 +86,47 @@ fn get_registry() -> Result<Registry> {
     // with all the base types contained in messages, especially the ones with
     // custom serializers; or involving generics (see [serde_reflection documentation](https://novifinancial.github.io/serde-reflection/serde_reflection/index.html)).
 
+    // Trace SDK Identifier, StructTag and TypeTag samples early - these use custom
+    // serde that requires valid sample values to be provided before types
+    // containing them (like MoveObjectType_) are traced.
+    let sdk_identifier = iota_types::IdentifierRef::const_new("sample_identifier").to_owned();
+    tracer.trace_value(&mut samples, &sdk_identifier).unwrap();
+    let struct_tag = StructTag::new_gas_coin();
+    tracer.trace_value(&mut samples, &struct_tag).unwrap();
+
+    // Trace all TypeTag variants since the SDK's TypeTag has custom serde
+    tracer.trace_value(&mut samples, &TypeTag::Bool).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::U8).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::U16).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::U32).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::U64).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::U128).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::U256).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::Address).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::Signer).unwrap();
+    tracer
+        .trace_value(&mut samples, &TypeTag::Vector(Box::new(TypeTag::U8)))
+        .unwrap();
+    let type_tag_struct = TypeTag::from(struct_tag.clone());
+    tracer.trace_value(&mut samples, &type_tag_struct).unwrap();
+
+    // Also trace sample MoveObjectType_ values to capture all variants properly
+    // These contain the SDK's StructTag and TypeTag types
+    let move_obj_type_other = MoveObjectType_::Other(struct_tag.clone());
+    tracer
+        .trace_value(&mut samples, &move_obj_type_other)
+        .unwrap();
+    let move_obj_type_coin = MoveObjectType_::Coin(type_tag_struct.clone());
+    tracer
+        .trace_value(&mut samples, &move_obj_type_coin)
+        .unwrap();
+    let move_obj_type_staked = MoveObjectType_::StakedIota;
+    tracer
+        .trace_value(&mut samples, &move_obj_type_staked)
+        .unwrap();
+    let move_obj_type = MoveObjectType::gas_coin();
+    tracer.trace_value(&mut samples, &move_obj_type).unwrap();
+
     let m = ModuleId::new(AccountAddress::ZERO, Identifier::new("foo").unwrap());
     tracer.trace_value(&mut samples, &m).unwrap();
     tracer
@@ -177,9 +218,6 @@ fn get_registry() -> Result<Registry> {
     let ccd = CheckpointContentsDigest::random();
     tracer.trace_value(&mut samples, &ccd).unwrap();
 
-    let struct_tag = StructTag::from_str("0x2::coin::Coin<0x2::iota::IOTA>").unwrap();
-    tracer.trace_value(&mut samples, &struct_tag).unwrap();
-
     let ccd = CheckpointDigest::random();
     tracer.trace_value(&mut samples, &ccd).unwrap();
 
@@ -220,14 +258,11 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_type::<CallArg>(&samples).unwrap();
     tracer.trace_type::<ObjectArg>(&samples).unwrap();
     tracer.trace_type::<Data>(&samples).unwrap();
-    tracer.trace_type::<TypeTag>(&samples).unwrap();
     tracer.trace_type::<TypedStoreError>(&samples).unwrap();
     tracer
         .trace_type::<ObjectInfoRequestKind>(&samples)
         .unwrap();
     tracer.trace_type::<TransactionKind>(&samples).unwrap();
-    tracer.trace_type::<MoveObjectType>(&samples).unwrap();
-    tracer.trace_type::<MoveObjectType_>(&samples).unwrap();
     tracer
         .trace_type::<base_types::IotaAddress>(&samples)
         .unwrap();
@@ -314,7 +349,7 @@ struct Options {
     action: Action,
 }
 
-const FILE_PATH: &str = "iota-core/tests/staged/iota.yaml";
+const FILE_PATH: &str = "crates/iota-core/tests/staged/iota.yaml";
 
 fn main() {
     let options = Options::parse();
