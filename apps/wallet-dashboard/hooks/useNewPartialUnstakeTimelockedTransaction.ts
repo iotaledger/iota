@@ -23,7 +23,6 @@ export function useNewPartialUnstakeTimelockedTransaction(
         queryFn: async () => {
             const transaction = createPartialTimelockedUnstakeTransaction(timelockedUnstakeIotaId, unstakeAmount);
             transaction.setSender(senderAddress);
-            await transaction.build({ client, maxSizeBytes });
             const txBytes = await transaction.build({ client });
             const txDryRun = await client.dryRunTransactionBlock({
                 transactionBlock: txBytes,
