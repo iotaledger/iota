@@ -327,6 +327,20 @@ impl DagState {
             );
         }
 
+        // Initialize scoring metrics according to the metrics in store and the block
+        // headers that were loaded to cache.
+        let recovered_scoring_metrics = state.store.scan_scoring_metrics().expect("Database error");
+        state
+            .context
+            .scoring_metrics_store
+            .initialize_scoring_metrics(
+                recovered_scoring_metrics,
+                &state.recent_headers_refs_by_authority,
+                state.threshold_clock_round(),
+                &state.evicted_rounds,
+                &state.context,
+            );
+
         state
     }
 

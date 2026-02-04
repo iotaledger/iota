@@ -232,17 +232,11 @@ pub(crate) struct NodeMetrics {
     pub(crate) commit_sync_fetch_missing_block_headers: IntCounterVec,
     pub(crate) commit_sync_fetch_missing_transactions: IntCounterVec,
     pub(crate) uptime: Histogram,
-    #[expect(dead_code)]
     pub(crate) faulty_blocks_provable_by_authority: IntCounterVec,
-    #[expect(dead_code)]
     pub(crate) faulty_blocks_unprovable_by_authority: IntCounterVec,
-    #[expect(dead_code)]
     pub(crate) uncached_equivocations_by_authority: IntCounterVec,
-    #[expect(dead_code)]
     pub(crate) uncached_missing_proposals_by_authority: IntCounterVec,
-    #[expect(dead_code)]
     pub(crate) equivocations_in_cache_by_authority: IntGaugeVec,
-    #[expect(dead_code)]
     pub(crate) missing_proposals_in_cache_by_authority: IntGaugeVec,
     #[expect(dead_code)]
     pub(crate) score_by_authority: IntGaugeVec,

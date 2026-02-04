@@ -35,7 +35,6 @@ pub(crate) struct Context {
     /// Metrics of this authority.
     pub metrics: Arc<Metrics>,
     /// Store for scoring metrics collected by this authority.
-    #[expect(dead_code)]
     pub(crate) scoring_metrics_store: Arc<ScoringMetricsStore>,
     /// Access to local clock
     pub clock: Arc<Clock>,
