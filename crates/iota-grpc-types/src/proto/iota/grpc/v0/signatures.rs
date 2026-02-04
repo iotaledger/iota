@@ -42,8 +42,11 @@ impl ValidatorAggregatedSignature {
     }
 
     /// Get the raw BCS bytes of this validator aggregated signature.
-    pub fn signature_bcs(&self) -> Option<&[u8]> {
-        self.bcs.as_ref().map(BcsData::as_bytes)
+    pub fn signature_bcs(&self) -> Result<&[u8], TryFromProtoError> {
+        self.bcs
+            .as_ref()
+            .map(BcsData::as_bytes)
+            .ok_or_else(|| TryFromProtoError::missing(Self::BCS_FIELD.name))
     }
 }
 
@@ -84,8 +87,11 @@ impl UserSignature {
     }
 
     /// Get the raw BCS bytes of this user signature.
-    pub fn signature_bcs(&self) -> Option<&[u8]> {
-        self.bcs.as_ref().map(BcsData::as_bytes)
+    pub fn signature_bcs(&self) -> Result<&[u8], TryFromProtoError> {
+        self.bcs
+            .as_ref()
+            .map(BcsData::as_bytes)
+            .ok_or_else(|| TryFromProtoError::missing(Self::BCS_FIELD.name))
     }
 }
 

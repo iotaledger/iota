@@ -50,53 +50,62 @@ impl Event {
     /// This contains the entire `iota_sdk_types::Event` serialized as BCS,
     /// including package ID, module, sender, type, and contents.
     /// Use `event_contents_bcs()` for just the event data/contents.
-    pub fn event_bcs(&self) -> Option<&[u8]> {
-        self.bcs.as_ref().map(BcsData::as_bytes)
+    pub fn event_bcs(&self) -> Result<&[u8], TryFromProtoError> {
+        self.bcs
+            .as_ref()
+            .map(BcsData::as_bytes)
+            .ok_or_else(|| TryFromProtoError::missing(Self::BCS_FIELD.name))
     }
 
     /// Get the package ID of the Move module that emitted this event.
-    pub fn package_id(&self) -> Result<Option<iota_sdk_types::Address>, TryFromProtoError> {
+    pub fn package_id(&self) -> Result<iota_sdk_types::Address, TryFromProtoError> {
         self.package_id
             .as_ref()
-            .map(|addr| {
-                addr.try_into()
-                    .map_err(|e: TryFromProtoError| e.nested(Self::PACKAGE_ID_FIELD.name))
-            })
-            .transpose()
+            .ok_or_else(|| TryFromProtoError::missing(Self::PACKAGE_ID_FIELD.name))?
+            .try_into()
+            .map_err(|e: TryFromProtoError| e.nested(Self::PACKAGE_ID_FIELD.name))
     }
 
     /// Get the module name of the Move module that emitted this event.
-    pub fn module_name(&self) -> Option<&str> {
-        self.module.as_deref()
+    pub fn module_name(&self) -> Result<&str, TryFromProtoError> {
+        self.module
+            .as_deref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::MODULE_FIELD.name))
     }
 
     /// Get the sender address of the transaction that emitted this event.
-    pub fn sender_address(&self) -> Result<Option<iota_sdk_types::Address>, TryFromProtoError> {
+    pub fn sender_address(&self) -> Result<iota_sdk_types::Address, TryFromProtoError> {
         self.sender
             .as_ref()
-            .map(|addr| {
-                addr.try_into()
-                    .map_err(|e: TryFromProtoError| e.nested(Self::SENDER_FIELD.name))
-            })
-            .transpose()
+            .ok_or_else(|| TryFromProtoError::missing(Self::SENDER_FIELD.name))?
+            .try_into()
+            .map_err(|e: TryFromProtoError| e.nested(Self::SENDER_FIELD.name))
     }
 
     /// Get the type of the event emitted.
-    pub fn type_name(&self) -> Option<&str> {
-        self.event_type.as_deref()
+    pub fn type_name(&self) -> Result<&str, TryFromProtoError> {
+        self.event_type
+            .as_deref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::EVENT_TYPE_FIELD.name))
     }
 
     /// Get the raw BCS bytes of the event contents/data only.
     ///
     /// This is the serialized event data without the metadata (package, module,
     /// sender, type). Use `event_bcs()` for the full event structure.
-    pub fn event_contents_bcs(&self) -> Option<&[u8]> {
-        self.bcs_contents.as_ref().map(BcsData::as_bytes)
+    pub fn event_contents_bcs(&self) -> Result<&[u8], TryFromProtoError> {
+        self.bcs_contents
+            .as_ref()
+            .map(BcsData::as_bytes)
+            .ok_or_else(|| TryFromProtoError::missing(Self::BCS_CONTENTS_FIELD.name))
     }
 
     /// Get the JSON contents of the event.
-    pub fn json_contents(&self) -> Option<serde_json::Value> {
-        self.json_contents.as_ref().map(crate::proto::prost_to_json)
+    pub fn json_contents(&self) -> Result<serde_json::Value, TryFromProtoError> {
+        self.json_contents
+            .as_ref()
+            .map(crate::proto::prost_to_json)
+            .ok_or_else(|| TryFromProtoError::missing(Self::JSON_CONTENTS_FIELD.name))
     }
 }
 

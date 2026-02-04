@@ -94,25 +94,37 @@ impl Argument {
 
 impl CommandOutput {
     /// Deserialize the argument to SDK type.
-    pub fn argument(
-        &self,
-    ) -> Result<Option<iota_sdk_types::transaction::Argument>, TryFromProtoError> {
-        self.argument.as_ref().map(|a| a.argument()).transpose()
+    pub fn argument(&self) -> Result<iota_sdk_types::transaction::Argument, TryFromProtoError> {
+        self.argument
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::ARGUMENT_FIELD.name))?
+            .argument()
+            .map_err(|e| e.nested(Self::ARGUMENT_FIELD.name))
     }
 
     /// Deserialize the type tag to SDK type.
-    pub fn type_tag(&self) -> Result<Option<iota_sdk_types::TypeTag>, TryFromProtoError> {
-        self.type_tag.as_ref().map(|t| t.type_tag()).transpose()
+    pub fn type_tag(&self) -> Result<iota_sdk_types::TypeTag, TryFromProtoError> {
+        self.type_tag
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::TYPE_TAG_FIELD.name))?
+            .type_tag()
+            .map_err(|e| e.nested(Self::TYPE_TAG_FIELD.name))
     }
 
     /// Get the raw BCS bytes.
-    pub fn output_bcs(&self) -> Option<&[u8]> {
-        self.bcs.as_ref().map(BcsData::as_bytes)
+    pub fn output_bcs(&self) -> Result<&[u8], TryFromProtoError> {
+        self.bcs
+            .as_ref()
+            .map(BcsData::as_bytes)
+            .ok_or_else(|| TryFromProtoError::missing(Self::BCS_FIELD.name))
     }
 
     /// Get the JSON value.
-    pub fn output_json(&self) -> Option<serde_json::Value> {
-        self.json.as_ref().map(crate::proto::prost_to_json)
+    pub fn output_json(&self) -> Result<serde_json::Value, TryFromProtoError> {
+        self.json
+            .as_ref()
+            .map(crate::proto::prost_to_json)
+            .ok_or_else(|| TryFromProtoError::missing(Self::JSON_FIELD.name))
     }
 }
 
@@ -123,7 +135,7 @@ impl CommandOutputs {
     /// Deserialize all arguments to SDK types.
     pub fn arguments(
         &self,
-    ) -> Result<Vec<Option<iota_sdk_types::transaction::Argument>>, TryFromProtoError> {
+    ) -> Result<Vec<iota_sdk_types::transaction::Argument>, TryFromProtoError> {
         self.outputs
             .iter()
             .enumerate()
@@ -135,7 +147,7 @@ impl CommandOutputs {
     }
 
     /// Deserialize all type tags to SDK types.
-    pub fn type_tags(&self) -> Result<Vec<Option<iota_sdk_types::TypeTag>>, TryFromProtoError> {
+    pub fn type_tags(&self) -> Result<Vec<iota_sdk_types::TypeTag>, TryFromProtoError> {
         self.outputs
             .iter()
             .enumerate()
@@ -147,13 +159,27 @@ impl CommandOutputs {
     }
 
     /// Get all BCS bytes.
-    pub fn all_bcs(&self) -> Vec<Option<&[u8]>> {
-        self.outputs.iter().map(|o| o.output_bcs()).collect()
+    pub fn all_bcs(&self) -> Result<Vec<&[u8]>, TryFromProtoError> {
+        self.outputs
+            .iter()
+            .enumerate()
+            .map(|(i, o)| {
+                o.output_bcs()
+                    .map_err(|e| e.nested_at(Self::OUTPUTS_FIELD.name, i))
+            })
+            .collect()
     }
 
     /// Get all JSON values.
-    pub fn all_json(&self) -> Vec<Option<serde_json::Value>> {
-        self.outputs.iter().map(|o| o.output_json()).collect()
+    pub fn all_json(&self) -> Result<Vec<serde_json::Value>, TryFromProtoError> {
+        self.outputs
+            .iter()
+            .enumerate()
+            .map(|(i, o)| {
+                o.output_json()
+                    .map_err(|e| e.nested_at(Self::OUTPUTS_FIELD.name, i))
+            })
+            .collect()
     }
 }
 
@@ -164,77 +190,81 @@ impl CommandResult {
     /// Get the arguments for outputs mutated by reference.
     pub fn mutated_by_ref_arguments(
         &self,
-    ) -> Result<Vec<Option<iota_sdk_types::transaction::Argument>>, TryFromProtoError> {
+    ) -> Result<Vec<iota_sdk_types::transaction::Argument>, TryFromProtoError> {
         self.mutated_by_ref
             .as_ref()
-            .map(|outputs| outputs.arguments())
-            .transpose()
-            .map(|opt| opt.unwrap_or_default())
+            .ok_or_else(|| TryFromProtoError::missing(Self::MUTATED_BY_REF_FIELD.name))?
+            .arguments()
+            .map_err(|e| e.nested(Self::MUTATED_BY_REF_FIELD.name))
     }
 
     /// Get the type tags for outputs mutated by reference.
     pub fn mutated_by_ref_type_tags(
         &self,
-    ) -> Result<Vec<Option<iota_sdk_types::TypeTag>>, TryFromProtoError> {
+    ) -> Result<Vec<iota_sdk_types::TypeTag>, TryFromProtoError> {
         self.mutated_by_ref
             .as_ref()
-            .map(|outputs| outputs.type_tags())
-            .transpose()
-            .map(|opt| opt.unwrap_or_default())
+            .ok_or_else(|| TryFromProtoError::missing(Self::MUTATED_BY_REF_FIELD.name))?
+            .type_tags()
+            .map_err(|e| e.nested(Self::MUTATED_BY_REF_FIELD.name))
     }
 
     /// Get the BCS bytes for outputs mutated by reference.
-    pub fn mutated_by_ref_bcs(&self) -> Vec<Option<&[u8]>> {
+    pub fn mutated_by_ref_bcs(&self) -> Result<Vec<&[u8]>, TryFromProtoError> {
         self.mutated_by_ref
             .as_ref()
-            .map(|outputs| outputs.all_bcs())
-            .unwrap_or_default()
+            .ok_or_else(|| TryFromProtoError::missing(Self::MUTATED_BY_REF_FIELD.name))?
+            .all_bcs()
+            .map_err(|e| e.nested(Self::MUTATED_BY_REF_FIELD.name))
     }
 
     /// Get the JSON values for outputs mutated by reference.
-    pub fn mutated_by_ref_json(&self) -> Vec<Option<serde_json::Value>> {
+    pub fn mutated_by_ref_json(&self) -> Result<Vec<serde_json::Value>, TryFromProtoError> {
         self.mutated_by_ref
             .as_ref()
-            .map(|outputs| outputs.all_json())
-            .unwrap_or_default()
+            .ok_or_else(|| TryFromProtoError::missing(Self::MUTATED_BY_REF_FIELD.name))?
+            .all_json()
+            .map_err(|e| e.nested(Self::MUTATED_BY_REF_FIELD.name))
     }
 
     /// Get the arguments for return values.
     pub fn return_values_arguments(
         &self,
-    ) -> Result<Vec<Option<iota_sdk_types::transaction::Argument>>, TryFromProtoError> {
+    ) -> Result<Vec<iota_sdk_types::transaction::Argument>, TryFromProtoError> {
         self.return_values
             .as_ref()
-            .map(|outputs| outputs.arguments())
-            .transpose()
-            .map(|opt| opt.unwrap_or_default())
+            .ok_or_else(|| TryFromProtoError::missing(Self::RETURN_VALUES_FIELD.name))?
+            .arguments()
+            .map_err(|e| e.nested(Self::RETURN_VALUES_FIELD.name))
     }
 
     /// Get the type tags for return values.
     pub fn return_values_type_tags(
         &self,
-    ) -> Result<Vec<Option<iota_sdk_types::TypeTag>>, TryFromProtoError> {
+    ) -> Result<Vec<iota_sdk_types::TypeTag>, TryFromProtoError> {
         self.return_values
             .as_ref()
-            .map(|outputs| outputs.type_tags())
-            .transpose()
-            .map(|opt| opt.unwrap_or_default())
+            .ok_or_else(|| TryFromProtoError::missing(Self::RETURN_VALUES_FIELD.name))?
+            .type_tags()
+            .map_err(|e| e.nested(Self::RETURN_VALUES_FIELD.name))
     }
 
     /// Get the BCS bytes for return values.
-    pub fn return_values_bcs(&self) -> Vec<Option<&[u8]>> {
+    pub fn return_values_bcs(&self) -> Result<Vec<&[u8]>, TryFromProtoError> {
         self.return_values
             .as_ref()
-            .map(|outputs| outputs.all_bcs())
-            .unwrap_or_default()
+            .ok_or_else(|| TryFromProtoError::missing(Self::RETURN_VALUES_FIELD.name))?
+            .all_bcs()
+            .map_err(|e| e.nested(Self::RETURN_VALUES_FIELD.name))
     }
 
     /// Get the JSON values for return values.
-    pub fn return_values_json(&self) -> Vec<Option<serde_json::Value>> {
+    pub fn return_values_json(&self) -> Result<Vec<serde_json::Value>, TryFromProtoError> {
         self.return_values
             .as_ref()
-            .map(|outputs| outputs.all_json())
-            .unwrap_or_default()
+            .ok_or_else(|| TryFromProtoError::missing(Self::RETURN_VALUES_FIELD.name))?
+            .all_json()
+            .map_err(|e| e.nested(Self::RETURN_VALUES_FIELD.name))
     }
 }
 
@@ -245,7 +275,7 @@ impl CommandResults {
     /// Get all mutated-by-reference arguments across all commands.
     pub fn all_mutated_by_ref_arguments(
         &self,
-    ) -> Result<Vec<Vec<Option<iota_sdk_types::transaction::Argument>>>, TryFromProtoError> {
+    ) -> Result<Vec<Vec<iota_sdk_types::transaction::Argument>>, TryFromProtoError> {
         self.results
             .iter()
             .enumerate()
@@ -259,7 +289,7 @@ impl CommandResults {
     /// Get all return value arguments across all commands.
     pub fn all_return_values_arguments(
         &self,
-    ) -> Result<Vec<Vec<Option<iota_sdk_types::transaction::Argument>>>, TryFromProtoError> {
+    ) -> Result<Vec<Vec<iota_sdk_types::transaction::Argument>>, TryFromProtoError> {
         self.results
             .iter()
             .enumerate()
@@ -273,7 +303,7 @@ impl CommandResults {
     /// Get all mutated-by-reference type tags across all commands.
     pub fn all_mutated_by_ref_type_tags(
         &self,
-    ) -> Result<Vec<Vec<Option<iota_sdk_types::TypeTag>>>, TryFromProtoError> {
+    ) -> Result<Vec<Vec<iota_sdk_types::TypeTag>>, TryFromProtoError> {
         self.results
             .iter()
             .enumerate()
@@ -287,7 +317,7 @@ impl CommandResults {
     /// Get all return value type tags across all commands.
     pub fn all_return_values_type_tags(
         &self,
-    ) -> Result<Vec<Vec<Option<iota_sdk_types::TypeTag>>>, TryFromProtoError> {
+    ) -> Result<Vec<Vec<iota_sdk_types::TypeTag>>, TryFromProtoError> {
         self.results
             .iter()
             .enumerate()

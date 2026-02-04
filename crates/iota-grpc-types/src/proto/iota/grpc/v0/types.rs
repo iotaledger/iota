@@ -118,29 +118,34 @@ impl ObjectReference {
     }
 
     /// Get the object ID as a string reference.
-    pub fn object_id_str(&self) -> Option<&str> {
-        self.object_id.as_deref()
+    pub fn object_id_str(&self) -> Result<&str, TryFromProtoError> {
+        self.object_id
+            .as_deref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::OBJECT_ID_FIELD.name))
     }
 
     /// Get the object ID parsed as SDK type.
-    pub fn parsed_object_id(&self) -> Result<Option<iota_sdk_types::ObjectId>, TryFromProtoError> {
+    pub fn parsed_object_id(&self) -> Result<iota_sdk_types::ObjectId, TryFromProtoError> {
         self.object_id
             .as_ref()
-            .map(|id| {
-                id.parse()
-                    .map_err(|e| TryFromProtoError::invalid(Self::OBJECT_ID_FIELD.name, e))
-            })
-            .transpose()
+            .ok_or_else(|| TryFromProtoError::missing(Self::OBJECT_ID_FIELD.name))?
+            .parse()
+            .map_err(|e| TryFromProtoError::invalid(Self::OBJECT_ID_FIELD.name, e))
     }
 
     /// Get the object version number.
-    pub fn object_version(&self) -> Option<u64> {
+    pub fn object_version(&self) -> Result<u64, TryFromProtoError> {
         self.version
+            .ok_or_else(|| TryFromProtoError::missing(Self::VERSION_FIELD.name))
     }
 
     /// Get the object digest.
-    pub fn object_digest(&self) -> Result<Option<iota_sdk_types::Digest>, TryFromProtoError> {
-        self.digest.as_ref().map(|d| d.digest()).transpose()
+    pub fn object_digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
+        self.digest
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::DIGEST_FIELD.name))?
+            .digest()
+            .map_err(|e| e.nested(Self::DIGEST_FIELD.name))
     }
 }
 

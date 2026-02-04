@@ -12,50 +12,60 @@ use crate::proto::TryFromProtoError;
 
 impl GetServiceInfoResponse {
     /// Get the chain identifier (digest of genesis checkpoint).
-    pub fn chain_identifier(&self) -> Option<&str> {
-        self.chain_id.as_deref()
+    pub fn chain_identifier(&self) -> Result<&str, TryFromProtoError> {
+        self.chain_id
+            .as_deref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::CHAIN_ID_FIELD.name))
     }
 
     /// Get the human-readable chain name (e.g., "mainnet", "testnet").
-    pub fn chain_name(&self) -> Option<&str> {
-        self.chain.as_deref()
+    pub fn chain_name(&self) -> Result<&str, TryFromProtoError> {
+        self.chain
+            .as_deref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::CHAIN_FIELD.name))
     }
 
     /// Get the current epoch number.
-    pub fn epoch_number(&self) -> Option<u64> {
+    pub fn epoch_number(&self) -> Result<u64, TryFromProtoError> {
         self.epoch
+            .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))
     }
 
     /// Get the checkpoint height of the most recently executed checkpoint.
-    pub fn checkpoint_height(&self) -> Option<u64> {
+    pub fn checkpoint_height(&self) -> Result<u64, TryFromProtoError> {
         self.executed_checkpoint_height
+            .ok_or_else(|| TryFromProtoError::missing(Self::EXECUTED_CHECKPOINT_HEIGHT_FIELD.name))
     }
 
     /// Get the Unix timestamp of the most recently executed checkpoint in
     /// milliseconds.
-    pub fn checkpoint_timestamp_ms(&self) -> Result<Option<u64>, TryFromProtoError> {
-        self.executed_checkpoint_timestamp
-            .map(|ts| {
-                crate::proto::proto_to_timestamp_ms(ts)
-                    .map_err(|e| e.nested(Self::EXECUTED_CHECKPOINT_TIMESTAMP_FIELD.name))
-            })
-            .transpose()
+    pub fn checkpoint_timestamp_ms(&self) -> Result<u64, TryFromProtoError> {
+        let ts = self.executed_checkpoint_timestamp.ok_or_else(|| {
+            TryFromProtoError::missing(Self::EXECUTED_CHECKPOINT_TIMESTAMP_FIELD.name)
+        })?;
+        crate::proto::proto_to_timestamp_ms(ts)
+            .map_err(|e| e.nested(Self::EXECUTED_CHECKPOINT_TIMESTAMP_FIELD.name))
     }
 
     /// Get the lowest checkpoint for which checkpoints and transaction data are
     /// available.
-    pub fn lowest_checkpoint(&self) -> Option<u64> {
+    pub fn lowest_checkpoint(&self) -> Result<u64, TryFromProtoError> {
         self.lowest_available_checkpoint
+            .ok_or_else(|| TryFromProtoError::missing(Self::LOWEST_AVAILABLE_CHECKPOINT_FIELD.name))
     }
 
     /// Get the lowest checkpoint for which object data is available.
-    pub fn lowest_checkpoint_objects(&self) -> Option<u64> {
-        self.lowest_available_checkpoint_objects
+    pub fn lowest_checkpoint_objects(&self) -> Result<u64, TryFromProtoError> {
+        self.lowest_available_checkpoint_objects.ok_or_else(|| {
+            TryFromProtoError::missing(Self::LOWEST_AVAILABLE_CHECKPOINT_OBJECTS_FIELD.name)
+        })
     }
 
     /// Get the software version of the service.
-    pub fn server_version(&self) -> Option<&str> {
-        self.server.as_deref()
+    pub fn server_version(&self) -> Result<&str, TryFromProtoError> {
+        self.server
+            .as_deref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::SERVER_FIELD.name))
     }
 }
 
@@ -74,16 +84,16 @@ impl ObjectResult {
     /// Get the object ID if this result is an object.
     pub fn object_id(&self) -> Result<Option<iota_sdk_types::ObjectId>, TryFromProtoError> {
         match &self.result {
-            Some(object_result::Result::Object(obj)) => obj.object_id(),
+            Some(object_result::Result::Object(obj)) => Ok(Some(obj.object_id()?)),
             _ => Ok(None),
         }
     }
 
     /// Get the raw BCS bytes if this result is an object.
-    pub fn object_bcs(&self) -> Option<&[u8]> {
+    pub fn object_bcs(&self) -> Result<Option<&[u8]>, TryFromProtoError> {
         match &self.result {
-            Some(object_result::Result::Object(obj)) => obj.object_bcs(),
-            _ => None,
+            Some(object_result::Result::Object(obj)) => Ok(Some(obj.object_bcs()?)),
+            _ => Ok(None),
         }
     }
 
@@ -157,10 +167,10 @@ impl TransactionResult {
 
     /// Get the raw BCS bytes of the transaction if this result is a
     /// transaction.
-    pub fn transaction_bcs(&self) -> Option<&[u8]> {
+    pub fn transaction_bcs(&self) -> Result<Option<&[u8]>, TryFromProtoError> {
         match &self.result {
-            Some(transaction_result::Result::Transaction(tx)) => tx.transaction_bcs(),
-            _ => None,
+            Some(transaction_result::Result::Transaction(tx)) => Ok(Some(tx.transaction_bcs()?)),
+            _ => Ok(None),
         }
     }
 
@@ -209,10 +219,12 @@ impl GetTransactionsResponse {
 
 impl CheckpointData {
     /// Get the checkpoint sequence number if this is a checkpoint payload.
-    pub fn checkpoint_sequence_number(&self) -> Option<u64> {
+    pub fn checkpoint_sequence_number(&self) -> Result<Option<u64>, TryFromProtoError> {
         match &self.payload {
-            Some(checkpoint_data::Payload::Checkpoint(cp)) => cp.checkpoint_sequence_number(),
-            _ => None,
+            Some(checkpoint_data::Payload::Checkpoint(cp)) => {
+                Ok(Some(cp.checkpoint_sequence_number()?))
+            }
+            _ => Ok(None),
         }
     }
 
@@ -221,7 +233,7 @@ impl CheckpointData {
         &self,
     ) -> Result<Option<iota_sdk_types::CheckpointSummary>, TryFromProtoError> {
         match &self.payload {
-            Some(checkpoint_data::Payload::Checkpoint(cp)) => cp.summary(),
+            Some(checkpoint_data::Payload::Checkpoint(cp)) => Ok(Some(cp.summary()?)),
             _ => Ok(None),
         }
     }
@@ -245,10 +257,12 @@ impl CheckpointData {
     }
 
     /// Get the end marker sequence number if this is an end marker payload.
-    pub fn end_marker_sequence_number(&self) -> Option<u64> {
+    pub fn end_marker_sequence_number(&self) -> Result<Option<u64>, TryFromProtoError> {
         match &self.payload {
-            Some(checkpoint_data::Payload::EndMarker(marker)) => marker.sequence_number,
-            _ => None,
+            Some(checkpoint_data::Payload::EndMarker(marker)) => {
+                Ok(Some(marker.checkpoint_sequence_number()?))
+            }
+            _ => Ok(None),
         }
     }
 }
@@ -258,8 +272,9 @@ impl CheckpointData {
 
 impl checkpoint_data::EndMarker {
     /// Get the checkpoint sequence number.
-    pub fn checkpoint_sequence_number(&self) -> Option<u64> {
+    pub fn checkpoint_sequence_number(&self) -> Result<u64, TryFromProtoError> {
         self.sequence_number
+            .ok_or_else(|| TryFromProtoError::missing("end_marker.sequence_number"))
     }
 }
 
@@ -268,62 +283,80 @@ impl checkpoint_data::EndMarker {
 
 impl GetEpochResponse {
     /// Get the epoch number.
-    pub fn epoch_number(&self) -> Option<u64> {
-        self.epoch.as_ref().and_then(|e| e.epoch_number())
+    pub fn epoch_number(&self) -> Result<u64, TryFromProtoError> {
+        self.epoch
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))?
+            .epoch_number()
+            .map_err(|e| e.nested(Self::EPOCH_FIELD.name))
     }
 
     /// Get the validator committee.
-    pub fn committee(
-        &self,
-    ) -> Result<Option<iota_sdk_types::ValidatorCommittee>, TryFromProtoError> {
+    pub fn committee(&self) -> Result<iota_sdk_types::ValidatorCommittee, TryFromProtoError> {
         self.epoch
             .as_ref()
-            .map(|e| {
-                e.committee()
-                    .map_err(|err| err.nested(Self::EPOCH_FIELD.name))
-            })
-            .transpose()
+            .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))?
+            .committee()
+            .map_err(|e| e.nested(Self::EPOCH_FIELD.name))
     }
 
     /// Get the first checkpoint sequence number in this epoch.
-    pub fn first_checkpoint(&self) -> Option<u64> {
+    pub fn first_checkpoint(&self) -> Result<u64, TryFromProtoError> {
         self.epoch
             .as_ref()
-            .and_then(|e| e.first_checkpoint_sequence_number())
+            .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))?
+            .first_checkpoint_sequence_number()
+            .map_err(|e| e.nested(Self::EPOCH_FIELD.name))
     }
 
     /// Get the last checkpoint sequence number in this epoch.
-    pub fn last_checkpoint(&self) -> Option<u64> {
+    ///
+    /// Returns `Ok(None)` for the current in-progress epoch (field not yet
+    /// set).
+    pub fn last_checkpoint(&self) -> Result<Option<u64>, TryFromProtoError> {
         self.epoch
             .as_ref()
-            .and_then(|e| e.last_checkpoint_sequence_number())
+            .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))?
+            .last_checkpoint_sequence_number()
+            .map_err(|e| e.nested(Self::EPOCH_FIELD.name))
     }
 
     /// Get the epoch start time in milliseconds.
-    pub fn start_ms(&self) -> Result<Option<u64>, TryFromProtoError> {
-        match &self.epoch {
-            Some(e) => e
-                .start_ms()
-                .map_err(|err| err.nested(Self::EPOCH_FIELD.name)),
-            None => Ok(None),
-        }
+    pub fn start_ms(&self) -> Result<u64, TryFromProtoError> {
+        self.epoch
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))?
+            .start_ms()
+            .map_err(|e| e.nested(Self::EPOCH_FIELD.name))
     }
 
     /// Get the epoch end time in milliseconds.
+    ///
+    /// Returns `Ok(None)` for the current in-progress epoch (field not yet
+    /// set).
     pub fn end_ms(&self) -> Result<Option<u64>, TryFromProtoError> {
-        match &self.epoch {
-            Some(e) => e.end_ms().map_err(|err| err.nested(Self::EPOCH_FIELD.name)),
-            None => Ok(None),
-        }
+        self.epoch
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))?
+            .end_ms()
+            .map_err(|e| e.nested(Self::EPOCH_FIELD.name))
     }
 
     /// Get the reference gas price in NANOS.
-    pub fn gas_price(&self) -> Option<u64> {
-        self.epoch.as_ref().and_then(|e| e.gas_price())
+    pub fn gas_price(&self) -> Result<u64, TryFromProtoError> {
+        self.epoch
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))?
+            .gas_price()
+            .map_err(|e| e.nested(Self::EPOCH_FIELD.name))
     }
 
     /// Get the protocol version.
-    pub fn protocol_version(&self) -> Option<u64> {
-        self.epoch.as_ref().and_then(|e| e.protocol_version())
+    pub fn protocol_version(&self) -> Result<u64, TryFromProtoError> {
+        self.epoch
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))?
+            .protocol_version()
+            .map_err(|e| e.nested(Self::EPOCH_FIELD.name))
     }
 }

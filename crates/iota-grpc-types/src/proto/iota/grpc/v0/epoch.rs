@@ -83,8 +83,9 @@ impl TryFrom<&ValidatorCommittee> for iota_sdk_types::ValidatorCommittee {
 
 impl Epoch {
     /// Get the epoch number.
-    pub fn epoch_number(&self) -> Option<u64> {
+    pub fn epoch_number(&self) -> Result<u64, TryFromProtoError> {
         self.epoch
+            .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))
     }
 
     /// Deserialize the validator committee.
@@ -96,26 +97,31 @@ impl Epoch {
     }
 
     /// Get the first checkpoint sequence number in this epoch.
-    pub fn first_checkpoint_sequence_number(&self) -> Option<u64> {
+    pub fn first_checkpoint_sequence_number(&self) -> Result<u64, TryFromProtoError> {
         self.first_checkpoint
+            .ok_or_else(|| TryFromProtoError::missing(Self::FIRST_CHECKPOINT_FIELD.name))
     }
 
     /// Get the last checkpoint sequence number in this epoch.
-    pub fn last_checkpoint_sequence_number(&self) -> Option<u64> {
-        self.last_checkpoint
+    ///
+    /// Returns `Ok(None)` for the current in-progress epoch (field not yet
+    /// set).
+    pub fn last_checkpoint_sequence_number(&self) -> Result<Option<u64>, TryFromProtoError> {
+        Ok(self.last_checkpoint)
     }
 
     /// Get the epoch start time in milliseconds.
-    pub fn start_ms(&self) -> Result<Option<u64>, TryFromProtoError> {
-        self.start
-            .map(|ts| {
-                crate::proto::proto_to_timestamp_ms(ts)
-                    .map_err(|e| e.nested(Self::START_FIELD.name))
-            })
-            .transpose()
+    pub fn start_ms(&self) -> Result<u64, TryFromProtoError> {
+        let ts = self
+            .start
+            .ok_or_else(|| TryFromProtoError::missing(Self::START_FIELD.name))?;
+        crate::proto::proto_to_timestamp_ms(ts).map_err(|e| e.nested(Self::START_FIELD.name))
     }
 
     /// Get the epoch end time in milliseconds.
+    ///
+    /// Returns `Ok(None)` for the current in-progress epoch (field not yet
+    /// set).
     pub fn end_ms(&self) -> Result<Option<u64>, TryFromProtoError> {
         self.end
             .map(|ts| {
@@ -125,8 +131,9 @@ impl Epoch {
     }
 
     /// Get the reference gas price in NANOS.
-    pub fn gas_price(&self) -> Option<u64> {
+    pub fn gas_price(&self) -> Result<u64, TryFromProtoError> {
         self.reference_gas_price
+            .ok_or_else(|| TryFromProtoError::missing(Self::REFERENCE_GAS_PRICE_FIELD.name))
     }
 
     /// Get the raw BCS-encoded system state bytes.
@@ -134,31 +141,53 @@ impl Epoch {
     /// This is a snapshot of IOTA's SystemState
     /// (`0x3::iota_system::SystemState`) at the beginning of the epoch (for
     /// past epochs) or the current state (for the current epoch).
-    pub fn system_state_bcs(&self) -> Option<&[u8]> {
-        self.bcs_system_state.as_ref().map(BcsData::as_bytes)
+    pub fn system_state_bcs(&self) -> Result<&[u8], TryFromProtoError> {
+        self.bcs_system_state
+            .as_ref()
+            .map(BcsData::as_bytes)
+            .ok_or_else(|| TryFromProtoError::missing(Self::BCS_SYSTEM_STATE_FIELD.name))
     }
 
     /// Get the protocol version number.
-    pub fn protocol_version(&self) -> Option<u64> {
+    pub fn protocol_version(&self) -> Result<u64, TryFromProtoError> {
         self.protocol_config
             .as_ref()
-            .and_then(|c| c.protocol_version)
+            .ok_or_else(|| TryFromProtoError::missing(Self::PROTOCOL_CONFIG_FIELD.name))?
+            .protocol_version
+            .ok_or_else(|| {
+                TryFromProtoError::missing(ProtocolConfig::PROTOCOL_VERSION_FIELD.name)
+                    .nested(Self::PROTOCOL_CONFIG_FIELD.name)
+            })
     }
 
     /// Get the feature flags map.
-    pub fn feature_flags(&self) -> Option<&std::collections::BTreeMap<String, bool>> {
-        self.protocol_config
+    pub fn feature_flags(
+        &self,
+    ) -> Result<&std::collections::BTreeMap<String, bool>, TryFromProtoError> {
+        let config = self
+            .protocol_config
             .as_ref()
-            .and_then(|c| c.feature_flags.as_ref())
-            .map(|f| &f.flags)
+            .ok_or_else(|| TryFromProtoError::missing(Self::PROTOCOL_CONFIG_FIELD.name))?;
+        let flags = config.feature_flags.as_ref().ok_or_else(|| {
+            TryFromProtoError::missing(ProtocolConfig::FEATURE_FLAGS_FIELD.name)
+                .nested(Self::PROTOCOL_CONFIG_FIELD.name)
+        })?;
+        Ok(&flags.flags)
     }
 
     /// Get the protocol attributes map.
-    pub fn protocol_attributes(&self) -> Option<&std::collections::BTreeMap<String, String>> {
-        self.protocol_config
+    pub fn protocol_attributes(
+        &self,
+    ) -> Result<&std::collections::BTreeMap<String, String>, TryFromProtoError> {
+        let config = self
+            .protocol_config
             .as_ref()
-            .and_then(|c| c.attributes.as_ref())
-            .map(|a| &a.attributes)
+            .ok_or_else(|| TryFromProtoError::missing(Self::PROTOCOL_CONFIG_FIELD.name))?;
+        let attrs = config.attributes.as_ref().ok_or_else(|| {
+            TryFromProtoError::missing(ProtocolConfig::ATTRIBUTES_FIELD.name)
+                .nested(Self::PROTOCOL_CONFIG_FIELD.name)
+        })?;
+        Ok(&attrs.attributes)
     }
 
     // TODO: Implement when IotaSystemState type is available in iota-sdk-types.
@@ -182,18 +211,25 @@ impl Epoch {
 
 impl ProtocolConfig {
     /// Get the protocol version number.
-    pub fn version(&self) -> Option<u64> {
+    pub fn version(&self) -> Result<u64, TryFromProtoError> {
         self.protocol_version
+            .ok_or_else(|| TryFromProtoError::missing(Self::PROTOCOL_VERSION_FIELD.name))
     }
 
     /// Get the feature flags map.
-    pub fn flags(&self) -> Option<&std::collections::BTreeMap<String, bool>> {
-        self.feature_flags.as_ref().map(|f| &f.flags)
+    pub fn flags(&self) -> Result<&std::collections::BTreeMap<String, bool>, TryFromProtoError> {
+        self.feature_flags
+            .as_ref()
+            .map(|f| &f.flags)
+            .ok_or_else(|| TryFromProtoError::missing(Self::FEATURE_FLAGS_FIELD.name))
     }
 
     /// Get the protocol attributes map.
-    pub fn attrs(&self) -> Option<&std::collections::BTreeMap<String, String>> {
-        self.attributes.as_ref().map(|a| &a.attributes)
+    pub fn attrs(&self) -> Result<&std::collections::BTreeMap<String, String>, TryFromProtoError> {
+        self.attributes
+            .as_ref()
+            .map(|a| &a.attributes)
+            .ok_or_else(|| TryFromProtoError::missing(Self::ATTRIBUTES_FIELD.name))
     }
 
     // TODO: Implement when ProtocolConfig conversion is available.
@@ -256,8 +292,9 @@ impl ValidatorCommittee {
     }
 
     /// Get the epoch number.
-    pub fn epoch_number(&self) -> Option<u64> {
+    pub fn epoch_number(&self) -> Result<u64, TryFromProtoError> {
         self.epoch
+            .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))
     }
 
     /// Deserialize all committee members.
@@ -285,25 +322,26 @@ impl ValidatorCommitteeMember {
     }
 
     /// Get the BLS public key.
-    pub fn bls_public_key(
-        &self,
-    ) -> Result<Option<iota_sdk_types::Bls12381PublicKey>, TryFromProtoError> {
-        self.public_key
+    pub fn bls_public_key(&self) -> Result<iota_sdk_types::Bls12381PublicKey, TryFromProtoError> {
+        let pk = self
+            .public_key
             .as_ref()
-            .map(|pk| {
-                iota_sdk_types::Bls12381PublicKey::from_bytes(pk.as_ref())
-                    .map_err(|e| TryFromProtoError::invalid(Self::PUBLIC_KEY_FIELD, e))
-            })
-            .transpose()
+            .ok_or_else(|| TryFromProtoError::missing(Self::PUBLIC_KEY_FIELD.name))?;
+        iota_sdk_types::Bls12381PublicKey::from_bytes(pk.as_ref())
+            .map_err(|e| TryFromProtoError::invalid(Self::PUBLIC_KEY_FIELD, e))
     }
 
     /// Get the raw public key bytes.
-    pub fn public_key_bytes(&self) -> Option<&[u8]> {
-        self.public_key.as_ref().map(|pk| pk.as_ref())
+    pub fn public_key_bytes(&self) -> Result<&[u8], TryFromProtoError> {
+        self.public_key
+            .as_ref()
+            .map(|pk| pk.as_ref())
+            .ok_or_else(|| TryFromProtoError::missing(Self::PUBLIC_KEY_FIELD.name))
     }
 
     /// Get the voting weight (stake).
-    pub fn voting_weight(&self) -> Option<u64> {
+    pub fn voting_weight(&self) -> Result<u64, TryFromProtoError> {
         self.weight
+            .ok_or_else(|| TryFromProtoError::missing(Self::WEIGHT_FIELD.name))
     }
 }

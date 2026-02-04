@@ -96,45 +96,54 @@ impl Object {
     }
 
     /// Get the raw BCS bytes of this object.
-    pub fn object_bcs(&self) -> Option<&[u8]> {
-        self.bcs.as_ref().map(BcsData::as_bytes)
+    pub fn object_bcs(&self) -> Result<&[u8], TryFromProtoError> {
+        self.bcs
+            .as_ref()
+            .map(BcsData::as_bytes)
+            .ok_or_else(|| TryFromProtoError::missing(Self::BCS_FIELD.name))
     }
 
     /// Get the object ID from the reference.
-    pub fn object_id(&self) -> Result<Option<iota_sdk_types::ObjectId>, TryFromProtoError> {
-        self.reference
+    pub fn object_id(&self) -> Result<iota_sdk_types::ObjectId, TryFromProtoError> {
+        let reference = self
+            .reference
             .as_ref()
-            .map(|r| {
-                r.object_id
-                    .as_ref()
-                    .ok_or_else(|| {
-                        TryFromProtoError::missing(ObjectReference::OBJECT_ID_FIELD.name)
-                            .nested(Self::REFERENCE_FIELD.name)
-                    })?
-                    .parse()
-                    .map_err(|e| {
-                        TryFromProtoError::invalid(ObjectReference::OBJECT_ID_FIELD.name, e)
-                            .nested(Self::REFERENCE_FIELD.name)
-                    })
-            })
-            .transpose()
+            .ok_or_else(|| TryFromProtoError::missing(Self::REFERENCE_FIELD.name))?;
+        let object_id_str = reference.object_id.as_ref().ok_or_else(|| {
+            TryFromProtoError::missing(ObjectReference::OBJECT_ID_FIELD.name)
+                .nested(Self::REFERENCE_FIELD.name)
+        })?;
+        object_id_str.parse().map_err(|e| {
+            TryFromProtoError::invalid(ObjectReference::OBJECT_ID_FIELD.name, e)
+                .nested(Self::REFERENCE_FIELD.name)
+        })
     }
 
     /// Get the object version from the reference.
-    pub fn object_version(&self) -> Option<u64> {
-        self.reference.as_ref().and_then(|r| r.version)
+    pub fn object_version(&self) -> Result<u64, TryFromProtoError> {
+        let reference = self
+            .reference
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::REFERENCE_FIELD.name))?;
+        reference.version.ok_or_else(|| {
+            TryFromProtoError::missing(ObjectReference::VERSION_FIELD.name)
+                .nested(Self::REFERENCE_FIELD.name)
+        })
     }
 
     /// Get the object digest from the reference.
-    pub fn object_digest(&self) -> Result<Option<iota_sdk_types::Digest>, TryFromProtoError> {
-        self.reference
+    pub fn object_digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
+        let reference = self
+            .reference
             .as_ref()
-            .and_then(|r| r.digest.as_ref())
-            .map(|d| {
-                d.try_into()
-                    .map_err(|e: TryFromProtoError| e.nested(Self::REFERENCE_FIELD.name))
-            })
-            .transpose()
+            .ok_or_else(|| TryFromProtoError::missing(Self::REFERENCE_FIELD.name))?;
+        let digest = reference.digest.as_ref().ok_or_else(|| {
+            TryFromProtoError::missing(ObjectReference::DIGEST_FIELD.name)
+                .nested(Self::REFERENCE_FIELD.name)
+        })?;
+        digest
+            .try_into()
+            .map_err(|e: TryFromProtoError| e.nested(Self::REFERENCE_FIELD.name))
     }
 }
 
