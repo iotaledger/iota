@@ -84,6 +84,8 @@ mod type_param_tests;
 #[cfg(test)]
 #[path = "unit_tests/unit_test_utils.rs"]
 mod unit_test_utils;
+#[cfg(test)]
+mod white_flag_tests;
 
 pub mod signature_verifier;
 
