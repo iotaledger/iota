@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { createContext, useCallback, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useState, useEffect, type ReactNode, useRef } from 'react';
 import { toast } from '@iota/core';
 import { useUnlockMutation, useBackgroundClient, useActiveAccount } from '_hooks';
 import { UnlockAccountModal } from './UnlockAccountModal';
@@ -26,12 +26,13 @@ export function UnlockAccountsProvider({ children }: UnlockAccountsProviderProps
     const unlockAccountMutation = useUnlockMutation();
     const backgroundClient = useBackgroundClient();
     const activeAccount = useActiveAccount();
+    const isUnlockingRef = useRef(false);
 
     // Automatically show the modal when the active account is locked
     useEffect(() => {
-        if (activeAccount?.isLocked) {
+        if (activeAccount?.isLocked && !isUnlockingRef.current) {
             setIsUnlockModalOpen(true);
-        } else if (!activeAccount?.isLocked && isUnlockModalOpen) {
+        } else if (!activeAccount?.isLocked && isUnlockModalOpen && !isUnlockingRef.current) {
             setIsUnlockModalOpen(false);
         }
     }, [activeAccount?.isLocked, isUnlockModalOpen]);
@@ -57,7 +58,11 @@ export function UnlockAccountsProvider({ children }: UnlockAccountsProviderProps
     }, [backgroundClient]);
 
     const handleUnlockSuccess = useCallback(() => {
+        isUnlockingRef.current = true;
         setIsUnlockModalOpen(false);
+        setTimeout(() => {
+            isUnlockingRef.current = false;
+        }, 100);
     }, []);
 
     return (

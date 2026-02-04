@@ -138,7 +138,7 @@ export function PasswordModalDialog({
                     <div
                         className={clsx(
                             'flex flex-col items-center gap-y-sm',
-                            showForgotPassword ? 'pt-2xl' : '',
+                            showForgotPassword ? 'pt-xl' : '',
                         )}
                     >
                         <>
@@ -178,7 +178,7 @@ export function PasswordModalDialog({
                                         </span>
                                     )}
                                 </div>
-                                <div className="flex gap-2.5 pt-2xl">
+                                <div className="flex gap-2.5 pt-lg">
                                     {!showForgotPassword && (
                                         <Button
                                             type={ButtonType.Secondary}
