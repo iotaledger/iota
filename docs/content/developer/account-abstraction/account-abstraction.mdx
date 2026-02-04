@@ -1,0 +1,25 @@
+---
+title: IOTA Account Abstraction
+tags: [move-sc, account-abstraction]
+teams:
+  - iotaledger/vm-language
+description: Allows users to use smart contracts as their accounts.
+---
+
+IOTA Account Abstraction enables developers to create smart contracts that function as accounts, offering flexible and programmable authentication mechanisms. This feature allows you to implement custom authentication logic, multi-signature schemes, time-locked accounts, and other advanced account management patterns.
+
+## Security Considerations
+
+When implementing authenticator functions, developers must pay attention to critical security aspects:
+
+### ⚠️ Cryptographic Protection
+
+Always include cryptographic verification of transaction data in your authenticator. Without proper cryptographic protection, attackers can tamper with transaction data.
+
+**See:** [Cryptographic Protection How-To](how-tos/cryptographic-protection.mdx)
+
+### ⚠️ Shared Object Inputs
+
+Be cautious when using shared objects as inputs to authenticator functions. Attackers may be able to swap shared objects to bypass authentication checks.
+
+**See:** [Authenticator Shared Object Inputs How-To](how-tos/authenticator-shared-object-inputs.mdx)
