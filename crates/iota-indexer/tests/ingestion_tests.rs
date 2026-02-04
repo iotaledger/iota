@@ -56,7 +56,7 @@ mod ingestion_tests {
     #[tokio::test]
     pub async fn checkpoint_objects_ingestion() -> Result<(), IndexerError> {
         let tempdir = tempdir().unwrap();
-        let mut sim = Simulacrum::new();
+        let sim = Simulacrum::new();
         let data_ingestion_path = tempdir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
@@ -80,7 +80,7 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn transaction_table() -> Result<(), IndexerError> {
-        let mut sim = Simulacrum::new();
+        let sim = Simulacrum::new();
         let data_ingestion_path = tempdir().unwrap().keep();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
@@ -131,7 +131,7 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn object_type() -> Result<(), IndexerError> {
-        let mut sim = Simulacrum::new();
+        let sim = Simulacrum::new();
         let data_ingestion_path = tempdir().unwrap().keep();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
@@ -184,7 +184,7 @@ mod ingestion_tests {
     #[tokio::test]
     pub async fn objects_snapshot() -> Result<(), IndexerError> {
         let tempdir = tempdir().unwrap();
-        let mut sim = Simulacrum::new();
+        let sim = Simulacrum::new();
         let data_ingestion_path = tempdir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
@@ -260,7 +260,7 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn tx_global_order_table() -> Result<(), IndexerError> {
-        let mut sim = Simulacrum::new();
+        let sim = Simulacrum::new();
         let data_ingestion_path = tempdir().unwrap().keep();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
@@ -316,7 +316,7 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn tx_global_order_table_on_conflict_do_nothing() -> Result<(), IndexerError> {
-        let mut sim = Simulacrum::new();
+        let sim = Simulacrum::new();
         let data_ingestion_path = tempdir().unwrap().keep();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
@@ -390,7 +390,7 @@ mod ingestion_tests {
     #[tokio::test]
     pub async fn test_insert_large_batch_tx_indices() -> Result<(), IndexerError> {
         let tempdir = tempdir().unwrap();
-        let mut sim = Simulacrum::new();
+        let sim = Simulacrum::new();
         let data_ingestion_path = tempdir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
@@ -427,7 +427,7 @@ mod ingestion_tests {
     #[tokio::test]
     pub async fn test_insert_large_batch_event_indices() -> Result<(), IndexerError> {
         let tempdir = tempdir().unwrap();
-        let mut sim = Simulacrum::new();
+        let sim = Simulacrum::new();
         let data_ingestion_path = tempdir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
@@ -457,7 +457,7 @@ mod ingestion_tests {
     #[tokio::test]
     pub async fn test_epoch_boundary() -> Result<(), IndexerError> {
         let tempdir = tempdir().unwrap();
-        let mut sim = Simulacrum::new();
+        let sim = Simulacrum::new();
         let data_ingestion_path = tempdir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 

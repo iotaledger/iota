@@ -17,6 +17,7 @@ use std::{
     time::Duration,
 };
 
+use backoff::backoff::Backoff;
 use bincode::Options;
 use iota_macros::{fail_point, nondeterministic};
 use prometheus::{Histogram, HistogramTimer};
@@ -2152,8 +2153,21 @@ pub enum RocksDBAccessType {
     Secondary(Option<PathBuf>),
 }
 
-pub fn safe_drop_db(path: PathBuf) -> Result<(), rocksdb::Error> {
-    rocksdb::DB::destroy(&rocksdb::Options::default(), path)
+// Drops a database if there is no other handle to it, with retries and timeout.
+pub async fn safe_drop_db(path: PathBuf, timeout: Duration) -> Result<(), rocksdb::Error> {
+    let mut backoff = backoff::ExponentialBackoff {
+        max_elapsed_time: Some(timeout),
+        ..Default::default()
+    };
+    loop {
+        match rocksdb::DB::destroy(&rocksdb::Options::default(), path.clone()) {
+            Ok(()) => return Ok(()),
+            Err(err) => match backoff.next_backoff() {
+                Some(duration) => tokio::time::sleep(duration).await,
+                None => return Err(err),
+            },
+        }
+    }
 }
 
 fn populate_missing_cfs(
