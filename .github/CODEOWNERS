@@ -162,7 +162,6 @@ vercel.json @iotaledger/tooling
 
 # Other
 /kiosk/ @iotaledger/vm-language
-/nre/ @iotaledger/node
 
 # Disable code ownership for these auto-generated files
 /Cargo.lock
