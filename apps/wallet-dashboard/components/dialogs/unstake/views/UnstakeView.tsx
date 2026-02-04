@@ -11,6 +11,8 @@ import {
     InfoBoxType,
     InfoBoxStyle,
     InfoBox,
+    Input,
+    InputType,
 } from '@iota/apps-ui-kit';
 import {
     ExtendedDelegatedStake,
@@ -18,13 +20,14 @@ import {
     useFormatCoin,
     useGetStakingValidatorDetails,
     useNewUnstakeTransaction,
+    useNewPartialUnstakeTransaction,
     Validator,
     toast,
     NOT_ENOUGH_BALANCE_ID,
     GAS_BUDGET_ERROR_MESSAGES,
     GAS_BALANCE_TOO_LOW_ID,
 } from '@iota/core';
-import { CoinFormat } from '@iota/iota-sdk/utils';
+import { CoinFormat, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { Warning, Info } from '@iota/apps-ui-icons';
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
@@ -32,7 +35,7 @@ import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout
 
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { ampli } from '@/lib/utils/analytics';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 interface UnstakeDialogProps {
     extendedStake: ExtendedDelegatedStake;
@@ -50,6 +53,13 @@ export function UnstakeView({
     showActiveStatus,
 }: UnstakeDialogProps): JSX.Element {
     const activeAddress = useCurrentAccount()?.address ?? '';
+    const [partialUnstakeAmount, setPartialUnstakeAmount] = useState<string>('');
+    const [isPartialUnstake, setIsPartialUnstake] = useState(false);
+
+    // Parse the unstake amount in nanos
+    const unstakeAmountNanos = partialUnstakeAmount
+        ? BigInt(Math.floor(parseFloat(partialUnstakeAmount) * Number(NANOS_PER_IOTA)))
+        : 0n;
 
     const {
         data: unstakeData,
@@ -57,8 +67,26 @@ export function UnstakeView({
         error,
         isError: isUnstakeError,
     } = useNewUnstakeTransaction(activeAddress, extendedStake.stakedIotaId);
+    
+    const {
+        data: partialUnstakeData,
+        isPending: isPartialUnstakeTxPending,
+        error: partialError,
+        isError: isPartialUnstakeError,
+    } = useNewPartialUnstakeTransaction(
+        activeAddress, 
+        extendedStake.stakedIotaId,
+        unstakeAmountNanos
+    );
+    
+    // Use partial unstake data if enabled, otherwise use full unstake
+    const activeUnstakeData = isPartialUnstake && unstakeAmountNanos > 0n ? partialUnstakeData : unstakeData;
+    const activeError = isPartialUnstake ? partialError : error;
+    const activeIsError = isPartialUnstake ? isPartialUnstakeError : isUnstakeError;
+    const activeIsPending = isPartialUnstake ? isPartialUnstakeTxPending : isUnstakeTxPending;
+    
     const [gasFormatted] = useFormatCoin({
-        balance: unstakeData?.gasSummary?.totalGas,
+        balance: activeUnstakeData?.gasSummary?.totalGas,
         format: CoinFormat.Full,
     });
 
@@ -73,11 +101,27 @@ export function UnstakeView({
             unstake: true,
         });
 
+    // Calculate the amount to unstake and proportional rewards
+    const principalAmount = BigInt(extendedStake.principal);
+    const rewardAmount = BigInt(extendedStake.estimatedReward || 0);
+    const totalStaked = principalAmount + rewardAmount;
+
+    const unstakeAmount = isPartialUnstake && unstakeAmountNanos > 0n
+        ? unstakeAmountNanos
+        : principalAmount;
+
+    // Calculate proportional rewards for partial unstake
+    const proportionalRewards = totalStaked > 0n
+        ? (rewardAmount * unstakeAmount) / principalAmount
+        : 0n;
+
+    const totalUnstakeAmount = unstakeAmount + proportionalRewards;
+
     useEffect(() => {
-        if (isUnstakeError && error) {
-            console.error('[DEBUG]: Unstake Error:', error);
+        if ((isUnstakeError && error) || (isPartialUnstakeError && partialError)) {
+            console.error('[DEBUG]: Unstake Error:', activeError);
         }
-    }, [isUnstakeError, error]);
+    }, [isUnstakeError, error, isPartialUnstakeError, partialError, activeError]);
 
     const { isLoading: loadingValidators, error: errorValidators } = systemDataResult;
     const {
@@ -88,9 +132,15 @@ export function UnstakeView({
 
     const delegationId = extendedStake?.stakedIotaId;
     const isNotEnoughGas =
-        error &&
-        (error.message.includes(NOT_ENOUGH_BALANCE_ID) ||
-            error.message.includes(GAS_BALANCE_TOO_LOW_ID));
+        activeError &&
+        (activeError.message.includes(NOT_ENOUGH_BALANCE_ID) ||
+            activeError.message.includes(GAS_BALANCE_TOO_LOW_ID));
+    
+    const maxUnstakeAmount = Number(principalAmount) / Number(NANOS_PER_IOTA);
+    const isInvalidAmount = isPartialUnstake && (
+        unstakeAmountNanos <= 0n || 
+        unstakeAmountNanos > principalAmount
+    );
 
     const validatorName =
         systemDataResult.data?.activeValidators.find(
@@ -110,11 +160,11 @@ export function UnstakeView({
     });
 
     async function handleUnstake(): Promise<void> {
-        if (!unstakeData) return;
+        if (!activeUnstakeData) return;
 
         await signAndExecuteTransaction(
             {
-                transaction: unstakeData.transaction,
+                transaction: activeUnstakeData.transaction,
             },
             {
                 onSuccess: (tx) => {
@@ -173,10 +223,40 @@ export function UnstakeView({
                         stakeId={extendedStake.stakedIotaId}
                         isUnstake
                     />
+                    
+                    <Panel hasBorder>
+                        <div className="flex flex-col gap-y-sm p-md">
+                            <div className="flex items-center justify-between">
+                                <span className="text-label-lg text-neutral-40">Unstake Amount</span>
+                                <Button
+                                    type={ButtonType.Ghost}
+                                    text={isPartialUnstake ? "Unstake All" : "Partial Unstake"}
+                                    onClick={() => {
+                                        setIsPartialUnstake(!isPartialUnstake);
+                                        setPartialUnstakeAmount('');
+                                    }}
+                                />
+                            </div>
+                            {isPartialUnstake && (
+                                <Input
+                                    type={InputType.NumericFormat}
+                                    value={partialUnstakeAmount}
+                                    onChange={(e) => setPartialUnstakeAmount(e.target.value)}
+                                    placeholder="Enter amount to unstake"
+                                    suffix=" IOTA"
+                                    errorMessage={
+                                        isInvalidAmount 
+                                            ? `Amount must be between 0 and ${maxUnstakeAmount.toFixed(2)} IOTA`
+                                            : undefined
+                                    }
+                                />
+                            )}
+                        </div>
+                    </Panel>
 
                     <StakeRewardsPanel
-                        stakingRewards={extendedStake.estimatedReward}
-                        totalStaked={totalStakeOriginal}
+                        stakingRewards={proportionalRewards.toString()}
+                        totalStaked={unstakeAmount}
                     />
 
                     <Panel hasBorder>
@@ -208,15 +288,16 @@ export function UnstakeView({
                     fullWidth
                     onClick={handleUnstake}
                     disabled={
-                        !unstakeData ||
-                        isUnstakeTxPending ||
+                        !activeUnstakeData ||
+                        activeIsPending ||
                         isTransactionPending ||
                         isNotEnoughGas ||
+                        isInvalidAmount ||
                         !delegationId
                     }
                     text="Unstake"
                     icon={
-                        isUnstakeTxPending || isTransactionPending ? (
+                        activeIsPending || isTransactionPending ? (
                             <LoadingIndicator data-testid="loading-indicator" />
                         ) : null
                     }

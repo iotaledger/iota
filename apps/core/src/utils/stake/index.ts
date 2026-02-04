@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export * from './createUnstakeTransaction';
+export * from './createPartialUnstakeTransaction';
 export * from './formatDelegatedStake';
 export * from './createStakeTransaction';
 export * from './createTimelockedUnstakeTransaction';
+export * from './createPartialTimelockedUnstakeTransaction';
 export * from './createTimelockedStakeTransaction';
 export * from './createValidationSchema';
 export * from './getStakeDetailsFromEvents';
