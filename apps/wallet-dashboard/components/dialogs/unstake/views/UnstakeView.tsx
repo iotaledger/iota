@@ -137,10 +137,38 @@ export function UnstakeView({
             activeError.message.includes(GAS_BALANCE_TOO_LOW_ID));
     
     const maxUnstakeAmount = Number(principalAmount) / Number(NANOS_PER_IOTA);
+    const MIN_STAKING_THRESHOLD = 1_000_000_000n; // 1 IOTA in nanos
+    
+    // For partial unstake:
+    // - Unstake amount must be >= MIN_STAKING_THRESHOLD
+    // - Remaining amount must be >= MIN_STAKING_THRESHOLD
+    // - OR user must unstake everything (full unstake)
+    const remainingAmount = principalAmount - unstakeAmountNanos;
     const isInvalidAmount = isPartialUnstake && (
         unstakeAmountNanos <= 0n || 
-        unstakeAmountNanos > principalAmount
+        unstakeAmountNanos > principalAmount ||
+        (unstakeAmountNanos < MIN_STAKING_THRESHOLD && unstakeAmountNanos !== principalAmount) ||
+        (remainingAmount > 0n && remainingAmount < MIN_STAKING_THRESHOLD)
     );
+    
+    // Determine the appropriate error message
+    const getErrorMessage = () => {
+        if (!isPartialUnstake || !isInvalidAmount) return undefined;
+        
+        if (unstakeAmountNanos <= 0n) {
+            return 'Amount must be greater than 0';
+        }
+        if (unstakeAmountNanos > principalAmount) {
+            return `Amount cannot exceed ${maxUnstakeAmount.toFixed(2)} IOTA`;
+        }
+        if (unstakeAmountNanos < MIN_STAKING_THRESHOLD) {
+            return 'Unstake amount must be at least 1 IOTA';
+        }
+        if (remainingAmount > 0n && remainingAmount < MIN_STAKING_THRESHOLD) {
+            return 'Remaining stake must be at least 1 IOTA or unstake all';
+        }
+        return undefined;
+    };
 
     const validatorName =
         systemDataResult.data?.activeValidators.find(
@@ -238,18 +266,19 @@ export function UnstakeView({
                                 />
                             </div>
                             {isPartialUnstake && (
-                                <Input
-                                    type={InputType.NumericFormat}
-                                    value={partialUnstakeAmount}
-                                    onChange={(e) => setPartialUnstakeAmount(e.target.value)}
-                                    placeholder="Enter amount to unstake"
-                                    suffix=" IOTA"
-                                    errorMessage={
-                                        isInvalidAmount 
-                                            ? `Amount must be greater than 0 and at most ${maxUnstakeAmount.toFixed(2)} IOTA`
-                                            : undefined
-                                    }
-                                />
+                                <>
+                                    <Input
+                                        type={InputType.NumericFormat}
+                                        value={partialUnstakeAmount}
+                                        onChange={(e) => setPartialUnstakeAmount(e.target.value)}
+                                        placeholder="Enter amount to unstake"
+                                        suffix=" IOTA"
+                                        errorMessage={getErrorMessage()}
+                                    />
+                                    <div className="text-body-sm text-neutral-60">
+                                        Minimum: 1 IOTA to unstake and 1 IOTA must remain staked (or unstake all)
+                                    </div>
+                                </>
                             )}
                         </div>
                     </Panel>
