@@ -246,7 +246,7 @@ export function UnstakeView({
                                     suffix=" IOTA"
                                     errorMessage={
                                         isInvalidAmount 
-                                            ? `Amount must be between 0 and ${maxUnstakeAmount.toFixed(2)} IOTA`
+                                            ? `Amount must be greater than 0 and at most ${maxUnstakeAmount.toFixed(2)} IOTA`
                                             : undefined
                                     }
                                 />
