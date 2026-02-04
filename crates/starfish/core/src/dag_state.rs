@@ -13,6 +13,7 @@ use std::{
 };
 
 use bytes::Bytes;
+use iota_common::scoring_metrics::VersionedStorageScoringMetrics;
 use iota_metrics::monitored_mpsc::Sender;
 use itertools::Itertools as _;
 use starfish_config::AuthorityIndex;
@@ -1676,6 +1677,10 @@ impl DagState {
                 .join(","),
         );
 
+        // Updates scoring metrics according to eviction round and returns updates that
+        // should be written in storage.
+        let score_updates = self.score_updates_to_write();
+
         // Write all buffered data to storage
         self.store
             .write(WriteBatch::new(
@@ -1683,6 +1688,7 @@ impl DagState {
                 block_headers,
                 commits,
                 commit_info,
+                score_updates,
             ))
             .unwrap_or_else(|e| panic!("Failed to write to storage: {e:?}"));
 
@@ -1779,6 +1785,11 @@ impl DagState {
     /// Any blocks with round <= the evict round have been cleaned up.
     fn eviction_round(commit_round: Round, cached_rounds: Round) -> Round {
         commit_round.saturating_sub(cached_rounds)
+    }
+
+    /// Buffers validator score updates to be written to storage.
+    fn score_updates_to_write(&mut self) -> Vec<(AuthorityIndex, VersionedStorageScoringMetrics)> {
+        vec![] // Placeholder for future implementation of scoring updates
     }
 
     /// Detects and returns the blocks of the round that forms the last quorum.

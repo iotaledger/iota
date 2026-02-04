@@ -5,6 +5,7 @@
 use std::{ops::Bound::Included, time::Duration};
 
 use bytes::Bytes;
+use iota_common::scoring_metrics::VersionedStorageScoringMetrics;
 use iota_macros::fail_point;
 use starfish_config::AuthorityIndex;
 use tracing::debug;
@@ -41,6 +42,8 @@ pub(crate) struct RocksDBStore {
     commit_votes: DBMap<(CommitIndex, CommitDigest, BlockRef), ()>,
     /// Stores info related to Commit that helps recovery.
     commit_info: DBMap<(CommitIndex, CommitDigest), CommitInfo>,
+    /// Stores scoring metrics for each authority.
+    scoring_metrics: DBMap<AuthorityIndex, VersionedStorageScoringMetrics>,
 }
 
 impl RocksDBStore {
@@ -50,6 +53,7 @@ impl RocksDBStore {
     const COMMITS_CF: &'static str = "commits";
     const COMMIT_VOTES_CF: &'static str = "commit_votes";
     const COMMIT_INFO_CF: &'static str = "commit_info";
+    const SCORING_METRICS_CF: &'static str = "scoring_metrics";
 
     /// Creates a new instance of RocksDB storage.
     pub(crate) fn new(path: &str) -> Self {
@@ -80,6 +84,7 @@ impl RocksDBStore {
             (Self::COMMITS_CF, cf_options.clone()),
             (Self::COMMIT_VOTES_CF, cf_options.clone()),
             (Self::COMMIT_INFO_CF, cf_options.clone()),
+            (Self::SCORING_METRICS_CF, cf_options.clone()),
         ];
         let rocksdb = open_cf_opts(
             path,
@@ -96,13 +101,15 @@ impl RocksDBStore {
             commits,
             commit_votes,
             commit_info,
+            scoring_metrics,
         ) = reopen!(&rocksdb,
             Self::BLOCK_HEADERS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
             Self::TRANSACTIONS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
             Self::DIGESTS_BY_AUTHORITIES_CF;<(AuthorityIndex, Round, BlockHeaderDigest), ()>,
             Self::COMMITS_CF;<(CommitIndex, CommitDigest), Bytes>,
             Self::COMMIT_VOTES_CF;<(CommitIndex, CommitDigest, BlockRef), ()>,
-            Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>
+            Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>,
+            Self::SCORING_METRICS_CF;<AuthorityIndex, VersionedStorageScoringMetrics>
         );
 
         Self {
@@ -112,6 +119,7 @@ impl RocksDBStore {
             commits,
             commit_votes,
             commit_info,
+            scoring_metrics,
         }
     }
 }
@@ -185,6 +193,12 @@ impl Store for RocksDBStore {
                     &self.commit_info,
                     [((commit_ref.index, commit_ref.digest), commit_info)],
                 )
+                .map_err(ConsensusError::RocksDBFailure)?;
+        }
+
+        for (authority, metrics) in write_batch.scoring_metrics {
+            batch
+                .insert_batch(&self.scoring_metrics, [(authority, metrics)])
                 .map_err(ConsensusError::RocksDBFailure)?;
         }
 
@@ -429,6 +443,16 @@ impl Store for RocksDBStore {
             );
         }
         Ok(blocks)
+    }
+
+    fn scan_scoring_metrics(
+        &self,
+    ) -> ConsensusResult<Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>> {
+        let mut metrics_by_author = vec![];
+        for kv in self.scoring_metrics.safe_iter() {
+            metrics_by_author.push(kv?);
+        }
+        Ok(metrics_by_author)
     }
 
     fn read_last_commit(&self) -> ConsensusResult<Option<TrustedCommit>> {

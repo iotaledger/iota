@@ -10,6 +10,7 @@ pub(crate) mod rocksdb_store;
 mod store_tests;
 
 use bytes::Bytes;
+use iota_common::scoring_metrics::VersionedStorageScoringMetrics;
 use starfish_config::AuthorityIndex;
 
 use crate::{
@@ -118,6 +119,13 @@ pub(crate) trait Store: Send + Sync {
         Ok(block_headers)
     }
 
+    /// Reads and returns all metrics stored. Used for restoring the scoring
+    /// metrics in case of DagState initialization from storage
+    #[allow(dead_code)]
+    fn scan_scoring_metrics(
+        &self,
+    ) -> ConsensusResult<Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>>;
+
     /// Reads the last commit.
     fn read_last_commit(&self) -> ConsensusResult<Option<TrustedCommit>>;
 
@@ -138,6 +146,7 @@ pub(crate) struct WriteBatch {
     pub(crate) block_headers: Vec<VerifiedBlockHeader>,
     pub(crate) commits: Vec<TrustedCommit>,
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
+    pub(crate) scoring_metrics: Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>,
 }
 
 impl WriteBatch {
@@ -146,12 +155,14 @@ impl WriteBatch {
         block_headers: Vec<VerifiedBlockHeader>,
         commits: Vec<TrustedCommit>,
         commit_info: Vec<(CommitRef, CommitInfo)>,
+        scoring_metrics: Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>,
     ) -> Self {
         WriteBatch {
             transactions,
             block_headers,
             commits,
             commit_info,
+            scoring_metrics,
         }
     }
 
@@ -178,6 +189,15 @@ impl WriteBatch {
     #[cfg(test)]
     pub(crate) fn commit_info(mut self, commit_info: Vec<(CommitRef, CommitInfo)>) -> Self {
         self.commit_info = commit_info;
+        self
+    }
+
+    #[cfg(test)]
+    pub(crate) fn scoring_metrics(
+        mut self,
+        scoring_metrics: Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>,
+    ) -> Self {
+        self.scoring_metrics = scoring_metrics;
         self
     }
 }
