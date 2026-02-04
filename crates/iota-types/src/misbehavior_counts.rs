@@ -167,3 +167,63 @@ impl MisbehaviorsV1<Vec<AtomicU64>> {
             .collect::<MisbehaviorsV1<u64>>()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_iter_u64() {
+        let original = MisbehaviorsV1::new(1_u64, 2, 3, 4);
+        let new: MisbehaviorsV1<u64> = original.iter().copied().collect();
+        assert_eq!(original, new);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_iter_u64_major() {
+        let original = MisbehaviorsV1::new(1_u64, 2, 3, 4);
+        let _: MisbehaviorsV1<u64> = original.iter_major_misbehaviors().copied().collect();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_iter_u64_minor() {
+        let original = MisbehaviorsV1::new(1_u64, 2, 3, 4);
+        let _: MisbehaviorsV1<u64> = original.iter_minor_misbehaviors().copied().collect();
+    }
+
+    #[test]
+    fn test_iter_vec_u64() {
+        let original = MisbehaviorsV1::new(
+            vec![1_u64, 2, 3],
+            vec![4, 5, 6],
+            vec![7, 8, 9],
+            vec![10, 11, 12],
+        );
+        let new: MisbehaviorsV1<Vec<u64>> = original.iter().cloned().collect();
+        assert_eq!(original, new);
+    }
+    #[test]
+    #[should_panic]
+    fn test_iter_vec_u64_major() {
+        let original = MisbehaviorsV1::new(
+            vec![1_u64, 2, 3],
+            vec![4, 5, 6],
+            vec![7, 8, 9],
+            vec![10, 11, 12],
+        );
+        let _: MisbehaviorsV1<Vec<u64>> = original.iter_major_misbehaviors().cloned().collect();
+    }
+    #[test]
+    #[should_panic]
+    fn test_iter_vec_u64_minor() {
+        let original = MisbehaviorsV1::new(
+            vec![1_u64, 2, 3],
+            vec![4, 5, 6],
+            vec![7, 8, 9],
+            vec![10, 11, 12],
+        );
+        let _: MisbehaviorsV1<Vec<u64>> = original.iter_minor_misbehaviors().cloned().collect();
+    }
+}
