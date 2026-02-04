@@ -977,23 +977,6 @@ impl AuthorityEpochTables {
         Ok(())
     }
 
-    /// White flag variant of write_transaction_locks. Only writes the owned
-    /// object locks to the database, NOT the signed transaction. Used for
-    /// white flag transactions that bypass pre-consensus certification.
-    pub fn write_white_flag_transaction_locks(
-        &self,
-        locks_to_write: impl Iterator<Item = (ObjectRef, LockDetails)>,
-    ) -> IotaResult {
-        let mut batch = self.owned_object_locked_transactions.batch();
-        batch.insert_batch(
-            &self.owned_object_locked_transactions,
-            locks_to_write.map(|(obj_ref, lock)| (obj_ref, LockDetailsWrapper::from(lock))),
-        )?;
-        // No signed transaction write for white flag
-        batch.write()?;
-        Ok(())
-    }
-
     fn get_all_deferred_transactions(
         &self,
     ) -> IotaResult<BTreeMap<DeferralKey, Vec<VerifiedSequencedConsensusTransaction>>> {
@@ -2657,6 +2640,12 @@ impl AuthorityPerEpochStore {
         self.consensus_quarantine.read().get_new_jwks(self, round)
     }
 
+    pub fn get_quarantined_owned_object_lock(&self, obj_ref: &ObjectRef) -> Option<LockDetails> {
+        self.consensus_quarantine
+            .read()
+            .get_owned_object_lock(obj_ref)
+    }
+
     pub fn jwk_active_in_current_epoch(&self, jwk_id: &JwkId, jwk: &JWK) -> bool {
         let jwk_aggregator = self.jwk_aggregator.lock();
         jwk_aggregator.has_quorum_for_key(&(jwk_id.clone(), jwk.clone()))
@@ -3138,8 +3127,9 @@ impl AuthorityPerEpochStore {
         //  object consumed anyway?
 
         if self.protocol_config.enable_white_flag_flow() {
-            let dropped =
+            let (dropped, owned_object_locks) =
                 white_flag::resolve_owned_object_conflicts(self, &mut sequenced_transactions)?;
+            output.set_owned_object_locks(owned_object_locks);
             // TODO: add white_flag_dropped_transactions metric to AuthorityMetrics
             //  authority_metrics.white_flag_dropped_transactions.inc_by(dropped.len() as
             //  u64);

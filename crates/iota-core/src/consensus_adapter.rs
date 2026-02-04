@@ -388,9 +388,9 @@ impl ConsensusAdapter {
                     Some(certificate.digest())
                 }
                 // TODO: we should not apply submit delay for UserTransactionV1
-                ConsensusTransactionKind::UserTransactionV1(transaction) => {
-                    Some(transaction.digest())
-                }
+                // ConsensusTransactionKind::UserTransactionV1(transaction) => {
+                //     Some(transaction.digest())
+                // }
                 _ => None,
             })
             .min();
