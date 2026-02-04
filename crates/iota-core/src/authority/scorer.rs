@@ -193,33 +193,33 @@ impl Scorer {
     }
 }
 
-/// Given a vector of pairs (VersionedMisbehaviorReport, VotingPower), calculate
-/// the medians for all metrics in VersionedMisbehaviorReport and authorities:
-///
-/// - Assume we have N authorities in the committee, but n<=N reports R_1, R_2,
-///   ..., R_n from authorities with voting powers VP_1, VP_2, ..., VP_n.
-/// - For each metric M in VersionedMisbehaviorReport, we'll have n vectors of
-///   metric values: M_1, M_2, ..., M_n, where M_i is the vector of metric
-///   values for report R_i.
-/// - Each M_i is a vector of length N, where the j-th value corresponds to the
-///   metric value for authority j.
-///
-/// Example: If we have 4 authorities in the committee, and we receive 3
-/// reports:
-/// - Report R_1 from authority A_1 with voting power VP_1 = 1:
-///     - Metric M1: [0, 0, 0, 0] (values for authorities A_1, A_2, A_3, A_4)
-///     - Metric M2: [0, 0, 0, 0] (values for authorities A_1, A_2, A_3, A_4)
-/// - Report R_2 from authority A_2 with voting power VP_2 = 1:
-///     - Metric M1: [1, 1, 1, 1] (values for authorities A_1, A_2, A_3, A_4)
-///     - Metric M2: [2, 2, 2, 2] (values for authorities A_1, A_2, A_3, A_4)
-/// - Report R_3 from authority A_3 with voting power VP_3 = 1:
-///     - Metric M1: [2, 2, 2, 2] (values for authorities A_1, A_2, A_3, A_4)
-///     - Metric M2: [1, 1, 1, 1] (values for authorities A_1, A_2, A_3, A_4)
-///
-/// For Metric M1, we have that the median metric vector is [1, 1, 1, 1].
-///
-/// This method returns a vector of MedianMetricVec, one per metric in
-/// VersionedMisbehaviorReport
+// Given a vector of pairs (VersionedMisbehaviorReport, VotingPower), calculate
+// the medians for all metrics in VersionedMisbehaviorReport and authorities:
+//
+// - Assume we have N authorities in the committee, but n<=N reports R_1, R_2,
+//   ..., R_n from authorities with voting powers VP_1, VP_2, ..., VP_n.
+// - For each metric M in VersionedMisbehaviorReport, we'll have n vectors of
+//   metric values: M_1, M_2, ..., M_n, where M_i is the vector of metric values
+//   for report R_i.
+// - Each M_i is a vector of length N, where the j-th value corresponds to the
+//   metric value for authority j.
+//
+// Example: If we have 4 authorities in the committee, and we receive 3
+// reports:
+// - Report R_1 from authority A_1 with voting power VP_1 = 1:
+//     - Metric M1: [0, 0, 0, 0] (values for authorities A_1, A_2, A_3, A_4)
+//     - Metric M2: [0, 0, 0, 0] (values for authorities A_1, A_2, A_3, A_4)
+// - Report R_2 from authority A_2 with voting power VP_2 = 1:
+//     - Metric M1: [1, 1, 1, 1] (values for authorities A_1, A_2, A_3, A_4)
+//     - Metric M2: [2, 2, 2, 2] (values for authorities A_1, A_2, A_3, A_4)
+// - Report R_3 from authority A_3 with voting power VP_3 = 1:
+//     - Metric M1: [2, 2, 2, 2] (values for authorities A_1, A_2, A_3, A_4)
+//     - Metric M2: [1, 1, 1, 1] (values for authorities A_1, A_2, A_3, A_4)
+//
+// For Metric M1, we have that the median metric vector is [1, 1, 1, 1].
+//
+// This method returns a vector of MedianMetricVec, one per metric in
+// VersionedMisbehaviorReport
 fn calculate_median_report(
     reports_and_voting_power: &[(VersionedMisbehaviorReport, VotingPower)],
 ) -> MisbehaviorsV1<MedianMetricVec> {

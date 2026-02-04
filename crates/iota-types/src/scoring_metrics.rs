@@ -8,11 +8,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::{messages_consensus::VersionedMisbehaviorReport, misbehavior_counts::MisbehaviorsV1};
 
-/// Misbehavior counts using atomic counters, for in-memory concurrent updates.
-/// Each field is a `Vec<AtomicU64>` with one entry per authority.
+// Misbehavior counts using atomic counters, for in-memory concurrent updates.
+// Each field is a `Vec<AtomicU64>` with one entry per authority.
 type ScoringMetricsV1 = MisbehaviorsV1<Vec<AtomicU64>>;
 
-/// Versioned container for scoring metrics using atomic counters.
+// Versioned container for scoring metrics using atomic counters.
 pub enum VersionedScoringMetrics {
     V1(ScoringMetricsV1),
 }
@@ -31,6 +31,8 @@ impl VersionedScoringMetrics {
         }
     }
 
+    // Validity checks are done at a higher level to ensure authority_index is
+    // valid.
     pub fn increment_faulty_blocks_provable(&self, authority_index: usize, increment: u64) {
         match self {
             VersionedScoringMetrics::V1(metrics) => {
@@ -40,6 +42,8 @@ impl VersionedScoringMetrics {
         }
     }
 
+    // Validity checks are done at a higher level to ensure authority_index is
+    // valid.
     pub fn increment_faulty_blocks_unprovable(&self, authority_index: usize, increment: u64) {
         match self {
             VersionedScoringMetrics::V1(metrics) => {
@@ -49,6 +53,8 @@ impl VersionedScoringMetrics {
         }
     }
 
+    // Validity checks are done at a higher level to ensure authority_index is
+    // valid.
     pub fn increment_equivocations(&self, authority_index: usize, increment: u64) {
         match self {
             VersionedScoringMetrics::V1(metrics) => {
@@ -57,6 +63,8 @@ impl VersionedScoringMetrics {
         }
     }
 
+    // Validity checks are done at a higher level to ensure authority_index is
+    // valid.
     pub fn increment_missing_proposals(&self, authority_index: usize, increment: u64) {
         match self {
             VersionedScoringMetrics::V1(metrics) => {
@@ -66,6 +74,8 @@ impl VersionedScoringMetrics {
         }
     }
 
+    // Validity checks are done at a higher level to ensure authority_index is
+    // valid.
     pub fn store_faulty_blocks_provable(&self, authority_index: usize, value: u64) {
         match self {
             VersionedScoringMetrics::V1(metrics) => {
@@ -74,6 +84,8 @@ impl VersionedScoringMetrics {
         }
     }
 
+    // Validity checks are done at a higher level to ensure authority_index is
+    // valid.
     pub fn store_faulty_blocks_unprovable(&self, authority_index: usize, value: u64) {
         match self {
             VersionedScoringMetrics::V1(metrics) => {
@@ -82,6 +94,8 @@ impl VersionedScoringMetrics {
         }
     }
 
+    // Validity checks are done at a higher level to ensure authority_index is
+    // valid.
     pub fn store_equivocations(&self, authority_index: usize, value: u64) {
         match self {
             VersionedScoringMetrics::V1(metrics) => {
@@ -90,6 +104,8 @@ impl VersionedScoringMetrics {
         }
     }
 
+    // Validity checks are done at a higher level to ensure authority_index is
+    // valid.
     pub fn store_missing_proposals(&self, authority_index: usize, value: u64) {
         match self {
             VersionedScoringMetrics::V1(metrics) => {
@@ -241,9 +257,8 @@ impl VersionedScoringMetrics {
     }
 }
 
-/// Misbehavior counts using u64, used for storage. Given an authrity, each
-/// field of this type is a u64 with the metric value for that specific
-/// authority.
+// Misbehavior counts using u64, used for storage. Given an authrity, each field
+// of this type is a u64 with the metric value for that specific authority.
 type StorageScoringMetricsV1 = MisbehaviorsV1<u64>;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -270,7 +285,7 @@ impl VersionedStorageScoringMetrics {
         }
     }
 
-    /// Returns an iterator over references to the metric values.
+    // Returns an iterator over references to the metric values.
     pub fn iterate_over_metrics(&self) -> std::vec::IntoIter<&u64> {
         match self {
             VersionedStorageScoringMetrics::V1(inner) => inner.iter(),

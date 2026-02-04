@@ -372,6 +372,9 @@ impl MysticetiScoringMetricsStore {
         ))
     }
 
+    // The `authority_index` should be a valid index, otherwise the function will
+    // panic. This check is not performed here, as it is assumed that the caller has
+    // already checked it.
     pub(crate) fn update_current_local_metrics_count(&self, authority_index: AuthorityIndex) {
         let uncached_metrics = &self
             .uncached_metrics
