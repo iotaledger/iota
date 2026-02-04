@@ -136,7 +136,8 @@ export function PasswordModalDialog({
                 {!showForgotPassword && <Header title="" onClose={onClose} />}
                 <DialogBody>
                     <div
-                        className={clsx("flex flex-col items-center gap-y-sm",
+                        className={clsx(
+                            'flex flex-col items-center gap-y-sm',
                             showForgotPassword ? 'pt-2xl' : '',
                         )}
                     >
@@ -148,7 +149,7 @@ export function PasswordModalDialog({
                                 width="auto"
                                 className="aspect-[4/3] h-[210px] w-auto object-cover"
                             />
-                            <span className="dark:text-iota-neutral-92 py-xs  text-headline-sm text-iota-neutral-10">
+                            <span className="py-xs text-headline-sm  text-iota-neutral-10 dark:text-iota-neutral-92">
                                 {title}
                             </span>
                         </>
@@ -171,7 +172,7 @@ export function PasswordModalDialog({
                                     {showForgotPassword && (
                                         <span
                                             onClick={onForgotPassword}
-                                            className="dark:text-iota-neutral-60 cursor-pointer self-center text-body-sm text-iota-neutral-40 underline"
+                                            className="cursor-pointer self-center text-body-sm text-iota-neutral-40 underline dark:text-iota-neutral-60"
                                         >
                                             Forgot Password?
                                         </span>
