@@ -282,52 +282,112 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
     }
 
     pub fn workload_average_latency(&self) -> HashMap<String, Duration> {
-        self.last_measurements_iter()
-            // get the maximum latency of each workload across all scrapers
-            .fold(HashMap::new(), |mut acc, measurement| {
-                let latency = measurement.average_latency();
-                acc.entry(measurement.workload.clone())
-                    .and_modify(|max_latency| {
-                        if latency > *max_latency {
-                            *max_latency = latency;
-                        }
-                    })
-                    .or_insert(latency);
-                acc
+        // Collect sum and count for each workload across all scrapers
+        let mut workload_data: HashMap<String, (Duration, usize)> = HashMap::new();
+
+        for measurement in self.last_measurements_iter() {
+            workload_data
+                .entry(measurement.workload.clone())
+                .and_modify(|(sum, count)| {
+                    *sum += measurement.sum;
+                    *count += measurement.count;
+                })
+                .or_insert((measurement.sum, measurement.count));
+        }
+
+        // Calculate average for each workload
+        workload_data
+            .into_iter()
+            .map(|(workload, (sum, count))| {
+                let avg = if count == 0 {
+                    Duration::default()
+                } else {
+                    sum.checked_div(count as u32).unwrap_or_default()
+                };
+                (workload, avg)
             })
+            .collect()
     }
 
     /// Aggregate the average latency of multiple data points by taking the
-    /// average.
+    /// weighted average based on transaction counts.
+    /// This computes: (sum of all latency_sum) / (sum of all counts)
     pub fn aggregate_average_latency(&self) -> Duration {
         let last_measurements: Vec<_> = self.last_measurements_iter().collect();
 
-        last_measurements
-            .iter()
-            .map(|x| x.average_latency())
-            .sum::<Duration>()
-            .checked_div(last_measurements.len() as u32)
+        let total_sum: Duration = last_measurements.iter().map(|x| x.sum).sum();
+        let total_count: usize = last_measurements.iter().map(|x| x.count).sum();
+
+        if total_count == 0 {
+            return Duration::default();
+        }
+
+        total_sum
+            .checked_div(total_count as u32)
             .unwrap_or_default()
     }
 
     pub fn workload_stdev_latency(&self) -> HashMap<String, Duration> {
-        self.last_measurements_iter()
-            // get the maximum stdev latency of each workload across all scrapers
-            .fold(HashMap::new(), |mut acc, measurement| {
-                let stdev = measurement.stdev_latency();
-                acc.entry(measurement.workload.clone())
-                    .and_modify(|max_stdev| {
-                        if stdev > *max_stdev {
-                            *max_stdev = stdev;
-                        }
-                    })
-                    .or_insert(stdev);
-                acc
+        // Collect sum, squared_sum, and count for each workload across all scrapers
+        let mut workload_data: HashMap<String, (Duration, Duration, usize)> = HashMap::new();
+
+        for measurement in self.last_measurements_iter() {
+            workload_data
+                .entry(measurement.workload.clone())
+                .and_modify(|(sum, squared_sum, count)| {
+                    *sum += measurement.sum;
+                    *squared_sum += measurement.squared_sum;
+                    *count += measurement.count;
+                })
+                .or_insert((measurement.sum, measurement.squared_sum, measurement.count));
+        }
+
+        // Calculate stdev for each workload from aggregated data
+        workload_data
+            .into_iter()
+            .map(|(workload, (sum, squared_sum, count))| {
+                let stdev = if count == 0 {
+                    Duration::default()
+                } else {
+                    let first_term = squared_sum.as_secs_f64() / count as f64;
+                    let avg = sum.as_secs_f64() / count as f64;
+                    let variance = if avg.powf(2.0) > first_term {
+                        0.0
+                    } else {
+                        first_term - avg.powf(2.0)
+                    };
+                    Duration::from_secs_f64(variance.sqrt())
+                };
+                (workload, stdev)
             })
+            .collect()
     }
 
-    /// Aggregate the stdev latency of multiple data points by taking the max.
+    /// Aggregate the stdev latency by combining all squared sums, sums, and
+    /// counts. Uses the pooled variance formula: sqrt((Σsquared_sum /
+    /// Σcount) - (Σsum / Σcount)^2)
     pub fn aggregate_stdev_latency(&self) -> Duration {
+        let last_measurements: Vec<_> = self.last_measurements_iter().collect();
+
+        let total_sum: Duration = last_measurements.iter().map(|x| x.sum).sum();
+        let total_squared_sum: Duration = last_measurements.iter().map(|x| x.squared_sum).sum();
+        let total_count: usize = last_measurements.iter().map(|x| x.count).sum();
+
+        if total_count == 0 {
+            return Duration::default();
+        }
+
+        let first_term = total_squared_sum.as_secs_f64() / total_count as f64;
+        let avg = total_sum.as_secs_f64() / total_count as f64;
+        let variance = if avg.powf(2.0) > first_term {
+            0.0
+        } else {
+            first_term - avg.powf(2.0)
+        };
+
+        Duration::from_secs_f64(variance.sqrt())
+    }
+
     pub fn workload_p50_latency(&self) -> HashMap<String, Duration> {
         // Aggregate buckets and counts for each workload across all scrapers
         let mut workload_data: HashMap<String, (HashMap<BucketId, usize>, usize)> = HashMap::new();
@@ -823,6 +883,49 @@ mod test {
         let p50 = super::p50_latency(&data.buckets, data.count);
         // Should be around 636-637ms
         assert!(p50.as_millis() >= 636 && p50.as_millis() <= 637);
+    }
+
+    #[test]
+    fn aggregate_average_latency_weighted() {
+        // Test that aggregate average is properly weighted
+        let settings = Settings::new_for_test();
+        let mut aggregator = MeasurementsCollection::<TestBenchmarkType>::new(
+            &settings,
+            BenchmarkParameters::default(),
+        );
+
+        // Scraper 1: 100 transactions with 2s total = 20ms avg
+        let measurement1 = HashMap::from([(
+            "test".to_string(),
+            Measurement {
+                workload: "test".into(),
+                timestamp: Duration::from_secs(10),
+                buckets: HashMap::new(),
+                sum: Duration::from_secs(2),
+                count: 100,
+                squared_sum: Duration::from_secs(0),
+            },
+        )]);
+
+        // Scraper 2: 200 transactions with 10s total = 50ms avg
+        let measurement2 = HashMap::from([(
+            "test".to_string(),
+            Measurement {
+                workload: "test".into(),
+                timestamp: Duration::from_secs(10),
+                buckets: HashMap::new(),
+                sum: Duration::from_secs(10),
+                count: 200,
+                squared_sum: Duration::from_secs(0),
+            },
+        )]);
+
+        aggregator.add(1, measurement1);
+        aggregator.add(2, measurement2);
+
+        // Weighted average should be (2 + 10) / (100 + 200) = 12 / 300 = 0.04s = 40ms
+        let avg = aggregator.aggregate_average_latency();
+        assert_eq!(avg.as_millis(), 40);
     }
 
     #[test]
