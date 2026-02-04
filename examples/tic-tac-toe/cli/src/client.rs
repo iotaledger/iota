@@ -19,7 +19,7 @@ use iota_sdk::{
 };
 use iota_sdk_types::crypto::Intent;
 use iota_types::{
-    Identifier,
+    Identifier, IdentifierRef, StructTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::PublicKey,
     multisig::{MultiSig, MultiSigPublicKey},
@@ -31,7 +31,6 @@ use iota_types::{
         TransactionKind,
     },
 };
-use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
 
 use crate::{
     crypto::combine_keys,
@@ -118,11 +117,11 @@ impl Client {
             bail!("It is a package, not an object.");
         };
 
-        if raw.type_.name.as_str() != "Game" {
+        if raw.type_.name().as_str() != "Game" {
             bail!("It is not a Game object, it has type {}.", raw.type_);
         }
 
-        let package = ObjectID::new(raw.type_.address.into_bytes());
+        let package = ObjectID::new(raw.type_.address().into_bytes());
         if package != self.package {
             bail!(
                 "It is expected to be from package {} but is from package {}.",
@@ -132,7 +131,7 @@ impl Client {
         }
 
         // (3) Deserialize contents
-        let kind = match raw.type_.module.as_str() {
+        let kind = match raw.type_.module().as_str() {
             "shared" => GameKind::Shared(
                 bcs::from_bytes(&raw.bcs_bytes).context("Failed to deserialize contents.")?,
             ),
@@ -161,7 +160,7 @@ impl Client {
 
         builder.programmable_move_call(
             self.package,
-            raw.type_.module.clone(),
+            raw.type_.module().clone(),
             Identifier::new("ended").unwrap(),
             vec![],
             vec![g],
@@ -220,12 +219,12 @@ impl Client {
         let client = self.client().await?;
         let (game_id, _, _) = game.object_ref();
 
-        let turn_cap_type = StructTag {
-            address: AccountAddress::new(self.package.into_bytes()),
-            module: Identifier::new("owned").unwrap(),
-            name: Identifier::new("TurnCap").unwrap(),
-            type_params: vec![],
-        };
+        let turn_cap_type = StructTag::new(
+            self.package.into(),
+            IdentifierRef::const_new("owned"),
+            IdentifierRef::const_new("TurnCap"),
+            vec![],
+        );
 
         let query = Some(IotaObjectResponseQuery::new(
             Some(IotaObjectDataFilter::StructType(turn_cap_type.clone())),
@@ -512,11 +511,11 @@ impl Client {
                 return None;
             };
 
-            if object_type.address.as_ref() != self.package.as_bytes() {
+            if object_type.address().as_bytes() != self.package.as_bytes() {
                 return None;
             }
 
-            if object_type.name.as_str() != "Mark" {
+            if object_type.name().as_str() != "Mark" {
                 return None;
             }
 
@@ -582,11 +581,11 @@ impl Client {
                 return None;
             };
 
-            if object_type.address.as_ref() != self.package.as_bytes() {
+            if object_type.address().as_bytes() != self.package.as_bytes() {
                 return None;
             }
 
-            if object_type.name.as_str() != "Game" {
+            if object_type.name().as_str() != "Game" {
                 return None;
             }
 
