@@ -120,7 +120,7 @@ async fn get_transactions_scenarios() {
     assert!(
         tx.timestamp_ms()
             .expect("Failed to get timestamp from transaction")
-            .is_some(),
+            > 0,
         "Timestamp should be present after finalization"
     );
 
