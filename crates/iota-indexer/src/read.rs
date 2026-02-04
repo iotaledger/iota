@@ -612,21 +612,31 @@ impl IndexerReader {
         &self,
         checkpoint_id: CheckpointId,
     ) -> IndexerResult<Option<iota_json_rpc_types::Checkpoint>> {
-        let stored_checkpoint = match self.db().get_checkpoint(checkpoint_id).await? {
-            Some(stored_checkpoint) => stored_checkpoint,
-            None => {
-                // fallback to historical storage
-                let Some(fallback) = self.fallback_reader() else {
-                    return Ok(None);
-                };
-                match fallback.checkpoint(checkpoint_id).await? {
-                    Some(stored_checkpoint) => stored_checkpoint,
-                    None => return Ok(None),
-                }
+        let stored_checkpoint = match self.db().get_checkpoint(checkpoint_id).await {
+            Ok(res) => res,
+            Err(IndexerError::DataPruned(_)) => {
+                // Data is pruned, fallback to historical storage
+                self.fallback_reader()
+                    .ok_or_else(|| {
+                        IndexerError::DataPruned(format!(
+                            "checkpoint {checkpoint_id:?} has been pruned and fallback storage is not available"
+                        ))
+                    })?
+                    .checkpoint(checkpoint_id)
+                    .await?
+                    .ok_or_else(|| {
+                        IndexerError::DataPruned(format!(
+                            "checkpoint {checkpoint_id:?} has been pruned and is not available in fallback storage"
+                        ))
+                    })
+                    .map(Some)?
             }
+            Err(e) => return Err(e),
         };
 
-        iota_json_rpc_types::Checkpoint::try_from(stored_checkpoint).map(Some)
+        stored_checkpoint
+            .map(iota_json_rpc_types::Checkpoint::try_from)
+            .transpose()
     }
 
     pub fn get_latest_checkpoint(&self) -> Result<iota_json_rpc_types::Checkpoint, IndexerError> {
@@ -1195,30 +1205,30 @@ impl IndexerReader {
                 .await;
         };
 
+        // All transaction-related tables that could be used by any filter
+        let tx_tables = [
+            CommitterTables::Transactions,
+            CommitterTables::TxCallsFun,
+            CommitterTables::TxCallsMod,
+            CommitterTables::TxCallsPkg,
+            CommitterTables::TxInputObjects,
+            CommitterTables::TxChangedObjects,
+            CommitterTables::TxWrappedOrDeletedObjects,
+            CommitterTables::TxSenders,
+            CommitterTables::TxRecipients,
+            CommitterTables::TxKinds,
+        ];
+        let min_available_tx = self
+            .watermark_cache
+            .get_lowest_available_tx_for_tables(&tx_tables)
+            .unwrap_or(0);
+
         let cursor_tx_seq = if let Some(cursor) = cursor {
             let tx_seq = self
                 .db()
                 .resolve_cursor_tx_digest_to_seq_num(cursor)
                 .await?;
-
-            // Check if the cursor transaction is in the pruned range
-            // Check all transaction-related tables that could be used by any filter
-            self.ensure_data_not_pruned_for_tx(
-                tx_seq,
-                &[
-                    CommitterTables::Transactions,
-                    CommitterTables::TxCallsFun,
-                    CommitterTables::TxCallsMod,
-                    CommitterTables::TxCallsPkg,
-                    CommitterTables::TxInputObjects,
-                    CommitterTables::TxChangedObjects,
-                    CommitterTables::TxWrappedOrDeletedObjects,
-                    CommitterTables::TxSenders,
-                    CommitterTables::TxRecipients,
-                    CommitterTables::TxKinds,
-                ],
-            )?;
-
+            self.ensure_data_not_pruned_for_tx(tx_seq, &tx_tables)?;
             Some(tx_seq)
         } else {
             None
@@ -1446,7 +1456,7 @@ impl IndexerReader {
         };
 
         let query = format!(
-            "SELECT {TX_SEQUENCE_NUMBER_STR} FROM {table_name} WHERE {main_where_clause} {cursor_clause} ORDER BY {TX_SEQUENCE_NUMBER_STR} {order_str} LIMIT {limit}",
+            "SELECT {TX_SEQUENCE_NUMBER_STR} FROM {table_name} WHERE ({main_where_clause}) AND {TX_SEQUENCE_NUMBER_STR} >= {min_available_tx} {cursor_clause} ORDER BY {TX_SEQUENCE_NUMBER_STR} {order_str} LIMIT {limit}",
         );
 
         tracing::debug!("query transaction blocks: {}", query);
@@ -1664,6 +1674,23 @@ impl IndexerReader {
                 .await;
         }
 
+        // All event-related tables that could be used by any filter
+        let event_tables = [
+            CommitterTables::Events,
+            CommitterTables::EventEmitPackage,
+            CommitterTables::EventEmitModule,
+            CommitterTables::EventSenders,
+            CommitterTables::EventStructPackage,
+            CommitterTables::EventStructModule,
+            CommitterTables::EventStructName,
+            CommitterTables::EventStructInstantiation,
+            CommitterTables::TxSenders,
+        ];
+        let min_available_tx = self
+            .watermark_cache
+            .get_lowest_available_tx_for_tables(&event_tables)
+            .unwrap_or(0);
+
         let (tx_seq, event_seq) = if let Some(cursor) = cursor {
             let EventID {
                 tx_digest,
@@ -1673,24 +1700,7 @@ impl IndexerReader {
                 .db()
                 .resolve_cursor_tx_digest_to_seq_num(tx_digest)
                 .await?;
-
-            // Check if the cursor transaction is in the pruned range
-            // Check all event-related tables that could be used by any filter
-            self.ensure_data_not_pruned_for_tx(
-                tx_seq,
-                &[
-                    CommitterTables::Events,
-                    CommitterTables::EventEmitPackage,
-                    CommitterTables::EventEmitModule,
-                    CommitterTables::EventSenders,
-                    CommitterTables::EventStructPackage,
-                    CommitterTables::EventStructModule,
-                    CommitterTables::EventStructName,
-                    CommitterTables::EventStructInstantiation,
-                    CommitterTables::TxSenders,
-                ],
-            )?;
-
+            self.ensure_data_not_pruned_for_tx(tx_seq, &event_tables)?;
             (tx_seq, event_seq as i64)
         } else if descending_order {
             let max_tx_seq = i64::MAX;
@@ -1723,11 +1733,12 @@ impl IndexerReader {
                     JOIN events e
                     ON e.tx_sequence_number = s.tx_sequence_number
                     AND s.sender = '\\x{}'::bytea
-                    WHERE {} \
+                    WHERE e.tx_sequence_number >= {} AND ({}) \
                     ORDER BY {} \
                     LIMIT {}
                 )",
                 Hex::encode(sender.to_vec()),
+                min_available_tx,
                 cursor_clause,
                 order_clause,
                 limit,
@@ -1792,7 +1803,7 @@ impl IndexerReader {
             format!(
                 "
                     SELECT * FROM events \
-                    WHERE {main_where_clause} {cursor_clause} \
+                    WHERE ({main_where_clause}) AND {TX_SEQUENCE_NUMBER_STR} >= {min_available_tx} {cursor_clause} \
                     ORDER BY {order_clause} \
                     LIMIT {limit}
                 ",
@@ -2721,8 +2732,14 @@ impl<'a> DBReader<'a> {
         &self,
         checkpoint_id: CheckpointId,
     ) -> IndexerResult<Option<StoredCheckpoint>> {
+        // Check if checkpoint is pruned when querying by sequence number
+        if let CheckpointId::SequenceNumber(seq) = checkpoint_id {
+            self.main_reader
+                .ensure_data_not_pruned_for_checkpoint(seq, &[CommitterTables::Checkpoints])?;
+        }
+
         let pool = self.main_reader.get_pool();
-        run_query_async!(&pool, |conn| {
+        let checkpoint = run_query_async!(&pool, |conn| {
             match checkpoint_id {
                 CheckpointId::SequenceNumber(seq) => checkpoints::dsl::checkpoints
                     .filter(checkpoints::sequence_number.eq(seq as i64))
@@ -2733,7 +2750,20 @@ impl<'a> DBReader<'a> {
                     .first::<StoredCheckpoint>(conn)
                     .optional(),
             }
-        })
+        })?;
+
+        // When querying by digest, check if the returned checkpoint is in the pruned
+        // range
+        if let CheckpointId::Digest(_) = checkpoint_id {
+            if let Some(ref cp) = checkpoint {
+                self.main_reader.ensure_data_not_pruned_for_checkpoint(
+                    cp.sequence_number as u64,
+                    &[CommitterTables::Checkpoints],
+                )?;
+            }
+        }
+
+        Ok(checkpoint)
     }
 
     async fn get_checkpoints(
@@ -2742,9 +2772,18 @@ impl<'a> DBReader<'a> {
         limit: usize,
         descending_order: bool,
     ) -> IndexerResult<Vec<StoredCheckpoint>> {
+        // Get min available checkpoint to filter out pruned data
+        let min_available_cp = self
+            .main_reader
+            .watermark_cache
+            .get_lowest_available_cp_for_tables(&[CommitterTables::Checkpoints])
+            .unwrap_or(0);
+
         let pool = self.main_reader.get_pool();
         run_query_async!(&pool, |conn| {
             let mut boxed_query = checkpoints::table.into_boxed();
+            boxed_query = boxed_query.filter(checkpoints::sequence_number.ge(min_available_cp));
+
             if let Some(cursor) = cursor {
                 if descending_order {
                     boxed_query =
@@ -2865,6 +2904,13 @@ impl<'a> DBReader<'a> {
         &self,
         digests: Vec<Vec<u8>>,
     ) -> IndexerResult<Vec<StoredTransaction>> {
+        // Get min available transaction to filter out pruned data
+        let min_available_tx = self
+            .main_reader
+            .watermark_cache
+            .get_lowest_available_tx_for_tables(&[CommitterTables::Transactions])
+            .unwrap_or(0);
+
         let pool = self.main_reader.get_pool();
         run_query_async!(&pool, |conn| {
             transactions::table
@@ -2872,6 +2918,8 @@ impl<'a> DBReader<'a> {
                     tx_digests::table
                         .on(transactions::tx_sequence_number.eq(tx_digests::tx_sequence_number)),
                 )
+                // Filter out pruned transactions
+                .filter(transactions::tx_sequence_number.ge(min_available_tx))
                 // we filter the tx_digests table because it is indexed by digest,
                 // transactions table is not
                 .filter(tx_digests::tx_digest.eq_any(digests))
