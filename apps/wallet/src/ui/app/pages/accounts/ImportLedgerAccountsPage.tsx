@@ -15,7 +15,7 @@ import {
 } from '_components';
 import { getIotaApplicationErrorMessage } from '../../helpers/errorMessages';
 import { useAccounts } from '_hooks';
-import { Button, LoadingIndicator } from '@iota/apps-ui-kit';
+import { Button, ButtonType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { CheckmarkFilled } from '@iota/apps-ui-icons';
 
 const LEDGER_ACCOUNTS_DERIVE_CHUNKS_SIZE = 10;
@@ -64,6 +64,7 @@ export function ImportLedgerAccountsPage() {
         },
         [setSelectedLedgerAccounts],
     );
+
     const numImportableAccounts = ledgerAccounts?.length;
     const numSelectedAccounts = selectedLedgerAccounts.size;
     const areAllAccountsImported = numImportableAccounts === 0;
@@ -132,8 +133,9 @@ export function ImportLedgerAccountsPage() {
         >
             <div className="flex h-full w-full flex-col">
                 {importLedgerAccountsBody}
-                <div className="flex flex-1 items-end">
+                <div className="flex flex-1 items-end gap-xs">
                     <Button
+                        type={ButtonType.Secondary}
                         disabled={areLedgerAccountsLoading}
                         text="Load More"
                         onClick={() => loadMore()}
@@ -141,15 +143,18 @@ export function ImportLedgerAccountsPage() {
                     />
                     {areAllAccountsImported ? (
                         <Button
+                            type={ButtonType.Primary}
                             text="Finish"
                             onClick={() => navigate('/accounts/manage')}
                             fullWidth
                         />
                     ) : (
                         <Button
+                            type={ButtonType.Primary}
                             text="Next"
                             disabled={isUnlockButtonDisabled}
                             onClick={handleNextClick}
+                            fullWidth
                         />
                     )}
                     ;
