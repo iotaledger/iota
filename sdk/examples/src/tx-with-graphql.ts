@@ -6,14 +6,12 @@ import { getGraphQLUrl } from '@iota/iota-sdk/client';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { requestIotaFromFaucetV1, getFaucetHost } from '@iota/iota-sdk/faucet';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { GraphqlTransport } from '@iota/iota-sdk/graphql';
 
 /**
  * Example: Transaction with Client and GraphQL Transport
  *
- * This example demonstrates creating and executing a transaction (transfer IOTA),
- * then using the GraphQL transport to query transaction details.
+ * This example demonstrates creating and executing a transaction (transfer IOTA).
  */
 console.log('Setting up clients and keypair...');
 
