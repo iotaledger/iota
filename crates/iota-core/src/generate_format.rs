@@ -7,7 +7,12 @@ use std::{fs::File, io::Write, str::FromStr};
 
 use clap::*;
 use fastcrypto_zkp::{bn254::zk_login::OIDCProvider, zk_login_utils::Bn254FrElement};
-use iota_sdk_types::crypto::{Intent, IntentMessage, PersonalMessage};
+use iota_sdk_types::{
+    address::Address,
+    crypto::{Intent, IntentMessage, PersonalMessage},
+    object_id::ObjectId,
+    type_tag::Identifier as SdkIdentifier,
+};
 use iota_types::{
     base_types::{
         self, Identifier, IotaAddress, MoveObjectType, MoveObjectType_, ObjectDigest, ObjectID,
@@ -29,6 +34,7 @@ use iota_types::{
         TypeArgumentError,
     },
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
         CheckpointContentsDigest, CheckpointDigest, CheckpointSummary, FullCheckpointContents,
@@ -240,8 +246,8 @@ fn get_registry() -> Result<Registry> {
     // Event while, sui's doesn't.
     let event = Event {
         package_id: ObjectID::random(),
-        transaction_module: Identifier::from_static("foo"),
-        sender: IotaAddress::ZERO,
+        module: Identifier::from_static("foo"),
+        sender: Address::from(IotaAddress::ZERO),
         type_: struct_tag.clone(),
         contents: vec![0],
     };
