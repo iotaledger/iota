@@ -5,7 +5,10 @@
 include!("../../../generated/iota.grpc.v0.command.rs");
 include!("../../../generated/iota.grpc.v0.command.field_info.rs");
 
-use crate::proto::GrpcConversionError;
+use crate::{
+    proto::{GrpcConversionError, TryFromProtoError},
+    v0::bcs::BcsData,
+};
 
 impl TryFrom<iota_sdk_types::transaction::Argument> for Argument {
     type Error = GrpcConversionError;
@@ -40,5 +43,258 @@ impl TryFrom<iota_sdk_types::transaction::Argument> for Argument {
         };
 
         Ok(Self { kind: Some(kind) })
+    }
+}
+
+impl TryFrom<&Argument> for iota_sdk_types::transaction::Argument {
+    type Error = TryFromProtoError;
+
+    fn try_from(value: &Argument) -> Result<Self, Self::Error> {
+        match &value.kind {
+            Some(argument::Kind::GasCoin(_)) => Ok(iota_sdk_types::transaction::Argument::Gas),
+            Some(argument::Kind::Input(input)) => {
+                let index = input
+                    .index
+                    .ok_or_else(|| TryFromProtoError::missing("argument.input.index"))?;
+                Ok(iota_sdk_types::transaction::Argument::Input(index as u16))
+            }
+            Some(argument::Kind::Result(result)) => {
+                let index = result
+                    .index
+                    .ok_or_else(|| TryFromProtoError::missing("argument.result.index"))?;
+                match result.nested_result_index {
+                    Some(nested_idx) => Ok(iota_sdk_types::transaction::Argument::NestedResult(
+                        index as u16,
+                        nested_idx as u16,
+                    )),
+                    None => Ok(iota_sdk_types::transaction::Argument::Result(index as u16)),
+                }
+            }
+            Some(argument::Kind::Unknown(_)) => Err(TryFromProtoError::invalid(
+                "argument.kind",
+                "unknown argument type",
+            )),
+            None => Err(TryFromProtoError::missing("argument.kind")),
+        }
+    }
+}
+
+// Argument
+//
+
+impl Argument {
+    /// Deserialize the argument to SDK type.
+    pub fn argument(&self) -> Result<iota_sdk_types::transaction::Argument, TryFromProtoError> {
+        self.try_into()
+    }
+}
+
+// CommandOutput
+//
+
+impl CommandOutput {
+    /// Deserialize the argument to SDK type.
+    pub fn argument(
+        &self,
+    ) -> Result<Option<iota_sdk_types::transaction::Argument>, TryFromProtoError> {
+        self.argument.as_ref().map(|a| a.argument()).transpose()
+    }
+
+    /// Deserialize the type tag to SDK type.
+    pub fn type_tag(&self) -> Result<Option<iota_sdk_types::TypeTag>, TryFromProtoError> {
+        self.type_tag.as_ref().map(|t| t.type_tag()).transpose()
+    }
+
+    /// Get the raw BCS bytes.
+    pub fn output_bcs(&self) -> Option<&[u8]> {
+        self.bcs.as_ref().map(BcsData::as_bytes)
+    }
+
+    /// Get the JSON value.
+    pub fn output_json(&self) -> Option<serde_json::Value> {
+        self.json.as_ref().map(crate::proto::prost_to_json)
+    }
+}
+
+// CommandOutputs
+//
+
+impl CommandOutputs {
+    /// Deserialize all arguments to SDK types.
+    pub fn arguments(
+        &self,
+    ) -> Result<Vec<Option<iota_sdk_types::transaction::Argument>>, TryFromProtoError> {
+        self.outputs
+            .iter()
+            .enumerate()
+            .map(|(i, o)| {
+                o.argument()
+                    .map_err(|e| e.nested_at(Self::OUTPUTS_FIELD.name, i))
+            })
+            .collect()
+    }
+
+    /// Deserialize all type tags to SDK types.
+    pub fn type_tags(&self) -> Result<Vec<Option<iota_sdk_types::TypeTag>>, TryFromProtoError> {
+        self.outputs
+            .iter()
+            .enumerate()
+            .map(|(i, o)| {
+                o.type_tag()
+                    .map_err(|e| e.nested_at(Self::OUTPUTS_FIELD.name, i))
+            })
+            .collect()
+    }
+
+    /// Get all BCS bytes.
+    pub fn all_bcs(&self) -> Vec<Option<&[u8]>> {
+        self.outputs.iter().map(|o| o.output_bcs()).collect()
+    }
+
+    /// Get all JSON values.
+    pub fn all_json(&self) -> Vec<Option<serde_json::Value>> {
+        self.outputs.iter().map(|o| o.output_json()).collect()
+    }
+}
+
+// CommandResult
+//
+
+impl CommandResult {
+    /// Get the arguments for outputs mutated by reference.
+    pub fn mutated_by_ref_arguments(
+        &self,
+    ) -> Result<Vec<Option<iota_sdk_types::transaction::Argument>>, TryFromProtoError> {
+        self.mutated_by_ref
+            .as_ref()
+            .map(|outputs| outputs.arguments())
+            .transpose()
+            .map(|opt| opt.unwrap_or_default())
+    }
+
+    /// Get the type tags for outputs mutated by reference.
+    pub fn mutated_by_ref_type_tags(
+        &self,
+    ) -> Result<Vec<Option<iota_sdk_types::TypeTag>>, TryFromProtoError> {
+        self.mutated_by_ref
+            .as_ref()
+            .map(|outputs| outputs.type_tags())
+            .transpose()
+            .map(|opt| opt.unwrap_or_default())
+    }
+
+    /// Get the BCS bytes for outputs mutated by reference.
+    pub fn mutated_by_ref_bcs(&self) -> Vec<Option<&[u8]>> {
+        self.mutated_by_ref
+            .as_ref()
+            .map(|outputs| outputs.all_bcs())
+            .unwrap_or_default()
+    }
+
+    /// Get the JSON values for outputs mutated by reference.
+    pub fn mutated_by_ref_json(&self) -> Vec<Option<serde_json::Value>> {
+        self.mutated_by_ref
+            .as_ref()
+            .map(|outputs| outputs.all_json())
+            .unwrap_or_default()
+    }
+
+    /// Get the arguments for return values.
+    pub fn return_values_arguments(
+        &self,
+    ) -> Result<Vec<Option<iota_sdk_types::transaction::Argument>>, TryFromProtoError> {
+        self.return_values
+            .as_ref()
+            .map(|outputs| outputs.arguments())
+            .transpose()
+            .map(|opt| opt.unwrap_or_default())
+    }
+
+    /// Get the type tags for return values.
+    pub fn return_values_type_tags(
+        &self,
+    ) -> Result<Vec<Option<iota_sdk_types::TypeTag>>, TryFromProtoError> {
+        self.return_values
+            .as_ref()
+            .map(|outputs| outputs.type_tags())
+            .transpose()
+            .map(|opt| opt.unwrap_or_default())
+    }
+
+    /// Get the BCS bytes for return values.
+    pub fn return_values_bcs(&self) -> Vec<Option<&[u8]>> {
+        self.return_values
+            .as_ref()
+            .map(|outputs| outputs.all_bcs())
+            .unwrap_or_default()
+    }
+
+    /// Get the JSON values for return values.
+    pub fn return_values_json(&self) -> Vec<Option<serde_json::Value>> {
+        self.return_values
+            .as_ref()
+            .map(|outputs| outputs.all_json())
+            .unwrap_or_default()
+    }
+}
+
+// CommandResults
+//
+
+impl CommandResults {
+    /// Get all mutated-by-reference arguments across all commands.
+    pub fn all_mutated_by_ref_arguments(
+        &self,
+    ) -> Result<Vec<Vec<Option<iota_sdk_types::transaction::Argument>>>, TryFromProtoError> {
+        self.results
+            .iter()
+            .enumerate()
+            .map(|(i, r)| {
+                r.mutated_by_ref_arguments()
+                    .map_err(|e| e.nested_at(Self::RESULTS_FIELD.name, i))
+            })
+            .collect()
+    }
+
+    /// Get all return value arguments across all commands.
+    pub fn all_return_values_arguments(
+        &self,
+    ) -> Result<Vec<Vec<Option<iota_sdk_types::transaction::Argument>>>, TryFromProtoError> {
+        self.results
+            .iter()
+            .enumerate()
+            .map(|(i, r)| {
+                r.return_values_arguments()
+                    .map_err(|e| e.nested_at(Self::RESULTS_FIELD.name, i))
+            })
+            .collect()
+    }
+
+    /// Get all mutated-by-reference type tags across all commands.
+    pub fn all_mutated_by_ref_type_tags(
+        &self,
+    ) -> Result<Vec<Vec<Option<iota_sdk_types::TypeTag>>>, TryFromProtoError> {
+        self.results
+            .iter()
+            .enumerate()
+            .map(|(i, r)| {
+                r.mutated_by_ref_type_tags()
+                    .map_err(|e| e.nested_at(Self::RESULTS_FIELD.name, i))
+            })
+            .collect()
+    }
+
+    /// Get all return value type tags across all commands.
+    pub fn all_return_values_type_tags(
+        &self,
+    ) -> Result<Vec<Vec<Option<iota_sdk_types::TypeTag>>>, TryFromProtoError> {
+        self.results
+            .iter()
+            .enumerate()
+            .map(|(i, r)| {
+                r.return_values_type_tags()
+                    .map_err(|e| e.nested_at(Self::RESULTS_FIELD.name, i))
+            })
+            .collect()
     }
 }

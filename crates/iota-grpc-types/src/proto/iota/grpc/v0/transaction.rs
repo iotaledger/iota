@@ -5,7 +5,7 @@
 include!("../../../generated/iota.grpc.v0.transaction.rs");
 include!("../../../generated/iota.grpc.v0.transaction.field_info.rs");
 
-use crate::proto::TryFromProtoError;
+use crate::{proto::TryFromProtoError, v0::bcs::BcsData};
 
 // TryFrom implementations for TransactionEffects
 impl TryFrom<&TransactionEffects> for iota_sdk_types::TransactionEffects {
@@ -46,6 +46,11 @@ impl TransactionEffects {
     /// Deserialize effects from BCS.
     pub fn effects(&self) -> Result<iota_sdk_types::TransactionEffects, TryFromProtoError> {
         self.try_into()
+    }
+
+    /// Get the raw BCS bytes of this TransactionEffects.
+    pub fn effects_bcs(&self) -> Option<&[u8]> {
+        self.bcs.as_ref().map(BcsData::as_bytes)
     }
 }
 
@@ -129,6 +134,11 @@ impl ExecutedTransaction {
             .map_err(|e| e.nested(Self::TRANSACTION_FIELD.name))
     }
 
+    /// Get the raw BCS bytes of the transaction.
+    pub fn transaction_bcs(&self) -> Option<&[u8]> {
+        self.transaction.as_ref().and_then(|t| t.transaction_bcs())
+    }
+
     /// Deserialize user signatures.
     pub fn signatures(&self) -> Result<Vec<iota_sdk_types::UserSignature>, TryFromProtoError> {
         let signatures_proto = self
@@ -156,11 +166,35 @@ impl ExecutedTransaction {
             .map_err(|e| e.nested(Self::EFFECTS_FIELD.name))
     }
 
+    /// Get the effects digest directly.
+    pub fn effects_digest(&self) -> Result<Option<iota_sdk_types::Digest>, TryFromProtoError> {
+        self.effects
+            .as_ref()
+            .map(|e| {
+                e.digest()
+                    .map_err(|err| err.nested(Self::EFFECTS_FIELD.name))
+            })
+            .transpose()
+    }
+
+    /// Get the raw BCS bytes of the transaction effects.
+    pub fn effects_bcs(&self) -> Option<&[u8]> {
+        self.effects.as_ref().and_then(|e| e.effects_bcs())
+    }
+
     /// Deserialize transaction events. Returns Ok(None) if not present.
     pub fn events(&self) -> Result<Option<iota_sdk_types::TransactionEvents>, TryFromProtoError> {
         self.events
             .as_ref()
             .map(|ev| ev.events().map_err(|e| e.nested(Self::EVENTS_FIELD.name)))
+            .transpose()
+    }
+
+    /// Get the events digest directly.
+    pub fn events_digest(&self) -> Result<Option<iota_sdk_types::Digest>, TryFromProtoError> {
+        self.events
+            .as_ref()
+            .map(|ev| ev.digest().map_err(|e| e.nested(Self::EVENTS_FIELD.name)))
             .transpose()
     }
 
@@ -242,5 +276,51 @@ impl Transaction {
     /// Deserialize the transaction from BCS.
     pub fn transaction(&self) -> Result<iota_sdk_types::Transaction, TryFromProtoError> {
         self.try_into()
+    }
+
+    /// Get the raw BCS bytes of this Transaction.
+    pub fn transaction_bcs(&self) -> Option<&[u8]> {
+        self.bcs.as_ref().map(BcsData::as_bytes)
+    }
+}
+
+// ExecutedTransactions
+//
+
+impl ExecutedTransactions {
+    /// Deserialize all transactions.
+    pub fn transactions(&self) -> Result<Vec<iota_sdk_types::Transaction>, TryFromProtoError> {
+        self.transactions
+            .iter()
+            .enumerate()
+            .map(|(i, t)| {
+                t.transaction()
+                    .map_err(|e| e.nested_at(Self::TRANSACTIONS_FIELD.name, i))
+            })
+            .collect()
+    }
+
+    /// Get all transaction digests.
+    pub fn digests(&self) -> Result<Vec<iota_sdk_types::Digest>, TryFromProtoError> {
+        self.transactions
+            .iter()
+            .enumerate()
+            .map(|(i, t)| {
+                t.digest()
+                    .map_err(|e| e.nested_at(Self::TRANSACTIONS_FIELD.name, i))
+            })
+            .collect()
+    }
+
+    /// Deserialize all transaction effects.
+    pub fn effects(&self) -> Result<Vec<iota_sdk_types::TransactionEffects>, TryFromProtoError> {
+        self.transactions
+            .iter()
+            .enumerate()
+            .map(|(i, t)| {
+                t.effects()
+                    .map_err(|e| e.nested_at(Self::TRANSACTIONS_FIELD.name, i))
+            })
+            .collect()
     }
 }
