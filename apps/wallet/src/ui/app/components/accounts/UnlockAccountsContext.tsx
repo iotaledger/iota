@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useState, useEffect, type ReactNode } from 'react';
 import { toast } from '@iota/core';
-import { useUnlockMutation, useBackgroundClient } from '_hooks';
+import { useUnlockMutation, useBackgroundClient, useActiveAccount } from '_hooks';
 import { UnlockAccountModal } from './UnlockAccountModal';
 
 interface UnlockAccountsContextType {
@@ -25,9 +25,23 @@ export function UnlockAccountsProvider({ children }: UnlockAccountsProviderProps
     const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
     const unlockAccountMutation = useUnlockMutation();
     const backgroundClient = useBackgroundClient();
+    const activeAccount = useActiveAccount();
+
+    // Automatically show the modal when the active account is locked
+    useEffect(() => {
+        if (activeAccount?.isLocked) {
+            setIsUnlockModalOpen(true);
+        } else if (!activeAccount?.isLocked && isUnlockModalOpen) {
+            setIsUnlockModalOpen(false);
+        }
+    }, [activeAccount?.isLocked, isUnlockModalOpen]);
+
     const hideUnlockModal = useCallback(() => {
-        setIsUnlockModalOpen(false);
-    }, []);
+        // Allow only hiding the modal if the account is not locked
+        if (!activeAccount?.isLocked) {
+            setIsUnlockModalOpen(false);
+        }
+    }, [activeAccount?.isLocked]);
 
     const unlockAccounts = useCallback(async () => {
         setIsUnlockModalOpen(true);
@@ -42,6 +56,10 @@ export function UnlockAccountsProvider({ children }: UnlockAccountsProviderProps
         }
     }, [backgroundClient]);
 
+    const handleUnlockSuccess = useCallback(() => {
+        setIsUnlockModalOpen(false);
+    }, []);
+
     return (
         <UnlockAccountsContext.Provider
             value={{
@@ -55,7 +73,7 @@ export function UnlockAccountsProvider({ children }: UnlockAccountsProviderProps
             {children}
             <UnlockAccountModal
                 onClose={hideUnlockModal}
-                onSuccess={hideUnlockModal}
+                onSuccess={handleUnlockSuccess}
                 open={isUnlockModalOpen}
             />
         </UnlockAccountsContext.Provider>

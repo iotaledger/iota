@@ -17,31 +17,29 @@ interface UnlockAccountModalProps {
 export function UnlockAccountModal({ onClose, onSuccess, open }: UnlockAccountModalProps) {
     const [isForgotPasswordOpen, setForgotPasswordOpen] = useState(false);
     const backgroundService = useBackgroundClient();
+
     return (
         <>
             <PasswordModalDialog
-                {...{
-                    open,
-                    onClose,
-                    title: 'Unlock wallet',
-                    confirmText: 'Unlock wallet',
-                    cancelText: 'Back',
-                    showForgotPassword: true,
-                    onForgotPassword: () => {
-                        onClose();
-                        setForgotPasswordOpen(true);
-                    },
-                    onSubmit: async (password: string) => {
-                        await backgroundService.unlockAllAccountsAndSources({
-                            password,
-                        });
-                        toast('Wallet unlocked');
-                        onSuccess();
-                    },
-                    // this is not necessary for unlocking but will show the wrong password error as a form error
-                    // so doing it like this to keep it simple. The extra verification shouldn't be a problem
-                    verify: true,
+                open={open && !isForgotPasswordOpen}
+                onClose={onClose}
+                title="Unlock wallet"
+                confirmText="Unlock wallet"
+                cancelText="Back"
+                showForgotPassword={true}
+                onForgotPassword={() => {
+                    setForgotPasswordOpen(true);
                 }}
+                onSubmit={async (password: string) => {
+                    await backgroundService.unlockAllAccountsAndSources({
+                        password,
+                    });
+                    toast('Wallet unlocked');
+                    onSuccess();
+                }}
+                // this is not necessary for unlocking but will show the wrong password error as a form error
+                // so doing it like this to keep it simple. The extra verification shouldn't be a problem
+                verify={true}
             />
             <ForgotPasswordDialog isOpen={isForgotPasswordOpen} setOpen={setForgotPasswordOpen} />
         </>
