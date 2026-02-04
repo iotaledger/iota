@@ -192,6 +192,7 @@ impl Epoch {
 
     // TODO: Implement when IotaSystemState type is available in iota-sdk-types.
     // Use `system_state_bcs()` for raw bytes access in the meantime.
+    // See https://github.com/iotaledger/iota/issues/10077
     //
     // pub fn system_state(&self) -> Result<iota_sdk_types::IotaSystemState,
     // TryFromProtoError> {     ...
@@ -200,6 +201,7 @@ impl Epoch {
     // TODO: Implement when ProtocolConfig conversion is available.
     // Use `protocol_version()`, `feature_flags()`, and `protocol_attributes()`
     // for individual field access in the meantime.
+    // See https://github.com/iotaledger/iota/issues/10077
     //
     // pub fn protocol_config(&self) -> Result<iota_protocol_config::ProtocolConfig,
     // TryFromProtoError> {     ...
@@ -235,6 +237,7 @@ impl ProtocolConfig {
     // TODO: Implement when ProtocolConfig conversion is available.
     // Use `version()`, `flags()`, and `attrs()` for individual field access in the
     // meantime.
+    // See https://github.com/iotaledger/iota/issues/10077
     //
     // pub fn to_protocol_config(&self) ->
     // Result<iota_protocol_config::ProtocolConfig, TryFromProtoError> {     ...
