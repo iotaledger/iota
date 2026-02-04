@@ -8,7 +8,7 @@ import ImportAWalletDark from '_assets/images/onboarding/import-a-wallet-darkmod
 import { Card, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
 import { AccountsFormType, PageTemplate } from '_components';
 import { useAppSelector, useCreateAccountsMutation } from '_hooks';
-import { AppType } from '../../redux/slices/app/appType';
+import { ExtensionViewType } from '../../redux/slices/app/appType';
 import { ImportPass, Key, Passkey, Firefly } from '@iota/apps-ui-icons';
 import { openInNewTab } from '_src/shared/utils';
 import { type ActionCardItem, OnboardingCardIcon } from './AddAccountPage';
@@ -19,7 +19,11 @@ export function ImportExistingWallet() {
     const { theme } = useTheme();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const isPopup = useAppSelector((state) => state.app.appType === AppType.Popup);
+    const isPopupOrSidePanel = useAppSelector((state) =>
+        [ExtensionViewType.Popup, ExtensionViewType.SidePanel].includes(
+            state.app.extensionViewType,
+        ),
+    );
     const createAccountsMutation = useCreateAccountsMutation();
     const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';
     const network = useAppSelector(({ app }) => app.network);
@@ -74,8 +78,9 @@ export function ImportExistingWallet() {
                 ampli.clickedCreatePasskey({ sourceFlow });
                 const flowType = 'import';
                 const url = `/accounts/passkey-account?flowType=${flowType}`;
-                if (isPopup) {
+                if (isPopupOrSidePanel) {
                     openInNewTab(url);
+                    window.close();
                 } else {
                     navigate(url);
                 }
