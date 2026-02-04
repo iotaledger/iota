@@ -1881,7 +1881,7 @@ impl TryFrom<Command> for crate::transaction::Command {
             Command::Upgrade(upgrade) => Self::Upgrade(
                 upgrade.modules,
                 upgrade.dependencies,
-                upgrade.package.into(),
+                upgrade.package,
                 upgrade.ticket.into(),
             ),
             _ => unimplemented!("a new enum variant was added and needs to be handled"),
@@ -2225,7 +2225,7 @@ pub fn struct_tag_core_to_sdk(value: &move_core_types::language_storage::StructT
     let address = Address::new(address.into_bytes());
     let module = Identifier::new(module.as_str()).unwrap();
     let name = Identifier::new(name.as_str()).unwrap();
-    let type_params = type_params.into_iter().map(type_tag_core_to_sdk).collect();
+    let type_params = type_params.iter().map(type_tag_core_to_sdk).collect();
     StructTag::new(address, module, name, type_params)
 }
 

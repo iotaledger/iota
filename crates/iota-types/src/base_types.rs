@@ -415,12 +415,12 @@ impl MoveObjectType {
 
 impl From<&StructTag> for MoveObjectType {
     fn from(s: &StructTag) -> Self {
-        Self(if GasCoin::is_gas_coin(&s) {
+        Self(if GasCoin::is_gas_coin(s) {
             MoveObjectType_::GasCoin
-        } else if Coin::is_coin(&s) {
+        } else if Coin::is_coin(s) {
             // unwrap safe because a coin has exactly one type parameter
             MoveObjectType_::Coin(s.type_params()[0].clone())
-        } else if StakedIota::is_staked_iota(&s) {
+        } else if StakedIota::is_staked_iota(s) {
             MoveObjectType_::StakedIota
         } else {
             MoveObjectType_::Other(s.clone())

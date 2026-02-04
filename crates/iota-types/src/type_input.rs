@@ -225,8 +225,8 @@ impl TypeInput {
                     .collect::<Result<_>>()?;
                 T::Struct(Box::new(StructTag::new(
                     *address,
-                    Identifier::new(module.to_owned())?,
-                    Identifier::new(name.to_owned())?,
+                    Identifier::new(module)?,
+                    Identifier::new(name)?,
                     type_params,
                 )))
             }

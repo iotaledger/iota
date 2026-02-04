@@ -827,8 +827,8 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
             .resolve_and_checks_json_args(
                 &mut pt_builder,
                 package_id,
-                &module,
-                &function_2,
+                module,
+                function_2,
                 &type_args,
                 iota_call_args_2,
             )
