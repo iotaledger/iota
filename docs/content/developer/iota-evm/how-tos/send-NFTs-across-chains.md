@@ -13,14 +13,19 @@ teams:
 
 ## Introduction
 
-[LayerZero ONFT V1FV](https://docs.layerzero.network/v1) enables cross-chain transfers of existing ERC721 tokens. For
+[LayerZero ONFT V2](https://docs.layerzero.network/v2/developers/evm/onft/quickstart) enables cross-chain transfers of existing ERC721 tokens. For
 testing purposes, the IOTA EVM Testnet is chosen as the source chain, while the BNB Testnet is chosen as the destination
 chain.
 
-:::info Community Libs
+:::info ONFT Package
 
-You can clone the Utilities for LayerZero ONFT V1
-from [IOTA Community GitHub Repository](https://github.com/iota-community/layerzero-onft-v1-utils).
+To use ONFT in your project, install the official LayerZero ONFT package:
+
+```bash
+npm install @layerzerolabs/onft-evm
+```
+
+See [@layerzerolabs/onft-evm](https://www.npmjs.com/package/@layerzerolabs/onft-evm) for package details.
 
 :::
 
@@ -31,84 +36,71 @@ according to their specific needs, preferences, and circumstances.
 
 ### Enable the Existing ERC721 Tokens for Cross-Chain Sending
 
-To enable the existing ERC721 tokens for cross-chain sending, you will need the `ProxyONFT` contract on the source
-chain,
-and the ONFT contract on the destination chain) are needed.
+To enable the existing ERC721 tokens for cross-chain sending, you will need the `ONFT721Adapter` contract on the source
+chain, and the `ONFT721` contract on the destination chain.
 
-The origin NFT token will be locked in the `ProxyONFT` contract so that the ONFT-wrapped tokens will be minted on the
+The origin NFT token will be locked in the `ONFT721Adapter` contract so that the ONFT-wrapped tokens will be minted on the
 destination chain. If the NFT token already exists on the destination chain (i.e., when the ONFT-wrapped token on
 the destination chain is sent back to the source chain), no new token minting will happen. Instead, the NFT tokens will be
-transferred from the ONFT contract to the user's wallet address. Relevant code
+transferred from the `ONFT721` contract to the user's wallet address.
 
-### Enable Cross-Chain Sending for Unloached ERC721 NFTs
+### Enable Cross-Chain Sending for New ERC721 NFTs
 
-If you are launching a new ERC721 token, you can use the ONFT standard to enable cross-chain sending without the need of
-`ProxyONFT`. As with existing tokens, the NFT will be locked on the source chain and minted or transferred on the destination chain.
+If you are launching a new ERC721 token, you can use the `ONFT721` standard to enable cross-chain sending without the need of
+`ONFT721Adapter`. The NFT will be burned on the source chain and minted on the destination chain.
 
 :::info Contract Documentation
 
-- [ProxyONFT721](https://docs.layerzero.network/v1/developers/evm/evm-guides/contract-standards/721#proxyonft721sol)
-- [ProxyONFT1155](https://docs.layerzero.network/v1/developers/evm/evm-guides/contract-standards/1155#proxyonft1155sol)
-- [ONFT721](https://docs.layerzero.network/v2/developers/evm/onft/quickstart)
-- [ONFT1155](https://docs.layerzero.network/v1/developers/evm/evm-guides/contract-standards/1155#onft1155sol)
+- [ONFT721Adapter](https://docs.layerzero.network/v2/developers/evm/onft/quickstart#onft721adapter-implementation)
+- [ONFT721](https://docs.layerzero.network/v2/developers/evm/onft/quickstart#onft721-implementation)
 
 :::
 
 ## Scripts
 
-### Deploy the ProxyONFT and ONFT Contracts
+### Deploy the ONFT721Adapter and ONFT721 Contracts
 
 #### For ERC721
 
-- MyProxyONFT721.sol:
+- MyONFT721Adapter.sol (on source chain where original ERC721 exists):
   - CTOR:
-    - [`minGasToTransferAndStore`](https://github.com/LayerZero-Labs/solidity-examples/blob/main/contracts/token/onft721/ONFT721Core.sol#L169):
-      The minimum gas needed to transfer and store your NFT is typically 100k for ERC721. This value would vary
-      depending on your contract complexity; it's recommended to test. If this value is set too low, the destination
-      tx will fail, and a manual retry is needed.
-    - `lzEndpoint`: LayerZero Endpoint on the source chain.
-    - `proxyToken`: deployed contract address of the NFT tokens on the source chain.
+    - `_token`: deployed contract address of the existing ERC721 tokens on the source chain.
+    - `_lzEndpoint`: LayerZero Endpoint V2 on the source chain.
+    - `_delegate`: owner/governance address for OApp configurations.
 
-- MyONFT721.sol:
+- MyONFT721.sol (on destination chain):
   - CTOR:
-    - `name`: name of the ONFT-wrapped tokens on the destination chain
-    - `symbol`: symbol of the ONFT-wrapped tokens on the destination chain
-    - [`minGasToTransferAndStore`](https://github.com/LayerZero-Labs/solidity-examples/blob/main/contracts/token/onft721/ONFT721Core.sol#L169):
-      The minimum gas needed to transfer and store your NFT typically 100k for ERC721. This value would vary
-      depending on your contract complexity; it's recommended to test. If this value is set too low, the destination
-      tx will fail, and a manual retry is needed.
-    - `lzEndpoint`: - lzEndpoint: LayerZero Endpoint on the destination chain
+    - `_name`: name of the ONFT-wrapped tokens on the destination chain
+    - `_symbol`: symbol of the ONFT-wrapped tokens on the destination chain
+    - `_lzEndpoint`: LayerZero Endpoint V2 on the destination chain
+    - `_delegate`: owner/governance address for OApp configurations.
 
-### Set the Trusted Remote
+### Set the Remote Peer
 
-For **existing ERC721 tokens**, the `ProxyONFT` and `ONFT` contract instances must be paired.
+For **existing ERC721 tokens**, the `ONFT721Adapter` and `ONFT721` contract instances must be paired.
 
-For the **upcoming ERC721 tokens** that want to leverage the `ONFT` standard, the `ONFT` contract instance on the source chain
-needs to be paired with another `ONFT` contract instance on the destination chain.
+For the **new ERC721 tokens** that want to leverage the `ONFT721` standard, the `ONFT721` contract instance on the source chain
+needs to be paired with another `ONFT721` contract instance on the destination chain.
 
-You can set this using the [`setTrustedRemote`](https://github.com/LayerZero-Labs/solidity-examples/blob/main/contracts/lzApp/LzApp.sol#L138) method.
+You can set this using the [`setPeer`](https://docs.layerzero.network/v2/developers/evm/onft/quickstart#3-configure-peer-relationships) method.
 
-### Set the `minGasLimit`
+### Set Enforced Options
 
-Both the `ProxyONFT` and the `ONFT` contract instanceS need to be set for minimum gas on destination([`minGasLimit`](https://github.com/LayerZero-Labs/solidity-examples/blob/main/contracts/lzApp/LzApp.sol#L85C37-L85C48)).
+Both the `ONFT721Adapter` and the `ONFT721` contract instances need to be configured with enforced options for minimum gas on the destination chain.
 
-You can set his using the [`setMinDstGas`](https://github.com/LayerZero-Labs/solidity-examples/blob/main/contracts/lzApp/LzApp.sol#L159) method.
+You can set this using the [`setEnforcedOptions`](https://docs.layerzero.network/v2/developers/evm/onft/quickstart#4-configure-message-execution-options) method.
 
 :::info
 
-It is required that `minDstGas` <= `providedGasLimit`, which is to be set via `adapterParams` upon cross-chain sending on
-the source chain.
+The `enforcedOptions` define minimum gas requirements that every `send` must abide by (e.g., minimum gas for `lzReceive`).
 
 :::
 
-### Set the Batch Size Limit
+### Configure DVN (Recommended)
 
-Both the `ProxyONFT` and the `ONFT` contract instances need to set a limit for the batch size on the source
-chain to limit the number of tokens to be sent to another chain when using the
-[`sendBatchFrom`](https://github.com/LayerZero-Labs/solidity-examples/blob/c04e7d211b1b610f84761df943e6a38b0a53d304/contracts/token/onft721/ONFT721Core.sol#L67)
-method.
+Configure the Decentralized Verifier Network (DVN) settings for enhanced security. The `requiredDVNs` should be set on both chains.
 
-You can set this using the [`setDstChainIdToBatchLimit`](https://github.com/LayerZero-Labs/solidity-examples/blob/c04e7d211b1b610f84761df943e6a38b0a53d304/contracts/token/onft721/ONFT721Core.sol#L194) method; the default value is 1.
+See [DVN Configuration](https://docs.layerzero.network/v2/developers/evm/configuration/dvn-executor-config) for details.
 
 ## How To Send Tokens From a Source Chain to a Destination Chain (and Vice-Versa)
 
@@ -116,13 +108,13 @@ You can set this using the [`setDstChainIdToBatchLimit`](https://github.com/Laye
 
 #### From the Source Chain to the Destination Chain
 
-For the existing ERC721 tokens, you will need the `ProxyONFT` contract on the source chain and the `ONFT` contract on
+For the existing ERC721 tokens, you will need the `ONFT721Adapter` contract on the source chain and the `ONFT721` contract on
 the destination chain. The procedure is as follows:
 
-1. The sender approves his ERC721 tokens for the `ProxyONFT` contract.
-2. The sender calls the function [`estimateSendFee()`](https://github.com/LayerZero-Labs/solidity-examples/blob/main/contracts/token/onft721/interfaces/IONFT721Core.sol#L70) of the ProxyONFT contract to estimate cross-chain fee to be paid in
+1. The sender approves his ERC721 tokens for the `ONFT721Adapter` contract.
+2. The sender calls the function [`quoteSend()`](https://docs.layerzero.network/v2/developers/evm/onft/quickstart#estimating-gas-fees) of the ONFT721Adapter contract to estimate cross-chain fee to be paid in
    native on the source chain.
-3. The sender calls the function [`sendFrom()`](https://github.com/LayerZero-Labs/solidity-examples/blob/main/contracts/token/onft721/interfaces/IONFT721Core.sol#L36) of the ProxyONFT contract to transfer tokens on source chain to destination
+3. The sender calls the function [`send()`](https://docs.layerzero.network/v2/developers/evm/onft/quickstart#sending-nfts-across-chains) of the ONFT721Adapter contract to transfer tokens on source chain to destination
    chain.
 4. (Optional) Wait for the transaction finalization on the destination chain by using the
    [@layerzerolabs/scan-client](https://www.npmjs.com/package/@layerzerolabs/scan-client#example-usage) library.
@@ -130,247 +122,143 @@ the destination chain. The procedure is as follows:
 #### From the Destination Chain Back to the Source Chain
 
 To send back the ONFT-wrapped tokens on the destination chain to the source chain, the procedure is similar as the
-approve step is also required, but the operations will happen on the `ONFT` contract.
+approve step is also required, but the operations will happen on the `ONFT721` contract.
 
 #### References and Tools
 
-##### `AdapterParams`
+##### `SendParam` and Options
 
-- You can use the [LayerZero Repository](https://github.com/LayerZero-Labs/solidity-examples/blob/main/contracts/lzApp/libs/LzLib.sol#L44) as a reference to set gas drop on the destination in `adapterParams`.
-  - The provided gas drop must be `<=` the config one. Otherwise, you will get [`dstNativeAmt` too large](https://github.com/LayerZero-Labs/solidity-examples/blob/main/contracts/lzApp/mocks/LZEndpointMock.sol#L413) error.
-- You can use the [LayerZero Repository](https://github.com/LayerZero-Labs/solidity-examples/blob/main/contracts/lzApp/libs/LzLib.sol#L34) as a reference to set default `adapterParams` without needing a gas drop.
+- You can use the [LayerZero Options Builder](https://docs.layerzero.network/v2/developers/evm/gas-settings/options) to configure `extraOptions` in the `SendParam` struct.
+- For gas drop on the destination, use `addExecutorNativeDropOption()` in the options builder.
 
 ##### LayerZero
 
-- [LayerZero Endpoint V1](https://docs.layerzero.network/v1/developers/technical-reference/mainnet/mainnet-addresses)
-- [LayerZero explorer](https://Testnet.layerzeroscan.com/)
+- [LayerZero Endpoint V2](https://docs.layerzero.network/v2/deployments/deployed-contracts)
+- [LayerZero explorer](https://layerzeroscan.com/)
 
-### Install the Library
+### Create a New ONFT Project
 
-After you have cloned
-the [IOTA Community Utilities for LayerZero ONFT V2 repository](https://github.com/iota-community/layerzero-onft-v1-utils),
-you should run the following command to install:
+The easiest way to get started is using the LayerZero CLI:
 
 ```bash
-yarn
+npx create-lz-oapp@latest
+```
+
+When prompted, choose `ONFT721` as the starting point. This will create both `ONFT721` and `ONFT721Adapter` contracts for your project.
+
+Alternatively, add the ONFT package to an existing project:
+
+```bash
+npm install @layerzerolabs/onft-evm
 ```
 
 ### Compile the Contracts
 
-If you want to use the standard implementation for ERC20, copy
-the [`contracts-standard`](https://github.com/iota-community/layerzero-oft-v2-utils/blob/main/contracts-standard) folder
-to `contracts`. If you want to use a custom implementation, copy
-the [`contracts-wiota`](https://github.com/iota-community/layerzero-oft-v2-utils/tree/main/contracts-wiota)
-to `contracts`. Then, run the following command to compile the contracts:
+After setting up your project, compile the contracts:
 
 ```bash
-yarn compile
+npx hardhat compile
 ```
 
 ### Set Your Configuration
 
-You should copy the
-template [`.env.example`](https://github.com/iota-community/layerzero-onft-V1-utils/blob/main/.env.example) file to a
-file called `.env`, and edit any of the configuration options you see fit.
+Copy the `.env.example` file to `.env` and configure your private key and RPC endpoints:
 
 ```bash
 cp .env.example .env
 ```
 
+Update `hardhat.config.ts` to include IOTA EVM network configuration:
+
+```typescript
+iotaEvmTestnet: {
+  eid: EndpointId.IOTA_V2_TESTNET,
+  url: 'https://json-rpc.evm.testnet.iotaledger.net',
+  accounts: [process.env.PRIVATE_KEY],
+},
+iotaEvmMainnet: {
+  eid: EndpointId.IOTA_V2_MAINNET,
+  url: 'https://json-rpc.evm.iotaledger.net',
+  accounts: [process.env.PRIVATE_KEY],
+},
+```
+
 ### Deploy the Contracts
 
-#### Deploy a mock ERC721
+Use the LayerZero CLI to deploy your contracts:
 
 ```bash
-yarn deploy-ERC721-mock-smr-Testnet
+npx hardhat lz:deploy
 ```
 
-Expected log output :
+You'll be prompted to select which chains to deploy to. For this example:
+- Deploy `ONFT721Adapter` on IOTA EVM (source chain where original ERC721 exists)
+- Deploy `ONFT721` on BNB Testnet (destination chain)
+
+### Wire the Contracts (Set Peers)
+
+After deployment, connect your contracts across chains:
 
 ```bash
-npx hardhat run scripts/deploy_ERC721.ts --network iotaEvmTestnet
-Deployed ERC721Mock contract address:0xFddbA8928a763679fb8C99d12541B7c6177e9c3c
-Done in 4.49s.
+npx hardhat lz:oapp:wire --oapp-config layerzero.config.ts
 ```
 
-#### Deploy `ProxyONFT721` on the source chain
+This command automatically calls `setPeer` on each contract to establish trust between ONFT contracts on different chains.
 
-You can use the following command to deploy ProxyONFT721 on the source chain (e.g., IOTA EVM Testnet):
+### Verify Setup
+
+Verify that the peers were configured correctly:
 
 ```bash
-yarn deploy-proxy-onft-smr-Testnet
+npx hardhat lz:oapp:peers:get --oapp-config layerzero.config.ts
 ```
 
-Expected log output :
+### Configure Enforced Options (Optional)
 
-```bash
-npx hardhat run scripts/deploy_proxy_onft721.ts --network iotaEvmTestnet
-Deployed MyProxyONFT721 contract address:0x7B0D46219C915e7Ff503C7F83a805c0b2F4ab2F2
-Done in 4.50s.
+If you need custom gas settings, configure `enforcedOptions` in your `layerzero.config.ts`:
+
+```typescript
+import { Options } from '@layerzerolabs/lz-v2-utilities'
+
+// Enforce minimum 100,000 gas for lzReceive on destination
+const enforcedOptions = Options.newOptions()
+  .addExecutorLzReceiveOption(100_000, 0)
+  .toHex()
 ```
 
-#### Deploy `ProxyONFT721` on the destination chain
-
-You can use the following command to deploy ProxyONFT721 on the destination chain (e.g., BNB Testnet):
+Then run the wire command to apply:
 
 ```bash
-yarn set-min-dest-gas-onft-bnb-Testnet
+npx hardhat lz:oapp:wire --oapp-config layerzero.config.ts
 ```
 
-Expected log output :
+### Send NFTs Across Chains
+
+#### From IOTA EVM to Destination Chain
+
+Use the Hardhat task to send an NFT:
 
 ```bash
-export isForProxy=false && npx hardhat run scripts/set_min_destination_gas.ts --network bnbTestnet
-setMinDstGas - isForProxy:false, proxyONFTContractAddress:0x7B0D46219C915e7Ff503C7F83a805c0b2F4ab2F2, onftContractAddress:0xC617A0Bd9DC6093a304515d3dbFF4244333fDeBB, lzEndpointIdOnRemoteChain:10230, minDstGas:150000
-setMinDstGas (packetType 0) tx: 0xce044ded17daa77a8aefc3d39b99c5381216eb4057ddce6253affde6cda2091c
-setMinDstGas (packetType 1) tx: 0x3a26ae40ac058099bfd8b85910009a5e5e8b03f16a5f032b572827d48be8f2b0
-Done in 9.34s.
+npx hardhat send-nft \
+  --adapter <ONFT721Adapter_ADDRESS> \
+  --dst-endpoint-id 30102 \
+  --recipient <RECIPIENT_ADDRESS> \
+  --token-id <TOKEN_ID> \
+  --network iotaEvmTestnet
 ```
 
-### Set the Minimum Destination Gas
+The task will:
+1. Approve the NFT for the adapter contract
+2. Call `quoteSend()` to estimate fees
+3. Call `send()` to transfer the NFT cross-chain
 
-#### On the source chain
-
-You can use the following command to set the minimum destination gas on the `ProxyONFT` contract on the source chain (e.g., IOTA EVM Testnet):
-
-```bash
-yarn set-min-dest-gas-proxy-onft-smr-Testnet
-```
-
-Expected log output :
+#### From Destination Chain Back to IOTA EVM
 
 ```bash
-export isForProxy=true && npx hardhat run scripts/set_min_destination_gas.ts --network iotaEvmTestnet
-setMinDstGas - isForProxy:true, proxyONFTContractAddress:0x7B0D46219C915e7Ff503C7F83a805c0b2F4ab2F2, onftContractAddress:0xC617A0Bd9DC6093a304515d3dbFF4244333fDeBB, lzEndpointIdOnRemoteChain:10102, minDstGas:150000
-setMinDstGas (packetType 0) tx: 0xcab06e9989448153a4bbc1bb166fc2d33467f3311d1851bf2ff719d982daa613
-setMinDstGas (packetType 1) tx: 0xe78fd3f0bf668fafbc423decd2cf14a27d74543af3ac9daf031f0b278c22ea78
-Done in 6.07s.
-```
-
-#### On the destination chain
-
-You can use the following command to set the minimum destination gas on the `ONFT` contract on the destination chain (e.g., BNB Testnet):
-
-```bash
-yarn set-min-dest-gas-onft-bnb-Testnet
-```
-
-Expected log output :
-
-```bash
-export isForProxy=false && npx hardhat run scripts/set_min_destination_gas.ts --network bnbTestnet
-setMinDstGas - isForProxy:false, proxyONFTContractAddress:0x7B0D46219C915e7Ff503C7F83a805c0b2F4ab2F2, onftContractAddress:0xC617A0Bd9DC6093a304515d3dbFF4244333fDeBB, lzEndpointIdOnRemoteChain:10230, minDstGas:150000
-setMinDstGas (packetType 0) tx: 0xce044ded17daa77a8aefc3d39b99c5381216eb4057ddce6253affde6cda2091c
-setMinDstGas (packetType 1) tx: 0x3a26ae40ac058099bfd8b85910009a5e5e8b03f16a5f032b572827d48be8f2b0
-Done in 9.34s.
-```
-
-### Set the batch size limit
-
-#### On the source chain
-
-You can use the following command to set batch size limits on the `ProxyONFT` contract on the source chain (e.g., IOTA EVM Testnet):
-
-```bash
-yarn set-batch-size-limit-proxy-onft-smr-Testnet
-```
-
-Expected log output :
-
-```bash
-export isForProxy=true && npx hardhat run scripts/set_batch_size_limit.ts --network iotaEvmTestnet
-setBatchSizeLimit - isForProxy:true, proxyONFTContractAddress:0x7B0D46219C915e7Ff503C7F83a805c0b2F4ab2F2, onftContractAddress:0xC617A0Bd9DC6093a304515d3dbFF4244333fDeBB, lzEndpointIdOnRemoteChain:10102, batchSizeLimit:1
-setBatchSizeLimit tx: 0x70c23b3d3d5e94ef82e50944f7eba93fa1fe8db3a5487ac371015e7a14482e75
-Done in 4.28s.
-```
-
-#### On the destination chain
-
-You can use the following command to set batch size limits on the `ONFT` contract on the destination chain (e.g., BNB Testnet):
-
-```bash
-yarn set-batch-size-limit-onft-bnb-Testnet
-```
-
-Expected log output :
-
-```bash
-export isForProxy=false && npx hardhat run scripts/set_batch_size_limit.ts --network bnbTestnet
-setBatchSizeLimit - isForProxy:false, proxyONFTContractAddress:0x7B0D46219C915e7Ff503C7F83a805c0b2F4ab2F2, onftContractAddress:0xC617A0Bd9DC6093a304515d3dbFF4244333fDeBB, lzEndpointIdOnRemoteChain:10230, batchSizeLimit:1
-setBatchSizeLimit tx: 0x8cb44c2195ac93da552c646677e6585c95ab172df19463637541933ec70dc9b8
-Done in 4.26s.
-```
-
-### Set the Trusted Remote
-
-#### On the source chain
-
-You can use the following command to set a trusted remote on the `ProxyONFT` contract on the source chain (e.g., IOTA EVM Testnet):
-
-```bash
-yarn set-remote-proxy-onft-smr-Testnet
-```
-
-Expected log output :
-
-```bash
-export isForProxy=true && npx hardhat run scripts/set_trusted_remote.ts --network iotaEvmTestnet
-setTrustedRemote - isForProxy:true, proxyONFTContractAddress:0x7B0D46219C915e7Ff503C7F83a805c0b2F4ab2F2, onftContractAddress:0xC617A0Bd9DC6093a304515d3dbFF4244333fDeBB, lzEndpointIdOnRemoteChain:10102
-setTrustedRemote tx: 0xce52c0f25090ef7c1668ef04ff2f6098551c9f56b3ce881d17181bf106457016
-Done in 4.24s.
-```
-
-##### On the destination chain
-
-You can use the following command to set a trusted remote on the `ONFT` contract on the destination chain (e.g., BNB Testnet):
-
-```bash
-yarn set-remote-onft-bnb-Testnet
-```
-
-Expected log output :
-
-```bash
-export isForProxy=false && npx hardhat run scripts/set_trusted_remote.ts --network bnbTestnet
-setTrustedRemote - isForProxy:false, proxyONFTContractAddress:0x7B0D46219C915e7Ff503C7F83a805c0b2F4ab2F2, onftContractAddress:0xC617A0Bd9DC6093a304515d3dbFF4244333fDeBB, lzEndpointIdOnRemoteChain:10230
-setTrustedRemote tx: 0x311a0568b5afce7d601df2613f8ff80428d8a4d2f2c91012e0e4a8cbc0aedf59
-Done in 4.88s.
-```
-
-### Send Origin Tokens From the Source Chain To the Destination Chain
-
-```bash
-yarn send-onft-from-smr-Testnet
-```
-
-Expected log output:
-
-```bash
-npx hardhat run scripts/send_onft.ts --network iotaEvmTestnet
-sendONFT - proxyONFTContractAddress:0x7B0D46219C915e7Ff503C7F83a805c0b2F4ab2F2, onftContractAddress:0xC617A0Bd9DC6093a304515d3dbFF4244333fDeBB, lzEndpointIdOnSrcChain:10230, lzEndpointIdOnDestChain:10102, gasDropInWeiOnDestChain:0, providedGasLimit:200000, receivingAccountAddress:0x5e812d3128D8fD7CEac08CEca1Cd879E76a6E028, sender: 0x57A4bD139Fb673D364A6f12Df9177A3f686625F3, nftTokenId:2, nftTokenAddress:0xFddbA8928a763679fb8C99d12541B7c6177e9c3c
-sendONFT - approve tx: 0xa871bc79e45bf20f33c626044d6e208460c5745ab1f13d476dcbe04e1da7e592
-sendONFT - estimated nativeFee: 158.319172348046094655
-sendONFT - send tx on source chain: 0x72779c7549053194e42bcc78f78cf65e876867f0516dc91f28986c854e652596
-Wait for cross-chain tx finalization by LayerZero ...
-sendONFT - received tx on destination chain: 0x2700a9d35c139eb84ba07b75490e6627a30e00bde130e3cb7c1cbb81c0326138
-Done in 53.50s.
-```
-
-### Send ONFT-Wrapped Tokens Back From the Destination Chain Back To the Origin Chain
-
-```bash
-yarn send-onft-back-from-bnb-Testnet
-```
-
-Expected log output:
-
-```bash
-npx hardhat run scripts/send_onft_back.ts --network bnbTestnet
-sendONFTBack - proxyONFTContractAddress:0x7B0D46219C915e7Ff503C7F83a805c0b2F4ab2F2, onftContractAddress:0xC617A0Bd9DC6093a304515d3dbFF4244333fDeBB, lzEndpointIdOnSrcChain:10230, lzEndpointIdOnDestChain:10102, gasDropInWeiOnDestChain:0, providedGasLimit:200000, receivingAccountAddress:0x57A4bD139Fb673D364A6f12Df9177A3f686625F3, sender: 0x60917645A28258a75836aF63633850c5F3561C1b, nftTokenId:2, nftTokenAddress:0xFddbA8928a763679fb8C99d12541B7c6177e9c3c
-sendONFTBack - approve tx: 0xe5bfff108528efdc67e72896845f0ad3e0186b4ed64835e7c5f3552eaab69d99
-sendONFTBack - estimated nativeFee: 0.000498452810033053
-sendONFTBack - send tx on source chain: 0xa43bb5547a5a35730fe183b4d554416a4ea34852e510d21f24d173db75db4e79
-Wait for cross-chain tx finalization by LayerZero ...
-sendONFTBack - received tx on destination chain: 0xb05fa2de194153819b26d17893278c485abbaf355fa24f26fbc7a4c759994cde
-Done in 212.16s.
+npx hardhat send-nft \
+  --adapter <ONFT721_ADDRESS> \
+  --dst-endpoint-id 30284 \
+  --recipient <RECIPIENT_ADDRESS> \
+  --token-id <TOKEN_ID> \
+  --network bnbTestnet
 ```
