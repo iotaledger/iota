@@ -5,6 +5,8 @@
 include!("../../../generated/iota.grpc.v0.types.rs");
 include!("../../../generated/iota.grpc.v0.types.field_info.rs");
 
+use crate::proto::TryFromProtoError;
+
 impl From<iota_sdk_types::Digest> for Digest {
     fn from(value: iota_sdk_types::Digest) -> Self {
         Self {
@@ -13,20 +15,12 @@ impl From<iota_sdk_types::Digest> for Digest {
     }
 }
 
-impl From<iota_types::digests::TransactionDigest> for Digest {
-    fn from(value: iota_types::digests::TransactionDigest) -> Self {
-        Self {
-            digest: value.into_inner().to_vec().into(),
-        }
-    }
-}
-
 impl TryFrom<&Digest> for iota_sdk_types::Digest {
-    type Error = crate::proto::TryFromProtoError;
+    type Error = TryFromProtoError;
 
     fn try_from(value: &Digest) -> Result<Self, Self::Error> {
         iota_sdk_types::Digest::from_bytes(&value.digest)
-            .map_err(|e| crate::proto::TryFromProtoError::invalid("digest", e))
+            .map_err(|e| TryFromProtoError::invalid("digest", e))
     }
 }
 
@@ -40,11 +34,11 @@ impl From<iota_sdk_types::Address> for Address {
 }
 
 impl TryFrom<&Address> for iota_sdk_types::Address {
-    type Error = crate::proto::TryFromProtoError;
+    type Error = TryFromProtoError;
 
     fn try_from(value: &Address) -> Result<Self, Self::Error> {
         iota_sdk_types::Address::from_bytes(&value.address)
-            .map_err(|e| crate::proto::TryFromProtoError::invalid("address", e))
+            .map_err(|e| TryFromProtoError::invalid("address", e))
     }
 }
 
@@ -60,28 +54,30 @@ impl From<iota_sdk_types::ObjectReference> for ObjectReference {
 }
 
 impl TryFrom<&ObjectReference> for iota_sdk_types::ObjectReference {
-    type Error = crate::proto::TryFromProtoError;
+    type Error = TryFromProtoError;
 
     fn try_from(value: &ObjectReference) -> Result<Self, Self::Error> {
-        let object_id_str = value.object_id.as_ref().ok_or_else(|| {
-            crate::proto::TryFromProtoError::missing(ObjectReference::OBJECT_ID_FIELD.name)
-        })?;
+        let object_id_str = value
+            .object_id
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing(ObjectReference::OBJECT_ID_FIELD.name))?;
 
-        let object_id = object_id_str.parse().map_err(|e| {
-            crate::proto::TryFromProtoError::invalid(ObjectReference::OBJECT_ID_FIELD.name, e)
-        })?;
+        let object_id = object_id_str
+            .parse()
+            .map_err(|e| TryFromProtoError::invalid(ObjectReference::OBJECT_ID_FIELD.name, e))?;
 
-        let version = value.version.ok_or_else(|| {
-            crate::proto::TryFromProtoError::missing(ObjectReference::VERSION_FIELD.name)
-        })?;
+        let version = value
+            .version
+            .ok_or_else(|| TryFromProtoError::missing(ObjectReference::VERSION_FIELD.name))?;
 
-        let digest = value.digest.as_ref().ok_or_else(|| {
-            crate::proto::TryFromProtoError::missing(ObjectReference::DIGEST_FIELD.name)
-        })?;
+        let digest = value
+            .digest
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing(ObjectReference::DIGEST_FIELD.name))?;
 
-        let digest = digest.try_into().map_err(|e| {
-            crate::proto::TryFromProtoError::invalid(ObjectReference::DIGEST_FIELD.name, e)
-        })?;
+        let digest = digest
+            .try_into()
+            .map_err(|e| TryFromProtoError::invalid(ObjectReference::DIGEST_FIELD.name, e))?;
 
         Ok(iota_sdk_types::ObjectReference {
             object_id,
@@ -92,21 +88,49 @@ impl TryFrom<&ObjectReference> for iota_sdk_types::ObjectReference {
 }
 
 impl Address {
-    pub fn address(&self) -> Result<iota_sdk_types::Address, crate::proto::TryFromProtoError> {
+    pub fn address(&self) -> Result<iota_sdk_types::Address, TryFromProtoError> {
         self.try_into()
     }
 }
 
 impl Digest {
-    pub fn digest(&self) -> Result<iota_sdk_types::Digest, crate::proto::TryFromProtoError> {
+    pub fn digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
         self.try_into()
     }
 }
 
 impl ObjectReference {
-    pub fn object_reference(
-        &self,
-    ) -> Result<iota_sdk_types::ObjectReference, crate::proto::TryFromProtoError> {
+    pub fn object_reference(&self) -> Result<iota_sdk_types::ObjectReference, TryFromProtoError> {
         self.try_into()
+    }
+}
+
+impl From<&iota_sdk_types::TypeTag> for TypeTag {
+    fn from(ty: &iota_sdk_types::TypeTag) -> Self {
+        let type_tag = match ty {
+            iota_sdk_types::TypeTag::Bool => type_tag::TypeTag::BoolTag(true),
+            iota_sdk_types::TypeTag::U8 => type_tag::TypeTag::U8Tag(true),
+            iota_sdk_types::TypeTag::U16 => type_tag::TypeTag::U16Tag(true),
+            iota_sdk_types::TypeTag::U32 => type_tag::TypeTag::U32Tag(true),
+            iota_sdk_types::TypeTag::U64 => type_tag::TypeTag::U64Tag(true),
+            iota_sdk_types::TypeTag::U128 => type_tag::TypeTag::U128Tag(true),
+            iota_sdk_types::TypeTag::U256 => type_tag::TypeTag::U256Tag(true),
+            iota_sdk_types::TypeTag::Address => type_tag::TypeTag::AddressTag(true),
+            iota_sdk_types::TypeTag::Signer => type_tag::TypeTag::SignerTag(true),
+            iota_sdk_types::TypeTag::Vector(inner) => {
+                type_tag::TypeTag::VectorTag(Box::new(TypeTagVector {
+                    inner_type: Some(Box::new(inner.as_ref().into())),
+                }))
+            }
+            iota_sdk_types::TypeTag::Struct(struct_tag) => {
+                type_tag::TypeTag::StructTag(TypeTagStruct {
+                    struct_tag: struct_tag.to_canonical_string(true),
+                })
+            }
+        };
+
+        Self {
+            type_tag: Some(type_tag),
+        }
     }
 }

@@ -19,9 +19,12 @@ import { useParams } from 'react-router-dom';
 import { PageMainLayoutTitle } from '../../shared/page-main-layout/PageMainLayoutTitle';
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import { Warning, Info } from '@iota/apps-ui-icons';
+import { ExtensionViewType } from '../../redux/slices/app/appType';
+import { SidePanel } from '_src/polyfills/sidepanel';
 
 export function SiteConnectPage() {
     const { requestID } = useParams();
+    const extensionViewType = useAppSelector((state) => state.app.extensionViewType);
     const permissionsInitialized = useAppSelector(({ permissions }) => permissions.initialized);
     const loading = !permissionsInitialized;
     const permissionSelector = useMemo(
@@ -47,6 +50,14 @@ export function SiteConnectPage() {
         return preselectedAccounts.concat(previouslyPermittedAccounts);
     });
 
+    function handleOnFinish() {
+        if (extensionViewType === ExtensionViewType.SidePanel) {
+            SidePanel.enableAndGoTo(`${location.pathname}`);
+        } else {
+            window.close();
+        }
+    }
+
     const handleOnSubmit = useCallback(
         async (allowed: boolean) => {
             if (requestID && accountsToConnect && permissionRequest) {
@@ -64,14 +75,14 @@ export function SiteConnectPage() {
                     applicationUrl: permissionRequest.origin,
                     approvedConnection: allowed,
                 });
-                window.close();
+                handleOnFinish();
             }
         },
         [requestID, accountsToConnect, permissionRequest, dispatch],
     );
     useEffect(() => {
         if (!loading && !permissionRequest) {
-            window.close();
+            handleOnFinish();
         }
     }, [loading, permissionRequest]);
 

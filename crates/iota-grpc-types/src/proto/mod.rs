@@ -82,6 +82,31 @@ impl TryFromProtoError {
     }
 }
 
+#[derive(Debug)]
+pub enum GrpcConversionError {
+    UnsupportedArgumentType { arg_type: String },
+    BcsSerializationFailed { message: String },
+}
+
+impl std::fmt::Display for GrpcConversionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnsupportedArgumentType { arg_type } => {
+                write!(
+                    f,
+                    "Unsupported argument type for gRPC conversion: {}",
+                    arg_type
+                )
+            }
+            Self::BcsSerializationFailed { message } => {
+                write!(f, "Failed to serialize BCS data: {}", message)
+            }
+        }
+    }
+}
+
+impl std::error::Error for GrpcConversionError {}
+
 // TimeStamp
 //
 

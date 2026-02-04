@@ -129,6 +129,14 @@ export default function OfflineSigner() {
                                 >
                                     Sign Transaction
                                 </Button>
+                                {/* Step 5: Add a new button for blake2b hash */}
+                                <Button
+                                    variant="secondary"
+                                    disabled={!bytes}
+                                    onClick={computeLedgerTransactionHash}
+                                >
+                                    Show Ledger Transaction Hash
+                                </Button>
                             </div>
 
                             <div className="justify-between md:justify-end flex gap-5">
