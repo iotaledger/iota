@@ -23,7 +23,7 @@ use iota_types::{
     event::EventID,
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     gas::GasCostSummary,
-    iota_sdk_types_conversions::type_tag_core_to_sdk,
+    iota_sdk_types_conversions::{struct_tag_sdk_to_core, type_tag_core_to_sdk},
     iota_serde::{
         BigInt, IotaTypeTag as AsIotaTypeTag, Readable, SequenceNumber as AsSequenceNumber,
     },
@@ -1219,7 +1219,12 @@ impl IotaTransactionBlockEvents {
                 .into_iter()
                 .enumerate()
                 .map(|(seq, event)| {
-                    let layout = resolver.get_annotated_layout(&event.type_)?;
+                    let type_ = struct_tag_sdk_to_core(&event.type_).map_err(|e| {
+                        IotaError::ObjectSerialization {
+                            error: e.to_string(),
+                        }
+                    })?;
+                    let layout = resolver.get_annotated_layout(&type_)?;
                     IotaEvent::try_from(event, tx_digest, seq as u64, timestamp_ms, layout)
                 })
                 .collect::<Result<_, _>>()?,
@@ -1240,7 +1245,12 @@ impl IotaTransactionBlockEvents {
                 .into_iter()
                 .enumerate()
                 .map(|(seq, event)| {
-                    let layout = get_layout_from_struct_tag(event.type_.clone(), resolver)?;
+                    let type_ = struct_tag_sdk_to_core(&event.type_).map_err(|e| {
+                        IotaError::ObjectSerialization {
+                            error: e.to_string(),
+                        }
+                    })?;
+                    let layout = get_layout_from_struct_tag(type_, resolver)?;
                     IotaEvent::try_from(event, tx_digest, seq as u64, timestamp_ms, layout)
                 })
                 .collect::<Result<_, _>>()?,

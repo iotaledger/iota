@@ -111,7 +111,7 @@ async fn execute_transaction(
     };
 
     let events = if parameters.events {
-        events.map(TryInto::try_into).transpose()?
+        events.map(Into::into)
     } else {
         None
     };
@@ -445,7 +445,7 @@ pub(super) fn simulate_transaction_impl(
         ));
     }
 
-    let events = events.map(TryInto::try_into).transpose()?;
+    let events = events.map(Into::into);
     let effects = effects.try_into()?;
 
     let input_objects = input_objects

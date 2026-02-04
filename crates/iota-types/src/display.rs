@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{StructTag, TypeTag};
+use iota_sdk_types::{Address, Identifier, StructTag, TypeTag};
+use move_core_types::{ident_str, identifier::IdentStr};
 use serde::Deserialize;
 
 use crate::{
@@ -30,6 +31,22 @@ pub struct DisplayVersionUpdatedEvent {
 }
 
 impl DisplayVersionUpdatedEvent {
+    pub fn type_(inner: &StructTag) -> StructTag {
+        StructTag::new(
+            Address::FRAMEWORK,
+            Identifier::new(DISPLAY_MODULE_NAME.as_str()).unwrap(),
+            Identifier::new(DISPLAY_VERSION_UPDATED_EVENT_NAME.as_str()).unwrap(),
+            vec![TypeTag::Struct(Box::new(inner.clone()))],
+        )
+    }
+
+    // Checks if the provided `StructTag` is a DisplayVersionUpdatedEvent<T>
+    pub fn is_display_updated_event(inner: &StructTag) -> bool {
+        inner.address() == Address::FRAMEWORK
+            && inner.module().as_str() == DISPLAY_MODULE_NAME.as_str()
+            && inner.name().as_str() == DISPLAY_VERSION_UPDATED_EVENT_NAME.as_str()
+    }
+
     // Checks if the provided `StructTag` is a DisplayVersionUpdatedEvent<T> and
     // returns a reference to the inner type T if so.
     pub fn inner_type(inner: &StructTag) -> Option<&StructTag> {
@@ -56,4 +73,15 @@ impl DisplayVersionUpdatedEvent {
 pub struct DisplayCreatedEvent {
     // The Object ID of Display Object
     pub id: ID,
+}
+
+impl DisplayCreatedEvent {
+    pub fn type_(inner: &StructTag) -> StructTag {
+        StructTag::new(
+            Address::FRAMEWORK,
+            Identifier::new(DISPLAY_MODULE_NAME.as_str()).unwrap(),
+            Identifier::new(DISPLAY_CREATED_EVENT_NAME.as_str()).unwrap(),
+            vec![TypeTag::Struct(Box::new(inner.clone()))],
+        )
+    }
 }

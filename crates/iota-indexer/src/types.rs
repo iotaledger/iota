@@ -183,7 +183,7 @@ impl IndexedEvent {
             transaction_digest,
             senders: vec![event.sender],
             package: event.package_id,
-            module: event.transaction_module.to_string(),
+            module: event.module.as_str().to_string(),
             event_type: event.type_.to_canonical_string(/* with_prefix */ true),
             event_type_package: event.type_.address().into(),
             event_type_module: event.type_.module().to_string(),

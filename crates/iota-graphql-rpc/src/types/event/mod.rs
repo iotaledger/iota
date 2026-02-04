@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::str::FromStr;
-
 use async_graphql::{
     connection::{Connection, CursorType, Edge},
     *,
@@ -20,6 +18,7 @@ use iota_indexer::{
 use iota_types::{
     base_types::{Identifier, IotaAddress as NativeIotaAddress, ObjectID},
     event::Event as NativeEvent,
+    iota_sdk_types_conversions::{struct_tag_core_to_sdk, struct_tag_sdk_to_core},
     parse_iota_struct_tag,
 };
 use lookups::{add_bounds, select_emit_module, select_event_type, select_sender};
@@ -109,7 +108,7 @@ impl Event {
         MoveModule::query(
             ctx,
             self.native.package_id.into(),
-            &self.native.transaction_module.to_string(),
+            self.native.module.as_str(),
             self.checkpoint_viewed_at,
         )
         .await
@@ -141,8 +140,10 @@ impl Event {
 
     #[graphql(flatten)]
     async fn move_value(&self) -> Result<MoveValue> {
+        let type_ = struct_tag_sdk_to_core(&self.native.type_)
+            .map_err(|e| Error::Internal(e.to_string()))?;
         Ok(MoveValue::new(
-            self.native.type_.clone().into(),
+            type_.into(),
             Base64::from(self.native.contents.clone()),
         ))
     }
@@ -309,16 +310,18 @@ impl Event {
             ObjectID::from_bytes(&stored.package).map_err(|e| Error::Internal(e.to_string()))?;
         let type_ = parse_iota_struct_tag(&stored.event_type)
             .map_err(|e| Error::Internal(e.to_string()))?;
-        let transaction_module =
-            Identifier::from_str(&stored.module).map_err(|e| Error::Internal(e.to_string()))?;
+        let module = iota_sdk_types::Identifier::new(&stored.module)
+            .map_err(|e| Error::Internal(e.to_string()))?;
+        let sdk_type_ =
+            struct_tag_core_to_sdk(type_).map_err(|e| Error::Internal(e.to_string()))?;
         let contents = stored.bcs.clone();
         Ok(Event {
             checkpointed_info: Some(checkpointed),
             native: NativeEvent {
                 sender,
                 package_id,
-                transaction_module,
-                type_,
+                module,
+                type_: sdk_type_,
                 contents,
             },
             checkpoint_viewed_at,

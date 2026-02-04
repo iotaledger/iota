@@ -5,8 +5,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, StructTag, TypeTag};
-use tap::Pipe;
+use iota_sdk_types::{Identifier, StructTag as SdkStructTag, TypeTag};
 
 use crate::{
     base_types::{
@@ -498,13 +497,13 @@ impl TestCheckpointDataBuilder {
                 protocol_version: protocol_config.version.as_u64(),
                 ..Default::default()
             };
-            Some(vec![Event::new(
-                IotaAddress::SYSTEM,
-                Identifier::from_static("iota_system_state_inner"),
-                TestCheckpointDataBuilder::derive_address(0),
-                StructTag::new_system_epoch_info_event(),
-                bcs::to_bytes(&system_epoch_info_event).unwrap(),
-            )])
+            Some(vec![Event {
+                package_id: ObjectID::SYSTEM_PACKAGE,
+                module: Identifier::from_static("iota_system_state_inner"),
+                sender: TestCheckpointDataBuilder::derive_address(0),
+                type_: StructTag::new_system_epoch_info_event(),
+                contents: bcs::to_bytes(&system_epoch_info_event).unwrap(),
+            }])
         } else {
             None
         };
@@ -601,7 +600,8 @@ impl TestCheckpointDataBuilder {
 mod tests {
     use std::str::FromStr;
 
-    use super::*;
+    use iota_sdk_types::ObjectID;
+
     use crate::transaction::{Command, ProgrammableMoveCall, TransactionDataAPI};
     #[test]
     fn test_basic_checkpoint_builder() {
@@ -909,13 +909,13 @@ mod tests {
     fn test_events() {
         let checkpoint = TestCheckpointDataBuilder::new(1)
             .start_transaction(0)
-            .with_events(vec![Event::new(
-                IotaAddress::ZERO,
-                Identifier::from_static("test"),
-                TestCheckpointDataBuilder::derive_address(0),
-                StructTag::new_gas(),
-                vec![],
-            )])
+            .with_events(vec![Event {
+                package_id: ObjectID::ZERO,
+                module: Identifier::from_static("test"),
+                sender: TestCheckpointDataBuilder::derive_address(0),
+                type_: StructTag::new_gas(),
+                contents: vec![],
+            }])
             .finish_transaction()
             .build_checkpoint();
         let tx = &checkpoint.transactions[0];
