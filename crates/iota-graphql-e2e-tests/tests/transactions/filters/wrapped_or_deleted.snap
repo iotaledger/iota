@@ -10,7 +10,7 @@ task 1, lines 6-29:
 //# publish
 created: object(1,0)
 mutated: object(0,3)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5981200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5981200, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 31-34:
 //# programmable --sender A --inputs 1 @A
@@ -19,7 +19,7 @@ task 2, lines 31-34:
 //> TransferObjects([Result(1)], Input(1))
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2530800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2530800, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, lines 36-38:
 //# programmable --sender A --inputs object(2,0) @A
@@ -28,14 +28,14 @@ task 3, lines 36-38:
 mutated: object(0,0)
 unwrapped: object(3,0)
 deleted: object(2,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2280000,  storage_rebate: 2530800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2280000, storage_rebate: 2530800, non_refundable_storage_fee: 0
 
 task 4, lines 40-41:
 //# programmable --sender A --inputs object(3,0)
 //> P::M::destroy(Input(0))
 mutated: object(0,0)
 deleted: object(3,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 2280000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400, storage_rebate: 2280000, non_refundable_storage_fee: 0
 
 task 5, line 43:
 //# create-checkpoint
@@ -64,7 +64,7 @@ task 7, lines 52-54:
 //> TransferObjects([Result(0)], Input(1))
 created: object(7,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2280000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2280000, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 8, lines 56-58:
 //# programmable --sender B --inputs object(7,0) @B
@@ -73,7 +73,7 @@ task 8, lines 56-58:
 created: object(8,0)
 mutated: object(0,1)
 wrapped: object(7,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2530800,  storage_rebate: 2280000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2530800, storage_rebate: 2280000, non_refundable_storage_fee: 0
 
 task 9, lines 60-62:
 //# programmable --sender B --inputs object(8,0)
@@ -82,7 +82,7 @@ task 9, lines 60-62:
 mutated: object(0,1)
 deleted: object(8,0)
 unwrapped_then_deleted: object(7,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 2530800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400, storage_rebate: 2530800, non_refundable_storage_fee: 0
 
 task 10, line 64:
 //# create-checkpoint
@@ -111,7 +111,7 @@ task 12, lines 76-78:
 //> TransferObjects([Result(0)], Input(1))
 created: object(12,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2280000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2280000, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 13, lines 80-82:
 //# programmable --sender C --inputs object(12,0) @C
@@ -120,7 +120,7 @@ task 13, lines 80-82:
 created: object(13,0)
 mutated: object(0,2)
 wrapped: object(12,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2530800,  storage_rebate: 2280000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2530800, storage_rebate: 2280000, non_refundable_storage_fee: 0
 
 task 14, lines 84-86:
 //# programmable --sender C --inputs object(13,0) @C
@@ -129,14 +129,14 @@ task 14, lines 84-86:
 mutated: object(0,2)
 unwrapped: object(12,0)
 deleted: object(13,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2280000,  storage_rebate: 2530800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2280000, storage_rebate: 2530800, non_refundable_storage_fee: 0
 
 task 15, lines 88-89:
 //# programmable --sender C --inputs object(12,0)
 //> P::M::destroy(Input(0))
 mutated: object(0,2)
 deleted: object(12,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 2280000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400, storage_rebate: 2280000, non_refundable_storage_fee: 0
 
 task 16, line 91:
 //# create-checkpoint
