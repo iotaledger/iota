@@ -14,14 +14,15 @@ use diesel::{
 };
 use iota_json_rpc_types::{
     BalanceChange, IotaEvent, IotaTransactionBlock, IotaTransactionBlockEffects,
-    IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
-    ObjectChange,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, ObjectChange,
 };
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
     digests::TransactionDigest,
-    effects::{TransactionEffects, TransactionEvents},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     event::Event,
+    execution_status::ExecutionStatus,
     transaction::SenderSignedData,
 };
 use move_core_types::{
@@ -475,7 +476,14 @@ impl StoredTransaction {
                 self.tx_sequence_number
             ))
         })?;
-        let effects = IotaTransactionBlockEffects::try_from(effects)?;
+        if let ExecutionStatus::Failure {
+            error,
+            command: Some(command),
+        } = effects.status()
+        {
+            todo!()
+        }
+        let mut effects = IotaTransactionBlockEffects::try_from(effects)?;
         Ok(effects)
     }
 
