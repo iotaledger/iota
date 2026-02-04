@@ -14,7 +14,7 @@ use iota_stardust_types::block::{
     },
 };
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID, TypeTag,
+    IOTA_FRAMEWORK_PACKAGE_ID, IdentifierRef, STARDUST_PACKAGE_ID, TypeTag,
     balance::Balance,
     base_types::{IotaAddress, TxContext},
     coin::Coin,
@@ -27,7 +27,7 @@ use iota_types::{
     transaction::{Argument, CheckedInputObjects, ObjectArg},
 };
 use move_binary_format::errors::VMError;
-use move_core_types::{ident_str, identifier::IdentStr, vm_status::StatusCode};
+use move_core_types::vm_status::StatusCode;
 use rand::random;
 
 use crate::stardust::{
@@ -107,9 +107,9 @@ fn object_migration_with_object_owner(
     output_id_owned: OutputId,
     total_supply: u64,
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
-    output_owner_module_name: &IdentStr,
-    output_owned_module_name: &IdentStr,
-    unlock_condition_function: &IdentStr,
+    output_owner_module_name: &IdentifierRef,
+    output_owned_module_name: &IdentifierRef,
+    unlock_condition_function: &IdentifierRef,
     coin_type: CoinType,
 ) -> anyhow::Result<()> {
     let (mut executor, objects_map) = run_migration(total_supply, outputs, coin_type)?;
@@ -140,7 +140,7 @@ fn object_migration_with_object_owner(
         let extracted_assets = builder.programmable_move_call(
             STARDUST_PACKAGE_ID,
             output_owner_module_name.into(),
-            ident_str!("extract_assets").into(),
+            IdentifierRef::const_new("extract_assets").into(),
             vec![coin_type.to_type_tag()],
             vec![owner_arg],
         );
@@ -155,7 +155,7 @@ fn object_migration_with_object_owner(
         let receiving_owned_arg = builder.obj(ObjectArg::Receiving(owned_output_object_ref))?;
         let received_owned_output = builder.programmable_move_call(
             STARDUST_PACKAGE_ID,
-            ident_str!("address_unlock_condition").into(),
+            IdentifierRef::const_new("address_unlock_condition").into(),
             unlock_condition_function.into(),
             vec![coin_type.to_type_tag()],
             vec![owned_arg, receiving_owned_arg],
@@ -163,8 +163,8 @@ fn object_migration_with_object_owner(
 
         let coin_arg = builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("coin").into(),
-            ident_str!("from_balance").into(),
+            IdentifierRef::const_new("coin").into(),
+            IdentifierRef::const_new("from_balance").into(),
             vec![TypeTag::from_str(&format!(
                 "{IOTA_FRAMEWORK_PACKAGE_ID}::iota::IOTA"
             ))?],
@@ -175,8 +175,8 @@ fn object_migration_with_object_owner(
         // fact empty.
         builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("bag").into(),
-            ident_str!("destroy_empty").into(),
+            IdentifierRef::const_new("bag").into(),
+            IdentifierRef::const_new("destroy_empty").into(),
             vec![],
             vec![bag_arg],
         );
@@ -189,7 +189,7 @@ fn object_migration_with_object_owner(
         let extracted_assets = builder.programmable_move_call(
             STARDUST_PACKAGE_ID,
             output_owned_module_name.into(),
-            ident_str!("extract_assets").into(),
+            IdentifierRef::const_new("extract_assets").into(),
             vec![coin_type.to_type_tag()],
             vec![received_owned_output],
         );
@@ -202,8 +202,8 @@ fn object_migration_with_object_owner(
 
         let coin_arg = builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("coin").into(),
-            ident_str!("from_balance").into(),
+            IdentifierRef::const_new("coin").into(),
+            IdentifierRef::const_new("from_balance").into(),
             vec![TypeTag::from_str(&format!(
                 "{IOTA_FRAMEWORK_PACKAGE_ID}::iota::IOTA"
             ))?],
@@ -214,8 +214,8 @@ fn object_migration_with_object_owner(
         // fact empty.
         builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("bag").into(),
-            ident_str!("destroy_empty").into(),
+            IdentifierRef::const_new("bag").into(),
+            IdentifierRef::const_new("destroy_empty").into(),
             vec![],
             vec![bag_arg],
         );
@@ -247,7 +247,7 @@ fn extract_native_tokens_from_bag(
     output_id: OutputId,
     total_supply: u64,
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
-    module_name: &IdentStr,
+    module_name: &IdentifierRef,
     native_tokens: NativeTokens,
     expected_assets: ExpectedAssets,
     coin_type: CoinType,
@@ -290,7 +290,7 @@ fn extract_native_tokens_from_bag(
         let extracted_assets = builder.programmable_move_call(
             STARDUST_PACKAGE_ID,
             module_name.into(),
-            ident_str!("extract_assets").into(),
+            IdentifierRef::const_new("extract_assets").into(),
             vec![coin_type.to_type_tag()],
             vec![inner_object_arg],
         );
@@ -309,8 +309,8 @@ fn extract_native_tokens_from_bag(
 
         let gas_coin_arg = builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("coin").into(),
-            ident_str!("from_balance").into(),
+            IdentifierRef::const_new("coin").into(),
+            IdentifierRef::const_new("from_balance").into(),
             vec![coin_type.to_type_tag()],
             vec![balance_arg],
         );
@@ -321,8 +321,8 @@ fn extract_native_tokens_from_bag(
             let bag_key_arg = builder.pure(bag_key.clone())?;
             let token_balance_arg = builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
-                ident_str!("bag").into(),
-                ident_str!("remove").into(),
+                IdentifierRef::const_new("bag").into(),
+                IdentifierRef::const_new("remove").into(),
                 vec![
                     NATIVE_TOKEN_BAG_KEY_TYPE
                         .parse()
@@ -334,8 +334,8 @@ fn extract_native_tokens_from_bag(
 
             let minted_coin_arg = builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
-                ident_str!("coin").into(),
-                ident_str!("from_balance").into(),
+                IdentifierRef::const_new("coin").into(),
+                IdentifierRef::const_new("from_balance").into(),
                 vec![token_type_tag.clone()],
                 vec![token_balance_arg],
             );
@@ -347,8 +347,8 @@ fn extract_native_tokens_from_bag(
         // fact empty.
         builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("bag").into(),
-            ident_str!("destroy_empty").into(),
+            IdentifierRef::const_new("bag").into(),
+            IdentifierRef::const_new("destroy_empty").into(),
             vec![],
             vec![bag_arg],
         );
@@ -414,7 +414,7 @@ fn unlock_object(
     total_supply: u64,
     outputs: impl IntoIterator<Item = (OutputHeader, Output)>,
     sender: &IotaAddress,
-    module_name: &IdentStr,
+    module_name: &IdentifierRef,
     epoch_start_timestamp_ms: u64,
     expected_test_result: UnlockObjectTestResult,
     expected_assets: ExpectedAssets,
@@ -467,7 +467,7 @@ fn unlock_object(
         let extracted_assets = builder.programmable_move_call(
             STARDUST_PACKAGE_ID,
             module_name.into(),
-            ident_str!("extract_assets").into(),
+            IdentifierRef::const_new("extract_assets").into(),
             vec![coin_type.to_type_tag()],
             vec![inner_object_arg],
         );
@@ -480,8 +480,8 @@ fn unlock_object(
 
         let coin_arg = builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("coin").into(),
-            ident_str!("from_balance").into(),
+            IdentifierRef::const_new("coin").into(),
+            IdentifierRef::const_new("from_balance").into(),
             vec![coin_type.to_type_tag()],
             vec![balance_arg],
         );

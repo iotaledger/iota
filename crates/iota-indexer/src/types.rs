@@ -7,13 +7,13 @@ use iota_json_rpc_types::{
     ObjectChange,
 };
 use iota_types::{
+    StructTag,
     base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
     crypto::AggregateAuthoritySignature,
     digests::TransactionDigest,
     dynamic_field::DynamicFieldType,
     effects::TransactionEffects,
     event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
-    iota_serde::IotaStructTag,
     messages_checkpoint::{
         CheckpointCommitment, CheckpointDigest, CheckpointSequenceNumber, EndOfEpochData,
     },
@@ -21,7 +21,6 @@ use iota_types::{
     object::{Object, Owner},
     transaction::SenderSignedData,
 };
-use move_core_types::language_storage::StructTag;
 #[cfg(any(test, feature = "shared_test_runtime", feature = "pg_integration"))]
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -186,9 +185,9 @@ impl IndexedEvent {
             package: event.package_id,
             module: event.transaction_module.to_string(),
             event_type: event.type_.to_canonical_string(/* with_prefix */ true),
-            event_type_package: ObjectID::new(event.type_.address.into_bytes()),
-            event_type_module: event.type_.module.to_string(),
-            event_type_name: event.type_.name.to_string(),
+            event_type_package: event.type_.address().into(),
+            event_type_module: event.type_.module().to_string(),
+            event_type_name: event.type_.name().to_string(),
             bcs: event.contents.clone(),
             timestamp_ms,
         }
@@ -229,9 +228,9 @@ impl EventIndex {
             sender: event.sender,
             emit_package: event.package_id,
             emit_module: event.transaction_module.to_string(),
-            type_package: ObjectID::new(event.type_.address.into_bytes()),
-            type_module: event.type_.module.to_string(),
-            type_name: event.type_.name.to_string(),
+            type_package: event.type_.address().into(),
+            type_module: event.type_.module().to_string(),
+            type_name: event.type_.name().to_string(),
             type_instantiation,
         }
     }
@@ -487,7 +486,6 @@ pub enum IndexedObjectChange {
     Transferred {
         sender: IotaAddress,
         recipient: Owner,
-        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         version: SequenceNumber,
@@ -497,7 +495,6 @@ pub enum IndexedObjectChange {
     Mutated {
         sender: IotaAddress,
         owner: Owner,
-        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         version: SequenceNumber,
@@ -507,7 +504,6 @@ pub enum IndexedObjectChange {
     /// Delete object
     Deleted {
         sender: IotaAddress,
-        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         version: SequenceNumber,
@@ -515,7 +511,6 @@ pub enum IndexedObjectChange {
     /// Wrapped object
     Wrapped {
         sender: IotaAddress,
-        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         version: SequenceNumber,
@@ -524,7 +519,6 @@ pub enum IndexedObjectChange {
     Created {
         sender: IotaAddress,
         owner: Owner,
-        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         version: SequenceNumber,

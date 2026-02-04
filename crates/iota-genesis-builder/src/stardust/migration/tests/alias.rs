@@ -16,7 +16,7 @@ use iota_stardust_types::block::{
     },
 };
 use iota_types::{
-    TypeTag,
+    IdentifierRef, TypeTag,
     base_types::ObjectID,
     dynamic_field::{DynamicFieldInfo, derive_dynamic_field_id},
     id::UID,
@@ -29,7 +29,6 @@ use iota_types::{
         },
     },
 };
-use move_core_types::ident_str;
 
 use crate::stardust::{
     migration::tests::{
@@ -224,7 +223,7 @@ fn alias_migration_with_alias_owner() {
         ],
         ALIAS_OUTPUT_MODULE_NAME,
         ALIAS_OUTPUT_MODULE_NAME,
-        ident_str!("unlock_alias_address_owned_alias"),
+        IdentifierRef::const_new("unlock_alias_address_owned_alias"),
         CoinType::Iota,
     )
     .unwrap();
@@ -263,7 +262,7 @@ fn alias_migration_with_nft_owner() {
         ],
         NFT_OUTPUT_MODULE_NAME,
         ALIAS_OUTPUT_MODULE_NAME,
-        ident_str!("unlock_nft_address_owned_alias"),
+        IdentifierRef::const_new("unlock_nft_address_owned_alias"),
         CoinType::Iota,
     )
     .unwrap();

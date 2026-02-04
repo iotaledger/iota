@@ -16,7 +16,7 @@ use iota_json_rpc_types::{
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, TypeTag,
+    IOTA_FRAMEWORK_PACKAGE_ID, IdentifierRef, StructTag, TypeTag,
     balance::Supply,
     base_types::{IotaAddress, ObjectID},
     coin::{COIN_MODULE_NAME, CoinMetadata, TreasuryCap},
@@ -27,9 +27,6 @@ use iota_types::{
 };
 use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
-use move_core_types::{
-    account_address::AccountAddress, identifier::Identifier, language_storage::StructTag,
-};
 use test_cluster::TestCluster;
 use tokio::sync::OnceCell;
 
@@ -901,17 +898,17 @@ async fn create_migrated_coin_manager_coins(
                 .await
                 .object_id;
 
-        let guardian_type = StructTag {
-            address: AccountAddress::new(package_id.into_bytes()),
-            module: Identifier::new("coin_manager_coin").unwrap(),
-            name: Identifier::new("Guardian").unwrap(),
-            type_params: vec![TypeTag::Struct(Box::new(StructTag {
-                address: AccountAddress::new(package_id.into_bytes()),
-                module: Identifier::new("coin_manager_coin").unwrap(),
-                name: Identifier::new("COIN_MANAGER_COIN").unwrap(),
-                type_params: vec![],
-            }))],
-        };
+        let guardian_type = StructTag::new(
+            package_id.into(),
+            IdentifierRef::const_new("coin_manager_coin"),
+            IdentifierRef::const_new("Guardian"),
+            vec![TypeTag::Struct(Box::new(StructTag::new(
+                package_id.into(),
+                IdentifierRef::const_new("coin_manager_coin"),
+                IdentifierRef::const_new("COIN_MANAGER_COIN"),
+                vec![],
+            )))],
+        );
         let guardian = get_single_owned_object_by_type(http_client, address, guardian_type)
             .await
             .object_id;
@@ -948,17 +945,17 @@ async fn create_migrated_coin_manager_coins(
             .id
             .unwrap();
 
-        let guardian_type = StructTag {
-            address: AccountAddress::new(package_id.into_bytes()),
-            module: Identifier::new("immutable_metadata_coin_manager_coin").unwrap(),
-            name: Identifier::new("Guardian").unwrap(),
-            type_params: vec![TypeTag::Struct(Box::new(StructTag {
-                address: AccountAddress::new(package_id.into_bytes()),
-                module: Identifier::new("immutable_metadata_coin_manager_coin").unwrap(),
-                name: Identifier::new("IMMUTABLE_METADATA_COIN_MANAGER_COIN").unwrap(),
-                type_params: vec![],
-            }))],
-        };
+        let guardian_type = StructTag::new(
+            package_id.into(),
+            IdentifierRef::const_new("immutable_metadata_coin_manager_coin"),
+            IdentifierRef::const_new("Guardian"),
+            vec![TypeTag::Struct(Box::new(StructTag::new(
+                package_id.into(),
+                IdentifierRef::const_new("immutable_metadata_coin_manager_coin"),
+                IdentifierRef::const_new("IMMUTABLE_METADATA_COIN_MANAGER_COIN"),
+                vec![],
+            )))],
+        );
         let guardian = get_single_owned_object_by_type(http_client, address, guardian_type)
             .await
             .object_id;
@@ -990,7 +987,7 @@ async fn create_migrated_coin_manager_coins(
             http_client,
             address,
             account_keypair,
-            ObjectID::new(imm_coin_type.address.into_bytes()),
+            imm_coin_type.address().into(),
             "immutable_metadata_trusted_coin".to_string(),
             "hide_metadata".into(),
             type_args![immutable_metadata_coin_name].unwrap(),

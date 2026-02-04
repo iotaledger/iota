@@ -19,7 +19,8 @@ use iota_protocol_config::{
 use iota_sdk_types::Address;
 use iota_types::{
     IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
-    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_PACKAGE_ID,
+    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID, Identifier, IdentifierRef,
+    MOVE_STDLIB_PACKAGE_ID, StructTag,
     base_types::{AuthorityName, dbg_addr},
     crypto::{
         AccountKeyPair, AuthorityKeyPair, Signature, get_key_pair,
@@ -44,12 +45,6 @@ use iota_types::{
 use move_binary_format::{
     CompiledModule,
     file_format::{self, AddressIdentifierIndex, IdentifierIndex, ModuleHandle},
-};
-use move_core_types::{
-    account_address::AccountAddress,
-    ident_str,
-    identifier::{IdentStr, Identifier},
-    language_storage::{StructTag, TypeTag},
 };
 use rand::{
     Rng, SeedableRng,
@@ -181,8 +176,8 @@ async fn construct_shared_object_transaction_with_sequence_number(
     let data = TransactionData::new_move_call(
         sender,
         package.0,
-        ident_str!("object_basics").to_owned(),
-        ident_str!("set_value").to_owned(),
+        IdentifierRef::const_new("object_basics").to_owned(),
+        IdentifierRef::const_new("set_value").to_owned(),
         // type_args
         vec![],
         gas_object_ref,
@@ -546,8 +541,8 @@ async fn test_dev_inspect_dynamic_field() {
         ],
         commands: vec![Command::move_call(
             object_basics.0,
-            Identifier::new("object_basics").unwrap(),
-            Identifier::new("add_ofield").unwrap(),
+            IdentifierRef::const_new("object_basics").into(),
+            IdentifierRef::const_new("add_ofield").into(),
             vec![],
             vec![Argument::Input(0), Argument::Input(1)],
         )],
@@ -766,12 +761,12 @@ async fn test_dev_inspect_return_values() {
     assert!(mutable_reference_outputs.is_empty());
     assert_eq!(return_values.len(), 1);
     let (_return_value, return_type) = return_values.pop().unwrap();
-    let expected_type = TypeTag::Struct(Box::new(StructTag {
-        address: AccountAddress::new(object_basics.0.into_bytes()),
-        module: Identifier::new("object_basics").unwrap(),
-        name: Identifier::new("Wrapper").unwrap(),
-        type_params: vec![],
-    }));
+    let expected_type = TypeTag::Struct(Box::new(StructTag::new(
+        object_basics.0.into(),
+        IdentifierRef::const_new("object_basics"),
+        IdentifierRef::const_new("Wrapper"),
+        vec![],
+    )));
     let return_type: TypeTag = return_type.try_into().unwrap();
     assert_eq!(return_type, expected_type);
 }
@@ -897,8 +892,8 @@ async fn test_dev_inspect_uses_unbound_object() {
         builder
             .move_call(
                 object_basics.0,
-                Identifier::new("object_basics").unwrap(),
-                Identifier::new("freeze").unwrap(),
+                IdentifierRef::const_new("object_basics").into(),
+                IdentifierRef::const_new("freeze").into(),
                 vec![],
                 vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(
                     random_object_ref(),
@@ -1053,8 +1048,8 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
         inputs: vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(parent))],
         commands: vec![Command::move_call(
             object_basics.0,
-            Identifier::new("object_basics").unwrap(),
-            Identifier::new("remove_field").unwrap(),
+            IdentifierRef::const_new("object_basics").into(),
+            IdentifierRef::const_new("remove_field").into(),
             vec![],
             vec![Argument::Input(0)],
         )],
@@ -1111,8 +1106,8 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
         ],
         commands: vec![Command::move_call(
             object_basics.0,
-            Identifier::new("object_basics").unwrap(),
-            Identifier::new("create").unwrap(),
+            IdentifierRef::const_new("object_basics").into(),
+            IdentifierRef::const_new("create").into(),
             vec![],
             vec![Argument::Input(0), Argument::Input(1)],
         )],
@@ -1863,8 +1858,10 @@ async fn test_package_size_limit() {
     while modules_size <= max_move_package_size {
         let mut module = file_format::empty_module();
         // generate unique name
-        module.identifiers[0] =
-            Identifier::new(format!("TestModule{modules_size:0>21000?}")).unwrap();
+        module.identifiers[0] = move_core_types::identifier::Identifier::new(format!(
+            "TestModule{modules_size:0>21000?}"
+        ))
+        .unwrap();
         let module_bytes = {
             let mut bytes = Vec::new();
             module
@@ -2120,8 +2117,8 @@ async fn test_missing_package() {
     let data = TransactionData::new_move_call(
         sender,
         non_existent_package,
-        ident_str!("object_basics").to_owned(),
-        ident_str!("wrap").to_owned(),
+        IdentifierRef::const_new("object_basics").to_owned(),
+        IdentifierRef::const_new("wrap").to_owned(),
         vec![],
         gas_object_ref,
         vec![],
@@ -2168,8 +2165,8 @@ async fn test_type_argument_dependencies() {
     let data = TransactionData::new_move_call(
         s1,
         object_basics,
-        ident_str!("object_basics").to_owned(),
-        ident_str!("generic_test").to_owned(),
+        IdentifierRef::const_new("object_basics").to_owned(),
+        IdentifierRef::const_new("generic_test").to_owned(),
         vec![TypeTag::U64],
         gas1,
         vec![],
@@ -2189,14 +2186,14 @@ async fn test_type_argument_dependencies() {
     let data = TransactionData::new_move_call(
         s2,
         object_basics,
-        ident_str!("object_basics").to_owned(),
-        ident_str!("generic_test").to_owned(),
-        vec![TypeTag::Struct(Box::new(StructTag {
-            address: AccountAddress::new(object_basics.into_bytes()),
-            module: ident_str!("object_basics").to_owned(),
-            name: ident_str!("Object").to_owned(),
-            type_params: vec![],
-        }))],
+        IdentifierRef::const_new("object_basics").to_owned(),
+        IdentifierRef::const_new("generic_test").to_owned(),
+        vec![TypeTag::Struct(Box::new(StructTag::new(
+            object_basics.into(),
+            IdentifierRef::const_new("object_basics").to_owned(),
+            IdentifierRef::const_new("Object").to_owned(),
+            vec![],
+        )))],
         gas2,
         vec![],
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
@@ -2215,14 +2212,14 @@ async fn test_type_argument_dependencies() {
     let data = TransactionData::new_move_call(
         s3,
         object_basics,
-        ident_str!("object_basics").to_owned(),
-        ident_str!("generic_test").to_owned(),
-        vec![TypeTag::Struct(Box::new(StructTag {
-            address: AccountAddress::new(ObjectID::MAX.into_bytes()),
-            module: ident_str!("object_basics").to_owned(),
-            name: ident_str!("Object").to_owned(),
-            type_params: vec![],
-        }))],
+        IdentifierRef::const_new("object_basics").to_owned(),
+        IdentifierRef::const_new("generic_test").to_owned(),
+        vec![TypeTag::Struct(Box::new(StructTag::new(
+            ObjectID::MAX.into_bytes().into(),
+            IdentifierRef::const_new("object_basics").to_owned(),
+            IdentifierRef::const_new("Object").to_owned(),
+            vec![],
+        )))],
         gas3,
         vec![],
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
@@ -3069,8 +3066,8 @@ async fn test_invalid_mutable_clock_parameter() {
     let tx_data = TransactionData::new_move_call(
         sender,
         package_object_ref.0,
-        ident_str!("object_basics").to_owned(),
-        ident_str!("use_clock").to_owned(),
+        IdentifierRef::const_new("object_basics").to_owned(),
+        IdentifierRef::const_new("use_clock").to_owned(),
         // type_args
         vec![],
         gas_ref,
@@ -3118,8 +3115,8 @@ async fn test_invalid_authenticator_state_parameter() {
     let tx_data = TransactionData::new_move_call(
         sender,
         package_object_ref.0,
-        ident_str!("object_basics").to_owned(),
-        ident_str!("use_auth_state").to_owned(),
+        IdentifierRef::const_new("object_basics").to_owned(),
+        IdentifierRef::const_new("use_auth_state").to_owned(),
         // type_args
         vec![],
         gas_ref,
@@ -3174,8 +3171,8 @@ async fn test_invalid_randomness_parameter() {
     let tx_data = TransactionData::new_move_call(
         sender,
         package_object_ref.0,
-        ident_str!("object_basics").to_owned(),
-        ident_str!("use_random").to_owned(),
+        IdentifierRef::const_new("object_basics").to_owned(),
+        IdentifierRef::const_new("use_random").to_owned(),
         // type_args
         vec![],
         gas_ref,
@@ -3266,8 +3263,8 @@ async fn test_valid_immutable_clock_parameter() {
     let tx_data = TransactionData::new_move_call(
         sender,
         package_object_ref.0,
-        ident_str!("object_basics").to_owned(),
-        ident_str!("use_clock").to_owned(),
+        IdentifierRef::const_new("object_basics").to_owned(),
+        IdentifierRef::const_new("use_clock").to_owned(),
         // type_args
         vec![],
         gas_ref,
@@ -3497,8 +3494,8 @@ async fn test_store_revert_wrap_move_call() {
         TransactionData::new_move_call(
             sender,
             object_basics.0,
-            ident_str!("object_basics").to_owned(),
-            ident_str!("wrap").to_owned(),
+            IdentifierRef::const_new("object_basics").to_owned(),
+            IdentifierRef::const_new("wrap").to_owned(),
             vec![],
             create_effects.gas_object().0,
             vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(object_v0))],
@@ -3597,8 +3594,8 @@ async fn test_store_revert_unwrap_move_call() {
         TransactionData::new_move_call(
             sender,
             object_basics.0,
-            ident_str!("object_basics").to_owned(),
-            ident_str!("unwrap").to_owned(),
+            IdentifierRef::const_new("object_basics").to_owned(),
+            IdentifierRef::const_new("unwrap").to_owned(),
             vec![],
             wrap_effects.gas_object().0,
             vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(wrapper_v0))],
@@ -3644,14 +3641,14 @@ async fn test_store_revert_unwrap_move_call() {
 
 #[tokio::test]
 async fn test_store_get_dynamic_object() {
-    let (_, fields) = create_and_retrieve_df_info(ident_str!("add_ofield")).await;
+    let (_, fields) = create_and_retrieve_df_info(IdentifierRef::const_new("add_ofield")).await;
     assert_eq!(fields.len(), 1);
     assert_eq!(fields[0].type_, DynamicFieldType::DynamicObject);
 }
 
 #[tokio::test]
 async fn test_store_get_dynamic_field() {
-    let (_, fields) = create_and_retrieve_df_info(ident_str!("add_field")).await;
+    let (_, fields) = create_and_retrieve_df_info(IdentifierRef::const_new("add_field")).await;
 
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicField));
@@ -3659,7 +3656,9 @@ async fn test_store_get_dynamic_field() {
     assert_eq!(TypeTag::Bool, fields[0].name.type_)
 }
 
-async fn create_and_retrieve_df_info(function: &IdentStr) -> (IotaAddress, Vec<DynamicFieldInfo>) {
+async fn create_and_retrieve_df_info(
+    function: &IdentifierRef,
+) -> (IotaAddress, Vec<DynamicFieldInfo>) {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let gas_object_id = ObjectID::random();
     let (authority_state, object_basics) =
@@ -3702,7 +3701,7 @@ async fn create_and_retrieve_df_info(function: &IdentStr) -> (IotaAddress, Vec<D
         TransactionData::new_move_call(
             sender,
             object_basics.0,
-            ident_str!("object_basics").to_owned(),
+            IdentifierRef::const_new("object_basics").to_owned(),
             function.to_owned(),
             vec![],
             create_inner_effects.gas_object().0,
@@ -3737,7 +3736,8 @@ async fn create_and_retrieve_df_info(function: &IdentStr) -> (IotaAddress, Vec<D
 
 #[tokio::test]
 async fn test_dynamic_field_struct_name_parsing() {
-    let (_, fields) = create_and_retrieve_df_info(ident_str!("add_field_with_struct_name")).await;
+    let (_, fields) =
+        create_and_retrieve_df_info(IdentifierRef::const_new("add_field_with_struct_name")).await;
 
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicField));
@@ -3751,7 +3751,8 @@ async fn test_dynamic_field_struct_name_parsing() {
 #[tokio::test]
 async fn test_dynamic_field_bytearray_name_parsing() {
     let (_, fields) =
-        create_and_retrieve_df_info(ident_str!("add_field_with_bytearray_name")).await;
+        create_and_retrieve_df_info(IdentifierRef::const_new("add_field_with_bytearray_name"))
+            .await;
 
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicField));
@@ -3765,7 +3766,7 @@ async fn test_dynamic_field_bytearray_name_parsing() {
 #[tokio::test]
 async fn test_dynamic_field_address_name_parsing() {
     let (sender, fields) =
-        create_and_retrieve_df_info(ident_str!("add_field_with_address_name")).await;
+        create_and_retrieve_df_info(IdentifierRef::const_new("add_field_with_address_name")).await;
 
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicField));
@@ -3775,7 +3776,8 @@ async fn test_dynamic_field_address_name_parsing() {
 
 #[tokio::test]
 async fn test_dynamic_object_field_struct_name_parsing() {
-    let (_, fields) = create_and_retrieve_df_info(ident_str!("add_ofield_with_struct_name")).await;
+    let (_, fields) =
+        create_and_retrieve_df_info(IdentifierRef::const_new("add_ofield_with_struct_name")).await;
 
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicObject));
@@ -3789,7 +3791,8 @@ async fn test_dynamic_object_field_struct_name_parsing() {
 #[tokio::test]
 async fn test_dynamic_object_field_bytearray_name_parsing() {
     let (_, fields) =
-        create_and_retrieve_df_info(ident_str!("add_ofield_with_bytearray_name")).await;
+        create_and_retrieve_df_info(IdentifierRef::const_new("add_ofield_with_bytearray_name"))
+            .await;
 
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicObject));
@@ -3803,7 +3806,7 @@ async fn test_dynamic_object_field_bytearray_name_parsing() {
 #[tokio::test]
 async fn test_dynamic_object_field_address_name_parsing() {
     let (sender, fields) =
-        create_and_retrieve_df_info(ident_str!("add_ofield_with_address_name")).await;
+        create_and_retrieve_df_info(IdentifierRef::const_new("add_ofield_with_address_name")).await;
 
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicObject));
@@ -3862,8 +3865,8 @@ async fn test_store_revert_add_ofield() {
         TransactionData::new_move_call(
             sender,
             object_basics.0,
-            ident_str!("object_basics").to_owned(),
-            ident_str!("add_ofield").to_owned(),
+            IdentifierRef::const_new("object_basics").to_owned(),
+            IdentifierRef::const_new("add_ofield").to_owned(),
             vec![],
             create_inner_effects.gas_object().0,
             vec![
@@ -3992,8 +3995,8 @@ async fn test_store_revert_remove_ofield() {
         TransactionData::new_move_call(
             sender,
             object_basics.0,
-            ident_str!("object_basics").to_owned(),
-            ident_str!("remove_ofield").to_owned(),
+            IdentifierRef::const_new("object_basics").to_owned(),
+            IdentifierRef::const_new("remove_ofield").to_owned(),
             vec![],
             add_effects.gas_object().0,
             vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(outer_v1))],
@@ -4705,8 +4708,8 @@ async fn make_test_transaction(
     let data = TransactionData::new_move_call(
         *sender,
         IOTA_FRAMEWORK_PACKAGE_ID,
-        ident_str!(module).to_owned(),
-        ident_str!(function).to_owned(),
+        IdentifierRef::const_new(module).to_owned(),
+        IdentifierRef::const_new(function).to_owned(),
         // type_args
         vec![],
         *gas_object_ref,
@@ -4889,8 +4892,8 @@ async fn test_consensus_commit_prologue_generation() {
     let tx_data = TransactionData::new_move_call(
         sender,
         package_object_ref.0,
-        ident_str!("object_basics").to_owned(),
-        ident_str!("use_clock").to_owned(),
+        IdentifierRef::const_new("object_basics").to_owned(),
+        IdentifierRef::const_new("use_clock").to_owned(),
         // type_args
         vec![],
         gas_objects[0].compute_object_reference(),
@@ -5831,7 +5834,7 @@ async fn test_for_inc_201_dev_inspect() {
     assert_eq!(1, events.data.len());
     assert_eq!(
         "PublishEvent".to_string(),
-        events.data[0].type_.name.to_string()
+        events.data[0].type_.name().to_string()
     );
     assert_eq!(json!({"foo":"bar"}), events.data[0].parsed_json);
 }
@@ -5885,7 +5888,7 @@ async fn test_for_inc_201_dry_run() {
     assert_eq!(1, events.data.len());
     assert_eq!(
         "PublishEvent".to_string(),
-        events.data[0].type_.name.to_string()
+        events.data[0].type_.name().to_string()
     );
     assert_eq!(json!({"foo":"bar"}), events.data[0].parsed_json);
 }
@@ -5901,8 +5904,8 @@ async fn test_function_not_found() {
     builder
         .move_call(
             Address::STD.into(),
-            ident_str!("option").to_owned(),
-            ident_str!("bad_function").to_owned(),
+            IdentifierRef::const_new("option").to_owned(),
+            IdentifierRef::const_new("bad_function").to_owned(),
             vec![],
             vec![],
         )
@@ -5957,8 +5960,8 @@ async fn test_arity_mismatch() {
     builder
         .move_call(
             Address::STD.into(),
-            ident_str!("option").to_owned(),
-            ident_str!("is_none").to_owned(),
+            IdentifierRef::const_new("option").to_owned(),
+            IdentifierRef::const_new("is_none").to_owned(),
             vec![TypeTag::U64],
             vec![],
         )

@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use iota_types::{
+    StructTag,
     base_types::{IotaAddress, ObjectID, TransactionDigest},
     committee::{Committee, EpochId},
     digests::TransactionEventsDigest,
@@ -22,7 +23,6 @@ use iota_types::{
     },
     transaction::VerifiedTransaction,
 };
-use move_core_types::language_storage::StructTag;
 use parking_lot::Mutex;
 use tap::Pipe;
 use tracing::instrument;
@@ -533,7 +533,7 @@ impl RestStateReader for RestReadStore {
 
     fn get_struct_layout(
         &self,
-        struct_tag: &move_core_types::language_storage::StructTag,
+        struct_tag: &StructTag,
     ) -> Result<Option<move_core_types::annotated_value::MoveTypeLayout>> {
         self.state
             .load_epoch_store_one_call_per_task()

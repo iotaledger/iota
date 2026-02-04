@@ -9,6 +9,7 @@ use clap::*;
 use fastcrypto_zkp::{bn254::zk_login::OIDCProvider, zk_login_utils::Bn254FrElement};
 use iota_sdk_types::crypto::{Intent, IntentMessage, PersonalMessage};
 use iota_types::{
+    IdentifierRef, StructTag, TypeTag,
     base_types::{
         self, IotaAddress, MoveObjectType, MoveObjectType_, ObjectDigest, ObjectID,
         TransactionDigest, TransactionEffectsDigest,
@@ -48,9 +49,7 @@ use iota_types::{
     utils::DEFAULT_ADDRESS_SEED,
 };
 use move_core_types::{
-    account_address::AccountAddress,
-    identifier::Identifier,
-    language_storage::{ModuleId, StructTag, TypeTag},
+    account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
 };
 use pretty_assertions::assert_str_eq;
 use rand::{SeedableRng, rngs::StdRng};
@@ -192,7 +191,7 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_value(&mut samples, &tot).unwrap();
 
     let si = StructInput {
-        address: AccountAddress::ZERO,
+        address: IotaAddress::ZERO,
         module: "foo".to_owned(),
         name: "bar".to_owned(),
         type_params: vec![TypeInput::Bool],
@@ -203,7 +202,7 @@ fn get_registry() -> Result<Registry> {
     // Event while, sui's doesn't.
     let event = Event {
         package_id: ObjectID::random(),
-        transaction_module: Identifier::new("foo").unwrap(),
+        transaction_module: IdentifierRef::const_new("foo").to_owned(),
         sender: IotaAddress::ZERO,
         type_: struct_tag.clone(),
         contents: vec![0],

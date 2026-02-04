@@ -15,7 +15,7 @@ use iota_sdk::{
 };
 use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_types::{
-    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, TypeTag,
+    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, IdentifierRef, TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, Signature, Signer, get_key_pair},
     digests::TransactionDigest,
@@ -30,7 +30,6 @@ use iota_types::{
     },
     utils::to_sender_signed_transaction,
 };
-use move_core_types::ident_str;
 
 pub struct TestTransactionBuilder {
     test_data: TestTransactionData,
@@ -306,8 +305,8 @@ impl TestTransactionBuilder {
             TestTransactionData::Move(data) => TransactionData::new_move_call(
                 self.sender,
                 data.package_id,
-                ident_str!(data.module).to_owned(),
-                ident_str!(data.function).to_owned(),
+                IdentifierRef::const_new(data.module).to_owned(),
+                IdentifierRef::const_new(data.function).to_owned(),
                 data.type_args,
                 self.gas_object,
                 data.args,

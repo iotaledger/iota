@@ -1799,9 +1799,9 @@ mod checked {
             invariant_violation!("Loaded struct not found")
         };
         let (module_addr, module_name, struct_name) = get_datatype_ident(&s);
-        let is_tx_context_type = module_addr == &IOTA_FRAMEWORK_ADDRESS
-            && module_name == TX_CONTEXT_MODULE_NAME
-            && struct_name == TX_CONTEXT_STRUCT_NAME;
+        let is_tx_context_type = module_addr.as_ref() == IOTA_FRAMEWORK_ADDRESS.as_bytes()
+            && module_name.as_str() == TX_CONTEXT_MODULE_NAME.as_str()
+            && struct_name.as_str() == TX_CONTEXT_STRUCT_NAME.as_str();
         Ok(if is_tx_context_type {
             if is_mut {
                 TxContextKind::Mutable

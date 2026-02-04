@@ -16,7 +16,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
+    IOTA_FRAMEWORK_ADDRESS, Identifier, StructTag, TypeTag,
     base_types::{IotaAddress, MoveObjectType, ObjectID},
     collection_types::VecMap,
     crypto::deterministic_random_account_key,
@@ -30,11 +30,7 @@ use iota_types::{
     stardust::output::{Irc27Metadata, Nft},
     transaction::{CallArg, Command, ObjectArg, TransactionData},
 };
-use move_core_types::{
-    annotated_value::MoveValue,
-    identifier::Identifier,
-    language_storage::{StructTag, TypeTag},
-};
+use move_core_types::annotated_value::MoveValue;
 use test_cluster::TestClusterBuilder;
 #[sim_test]
 async fn test_nft_display_object() -> Result<(), anyhow::Error> {
@@ -595,12 +591,7 @@ async fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
         .get_owned_objects(
             address,
             Some(IotaObjectResponseQuery::new(
-                Some(IotaObjectDataFilter::StructType(StructTag {
-                    address: IOTA_FRAMEWORK_ADDRESS,
-                    module: Identifier::from_str("bag")?,
-                    name: Identifier::from_str("Bag")?,
-                    type_params: Vec::new(),
-                })),
+                Some(IotaObjectDataFilter::StructType(StructTag::new_bag())),
                 Some(
                     IotaObjectDataOptions::new()
                         .with_type()
@@ -669,12 +660,7 @@ async fn test_get_dynamic_field_object() -> Result<(), anyhow::Error> {
             Identifier::from_str("add")?,
             vec![
                 TypeTag::U64,
-                TypeTag::Struct(Box::new(StructTag {
-                    address: IOTA_FRAMEWORK_ADDRESS,
-                    module: Identifier::from_str("coin")?,
-                    name: Identifier::from_str("Coin")?,
-                    type_params: vec![GAS::type_tag()],
-                })),
+                TypeTag::Struct(Box::new(StructTag::new_gas_coin())),
             ],
             vec![bag, field_name_argument, field_value_argument],
         );
@@ -695,12 +681,7 @@ async fn test_get_dynamic_field_object() -> Result<(), anyhow::Error> {
         .get_owned_objects(
             address,
             Some(IotaObjectResponseQuery::new(
-                Some(IotaObjectDataFilter::StructType(StructTag {
-                    address: IOTA_FRAMEWORK_ADDRESS,
-                    module: Identifier::from_str("object_bag")?,
-                    name: Identifier::from_str("ObjectBag")?,
-                    type_params: Vec::new(),
-                })),
+                Some(IotaObjectDataFilter::StructType(StructTag::new_object_bag())),
                 Some(
                     IotaObjectDataOptions::new()
                         .with_type()

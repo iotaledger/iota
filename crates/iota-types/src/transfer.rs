@@ -18,7 +18,7 @@ const TRANSFER_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("transfer"
 const RECEIVING_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Receiving");
 
 pub const RESOLVED_RECEIVING_STRUCT: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &IOTA_FRAMEWORK_ADDRESS,
+    &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
     ident_str!(TRANSFER_MODULE_NAME.as_str()),
     ident_str!(RECEIVING_STRUCT_NAME.as_str()),
 );

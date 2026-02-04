@@ -58,7 +58,7 @@ fn publish_coin_factory(
                 .data
                 .struct_tag()
             {
-                stag.name.as_str().eq("TreasuryCap")
+                stag.name().as_str().eq("TreasuryCap")
             } else {
                 false
             }
@@ -115,7 +115,7 @@ pub fn run_pt_success(
                 .data
                 .struct_tag()
             {
-                stag.name.as_str().eq("TreasuryCap")
+                stag.name().as_str().eq("TreasuryCap")
             } else {
                 false
             }

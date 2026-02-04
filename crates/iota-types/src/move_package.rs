@@ -42,7 +42,7 @@ use std::{
 use derive_more::Display;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, IdentifierRef, StructTag};
+use iota_sdk_types::{IdentifierRef, StructTag};
 use move_binary_format::{
     binary_config::BinaryConfig, file_format::CompiledModule, file_format_common::VERSION_6,
     normalized,
@@ -585,7 +585,7 @@ impl MovePackage {
 
     pub fn deserialize_module(
         &self,
-        module: &Identifier,
+        module: &IdentifierRef,
         binary_config: &BinaryConfig,
     ) -> IotaResult<CompiledModule> {
         // TODO use the session's cache

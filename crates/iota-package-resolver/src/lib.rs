@@ -1243,7 +1243,7 @@ impl<'l> ResolutionContext<'l> {
         tag: &mut TypeTag,
         store: &S,
         visit_fields: bool,
-        visit_phantoms: bool,
+        #[expect(unused)] visit_phantoms: bool,
     ) -> Result<()> {
         use TypeTag as T;
 
@@ -1891,7 +1891,6 @@ mod tests {
     };
     use move_binary_format::file_format::Ability;
     use move_compiler::compiled_unit::NamedCompiledModule;
-    use move_core_types::ident_str;
 
     use super::*;
 
@@ -3122,7 +3121,7 @@ mod tests {
         Arc<RwLock<InnerStore>>,
         PackageStoreWithLruCache<InMemoryPackageStore>,
     ) {
-        let packages_by_storage_id: BTreeMap<AccountAddress, _> = packages
+        let packages_by_storage_id: BTreeMap<IotaAddress, _> = packages
             .into_iter()
             .map(|(version, package, origins)| {
                 (package_storage_id(&package), (version, package, origins))
@@ -3137,7 +3136,7 @@ mod tests {
                     .published
                     .values()
                     .map(|dep_id| {
-                        let storage_id = AccountAddress::new(dep_id.into_bytes());
+                        let storage_id = IotaAddress::from(*dep_id);
                         let runtime_id = package_runtime_id(
                             &packages_by_storage_id
                                 .get(&storage_id)
@@ -3206,23 +3205,28 @@ mod tests {
     }
 
     fn package_storage_id(package: &CompiledPackage) -> IotaAddress {
-        package
-            .published_at
-            .as_ref()
-            .unwrap_or_else(|_| {
-                panic!(
-                    "Package {} doesn't have published-at set",
-                    package.package.compiled_package_info.package_name,
-                )
-            })
-            .into()
+        IotaAddress::new(
+            package
+                .published_at
+                .as_ref()
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Package {} doesn't have published-at set",
+                        package.package.compiled_package_info.package_name,
+                    )
+                })
+                .into_bytes(),
+        )
     }
 
     fn package_runtime_id(package: &CompiledPackage) -> IotaAddress {
-        *package
-            .published_root_module()
-            .expect("No compiled module")
-            .address()
+        IotaAddress::new(
+            package
+                .published_root_module()
+                .expect("No compiled module")
+                .address()
+                .into_bytes(),
+        )
     }
 
     fn build_package(dir: &str) -> IotaResult<CompiledPackage> {

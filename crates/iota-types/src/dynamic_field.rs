@@ -107,7 +107,7 @@ impl Display for DynamicFieldType {
 
 impl DynamicFieldInfo {
     pub fn is_dynamic_field(tag: &StructTag) -> bool {
-        tag.is_field()
+        tag.is_dynamic_field()
     }
 
     pub fn is_dynamic_object_field_wrapper(tag: &StructTag) -> bool {
@@ -115,7 +115,7 @@ impl DynamicFieldInfo {
     }
 
     pub fn dynamic_field_type(key: TypeTag, value: TypeTag) -> StructTag {
-        StructTag::new_field(key, value)
+        StructTag::new_dynamic_field(key, value)
     }
 
     pub fn dynamic_object_field_wrapper(key: TypeTag) -> StructTag {

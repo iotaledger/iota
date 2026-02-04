@@ -324,7 +324,7 @@ fn from_module_id_and_event_id(
     Ok((
         ModuleId::new(
             AccountAddress::new(package.into_bytes()),
-            Identifier::from_str(tokens[1].trim())?,
+            move_core_types::identifier::Identifier::from_str(tokens[1].trim())?,
         ),
         (tx_seq, event_seq),
     ))

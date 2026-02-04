@@ -8,13 +8,13 @@ use fastcrypto::encoding::{Encoding, Hex};
 use iota_framework::BuiltInFramework;
 use iota_move_build::BuildConfig;
 use iota_types::{
-    MOVE_STDLIB_ADDRESS,
+    Identifier, StructTag,
     base_types::{
-        IotaAddress, ObjectID, STD_ASCII_MODULE_NAME, STD_ASCII_STRUCT_NAME,
-        STD_OPTION_MODULE_NAME, STD_OPTION_STRUCT_NAME, TransactionDigest,
+        IotaAddress, ObjectID, STD_OPTION_MODULE_NAME, STD_OPTION_STRUCT_NAME, TransactionDigest,
     },
     dynamic_field::derive_dynamic_field_id,
     gas_coin::GasCoin,
+    iota_sdk_types_conversions::struct_tag_sdk_to_core,
     object::Object,
     parse_iota_type_tag,
 };
@@ -23,8 +23,6 @@ use move_core_types::{
     account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
-    identifier::Identifier,
-    language_storage::StructTag,
     u256::U256,
 };
 use serde::Serialize;
@@ -631,12 +629,7 @@ fn test_iota_call_arg_string_type() {
     let arg1 = bcs::to_bytes("Some String").unwrap();
 
     let string_layout = Some(MoveTypeLayout::Struct(Box::new(MoveStructLayout {
-        type_: StructTag {
-            address: MOVE_STDLIB_ADDRESS,
-            module: STD_ASCII_MODULE_NAME.into(),
-            name: STD_ASCII_STRUCT_NAME.into(),
-            type_params: vec![],
-        },
+        type_: struct_tag_sdk_to_core(&StructTag::new_ascii_string()),
         fields: vec![MoveFieldLayout {
             name: ident_str!("bytes").into(),
             layout: MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
@@ -652,12 +645,7 @@ fn test_iota_call_arg_option_type() {
     let arg1 = bcs::to_bytes(&Some("Some String")).unwrap();
 
     let string_layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
-        type_: StructTag {
-            address: MOVE_STDLIB_ADDRESS,
-            module: STD_ASCII_MODULE_NAME.into(),
-            name: STD_ASCII_STRUCT_NAME.into(),
-            type_params: vec![],
-        },
+        type_: struct_tag_sdk_to_core(&StructTag::new_ascii_string()),
         fields: vec![MoveFieldLayout {
             name: ident_str!("bytes").into(),
             layout: MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
@@ -665,12 +653,12 @@ fn test_iota_call_arg_option_type() {
     }));
 
     let option_layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
-        type_: StructTag {
-            address: MOVE_STDLIB_ADDRESS,
-            module: STD_OPTION_MODULE_NAME.into(),
-            name: STD_OPTION_STRUCT_NAME.into(),
-            type_params: vec![],
-        },
+        type_: struct_tag_sdk_to_core(&StructTag::new(
+            IotaAddress::STD,
+            STD_OPTION_MODULE_NAME,
+            STD_OPTION_STRUCT_NAME,
+            vec![],
+        )),
         fields: vec![MoveFieldLayout {
             name: ident_str!("vec").into(),
             layout: MoveTypeLayout::Vector(Box::new(string_layout.clone())),
@@ -715,12 +703,7 @@ fn test_convert_string_vec() {
     let test_vec = vec!["0xbbb", "test_str"];
     let bcs = bcs::to_bytes(&test_vec).unwrap();
     let string_layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
-        type_: StructTag {
-            address: MOVE_STDLIB_ADDRESS,
-            module: STD_ASCII_MODULE_NAME.into(),
-            name: STD_ASCII_STRUCT_NAME.into(),
-            type_params: vec![],
-        },
+        type_: struct_tag_sdk_to_core(&StructTag::new_ascii_string()),
         fields: vec![MoveFieldLayout {
             name: ident_str!("bytes").into(),
             layout: MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
@@ -750,12 +733,7 @@ fn test_string_vec_df_name_child_id_eq() {
     });
 
     let string_layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
-        type_: StructTag {
-            address: MOVE_STDLIB_ADDRESS,
-            module: STD_ASCII_MODULE_NAME.into(),
-            name: STD_ASCII_STRUCT_NAME.into(),
-            type_params: vec![],
-        },
+        type_: struct_tag_sdk_to_core(&StructTag::new_ascii_string()),
         fields: vec![MoveFieldLayout {
             name: ident_str!("bytes").into(),
             layout: MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
@@ -763,14 +741,9 @@ fn test_string_vec_df_name_child_id_eq() {
     }));
 
     let layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
-        type_: StructTag {
-            address: MOVE_STDLIB_ADDRESS,
-            module: STD_ASCII_MODULE_NAME.into(),
-            name: STD_ASCII_STRUCT_NAME.into(),
-            type_params: vec![],
-        },
+        type_: struct_tag_sdk_to_core(&StructTag::new_ascii_string()),
         fields: vec![MoveFieldLayout::new(
-            Identifier::from_str("labels").unwrap(),
+            ident_str!("labels").into(),
             MoveTypeLayout::Vector(Box::new(string_layout)),
         )],
     }));

@@ -27,7 +27,7 @@ use iota_json_rpc_types::{
 use iota_open_rpc::ExamplePairing;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
+    IOTA_FRAMEWORK_PACKAGE_ID, IdentifierRef, StructTag, TypeTag,
     balance::Supply,
     base_types::{
         IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectType, SequenceNumber,
@@ -40,6 +40,7 @@ use iota_types::{
     event::EventID,
     gas::GasCostSummary,
     gas_coin::GasCoin,
+    iota_sdk_types_conversions::struct_tag_sdk_to_core,
     messages_checkpoint::CheckpointDigest,
     object::{MoveObject, Owner},
     parse_iota_struct_tag,
@@ -50,10 +51,7 @@ use iota_types::{
     utils::to_sender_signed_transaction,
 };
 use move_core_types::{
-    annotated_value::MoveStructLayout,
-    identifier::Identifier,
-    language_storage::{ModuleId, StructTag, TypeTag},
-    resolver::ModuleResolver,
+    annotated_value::MoveStructLayout, language_storage::ModuleId, resolver::ModuleResolver,
 };
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use serde_json::json;
@@ -168,8 +166,8 @@ impl RpcExampleProvider {
             builder
                 .move_call(
                     IOTA_FRAMEWORK_PACKAGE_ID,
-                    Identifier::from_str("pay").unwrap(),
-                    Identifier::from_str("split").unwrap(),
+                    IdentifierRef::const_new("pay").into(),
+                    IdentifierRef::const_new("split").into(),
                     vec![],
                     vec![
                         CallArg::Object(ObjectArg::ImmOrOwnedObject(coin_ref)),
@@ -789,7 +787,7 @@ impl RpcExampleProvider {
                 event_seq: 0,
             },
             package_id: ObjectID::new(self.rng.gen()),
-            transaction_module: Identifier::from_str("test_module").unwrap(),
+            transaction_module: IdentifierRef::const_new("test_module").into(),
             sender: IotaAddress::from(ObjectID::new(self.rng.gen())),
             type_: parse_iota_struct_tag("0x9::test::TestEvent").unwrap(),
             parsed_json: json!({"test": "example value"}),
@@ -1219,7 +1217,7 @@ impl RpcExampleProvider {
                         .unwrap()
                     },
                     MoveStructLayout {
-                        type_: struct_tag,
+                        type_: struct_tag_sdk_to_core(&struct_tag),
                         fields: Vec::new(),
                     },
                 )
@@ -1315,7 +1313,7 @@ impl RpcExampleProvider {
 
     fn iotax_query_events(&mut self) -> Examples {
         let package_id = ObjectID::new(self.rng.gen());
-        let identifier = Identifier::from_str("test").unwrap();
+        let identifier = IdentifierRef::const_new("test");
         let mut event_ids = self.get_event_ids(5..9);
         let has_next_page = event_ids.len() > (9 - 5);
         event_ids.truncate(9 - 5);
@@ -1327,7 +1325,7 @@ impl RpcExampleProvider {
             .map(|event_id| IotaEvent {
                 id: event_id,
                 package_id,
-                transaction_module: identifier.clone(),
+                transaction_module: identifier.into(),
                 sender: IotaAddress::from(ObjectID::new(self.rng.gen())),
                 type_: StructTag::from_str("0x3::test::Test<0x3::test::Test>").unwrap(),
                 parsed_json: serde_json::Value::String("some_value".to_string()),
@@ -1350,7 +1348,7 @@ impl RpcExampleProvider {
                         "query",
                         json!(EventFilter::MoveModule {
                             package: ObjectID::new(self.rng.gen()),
-                            module: Identifier::from_str("test").unwrap(),
+                            module: IdentifierRef::const_new("test").into(),
                         }),
                     ),
                     ("cursor", json!(cursor)),

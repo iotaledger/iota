@@ -13,6 +13,7 @@ use iota_types::{
     parse_iota_struct_tag,
 };
 use move_core_types::{
+    account_address::AccountAddress,
     annotated_value::{MoveStruct, MoveValue},
     ident_str,
     identifier::Identifier,
@@ -49,7 +50,7 @@ fn test_move_value_to_string() {
 
     let move_value = MoveValue::Struct(MoveStruct {
         type_: StructTag {
-            address: MOVE_STDLIB_ADDRESS,
+            address: AccountAddress::new(MOVE_STDLIB_ADDRESS.into_bytes()),
             module: ident_str!("string").to_owned(),
             name: ident_str!("String").to_owned(),
             type_params: vec![],
@@ -67,7 +68,7 @@ fn test_option() {
     // bugfix for https://github.com/iotaledger/iota/issues/4995
     let option = MoveValue::Struct(MoveStruct {
         type_: StructTag {
-            address: MOVE_STDLIB_ADDRESS,
+            address: AccountAddress::new(MOVE_STDLIB_ADDRESS.into_bytes()),
             module: Identifier::from_str("option").unwrap(),
             name: Identifier::from_str("Option").unwrap(),
             type_params: vec![TypeTag::U8],
@@ -95,7 +96,7 @@ fn test_move_value_to_url() {
 
     let string_move_value = MoveValue::Struct(MoveStruct {
         type_: StructTag {
-            address: MOVE_STDLIB_ADDRESS,
+            address: AccountAddress::new(MOVE_STDLIB_ADDRESS.into_bytes()),
             module: ident_str!("string").to_owned(),
             name: ident_str!("String").to_owned(),
             type_params: vec![],
@@ -105,7 +106,7 @@ fn test_move_value_to_url() {
 
     let url_move_value = MoveValue::Struct(MoveStruct {
         type_: StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
+            address: AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
             module: ident_str!("url").to_owned(),
             name: ident_str!("Url").to_owned(),
             type_params: vec![],

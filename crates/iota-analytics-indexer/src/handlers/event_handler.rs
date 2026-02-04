@@ -10,8 +10,8 @@ use iota_data_ingestion_core::Worker;
 use iota_json_rpc_types::type_and_fields_from_move_event_data;
 use iota_package_resolver::Resolver;
 use iota_types::{
-    SYSTEM_PACKAGE_ADDRESSES, digests::TransactionDigest, effects::TransactionEvents, event::Event,
-    full_checkpoint_content::CheckpointData,
+    SYSTEM_PACKAGE_ADDRESSES, TypeTag, digests::TransactionDigest, effects::TransactionEvents,
+    event::Event, full_checkpoint_content::CheckpointData,
 };
 use move_core_types::annotated_value::MoveValue;
 use tokio::sync::Mutex;
@@ -123,9 +123,7 @@ impl EventHandler {
             } = event;
             let layout = state
                 .resolver
-                .type_layout(move_core_types::language_storage::TypeTag::Struct(
-                    Box::new(type_.clone()),
-                ))
+                .type_layout(TypeTag::Struct(Box::new(type_.clone())))
                 .await?;
             let move_value = MoveValue::simple_deserialize(contents, &layout)?;
             let (_, event_json) = type_and_fields_from_move_event_data(move_value)?;

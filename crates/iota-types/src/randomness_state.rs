@@ -22,7 +22,7 @@ pub const RANDOMNESS_STATE_UPDATE_FUNCTION_NAME: &IdentifierRef =
 pub const RANDOMNESS_STATE_CREATE_FUNCTION_NAME: &IdentifierRef =
     IdentifierRef::const_new("create");
 pub const RESOLVED_IOTA_RANDOMNESS_STATE: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &IOTA_FRAMEWORK_ADDRESS,
+    &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
     ident_str!(RANDOMNESS_MODULE_NAME.as_str()),
     ident_str!(RANDOMNESS_STATE_STRUCT_NAME.as_str()),
 );

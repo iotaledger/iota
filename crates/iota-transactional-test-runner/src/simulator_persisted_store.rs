@@ -8,6 +8,7 @@ use iota_config::genesis;
 use iota_protocol_config::ProtocolVersion;
 use iota_swarm_config::{genesis_config::AccountConfig, network_config_builder::ConfigBuilder};
 use iota_types::{
+    StructTag,
     base_types::{IotaAddress, ObjectID, SequenceNumber, VersionNumber},
     committee::{Committee, EpochId},
     crypto::AccountKeyPair,
@@ -822,7 +823,7 @@ impl RestStateReader for PersistedStoreInnerReadOnlyWrapper {
 
     fn get_struct_layout(
         &self,
-        _: &move_core_types::language_storage::StructTag,
+        _: &StructTag,
     ) -> iota_types::storage::error::Result<Option<move_core_types::annotated_value::MoveTypeLayout>>
     {
         Ok(None)

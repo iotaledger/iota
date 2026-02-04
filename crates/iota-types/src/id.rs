@@ -24,7 +24,7 @@ pub const OBJECT_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new(OBJECT_M
 pub const UID_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("UID");
 pub const ID_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("ID");
 pub const RESOLVED_IOTA_ID: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &IOTA_FRAMEWORK_ADDRESS,
+    &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
     ident_str!(OBJECT_MODULE_NAME.as_str()),
     ident_str!(ID_STRUCT_NAME.as_str()),
 );

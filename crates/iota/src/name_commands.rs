@@ -26,7 +26,7 @@ use iota_names::{
 use iota_protocol_config::Chain;
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_types::{
-    IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, TypeTag,
+    IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, IdentifierRef, StructTag, TypeTag,
     balance::Balance,
     base_types::{IotaAddress, ObjectID},
     coin::Coin,
@@ -34,12 +34,11 @@ use iota_types::{
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::Field,
     error::IotaObjectResponseError,
+    iota_sdk_types_conversions::struct_tag_sdk_to_core,
 };
 use move_core_types::{
-    account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
-    identifier::Identifier,
-    language_storage::StructTag,
+    ident_str,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value as JsonValue;
@@ -747,12 +746,7 @@ impl NameCommand {
                     package: IOTA_FRAMEWORK_PACKAGE_ID,
                     module: "transfer".to_owned(),
                     function: "public_transfer".to_owned(),
-                    type_args: vec![
-                        nft.type_(AccountAddress::new(
-                            iota_names_config.package_address.into_bytes(),
-                        ))
-                        .into(),
-                    ],
+                    type_args: vec![nft.type_(iota_names_config.package_address).into()],
                     args: vec![
                         IotaJsonValue::from_object_id(nft.id()),
                         IotaJsonValue::new(serde_json::to_value(address)?)?,
@@ -1413,8 +1407,8 @@ impl SubnameCommand {
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
                 let subnames_package = fetch_package_id_by_module_and_name(
                     &iota_client,
-                    &Identifier::from_str("subnames")?,
-                    &Identifier::from_str("SubnamesAuth")?,
+                    IdentifierRef::const_new("subnames"),
+                    IdentifierRef::const_new("SubnamesAuth"),
                 )
                 .await?;
 
@@ -1962,9 +1956,7 @@ async fn get_owned_nfts<T: DeserializeOwned + IotaNamesNft>(
 ) -> anyhow::Result<Vec<T>> {
     let client = context.get_client().await?;
     let iota_names_config = get_iota_names_config(&client).await?;
-    let nft_type = T::type_(AccountAddress::new(
-        iota_names_config.package_address.into_bytes(),
-    ));
+    let nft_type = T::type_(iota_names_config.package_address);
     let responses = PagedFn::collect::<Vec<_>>(async |cursor| {
         client
             .read_api()
@@ -2104,9 +2096,9 @@ async fn fetch_pricing_config(client: &IotaClient) -> anyhow::Result<PricingConf
         iota_names_config.package_address, iota_names_config.package_address
     ))?;
     let layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
-        type_: config_type.clone(),
+        type_: struct_tag_sdk_to_core(&config_type),
         fields: vec![MoveFieldLayout::new(
-            Identifier::from_str("dummy_field")?,
+            ident_str!("dummy_field").into(),
             MoveTypeLayout::Bool,
         )],
     }));
@@ -2131,9 +2123,9 @@ async fn fetch_renewal_config(context: &mut WalletContext) -> anyhow::Result<Ren
         iota_names_config.package_address, iota_names_config.package_address
     ))?;
     let layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
-        type_: config_type.clone(),
+        type_: struct_tag_sdk_to_core(&config_type),
         fields: vec![MoveFieldLayout::new(
-            Identifier::from_str("dummy_field")?,
+            ident_str!("dummy_field").into(),
             MoveTypeLayout::Bool,
         )],
     }));
@@ -2197,7 +2189,7 @@ impl IotaNamesNftProxy {
         fn id(&self) -> ObjectID;
     }
 
-    fn type_(&self, package_id: AccountAddress) -> StructTag {
+    fn type_(&self, package_id: IotaAddress) -> StructTag {
         match self {
             IotaNamesNftProxy::Name(_) => NameRegistration::type_(package_id),
             IotaNamesNftProxy::Subname(_) => SubnameRegistration::type_(package_id),
@@ -2213,8 +2205,8 @@ impl IotaNamesNftProxy {
             IotaNamesNftProxy::Subname(_) => {
                 fetch_package_id_by_module_and_name(
                     client,
-                    &Identifier::from_str("subname_proxy")?,
-                    &Identifier::from_str("SubnameProxyAuth")?,
+                    IdentifierRef::const_new("subname_proxy"),
+                    IdentifierRef::const_new("SubnameProxyAuth"),
                 )
                 .await?
             }
@@ -2226,16 +2218,16 @@ impl IotaNamesNftProxy {
             IotaNamesNftProxy::Name(_) => {
                 fetch_package_id_by_module_and_name(
                     client,
-                    &Identifier::from_str("subnames")?,
-                    &Identifier::from_str("SubnamesAuth")?,
+                    IdentifierRef::const_new("subnames"),
+                    IdentifierRef::const_new("SubnamesAuth"),
                 )
                 .await?
             }
             IotaNamesNftProxy::Subname(_) => {
                 fetch_package_id_by_module_and_name(
                     client,
-                    &Identifier::from_str("subname_proxy")?,
-                    &Identifier::from_str("SubnameProxyAuth")?,
+                    IdentifierRef::const_new("subname_proxy"),
+                    IdentifierRef::const_new("SubnameProxyAuth"),
                 )
                 .await?
             }
@@ -2433,8 +2425,8 @@ async fn get_auction_house(
 // object by it's module name and struct name.
 async fn fetch_package_id_by_module_and_name(
     client: &IotaClient,
-    module_name: &Identifier,
-    struct_name: &Identifier,
+    module_name: &IdentifierRef,
+    struct_name: &IdentifierRef,
 ) -> anyhow::Result<ObjectID> {
     let names_config = get_iota_names_config(client).await?;
     let dynamic_fields_page = client
@@ -2443,10 +2435,10 @@ async fn fetch_package_id_by_module_and_name(
         .await?;
     for dynamic_field in dynamic_fields_page.data {
         if let TypeTag::Struct(ref tag) = dynamic_field.name.type_ {
-            for param in &tag.type_params {
+            for param in tag.type_params() {
                 if let TypeTag::Struct(ref param_tag) = param {
-                    if &param_tag.module == module_name && &param_tag.name == struct_name {
-                        return Ok(ObjectID::new(param_tag.address.into_bytes()));
+                    if param_tag.module() == module_name && param_tag.name() == struct_name {
+                        return Ok(ObjectID::new(param_tag.address().into_bytes()));
                     }
                 }
             }
@@ -2458,8 +2450,8 @@ async fn fetch_package_id_by_module_and_name(
 async fn get_auction_package_address(client: &IotaClient) -> anyhow::Result<ObjectID> {
     let auction_package_address = fetch_package_id_by_module_and_name(
         client,
-        &Identifier::from_str("auction")?,
-        &Identifier::from_str("AuctionAuth")?,
+        IdentifierRef::const_new("auction"),
+        IdentifierRef::const_new("AuctionAuth"),
     )
     .await?;
 
@@ -2542,8 +2534,8 @@ fn deserialize_move_object_from_bcs<T: DeserializeOwned>(
 async fn get_coupons_package_address(client: &IotaClient) -> anyhow::Result<ObjectID> {
     let coupons_package_address = fetch_package_id_by_module_and_name(
         client,
-        &Identifier::from_str("coupon_house")?,
-        &Identifier::from_str("CouponsAuth")?,
+        IdentifierRef::const_new("coupon_house"),
+        IdentifierRef::const_new("CouponsAuth"),
     )
     .await?;
 
@@ -2597,9 +2589,9 @@ impl CouponHouse {
             iota_names_config.package_address,
         ))?;
         let layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
-            type_: coupon_house_key.clone(),
+            type_: struct_tag_sdk_to_core(&coupon_house_key),
             fields: vec![MoveFieldLayout::new(
-                Identifier::from_str("dummy_field")?,
+                ident_str!("dummy_field").into(),
                 MoveTypeLayout::Bool,
             )],
         }));

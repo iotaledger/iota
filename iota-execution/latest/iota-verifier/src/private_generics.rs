@@ -63,7 +63,7 @@ pub const PRIVATE_ACCOUNT_FUNCTIONS: &[&IdentStr] = &[
 /// Concretely, with `event::emit<T>(...)`:
 /// - `T` must be a type declared in the current module
 pub fn verify_module(module: &CompiledModule) -> Result<(), ExecutionError> {
-    if *module.address() == IOTA_FRAMEWORK_ADDRESS
+    if module.address().as_ref() == IOTA_FRAMEWORK_ADDRESS.as_bytes()
         && module.name() == IdentStr::new(TEST_SCENARIO_MODULE_NAME).unwrap()
     {
         // exclude test_module which is a test-only module in the IOTA framework which

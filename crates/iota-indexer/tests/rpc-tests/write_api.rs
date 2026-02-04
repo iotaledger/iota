@@ -25,7 +25,7 @@ use iota_json_rpc_types::{
 use iota_move_build::BuildConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, Identifier, TypeTag,
+    IOTA_FRAMEWORK_PACKAGE_ID, Identifier, IdentifierRef, StructTag, TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     digests::TransactionDigest,
@@ -38,9 +38,6 @@ use iota_types::{
 };
 use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
-use move_core_types::{
-    account_address::AccountAddress, identifier::IdentStr, language_storage::StructTag,
-};
 
 use crate::{
     coin_api::execute_move_call,
@@ -835,12 +832,12 @@ fn test_repeatedly_update_display() {
             .await
             .unwrap();
 
-        let bear_type_tag = TypeTag::Struct(Box::new(StructTag {
-            address: AccountAddress::new(package_id.into_bytes()),
-            name: IdentStr::new("DemoBear").unwrap().into(),
-            module: IdentStr::new("demo_bear").unwrap().into(),
-            type_params: Vec::new(),
-        }));
+        let bear_type_tag = TypeTag::Struct(Box::new(StructTag::new(
+            package_id.into(),
+            IdentifierRef::const_new("DemoBear"),
+            IdentifierRef::const_new("demo_bear"),
+            Vec::new(),
+        )));
 
         for n in 0..NON_DETERMINISTIC_TESTS_REPETITIONS {
             let new_bear_description = format!("Bear description {n}");
@@ -1344,7 +1341,7 @@ fn move_view_function_call() {
         let IotaMoveValue::Struct(IotaMoveStruct::WithTypes { type_, fields }) = wat else {
             panic!("return value should have been a struct");
         };
-        assert_eq!(type_.name.to_string(), format!("Wat"));
+        assert_eq!(type_.name().to_string(), "Wat");
         assert!(fields.contains_key(&"counter".to_string()));
     });
 }

@@ -17,6 +17,7 @@ use iota_open_rpc::Module;
 use iota_protocol_config::Chain;
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
+    StructTag, TypeTag,
     balance::Supply,
     base_types::{IotaAddress, ObjectID},
     coin::{CoinMetadata, TreasuryCap},
@@ -32,7 +33,6 @@ use iota_types::{
 use jsonrpsee::{RpcModule, core::RpcResult};
 #[cfg(test)]
 use mockall::automock;
-use move_core_types::language_storage::{StructTag, TypeTag};
 use tap::TapFallible;
 use tracing::{debug, instrument};
 
@@ -216,7 +216,7 @@ impl CoinReadApiServer for CoinReadApi {
             let metadata_object = self
                 .internal
                 .find_package_object(
-                    &ObjectID::new(coin_struct.address.into_bytes()),
+                    &coin_struct.address().into(),
                     CoinMetadata::type_(coin_struct.clone()),
                 )
                 .await
@@ -226,7 +226,7 @@ impl CoinReadApiServer for CoinReadApi {
                     let manager_object = self
                         .internal
                         .find_package_object(
-                            &ObjectID::new(coin_struct.address.into_bytes()),
+                            &coin_struct.address().into(),
                             CoinManager::type_(coin_struct),
                         )
                         .await
@@ -275,7 +275,7 @@ impl CoinReadApiServer for CoinReadApi {
                 "Cannot find object [{}] or [{}] from [{}] package event.",
                 TreasuryCap::type_(coin_struct.clone()),
                 CoinManager::type_(coin_struct.clone()),
-                coin_struct.address
+                coin_struct.address()
             )))?
         }
         .trace()
@@ -406,10 +406,7 @@ where
     I: CoinReadInternal + Send + Sync + ?Sized,
 {
     if let Ok(obj) = internal
-        .find_package_object(
-            &ObjectID::new(tag.address.into_bytes()),
-            TreasuryCap::type_(tag.clone()),
-        )
+        .find_package_object(&tag.address().into(), TreasuryCap::type_(tag.clone()))
         .await
     {
         let data = obj
@@ -432,10 +429,7 @@ where
     I: CoinReadInternal + Send + Sync + ?Sized,
 {
     if let Ok(obj) = internal
-        .find_package_object(
-            &ObjectID::new(tag.address.into_bytes()),
-            CoinManager::type_(tag.clone()),
-        )
+        .find_package_object(&tag.address().into(), CoinManager::type_(tag.clone()))
         .await
     {
         let cm = CoinManager::try_from(obj).map_err(Error::from)?;
@@ -576,7 +570,7 @@ mod tests {
         key_value_store_metrics::KeyValueStoreMetrics,
     };
     use iota_types::{
-        TypeTag,
+        StructTag, TypeTag,
         balance::Supply,
         base_types::{IotaAddress, ObjectID, SequenceNumber},
         coin::TreasuryCap,
@@ -591,7 +585,6 @@ mod tests {
         utils::create_fake_transaction,
     };
     use mockall::{mock, predicate};
-    use move_core_types::language_storage::StructTag;
 
     use super::*;
     use crate::authority_state::{MockStateRead, StateReadError};

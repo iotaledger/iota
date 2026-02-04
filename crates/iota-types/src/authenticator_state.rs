@@ -28,7 +28,7 @@ pub const AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME: &IdentifierRef =
 pub const AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME: &IdentifierRef =
     IdentifierRef::const_new("expire_jwks");
 pub const RESOLVED_IOTA_AUTHENTICATOR_STATE: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &IOTA_FRAMEWORK_ADDRESS,
+    &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
     ident_str!(AUTHENTICATOR_STATE_MODULE_NAME.as_str()),
     ident_str!(AUTHENTICATOR_STATE_STRUCT_NAME.as_str()),
 );

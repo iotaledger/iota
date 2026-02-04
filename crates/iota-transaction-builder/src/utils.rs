@@ -13,7 +13,7 @@ use iota_json::{
 use iota_json_rpc_types::{IotaArgument, IotaData, IotaObjectDataOptions, IotaRawData, PtbInput};
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    Identifier, TypeTag,
+    Identifier, IdentifierRef, TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef, ObjectType, TxContext, TxContextKind},
     error::UserInputError,
     fp_ensure,
@@ -184,8 +184,8 @@ impl TransactionBuilder {
         &self,
         builder: &mut ProgrammableTransactionBuilder,
         package_id: ObjectID,
-        module_ident: &Identifier,
-        function_ident: &Identifier,
+        module_ident: &IdentifierRef,
+        function_ident: &IdentifierRef,
         type_args: &[TypeTag],
         json_args: Vec<IotaJsonValue>,
     ) -> Result<Vec<Argument>, anyhow::Error> {
@@ -196,8 +196,8 @@ impl TransactionBuilder {
         // Then resolve the function parameters type.
         let json_args_and_tokens = resolve_move_function_args(
             &package,
-            module_ident.clone(),
-            function_ident.clone(),
+            module_ident.to_owned(),
+            function_ident.to_owned(),
             type_args,
             json_args,
         )?;

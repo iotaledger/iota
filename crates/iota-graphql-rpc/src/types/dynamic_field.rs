@@ -13,6 +13,7 @@ use iota_types::{
         DynamicFieldInfo, DynamicFieldType, derive_dynamic_field_id,
         visitor::{Field, FieldVisitor},
     },
+    iota_sdk_types_conversions::type_tag_core_to_sdk,
 };
 
 use crate::{
@@ -73,12 +74,10 @@ impl DynamicField {
         let resolver: &PackageResolver = ctx.data_unchecked();
 
         let type_ = TypeTag::from(self.super_.native.type_().clone());
-        let layout = resolver.type_layout(type_.clone()).await.map_err(|e| {
-            Error::Internal(format!(
-                "Error fetching layout for type {}: {e}",
-                type_.to_canonical_display(/* with_prefix */ true)
-            ))
-        })?;
+        let layout = resolver
+            .type_layout(type_.clone())
+            .await
+            .map_err(|e| Error::Internal(format!("Error fetching layout for type {type_}: {e}")))?;
 
         let Field {
             name_layout,
@@ -89,7 +88,7 @@ impl DynamicField {
             .extend()?;
 
         Ok(Some(MoveValue::new(
-            name_layout.into(),
+            type_tag_core_to_sdk(&name_layout.into()),
             Base64::from(name_bytes.to_owned()),
         )))
     }
@@ -102,12 +101,10 @@ impl DynamicField {
         let resolver: &PackageResolver = ctx.data_unchecked();
 
         let type_ = TypeTag::from(self.super_.native.type_().clone());
-        let layout = resolver.type_layout(type_.clone()).await.map_err(|e| {
-            Error::Internal(format!(
-                "Error fetching layout for type {}: {e}",
-                type_.to_canonical_display(/* with_prefix */ true)
-            ))
-        })?;
+        let layout = resolver
+            .type_layout(type_.clone())
+            .await
+            .map_err(|e| Error::Internal(format!("Error fetching layout for type {type_}: {e}")))?;
 
         let Field {
             kind,
@@ -134,7 +131,7 @@ impl DynamicField {
             Ok(obj.map(|obj| DynamicFieldValue::MoveObject(Box::new(obj))))
         } else {
             Ok(Some(DynamicFieldValue::MoveValue(MoveValue::new(
-                value_layout.into(),
+                type_tag_core_to_sdk(&value_layout.into()),
                 Base64::from(value_bytes.to_owned()),
             ))))
         }

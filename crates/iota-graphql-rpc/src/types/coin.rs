@@ -439,11 +439,7 @@ fn apply_filter(mut query: RawQuery, coin_type: &TypeTag, owner: Option<IotaAddr
         );
     }
 
-    query = filter!(
-        query,
-        "coin_type IS NOT NULL AND coin_type = {}",
-        coin_type.to_canonical_display(/* with_prefix */ true)
-    );
+    query = filter!(query, "coin_type IS NOT NULL AND coin_type = {}", coin_type);
 
     query
 }

@@ -21,7 +21,7 @@ use iota_common::try_iterator_ext::TryIteratorExt;
 use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
-    TypeTag,
+    StructTag, TypeTag,
     base_types::{
         IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, SequenceNumber,
         TransactionDigest, TxSequenceNumber,
@@ -736,7 +736,10 @@ impl IndexStore {
                         i,
                         ModuleId::new(
                             AccountAddress::new(e.package_id.into_bytes()),
-                            e.transaction_module.clone(),
+                            move_core_types::identifier::Identifier::new(
+                                e.transaction_module.as_str(),
+                            )
+                            .unwrap(),
                         ),
                     )
                 })
@@ -776,7 +779,11 @@ impl IndexStore {
             events.data.iter().enumerate().map(|(i, e)| {
                 (
                     (
-                        ModuleId::new(e.type_.address, e.type_.module.clone()),
+                        ModuleId::new(
+                            AccountAddress::new(e.type_.address().into_bytes()),
+                            move_core_types::identifier::Identifier::new(e.type_.module().as_str())
+                                .unwrap(),
+                        ),
                         (sequence, i),
                     ),
                     (event_digest, *digest, timestamp_ms),

@@ -248,12 +248,12 @@ fn test_object_id_zero_padding() {
     let obj_id_4: ObjectID = serde_json::from_str(&format!("\"{hex}\"")).unwrap();
     let obj_id_5: ObjectID = serde_json::from_str(&format!("\"{long_hex}\"")).unwrap();
     let obj_id_6: ObjectID = serde_json::from_str(&format!("\"{long_hex_alt}\"")).unwrap();
-    assert_eq!(IOTA_FRAMEWORK_ADDRESS.as_ref(), obj_id_1.as_bytes());
-    assert_eq!(IOTA_FRAMEWORK_ADDRESS.as_ref(), obj_id_2.as_bytes());
-    assert_eq!(IOTA_FRAMEWORK_ADDRESS.as_ref(), obj_id_3.as_bytes());
-    assert_eq!(IOTA_FRAMEWORK_ADDRESS.as_ref(), obj_id_4.as_bytes());
-    assert_eq!(IOTA_FRAMEWORK_ADDRESS.as_ref(), obj_id_5.as_bytes());
-    assert_eq!(IOTA_FRAMEWORK_ADDRESS.as_ref(), obj_id_6.as_bytes());
+    assert_eq!(IOTA_FRAMEWORK_ADDRESS.as_bytes(), obj_id_1.as_bytes());
+    assert_eq!(IOTA_FRAMEWORK_ADDRESS.as_bytes(), obj_id_2.as_bytes());
+    assert_eq!(IOTA_FRAMEWORK_ADDRESS.as_bytes(), obj_id_3.as_bytes());
+    assert_eq!(IOTA_FRAMEWORK_ADDRESS.as_bytes(), obj_id_4.as_bytes());
+    assert_eq!(IOTA_FRAMEWORK_ADDRESS.as_bytes(), obj_id_5.as_bytes());
+    assert_eq!(IOTA_FRAMEWORK_ADDRESS.as_bytes(), obj_id_6.as_bytes());
 }
 
 #[test]

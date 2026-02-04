@@ -53,7 +53,6 @@ use iota_types::{
     crypto::{IotaKeyPair, SignatureScheme},
 };
 use move_analyzer::analyzer;
-use move_core_types::account_address::AccountAddress;
 use move_package::BuildConfig;
 use rand::rngs::OsRng;
 use serde_json::json;
@@ -577,7 +576,7 @@ impl IotaCommand {
                                 &rerooted_path,
                                 build_config.install_dir.clone(),
                                 chain_id,
-                                AccountAddress::ZERO,
+                                IotaAddress::ZERO,
                             )?
                         } else {
                             None

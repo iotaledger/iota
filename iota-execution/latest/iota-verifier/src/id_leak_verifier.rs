@@ -57,48 +57,48 @@ enum AbstractValue {
 
 type FunctionIdent<'a> = (&'a AccountAddress, &'a IdentStr, &'a IdentStr);
 const OBJECT_NEW: FunctionIdent = (
-    &IOTA_FRAMEWORK_ADDRESS,
+    &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
     ident_str!(OBJECT_MODULE_NAME.as_str()),
     ident_str!("new"),
 );
 const OBJECT_NEW_UID_FROM_HASH: FunctionIdent = (
-    &IOTA_FRAMEWORK_ADDRESS,
+    &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
     ident_str!(OBJECT_MODULE_NAME.as_str()),
     ident_str!("new_uid_from_hash"),
 );
 const TS_NEW_OBJECT: FunctionIdent = (
-    &IOTA_FRAMEWORK_ADDRESS,
+    &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
     ident_str!(TEST_SCENARIO_MODULE_NAME),
     ident_str!("new_object"),
 );
 const IOTA_SYSTEM_CREATE: FunctionIdent = (
-    &IOTA_SYSTEM_ADDRESS,
+    &AccountAddress::new(IOTA_SYSTEM_ADDRESS.into_bytes()),
     ident_str!(IOTA_SYSTEM_MODULE_NAME.as_str()),
     ident_str!("create"),
 );
 const IOTA_CLOCK_CREATE: FunctionIdent = (
-    &IOTA_FRAMEWORK_ADDRESS,
+    &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
     ident_str!(CLOCK_MODULE_NAME.as_str()),
     ident_str!("create"),
 );
 const IOTA_AUTHENTICATOR_STATE_CREATE: FunctionIdent = (
-    &IOTA_FRAMEWORK_ADDRESS,
+    &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
     ident_str!(AUTHENTICATOR_STATE_MODULE_NAME.as_str()),
     ident_str!("create"),
 );
 const IOTA_RANDOMNESS_STATE_CREATE: FunctionIdent = (
-    &IOTA_FRAMEWORK_ADDRESS,
+    &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
     ident_str!(RANDOMNESS_MODULE_NAME.as_str()),
     ident_str!("create"),
 );
 const IOTA_DENY_LIST_CREATE: FunctionIdent = (
-    &IOTA_FRAMEWORK_ADDRESS,
+    &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
     ident_str!(DENY_LIST_MODULE.as_str()),
     ident_str!(DENY_LIST_CREATE_FUNC.as_str()),
 );
 
 const IOTA_BRIDGE_CREATE: FunctionIdent = (
-    &GENESIS_BRIDGE_ADDRESS,
+    &AccountAddress::new(GENESIS_BRIDGE_ADDRESS.into_bytes()),
     ident_str!("bridge"),
     ident_str!("create"),
 );

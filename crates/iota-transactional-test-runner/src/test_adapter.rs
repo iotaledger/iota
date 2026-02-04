@@ -39,8 +39,8 @@ use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
     IOTA_CLOCK_OBJECT_ID, IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS,
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_ADDRESS,
-    IOTA_SYSTEM_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_ADDRESS,
-    MOVE_STDLIB_PACKAGE_ID, STARDUST_ADDRESS, STARDUST_PACKAGE_ID,
+    IOTA_SYSTEM_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID, Identifier, IdentifierRef,
+    MOVE_STDLIB_ADDRESS, MOVE_STDLIB_PACKAGE_ID, STARDUST_ADDRESS, STARDUST_PACKAGE_ID, TypeTag,
     base_types::{
         IOTA_ADDRESS_LENGTH, IotaAddress, ObjectID, ObjectRef, SequenceNumber, VersionNumber,
     },
@@ -51,6 +51,7 @@ use iota_types::{
     event::Event,
     execution_status::ExecutionStatus,
     gas::GasCostSummary,
+    iota_sdk_types_conversions::type_tag_core_to_sdk,
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
     },
@@ -581,7 +582,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
         &mut self,
         module_id: &ModuleId,
         function: &IdentStr,
-        type_args: Vec<TypeTag>,
+        type_args: Vec<move_core_types::language_storage::TypeTag>,
         signers: Vec<ParsedAddress>,
         args: Vec<IotaValue>,
         gas_budget: Option<u64>,
@@ -590,7 +591,16 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
         self.next_task();
         let IotaRunArgs { summarize, .. } = extra;
         let transaction = self.build_function_call_tx(
-            module_id, function, type_args, signers, args, gas_budget, extra,
+            module_id,
+            IdentifierRef::new(function.as_str()).unwrap(),
+            type_args
+                .into_iter()
+                .map(|tt| type_tag_core_to_sdk(&tt))
+                .collect(),
+            signers,
+            args,
+            gas_budget,
+            extra,
         )?;
         let summary = self.execute_txn(transaction).await?;
         let output = self.object_summary_output(&summary, summarize);
@@ -1150,8 +1160,11 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let tx = self
                     .build_function_call_tx(
                         &module_id,
-                        name.as_ident_str(),
-                        type_args.clone(),
+                        IdentifierRef::new(name.as_str()).unwrap(),
+                        type_args
+                            .iter()
+                            .map(type_tag_core_to_sdk)
+                            .collect::<Vec<_>>(),
                         signers.clone(),
                         args.clone(),
                         gas_budget,
@@ -1588,8 +1601,8 @@ impl IotaTestAdapter {
 
         let upgrade_ticket = builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("package").to_owned(),
-            ident_str!("authorize_upgrade").to_owned(),
+            IdentifierRef::const_new("package").to_owned(),
+            IdentifierRef::const_new("authorize_upgrade").to_owned(),
             vec![],
             vec![Argument::Input(0), upgrade_arg, digest_arg],
         );
@@ -1600,8 +1613,8 @@ impl IotaTestAdapter {
 
         builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("package").to_owned(),
-            ident_str!("commit_upgrade").to_owned(),
+            IdentifierRef::const_new("package").to_owned(),
+            IdentifierRef::const_new("commit_upgrade").to_owned(),
             vec![],
             vec![Argument::Input(0), upgrade_receipt],
         );
@@ -1743,7 +1756,7 @@ impl IotaTestAdapter {
     fn build_function_call_tx(
         &mut self,
         module_id: &ModuleId,
-        function: &IdentStr,
+        function: &IdentifierRef,
         type_args: Vec<TypeTag>,
         signers: Vec<ParsedAddress>,
         args: Vec<IotaValue>,
@@ -1766,7 +1779,7 @@ impl IotaTestAdapter {
         let data = |sender, gas| {
             builder.command(Command::move_call(
                 package_id,
-                module_id.name().to_owned(),
+                Identifier::new(module_id.name().as_str()).unwrap(),
                 function.to_owned(),
                 type_args,
                 arguments,
@@ -2432,7 +2445,7 @@ impl Default for AdapterInitConfig {
 
 static NAMED_ADDRESSES: Lazy<BTreeMap<String, NumericalAddress>> = Lazy::new(|| {
     let mut map = move_stdlib::move_stdlib_named_addresses();
-    assert!(map.get("std").unwrap().into_inner() == MOVE_STDLIB_ADDRESS);
+    assert!(map.get("std").unwrap().as_ref() == MOVE_STDLIB_ADDRESS.as_bytes());
     // TODO fix IOTA framework constants
     map.insert(
         "iota".to_string(),

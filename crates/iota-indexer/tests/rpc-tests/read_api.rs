@@ -25,6 +25,7 @@ use iota_test_transaction_builder::{
     publish_simple_warrior_package,
 };
 use iota_types::{
+    IdentifierRef,
     base_types::{ObjectID, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     digests::{ChainIdentifier, ObjectDigest, TransactionDigest},
@@ -35,7 +36,6 @@ use iota_types::{
 };
 use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
-use move_core_types::identifier::Identifier;
 use serde_json::Value;
 
 use crate::{
@@ -2048,8 +2048,8 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
 
             let sword = builder.programmable_move_call(
                 package_id,
-                Identifier::from_str("example")?,
-                Identifier::from_str("new_sword")?,
+                IdentifierRef::const_new("example").into(),
+                IdentifierRef::const_new("new_sword").into(),
                 vec![],
                 vec![strength],
             );
@@ -2093,16 +2093,16 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
 
             let warrior = builder.programmable_move_call(
                 package_id,
-                Identifier::from_str("example")?,
-                Identifier::from_str("new_warrior")?,
+                IdentifierRef::const_new("example").into(),
+                IdentifierRef::const_new("new_warrior").into(),
                 vec![],
                 vec![],
             );
 
             let _ = builder.programmable_move_call(
                 package_id,
-                Identifier::from_str("example")?,
-                Identifier::from_str("equip")?,
+                IdentifierRef::const_new("example").into(),
+                IdentifierRef::const_new("equip").into(),
                 vec![],
                 vec![warrior, sword_object_ref_arg],
             );
@@ -2183,16 +2183,16 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
 
             let sword = builder.programmable_move_call(
                 package_id,
-                Identifier::from_str("example")?,
-                Identifier::from_str("unequip")?,
+                IdentifierRef::const_new("example").into(),
+                IdentifierRef::const_new("unequip").into(),
                 vec![],
                 vec![warrior_object_ref_arg],
             );
 
             let _ = builder.programmable_move_call(
                 package_id,
-                Identifier::from_str("example")?,
-                Identifier::from_str("destroy_sword")?,
+                IdentifierRef::const_new("example").into(),
+                IdentifierRef::const_new("destroy_sword").into(),
                 vec![],
                 vec![sword],
             );
@@ -2281,8 +2281,8 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
 
             let _ = builder.programmable_move_call(
                 package_id,
-                Identifier::from_str("example")?,
-                Identifier::from_str("destroy_warrior")?,
+                IdentifierRef::const_new("example").into(),
+                IdentifierRef::const_new("destroy_warrior").into(),
                 vec![],
                 vec![warrior_object_ref_arg],
             );
@@ -2384,8 +2384,8 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
             // Create the Sword
             let sword = builder.programmable_move_call(
                 package_id,
-                Identifier::from_str("example")?,
-                Identifier::from_str("new_sword")?,
+                IdentifierRef::const_new("example").into(),
+                IdentifierRef::const_new("new_sword").into(),
                 vec![],
                 vec![strength],
             );
@@ -2393,8 +2393,8 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
             // Create the Warrior
             let warrior = builder.programmable_move_call(
                 package_id,
-                Identifier::from_str("example")?,
-                Identifier::from_str("new_warrior")?,
+                IdentifierRef::const_new("example").into(),
+                IdentifierRef::const_new("new_warrior").into(),
                 vec![],
                 vec![],
             );
@@ -2402,8 +2402,8 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
             // Equip the Sword
             let _ = builder.programmable_move_call(
                 package_id,
-                Identifier::from_str("example")?,
-                Identifier::from_str("equip")?,
+                IdentifierRef::const_new("example").into(),
+                IdentifierRef::const_new("equip").into(),
                 vec![],
                 vec![warrior, sword],
             );
@@ -2451,8 +2451,8 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
             // Unwrap the Sword
             let sword = builder.programmable_move_call(
                 package_id,
-                Identifier::from_str("example")?,
-                Identifier::from_str("unequip")?,
+                IdentifierRef::const_new("example").into(),
+                IdentifierRef::const_new("unequip").into(),
                 vec![],
                 vec![warrior_object_ref_arg],
             );

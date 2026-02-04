@@ -5,11 +5,11 @@
 use std::str::FromStr;
 
 use iota_types::{
+    TypeTag,
     base_types::ObjectID,
     crypto::{AccountKeyPair, get_key_pair},
     effects::TransactionEffectsAPI,
 };
-use move_core_types::language_storage::TypeTag;
 
 use crate::authority::{
     authority_tests::{TestCallArg, call_move, init_state_with_ids},

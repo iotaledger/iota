@@ -36,6 +36,7 @@ use iota_swarm_config::{
     network_config_builder::ConfigBuilder,
 };
 use iota_types::{
+    StructTag,
     base_types::{AuthorityName, IotaAddress, ObjectID, VersionNumber},
     committee::Committee,
     crypto::{AuthoritySignature, KeypairTraits},
@@ -724,7 +725,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> RestStateReader for
 
     fn get_struct_layout(
         &self,
-        _: &move_core_types::language_storage::StructTag,
+        _: &StructTag,
     ) -> iota_types::storage::error::Result<Option<move_core_types::annotated_value::MoveTypeLayout>>
     {
         Ok(None)

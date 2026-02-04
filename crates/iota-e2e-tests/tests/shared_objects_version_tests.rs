@@ -36,7 +36,10 @@ async fn objects_transitioning_to_shared_remember_their_previous_version() {
     else {
         panic!()
     };
-    assert_eq!(location.module.address(), &IOTA_FRAMEWORK_ADDRESS);
+    assert_eq!(
+        location.module.address().as_ref(),
+        IOTA_FRAMEWORK_ADDRESS.as_bytes()
+    );
     assert_eq!(location.module.name().as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }
@@ -52,7 +55,10 @@ async fn shared_object_owner_doesnt_change_on_write() {
     else {
         panic!()
     };
-    assert_eq!(location.module.address(), &IOTA_FRAMEWORK_ADDRESS);
+    assert_eq!(
+        location.module.address().as_ref(),
+        IOTA_FRAMEWORK_ADDRESS.as_bytes()
+    );
     assert_eq!(location.module.name().as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }
@@ -68,7 +74,10 @@ async fn initial_shared_version_mismatch_start_version() {
     else {
         panic!()
     };
-    assert_eq!(location.module.address(), &IOTA_FRAMEWORK_ADDRESS);
+    assert_eq!(
+        location.module.address().as_ref(),
+        IOTA_FRAMEWORK_ADDRESS.as_bytes()
+    );
     assert_eq!(location.module.name().as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }
@@ -83,7 +92,10 @@ async fn initial_shared_version_mismatch_current_version() {
     else {
         panic!()
     };
-    assert_eq!(location.module.address(), &IOTA_FRAMEWORK_ADDRESS);
+    assert_eq!(
+        location.module.address().as_ref(),
+        IOTA_FRAMEWORK_ADDRESS.as_bytes()
+    );
     assert_eq!(location.module.name().as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }

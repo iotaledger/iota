@@ -33,7 +33,7 @@ use iota_keys::{
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_types::{
-    IOTA_SYSTEM_PACKAGE_ID, TypeTag,
+    IOTA_SYSTEM_PACKAGE_ID, IdentifierRef, TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{
         AuthorityKeyPair, AuthorityPublicKey, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID,
@@ -50,7 +50,6 @@ use iota_types::{
     object::Owner,
     transaction::{CallArg, ObjectArg, Transaction, TransactionData, TransactionDataAPI},
 };
-use move_core_types::ident_str;
 use serde::Serialize;
 use tabled::{
     builder::Builder,
@@ -603,8 +602,8 @@ async fn construct_unsigned_0x5_txn(
     TransactionData::new_move_call(
         sender,
         IOTA_SYSTEM_PACKAGE_ID,
-        ident_str!("iota_system").to_owned(),
-        ident_str!(function).to_owned(),
+        IdentifierRef::const_new("iota_system").to_owned(),
+        IdentifierRef::const_new(function).to_owned(),
         vec![],
         gas_obj_ref,
         args,

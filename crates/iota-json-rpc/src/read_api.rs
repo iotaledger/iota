@@ -30,6 +30,7 @@ use iota_package_resolver::{
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
+    StructTag,
     base_types::{ObjectID, SequenceNumber, TransactionDigest},
     collection_types::VecMap,
     crypto::AggregateAuthoritySignature,
@@ -46,11 +47,7 @@ use iota_types::{
 use itertools::Itertools;
 use jsonrpsee::{RpcModule, core::RpcResult};
 use move_bytecode_utils::module_cache::GetModule;
-use move_core_types::{
-    account_address::AccountAddress,
-    annotated_value::{MoveStruct, MoveStructLayout, MoveValue},
-    language_storage::StructTag,
-};
+use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveValue};
 use tap::TapFallible;
 use tracing::{debug, error, instrument, trace, warn};
 

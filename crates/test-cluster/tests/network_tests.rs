@@ -10,6 +10,7 @@ use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
     base_types::ObjectID, digests::TransactionDigest, object::Object,
 };
+use move_core_types::account_address::AccountAddress;
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]
@@ -52,7 +53,8 @@ async fn test_package_override() {
         // Create an empty module that is pretending to be part of the iota framework.
         let mut test_module = move_binary_format::file_format::empty_module();
         let address_idx = test_module.self_handle().address.0 as usize;
-        test_module.address_identifiers[address_idx] = IOTA_SYSTEM_ADDRESS;
+        test_module.address_identifiers[address_idx] =
+            AccountAddress::new(IOTA_SYSTEM_ADDRESS.into_bytes());
 
         // Add the dummy module to the rest of the iota-frameworks.  We can't replace
         // the framework entirely because we will call into it for genesis.

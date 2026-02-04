@@ -18,6 +18,7 @@ use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 #[cfg(msim)]
 use iota_simulator::configs::constant_latency_ms;
 use iota_types::{
+    IdentifierRef,
     base_types::{AuthorityName, EpochId},
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
@@ -35,7 +36,7 @@ use iota_types::{
     transaction::*,
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };
-use move_core_types::{account_address::AccountAddress, ident_str};
+use move_core_types::account_address::AccountAddress;
 use rand::{SeedableRng, rngs::StdRng};
 use tokio::time::Instant;
 
@@ -105,8 +106,8 @@ pub fn create_object_move_transaction(
         TransactionData::new_move_call(
             src,
             package_id,
-            ident_str!("object_basics").to_owned(),
-            ident_str!("create").to_owned(),
+            IdentifierRef::const_new("object_basics").to_owned(),
+            IdentifierRef::const_new("create").to_owned(),
             Vec::new(),
             gas_object_ref,
             arguments,
@@ -130,8 +131,8 @@ pub fn delete_object_move_transaction(
         TransactionData::new_move_call(
             src,
             framework_obj_id,
-            ident_str!("object_basics").to_owned(),
-            ident_str!("delete").to_owned(),
+            IdentifierRef::const_new("object_basics").to_owned(),
+            IdentifierRef::const_new("delete").to_owned(),
             Vec::new(),
             gas_object_ref,
             vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(object_ref))],
@@ -161,8 +162,8 @@ pub fn set_object_move_transaction(
         TransactionData::new_move_call(
             src,
             framework_obj_id,
-            ident_str!("object_basics").to_owned(),
-            ident_str!("set_value").to_owned(),
+            IdentifierRef::const_new("object_basics").to_owned(),
+            IdentifierRef::const_new("set_value").to_owned(),
             Vec::new(),
             gas_object_ref,
             args,

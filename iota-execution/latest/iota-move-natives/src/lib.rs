@@ -10,9 +10,9 @@ use iota_protocol_config::ProtocolConfig;
 use iota_types::{IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
+    account_address::AccountAddress,
     annotated_value as A,
     gas_algebra::InternalGas,
-    identifier::Identifier,
     language_storage::{StructTag, TypeTag},
     runtime_value as R,
     vm_status::StatusCode,
@@ -1098,9 +1098,9 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             .cloned()
             .map(|(module_name, func_name, func)| {
                 (
-                    IOTA_FRAMEWORK_ADDRESS,
-                    Identifier::new(module_name).unwrap(),
-                    Identifier::new(func_name).unwrap(),
+                    AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                    move_core_types::identifier::Identifier::new(module_name).unwrap(),
+                    move_core_types::identifier::Identifier::new(func_name).unwrap(),
                     func,
                 )
             });
@@ -1114,15 +1114,15 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
         .cloned()
         .map(|(module_name, func_name, func)| {
             (
-                IOTA_SYSTEM_ADDRESS,
-                Identifier::new(module_name).unwrap(),
-                Identifier::new(func_name).unwrap(),
+                AccountAddress::new(IOTA_SYSTEM_ADDRESS.into_bytes()),
+                move_core_types::identifier::Identifier::new(module_name).unwrap(),
+                move_core_types::identifier::Identifier::new(func_name).unwrap(),
                 func,
             )
         })
         .chain(iota_framework_natives_iter)
         .chain(move_stdlib_natives::all_natives(
-            MOVE_STDLIB_ADDRESS,
+            AccountAddress::new(MOVE_STDLIB_ADDRESS.into_bytes()),
             make_stdlib_gas_params_for_protocol_config(protocol_config),
             silent,
         ))

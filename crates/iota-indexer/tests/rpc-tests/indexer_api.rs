@@ -25,7 +25,7 @@ use iota_json_rpc_types::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_PACKAGE_ID,
+    IOTA_FRAMEWORK_ADDRESS, IdentifierRef, MOVE_STDLIB_PACKAGE_ID, StructTag, TypeTag,
     base_types::{IotaAddress, ObjectID},
     crypto::{AccountKeyPair, get_key_pair},
     dynamic_field::DynamicFieldName,
@@ -37,11 +37,7 @@ use iota_types::{
 };
 use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
-use move_core_types::{
-    annotated_value::MoveValue,
-    identifier::Identifier,
-    language_storage::{StructTag, TypeTag},
-};
+use move_core_types::annotated_value::MoveValue;
 
 use crate::{
     coin_api::execute_move_call,
@@ -797,9 +793,9 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
         let tx_builder = iota_client.transaction_builder().clone();
         let mut pt_builder = ProgrammableTransactionBuilder::new();
 
-        let module = Identifier::from_str("pay")?;
-        let function_1 = Identifier::from_str("split")?;
-        let function_2 = Identifier::from_str("divide_and_keep")?;
+        let module = IdentifierRef::const_new("pay");
+        let function_1 = IdentifierRef::const_new("split");
+        let function_2 = IdentifierRef::const_new("divide_and_keep");
 
         let iota_type_args = type_args![GAS::type_tag()]?;
         let type_args = iota_type_args
@@ -812,16 +808,16 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
             .resolve_and_checks_json_args(
                 &mut pt_builder,
                 package_id,
-                &module,
-                &function_1,
+                module,
+                function_1,
                 &type_args,
                 iota_call_args_1,
             )
             .await?;
         let cmd_1 = Command::move_call(
             package_id,
-            module.clone(),
-            function_1,
+            module.to_owned(),
+            function_1.to_owned(),
             type_args.clone(),
             call_args_1.clone(),
         );
@@ -837,7 +833,13 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
                 iota_call_args_2,
             )
             .await?;
-        let cmd_2 = Command::move_call(package_id, module, function_2, type_args, call_args_2);
+        let cmd_2 = Command::move_call(
+            package_id,
+            module.to_owned(),
+            function_2.to_owned(),
+            type_args,
+            call_args_2,
+        );
         pt_builder.command(cmd_1);
         pt_builder.command(cmd_2);
         let pt = pt_builder.finish();
@@ -1240,8 +1242,8 @@ fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
             let mut builder = ProgrammableTransactionBuilder::new();
             let bag = builder.programmable_move_call(
                 ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
-                Identifier::from_str("bag")?,
-                Identifier::from_str("new")?,
+                IdentifierRef::const_new("bag").into(),
+                IdentifierRef::const_new("new").into(),
                 vec![],
                 vec![],
             );
@@ -1251,8 +1253,8 @@ fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
 
             let _ = builder.programmable_move_call(
                 ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
-                Identifier::from_str("bag")?,
-                Identifier::from_str("add")?,
+                IdentifierRef::const_new("bag").into(),
+                IdentifierRef::const_new("add").into(),
                 vec![TypeTag::U64, TypeTag::U64],
                 vec![bag, field_name_argument, field_value_argument],
             );
@@ -1278,12 +1280,7 @@ fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
             .get_owned_objects(
                 address,
                 Some(IotaObjectResponseQuery::new(
-                    Some(IotaObjectDataFilter::StructType(StructTag {
-                        address: IOTA_FRAMEWORK_ADDRESS,
-                        module: Identifier::from_str("bag")?,
-                        name: Identifier::from_str("Bag")?,
-                        type_params: Vec::new(),
-                    })),
+                    Some(IotaObjectDataFilter::StructType(StructTag::new_bag())),
                     Some(
                         IotaObjectDataOptions::new()
                             .with_type()
@@ -1366,8 +1363,8 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
             let mut builder = ProgrammableTransactionBuilder::new();
             let bag = builder.programmable_move_call(
                 ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
-                Identifier::from_str("object_bag")?,
-                Identifier::from_str("new")?,
+                IdentifierRef::const_new("object_bag").into(),
+                IdentifierRef::const_new("new").into(),
                 vec![],
                 vec![],
             );
@@ -1379,16 +1376,11 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
 
             let _ = builder.programmable_move_call(
                 ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
-                Identifier::from_str("object_bag")?,
-                Identifier::from_str("add")?,
+                IdentifierRef::const_new("object_bag").into(),
+                IdentifierRef::const_new("add").into(),
                 vec![
                     TypeTag::U64,
-                    TypeTag::Struct(Box::new(StructTag {
-                        address: IOTA_FRAMEWORK_ADDRESS,
-                        module: Identifier::from_str("coin")?,
-                        name: Identifier::from_str("Coin")?,
-                        type_params: vec![GAS::type_tag()],
-                    })),
+                    TypeTag::Struct(Box::new(StructTag::new_gas_coin())),
                 ],
                 vec![bag, field_name_argument, field_value_argument],
             );
@@ -1414,12 +1406,7 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
             .get_owned_objects(
                 address,
                 Some(IotaObjectResponseQuery::new(
-                    Some(IotaObjectDataFilter::StructType(StructTag {
-                        address: IOTA_FRAMEWORK_ADDRESS,
-                        module: Identifier::from_str("object_bag")?,
-                        name: Identifier::from_str("ObjectBag")?,
-                        type_params: Vec::new(),
-                    })),
+                    Some(IotaObjectDataFilter::StructType(StructTag::new_object_bag())),
                     Some(
                         IotaObjectDataOptions::new()
                             .with_type()
@@ -1498,8 +1485,8 @@ fn test_query_transaction_blocks_tx_kind_filter() -> Result<(), anyhow::Error> {
         let signer = address;
 
         let package_id = MOVE_STDLIB_PACKAGE_ID;
-        let module = Identifier::from_str("address")?;
-        let function = Identifier::from_str("length")?;
+        let module = IdentifierRef::const_new("address").to_owned();
+        let function = IdentifierRef::const_new("length").to_owned();
 
         let mut pt_builder = ProgrammableTransactionBuilder::new();
         pt_builder.move_call(package_id, module, function, vec![], vec![])?;

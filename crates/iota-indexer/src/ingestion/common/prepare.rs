@@ -7,6 +7,7 @@
 use std::collections::BTreeMap;
 
 use iota_types::{
+    StructTag, TypeTag,
     base_types::{ObjectID, ObjectRef},
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
@@ -14,7 +15,6 @@ use iota_types::{
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
 };
-use move_core_types::language_storage::{StructTag, TypeTag};
 
 use crate::{
     errors::{IndexerError, IndexerResult},
@@ -72,7 +72,7 @@ pub(crate) fn extract_df_kind(o: &Object) -> Option<DynamicFieldType> {
     }
 
     let type_: StructTag = move_object.type_().clone().into();
-    let [name, _] = type_.type_params.as_slice() else {
+    let [name, _] = type_.type_params() else {
         return None;
     };
 

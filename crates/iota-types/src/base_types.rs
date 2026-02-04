@@ -39,6 +39,7 @@ use crate::{
     gas_coin::{GAS, GasCoin},
     governance::{STAKED_IOTA_STRUCT_NAME, STAKING_POOL_MODULE_NAME, StakedIota},
     id::RESOLVED_IOTA_ID,
+    iota_sdk_types_conversions::struct_tag_sdk_to_core,
     messages_checkpoint::CheckpointTimestamp,
     multisig::MultiSigPublicKey,
     object::{Object, Owner},
@@ -785,44 +786,39 @@ impl VerifiedExecutionData {
     }
 }
 
-pub const STD_OPTION_MODULE_NAME: &IdentStr = ident_str!("option");
-pub const STD_OPTION_STRUCT_NAME: &IdentStr = ident_str!("Option");
+pub const STD_OPTION_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("option");
+pub const STD_OPTION_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Option");
 pub const RESOLVED_STD_OPTION: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &MOVE_STDLIB_ADDRESS,
-    STD_OPTION_MODULE_NAME,
-    STD_OPTION_STRUCT_NAME,
+    &AccountAddress::new(MOVE_STDLIB_ADDRESS.into_bytes()),
+    ident_str!(STD_OPTION_MODULE_NAME.as_str()),
+    ident_str!(STD_OPTION_STRUCT_NAME.as_str()),
 );
 
-pub const STD_ASCII_MODULE_NAME: &IdentStr = ident_str!("ascii");
-pub const STD_ASCII_STRUCT_NAME: &IdentStr = ident_str!("String");
+pub const STD_ASCII_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("ascii");
+pub const STD_ASCII_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("String");
 pub const RESOLVED_ASCII_STR: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &MOVE_STDLIB_ADDRESS,
-    STD_ASCII_MODULE_NAME,
-    STD_ASCII_STRUCT_NAME,
+    &AccountAddress::new(MOVE_STDLIB_ADDRESS.into_bytes()),
+    ident_str!(STD_ASCII_MODULE_NAME.as_str()),
+    ident_str!(STD_ASCII_STRUCT_NAME.as_str()),
 );
 
-pub const STD_UTF8_MODULE_NAME: &IdentStr = ident_str!("string");
-pub const STD_UTF8_STRUCT_NAME: &IdentStr = ident_str!("String");
+pub const STD_UTF8_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("string");
+pub const STD_UTF8_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("String");
 pub const RESOLVED_UTF8_STR: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &MOVE_STDLIB_ADDRESS,
-    STD_UTF8_MODULE_NAME,
-    STD_UTF8_STRUCT_NAME,
+    &AccountAddress::new(MOVE_STDLIB_ADDRESS.into_bytes()),
+    ident_str!(STD_UTF8_MODULE_NAME.as_str()),
+    ident_str!(STD_UTF8_STRUCT_NAME.as_str()),
 );
 
-pub const TX_CONTEXT_MODULE_NAME: &IdentStr = ident_str!("tx_context");
-pub const TX_CONTEXT_STRUCT_NAME: &IdentStr = ident_str!("TxContext");
+pub const TX_CONTEXT_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("tx_context");
+pub const TX_CONTEXT_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("TxContext");
 
-pub const URL_MODULE_NAME: &IdentStr = ident_str!("url");
-pub const URL_STRUCT_NAME: &IdentStr = ident_str!("Url");
+pub const URL_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("url");
+pub const URL_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Url");
 
 pub fn move_ascii_str_layout() -> A::MoveStructLayout {
     A::MoveStructLayout {
-        type_: move_core_types::language_storage::StructTag {
-            address: MOVE_STDLIB_ADDRESS,
-            module: STD_ASCII_MODULE_NAME.to_owned(),
-            name: STD_ASCII_STRUCT_NAME.to_owned(),
-            type_params: vec![],
-        },
+        type_: struct_tag_sdk_to_core(&StructTag::new_ascii_string()),
         fields: vec![A::MoveFieldLayout::new(
             ident_str!("bytes").into(),
             A::MoveTypeLayout::Vector(Box::new(A::MoveTypeLayout::U8)),
@@ -832,12 +828,7 @@ pub fn move_ascii_str_layout() -> A::MoveStructLayout {
 
 pub fn move_utf8_str_layout() -> A::MoveStructLayout {
     A::MoveStructLayout {
-        type_: move_core_types::language_storage::StructTag {
-            address: MOVE_STDLIB_ADDRESS,
-            module: STD_UTF8_MODULE_NAME.to_owned(),
-            name: STD_UTF8_STRUCT_NAME.to_owned(),
-            type_params: vec![],
-        },
+        type_: struct_tag_sdk_to_core(&StructTag::new_string()),
         fields: vec![A::MoveFieldLayout::new(
             ident_str!("bytes").into(),
             A::MoveTypeLayout::Vector(Box::new(A::MoveTypeLayout::U8)),
@@ -847,12 +838,7 @@ pub fn move_utf8_str_layout() -> A::MoveStructLayout {
 
 pub fn url_layout() -> A::MoveStructLayout {
     A::MoveStructLayout {
-        type_: move_core_types::language_storage::StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: URL_MODULE_NAME.to_owned(),
-            name: URL_STRUCT_NAME.to_owned(),
-            type_params: vec![],
-        },
+        type_: struct_tag_sdk_to_core(&StructTag::new_url()),
         fields: vec![A::MoveFieldLayout::new(
             ident_str!("url").to_owned(),
             A::MoveTypeLayout::Struct(Box::new(move_ascii_str_layout())),
@@ -925,9 +911,9 @@ impl TxContext {
         };
 
         let (module_addr, module_name, struct_name) = resolve_struct(view, *idx);
-        let is_tx_context_type = module_name == TX_CONTEXT_MODULE_NAME
-            && module_addr == &IOTA_FRAMEWORK_ADDRESS
-            && struct_name == TX_CONTEXT_STRUCT_NAME;
+        let is_tx_context_type = module_name.as_str() == TX_CONTEXT_MODULE_NAME.as_str()
+            && module_addr.as_ref() == IOTA_FRAMEWORK_ADDRESS.as_bytes()
+            && struct_name.as_str() == TX_CONTEXT_STRUCT_NAME.as_str();
 
         if is_tx_context_type {
             kind

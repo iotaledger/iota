@@ -13,7 +13,7 @@ use crate::{IOTA_FRAMEWORK_ADDRESS, id::UID};
 pub const CLOCK_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("clock");
 pub const CLOCK_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Clock");
 pub const RESOLVED_IOTA_CLOCK: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &IOTA_FRAMEWORK_ADDRESS,
+    &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
     ident_str!(CLOCK_MODULE_NAME.as_str()),
     ident_str!(CLOCK_STRUCT_NAME.as_str()),
 );

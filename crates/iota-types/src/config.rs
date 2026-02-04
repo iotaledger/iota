@@ -13,7 +13,7 @@ pub const CONFIG_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Config"
 pub const SETTING_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Setting");
 pub const SETTING_DATA_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("SettingData");
 pub const RESOLVED_IOTA_CONFIG: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &IOTA_FRAMEWORK_ADDRESS,
+    &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
     ident_str!(CONFIG_MODULE_NAME.as_str()),
     ident_str!(CONFIG_STRUCT_NAME.as_str()),
 );

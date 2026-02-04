@@ -9,6 +9,7 @@ use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
+    Identifier,
     base_types::{IotaAddress, ObjectID, ObjectRef, random_object_ref},
     crypto::get_key_pair,
     effects::TransactionEffectsAPI,
@@ -16,7 +17,6 @@ use iota_types::{
     transaction::{CallArg, Command, ObjectArg, Transaction, TransactionData},
     utils::to_sender_signed_transaction,
 };
-use move_core_types::identifier::Identifier;
 use rand::{
     Rng,
     distributions::{Distribution, Standard},

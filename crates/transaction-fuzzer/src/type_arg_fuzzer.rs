@@ -4,16 +4,13 @@
 
 use iota_core::test_utils::send_and_confirm_transaction;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, TypeTag,
-    base_types::ObjectID,
+    IOTA_FRAMEWORK_PACKAGE_ID, Identifier, IdentifierRef, StructTag, TypeTag,
+    base_types::{IotaAddress, ObjectID},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaError,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{ProgrammableTransaction, TransactionData, TransactionKind},
     utils::to_sender_signed_transaction,
-};
-use move_core_types::{
-    account_address::AccountAddress, identifier::Identifier, language_storage::StructTag,
 };
 use proptest::{arbitrary::*, prelude::*};
 
@@ -55,16 +52,13 @@ pub fn gen_nested_type_tag() -> impl Strategy<Value = TypeTag> {
 
 pub fn gen_struct_tag() -> impl Strategy<Value = StructTag> {
     (
-        any::<AccountAddress>(),
+        any::<IotaAddress>(),
         any::<Identifier>(),
         any::<Identifier>(),
         any::<Vec<TypeTag>>(),
     )
-        .prop_map(|(address, module, name, type_params)| StructTag {
-            address,
-            module,
-            name,
-            type_params,
+        .prop_map(|(address, module, name, type_params)| {
+            StructTag::new(address, module, name, type_params)
         })
 }
 
@@ -97,24 +91,24 @@ pub fn generate_valid_and_invalid_type_factory_tags(
 
 pub fn base_type_factory_tag_gen(addr: ObjectID) -> impl Strategy<Value = TypeTag> {
     "[A-Z]".prop_map(move |name| {
-        TypeTag::Struct(Box::new(StructTag {
-            address: AccountAddress::new(addr.into_bytes()),
-            module: Identifier::new("type_factory").unwrap(),
-            name: Identifier::new(name).unwrap(),
-            type_params: vec![],
-        }))
+        TypeTag::Struct(Box::new(StructTag::new(
+            addr.into(),
+            IdentifierRef::const_new("type_factory"),
+            Identifier::new(name).unwrap(),
+            vec![],
+        )))
     })
 }
 
 pub fn nested_type_factory_tag_gen(addr: ObjectID) -> impl Strategy<Value = TypeTag> {
     base_type_factory_tag_gen(addr).prop_recursive(20, 256, 10, move |inner| {
         (inner, "[A-Z]").prop_map(move |(instantiation, name)| {
-            TypeTag::Struct(Box::new(StructTag {
-                address: AccountAddress::new(addr.into_bytes()),
-                module: Identifier::new("type_factory").unwrap(),
-                name: Identifier::new(name.to_string() + &name).unwrap(),
-                type_params: vec![instantiation],
-            }))
+            TypeTag::Struct(Box::new(StructTag::new(
+                addr.into(),
+                IdentifierRef::const_new("type_factory"),
+                Identifier::new(name.to_string() + &name).unwrap(),
+                vec![instantiation],
+            )))
         })
     })
 }
@@ -128,7 +122,7 @@ pub fn type_factory_pt_for_tags(
     builder
         .move_call(
             package_id,
-            Identifier::new("type_factory").unwrap(),
+            IdentifierRef::const_new("type_factory").into(),
             Identifier::new(format!("type_tags{len}")).unwrap(),
             type_tags,
             vec![],
@@ -142,8 +136,8 @@ pub fn pt_for_tags(type_tags: Vec<TypeTag>) -> ProgrammableTransaction {
     builder
         .move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
-            Identifier::new("random_type_tag_fuzzing").unwrap(),
-            Identifier::new("random_type_tag_fuzzing_fn").unwrap(),
+            IdentifierRef::const_new("random_type_tag_fuzzing").into(),
+            IdentifierRef::const_new("random_type_tag_fuzzing_fn").into(),
             type_tags,
             vec![],
         )

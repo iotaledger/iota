@@ -12,6 +12,7 @@ use iota_grpc_client::Client;
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
+    StructTag,
     base_types::{ObjectID, random_object_ref},
     committee::EpochId,
     crypto::{AccountKeyPair, AuthorityStrongQuorumSignInfo, get_key_pair},
@@ -431,7 +432,7 @@ impl RestStateReader for MockRestStateReader {
 
     fn get_struct_layout(
         &self,
-        _: &move_core_types::language_storage::StructTag,
+        _: &StructTag,
     ) -> iota_types::storage::error::Result<Option<move_core_types::annotated_value::MoveTypeLayout>>
     {
         Ok(None)
