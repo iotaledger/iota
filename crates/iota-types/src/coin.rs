@@ -145,12 +145,7 @@ impl TreasuryCap {
     }
 
     pub fn type_(type_param: StructTag) -> StructTag {
-        StructTag::new(
-            IotaAddress::FRAMEWORK,
-            COIN_MODULE_NAME,
-            COIN_TREASURE_CAP_NAME,
-            vec![TypeTag::Struct(Box::new(type_param))],
-        )
+        StructTag::new_treasury_cap(type_param)
     }
 
     /// Checks if the provided type is `TreasuryCap<T>`, returning the type T if
@@ -217,12 +212,7 @@ impl CoinMetadata {
     }
 
     pub fn type_(type_param: StructTag) -> StructTag {
-        StructTag::new(
-            IotaAddress::FRAMEWORK,
-            COIN_MODULE_NAME,
-            COIN_METADATA_STRUCT_NAME,
-            vec![TypeTag::Struct(Box::new(type_param))],
-        )
+        StructTag::new_coin_metadata(type_param)
     }
 
     /// Checks if the provided type is `CoinMetadata<T>`, returning the type T

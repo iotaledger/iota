@@ -6,7 +6,6 @@ use iota_sdk_types::{IdentifierRef, StructTag, TypeTag};
 use serde::Deserialize;
 
 use crate::{
-    base_types::IotaAddress,
     collection_types::VecMap,
     event::Event,
     id::{ID, UID},
@@ -75,11 +74,6 @@ pub struct DisplayCreatedEvent {
 
 impl DisplayCreatedEvent {
     pub fn type_(inner: &StructTag) -> StructTag {
-        StructTag::new(
-            IotaAddress::FRAMEWORK,
-            DISPLAY_CREATED_EVENT_NAME,
-            DISPLAY_MODULE_NAME,
-            vec![inner.clone().into()],
-        )
+        StructTag::new_display_created(inner.clone())
     }
 }

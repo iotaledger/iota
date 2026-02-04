@@ -665,7 +665,7 @@ fn try_convert_type(
     fields: &[(Identifier, MoveValue)],
 ) -> Option<IotaMoveValue> {
     let struct_name = format!(
-        "0x{}::{}::{}",
+        "{}::{}::{}",
         type_.address().to_short_hex(),
         type_.module(),
         type_.name()

@@ -58,7 +58,7 @@ impl CoinManager {
     }
 
     pub fn type_(type_param: StructTag) -> StructTag {
-        StructTag::new_coin_metadata(type_param)
+        StructTag::new_coin_manager(type_param)
     }
 }
 

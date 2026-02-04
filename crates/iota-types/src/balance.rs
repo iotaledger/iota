@@ -12,7 +12,6 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    IotaAddress,
     error::{ExecutionError, ExecutionErrorKind},
     iota_sdk_types_conversions::{struct_tag_core_to_sdk, struct_tag_sdk_to_core},
     iota_serde::{BigInt, Readable},
@@ -43,12 +42,7 @@ impl Balance {
     }
 
     pub fn type_(type_param: TypeTag) -> StructTag {
-        StructTag::new(
-            IotaAddress::FRAMEWORK,
-            BALANCE_STRUCT_NAME,
-            BALANCE_MODULE_NAME,
-            vec![type_param],
-        )
+        StructTag::new_balance(type_param)
     }
 
     pub fn type_tag(inner_type_param: TypeTag) -> TypeTag {

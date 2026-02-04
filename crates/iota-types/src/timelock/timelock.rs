@@ -48,12 +48,7 @@ impl<T> TimeLock<T> {
 
     /// Get the TimeLock's `type`.
     pub fn type_(type_param: TypeTag) -> StructTag {
-        StructTag::new(
-            IotaAddress::FRAMEWORK,
-            TIMELOCK_STRUCT_NAME,
-            TIMELOCK_MODULE_NAME,
-            vec![type_param],
-        )
+        StructTag::new_time_lock(type_param)
     }
 
     /// Get the TimeLock's `id`.

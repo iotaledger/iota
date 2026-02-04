@@ -796,7 +796,7 @@
                   "packageId": "0xc54ab30a3d9adc07c1429c4d6bbecaf9457c9af77a91f631760853934d383634",
                   "transactionModule": "test_module",
                   "sender": "0xbcf7c32655009a61f1de0eae420a2e4ae1bb772ab2dd5d5a7dfa949c0ef06908",
-                  "type": "0x0000000000000000000000000000000000000000000000000000000000000009::test::TestEvent",
+                  "type": "0x9::test::TestEvent",
                   "parsedJson": {
                     "test": "example value"
                   },
@@ -3285,7 +3285,7 @@
           "schema": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/TypeTag"
+              "$ref": "#/components/schemas/TypeTag2"
             }
           }
         },
@@ -3852,7 +3852,7 @@
             {
               "name": "name",
               "value": {
-                "type": "0x0000000000000000000000000000000000000000000000000000000000000009::test::TestField",
+                "type": "0x9::test::TestField",
                 "value": "some_value"
               }
             }
@@ -3864,7 +3864,7 @@
                 "objectId": "0x5ea6f7a348f4a7bd1a9ab069eb7f63865de3075cc5a4e62432f634b50fd2bb2b",
                 "version": "1",
                 "digest": "FnxePMX8y7AqX5mRL4nCcK4xecSrpHrd85c3sJDmh5uG",
-                "type": "0x0000000000000000000000000000000000000000000000000000000000000009::test::TestField",
+                "type": "0x9::test::TestField",
                 "owner": {
                   "AddressOwner": "0x013d1eb156edcc1bedc3b1af1be1fe41671856fd3450dc5574abd53c793c9f22"
                 },
@@ -3872,7 +3872,7 @@
                 "storageRebate": "100",
                 "content": {
                   "dataType": "moveObject",
-                  "type": "0x0000000000000000000000000000000000000000000000000000000000000009::test::TestField",
+                  "type": "0x9::test::TestField",
                   "fields": {}
                 }
               }
@@ -3986,7 +3986,7 @@
               "data": [
                 {
                   "name": {
-                    "type": "0x0000000000000000000000000000000000000000000000000000000000000009::test::TestField",
+                    "type": "0x9::test::TestField",
                     "value": "some_value"
                   },
                   "bcsEncoding": "base64",
@@ -3999,7 +3999,7 @@
                 },
                 {
                   "name": {
-                    "type": "0x0000000000000000000000000000000000000000000000000000000000000009::test::TestField",
+                    "type": "0x9::test::TestField",
                     "value": "some_value"
                   },
                   "bcsEncoding": "base64",
@@ -4012,7 +4012,7 @@
                 },
                 {
                   "name": {
-                    "type": "0x0000000000000000000000000000000000000000000000000000000000000009::test::TestField",
+                    "type": "0x9::test::TestField",
                     "value": "some_value"
                   },
                   "bcsEncoding": "base64",
@@ -6132,7 +6132,7 @@
             "type": "string"
           },
           "coinType": {
-            "type": "string"
+            "$ref": "#/components/schemas/TypeTag"
           },
           "owner": {
             "description": "Owner of the balance change",
@@ -6561,7 +6561,7 @@
                 "$ref": "#/components/schemas/MoveStruct"
               },
               "type": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               }
             }
           },
@@ -6928,7 +6928,7 @@
         ],
         "properties": {
           "type": {
-            "type": "string"
+            "$ref": "#/components/schemas/TypeTag"
           },
           "value": true
         }
@@ -7292,11 +7292,19 @@
           },
           "transactionModule": {
             "description": "Move module where this event was emitted.",
-            "type": "string"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Identifier"
+              }
+            ]
           },
           "type": {
             "description": "Move event type.",
-            "type": "string"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StructTag"
+              }
+            ]
           }
         }
       },
@@ -7357,7 +7365,11 @@
                 "properties": {
                   "module": {
                     "description": "the module name",
-                    "type": "string"
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/Identifier"
+                      }
+                    ]
                   },
                   "package": {
                     "description": "the Move package ID",
@@ -7380,7 +7392,7 @@
             ],
             "properties": {
               "MoveEventType": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               }
             },
             "additionalProperties": false
@@ -7401,7 +7413,11 @@
                 "properties": {
                   "module": {
                     "description": "the module name",
-                    "type": "string"
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/Identifier"
+                      }
+                    ]
                   },
                   "package": {
                     "description": "the Move package ID",
@@ -7762,6 +7778,15 @@
           }
         }
       },
+      "Identifier": {
+        "title": "Identifier",
+        "description": "A Move Identifier",
+        "examples": [
+          "iota"
+        ],
+        "type": "string",
+        "pattern": "(?:[a-zA-Z][a-zA-Z0-9_]{0,127})|(?:_[a-zA-Z0-9_]{0,127})"
+      },
       "InputObjectKind": {
         "oneOf": [
           {
@@ -8030,10 +8055,13 @@
                 "$ref": "#/components/schemas/IotaJsonValue"
               },
               "valueType": {
-                "default": null,
-                "type": [
-                  "string",
-                  "null"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TypeTag"
+                  },
+                  {
+                    "type": "null"
+                  }
                 ]
               }
             }
@@ -8258,7 +8286,7 @@
                   }
                 },
                 {
-                  "$ref": "#/components/schemas/TypeTag"
+                  "$ref": "#/components/schemas/TypeTag2"
                 }
               ],
               "maxItems": 3,
@@ -8280,7 +8308,7 @@
                   }
                 },
                 {
-                  "$ref": "#/components/schemas/TypeTag"
+                  "$ref": "#/components/schemas/TypeTag2"
                 }
               ],
               "maxItems": 2,
@@ -8796,7 +8824,11 @@
                 "properties": {
                   "module": {
                     "description": "the module name",
-                    "type": "string"
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/Identifier"
+                      }
+                    ]
                   },
                   "package": {
                     "description": "the Move package ID",
@@ -8819,7 +8851,7 @@
             ],
             "properties": {
               "StructType": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               }
             },
             "additionalProperties": false
@@ -10322,7 +10354,7 @@
                 }
               },
               "type": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               }
             }
           },
@@ -10400,7 +10432,7 @@
             }
           },
           "type": {
-            "type": "string"
+            "$ref": "#/components/schemas/StructTag"
           },
           "variant": {
             "type": "string"
@@ -10677,7 +10709,7 @@
                 "$ref": "#/components/schemas/ObjectId"
               },
               "objectType": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               },
               "recipient": {
                 "$ref": "#/components/schemas/Owner"
@@ -10717,7 +10749,7 @@
                 "$ref": "#/components/schemas/ObjectId"
               },
               "objectType": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               },
               "owner": {
                 "$ref": "#/components/schemas/Owner"
@@ -10754,7 +10786,7 @@
                 "$ref": "#/components/schemas/ObjectId"
               },
               "objectType": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               },
               "sender": {
                 "$ref": "#/components/schemas/Address"
@@ -10785,7 +10817,7 @@
                 "$ref": "#/components/schemas/ObjectId"
               },
               "objectType": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               },
               "sender": {
                 "$ref": "#/components/schemas/Address"
@@ -10821,7 +10853,7 @@
                 "$ref": "#/components/schemas/ObjectId"
               },
               "objectType": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               },
               "owner": {
                 "$ref": "#/components/schemas/Owner"
@@ -11877,7 +11909,7 @@
                 ]
               },
               "type": {
-                "type": "string"
+                "$ref": "#/components/schemas/StructTag"
               },
               "version": {
                 "type": "integer",
@@ -12057,6 +12089,14 @@
             ]
           }
         }
+      },
+      "StructTag": {
+        "title": "StructTag",
+        "description": "A Move StructTag",
+        "examples": [
+          "0x2::coin::Coin<0x2::iota::IOTA>"
+        ],
+        "type": "string"
       },
       "Supply": {
         "type": "object",
@@ -13159,6 +13199,9 @@
         }
       },
       "TypeTag": {
+        "type": "string"
+      },
+      "TypeTag2": {
         "type": "string"
       },
       "UpgradeInfo": {
