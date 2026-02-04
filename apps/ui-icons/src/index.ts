@@ -107,3 +107,4 @@ export { default as VisibilityOff } from './VisibilityOff';
 export { default as VisibilityOn } from './VisibilityOn';
 export { default as Wallet } from './Wallet';
 export { default as Warning } from './Warning';
+export { default as SidePanel } from './SidePanel';

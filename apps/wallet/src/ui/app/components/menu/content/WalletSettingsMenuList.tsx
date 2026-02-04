@@ -27,7 +27,7 @@ import {
     Logout,
     Expand,
     Discord,
-    OutboundLink,
+    SidePanel as SidePanelIcon,
 } from '@iota/apps-ui-icons';
 import {
     ButtonType,
@@ -38,6 +38,7 @@ import {
     CardImage,
     CardType,
     ImageType,
+    Toggle,
 } from '@iota/apps-ui-kit';
 import { ampli } from '_src/shared/analytics/ampli';
 import { useTheme, getCustomNetwork, FAQ_LINK, ToS_LINK, DISCORD_SUPPORT_LINK } from '@iota/core';
@@ -152,9 +153,11 @@ export function MenuList() {
         ...(SidePanel.isSupported()
             ? [
                   {
-                      title: sidePanel.data ? `Disable Side Panel` : 'Enable Side Panel',
-                      icon: <OutboundLink />,
+                      title: 'Side Panel',
+                      subtitle: sidePanel.data ? `Enabled` : 'Disabled',
+                      icon: <SidePanelIcon />,
                       onClick: onSidePanelClick,
+                      tailIcon: <Toggle isToggled={!!sidePanel.data} />,
                   },
               ]
             : []),
@@ -182,7 +185,7 @@ export function MenuList() {
                                 </div>
                             </CardImage>
                             <CardBody title={item.title} subtitle={item.subtitle} />
-                            <CardAction type={CardActionType.Link} />
+                            {item.tailIcon ?? <CardAction type={CardActionType.Link} />}
                         </Card>
                     ))}
                     <ConfirmationModal
