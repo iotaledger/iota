@@ -4678,9 +4678,9 @@ impl AuthorityState {
                 id: _,
                 bytes,
                 dependencies,
-            } = framework_injection::get_override_system_package(&system_package_ref.0, self.name)
+            } = framework_injection::get_override_system_package(&system_package_ref.object_id, self.name)
                 .unwrap_or_else(|| {
-                    BuiltInFramework::get_package_by_id(&system_package_ref.0).clone()
+                    BuiltInFramework::get_package_by_id(&system_package_ref.object_id).clone()
                 });
 
             #[cfg(not(msim))]
