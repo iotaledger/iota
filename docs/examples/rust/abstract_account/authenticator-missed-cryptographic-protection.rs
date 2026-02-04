@@ -8,10 +8,10 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use docs_examples::utils::{
-    clean_keystore, create_transaction_data, execute_ptb, execute_transaction, get_coin,
-    publish_aa_package, request_tokens_from_faucet, setup_keystore,
+    create_transaction_data, execute_ptb, execute_transaction, get_coin, publish_aa_package,
+    request_tokens_from_faucet,
 };
-use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
+use iota_keys::keystore::{AccountKeystore, InMemKeystore};
 use iota_sdk::{
     IotaClient, IotaClientBuilder, rpc_types::ObjectChange, types::crypto::SignatureScheme::ED25519,
 };
@@ -52,8 +52,8 @@ async fn main() -> Result<(), anyhow::Error> {
     // Build an iota client for a local network
     let iota_client = IotaClientBuilder::default().build_localnet().await?;
 
-    // Setup the temporary file based keystore
-    let mut keystore = setup_keystore()?;
+    // Setup the temporary in memory keystore
+    let mut keystore = InMemKeystore::new_insecure_for_tests(0);
 
     // Derive the address of the first account and set it as default
     let publisher = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None, None)?;
@@ -119,14 +119,13 @@ async fn main() -> Result<(), anyhow::Error> {
     let attacker_coin = get_coin(&iota_client, attacker).await?;
     println!("Attacker coin: {attacker_coin:?}");
 
-    // Finish and clean the temporary keystore file
-    clean_keystore()
+    Ok(())
 }
 
 /// Creates an abstract account instance.
 pub async fn create_account(
     iota_client: &IotaClient,
-    keystore: &mut FileBasedKeystore,
+    keystore: &mut InMemKeystore,
     publisher: IotaAddress,
     package_id: &ObjectID,
     package_metadata_ref: ObjectRef,
@@ -221,7 +220,7 @@ pub async fn create_test_transaction(
     let signature = GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
         vec![],
         vec![],
-        account_call_arg.clone(),
+        account_call_arg,
     ));
 
     Ok(Transaction::from_generic_sig_data(tx_data, vec![signature]))

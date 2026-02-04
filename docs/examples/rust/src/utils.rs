@@ -139,9 +139,9 @@ pub async fn publish_custom_nft_package(
 
 /// Utility function for publishing an account package found in the Move
 /// examples.
-pub async fn publish_aa_package(
+pub async fn publish_aa_package<Keystore: AccountKeystore>(
     iota_client: &IotaClient,
-    keystore: &mut FileBasedKeystore,
+    keystore: &mut Keystore,
     publisher: IotaAddress,
     package: &str,
 ) -> Result<(ObjectID, ObjectRef)> {
@@ -176,9 +176,9 @@ pub async fn publish_aa_package(
 }
 
 /// Utility function for publishing a package found in the Move examples.
-pub async fn publish_package(
+pub async fn publish_package<Keystore: AccountKeystore>(
     iota_client: &IotaClient,
-    keystore: &mut FileBasedKeystore,
+    keystore: &mut Keystore,
     publisher: IotaAddress,
     package: &str,
 ) -> Result<IotaTransactionBlockResponse> {
@@ -351,9 +351,9 @@ pub async fn create_transaction_data(
 }
 
 /// Utility function to create and sign a transaction.
-pub async fn create_and_sign_transaction(
+pub async fn create_and_sign_transaction<Keystore: AccountKeystore>(
     iota_client: &IotaClient,
-    keystore: &mut FileBasedKeystore,
+    keystore: &mut Keystore,
     sender: IotaAddress,
     pt: ProgrammableTransaction,
 ) -> Result<Transaction> {
@@ -380,9 +380,9 @@ pub async fn execute_transaction(
 }
 
 /// Utility function to execute a PTB transaction.
-pub async fn execute_ptb(
+pub async fn execute_ptb<Keystore: AccountKeystore>(
     iota_client: &IotaClient,
-    keystore: &mut FileBasedKeystore,
+    keystore: &mut Keystore,
     sender: IotaAddress,
     pt: ProgrammableTransaction,
 ) -> Result<IotaTransactionBlockResponse> {

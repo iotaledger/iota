@@ -12,8 +12,8 @@ use iota::hex::decode;
 
 #[error(code = 0)]
 const EEd25519VerificationFailed: vector<u8> = b"Ed25519 authenticator verification failed.";
-#[error(code = 0)]
-const AccountIsBlacklisted: vector<u8> = b"Account is blacklisted.";
+#[error(code = 1)]
+const EAccountIsBlacklisted: vector<u8> = b"Account is blacklisted.";
 
 /// A dynamic field key for storing the account owner public key.
 public struct OwnerPublicKey has copy, drop, store {}
@@ -50,7 +50,7 @@ public fun authenticate(
     _: &AuthContext,
     ctx: &TxContext,
 ) {
-    assert!(!blacklist.is_blacklisted(ctx.sender()), AccountIsBlacklisted);
+    assert!(!blacklist.is_blacklisted(ctx.sender()), EAccountIsBlacklisted);
 
     assert!(
         ed25519::ed25519_verify(&decode(signature), account.public_key(), ctx.digest()),

@@ -41,12 +41,12 @@ The blacklist implementation:
 
 An attacker can exploit this vulnerability by swapping the shared object:
 
-```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-shared-object-swap.rs#L168-L189
+```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-shared-object-swap.rs#L192-L217
 ```
 
 The swap function replaces the shared object reference in the transaction:
 
-```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-shared-object-swap.rs#L410-L438
+```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-shared-object-swap.rs#L438-L466
 ```
 
 ## Secure Implementations
@@ -69,14 +69,11 @@ public fun authenticate(
     ctx: &TxContext,
 ) {
     // ✅ SECURE: Verify this is the authorized blacklist
-    let authorized_blacklist_id = *dynamic_field::borrow<AuthorizedBlacklist, ID>(
-        &account.id,
-        AuthorizedBlacklist {}
-    );
-    assert!(blacklist.id() == authorized_blacklist_id, EUnauthorizedBlacklist);
+    let authorized_blacklist_id = *dynamic_field::borrow(&account.id, AuthorizedBlacklist {});
+    assert!(object::id(blacklist) == authorized_blacklist_id, EUnauthorizedBlacklist);
     
     // Now safe to use the blacklist
-    assert!(!blacklist.is_blacklisted(ctx.sender()), AccountIsBlacklisted);
+    assert!(!blacklist.is_blacklisted(ctx.sender()), EAccountIsBlacklisted);
     
     ...
 }
@@ -96,7 +93,7 @@ module authenticator_shared_object_swap::blacklist;
 public struct BLACKLIST has drop {}
 
 #[error(code = 0)]
-const AccountIsAlreadyBlacklisted: vector<u8> = b"Account is already blacklisted.";
+const EAccountIsAlreadyBlacklisted: vector<u8> = b"Account is already blacklisted.";
 
 /// A shared object that maintains a blacklist of accounts.
 public struct Blacklist has key {
@@ -108,13 +105,12 @@ public struct Blacklist has key {
 fun init(_: BLACKLIST, ctx: &mut TxContext) {
     // ✅ SECURE: Only one `Blacklist` instance can be created
     let blacklist = Blacklist { id: object::new(ctx), accounts: vector::empty() };
-
     transfer::share_object(blacklist);
 }
 
 /// Adds an account address to the blacklist.
 public fun add(blacklist: &mut Blacklist, account: address) {
-    assert!(!blacklist.accounts.contains(&account), AccountIsAlreadyBlacklisted);
+    assert!(!blacklist.accounts.contains(&account), EAccountIsAlreadyBlacklisted);
     blacklist.accounts.push_back(account);
 }
 
@@ -129,6 +125,20 @@ However, please keep in mind that creating several instances may become possible
 ### Option 3: Avoid shared objects in authenticators
 
 Whenever possible, store critical authentication data in the account itself using dynamic fields instead of using a shared object.
+
+```move
+/// A dynamic field key used for storing the information whether an account is blacklisted.
+public struct IsBlacklisted has copy, drop, store {}
+
+#[authenticator]
+public fun authenticate(account: &Account, _: &AuthContext, _: &TxContext) {
+    // ✅ SECURE: Verify if the account is blacklisted based on the dynamic field
+    let is_blacklisted = *dynamic_field::borrow(&account.id, IsBlacklisted {});
+    assert!(!is_blacklisted, EAccountIsBlacklisted);
+ 
+    ...
+}
+```
 
 ## Best Practices
 

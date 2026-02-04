@@ -8,15 +8,15 @@ use std::str::FromStr;
 
 use anyhow::{Result, bail};
 use docs_examples::utils::{
-    clean_keystore, create_transaction_data, execute_ptb, execute_transaction, get_coin,
-    publish_aa_package, request_tokens_from_faucet, setup_keystore,
+    create_transaction_data, execute_ptb, execute_transaction, get_coin, publish_aa_package,
+    request_tokens_from_faucet,
 };
 use fastcrypto::{
     ed25519::Ed25519Signature,
     encoding::{Encoding, Hex},
     traits::Authenticator,
 };
-use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
+use iota_keys::keystore::{AccountKeystore, InMemKeystore};
 use iota_sdk::{
     IotaClient, IotaClientBuilder,
     rpc_types::{IotaTransactionBlockEffectsAPI, ObjectChange},
@@ -71,8 +71,8 @@ async fn main() -> Result<(), anyhow::Error> {
     // Build an iota client for a local network
     let iota_client = IotaClientBuilder::default().build_localnet().await?;
 
-    // Setup the temporary file based keystore
-    let mut keystore = setup_keystore()?;
+    // Setup the temporary in memory keystore
+    let mut keystore = InMemKeystore::new_insecure_for_tests(0);
 
     // Derive the address of the first account and set it as default
     let publisher = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None, None)?;
@@ -108,6 +108,29 @@ async fn main() -> Result<(), anyhow::Error> {
     let blacklist_ref =
         create_blacklist(&iota_client, &mut keystore, publisher, &package_id).await?;
 
+    // Create an abstract account transaction
+    let recipient_a = IotaAddress::random_for_testing_only();
+
+    println!("Recipient A address: {recipient_a}");
+
+    let transaction = create_test_transaction(
+        &iota_client,
+        &mut keystore,
+        publisher,
+        recipient_a,
+        &account_ref,
+        &blacklist_ref,
+    )
+    .await?;
+
+    // Execute the transaction
+    let _ = execute_transaction(&iota_client, transaction).await?;
+
+    // Get a transferred coin from the recipient address A to verify the
+    // transaction succeeded
+    let transferred_coin = get_coin(&iota_client, recipient_a).await?;
+    println!("Recipient A coin: {transferred_coin:?}");
+
     // Add the account address to the blacklist
     add_address_to_blacklist(
         &iota_client,
@@ -119,16 +142,17 @@ async fn main() -> Result<(), anyhow::Error> {
     )
     .await?;
 
-    // Create an abstract account transaction
-    let recipient = IotaAddress::random_for_testing_only();
+    // Create an abstract account transaction after the account address is
+    // blacklisted
+    let recipient_b = IotaAddress::random_for_testing_only();
 
-    println!("Recipient address: {recipient}");
+    println!("Recipient B address: {recipient_b}");
 
     let transaction = create_test_transaction(
         &iota_client,
         &mut keystore,
         publisher,
-        recipient,
+        recipient_b,
         &account_ref,
         &blacklist_ref,
     )
@@ -153,8 +177,8 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     }
 
-    // A transferred coin is not expected to be found at the recipient address
-    match get_coin(&iota_client, recipient).await {
+    // A transferred coin is not expected to be found at the recipient address B
+    match get_coin(&iota_client, recipient_b).await {
         Ok(coin) => {
             bail!("Transaction expected to fail, but got a transferred coin: {coin:?}");
         }
@@ -166,11 +190,15 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     // Create one more test transaction
+    let recipient_c = IotaAddress::random_for_testing_only();
+
+    println!("Recipient C address: {recipient_c}");
+
     let transaction = create_test_transaction(
         &iota_client,
         &mut keystore,
         publisher,
-        recipient,
+        recipient_c,
         &account_ref,
         &blacklist_ref,
     )
@@ -188,19 +216,18 @@ async fn main() -> Result<(), anyhow::Error> {
     // has been swapped with an empty one.
     let _ = execute_transaction(&iota_client, hacked_transaction).await?;
 
-    // Get a transferred coin from the recipient address to verify the
+    // Get a transferred coin from the recipient address C to verify the
     // transaction succeeded
-    let transferred_coin = get_coin(&iota_client, recipient).await?;
-    println!("Transferred coin: {transferred_coin:?}");
+    let transferred_coin = get_coin(&iota_client, recipient_c).await?;
+    println!("Recipient C coin: {transferred_coin:?}");
 
-    // Finish and clean the temporary keystore file
-    clean_keystore()
+    Ok(())
 }
 
 /// Creates an abstract account instance.
 pub async fn create_account(
     iota_client: &IotaClient,
-    keystore: &mut FileBasedKeystore,
+    keystore: &mut InMemKeystore,
     publisher: IotaAddress,
     package_id: &ObjectID,
     package_metadata_ref: ObjectRef,
@@ -270,7 +297,7 @@ pub async fn create_account(
 /// Creates a blacklist shared object instance.
 pub async fn create_blacklist(
     iota_client: &IotaClient,
-    keystore: &mut FileBasedKeystore,
+    keystore: &mut InMemKeystore,
     publisher: IotaAddress,
     package_id: &ObjectID,
 ) -> Result<ObjectRef> {
@@ -314,7 +341,7 @@ pub async fn create_blacklist(
 /// Adds an address to the blacklist.
 pub async fn add_address_to_blacklist(
     iota_client: &IotaClient,
-    keystore: &mut FileBasedKeystore,
+    keystore: &mut InMemKeystore,
     package_id: &ObjectID,
     publisher: IotaAddress,
     blacklist_ref: &ObjectRef,
@@ -359,7 +386,7 @@ pub async fn add_address_to_blacklist(
 /// Creates a test transaction from the abstract account.
 pub async fn create_test_transaction(
     iota_client: &IotaClient,
-    keystore: &mut FileBasedKeystore,
+    keystore: &mut InMemKeystore,
     publisher: IotaAddress,
     recipient: IotaAddress,
     account_ref: &ObjectRef,
@@ -398,10 +425,11 @@ pub async fn create_test_transaction(
             .take(Ed25519Signature::LENGTH * 2)
             .collect();
     let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
+
     let signature = GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
-        vec![signature_call_arg.clone(), blacklist_call_arg],
+        vec![signature_call_arg, blacklist_call_arg],
         vec![],
-        account_call_arg.clone(),
+        account_call_arg,
     ));
 
     Ok(Transaction::from_generic_sig_data(tx_data, vec![signature]))

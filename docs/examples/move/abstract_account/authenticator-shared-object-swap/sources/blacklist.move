@@ -4,7 +4,7 @@
 module authenticator_shared_object_swap::blacklist;
 
 #[error(code = 0)]
-const AccountIsAlreadyBlacklisted: vector<u8> = b"Account is already blacklisted.";
+const EAccountIsAlreadyBlacklisted: vector<u8> = b"Account is already blacklisted.";
 
 /// A shared object that maintains a blacklist of accounts.
 ///
@@ -18,13 +18,12 @@ public struct Blacklist has key {
 /// Creates a new `Blacklist` shared object.
 public fun create(ctx: &mut TxContext) {
     let blacklist = Blacklist { id: object::new(ctx), accounts: vector::empty() };
-
     transfer::share_object(blacklist);
 }
 
 /// Adds an account address to the blacklist.
 public fun add(blacklist: &mut Blacklist, account: address) {
-    assert!(!blacklist.accounts.contains(&account), AccountIsAlreadyBlacklisted);
+    assert!(!blacklist.accounts.contains(&account), EAccountIsAlreadyBlacklisted);
     blacklist.accounts.push_back(account);
 }
 
