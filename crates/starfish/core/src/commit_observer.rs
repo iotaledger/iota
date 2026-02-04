@@ -447,7 +447,8 @@ mod tests {
     use super::*;
     use crate::{
         block_header::BlockRef, context::Context, dag_state::DagState,
-        storage::mem_store::MemStore, test_dag_builder::DagBuilder,
+        scoring_metrics_store::ScoringMetricsStore, storage::mem_store::MemStore,
+        test_dag_builder::DagBuilder,
     };
 
     #[tokio::test]
@@ -852,6 +853,11 @@ mod tests {
         let metrics = crate::metrics::test_metrics();
         let temp_dir = tempfile::TempDir::new().unwrap();
         let clock = Arc::new(crate::context::Clock::default());
+        let scoring_metrics_store = Arc::new(ScoringMetricsStore::dummy_for_test(
+            committee.size(),
+            &protocol_config,
+        ));
+
         let context = Arc::new(Context::new(
             0,
             starfish_config::AuthorityIndex::new_for_test(0),
@@ -862,6 +868,7 @@ mod tests {
             },
             protocol_config,
             metrics,
+            scoring_metrics_store,
             clock,
         ));
 

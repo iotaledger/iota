@@ -4,6 +4,7 @@
 
 use std::{sync::Arc, time::Instant};
 
+use iota_common::scoring_metrics::VersionedScoringMetrics;
 use iota_protocol_config::ProtocolConfig;
 use itertools::Itertools;
 use parking_lot::RwLock;
@@ -29,6 +30,7 @@ use crate::{
     leader_timeout::{LeaderTimeoutTask, LeaderTimeoutTaskHandle},
     metrics::initialise_metrics,
     network::tonic_network::{TonicClient, TonicManager},
+    scoring_metrics_store::ScoringMetricsStore,
     shard_reconstructor::{ShardReconstructor, ShardReconstructorHandle},
     storage::rocksdb_store::RocksDBStore,
     subscriber::Subscriber,
@@ -72,6 +74,7 @@ impl ConsensusAuthority {
         transaction_verifier: Arc<dyn TransactionVerifier>,
         commit_consumer: CommitConsumer,
         registry: Registry,
+        current_local_metrics_count: Arc<VersionedScoringMetrics>,
         boot_counter: u64,
     ) -> Self {
         assert!(
@@ -92,6 +95,13 @@ impl ConsensusAuthority {
         );
         info!("Consensus parameters: {:?}", parameters);
         info!("Consensus committee: {:?}", committee);
+
+        let scoring_metrics_store = Arc::new(ScoringMetricsStore::new(
+            committee.size(),
+            current_local_metrics_count,
+            &protocol_config,
+        ));
+
         let context = Arc::new(Context::new(
             epoch_start_timestamp_ms,
             own_index,
@@ -99,6 +109,7 @@ impl ConsensusAuthority {
             parameters,
             protocol_config,
             initialise_metrics(registry),
+            scoring_metrics_store,
             clock,
         ));
         let start_time = Instant::now();
@@ -398,19 +409,25 @@ mod tests {
 
         let (sender, _receiver) = unbounded_channel("consensus_output");
         let commit_consumer = CommitConsumer::new(sender, 0);
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+        let current_local_metrics_count = Arc::new(VersionedScoringMetrics::new(
+            committee.size(),
+            &protocol_config,
+        ));
 
         let authority = ConsensusAuthority::start(
             0,
             own_index,
             committee,
             parameters,
-            ProtocolConfig::get_for_max_version_UNSAFE(),
+            protocol_config,
             protocol_keypair,
             network_keypair,
             Arc::new(Clock::default()),
             Arc::new(txn_verifier),
             commit_consumer,
             registry,
+            current_local_metrics_count,
             0,
         )
         .await;
@@ -934,6 +951,10 @@ mod tests {
         let commit_consumer = CommitConsumer::new(sender, 0);
 
         let consensus_consumer_monitor = commit_consumer.monitor();
+        let current_local_metrics_count = Arc::new(VersionedScoringMetrics::new(
+            committee.size(),
+            &protocol_config,
+        ));
 
         let authority = ConsensusAuthority::start(
             0,
@@ -947,6 +968,7 @@ mod tests {
             Arc::new(txn_verifier),
             commit_consumer,
             registry,
+            current_local_metrics_count,
             boot_counter,
         )
         .await;
