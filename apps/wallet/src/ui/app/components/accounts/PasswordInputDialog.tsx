@@ -134,11 +134,16 @@ export function PasswordModalDialog({
         <Dialog open={open}>
             <DialogContent containerId="overlay-portal-container">
                 {!showForgotPassword && <Header title="" onClose={onClose} />}
-                <DialogBody>
+                <DialogBody
+                    className={clsx(
+                        'dialog-body-color flex flex-col overflow-y-auto p-md--rs text-body-sm',
+                        showForgotPassword ? 'max-h-[calc(100dvh-2rem)] min-h-[65vh] ' : '',
+                    )}
+                >
                     <div
                         className={clsx(
-                            'flex flex-col items-center gap-y-sm',
-                            showForgotPassword ? 'pt-xl' : '',
+                            'flex min-h-0 flex-1 flex-col items-center',
+                            showForgotPassword ? 'pt-2xl' : '',
                         )}
                     >
                         <>
@@ -154,7 +159,12 @@ export function PasswordModalDialog({
                             </span>
                         </>
 
-                        <Form form={form} id={formID} onSubmit={handleOnSubmit}>
+                        <Form
+                            form={form}
+                            id={formID}
+                            onSubmit={handleOnSubmit}
+                            className="flex min-h-0 w-full flex-1 flex-col"
+                        >
                             <div className="flex flex-col gap-y-lg">
                                 <div className="flex flex-col gap-y-sm">
                                     <Input
@@ -178,23 +188,24 @@ export function PasswordModalDialog({
                                         </span>
                                     )}
                                 </div>
-                                <div className="flex gap-2.5 pt-lg">
-                                    {!showForgotPassword && (
-                                        <Button
-                                            type={ButtonType.Secondary}
-                                            text={cancelText}
-                                            onClick={onClose}
-                                            fullWidth
-                                        />
-                                    )}
+                            </div>
+
+                            <div className="mt-auto flex gap-2.5 pt-xl">
+                                {!showForgotPassword && (
                                     <Button
-                                        htmlType={ButtonHtmlType.Submit}
-                                        type={ButtonType.Primary}
-                                        disabled={isConfirmDisabled}
-                                        text={confirmText}
+                                        type={ButtonType.Secondary}
+                                        text={cancelText}
+                                        onClick={onClose}
                                         fullWidth
                                     />
-                                </div>
+                                )}
+                                <Button
+                                    htmlType={ButtonHtmlType.Submit}
+                                    type={ButtonType.Primary}
+                                    disabled={isConfirmDisabled}
+                                    text={confirmText}
+                                    fullWidth
+                                />
                             </div>
                         </Form>
                     </div>
