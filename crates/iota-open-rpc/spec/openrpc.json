@@ -6662,22 +6662,7 @@
               "null"
             ],
             "items": {
-              "type": "array",
-              "items": [
-                {
-                  "$ref": "#/components/schemas/ObjectId"
-                },
-                {
-                  "type": "integer",
-                  "format": "uint64",
-                  "minimum": 0.0
-                },
-                {
-                  "$ref": "#/components/schemas/Digest"
-                }
-              ],
-              "maxItems": 3,
-              "minItems": 3
+              "$ref": "#/components/schemas/ObjectReference"
             }
           },
           "gasSponsor": {
@@ -11183,6 +11168,38 @@
             "type": "integer",
             "format": "uint64",
             "minimum": 0.0
+          }
+        }
+      },
+      "ObjectReference": {
+        "description": "Reference to an object\n\nContains sufficient information to uniquely identify a specific object.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text object-ref = object-id u64 digest ```",
+        "type": "object",
+        "required": [
+          "digest",
+          "objectId",
+          "version"
+        ],
+        "properties": {
+          "digest": {
+            "description": "The digest of this object.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Digest"
+              }
+            ]
+          },
+          "objectId": {
+            "description": "The object id of this object.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectId"
+              }
+            ]
+          },
+          "version": {
+            "description": "The version of this object.",
+            "type": "string",
+            "format": "u64"
           }
         }
       },
