@@ -2,7 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { createContext, useCallback, useContext, useState, useEffect, type ReactNode, useRef } from 'react';
+import {
+    createContext,
+    useCallback,
+    useContext,
+    useState,
+    useEffect,
+    type ReactNode,
+    useRef,
+} from 'react';
 import { toast } from '@iota/core';
 import { useUnlockMutation, useBackgroundClient, useActiveAccount } from '_hooks';
 import { UnlockAccountModal } from './UnlockAccountModal';
