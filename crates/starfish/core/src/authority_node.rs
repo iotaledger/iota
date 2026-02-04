@@ -32,6 +32,7 @@ use crate::{
     leader_timeout::{LeaderTimeoutTask, LeaderTimeoutTaskHandle},
     metrics::initialise_metrics,
     network::tonic_network::{TonicClient, TonicManager},
+    scoring_metrics_store::ScoringMetricsStore,
     shard_reconstructor::{ShardReconstructor, ShardReconstructorHandle},
     storage::rocksdb_store::RocksDBStore,
     subscriber::Subscriber,
@@ -99,6 +100,9 @@ impl ConsensusAuthority {
         );
         info!("Consensus parameters: {:?}", parameters);
         info!("Consensus committee: {:?}", committee);
+
+        let scoring_metrics_store = Arc::new(ScoringMetricsStore::new(committee.size()));
+
         let context = Arc::new(Context::new(
             epoch_start_timestamp_ms,
             own_index,
@@ -106,6 +110,7 @@ impl ConsensusAuthority {
             parameters,
             protocol_config,
             initialise_metrics(registry),
+            scoring_metrics_store,
             clock,
         ));
         let start_time = Instant::now();
