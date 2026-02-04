@@ -9,8 +9,7 @@ import { requestIotaFromFaucetV1, getFaucetHost } from '@iota/iota-sdk/faucet';
  * Example: Client Read Operations
  *
  * This example demonstrates basic read operations using the IotaClient,
- * such as fetching an account's balance and coin objects from the devnet.
- * It requests IOTA from the faucet to show actual data.
+ * such as fetching an account's balance and coin objects from devnet.
  */
 console.log('Setting up client and keypair...');
 
