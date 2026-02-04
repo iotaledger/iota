@@ -10,13 +10,13 @@ task 1, lines 10-64:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9811600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9811600, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 66:
 //# run test::m1::create --sender A
 created: object(2,0), object(2,1), object(2,2), object(2,3), object(2,4), object(2,5)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 11818000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 11818000, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 68:
 //# view-object 2,4
@@ -45,29 +45,29 @@ Contents: test::m1::Object {
 task 5, line 74:
 //# run test::m1::borrow_mut --sender A --args object(2,4)
 mutated: object(0,0), object(2,4)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2226800,  storage_rebate: 2226800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2226800, storage_rebate: 2226800, non_refundable_storage_fee: 0
 
 task 6, line 76:
 //# run test::m1::borrow_mut --sender A --args object(2,5)
 mutated: object(0,0), object(2,5)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2226800,  storage_rebate: 2226800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2226800, storage_rebate: 2226800, non_refundable_storage_fee: 0
 
 task 7, line 78:
 //# run test::m1::add_remove --sender A --args object(2,4)
 mutated: object(0,0), object(2,4)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2226800,  storage_rebate: 2226800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2226800, storage_rebate: 2226800, non_refundable_storage_fee: 0
 
 task 8, line 80:
 //# run test::m1::add_remove --sender A --args object(2,5)
 mutated: object(0,0), object(2,5)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2226800,  storage_rebate: 2226800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2226800, storage_rebate: 2226800, non_refundable_storage_fee: 0
 
 task 9, line 82:
 //# run test::m1::write_back --sender A --args object(2,4)
 mutated: object(0,0), object(2,4)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2226800,  storage_rebate: 2226800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2226800, storage_rebate: 2226800, non_refundable_storage_fee: 0
 
 task 10, line 84:
 //# run test::m1::write_back --sender A --args object(2,5)
 mutated: object(0,0), object(2,5)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2226800,  storage_rebate: 2226800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2226800, storage_rebate: 2226800, non_refundable_storage_fee: 0
