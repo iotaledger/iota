@@ -295,6 +295,7 @@ jobs:
           GH_TOKEN: ${{ secrets.HOMEBREW_GH_FORMULA_BUMP }}
 
   publish-chocolatey:
+    environment: release
     name: Publish Chocolatey package
     needs: [release-build, generate-tag]
     runs-on: windows-latest
