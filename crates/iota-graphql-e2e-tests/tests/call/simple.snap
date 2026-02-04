@@ -10,19 +10,19 @@ task 1, lines 7-26:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 234000, storage_cost: 5563200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 234000, storage_cost: 5563200, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 28:
 //# run Test::M1::create --args 0 @A --gas-price 1000
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 234000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 234000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, line 30:
 //# run Test::M1::create --args 0 @validator_0
 created: object(3,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 234000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 234000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, line 32:
 //# view-object 0,0
@@ -431,19 +431,19 @@ task 23, line 185:
 //# run Test::M1::create --args 0 @A --gas-price 999
 created: object(23,0)
 mutated: object(0,1)
-gas summary: computation_cost: 999000, computation_cost_burned: 234000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 999000, computation_cost_burned: 234000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 24, line 187:
 //# run Test::M1::create --args 0 @A --gas-price 1000
 created: object(24,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 234000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 234000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 25, line 189:
 //# run Test::M1::create --args 0 @A --gas-price 235
 created: object(25,0)
 mutated: object(0,1)
-gas summary: computation_cost: 235000, computation_cost_burned: 234000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 235000, computation_cost_burned: 234000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 26, lines 191-196:
 //# run-graphql
