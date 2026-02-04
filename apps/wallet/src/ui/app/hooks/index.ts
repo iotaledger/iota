@@ -38,3 +38,4 @@ export * from './useGetOwnedObjectsMultipleAddresses';
 export * from './useGetSharedObjectsMultipleAddresses';
 export * from './useCheckCameraPermissionStatus';
 export * from './useShouldOpenInNewTab';
+export * from './useLogoutMutation';

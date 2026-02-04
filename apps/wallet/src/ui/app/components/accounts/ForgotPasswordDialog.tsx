@@ -11,10 +11,7 @@ import {
     DialogContent,
     Header,
 } from '@iota/apps-ui-kit';
-import { useBackgroundClient } from '_hooks';
-import { useMutation } from '@tanstack/react-query';
-import { ampli } from '_src/shared/analytics/ampli';
-import { queryClient, persister } from '../../helpers';
+import { useLogoutMutation } from '_hooks';
 import { Warning } from '@iota/apps-ui-icons';
 
 interface ForgotPasswordDialogProps {
@@ -23,18 +20,7 @@ interface ForgotPasswordDialogProps {
 }
 
 export function ForgotPasswordDialog({ isOpen, setOpen }: ForgotPasswordDialogProps) {
-    const backgroundClient = useBackgroundClient();
-
-    const logoutMutation = useMutation({
-        mutationKey: ['logout', 'clear wallet'],
-        mutationFn: async () => {
-            ampli.client.reset();
-            queryClient.cancelQueries();
-            queryClient.clear();
-            await persister.removeClient();
-            await backgroundClient.clearWallet();
-        },
-    });
+    const logoutMutation = useLogoutMutation();
 
     function onClose() {
         setOpen(false);
