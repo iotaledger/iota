@@ -103,7 +103,7 @@ mod tests {
     use starfish_config::AuthorityIndex;
 
     use super::*;
-    use crate::block_header::BlockHeaderDigest;
+    use crate::{block_header::BlockHeaderDigest, scoring_metrics_store::ScoringMetricsStore};
 
     #[tokio::test]
     async fn test_threshold_clock_add_block() {
@@ -256,6 +256,8 @@ mod tests {
         let (committee, _) = starfish_config::local_committee_and_keys(0, vec![5, 1, 1]);
         let metrics = test_metrics();
         let temp_dir = TempDir::new().unwrap();
+        let protocol_config = iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE();
+        let scoring_metrics_store = Arc::new(ScoringMetricsStore::new(committee.size()));
 
         let context = Arc::new(crate::context::Context::new(
             0,
@@ -265,8 +267,9 @@ mod tests {
                 db_path: temp_dir.keep(),
                 ..Default::default()
             },
-            iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE(),
+            protocol_config,
             metrics,
+            scoring_metrics_store,
             Arc::new(crate::context::Clock::default()),
         ));
 
