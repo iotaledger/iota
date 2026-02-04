@@ -28,6 +28,8 @@ import { parseDerivationPath } from '_src/background/account-sources/bip44Path';
 import { isMnemonicSerializedUiAccount } from '_src/background/accounts/mnemonicAccount';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
 import { isKeystoneAccountSerializedUI } from '_src/background/accounts/keystoneAccount';
+import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
+import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 
 const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
     [AccountType.MnemonicDerived]: 'Mnemonic',
@@ -95,8 +97,25 @@ export function AccountGroup({
         }
     }
 
+    function getUrlForLedgerDerivedAccounts(url: string) {
+        const ledgerAcc = accounts.find((acc) => isLedgerAccountSerializedUI(acc));
+        if (ledgerAcc) {
+            const params = ledgerAcc.mainPublicKey
+                ? new URLSearchParams({
+                      mainPublicKey: ledgerAcc.mainPublicKey,
+                  })
+                : undefined;
+            return url + (params ? `?${params.toString()}` : '');
+        }
+        return url;
+    }
+
     function handleBalanceFinder() {
-        navigate(`/accounts/manage/accounts-finder/${accountSourceID}`);
+        let url = `/accounts/manage/accounts-finder/${accountSourceID}`;
+        if (accountSourceID === AllowedAccountSourceTypes.LedgerDerived) {
+            url = getUrlForLedgerDerivedAccounts(url);
+        }
+        navigate(url);
     }
 
     function handleExportMnemonic() {
