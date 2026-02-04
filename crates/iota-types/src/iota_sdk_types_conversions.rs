@@ -1925,30 +1925,6 @@ impl From<Argument> for crate::transaction::Argument {
     }
 }
 
-impl From<crate::gas::GasCostSummary> for GasCostSummary {
-    fn from(value: crate::gas::GasCostSummary) -> Self {
-        Self::new(
-            value.computation_cost,
-            value.computation_cost_burned,
-            value.storage_cost,
-            value.storage_rebate,
-            value.non_refundable_storage_fee,
-        )
-    }
-}
-
-impl From<GasCostSummary> for crate::gas::GasCostSummary {
-    fn from(value: GasCostSummary) -> Self {
-        Self::new(
-            value.computation_cost,
-            value.computation_cost_burned,
-            value.storage_cost,
-            value.storage_rebate,
-            value.non_refundable_storage_fee,
-        )
-    }
-}
-
 impl From<crate::messages_checkpoint::EndOfEpochData> for EndOfEpochData {
     fn from(value: crate::messages_checkpoint::EndOfEpochData) -> Self {
         Self {
@@ -2023,7 +1999,7 @@ impl TryFrom<crate::messages_checkpoint::CheckpointSummary> for CheckpointSummar
             network_total_transactions: value.network_total_transactions,
             content_digest: value.content_digest,
             previous_digest: value.previous_digest,
-            epoch_rolling_gas_cost_summary: value.epoch_rolling_gas_cost_summary.into(),
+            epoch_rolling_gas_cost_summary: value.epoch_rolling_gas_cost_summary,
             timestamp_ms: value.timestamp_ms,
             checkpoint_commitments: value
                 .checkpoint_commitments
@@ -2047,7 +2023,7 @@ impl TryFrom<CheckpointSummary> for crate::messages_checkpoint::CheckpointSummar
             network_total_transactions: value.network_total_transactions,
             content_digest: value.content_digest,
             previous_digest: value.previous_digest,
-            epoch_rolling_gas_cost_summary: value.epoch_rolling_gas_cost_summary.into(),
+            epoch_rolling_gas_cost_summary: value.epoch_rolling_gas_cost_summary,
             timestamp_ms: value.timestamp_ms,
             checkpoint_commitments: value
                 .checkpoint_commitments
