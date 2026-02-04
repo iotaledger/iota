@@ -418,7 +418,7 @@ def do_check(commit_or_pr, is_pr):
     crate_names = collect_crate_names(root)
 
     try:
-        _, notes, rollout = extract_notes(commit_or_pr, set(), is_pr, crate_names)
+        _, notes, rollout = extract_notes(commit_or_pr, set(), is_pr, crate_names, False)
     except ValueError as exc:
         print(f"Found issues with release notes in {commit_or_pr}:")
         print(f" - {exc}")
