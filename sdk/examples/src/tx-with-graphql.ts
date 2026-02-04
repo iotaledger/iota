@@ -6,7 +6,7 @@ import { getGraphQLUrl } from '@iota/iota-sdk/client';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { requestIotaFromFaucetV1, getFaucetHost } from '@iota/iota-sdk/faucet';
-import { GraphqlTransport } from '@iota/iota-sdk/graphql';
+import { IotaClientGraphQLTransport } from '@iota/graphql-transport';
 
 /**
  * Example: Transaction with Client and GraphQL Transport
@@ -15,13 +15,8 @@ import { GraphqlTransport } from '@iota/iota-sdk/graphql';
  */
 console.log('Setting up clients and keypair...');
 
-// GraphQL client for devnet
-const graphqlUrl = getGraphQLUrl('devnet');
-if (!graphqlUrl) {
-    throw new Error('GraphQL URL not available for devnet');
-}
-const graphqlTransport = new GraphqlTransport({
-    url: graphqlUrl,
+const graphqlTransport = new IotaClientGraphQLTransport({
+    url: getGraphQLUrl('devnet')!,
 });
 
 // IOTA client for devnet
@@ -78,7 +73,7 @@ const query = `
   }
 `;
 
-const graphqlResult = await graphqlTransport.query({
+const graphqlResult = await graphqlTransport.graphqlQuery({
     query,
     variables: { digest: result.digest },
 });
