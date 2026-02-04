@@ -287,7 +287,6 @@ module.exports = {
                 '@typescript-eslint/ban-types': ['error'],
                 '@typescript-eslint/no-explicit-any': 'off',
                 '@typescript-eslint/no-non-null-asserted-optional-chain': 'off',
-                'license-check': 'off',
             },
         },
         {
