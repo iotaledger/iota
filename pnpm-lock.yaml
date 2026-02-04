@@ -969,6 +969,9 @@ importers:
       '@svgr/webpack':
         specifier: ^7.0.0
         version: 7.0.0(typescript@5.6.2)
+      '@types/chrome':
+        specifier: ^0.1.27
+        version: 0.1.27
       '@types/git-rev-sync':
         specifier: ^2.0.0
         version: 2.0.2
@@ -8950,6 +8953,9 @@ packages:
 
   '@types/chrome@0.0.136':
     resolution: {integrity: sha512-XDEiRhLkMd+SB7Iw3ZUIj/fov3wLd4HyTdLltVszkgl1dBfc3Rb7oPMVZ2Mz2TLqnF7Ow+StbR8E7r9lqpb4DA==}
+
+  '@types/chrome@0.1.27':
+    resolution: {integrity: sha512-pkkCb0Ft8X+Igi751POzT+YqchSxUCtB6s4Gs6ttgSj8qzJga/qlJMgSW1mKxuQTW4i0sTqQbqVtzXDS5AU+4A==}
 
   '@types/connect-history-api-fallback@1.5.4':
     resolution: {integrity: sha512-n6Cr2xS1h4uAulPRdlw6Jl6s1oG8KrVilPN2yUITEs+K48EzMJJ3W1xy8K5eWuFvjp3R74AOIGSmp2UfBJ8HFw==}
@@ -31112,6 +31118,11 @@ snapshots:
       '@types/node': 20.16.9
 
   '@types/chrome@0.0.136':
+    dependencies:
+      '@types/filesystem': 0.0.36
+      '@types/har-format': 1.2.15
+
+  '@types/chrome@0.1.27':
     dependencies:
       '@types/filesystem': 0.0.36
       '@types/har-format': 1.2.15

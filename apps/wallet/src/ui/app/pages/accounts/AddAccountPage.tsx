@@ -24,7 +24,7 @@ import { AccountsFormType, ConnectLedgerModal, PageTemplate } from '_components'
 import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
 import { useAppSelector, useCheckCameraPermissionStatus, useCreateAccountsMutation } from '_hooks';
 import { Create, Ledger, Keystone, Wallet } from '@iota/apps-ui-icons';
-import { AppType } from '../../redux/slices/app/appType';
+import { ExtensionViewType } from '../../redux/slices/app/appType';
 import Browser from 'webextension-polyfill';
 import clsx from 'clsx';
 
@@ -74,7 +74,11 @@ export function AddAccountPage() {
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(forceShowLedger);
     const createAccountsMutation = useCreateAccountsMutation();
     const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';
-    const isPopup = useAppSelector((state) => state.app.appType === AppType.Popup);
+    const isPopupOrSidePanel = useAppSelector((state) =>
+        [ExtensionViewType.Popup, ExtensionViewType.SidePanel].includes(
+            state.app.extensionViewType,
+        ),
+    );
     const [cameraPermissionStatus] = useCheckCameraPermissionStatus();
     const network = useAppSelector(({ app }) => app.network);
     const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
@@ -113,7 +117,7 @@ export function AddAccountPage() {
         switch (actionType) {
             case AccountsFormType.ImportLedger:
                 ampli.openedConnectLedgerFlow({ sourceFlow });
-                if (isPopup) {
+                if (isPopupOrSidePanel) {
                     await openTabWithSearchParam('showLedger', 'true');
                     window.close();
                 } else {
@@ -122,7 +126,7 @@ export function AddAccountPage() {
                 break;
             case AccountsFormType.ImportKeystone:
                 ampli.clickedImportKeystone({ sourceFlow });
-                if (isPopup && cameraPermissionStatus === 'prompt') {
+                if (isPopupOrSidePanel && cameraPermissionStatus === 'prompt') {
                     await openTabOnImportKeystone();
                     window.close();
                 } else {

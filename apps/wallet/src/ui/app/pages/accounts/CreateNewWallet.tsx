@@ -8,7 +8,7 @@ import SecureYourWalletDark from '_assets/images/onboarding/secure-your-wallet-d
 import { Card, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
 import { AccountsFormType, useAccountsFormContext, PageTemplate } from '_components';
 import { useAppSelector, useCreateAccountsMutation } from '_hooks';
-import { AppType } from '../../redux/slices/app/appType';
+import { ExtensionViewType } from '../../redux/slices/app/appType';
 import { ImportPass, Passkey } from '@iota/apps-ui-icons';
 import { openInNewTab } from '_src/shared/utils';
 import { type ActionCardItem, OnboardingCardIcon } from './AddAccountPage';
@@ -19,7 +19,11 @@ export function CreateNewWallet() {
     const navigate = useNavigate();
     const [, setAccountsFormValues] = useAccountsFormContext();
     const network = useAppSelector(({ app }) => app.network);
-    const isPopup = useAppSelector((state) => state.app.appType === AppType.Popup);
+    const isPopupOrSidePanel = useAppSelector((state) =>
+        [ExtensionViewType.Popup, ExtensionViewType.SidePanel].includes(
+            state.app.extensionViewType,
+        ),
+    );
     const createAccountsMutation = useCreateAccountsMutation();
     const [searchParams] = useSearchParams();
     const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';
@@ -56,8 +60,9 @@ export function CreateNewWallet() {
             case AccountsFormType.Passkey:
                 ampli.clickedCreatePasskey({ sourceFlow });
                 const url = '/accounts/passkey-account';
-                if (isPopup) {
+                if (isPopupOrSidePanel) {
                     openInNewTab(url);
+                    window.close();
                 } else {
                     navigate(url);
                 }
