@@ -28,6 +28,7 @@ pub use shared_in_memory_store::{SharedInMemoryStore, SingleCheckpointSharedInMe
 pub use write_store::WriteStore;
 
 use crate::{
+    auth_context::AuthContext,
     base_types::{ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionNumber},
     committee::EpochId,
     error::{ExecutionError, IotaError, IotaResult},
@@ -220,6 +221,8 @@ pub trait Storage {
     /// Check coin denylist during execution,
     /// and the number of non-gas-coin owners.
     fn check_coin_deny_list(&self, written_objects: &BTreeMap<ObjectID, Object>) -> DenyListResult;
+
+    fn read_auth_context(&self) -> Option<&AuthContext>;
 }
 
 pub type PackageFetchResults<Package> = Result<Vec<Package>, Vec<ObjectID>>;
@@ -526,8 +529,6 @@ pub fn transaction_non_shared_input_object_keys(
 ) -> IotaResult<Vec<ObjectKey>> {
     use crate::transaction::InputObjectKind as I;
     Ok(tx
-        .intent_message()
-        .value
         .input_objects()?
         .into_iter()
         .filter_map(|object| match object {

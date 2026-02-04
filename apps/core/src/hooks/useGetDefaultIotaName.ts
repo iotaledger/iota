@@ -31,6 +31,6 @@ export function useGetDefaultIotaName(
             return normalized ? normalizeIotaName(defaultName) : defaultName;
         },
         enabled: !!iotaNamesClient && isFeatureEnabled && !!address,
-        staleTime: 1000 * 60 * 10,
+        staleTime: 1000 * 60 * 5,
     });
 }

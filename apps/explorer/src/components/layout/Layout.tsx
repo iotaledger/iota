@@ -17,6 +17,7 @@ import { Outlet, ScrollRestoration } from 'react-router-dom';
 import { NetworkContext } from '~/contexts';
 import { useInitialPageView, useNetwork } from '~/hooks';
 import { createIotaClient, SupportedNetworks } from '~/lib/utils';
+import { TrustFrameworkProvider } from '../trust-framework/trustFrameworkProvider';
 
 export function Layout(): JSX.Element {
     const [network, setNetwork] = useNetwork();
@@ -33,25 +34,27 @@ export function Layout(): JSX.Element {
                 network={network as Network}
                 onNetworkChange={setNetwork}
             >
-                <IotaGraphQLClientProvider>
-                    <IotaNamesClientProvider>
-                        <WalletProvider
-                            autoConnect
-                            enableUnsafeBurner={import.meta.env.DEV}
-                            chain={getNetwork(network).chain}
-                        >
-                            <KioskClientProvider>
-                                <NetworkContext.Provider value={[network, setNetwork]}>
-                                    <ThemeProvider appId="iota-explorer">
-                                        <Outlet />
-                                        <Toaster />
-                                        <ReactQueryDevtools />
-                                    </ThemeProvider>
-                                </NetworkContext.Provider>
-                            </KioskClientProvider>
-                        </WalletProvider>
-                    </IotaNamesClientProvider>
-                </IotaGraphQLClientProvider>
+                <TrustFrameworkProvider>
+                    <IotaGraphQLClientProvider>
+                        <IotaNamesClientProvider>
+                            <WalletProvider
+                                autoConnect
+                                enableUnsafeBurner={import.meta.env.DEV}
+                                chain={getNetwork(network).chain}
+                            >
+                                <KioskClientProvider>
+                                    <NetworkContext.Provider value={[network, setNetwork]}>
+                                        <ThemeProvider appId="iota-explorer">
+                                            <Outlet />
+                                            <Toaster />
+                                            <ReactQueryDevtools />
+                                        </ThemeProvider>
+                                    </NetworkContext.Provider>
+                                </KioskClientProvider>
+                            </WalletProvider>
+                        </IotaNamesClientProvider>
+                    </IotaGraphQLClientProvider>
+                </TrustFrameworkProvider>
             </IotaClientProvider>
         </Fragment>
     );

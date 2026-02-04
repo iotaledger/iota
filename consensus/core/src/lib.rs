@@ -54,6 +54,8 @@ mod test_dag_builder;
 #[cfg(test)]
 mod test_dag_parser;
 
+pub mod scoring_metrics_store;
+
 /// Exported consensus API.
 pub use authority_node::ConsensusAuthority;
 pub use block::{BlockAPI, BlockRef, Round};

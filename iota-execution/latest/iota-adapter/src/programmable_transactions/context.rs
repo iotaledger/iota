@@ -25,7 +25,7 @@ mod checked {
         execution::{ExecutionResults, ExecutionResultsV1},
         execution_status::CommandArgumentError,
         metrics::LimitsMetrics,
-        move_package::MovePackage,
+        move_package::{MovePackage, derive_package_metadata_id},
         object::{Data, MoveObject, Object, ObjectInner, Owner},
         storage::{BackingPackageStore, DenyListResult, PackageObject},
         transaction::{Argument, CallArg, ObjectArg},
@@ -84,7 +84,7 @@ mod checked {
         /// The gas charger used for metering
         pub gas_charger: &'a mut GasCharger,
         /// Additional transfers not from the Move runtime
-        additional_transfers: Vec<(/* new owner */ IotaAddress, ObjectValue)>,
+        additional_transfers: Vec<(/* new owner */ Owner, ObjectValue)>,
         /// Newly published packages
         new_packages: Vec<MovePackage>,
         /// User events are claimed after each Move call
@@ -262,6 +262,20 @@ mod checked {
         /// Create a new ID and update the state
         pub fn fresh_id(&mut self) -> Result<ObjectID, ExecutionError> {
             let object_id = self.tx_context.fresh_id();
+            self.native_extensions
+                .get_mut()
+                .and_then(|object_runtime: &mut ObjectRuntime| object_runtime.new_id(object_id))
+                .map_err(|e| self.convert_vm_error(e.finish(Location::Undefined)))?;
+            Ok(object_id)
+        }
+
+        /// Create a new ID and update the state
+        pub(crate) fn package_derived_metadata_id(
+            &mut self,
+            package_storage_id: ObjectID,
+        ) -> Result<ObjectID, ExecutionError> {
+            let object_id = derive_package_metadata_id(package_storage_id);
+
             self.native_extensions
                 .get_mut()
                 .and_then(|object_runtime: &mut ObjectRuntime| object_runtime.new_id(object_id))
@@ -629,7 +643,14 @@ mod checked {
             obj: ObjectValue,
             addr: IotaAddress,
         ) -> Result<(), ExecutionError> {
-            self.additional_transfers.push((addr, obj));
+            self.additional_transfers
+                .push((Owner::AddressOwner(addr), obj));
+            Ok(())
+        }
+
+        /// Freeze the object
+        pub fn freeze_object(&mut self, obj: ObjectValue) -> Result<(), ExecutionError> {
+            self.additional_transfers.push((Owner::Immutable, obj));
             Ok(())
         }
 
@@ -790,8 +811,7 @@ mod checked {
                 }
             }
             // add transfers from TransferObjects command
-            for (recipient, object_value) in additional_transfers {
-                let owner = Owner::AddressOwner(recipient);
+            for (owner, object_value) in additional_transfers {
                 add_additional_write(&mut additional_writes, owner, object_value)?;
             }
             // Refund unused gas
