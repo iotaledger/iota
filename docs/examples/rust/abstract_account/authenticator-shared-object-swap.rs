@@ -83,12 +83,12 @@ async fn main() -> Result<(), anyhow::Error> {
     request_tokens_from_faucet(&iota_client, publisher).await?;
 
     // Publish the account package and return the related package id and package
-    // metadata reference.
+    // metadata reference
     let (package_id, metadata_ref) =
         publish_aa_package(&iota_client, &mut keystore, publisher, AA_PACKAGE_PATH).await?;
 
     // Create an abstract account instance using the publisher public key for
-    // simplicity.
+    // simplicity
     let pub_key = keystore.keys()[0].public();
     let account_ref = create_account(
         &iota_client,
@@ -138,7 +138,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let transaction_response = execute_transaction(&iota_client, transaction).await;
 
     // The transaction is expected to be failed due to the account address is
-    // blacklisted.
+    // blacklisted
     match transaction_response {
         Ok(response) => {
             bail!("Transaction expected to fail, but got response: {response:?}");
@@ -189,7 +189,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let _ = execute_transaction(&iota_client, hacked_transaction).await?;
 
     // Get a transferred coin from the recipient address to verify the
-    // transaction succeeded.
+    // transaction succeeded
     let transferred_coin = get_coin(&iota_client, recipient).await?;
     println!("Transferred coin: {transferred_coin:?}");
 

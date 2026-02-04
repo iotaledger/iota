@@ -64,12 +64,12 @@ async fn main() -> Result<(), anyhow::Error> {
     request_tokens_from_faucet(&iota_client, publisher).await?;
 
     // Publish the account package and return the related package id and package
-    // metadata reference.
+    // metadata reference
     let (package_id, metadata_ref) =
         publish_aa_package(&iota_client, &mut keystore, publisher, AA_PACKAGE_PATH).await?;
 
     // Create an abstract account instance with `unlock_time` equals to `0` that
-    // means no lock.
+    // means no lock
     let account_ref = create_account(
         &iota_client,
         &mut keystore,
@@ -95,9 +95,9 @@ async fn main() -> Result<(), anyhow::Error> {
     let _ = execute_transaction(&iota_client, transaction).await?;
 
     // Get a transferred coin from the recipient address to verify the
-    // transaction succeeded.
-    let transferred_coin = get_coin(&iota_client, recipient).await?;
-    println!("Recipient coin: {transferred_coin:?}");
+    // transaction succeeded
+    let recipient_coin = get_coin(&iota_client, recipient).await?;
+    println!("Recipient coin: {recipient_coin:?}");
 
     // Create one more test transaction
     let transaction = create_test_transaction(&iota_client, recipient, &account_ref).await?;
@@ -109,13 +109,15 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let hacked_transaction = swap_recipient_in_transaction(transaction, attacker);
 
-    // Execute the hacked transaction
+    // Execute the hacked transaction.
+    // Due to the missing cryptographic protection in the authenticator
+    // implementation, the transaction will be accepted and executed successfully.
     let _ = execute_transaction(&iota_client, hacked_transaction).await?;
 
     // Get a transferred coin from the attacker address to verify the
     // transaction succeeded.
-    let transferred_coin = get_coin(&iota_client, attacker).await?;
-    println!("Attacker coin: {transferred_coin:?}");
+    let attacker_coin = get_coin(&iota_client, attacker).await?;
+    println!("Attacker coin: {attacker_coin:?}");
 
     // Finish and clean the temporary keystore file
     clean_keystore()
