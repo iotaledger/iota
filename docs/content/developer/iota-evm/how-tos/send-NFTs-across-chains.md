@@ -192,6 +192,7 @@ npx hardhat lz:deploy
 ```
 
 You'll be prompted to select which chains to deploy to. For this example:
+
 - Deploy `ONFT721Adapter` on IOTA EVM (source chain where original ERC721 exists)
 - Deploy `ONFT721` on BNB Testnet (destination chain)
 
@@ -248,6 +249,7 @@ npx hardhat send-nft \
 ```
 
 The task will:
+
 1. Approve the NFT for the adapter contract
 2. Call `quoteSend()` to estimate fees
 3. Call `send()` to transfer the NFT cross-chain
