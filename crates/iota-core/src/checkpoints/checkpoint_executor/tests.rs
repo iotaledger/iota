@@ -11,7 +11,9 @@ use iota_types::{
     committee::ProtocolVersion,
     gas::GasCostSummary,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
-    messages_checkpoint::{ECMHLiveObjectSetDigest, EndOfEpochData, VerifiedCheckpoint},
+    messages_checkpoint::{
+        ECMHLiveObjectSetDigest, EndOfEpochData, VerifiedCheckpoint, VerifiedCheckpointContents,
+    },
     supported_protocol_versions::SupportedProtocolVersions,
 };
 use tempfile::tempdir;
@@ -432,11 +434,11 @@ fn sync_new_checkpoints(
     previous_checkpoint: Option<VerifiedCheckpoint>,
     committee: &CommitteeFixture,
 ) -> Vec<VerifiedCheckpoint> {
-    let (ordered_checkpoints, _, _sequence_number_to_digest, _checkpoints) =
+    let (ordered_checkpoints, contents, _sequence_number_to_digest, _checkpoints) =
         committee.make_empty_checkpoints(number_of_checkpoints, previous_checkpoint);
 
-    for checkpoint in ordered_checkpoints.iter() {
-        sync_checkpoint(checkpoint, checkpoint_store);
+    for (checkpoint, content) in ordered_checkpoints.iter().zip(contents.iter()) {
+        sync_checkpoint(checkpoint_store, checkpoint, content);
     }
 
     ordered_checkpoints
@@ -472,16 +474,20 @@ async fn sync_end_of_epoch_checkpoint(
         )
         .await
         .expect("Failed to create and execute advance epoch tx");
-    sync_checkpoint(&checkpoint, checkpoint_store);
+    sync_checkpoint(checkpoint_store, &checkpoint, &empty_contents());
     (checkpoint, new_committee)
 }
 
-fn sync_checkpoint(checkpoint: &VerifiedCheckpoint, checkpoint_store: &CheckpointStore) {
+fn sync_checkpoint(
+    checkpoint_store: &CheckpointStore,
+    checkpoint: &VerifiedCheckpoint,
+    contents: &VerifiedCheckpointContents,
+) {
     checkpoint_store
         .insert_verified_checkpoint(checkpoint)
         .unwrap();
     checkpoint_store
-        .insert_checkpoint_contents(empty_contents().into_inner().into_checkpoint_contents())
+        .insert_checkpoint_contents(contents.clone().into_checkpoint_contents())
         .unwrap();
     checkpoint_store
         .update_highest_synced_checkpoint(checkpoint)
