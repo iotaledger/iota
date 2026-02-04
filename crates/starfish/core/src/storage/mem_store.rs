@@ -49,6 +49,7 @@ struct Inner {
     voting_block_headers: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedBlockHeader>,
     /// Flag indicating fast commit sync is ongoing.
     fast_sync_ongoing: bool,
+    scoring_metrics: BTreeMap<AuthorityIndex, Vec<u64>>,
 }
 
 impl MemStore {
@@ -65,6 +66,7 @@ impl MemStore {
                 commit_info: BTreeMap::new(),
                 voting_block_headers: BTreeMap::new(),
                 fast_sync_ongoing: false,
+                scoring_metrics: BTreeMap::new(),
             }),
             context,
         }
@@ -150,6 +152,10 @@ impl Store for MemStore {
 
         if let Some(flag) = write_batch.fast_commit_sync_flag {
             inner.fast_sync_ongoing = flag;
+        }
+
+        for (authority, metrics) in write_batch.scoring_metrics {
+            inner.scoring_metrics.insert(authority, metrics);
         }
 
         Ok(())
@@ -320,6 +326,16 @@ impl Store for MemStore {
             );
         }
         Ok(blocks)
+    }
+
+    fn scan_scoring_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, Vec<u64>)>> {
+        let inner = self.inner.read();
+        let metrics_by_author = inner
+            .scoring_metrics
+            .iter()
+            .map(|(&authority_index, metrics)| (authority_index, metrics.clone()))
+            .collect::<Vec<_>>();
+        Ok(metrics_by_author)
     }
 
     fn read_verified_block_headers(

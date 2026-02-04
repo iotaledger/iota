@@ -58,6 +58,8 @@ pub(crate) struct RocksDBStore {
     /// Context to access protocol configuration
     #[cfg_attr(not(test), allow(dead_code))]
     context: Arc<Context>,
+    /// Stores scoring metrics for each authority.
+    scoring_metrics: DBMap<AuthorityIndex, Vec<u64>>,
 }
 
 impl RocksDBStore {
@@ -72,6 +74,7 @@ impl RocksDBStore {
     const COMMIT_INFO_CF: &'static str = "commit_info";
     const VOTING_BLOCK_HEADERS_CF: &'static str = "voting_block_headers";
     const FAST_COMMIT_SYNC_FLAG_CF: &'static str = "fast_commit_sync_flag";
+    const SCORING_METRICS_CF: &'static str = "scoring_metrics";
 
     /// Creates a new instance of RocksDB storage.
     pub(crate) fn new(path: &str, context: Arc<Context>) -> Self {
@@ -117,7 +120,8 @@ impl RocksDBStore {
             // Voting block headers are much fewer than regular block headers,
             // so using standard options is sufficient.
             (Self::VOTING_BLOCK_HEADERS_CF, cf_options.clone()),
-            (Self::FAST_COMMIT_SYNC_FLAG_CF, cf_options),
+            (Self::FAST_COMMIT_SYNC_FLAG_CF, cf_options.clone()),
+            (Self::SCORING_METRICS_CF, cf_options),
         ];
         let rocksdb = open_cf_opts(
             path,
@@ -138,6 +142,7 @@ impl RocksDBStore {
             commit_info,
             voting_block_headers,
             fast_commit_sync_flag,
+            scoring_metrics,
         ) = reopen!(&rocksdb,
             Self::BLOCK_HEADERS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
             Self::TRANSACTIONS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
@@ -148,7 +153,8 @@ impl RocksDBStore {
             Self::COMMIT_VOTES_CF;<(CommitIndex, CommitDigest, BlockRef), ()>,
             Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>,
             Self::VOTING_BLOCK_HEADERS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
-            Self::FAST_COMMIT_SYNC_FLAG_CF;<(), ()>
+            Self::FAST_COMMIT_SYNC_FLAG_CF;<(), ()>,
+            Self::SCORING_METRICS_CF;<AuthorityIndex, Vec<u64>>
         );
 
         Self {
@@ -163,6 +169,7 @@ impl RocksDBStore {
             voting_block_headers,
             fast_commit_sync_flag,
             context,
+            scoring_metrics,
         }
     }
 }
@@ -308,6 +315,12 @@ impl Store for RocksDBStore {
                     .delete_batch(&self.fast_commit_sync_flag, [()])
                     .map_err(ConsensusError::RocksDBFailure)?;
             }
+        }
+
+        for (authority, metrics) in write_batch.scoring_metrics {
+            batch
+                .insert_batch(&self.scoring_metrics, [(authority, metrics)])
+                .map_err(ConsensusError::RocksDBFailure)?;
         }
 
         batch.write()?;
@@ -669,6 +682,14 @@ impl Store for RocksDBStore {
         Ok(blocks)
     }
 
+    fn scan_scoring_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, Vec<u64>)>> {
+        let mut metrics_by_author = vec![];
+        for kv in self.scoring_metrics.safe_iter() {
+            metrics_by_author.push(kv?);
+        }
+        Ok(metrics_by_author)
+    }
+
     fn read_last_commit(&self) -> ConsensusResult<Option<TrustedCommit>> {
         let Some(result) = self
             .commits
@@ -834,10 +855,14 @@ impl RocksDBStore {
         use prometheus::Registry;
         use starfish_config::Parameters;
 
-        use crate::{Clock, context::Context, metrics::initialise_metrics};
+        use crate::{
+            Clock, context::Context, metrics::initialise_metrics,
+            scoring_metrics_store::ScoringMetricsStore,
+        };
 
         let metrics = initialise_metrics(Registry::new());
         let clock = Arc::new(Clock::default());
+        let scoring_metrics_store = Arc::new(ScoringMetricsStore::new(committee.size()));
         let context = Arc::new(Context::new(
             0,
             authority_index,
@@ -848,6 +873,7 @@ impl RocksDBStore {
             },
             protocol_config,
             metrics,
+            scoring_metrics_store,
             clock,
         ));
 

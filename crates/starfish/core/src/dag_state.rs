@@ -2228,6 +2228,10 @@ impl DagState {
                     .unwrap_or_else(|| "unchanged".to_string())
             );
 
+            // Updates scoring metrics according to eviction round and returns updates that
+            // should be written in storage.
+            let score_updates = self.score_updates_to_write();
+
             // Write all buffered data to storage
             self.store
                 .write(
@@ -2238,6 +2242,7 @@ impl DagState {
                         commit_info,
                         voting_block_headers,
                         fast_commit_sync_flag,
+                        score_updates,
                     ),
                     self.context.clone(),
                 )
@@ -2249,6 +2254,7 @@ impl DagState {
                 .dag_state_store_write_count
                 .inc();
         }
+
 
         // Clean up old headers
         self.evict_headers();
@@ -2368,6 +2374,11 @@ impl DagState {
     /// Any blocks with round <= the evict round have been cleaned up.
     fn eviction_round(commit_round: Round, cached_rounds: Round) -> Round {
         commit_round.saturating_sub(cached_rounds)
+    }
+
+    /// Buffers validator score updates to be written to storage.
+    fn score_updates_to_write(&mut self) -> Vec<(AuthorityIndex, Vec<u64>)> {
+        vec![] // Placeholder for future implementation of scoring updates
     }
 
     /// Detects and returns the blocks of the round that forms the last quorum.

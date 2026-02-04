@@ -758,3 +758,67 @@ async fn test_read_highest_commit_index_with_votes(
         "Should find highest votes at index 10 even when searching up to 1000"
     );
 }
+
+// #[rstest]
+// #[tokio::test]
+// async fn scan_scoring_metrics(
+//     #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store:
+// TestStore, ) {
+//     use iota_common::scoring_metrics::VersionedStorageScoringMetrics;
+
+//     let store = test_store.store();
+//     let metrics_updates = [
+//         VersionedStorageScoringMetrics::new_v1_for_test(
+//             1, // faulty_blocks_provable
+//             2, // faulty_blocks_unprovable
+//             4, // missing_proposals
+//             3, // equivocations
+//         ),
+//         VersionedStorageScoringMetrics::new_v1_for_test(
+//             0, // faulty_blocks_provable
+//             0, // faulty_blocks_unprovable
+//             0, // missing_proposals
+//             0, // equivocations
+//         ),
+//     ];
+//     let authories = [
+//         AuthorityIndex::new_for_test(0),
+//         AuthorityIndex::new_for_test(1),
+//         AuthorityIndex::new_for_test(2),
+//     ];
+
+//     let metrics_to_write = vec![
+//         (authories[0], metrics_updates[0].clone()),
+//         (authories[1], metrics_updates[1].clone()),
+//     ];
+
+//     store
+//         .write(WriteBatch::default().scoring_metrics(metrics_to_write.
+// clone()))         .unwrap();
+
+//     {
+//         let scanned_metrics = store
+//             .scan_scoring_metrics()
+//             .expect("Scan scoring_metrics should not fail");
+//         assert_eq!(&scanned_metrics, &metrics_to_write);
+//     }
+
+//     let metrics_to_write = vec![(authories[0], metrics_updates[1].clone())];
+
+//     store
+//         .write(WriteBatch::default().scoring_metrics(metrics_to_write.
+// clone()))         .unwrap();
+
+//     {
+//         let scanned_metrics = store
+//             .scan_scoring_metrics()
+//             .expect("Scan scoring_metrics should not fail");
+//         assert_eq!(
+//             &scanned_metrics,
+//             &vec![
+//                 (authories[0], metrics_updates[1].clone()),
+//                 (authories[1], metrics_updates[1].clone())
+//             ]
+//         );
+//     }
+// }

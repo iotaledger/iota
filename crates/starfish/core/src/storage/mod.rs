@@ -137,6 +137,11 @@ pub(crate) trait Store: Send + Sync {
         Ok(block_headers)
     }
 
+    /// Reads and returns all metrics stored. Used for restoring the scoring
+    /// metrics in case of DagState initialization from storage
+    #[allow(dead_code)]
+    fn scan_scoring_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, Vec<u64>)>>;
+
     /// Reads the last commit.
     fn read_last_commit(&self) -> ConsensusResult<Option<TrustedCommit>>;
 
@@ -186,6 +191,7 @@ pub(crate) struct WriteBatch {
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
     pub(crate) voting_block_headers: Vec<VerifiedBlockHeader>,
     pub(crate) fast_commit_sync_flag: Option<bool>,
+    pub(crate) scoring_metrics: Vec<(AuthorityIndex, Vec<u64>)>,
 }
 
 impl WriteBatch {
@@ -196,6 +202,7 @@ impl WriteBatch {
         commit_info: Vec<(CommitRef, CommitInfo)>,
         voting_block_headers: Vec<VerifiedBlockHeader>,
         fast_commit_sync_flag: Option<bool>,
+        scoring_metrics: Vec<(AuthorityIndex, Vec<u64>)>,
     ) -> Self {
         WriteBatch {
             transactions,
@@ -204,6 +211,7 @@ impl WriteBatch {
             commit_info,
             voting_block_headers,
             fast_commit_sync_flag,
+            scoring_metrics,
         }
     }
 
@@ -239,6 +247,15 @@ impl WriteBatch {
         voting_block_headers: Vec<VerifiedBlockHeader>,
     ) -> Self {
         self.voting_block_headers = voting_block_headers;
+        self
+    }
+
+    #[cfg(test)]
+    pub(crate) fn scoring_metrics(
+        mut self,
+        scoring_metrics: Vec<(AuthorityIndex, Vec<u64>)>,
+    ) -> Self {
+        self.scoring_metrics = scoring_metrics;
         self
     }
 }
