@@ -600,9 +600,11 @@ impl TestCheckpointDataBuilder {
 mod tests {
     use std::str::FromStr;
 
-    use iota_sdk_types::ObjectID;
-
-    use crate::transaction::{Command, ProgrammableMoveCall, TransactionDataAPI};
+    use super::*;
+    use crate::{
+        ObjectID,
+        transaction::{Command, ProgrammableMoveCall, TransactionDataAPI},
+    };
     #[test]
     fn test_basic_checkpoint_builder() {
         // Create a checkpoint with a single transaction that does nothing.
