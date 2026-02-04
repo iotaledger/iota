@@ -428,8 +428,8 @@ mod sim_only_tests {
                         ObjectID::AUTHENTICATOR_STATE,
                         ObjectID::RANDOMNESS_STATE,
                     ]
-                    .contains(&obj.0);
-                    (!is_framework_obj).then_some(obj.0)
+                    .contains(&obj.object_id);
+                    (!is_framework_obj).then_some(obj.object_id)
                 } else {
                     None
                 }
@@ -540,7 +540,7 @@ mod sim_only_tests {
         .await
         .mutated()
         .iter()
-        .find(|oref| oref.reference.object_id == obj.0)
+        .find(|oref| oref.reference.object_id == obj.object_id)
         .unwrap()
         .reference
         .to_object_ref()
