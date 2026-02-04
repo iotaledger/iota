@@ -981,23 +981,6 @@ impl AuthorityEpochTables {
         Ok(())
     }
 
-    /// White flag variant of write_transaction_locks. Only writes the owned
-    /// object locks to the database, NOT the signed transaction. Used for
-    /// white flag transactions that bypass pre-consensus certification.
-    pub fn write_white_flag_transaction_locks(
-        &self,
-        locks_to_write: impl Iterator<Item = (ObjectRef, LockDetails)>,
-    ) -> IotaResult {
-        let mut batch = self.owned_object_locked_transactions.batch();
-        batch.insert_batch(
-            &self.owned_object_locked_transactions,
-            locks_to_write.map(|(obj_ref, lock)| (obj_ref, LockDetailsWrapper::from(lock))),
-        )?;
-        // No signed transaction write for white flag
-        batch.write()?;
-        Ok(())
-    }
-
     fn get_all_deferred_transactions(
         &self,
     ) -> IotaResult<BTreeMap<DeferralKey, Vec<VerifiedSequencedConsensusTransaction>>> {
