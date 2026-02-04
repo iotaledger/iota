@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk::types::block::{
+use iota_stardust_types::block::{
     address::AliasAddress,
     output::{
         AliasId, FoundryOutputBuilder, NativeToken, NativeTokens, SimpleTokenScheme,

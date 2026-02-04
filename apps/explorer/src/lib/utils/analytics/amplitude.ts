@@ -8,7 +8,9 @@ import { getAmplitudeConsentStatus } from '@iota/core';
 import { ampli } from './ampli';
 import { LogLevel } from '@amplitude/analytics-types';
 
-const IS_ENABLED = import.meta.env.VITE_BUILD_ENV === 'production';
+const IS_ENABLED =
+    import.meta.env.VITE_BUILD_ENV === 'production' &&
+    import.meta.env.VITE_AMPLITUDE_ENABLED === 'true';
 
 export async function initAmplitude() {
     // Check consent status to determine initial opt-out state
@@ -17,25 +19,39 @@ export async function initAmplitude() {
     if (ampli.isLoaded || consentStatus === 'declined') {
         return;
     }
+    // Delay initialization by 1s to filter out immediate ghost sessions
+    setTimeout(async () => {
+        // Abort if the user closed the tab or backgrounded the app during the delay
+        if (document.visibilityState === 'hidden') {
+            return;
+        }
 
-    await ampli.load({
-        environment: 'iotaexplorer',
-        // Flip this if you'd like to test Amplitude locally
-        disabled: !IS_ENABLED,
-        client: {
-            configuration: {
-                optOut: false,
-                autocapture: {
-                    pageViews: IS_ENABLED,
-                    sessions: IS_ENABLED,
+        // Load Amplitude normally for valid sessions
+        await ampli.load({
+            environment: 'iotaexplorer',
+            // Flip this if you'd like to test Amplitude locally
+            disabled: !IS_ENABLED,
+            client: {
+                configuration: {
+                    optOut: false,
+                    autocapture: {
+                        attribution: IS_ENABLED,
+                        fileDownloads: IS_ENABLED,
+                        formInteractions: IS_ENABLED,
+                        pageViews: IS_ENABLED,
+                        sessions: IS_ENABLED,
+                    },
+                    // set LogLevel to Debug for more verbose logging during development
+                    logLevel: LogLevel.None,
+                    flushIntervalMillis: 1000,
+                    flushQueueSize: 30,
                 },
-                logLevel: IS_ENABLED ? LogLevel.Warn : LogLevel.None,
             },
-        },
-    }).promise;
+        }).promise;
 
-    window.addEventListener('pagehide', () => {
-        amplitude.setTransport('beacon');
-        amplitude.flush();
-    });
+        window.addEventListener('pagehide', () => {
+            amplitude.setTransport('beacon');
+            amplitude.flush();
+        });
+    }, 1000);
 }

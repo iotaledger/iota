@@ -67,7 +67,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
 
 task 6, line 21:
 //# run iota::pay::split_and_transfer --type-args iota::iota::IOTA --args object(1,0) 0 @C --sender A
-Error: Error checking transaction input objects: IncorrectUserSignature { error: "Object object(1,0) is owned by account address @B, but given owner/signer address is @A" }
+Error: Error checking transaction input objects: Transaction was not signed by the correct sender: Object object(1,0) is owned by account address @B, but given owner/signer address is @A
 
 task 7, line 23:
 //# view-object 1,0

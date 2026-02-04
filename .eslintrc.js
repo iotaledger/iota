@@ -3,7 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module.exports = {
-    plugins: ['@tanstack/query', 'unused-imports', 'prettier', 'header', 'require-extensions'],
+    plugins: [
+        '@tanstack/query',
+        'unused-imports',
+        'prettier',
+        'header',
+        'require-extensions',
+        'license-check',
+    ],
     extends: [
         'eslint:recommended',
         'plugin:@tanstack/eslint-plugin-query/recommended',
@@ -80,6 +87,7 @@ module.exports = {
                 ignoreRestSiblings: true,
             },
         ],
+        'license-check/license-check': 'error',
     },
     overrides: [
         {
@@ -292,6 +300,7 @@ module.exports = {
             rules: {
                 'header/header': 'off',
                 'require-extensions/require-extensions': 'off',
+                'license-check/license-check': 'off',
             },
         },
         {

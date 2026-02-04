@@ -5,6 +5,7 @@
 import { useIotaClient } from '@iota/dapp-kit';
 import { PaginatedCoins } from '@iota/iota-sdk/client';
 import { useInfiniteQuery } from '@tanstack/react-query';
+import { useCoinsReFetchingConfig } from './useCoinsReFetchingConfig';
 
 const MAX_COINS_PER_REQUEST = 10;
 
@@ -13,7 +14,9 @@ export function useGetCoins(
     address?: string | null,
     maxCoinsPerRequest = MAX_COINS_PER_REQUEST,
 ) {
+    const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
     const client = useIotaClient();
+
     return useInfiniteQuery<PaginatedCoins>({
         queryKey: ['get-coins', address, coinType, maxCoinsPerRequest],
         initialPageParam: null,
@@ -26,5 +29,7 @@ export function useGetCoins(
             }),
         getNextPageParam: ({ hasNextPage, nextCursor }) => (hasNextPage ? nextCursor : null),
         enabled: !!address,
+        staleTime,
+        refetchInterval,
     });
 }

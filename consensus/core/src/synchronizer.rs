@@ -43,6 +43,7 @@ use crate::{
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     network::NetworkClient,
+    scoring_metrics_store::ErrorSource,
 };
 
 /// The number of concurrent fetch blocks requests per authority
@@ -566,11 +567,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                 commands_sender.clone(),
                                 "live"
                             ).await {
-                                context.metrics.update_scoring_metrics_on_block_receival(
+                                context.scoring_metrics_store.update_scoring_metrics_on_block_receival(
                                     peer_index,
                                     peer_hostname,
                                     err.clone(),
-                                    "process_fetched_blocks",
+                                    ErrorSource::Synchronizer,
+                                    &context.metrics.node_metrics,
                                 );
                                 warn!("Error while processing fetched blocks from peer {peer_index} {peer_hostname}: {err}");
                                 context.metrics.node_metrics.synchronizer_process_fetched_failures_by_peer.with_label_values(&[peer_hostname.as_str(), "live"]).inc();

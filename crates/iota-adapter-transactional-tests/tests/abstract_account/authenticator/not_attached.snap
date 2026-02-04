@@ -1,0 +1,35 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 5 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 8-31:
+//# publish --sender A
+created: object(1,0), object(1,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 10146000,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 33:
+//# init-abstract-account --sender A --package-metadata object(1,1) --inputs "authenticate" "authenticate" --create-function test::authenticate::create --account-type test::authenticate::AbstractAccount
+created: object(2,0), object(2,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3351600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 3, line 35:
+//# view-object 2,1
+Owner: Shared( 3 )
+Version: 3
+Contents: test::authenticate::AbstractAccount {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,1),
+        },
+    },
+}
+
+task 4, lines 37-39:
+//# abstract --account immshared(2,1) --ptb-inputs 100 @A
+Error: Error checking transaction input objects: AuthenticatorFunctionRef 0x71f86ca5a45282a1ef19f91abe9c880ad9a9b34fffba716fa32a9eb37a77a508 not found for account object(2,1) with version SequenceNumber(3)
