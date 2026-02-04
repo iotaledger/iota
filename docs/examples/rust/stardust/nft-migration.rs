@@ -6,7 +6,7 @@
 //! generated from iota-genesis-builder/src/stardust/test_outputs.
 
 use anyhow::{Result, anyhow};
-use docs_examples::utils::{clean_keystore, get_coin, publish_custom_nft_package, setup_keystore};
+use docs_examples::utils::{clean_keystore, publish_custom_nft_package, setup_keystore};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
     IotaClientBuilder,
@@ -46,7 +46,14 @@ async fn main() -> Result<(), anyhow::Error> {
         publish_custom_nft_package(&iota_client, &mut keystore, sender).await?;
 
     // Get a gas coin
-    let gas_coin = get_coin(&iota_client, sender).await?;
+    let gas_coin = iota_client
+        .coin_read_api()
+        .get_coins(sender, None, None, None)
+        .await?
+        .data
+        .into_iter()
+        .next()
+        .ok_or(anyhow!("No coins found"))?;
 
     // Get an NftOutput object id
     let nft_output_object_id =

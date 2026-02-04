@@ -9,7 +9,7 @@ use std::str::FromStr;
 
 use anyhow::anyhow;
 use bip32::DerivationPath;
-use docs_examples::utils::{clean_keystore, get_coin, setup_keystore};
+use docs_examples::utils::{clean_keystore, setup_keystore};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
     IotaClientBuilder,
@@ -137,7 +137,14 @@ async fn main() -> Result<(), anyhow::Error> {
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
     // Get a gas coin
-    let gas_coin = get_coin(&iota_client, sponsor).await?;
+    let gas_coin = iota_client
+        .coin_read_api()
+        .get_coins(sponsor, None, None, None)
+        .await?
+        .data
+        .into_iter()
+        .next()
+        .ok_or(anyhow!("No coins found for sponsor"))?;
 
     // Create the transaction data that will be sent to the network and allow
     // sponsoring
