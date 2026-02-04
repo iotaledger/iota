@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_types::{
+use iota_types::{base_types::ObjectID,
     error::{ExecutionError, IotaError},
     execution_status::{ExecutionFailureStatus, MoveLocation, MoveLocationOpt},
 };
@@ -42,15 +42,16 @@ pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
                 let fhandle = module.function_handle_at(fdef.function);
                 module.identifier_at(fhandle.name).to_string()
             });
-            ExecutionFailureStatus::MoveAbort(
-                MoveLocation {
-                    module: abort_location_id,
+            ExecutionFailureStatus::MoveAbort {
+                location: MoveLocation {
+                    package: ObjectID::new(abort_location_id.address().into_bytes()),
+                    module: abort_location_id.name().to_owned().into(),
                     function,
                     instruction,
                     function_name,
                 },
                 code,
-            )
+            }
         }
         (StatusCode::OUT_OF_GAS, _, _) => ExecutionFailureStatus::InsufficientGas,
         (_, _, location) => match error.major_status().status_type() {
@@ -70,7 +71,8 @@ pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
                             module.identifier_at(fhandle.name).to_string()
                         });
                         Some(MoveLocation {
-                            module: id.clone(),
+                            package: ObjectID::new(id.address().into_bytes()),
+                            module: id.module(),
                             function,
                             instruction,
                             function_name,
@@ -78,7 +80,9 @@ pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
                     }
                     _ => None,
                 };
-                ExecutionFailureStatus::MovePrimitiveRuntimeError(MoveLocationOpt(location))
+                ExecutionFailureStatus::MovePrimitiveRuntimeError {
+                    location: MoveLocationOpt(location),
+                }
             }
             StatusType::Validation
             | StatusType::Verification

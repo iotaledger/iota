@@ -38,7 +38,7 @@ mod checked {
         error::{ExecutionError, ExecutionErrorKind},
         execution::{ExecutionResults, ExecutionResultsV1, SharedInput, is_certificate_denied},
         execution_config_utils::to_binary_config,
-        execution_status::{CongestedObjects, ExecutionStatus},
+        execution_status::{ExecutionStatus},
         gas::{GasCostSummary, IotaGasStatus},
         gas_coin::GAS,
         inner_temporary_store::InnerTemporaryStore,
@@ -1093,8 +1093,8 @@ mod checked {
                 LimitThresholdCrossed::Hard(_, lim) => {
                     return Err(ExecutionError::new_with_source(
                         ExecutionErrorKind::WrittenObjectsTooLarge {
-                            current_size: written_objects_size as u64,
-                            max_size: lim as u64,
+                            object_size: written_objects_size as u64,
+                            max_object_size: lim as u64,
                         },
                         "Written objects size crossed hard limit",
                     ));

@@ -271,7 +271,7 @@ impl ObjectValue {
 
 pub fn ensure_serialized_size(size: u64, bound: u64) -> Result<(), ExecutionError> {
     if size > bound {
-        let e = ExecutionErrorKind::MoveObjectTooBig {
+        let e = ExecutionErrorKind::ObjectTooBig {
             object_size: size,
             max_object_size: bound,
         };

@@ -119,7 +119,7 @@ mod checked {
                 // modified
                 drop(context);
                 state_view.save_loaded_runtime_objects(loaded_runtime_objects);
-                return Err(err.with_command_index(idx));
+                return Err(err.with_command_index(idx as u64));
             };
         }
 
@@ -657,7 +657,7 @@ mod checked {
             )?;
             bcs::from_bytes(&ticket_bytes).map_err(|_| {
                 ExecutionError::from_kind(ExecutionErrorKind::CommandArgumentError {
-                    arg_idx: 0,
+                    argument: 0,
                     kind: CommandArgumentError::InvalidBCSBytes,
                 })
             })?
@@ -668,7 +668,7 @@ mod checked {
         if current_package_id != upgrade_ticket.package.bytes {
             return Err(ExecutionError::from_kind(
                 ExecutionErrorKind::PackageUpgradeError {
-                    upgrade_error: PackageUpgradeError::PackageIDDoesNotMatch {
+                    kind: PackageUpgradeError::PackageIdDoesNotMatch {
                         package_id: current_package_id,
                         ticket_id: upgrade_ticket.package.bytes,
                     },
@@ -682,7 +682,7 @@ mod checked {
         if computed_digest != upgrade_ticket.digest {
             return Err(ExecutionError::from_kind(
                 ExecutionErrorKind::PackageUpgradeError {
-                    upgrade_error: PackageUpgradeError::DigestDoesNotMatch {
+                    kind: PackageUpgradeError::DigestDoesNotMatch {
                         digest: computed_digest,
                     },
                 },
@@ -761,7 +761,7 @@ mod checked {
         let Ok(policy) = UpgradePolicy::try_from(policy) else {
             return Err(ExecutionError::from_kind(
                 ExecutionErrorKind::PackageUpgradeError {
-                    upgrade_error: PackageUpgradeError::UnknownUpgradePolicy { policy },
+                    kind: PackageUpgradeError::UnknownUpgradePolicy { policy },
                 },
             ));
         };
@@ -783,7 +783,7 @@ mod checked {
         if disallow_new_modules && existing_modules_len != upgrading_modules_len {
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::PackageUpgradeError {
-                    upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
+                    kind: PackageUpgradeError::IncompatibleUpgrade,
                 },
                 format!(
                     "Existing package has {existing_modules_len} modules, but new package has \
@@ -800,7 +800,7 @@ mod checked {
             let Some(new_module) = new_normalized.remove(&name) else {
                 return Err(ExecutionError::new_with_source(
                     ExecutionErrorKind::PackageUpgradeError {
-                        upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
+                        kind: PackageUpgradeError::IncompatibleUpgrade,
                     },
                     format!("Existing module {name} not found in next version of package"),
                 ));
@@ -838,7 +838,7 @@ mod checked {
         .map_err(|e| {
             ExecutionError::new_with_source(
                 ExecutionErrorKind::PackageUpgradeError {
-                    upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
+                    kind: PackageUpgradeError::IncompatibleUpgrade,
                 },
                 e,
             )
@@ -1405,7 +1405,9 @@ mod checked {
                     }
                     Type::Reference(_) | Type::MutableReference(_) => {
                         return Err(ExecutionError::from_kind(
-                            ExecutionErrorKind::InvalidPublicFunctionReturnType { idx: idx as u16 },
+                            ExecutionErrorKind::InvalidPublicFunctionReturnType {
+                                index: idx as u16,
+                            },
                         ));
                     }
                     t => t,
@@ -1666,7 +1668,7 @@ mod checked {
                     );
                     return Err(ExecutionError::new_with_source(
                         ExecutionErrorKind::command_argument_error(
-                            CommandArgumentError::InvalidUsageOfPureArg,
+                            CommandArgumentError::InvalidUsageOfPureArgument,
                             idx as u16,
                         ),
                         msg,
