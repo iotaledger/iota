@@ -37,5 +37,5 @@ test('wallet auto-lock', async ({ page, extensionUrl }) => {
     await expect(page.getByText(/Saved/i)).toBeVisible({ timeout: SHORT_TIMEOUT });
     await page.getByTestId('close-icon').click();
     await page.waitForTimeout(62 * 1000);
-    await expect(page.getByText(/Unlock wallet/)).toBeVisible();
+    await expect(page.getByPlaceholder('Password')).toBeVisible();
 });
