@@ -7064,6 +7064,7 @@ dependencies = [
  "iota-package-resolver",
  "iota-protocol-config",
  "iota-rest-api",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=87a781f46ab173d87dc050fa6bad85367492ce69)",
  "iota-storage",
  "iota-swarm-config",
  "iota-test-transaction-builder",
