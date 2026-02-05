@@ -1,6 +1,7 @@
 ---
 source: crates/iota-graphql-rpc/tests/snapshot_tests.rs
 expression: sdl
+snapshot_kind: text
 ---
 type ActiveJwk {
 	"""
@@ -457,6 +458,10 @@ type ChangeEpochTransactionV2 {
 	next epoch.
 	"""
 	eligibleActiveValidators: [BigInt!]
+	"""
+	The validator scores at the end of the epoch.
+	"""
+	scores: [BigInt!]
 }
 
 """

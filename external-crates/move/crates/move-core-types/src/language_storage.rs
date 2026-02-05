@@ -266,8 +266,13 @@ impl FromStr for StructTag {
     }
 }
 
-/// Represents the initial key into global storage where we first index by the
-/// address, and then the struct tag
+/// The identifier of a module.
+///
+/// Identifies a module in the given context.
+/// The context here is key. Always pay attention to where and with which
+/// other components you may wish to use the [ModuleId] with.
+/// It is fully the users responsibility to use the appropriately constructed
+/// ModuleId as it provides no validity checks.
 #[derive(Serialize, Deserialize, Debug, PartialEq, Hash, Eq, Clone, PartialOrd, Ord)]
 #[cfg_attr(any(test, feature = "fuzzing"), derive(Arbitrary))]
 #[cfg_attr(any(test, feature = "fuzzing"), proptest(no_params))]
@@ -283,14 +288,22 @@ impl From<ModuleId> for (AccountAddress, Identifier) {
 }
 
 impl ModuleId {
+    /// Construct a [ModuleId] from an [AccountAddress] and an [Identifier].
+    ///
+    /// The address will either be `Runtime ID` or the `Storage ID` of the given
+    /// module depending on the context. These are not interchangeable.
+    /// The name is an identifier referencing a module.
     pub fn new(address: AccountAddress, name: Identifier) -> Self {
         ModuleId { address, name }
     }
 
+    /// Return the [Identifier] associated with the [ModuleId] instance.
     pub fn name(&self) -> &IdentStr {
         &self.name
     }
 
+    /// Return the `Runtime Id` or `Storage Id` associated with the [ModuleId]
+    /// instance.
     pub fn address(&self) -> &AccountAddress {
         &self.address
     }

@@ -1,44 +1,55 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { test, expect } from './fixtures';
-import { connectWallet, requestFaucetTokensOnWalletHome } from './utils';
+import { Page, BrowserContext } from '@playwright/test';
+import { test, expect, SharedState } from './utils/fixtures';
+import { requestFaucetTokensOnWalletHome } from './utils/utils';
+import { connectWallet } from './utils/wallet';
+
+interface TestContext {
+    page: Page;
+    context: BrowserContext;
+    sharedState: SharedState;
+    prevAmount: string | null;
+    currentAmount: string | null;
+}
 
 test.describe.serial('Balance changes', () => {
-    let prevAmount: string | null;
-    let currentAmount: string | null;
+    const shared: TestContext = {} as TestContext;
 
-    test(`should request tokens from faucet and see updated balance`, async ({
-        context,
-        pageWithFreshWallet,
-        sharedState,
-        extensionName,
-    }) => {
-        const { wallet } = sharedState;
+    test.beforeAll(async ({ pageWithFreshWalletPersistent, persistentContext, sharedState }) => {
+        shared.page = pageWithFreshWalletPersistent;
+        shared.context = persistentContext;
+        shared.sharedState = sharedState;
+    });
 
-        if (!wallet.mnemonic) {
+    test(`should request tokens from faucet and see updated balance`, async () => {
+        const { page, context, sharedState } = shared;
+
+        if (!sharedState.wallet.mnemonic) {
             throw new Error('Wallet mnemonic not set');
         }
 
         const dashboardPage = await context.newPage();
         await dashboardPage.goto('/');
 
-        await connectWallet(dashboardPage, context, extensionName);
+        await connectWallet(dashboardPage, context, sharedState.extension.name);
 
-        prevAmount = await dashboardPage.getByTestId('balance-amount').textContent();
+        shared.prevAmount = await dashboardPage.getByTestId('balance-amount').textContent();
 
-        await pageWithFreshWallet.bringToFront();
-        await requestFaucetTokensOnWalletHome(pageWithFreshWallet);
+        await page.bringToFront();
+        await requestFaucetTokensOnWalletHome(page);
 
         await dashboardPage.bringToFront();
         await dashboardPage.goto('/');
 
-        currentAmount = await dashboardPage.getByTestId('balance-amount').textContent();
-        expect(currentAmount).not.toEqual(prevAmount);
+        shared.currentAmount = await dashboardPage.getByTestId('balance-amount').textContent();
+        expect(shared.currentAmount).not.toEqual(shared.prevAmount);
         dashboardPage.close();
     });
 
-    test(`should show correct transaction amount in activity section`, async ({ context }) => {
+    test(`should show correct transaction amount in activity section`, async () => {
+        const { context, prevAmount, currentAmount } = shared;
         test.skip(!prevAmount || !currentAmount, 'No balance change data available');
 
         const prevAmountValue = parseFloat(prevAmount!.replace(/[^0-9.-]+/g, '') || '0');
@@ -74,5 +85,12 @@ test.describe.serial('Balance changes', () => {
 
         expect(txAmountValue).toBeCloseTo(balanceChange, 2);
         await dashboardPage.close();
+    });
+    test.afterAll(async () => {
+        if (shared.context && shared.context.browser()?.isConnected()) {
+            await shared.context
+                .close()
+                .catch((e) => console.error('Error closing persistent context:', e));
+        }
     });
 });

@@ -8,15 +8,16 @@ import type { KeystoneAccountSerializedUI } from '_src/background/accounts/keyst
 import { KeystoneIotaSDK, type UR } from '@keystonehq/keystone-sdk';
 import { bcs, toBase64, toHex } from '@iota/bcs';
 import { messageWithIntent } from '@iota/iota-sdk/cryptography';
+import { SignatureType } from './components/keystone/KeystoneProvider';
 
 export class KeystoneSigner extends WalletSigner {
     readonly #derivationPath: string;
     readonly #address: string;
-    readonly #requestSignature: (ur: UR) => Promise<string>;
+    readonly #requestSignature: (ur: UR, signatureType?: SignatureType) => Promise<string>;
     readonly #masterFingerprint: string;
 
     constructor(
-        requestSignature: (ur: UR) => Promise<string>,
+        requestSignature: (ur: UR, signatureType?: SignatureType) => Promise<string>,
         { address, masterFingerprint, derivationPath }: KeystoneAccountSerializedUI,
         client: IotaClient,
     ) {
@@ -51,7 +52,7 @@ export class KeystoneSigner extends WalletSigner {
         };
 
         const ur = new KeystoneIotaSDK().generateSignRequest(iotaSignRequest);
-        const signature = await this.#requestSignature(ur);
+        const signature = await this.#requestSignature(ur, SignatureType.Message);
         return {
             bytes: toBase64(input.message),
             signature,
@@ -73,7 +74,7 @@ export class KeystoneSigner extends WalletSigner {
         };
 
         const ur = new KeystoneIotaSDK().generateSignRequest(iotaSignRequest);
-        const signature = await this.#requestSignature(ur);
+        const signature = await this.#requestSignature(ur, SignatureType.Transaction);
         return {
             bytes: toBase64(bytes),
             signature,

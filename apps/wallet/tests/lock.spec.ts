@@ -2,14 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { expect, test } from './fixtures';
-import { createWallet } from './utils/auth';
+import { expect, test } from './utils/fixtures';
+import { createWallet } from './utils/wallet';
 import { SHORT_TIMEOUT } from './constants/timeout.constants';
 
 test('account lock-unlock', async ({ page, extensionUrl }) => {
     await createWallet(page, extensionUrl);
     await page.getByTestId('accounts-manage').click();
-    await page.getByText('Main').hover();
+    await page.getByTestId('account-tile').hover();
     await page.getByTestId('account-lock').click();
     // Wait for the unlock modal to appear
     await expect(page.getByPlaceholder('Password')).toBeVisible();

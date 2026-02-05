@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import type { Transaction, TransactionObjectArgument } from '@iota/iota-sdk/transactions';
 import type { ChainData } from './types/index.js';
 import { bcs } from '@iota/iota-sdk/bcs';

@@ -1,0 +1,25 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 4 tasks
+
+init:
+A: object(0,0)
+
+task 1, line 8:
+//# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move
+Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move':
+created: object(2,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9971200,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 10-18:
+//# publish --sender A --dependencies simple_abstract_account
+created: object(3,0), object(3,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8975600,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 20:
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
+Error: Transaction Effects Status: Move Runtime Abort. Location: iota::authenticator_function::create_auth_function_ref_v1 (function index 0) at offset 15, Abort Code: 13835058261440593921
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("authenticator_function") }, function: 0, instruction: 15, function_name: Some("create_auth_function_ref_v1") }, 13835058261440593921), source: Some(VMError { major_status: ABORTED, sub_status: Some(13835058261440593921), message: Some("iota::authenticator_function::create_auth_function_ref_v1 at offset 15"), exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("authenticator_function") }), indices: [], offsets: [(FunctionDefinitionIndex(0), 15)] }), command: Some(0) } }

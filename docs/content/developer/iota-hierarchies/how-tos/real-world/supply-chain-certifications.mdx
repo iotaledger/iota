@@ -1,0 +1,343 @@
+---
+title: Supply Chain Quality Certification System
+sidebar_label: Supply Chain Certifications
+description: Real-world example demonstrating a comprehensive supply chain quality and compliance certification system using IOTA Hierarchies.
+teams:
+  - iotaledger/identity
+tags:
+  - hierarchies
+  - how-to
+---
+
+# Supply Chain Quality Certification System
+
+This real-world example demonstrates how to use IOTA Hierarchies to create a comprehensive supply chain quality and compliance certification system that enables global verification of product certifications, regulatory compliance, and quality standards across international borders.
+
+## Business Context
+
+Global supply chains require verifiable quality certifications and compliance attestations to ensure product safety and regulatory compliance. The hierarchical structure enables:
+- International standards organizations to establish certification frameworks
+- Regional certifiers to delegate authority to local testing laboratories
+- Testing labs to delegate to qualified inspectors
+- Manufacturers and retailers to verify product certifications instantly
+
+## Trust Hierarchy
+
+```
+International Standards Consortium (Root Authority)
+├── ISO Europe (Root Authority)
+│   ├── German Testing Institute (Regional Certifier)
+│   │   ├── Berlin Lab (Testing Lab)
+│   │   │   └── Senior Inspector (Inspector)
+│   │   └── Munich Lab (Testing Lab)
+│   └── French Testing Institute (Regional Certifier)
+└── ISO Americas (Root Authority)
+    ├── US FDA Regional Office (Regional Certifier)
+    └── Canadian Health Authority (Regional Certifier)
+```
+
+## Properties Defined
+
+The system defines comprehensive certification properties covering:
+
+- **ISO Standards**: `iso.9001` (Quality Management), `iso.14001` (Environmental), `iso.22000` (Food Safety)
+- **Product Certifications**: `product.organic`, `origin.verified`, `batch.tested`
+- **Regional Compliance**: `compliance.eu`, `compliance.fda`, `compliance.halal`
+- **Time Management**: `expiry.date` for certification lifecycle
+- **Quality Assurance**: Batch-specific testing results with pass/fail/pending status
+
+## Prerequisites
+
+- A funded IOTA account
+- Access to an IOTA network (testnet, devnet, or local)
+- Hierarchies client SDK installed
+
+## Implementation Overview
+
+### 1. Create International Standards Consortium
+
+Establish the root federation managing global certification standards:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/real-world/02_supply_chain.rs#L212-L222
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/real-world/02_supply_chain.ts#L197-L202
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Define Certification Properties
+
+Create comprehensive certification properties with validation rules:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/real-world/02_supply_chain.rs#L230-L351
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/real-world/02_supply_chain.ts#L210-L334
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Add Regional Standards Organizations
+
+Register regional ISO offices as root authorities:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/real-world/02_supply_chain.rs#L366-L384
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/real-world/02_supply_chain.ts#L348-L363
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Create National Testing Institute Accreditations
+
+Establish national-level certification authorities:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/real-world/02_supply_chain.rs#L397-L441
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/real-world/02_supply_chain.ts#L381-L407
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Create Local Testing Laboratory Rights
+
+Delegate attestation rights to local testing facilities:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/real-world/02_supply_chain.rs#L455-L487
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/real-world/02_supply_chain.ts#L421-L450
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 6. Issue Product Certifications
+
+Create product-specific certifications with expiry management:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/real-world/02_supply_chain.rs#L501-L608
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/real-world/02_supply_chain.ts#L464-L545
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 7. Retail Import Validation
+
+Demonstrate cross-border compliance verification:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/real-world/02_supply_chain.rs#L618-L658
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/real-world/02_supply_chain.ts#L555-L591
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 8. Consumer Verification
+
+Enable consumer-facing verification via QR codes:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/real-world/02_supply_chain.rs#L674-L685
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/real-world/02_supply_chain.ts#L607-L616
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 9. Product Recall Management
+
+Handle emergency certification revocation scenarios:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/real-world/02_supply_chain.rs#L706-L746
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/real-world/02_supply_chain.ts#L637-L672
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Real-World Applications
+
+### Import/Export Compliance
+- **Scenario**: EU retailer importing organic produce from German farms
+- **Process**: Instant verification of organic certification and EU compliance
+- **Benefits**: Streamlined customs clearance, reduced paperwork, fraud prevention
+
+### Consumer Trust & Transparency
+- **Scenario**: Shopper scanning QR code on organic apple packaging
+- **Process**: Mobile app validates organic claim through trust chain verification
+- **Benefits**: Consumer confidence, brand protection, market differentiation
+
+### Regulatory Enforcement
+- **Scenario**: FDA inspection of imported food products
+- **Process**: Real-time validation of food safety certifications and compliance
+- **Benefits**: Efficient regulatory oversight, public safety assurance
+
+### Product Recall Management
+- **Scenario**: Contamination discovered in specific production batch
+- **Process**: Immediate certification revocation with downstream notification
+- **Benefits**: Rapid response, targeted recalls, minimized health risks
+
+### Supply Chain Risk Assessment
+- **Scenario**: Insurance company evaluating manufacturer's supply chain
+- **Process**: Comprehensive certification history and compliance verification
+- **Benefits**: Risk-based pricing, coverage optimization, fraud detection
+
+## Key Features
+
+### Comprehensive Certification Coverage
+- **ISO Standards**: Quality (9001), Environmental (14001), Food Safety (22000)
+- **Product Attributes**: Organic certification, origin verification, batch testing
+- **Regional Compliance**: EU regulations, FDA requirements, Halal standards
+- **Time Management**: Automated expiry tracking and renewal notifications
+
+### Advanced Validation Rules
+- **Status Tracking**: Certified, pending, expired, revoked, suspended states
+- **Geographic Origin**: Country code validation with regulatory mapping
+- **Quality Testing**: Pass/fail/pending/inconclusive result tracking
+- **Expiry Management**: ISO 8601 timestamp validation with alerts
+
+### Multi-Stakeholder Integration
+- **International Standards**: Global framework governance
+- **Regional Authorities**: Local regulatory compliance
+- **Testing Laboratories**: Quality assurance and verification
+- **Supply Chain Actors**: Manufacturers, distributors, retailers, consumers
+
+## Benefits Achieved
+
+- **Instant Compliance Verification**: Real-time validation across international borders
+- **Fraud Prevention**: Cryptographic security eliminates counterfeit certifications
+- **Automated Expiry Management**: Proactive renewal and expiration handling
+**Streamlined Import/Export**: Reduced customs delays and paperwork
+- **Consumer Trust**: Transparent certification with QR code verification
+- **Efficient Product Recalls**: Targeted revocation with immediate effect
+- **Reduced Regulatory Overhead**: Automated compliance monitoring
+- **Global Interoperability**: Cross-border recognition of certifications
+- **Supply Chain Visibility**: End-to-end traceability and accountability
+**Risk Management**: Data-driven insurance and financing decisions
+
+## Full Example Code
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/real-world/02_supply_chain.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/real-world/02_supply_chain.ts
+```
+
+</TabItem>
+</Tabs>
+</div>

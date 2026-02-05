@@ -87,6 +87,7 @@ pub struct BlockV1 {
     ancestors: Vec<BlockRef>,
     transactions: Vec<Transaction>,
     commit_votes: Vec<CommitVote>,
+    //  This form of misbehavior report is now deprecated
     misbehavior_reports: Vec<MisbehaviorReport>,
 }
 
@@ -637,7 +638,7 @@ impl TestBlock {
     }
 }
 
-/// A block can attach reports of misbehavior by other authorities.
+//  This form of misbehavior report is now deprecated
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct MisbehaviorReport {
     pub target: AuthorityIndex,
