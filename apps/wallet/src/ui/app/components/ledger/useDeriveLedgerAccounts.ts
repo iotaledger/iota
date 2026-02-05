@@ -85,5 +85,5 @@ async function deriveAccountsFromLedger(
 function getDerivationPathsForLedger(startIndex: number, numDerivations: number) {
     return Array.from({
         length: numDerivations,
-    }).map((_, index) => `m/44'/4218'/${1 + startIndex + index}'/0'/0'`);
+    }).map((_, index) => `m/44'/4218'/${startIndex + index}'/0'/0'`);
 }
