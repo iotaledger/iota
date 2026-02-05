@@ -8,9 +8,7 @@ use std::{fs::File, io::Write, str::FromStr};
 use clap::*;
 use fastcrypto_zkp::{bn254::zk_login::OIDCProvider, zk_login_utils::Bn254FrElement};
 use iota_sdk_types::{
-    address::Address,
     crypto::{Intent, IntentMessage, PersonalMessage},
-    object_id::ObjectId,
     type_tag::Identifier as SdkIdentifier,
 };
 use iota_types::{
@@ -247,7 +245,7 @@ fn get_registry() -> Result<Registry> {
     let event = Event {
         package_id: ObjectID::random(),
         module: Identifier::from_static("foo"),
-        sender: Address::from(IotaAddress::ZERO),
+        sender: IotaAddress::ZERO,
         type_: struct_tag.clone(),
         contents: vec![0],
     };
