@@ -5,7 +5,10 @@
 include!("../../../generated/iota.grpc.v0.object.rs");
 include!("../../../generated/iota.grpc.v0.object.field_info.rs");
 
-use crate::{proto::TryFromProtoError, v0::types::ObjectReference};
+use crate::{
+    proto::TryFromProtoError,
+    v0::{bcs::BcsData, types::ObjectReference},
+};
 
 // TryFrom implementations for Object
 impl TryFrom<&Object> for iota_sdk_types::Object {
@@ -82,6 +85,7 @@ impl TryFrom<&Objects> for Vec<iota_sdk_types::Object> {
 
 // Convenience methods for Object (delegate to TryFrom)
 impl Object {
+    /// Get the object reference.
     pub fn object_reference(&self) -> Result<iota_sdk_types::ObjectReference, TryFromProtoError> {
         self.try_into()
     }
@@ -90,6 +94,57 @@ impl Object {
     pub fn object(&self) -> Result<iota_sdk_types::Object, TryFromProtoError> {
         self.try_into()
     }
+
+    /// Get the raw BCS bytes of this object.
+    pub fn object_bcs(&self) -> Result<&[u8], TryFromProtoError> {
+        self.bcs
+            .as_ref()
+            .map(BcsData::as_bytes)
+            .ok_or_else(|| TryFromProtoError::missing(Self::BCS_FIELD.name))
+    }
+
+    /// Get the object ID from the reference.
+    pub fn object_id(&self) -> Result<iota_sdk_types::ObjectId, TryFromProtoError> {
+        let reference = self
+            .reference
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::REFERENCE_FIELD.name))?;
+        let object_id_str = reference.object_id.as_ref().ok_or_else(|| {
+            TryFromProtoError::missing(ObjectReference::OBJECT_ID_FIELD.name)
+                .nested(Self::REFERENCE_FIELD.name)
+        })?;
+        object_id_str.parse().map_err(|e| {
+            TryFromProtoError::invalid(ObjectReference::OBJECT_ID_FIELD.name, e)
+                .nested(Self::REFERENCE_FIELD.name)
+        })
+    }
+
+    /// Get the object version from the reference.
+    pub fn object_version(&self) -> Result<u64, TryFromProtoError> {
+        let reference = self
+            .reference
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::REFERENCE_FIELD.name))?;
+        reference.version.ok_or_else(|| {
+            TryFromProtoError::missing(ObjectReference::VERSION_FIELD.name)
+                .nested(Self::REFERENCE_FIELD.name)
+        })
+    }
+
+    /// Get the object digest from the reference.
+    pub fn object_digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
+        let reference = self
+            .reference
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::REFERENCE_FIELD.name))?;
+        let digest = reference.digest.as_ref().ok_or_else(|| {
+            TryFromProtoError::missing(ObjectReference::DIGEST_FIELD.name)
+                .nested(Self::REFERENCE_FIELD.name)
+        })?;
+        digest
+            .try_into()
+            .map_err(|e: TryFromProtoError| e.nested(Self::REFERENCE_FIELD.name))
+    }
 }
 
 // Convenience methods for Objects (delegate to TryFrom)
@@ -97,5 +152,19 @@ impl Objects {
     /// Deserialize all objects from BCS.
     pub fn objects(&self) -> Result<Vec<iota_sdk_types::Object>, TryFromProtoError> {
         self.try_into()
+    }
+
+    /// Get all object references.
+    pub fn object_references(
+        &self,
+    ) -> Result<Vec<iota_sdk_types::ObjectReference>, TryFromProtoError> {
+        self.objects
+            .iter()
+            .enumerate()
+            .map(|(i, o)| {
+                o.object_reference()
+                    .map_err(|e| e.nested_at(Self::OBJECTS_FIELD.name, i))
+            })
+            .collect()
     }
 }

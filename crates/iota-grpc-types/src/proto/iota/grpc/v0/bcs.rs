@@ -13,6 +13,11 @@ impl BcsData {
     pub fn deserialize<'de, T: serde::Deserialize<'de>>(&'de self) -> Result<T, bcs::Error> {
         bcs::from_bytes(self.data.as_ref())
     }
+
+    /// Get the raw BCS bytes as a slice.
+    pub fn as_bytes(&self) -> &[u8] {
+        self.data.as_ref()
+    }
 }
 
 impl From<Vec<u8>> for BcsData {

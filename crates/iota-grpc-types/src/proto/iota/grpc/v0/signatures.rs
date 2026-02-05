@@ -33,6 +33,23 @@ impl TryFrom<&ValidatorAggregatedSignature> for iota_sdk_types::ValidatorAggrega
     }
 }
 
+impl ValidatorAggregatedSignature {
+    /// Deserialize the validator aggregated signature.
+    pub fn signature(
+        &self,
+    ) -> Result<iota_sdk_types::ValidatorAggregatedSignature, TryFromProtoError> {
+        self.try_into()
+    }
+
+    /// Get the raw BCS bytes of this validator aggregated signature.
+    pub fn signature_bcs(&self) -> Result<&[u8], TryFromProtoError> {
+        self.bcs
+            .as_ref()
+            .map(BcsData::as_bytes)
+            .ok_or_else(|| TryFromProtoError::missing(Self::BCS_FIELD.name))
+    }
+}
+
 // UserSignature
 //
 
@@ -60,6 +77,21 @@ impl TryFrom<&UserSignature> for iota_sdk_types::UserSignature {
             .ok_or_else(|| TryFromProtoError::missing(UserSignature::BCS_FIELD.name))?;
         BcsData::deserialize(bcs)
             .map_err(|e| TryFromProtoError::invalid(UserSignature::BCS_FIELD, e))
+    }
+}
+
+impl UserSignature {
+    /// Deserialize the user signature.
+    pub fn signature(&self) -> Result<iota_sdk_types::UserSignature, TryFromProtoError> {
+        self.try_into()
+    }
+
+    /// Get the raw BCS bytes of this user signature.
+    pub fn signature_bcs(&self) -> Result<&[u8], TryFromProtoError> {
+        self.bcs
+            .as_ref()
+            .map(BcsData::as_bytes)
+            .ok_or_else(|| TryFromProtoError::missing(Self::BCS_FIELD.name))
     }
 }
 

@@ -62,10 +62,9 @@ impl Client {
     ///     let effects = tx.effects()?;
     ///     println!("Status: {:?}", effects.status());
     ///
-    ///     // Access raw proto fields without deserialization
-    ///     if let Some(checkpoint) = tx.checkpoint_sequence_number() {
-    ///         println!("Checkpoint: {}", checkpoint);
-    ///     }
+    ///     // Access checkpoint number
+    ///     let checkpoint = tx.checkpoint_sequence_number()?;
+    ///     println!("Checkpoint: {}", checkpoint);
     /// }
     /// # Ok(())
     /// # }
