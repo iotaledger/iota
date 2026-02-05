@@ -8,6 +8,7 @@ use iota_metrics::monitored_scope;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
+    auth_context::AuthContext,
     base_types::{
         IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionDigest,
     },
@@ -78,6 +79,9 @@ pub struct TemporaryStore<'backing> {
     /// and are not in the input objects. This allows us to commit them to
     /// the effects.
     loaded_per_epoch_config_objects: RwLock<BTreeSet<ObjectID>>,
+
+    /// The auth context used to verify the transaction.
+    auth_context: Option<AuthContext>,
 }
 
 impl<'backing> TemporaryStore<'backing> {
@@ -125,6 +129,7 @@ impl<'backing> TemporaryStore<'backing> {
             receiving_objects,
             cur_epoch,
             loaded_per_epoch_config_objects: RwLock::new(BTreeSet::new()),
+            auth_context: None,
         }
     }
 
@@ -652,6 +657,11 @@ impl TemporaryStore<'_> {
         }
         Ok(())
     }
+
+    pub fn store_auth_context(&mut self, auth_context: AuthContext) {
+        debug_assert!(self.auth_context.is_none());
+        self.auth_context = Some(auth_context);
+    }
 }
 
 impl TemporaryStore<'_> {
@@ -730,6 +740,26 @@ impl TemporaryStore<'_> {
                     || is_system_package(*id)
             }),
             "A modified object must be either a mutable input, a loaded child object, or a system package"
+        );
+        Ok(())
+    }
+
+    pub fn check_move_authenticator_results_consistency(&self) -> Result<(), ExecutionError> {
+        assert_invariant!(
+            self.execution_results.created_object_ids.is_empty(),
+            "Objects cannot be created during authenticator execution"
+        );
+        assert_invariant!(
+            self.execution_results.written_objects.is_empty(),
+            "Objects cannot be written during authenticator execution"
+        );
+        assert_invariant!(
+            self.execution_results.modified_objects.is_empty(),
+            "Objects cannot be modified during authenticator execution"
+        );
+        assert_invariant!(
+            self.execution_results.deleted_object_ids.is_empty(),
+            "Objects cannot be deleted during authenticator execution"
         );
         Ok(())
     }
@@ -1065,6 +1095,10 @@ impl Storage for TemporaryStore<'_> {
                 .insert(IOTA_DENY_LIST_OBJECT_ID);
         }
         result
+    }
+
+    fn read_auth_context(&self) -> Option<&AuthContext> {
+        self.auth_context.as_ref()
     }
 }
 

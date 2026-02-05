@@ -13,7 +13,6 @@ import { Account, BadgeType, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { IotaLogoMark, Keystone, Ledger, Passkey } from '@iota/apps-ui-icons';
 import { RemoveDialog } from './RemoveDialog';
-import { isMainAccount } from '_src/background/accounts/isMainAccount';
 import { Portal } from '_app/shared/Portal';
 import { formatAccountName } from '_src/ui/app/helpers';
 import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
@@ -109,23 +108,17 @@ export function AccountGroupItem({
         setDropdownOpen(true);
     }
 
-    const isMain = isMainAccount(account);
     const isLegacy = isLegacyAccount(account);
 
-    const badgeConfig = isMain
+    const badgeConfig = isLegacy
         ? {
-              type: BadgeType.PrimarySoft,
-              text: 'Main',
+              type: BadgeType.Neutral,
+              text: 'Legacy',
           }
-        : isLegacy
-          ? {
-                type: BadgeType.Neutral,
-                text: 'Legacy',
-            }
-          : {
-                type: undefined,
-                text: undefined,
-            };
+        : {
+              type: undefined,
+              text: undefined,
+          };
     return (
         <div className="relative overflow-visible [&_span]:whitespace-nowrap">
             <div onClick={handleSelectAccount} ref={anchorRef}>

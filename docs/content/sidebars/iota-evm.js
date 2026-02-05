@@ -317,7 +317,7 @@ const iotaEvm = [
     },
     {
         type: 'category',
-        label: 'Test with developer/iota-evm/solo',
+        label: 'Testing with Solo',
         items: [
             {
                 label: 'Getting Started',

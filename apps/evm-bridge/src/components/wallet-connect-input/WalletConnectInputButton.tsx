@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Link as LinkIcon } from '@iota/apps-ui-icons';
 import { ConnectModal } from '@iota/dapp-kit';
 import { useConnectModal } from '@rainbow-me/rainbowkit';

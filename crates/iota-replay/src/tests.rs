@@ -14,7 +14,7 @@ use crate::{
     types::{MAX_CONCURRENT_REQUESTS, RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD, ReplayEngineError},
 };
 
-/// Keep searching for non-system TXs in the checkppints for this long
+/// Keep searching for non-system TXs in the checkpoints for this long
 /// Very unlikely to take this long, but we want to be sure we find one
 const NUM_CHECKPOINTS_TO_ATTEMPT: usize = 10_000;
 

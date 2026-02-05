@@ -1,0 +1,13 @@
+[package]
+name = "iotaccount"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../crates/iota-framework/packages/iota-framework" }
+
+[addresses]
+iotaccount = "0x0"
+
+[dev-dependencies]
+
+[dev-addresses]

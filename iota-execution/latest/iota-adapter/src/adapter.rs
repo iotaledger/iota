@@ -8,7 +8,10 @@ mod checked {
     use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
     use anyhow::Result;
-    use iota_move_natives::{NativesCostTable, object_runtime, object_runtime::ObjectRuntime};
+    use iota_move_natives::{
+        NativesCostTable,
+        object_runtime::{self, ObjectRuntime},
+    };
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
         base_types::*,
@@ -82,8 +85,9 @@ mod checked {
         .map_err(|_| IotaError::ExecutionInvariantViolation)
     }
 
-    /// Creates a new set of `NativeContextExtensions` for the Move VM,
-    /// configuring extensions such as `ObjectRuntime` and
+    /// Creates a new set of `NativeContextExtensions`.
+    ///
+    /// Configuring extensions such as `ObjectRuntime` and
     /// `NativesCostTable`. These extensions manage object resolution, input
     /// objects, metering, protocol configuration, and metrics tracking.
     /// They are available and mainly used in native function implementations
@@ -96,6 +100,8 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         current_epoch_id: EpochId,
     ) -> NativeContextExtensions<'r> {
+        // When changing the list of configured extensions, make sure you also
+        // update the one used while executing `move test` command.
         let mut extensions = NativeContextExtensions::default();
         extensions.add(ObjectRuntime::new(
             child_resolver,

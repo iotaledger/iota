@@ -49,15 +49,15 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 7, lines 89-91:
 //# run iota::pay::split_and_transfer --args object(1,0) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
-Error: Error checking transaction input objects: CoinTypeGlobalPause { coin_type: "object(1,5)::regulated_coin::REGULATED_COIN" }
+Error: Error checking transaction input objects: Coin type is globally paused for use: object(1,5)::regulated_coin::REGULATED_COIN
 
 task 8, lines 92-94:
 //# transfer-object 2,0 --sender B --recipient A
-Error: Error checking transaction input objects: CoinTypeGlobalPause { coin_type: "object(1,5)::regulated_coin::REGULATED_COIN" }
+Error: Error checking transaction input objects: Coin type is globally paused for use: object(1,5)::regulated_coin::REGULATED_COIN
 
 task 9, lines 95-98:
 //# run iota::pay::split_and_transfer --args object(2,0) 1 @A --type-args test::regulated_coin::REGULATED_COIN --sender B
-Error: Error checking transaction input objects: CoinTypeGlobalPause { coin_type: "object(1,5)::regulated_coin::REGULATED_COIN" }
+Error: Error checking transaction input objects: Coin type is globally paused for use: object(1,5)::regulated_coin::REGULATED_COIN
 
 task 10, line 99:
 //# run test::regulated_coin::unwrap --args object(3,0) --sender A
@@ -78,7 +78,7 @@ Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { k
 
 task 13, lines 108-110:
 //# run iota::pay::split_and_transfer --args object(1,0) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
-Error: Error checking transaction input objects: CoinTypeGlobalPause { coin_type: "object(1,5)::regulated_coin::REGULATED_COIN" }
+Error: Error checking transaction input objects: Coin type is globally paused for use: object(1,5)::regulated_coin::REGULATED_COIN
 
 task 14, lines 111-113:
 //# run test::regulated_coin::assert_global_pause_status --args immshared(0x403) true --sender A

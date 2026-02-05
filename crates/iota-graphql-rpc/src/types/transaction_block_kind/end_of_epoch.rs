@@ -16,6 +16,7 @@ use iota_types::{
         ChangeEpoch as NativeChangeEpochTransaction,
         ChangeEpochV2 as NativeChangeEpochTransactionV2,
         ChangeEpochV3 as NativeChangeEpochTransactionV3,
+        ChangeEpochV4 as NativeChangeEpochTransactionV4,
         EndOfEpochTransactionKind as NativeEndOfEpochTransactionKind,
     },
 };
@@ -59,9 +60,11 @@ pub(crate) struct ChangeEpochTransaction {
     pub checkpoint_viewed_at: u64,
 }
 
-// System transaction for advancing the epoch.
-// This version includes the computation_charge_burned field for when
-// protocol_defined_base_fee is enabled in the protocol config.
+/// System transaction for advancing the epoch.
+///
+/// This represents all native `ChangeEpochTransaction{V2,V3,V4}` versions, by
+/// using optional fields to extend on existing fields in a backward compatible
+/// manner.
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct ChangeEpochTransactionV2 {
     /// The next (to become) epoch ID.
@@ -91,6 +94,9 @@ pub(crate) struct ChangeEpochTransactionV2 {
     /// Vector of active validator indices eligible to take part in committee
     /// selection because they support the new, target protocol version.
     pub eligible_active_validators: Option<Vec<u64>>,
+    /// Scores for the epoch being finalized. Each value corresponds to
+    /// an authority, ordered by the ending epoch's AuthorityIndex.
+    pub scores: Option<Vec<u64>>,
     /// The checkpoint sequence number this was viewed at.
     pub checkpoint_viewed_at: u64,
 }
@@ -111,6 +117,7 @@ impl ChangeEpochTransactionV2 {
             epoch_start_timestamp_ms: native.epoch_start_timestamp_ms,
             system_packages: native.system_packages,
             eligible_active_validators: None,
+            scores: None,
             checkpoint_viewed_at,
         }
     }
@@ -130,6 +137,27 @@ impl ChangeEpochTransactionV2 {
             epoch_start_timestamp_ms: native.epoch_start_timestamp_ms,
             system_packages: native.system_packages,
             eligible_active_validators: Some(native.eligible_active_validators),
+            scores: None,
+            checkpoint_viewed_at,
+        }
+    }
+
+    pub fn new_with_native_v4(
+        native: NativeChangeEpochTransactionV4,
+        checkpoint_viewed_at: u64,
+    ) -> Self {
+        Self {
+            epoch: native.epoch,
+            protocol_version: native.protocol_version,
+            storage_charge: native.storage_charge,
+            computation_charge: native.computation_charge,
+            computation_charge_burned: native.computation_charge_burned,
+            storage_rebate: native.storage_rebate,
+            non_refundable_storage_fee: native.non_refundable_storage_fee,
+            epoch_start_timestamp_ms: native.epoch_start_timestamp_ms,
+            system_packages: native.system_packages,
+            eligible_active_validators: Some(native.eligible_active_validators),
+            scores: Some(native.scores),
             checkpoint_viewed_at,
         }
     }
@@ -402,6 +430,13 @@ impl ChangeEpochTransactionV2 {
             .as_ref()
             .map(|v| v.iter().map(|id| BigInt::from(*id)).collect())
     }
+
+    /// The validator scores at the end of the epoch.
+    async fn scores(&self) -> Option<Vec<BigInt>> {
+        self.scores
+            .as_ref()
+            .map(|v| v.iter().map(|s| BigInt::from(*s)).collect())
+    }
 }
 
 #[Object]
@@ -437,6 +472,10 @@ impl EndOfEpochTransactionKind {
                 checkpoint_viewed_at,
             )),
             N::ChangeEpochV3(ce) => K::ChangeEpochV2(ChangeEpochTransactionV2::new_with_native_v3(
+                ce,
+                checkpoint_viewed_at,
+            )),
+            N::ChangeEpochV4(ce) => K::ChangeEpochV2(ChangeEpochTransactionV2::new_with_native_v4(
                 ce,
                 checkpoint_viewed_at,
             )),

@@ -47,6 +47,7 @@ use mockall::automock;
 use move_core_types::language_storage::TypeTag;
 use thiserror::Error;
 use tokio::task::JoinError;
+use typed_store::TypedStoreError;
 
 use crate::ObjectProvider;
 
@@ -438,7 +439,7 @@ impl StateRead for AuthorityState {
                 balance: coin.balance,
                 previous_transaction: coin.previous_transaction,
             })
-            .collect::<Vec<_>>())
+            .collect())
     }
 
     async fn get_executed_transaction_and_effects(
@@ -669,5 +670,12 @@ impl From<JoinError> for StateReadError {
 impl From<anyhow::Error> for StateReadError {
     fn from(e: anyhow::Error) -> Self {
         StateReadError::Internal(e.into())
+    }
+}
+
+impl From<TypedStoreError> for StateReadError {
+    fn from(e: TypedStoreError) -> Self {
+        let error: IotaError = e.into();
+        StateReadError::Internal(error.into())
     }
 }

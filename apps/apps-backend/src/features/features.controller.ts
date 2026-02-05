@@ -87,10 +87,10 @@ export class FeaturesController {
                 [Feature.FiatConversion]: {
                     defaultValue: {
                         [Network.Mainnet]: true,
-                        [Network.Devnet]: false,
-                        [Network.Testnet]: false,
-                        [Network.Localnet]: false,
-                        [Network.Custom]: false,
+                        [Network.Devnet]: true,
+                        [Network.Testnet]: true,
+                        [Network.Localnet]: true,
+                        [Network.Custom]: true,
                     },
                 },
                 [Feature.KnownAddressAlias]: {
