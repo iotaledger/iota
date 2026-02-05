@@ -53,7 +53,6 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
     const [currentSlice, setCurrentSlice] = useState(1);
     const [limit, setLimit] = useState(20);
     const [filterValue, setFilterValue] = useState(CoinFilter.All);
-
     const [sortField, setSortField] = useState(SortField.Id);
     const [sortOrder, setSortOrder] = useState(SortOrder.Desc);
 

@@ -55,26 +55,24 @@ export function CoinsPanel({ coinType, id, sortField, sortOrder }: CoinsPanelPro
     const multiCols = containerWidth > MIN_CONTAINER_WIDTH_SIZE;
 
     return (
-        <div className="flex flex-col gap-sm">
-            <div className="max-h-[230px] overflow-auto">
-                <div className="flex flex-col flex-wrap gap-xs firefox:pr-xs" ref={coinsSectionRef}>
-                    {sortedCoins.map((coin) => (
-                        <div
-                            key={coin.coinObjectId}
-                            className={clsx('w-full', multiCols && 'basis-1/3')}
-                        >
-                            <CoinItem coin={coin} />
-                        </div>
-                    ))}
-                </div>
+        <div className="max-h-[230px] overflow-auto">
+            <div className="flex flex-col flex-wrap gap-xs firefox:pr-xs" ref={coinsSectionRef}>
+                {sortedCoins.map((coin) => (
+                    <div
+                        key={coin.coinObjectId}
+                        className={clsx('w-full', multiCols && 'basis-1/3')}
+                    >
+                        <CoinItem coin={coin} />
+                    </div>
+                ))}
+            </div>
 
-                <div className="flex justify-center" ref={containerRef}>
-                    {isSpinnerVisible && (
-                        <div className="mt-5 flex">
-                            <LoadingIndicator />
-                        </div>
-                    )}
-                </div>
+            <div className="flex justify-center" ref={containerRef}>
+                {isSpinnerVisible && (
+                    <div className="mt-5 flex">
+                        <LoadingIndicator />
+                    </div>
+                )}
             </div>
         </div>
     );
