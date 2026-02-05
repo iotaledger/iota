@@ -111,7 +111,12 @@ impl RemoteStore {
                 RemoteStore::RestApiFullnode(iota_rest_api::Client::new(url))
             }
             RemoteUrl::Fullnode(ref url) => {
-                GrpcClient::connect(url).await.map(RemoteStore::Fullnode)?
+                let client = GrpcClient::connect(url)
+                    .await?
+                    // by increasing it we noticed improved performance downloading the genesis
+                    // checkpoint
+                    .with_max_decoding_message_size(MAX_MESSAGE_SIZE_BYTES);
+                RemoteStore::Fullnode(client)
             }
             RemoteUrl::HybridHistoricalStore {
                 historical_url,

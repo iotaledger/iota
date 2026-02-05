@@ -6051,6 +6051,7 @@ dependencies = [
  "futures",
  "iota-config",
  "iota-grpc-client",
+ "iota-grpc-server",
  "iota-grpc-types",
  "iota-metrics",
  "iota-protocol-config",
