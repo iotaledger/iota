@@ -19,7 +19,7 @@ use crate::authority::authority_tests::init_state_with_ids_and_object_basics;
 
 #[tokio::test]
 async fn test_batch_transaction_ok() -> anyhow::Result<()> {
-    // This test tests a sucecssful normal batch transaction.
+    // This test tests a successful normal batch transaction.
     // This batch transaction contains 5 transfers, and 5 Move calls.
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let (recipient, _): (_, AccountKeyPair) = get_key_pair();

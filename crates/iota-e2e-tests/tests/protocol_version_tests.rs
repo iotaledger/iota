@@ -70,7 +70,9 @@ mod sim_only_tests {
         IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
         IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
         MOVE_STDLIB_PACKAGE_ID,
-        base_types::{ConciseableName, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+        base_types::{
+            ConciseableName, Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber,
+        },
         digests::TransactionDigest,
         effects::{TransactionEffects, TransactionEffectsAPI},
         id::ID,
@@ -493,8 +495,8 @@ mod sim_only_tests {
             builder
                 .move_call(
                     IOTA_SYSTEM_PACKAGE_ID,
-                    ident_str!("msim_extra_1").to_owned(),
-                    ident_str!("mint").to_owned(),
+                    Identifier::from_static("msim_extra_1"),
+                    Identifier::from_static("mint"),
                     // type_arguments
                     vec![],
                     // call_args
@@ -514,8 +516,8 @@ mod sim_only_tests {
             builder
                 .move_call(
                     IOTA_SYSTEM_PACKAGE_ID,
-                    ident_str!("msim_extra_1").to_owned(),
-                    ident_str!("wrap").to_owned(),
+                    Identifier::from_static("msim_extra_1"),
+                    Identifier::from_static("wrap"),
                     // type_arguments
                     vec![],
                     vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(obj))],
