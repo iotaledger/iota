@@ -4,9 +4,11 @@
 
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import type { CoinStruct } from '../../src/client/types/generated';
-import type { MoveValue } from '../../src/client/types/generated';
-import type { IotaMoveViewCallResults } from '../../src/client/types/generated';
+import type {
+    CoinStruct,
+    IotaMoveViewCallResults,
+    MoveValue,
+} from '../../src/client/types/generated';
 import { IotaGraphQLClient } from '../../src/graphql';
 import { graphql } from '../../src/graphql/schemas/2025.2';
 import { IOTA_TYPE_ARG } from '../../src/utils';
