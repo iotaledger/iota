@@ -258,7 +258,7 @@ fn is_defined_in_current_module(view: &CompiledModule, type_arg: &SignatureToken
     }
 }
 
-fn addr_module<'a>(view: &'a CompiledModule, mhandle: &ModuleHandle) -> (IotaAddress, Identifier) {
+fn addr_module(view: &CompiledModule, mhandle: &ModuleHandle) -> (IotaAddress, Identifier) {
     let maddr = view.address_identifier_at(mhandle.address);
     let mident = view.identifier_at(mhandle.name);
     (

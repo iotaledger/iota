@@ -723,7 +723,7 @@ impl IotaData for IotaRawData {
 #[serde(tag = "dataType", rename_all = "camelCase", rename = "Data")]
 pub enum IotaParsedData {
     // Manually handle generic schema generation
-    MoveObject(IotaParsedMoveObject),
+    MoveObject(Box<IotaParsedMoveObject>),
     Package(IotaMovePackage),
 }
 
@@ -735,9 +735,9 @@ impl IotaData for IotaParsedData {
         object: MoveObject,
         layout: MoveStructLayout,
     ) -> Result<Self, anyhow::Error> {
-        Ok(Self::MoveObject(IotaParsedMoveObject::try_from_layout(
-            object, layout,
-        )?))
+        Ok(Self::MoveObject(Box::new(
+            IotaParsedMoveObject::try_from_layout(object, layout)?,
+        )))
     }
 
     fn try_from_package(package: MovePackage) -> Result<Self, anyhow::Error> {
@@ -776,7 +776,7 @@ impl IotaData for IotaParsedData {
 
     fn try_into_move(self) -> Option<Self::ObjectType> {
         match self {
-            Self::MoveObject(o) => Some(o),
+            Self::MoveObject(o) => Some(*o),
             Self::Package(_) => None,
         }
     }
@@ -892,7 +892,7 @@ impl IotaParsedMoveObject {
     pub fn try_from_object_read(object_read: ObjectRead) -> Result<Self, anyhow::Error> {
         let parsed_data = IotaParsedData::try_from_object_read(object_read)?;
         match parsed_data {
-            IotaParsedData::MoveObject(o) => Ok(o),
+            IotaParsedData::MoveObject(o) => Ok(*o),
             IotaParsedData::Package(_) => Err(anyhow::anyhow!("Object is not a Move object")),
         }
     }

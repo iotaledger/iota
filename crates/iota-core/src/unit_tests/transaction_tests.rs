@@ -300,7 +300,7 @@ pub fn init_move_call_transaction(
     let mut data = TransactionData::new_move_call(
         sender,
         IOTA_SYSTEM_PACKAGE_ID,
-        IOTA_SYSTEM_MODULE_NAME.into(),
+        IOTA_SYSTEM_MODULE_NAME,
         Identifier::from_static("request_add_validator"),
         vec![],
         gas_object_ref,

@@ -1476,7 +1476,7 @@ mod checked {
         }
 
         if module_ident == (IotaAddress::FRAMEWORK, TRANSFER_MODULE)
-            && PRIVATE_TRANSFER_FUNCTIONS.contains(&function)
+            && PRIVATE_TRANSFER_FUNCTIONS.contains(function)
         {
             let msg = format!(
                 "Cannot directly call iota::{TRANSFER_MODULE}::{function}. \
