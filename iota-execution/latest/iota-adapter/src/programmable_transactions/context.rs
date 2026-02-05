@@ -17,9 +17,11 @@ mod checked {
     };
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
-        Identifier, IdentifierRef, StructTag, TypeTag,
         balance::Balance,
-        base_types::{IotaAddress, MoveObjectType, ObjectID, TxContext},
+        base_types::{
+            Identifier, IdentifierRef, IotaAddress, MoveObjectType, ObjectID, StructTag, TxContext,
+            TypeTag,
+        },
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         event::Event,

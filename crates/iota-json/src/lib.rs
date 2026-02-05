@@ -11,11 +11,10 @@ use std::{
 use anyhow::{anyhow, bail};
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_types::{
-    Identifier, StructTag, TypeTag,
     base_types::{
-        IotaAddress, ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR,
-        TxContext, TxContextKind, is_primitive_type_tag, move_ascii_str_layout,
-        move_utf8_str_layout,
+        Identifier, IotaAddress, ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION,
+        RESOLVED_UTF8_STR, StructTag, TxContext, TxContextKind, TypeTag, is_primitive_type_tag,
+        move_ascii_str_layout, move_utf8_str_layout,
     },
     id::{self, RESOLVED_IOTA_ID},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
@@ -903,7 +902,7 @@ macro_rules! call_arg {
 macro_rules! type_args {
     ($($value:expr), *) => {{
         use iota_json_rpc_types::IotaTypeTag;
-        use iota_types::TypeTag;
+        use iota_types::base_types::TypeTag;
         trait IotaJsonTypeArg {
             fn to_iota_json(&self) -> anyhow::Result<IotaTypeTag>;
         }

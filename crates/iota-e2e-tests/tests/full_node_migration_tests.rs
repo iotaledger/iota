@@ -28,9 +28,9 @@ use iota_macros::sim_test;
 use iota_sdk::IotaClient;
 use iota_sdk_types::crypto::Intent;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, IdentifierRef, STARDUST_PACKAGE_ID, TypeTag,
+    IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID,
     balance::Balance,
-    base_types::{IotaAddress, MoveObjectType, ObjectID},
+    base_types::{IdentifierRef, IotaAddress, MoveObjectType, ObjectID, TypeTag},
     crypto::SignatureScheme::ED25519,
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,

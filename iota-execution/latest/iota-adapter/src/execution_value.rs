@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
-    IdentifierRef,
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    base_types::{IdentifierRef, IotaAddress, ObjectID, SequenceNumber},
     coin::Coin,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
     execution_status::CommandArgumentError,

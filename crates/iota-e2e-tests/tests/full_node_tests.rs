@@ -24,8 +24,9 @@ use iota_test_transaction_builder::{
 };
 use iota_tool::restore_from_db_checkpoint;
 use iota_types::{
-    IdentifierRef,
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{
+        IdentifierRef, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
+    },
     crypto::{IotaKeyPair, get_key_pair},
     error::{IotaError, UserInputError},
     message_envelope::Message,

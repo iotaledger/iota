@@ -17,9 +17,8 @@ use iota_open_rpc::Module;
 use iota_protocol_config::Chain;
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    StructTag, TypeTag,
     balance::Supply,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{IotaAddress, ObjectID, StructTag, TypeTag},
     coin::{CoinMetadata, TreasuryCap},
     coin_manager::CoinManager,
     effects::TransactionEffectsAPI,
@@ -570,9 +569,8 @@ mod tests {
         key_value_store_metrics::KeyValueStoreMetrics,
     };
     use iota_types::{
-        StructTag, TypeTag,
         balance::Supply,
-        base_types::{IotaAddress, ObjectID, SequenceNumber},
+        base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TypeTag},
         coin::TreasuryCap,
         digests::{ObjectDigest, TransactionDigest},
         effects::{TransactionEffects, TransactionEvents},

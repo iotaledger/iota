@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
-    TypeTag, error::ExecutionError, execution::ExecutionResult, transaction::Argument,
+    base_types::TypeTag, error::ExecutionError, execution::ExecutionResult, transaction::Argument,
     transfer::Receiving,
 };
 

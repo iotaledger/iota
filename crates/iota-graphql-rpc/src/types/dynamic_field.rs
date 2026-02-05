@@ -8,7 +8,7 @@ use async_graphql::{
 };
 use iota_indexer::{models::objects::StoredHistoryObject, types::OwnerType};
 use iota_types::{
-    TypeTag,
+    base_types::TypeTag,
     dynamic_field::{
         DynamicFieldInfo, DynamicFieldType, derive_dynamic_field_id,
         visitor::{Field, FieldVisitor},

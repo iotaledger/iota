@@ -15,11 +15,11 @@ mod checked {
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
-        IOTA_FRAMEWORK_ADDRESS, Identifier, IdentifierRef, TypeTag, auth_context,
+        IOTA_FRAMEWORK_ADDRESS, auth_context,
         base_types::{
-            IotaAddress, MoveObjectType, ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION,
-            RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME, TxContext,
-            TxContextKind,
+            Identifier, IdentifierRef, IotaAddress, MoveObjectType, ObjectID, RESOLVED_ASCII_STR,
+            RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME,
+            TxContext, TxContextKind, TypeTag,
         },
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},

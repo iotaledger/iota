@@ -9,10 +9,9 @@ use clap::*;
 use fastcrypto_zkp::{bn254::zk_login::OIDCProvider, zk_login_utils::Bn254FrElement};
 use iota_sdk_types::crypto::{Intent, IntentMessage, PersonalMessage};
 use iota_types::{
-    IdentifierRef, StructTag, TypeTag,
     base_types::{
-        self, IotaAddress, MoveObjectType, MoveObjectType_, ObjectDigest, ObjectID,
-        TransactionDigest, TransactionEffectsDigest,
+        self, IdentifierRef, IotaAddress, MoveObjectType, MoveObjectType_, ObjectDigest, ObjectID,
+        StructTag, TransactionDigest, TransactionEffectsDigest, TypeTag,
     },
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
@@ -89,7 +88,8 @@ fn get_registry() -> Result<Registry> {
     // Trace SDK Identifier, StructTag and TypeTag samples early - these use custom
     // serde that requires valid sample values to be provided before types
     // containing them (like MoveObjectType_) are traced.
-    let sdk_identifier = iota_types::IdentifierRef::const_new("sample_identifier").to_owned();
+    let sdk_identifier =
+        iota_types::base_types::IdentifierRef::const_new("sample_identifier").to_owned();
     tracer.trace_value(&mut samples, &sdk_identifier).unwrap();
     let struct_tag = StructTag::new_gas_coin();
     tracer.trace_value(&mut samples, &struct_tag).unwrap();

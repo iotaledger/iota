@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
-    StructTag,
-    base_types::ObjectID,
+    base_types::{ObjectID, StructTag},
     error::{IotaError, IotaResult},
     execution::TypeLayoutStore,
     layout_resolver::LayoutResolver,

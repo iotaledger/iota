@@ -21,8 +21,8 @@
 //!   initializer
 //! - it is never instantiated anywhere in its defining module
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, Identifier,
-    base_types::{TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME},
+    IOTA_FRAMEWORK_ADDRESS,
+    base_types::{Identifier, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME},
     error::ExecutionError,
     move_package::{FnInfoMap, is_test_fun},
 };

@@ -3,8 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, Identifier,
-    base_types::{TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME, TxContext, TxContextKind},
+    IOTA_FRAMEWORK_ADDRESS,
+    base_types::{
+        Identifier, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME, TxContext, TxContextKind,
+    },
     clock::Clock,
     error::ExecutionError,
     is_object, is_object_vector, is_primitive,

@@ -11,9 +11,11 @@ use iota_json::{IotaJsonValue, primitive_type};
 use iota_metrics::monitored_scope;
 use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
 use iota_types::{
-    Identifier, IdentifierRef, TypeTag,
     authenticator_state::ActiveJwk,
-    base_types::{EpochId, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{
+        EpochId, Identifier, IdentifierRef, IotaAddress, ObjectID, ObjectRef, SequenceNumber,
+        TransactionDigest, TypeTag,
+    },
     crypto::IotaSignature,
     digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},

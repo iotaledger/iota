@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, IdentifierRef, base_types::IotaAddress, error::ExecutionError,
+    IOTA_FRAMEWORK_ADDRESS,
+    base_types::{IdentifierRef, IotaAddress},
+    error::ExecutionError,
 };
 use move_binary_format::{
     CompiledModule,

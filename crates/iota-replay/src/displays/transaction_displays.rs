@@ -9,7 +9,7 @@ use std::{
 
 use iota_execution::Executor;
 use iota_types::{
-    TypeTag,
+    base_types::TypeTag,
     execution::ExecutionResult,
     object::bounded_visitor::BoundedVisitor,
     transaction::{

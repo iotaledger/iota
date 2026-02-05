@@ -18,8 +18,7 @@ use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 #[cfg(msim)]
 use iota_simulator::configs::constant_latency_ms;
 use iota_types::{
-    IdentifierRef,
-    base_types::{AuthorityName, EpochId},
+    base_types::{AuthorityName, EpochId, IdentifierRef},
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
         KeypairTraits, Signature, Signer, get_key_pair, get_key_pair_from_rng,

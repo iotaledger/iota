@@ -11,8 +11,7 @@ use std::{
 use colored::Colorize;
 use iota_macros::EnumVariantOrder;
 use iota_types::{
-    Identifier, StructTag,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{Identifier, IotaAddress, ObjectID, StructTag},
     error::{IotaError, UserInputError},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
 };

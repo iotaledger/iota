@@ -12,7 +12,6 @@ use iota_grpc_client::Client;
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    StructTag,
     base_types::{ObjectID, random_object_ref},
     committee::EpochId,
     crypto::{AccountKeyPair, AuthorityStrongQuorumSignInfo, get_key_pair},

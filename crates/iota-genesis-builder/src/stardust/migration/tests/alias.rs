@@ -16,8 +16,7 @@ use iota_stardust_types::block::{
     },
 };
 use iota_types::{
-    IdentifierRef, TypeTag,
-    base_types::ObjectID,
+    base_types::{IdentifierRef, ObjectID, TypeTag},
     dynamic_field::{DynamicFieldInfo, derive_dynamic_field_id},
     id::UID,
     object::{Object, Owner},

@@ -15,8 +15,8 @@ use iota_sdk::{
 };
 use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_types::{
-    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, IdentifierRef, TypeTag,
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID,
+    base_types::{IdentifierRef, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
     crypto::{AccountKeyPair, Signature, Signer, get_key_pair},
     digests::TransactionDigest,
     iota_system_state::IOTA_SYSTEM_MODULE_NAME,

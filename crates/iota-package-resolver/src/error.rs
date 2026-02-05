@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use iota_types::{TypeTag, base_types::IotaAddress};
+use iota_types::base_types::{IotaAddress, TypeTag};
 use move_binary_format::errors::VMError;
 use thiserror::Error;
 

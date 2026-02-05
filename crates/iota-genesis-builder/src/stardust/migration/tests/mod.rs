@@ -14,9 +14,9 @@ use iota_stardust_types::block::{
     },
 };
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, IdentifierRef, STARDUST_PACKAGE_ID, TypeTag,
+    IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID,
     balance::Balance,
-    base_types::{IotaAddress, TxContext},
+    base_types::{IdentifierRef, IotaAddress, TxContext, TypeTag},
     coin::Coin,
     digests::TransactionDigest,
     epoch_data::EpochData,

@@ -5,8 +5,7 @@
 use std::time::Duration;
 
 use iota_types::{
-    StructTag,
-    base_types::ObjectRef,
+    base_types::{ObjectRef, StructTag},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
     transaction::{CallArg, ObjectArg},
 };

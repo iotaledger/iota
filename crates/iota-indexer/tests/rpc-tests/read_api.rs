@@ -25,8 +25,7 @@ use iota_test_transaction_builder::{
     publish_simple_warrior_package,
 };
 use iota_types::{
-    IdentifierRef,
-    base_types::{ObjectID, SequenceNumber},
+    base_types::{IdentifierRef, ObjectID, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     digests::{ChainIdentifier, ObjectDigest, TransactionDigest},
     error::IotaObjectResponseError,

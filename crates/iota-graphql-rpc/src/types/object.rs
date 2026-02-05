@@ -19,7 +19,7 @@ use iota_indexer::{
     types::{ObjectStatus as NativeObjectStatus, OwnerType},
 };
 use iota_types::{
-    StructTag, TypeTag,
+    base_types::{StructTag, TypeTag},
     object::{
         MoveObject as NativeMoveObject, Object as NativeObject, Owner as NativeOwner,
         bounded_visitor::BoundedVisitor,

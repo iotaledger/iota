@@ -26,9 +26,9 @@ use iota_names::{
 use iota_protocol_config::Chain;
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_types::{
-    IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, IdentifierRef, StructTag, TypeTag,
+    IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
     balance::Balance,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{IdentifierRef, IotaAddress, ObjectID, StructTag, TypeTag},
     coin::Coin,
     collection_types::{Entry, LinkedTable, LinkedTableNode, VecMap},
     digests::{ChainIdentifier, TransactionDigest},

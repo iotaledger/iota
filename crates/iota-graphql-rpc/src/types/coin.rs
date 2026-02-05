@@ -7,7 +7,7 @@ use async_graphql::{
     *,
 };
 use iota_indexer::{models::objects::StoredHistoryObject, types::OwnerType};
-use iota_types::{TypeTag, coin::Coin as NativeCoin};
+use iota_types::{base_types::TypeTag, coin::Coin as NativeCoin};
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,

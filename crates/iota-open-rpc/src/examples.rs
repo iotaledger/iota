@@ -27,11 +27,11 @@ use iota_json_rpc_types::{
 use iota_open_rpc::ExamplePairing;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, IdentifierRef, StructTag, TypeTag,
+    IOTA_FRAMEWORK_PACKAGE_ID,
     balance::Supply,
     base_types::{
-        IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectType, SequenceNumber,
-        TransactionDigest, random_object_ref,
+        IdentifierRef, IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectType,
+        SequenceNumber, StructTag, TransactionDigest, TypeTag, random_object_ref,
     },
     committee::Committee,
     crypto::{AccountKeyPair, AggregateAuthoritySignature, get_key_pair_from_rng},

@@ -8,8 +8,8 @@ use async_trait::async_trait;
 use futures::future::join_all;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_RANDOMNESS_STATE_OBJECT_ID, Identifier,
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    IOTA_RANDOMNESS_STATE_OBJECT_ID,
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,

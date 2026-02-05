@@ -33,8 +33,8 @@ use iota_keys::{
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_types::{
-    IOTA_SYSTEM_PACKAGE_ID, IdentifierRef, TypeTag,
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    IOTA_SYSTEM_PACKAGE_ID,
+    base_types::{IdentifierRef, IotaAddress, ObjectID, ObjectRef, TypeTag},
     crypto::{
         AuthorityKeyPair, AuthorityPublicKey, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID,
         IotaKeyPair, NetworkKeyPair, NetworkPublicKey, Signable, SignatureScheme,

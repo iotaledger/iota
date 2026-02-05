@@ -15,7 +15,7 @@ pub mod runtime_module_metadata;
 pub mod struct_with_key_verifier;
 
 use iota_types::{
-    IdentifierRef,
+    base_types::IdentifierRef,
     error::{ExecutionError, ExecutionErrorKind},
 };
 use move_core_types::vm_status::StatusCode;

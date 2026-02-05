@@ -5,8 +5,7 @@
 use std::fmt::{Display, Formatter, Result};
 
 use iota_types::{
-    StructTag,
-    base_types::{IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber, StructTag},
     iota_serde::SequenceNumber as AsSequenceNumber,
     object::Owner,
 };

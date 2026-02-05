@@ -12,8 +12,8 @@ use std::{
 use iota_move_build::BuildConfig;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, IdentifierRef, MOVE_STDLIB_PACKAGE_ID, StructTag,
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
+    base_types::{IdentifierRef, IotaAddress, ObjectID, ObjectRef, StructTag},
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
@@ -45,8 +45,8 @@ macro_rules! move_call {
     {$builder:expr, ($addr:expr)::$module_name:ident::$func:ident($($args:expr),* $(,)?)} => {
         $builder.programmable_move_call(
             $addr,
-            iota_types::IdentifierRef::const_new(stringify!($module_name)).to_owned(),
-            iota_types::IdentifierRef::const_new(stringify!($func)).to_owned(),
+            iota_types::base_types::IdentifierRef::const_new(stringify!($module_name)).to_owned(),
+            iota_types::base_types::IdentifierRef::const_new(stringify!($func)).to_owned(),
             vec![],
             vec![$($args),*],
         )

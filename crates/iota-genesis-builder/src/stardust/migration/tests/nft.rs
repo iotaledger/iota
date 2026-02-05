@@ -24,8 +24,7 @@ use iota_stardust_types::block::{
     },
 };
 use iota_types::{
-    IdentifierRef, TypeTag,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{IdentifierRef, IotaAddress, ObjectID, TypeTag},
     collection_types::VecMap,
     dynamic_field::{DynamicFieldInfo, derive_dynamic_field_id},
     id::UID,

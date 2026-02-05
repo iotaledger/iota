@@ -12,8 +12,11 @@ use iota_json_rpc_types::{IotaObjectData, IotaObjectDataOptions, IotaRawData};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_sdk::apis::ReadApi;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, Identifier, IdentifierRef, TypeTag,
-    base_types::{IotaAddress, ObjectID, TxContext, TxContextKind, is_primitive_type_tag},
+    IOTA_FRAMEWORK_PACKAGE_ID,
+    base_types::{
+        Identifier, IdentifierRef, IotaAddress, ObjectID, TxContext, TxContextKind, TypeTag,
+        is_primitive_type_tag,
+    },
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     move_package::MovePackage,
     object::Owner,

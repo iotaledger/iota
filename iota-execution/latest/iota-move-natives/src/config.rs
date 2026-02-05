@@ -5,8 +5,7 @@
 use std::collections::VecDeque;
 
 use iota_types::{
-    StructTag,
-    base_types::{MoveObjectType, ObjectID},
+    base_types::{MoveObjectType, ObjectID, StructTag},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};

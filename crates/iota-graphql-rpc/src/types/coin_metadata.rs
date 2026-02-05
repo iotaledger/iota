@@ -4,7 +4,7 @@
 
 use async_graphql::{connection::Connection, *};
 use iota_types::{
-    TypeTag,
+    base_types::TypeTag,
     coin::{CoinMetadata as NativeCoinMetadata, TreasuryCap},
     gas_coin::GAS,
 };

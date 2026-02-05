@@ -5,8 +5,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use iota_types::{
-    Identifier, TypeTag,
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, TypeTag},
     crypto::AccountKeyPair,
     object::Owner,
     transaction::{CallArg, Command, Transaction, TransactionData, TransactionDataAPI},

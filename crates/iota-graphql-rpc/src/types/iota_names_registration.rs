@@ -11,7 +11,9 @@ use iota_names::{
     registry::NameRecord,
 };
 use iota_types::{
-    StructTag, base_types::IotaAddress as NativeIotaAddress, dynamic_field::Field, id::UID,
+    base_types::{IotaAddress as NativeIotaAddress, StructTag},
+    dynamic_field::Field,
+    id::UID,
 };
 use serde::{Deserialize, Serialize};
 

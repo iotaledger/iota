@@ -30,11 +30,11 @@ use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_conf
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, IdentifierRef,
+    IOTA_FRAMEWORK_PACKAGE_ID,
     balance::{BALANCE_MODULE_NAME, Balance},
     base_types::{
-        ExecutionDigests, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
-        TxContext,
+        ExecutionDigests, IdentifierRef, IotaAddress, ObjectID, ObjectRef, SequenceNumber,
+        TransactionDigest, TxContext,
     },
     committee::Committee,
     crypto::{

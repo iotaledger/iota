@@ -25,8 +25,8 @@ use iota_json_rpc_types::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, IdentifierRef, MOVE_STDLIB_PACKAGE_ID, StructTag, TypeTag,
-    base_types::{IotaAddress, ObjectID},
+    IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_PACKAGE_ID,
+    base_types::{IdentifierRef, IotaAddress, ObjectID, StructTag, TypeTag},
     crypto::{AccountKeyPair, get_key_pair},
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,

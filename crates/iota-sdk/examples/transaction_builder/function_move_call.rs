@@ -11,8 +11,7 @@ use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_sdk::{
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{
-        Identifier,
-        base_types::ObjectID,
+        base_types::{Identifier, ObjectID},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         transaction::{Argument, CallArg, Command, Transaction, TransactionData},

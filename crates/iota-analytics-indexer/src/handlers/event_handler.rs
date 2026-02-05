@@ -10,8 +10,8 @@ use iota_data_ingestion_core::Worker;
 use iota_json_rpc_types::type_and_fields_from_move_event_data;
 use iota_package_resolver::Resolver;
 use iota_types::{
-    SYSTEM_PACKAGE_ADDRESSES, TypeTag, digests::TransactionDigest, effects::TransactionEvents,
-    event::Event, full_checkpoint_content::CheckpointData,
+    SYSTEM_PACKAGE_ADDRESSES, base_types::TypeTag, digests::TransactionDigest,
+    effects::TransactionEvents, event::Event, full_checkpoint_content::CheckpointData,
 };
 use move_core_types::annotated_value::MoveValue;
 use tokio::sync::Mutex;

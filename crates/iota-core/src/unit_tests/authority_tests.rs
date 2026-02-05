@@ -19,9 +19,8 @@ use iota_protocol_config::{
 use iota_sdk_types::Address;
 use iota_types::{
     IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
-    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID, Identifier, IdentifierRef,
-    MOVE_STDLIB_PACKAGE_ID, StructTag,
-    base_types::{AuthorityName, dbg_addr},
+    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_PACKAGE_ID,
+    base_types::{AuthorityName, Identifier, IdentifierRef, StructTag, dbg_addr},
     crypto::{
         AccountKeyPair, AuthorityKeyPair, Signature, get_key_pair,
         random_committee_key_pairs_of_size,

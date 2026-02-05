@@ -14,8 +14,8 @@ use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffec
 use iota_move_build::BuildConfig;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, Identifier, StructTag,
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    IOTA_FRAMEWORK_ADDRESS,
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, StructTag},
     execution_config_utils::to_binary_config,
     object::{Object, Owner},
     storage::WriteKind,

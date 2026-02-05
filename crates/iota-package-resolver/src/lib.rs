@@ -11,8 +11,9 @@ use std::{
 
 use async_trait::async_trait;
 use iota_types::{
-    Identifier, StructTag, TypeTag,
-    base_types::{IotaAddress, SequenceNumber, is_primitive_type_tag},
+    base_types::{
+        Identifier, IotaAddress, SequenceNumber, StructTag, TypeTag, is_primitive_type_tag,
+    },
     iota_sdk_types_conversions::{struct_tag_sdk_to_core, type_tag_core_to_sdk},
     move_package::{MovePackage, TypeOrigin},
     object::Object,
@@ -1884,8 +1885,7 @@ mod tests {
     use async_trait::async_trait;
     use iota_move_build::{BuildConfig, CompiledPackage};
     use iota_types::{
-        IdentifierRef,
-        base_types::{ObjectID, random_object_ref},
+        base_types::{IdentifierRef, ObjectID, random_object_ref},
         error::IotaResult,
         transaction::ObjectArg,
     };

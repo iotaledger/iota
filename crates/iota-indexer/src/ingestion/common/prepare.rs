@@ -7,8 +7,7 @@
 use std::collections::BTreeMap;
 
 use iota_types::{
-    StructTag, TypeTag,
-    base_types::{ObjectID, ObjectRef},
+    base_types::{ObjectID, ObjectRef, StructTag, TypeTag},
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     full_checkpoint_content::CheckpointData,

@@ -7,8 +7,11 @@ use std::{collections::HashSet, env, path::PathBuf, str::FromStr};
 
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, Identifier, IdentifierRef, StructTag, TypeTag,
-    base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
+    IOTA_FRAMEWORK_PACKAGE_ID,
+    base_types::{
+        Identifier, IdentifierRef, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR,
+        StructTag, TypeTag,
+    },
     crypto::{AccountKeyPair, get_key_pair},
     error::{ExecutionErrorKind, IotaError},
     execution_status::{CommandArgumentError, ExecutionFailureStatus, ExecutionStatus},

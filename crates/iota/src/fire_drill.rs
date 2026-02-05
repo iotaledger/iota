@@ -30,8 +30,8 @@ use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockResponseOptio
 use iota_keys::keypair_file::read_keypair_from_file;
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockEffectsAPI};
 use iota_types::{
-    IOTA_SYSTEM_PACKAGE_ID, IdentifierRef,
-    base_types::{IotaAddress, ObjectRef},
+    IOTA_SYSTEM_PACKAGE_ID,
+    base_types::{IdentifierRef, IotaAddress, ObjectRef},
     committee::EpochId,
     crypto::{IotaKeyPair, generate_proof_of_possession, get_authority_key_pair, get_key_pair},
     multiaddr::{Multiaddr, Protocol},

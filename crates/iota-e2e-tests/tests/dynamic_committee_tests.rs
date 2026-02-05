@@ -37,8 +37,8 @@ macro_rules! move_call {
     {$builder:expr, ($addr:expr)::$module_name:ident::$func:ident($($args:expr),* $(,)?)} => {
         $builder.programmable_move_call(
             $addr,
-            iota_types::IdentifierRef::const_new(stringify!($module_name)).to_owned(),
-            iota_types::IdentifierRef::const_new(stringify!($func)).to_owned(),
+            iota_types::base_types::IdentifierRef::const_new(stringify!($module_name)).to_owned(),
+            iota_types::base_types::IdentifierRef::const_new(stringify!($func)).to_owned(),
             vec![],
             vec![$($args),*],
         )

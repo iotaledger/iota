@@ -15,8 +15,7 @@ use iota_swarm_config::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IdentifierRef,
-    base_types::{IotaAddress, ObjectID, ObjectRef, address_from_iota_pub_key},
+    base_types::{IdentifierRef, IotaAddress, ObjectID, ObjectRef, address_from_iota_pub_key},
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},

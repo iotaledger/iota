@@ -6,8 +6,9 @@ use std::{fmt, result::Result, str::FromStr};
 
 use async_graphql::*;
 use iota_types::{
-    StructTag, TypeTag, parse_iota_address, parse_iota_fq_name, parse_iota_module_id,
-    parse_iota_struct_tag, parse_iota_type_tag,
+    base_types::{StructTag, TypeTag},
+    parse_iota_address, parse_iota_fq_name, parse_iota_module_id, parse_iota_struct_tag,
+    parse_iota_type_tag,
 };
 
 use crate::{

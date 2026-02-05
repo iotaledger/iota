@@ -7,8 +7,7 @@ use iota_json_rpc_types::{
     ObjectChange,
 };
 use iota_types::{
-    StructTag,
-    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber, StructTag},
     crypto::AggregateAuthoritySignature,
     digests::TransactionDigest,
     dynamic_field::DynamicFieldType,

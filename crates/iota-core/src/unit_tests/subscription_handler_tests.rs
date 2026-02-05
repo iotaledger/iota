@@ -4,8 +4,11 @@
 
 use iota_json_rpc_types::IotaMoveStruct;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, IdentifierRef, StructTag, base_types::ObjectID, gas_coin::GasCoin,
-    iota_sdk_types_conversions::struct_tag_sdk_to_core, object::bounded_visitor::BoundedVisitor,
+    IOTA_FRAMEWORK_ADDRESS,
+    base_types::{IdentifierRef, ObjectID, StructTag},
+    gas_coin::GasCoin,
+    iota_sdk_types_conversions::struct_tag_sdk_to_core,
+    object::bounded_visitor::BoundedVisitor,
 };
 use move_core_types::{
     account_address::AccountAddress,

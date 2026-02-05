@@ -14,10 +14,9 @@ use colored::Colorize;
 use fastcrypto::encoding::Base64;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    Identifier, StructTag,
     base_types::{
-        IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, ObjectType, SequenceNumber,
-        TransactionDigest,
+        Identifier, IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, ObjectType,
+        SequenceNumber, StructTag, TransactionDigest,
     },
     error::{
         ExecutionError, IotaError, IotaObjectResponseError, IotaResult, UserInputError,

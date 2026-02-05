@@ -54,7 +54,7 @@ use iota_storage::{
 #[cfg(msim)]
 use iota_types::committee::CommitteeTrait;
 use iota_types::{
-    IOTA_SYSTEM_PACKAGE_ID, TypeTag,
+    IOTA_SYSTEM_PACKAGE_ID,
     account_abstraction::{
         account::AuthenticatorFunctionRefV1Key,
         authenticator_function::{
@@ -63,7 +63,7 @@ use iota_types::{
         },
     },
     authenticator_state::get_authenticator_state,
-    base_types::*,
+    base_types::{TypeTag, *},
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{
         AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer,

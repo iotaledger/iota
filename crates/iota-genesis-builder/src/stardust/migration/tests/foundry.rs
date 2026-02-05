@@ -7,9 +7,8 @@ use iota_stardust_types::block::output::{
     AliasId, FoundryOutput, Output, SimpleTokenScheme, feature::Irc30Metadata,
 };
 use iota_types::{
-    TypeTag,
     balance::Balance,
-    base_types::{IotaAddress, MoveObjectType, ObjectID},
+    base_types::{IotaAddress, MoveObjectType, ObjectID, TypeTag},
     coin::CoinMetadata,
     coin_manager::CoinManager,
     gas_coin::GAS,

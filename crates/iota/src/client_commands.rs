@@ -55,11 +55,10 @@ use iota_sdk::{
 use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
-    TypeTag,
     account_abstraction::{
         account::AuthenticatorFunctionRefV1Key, authenticator_function::AuthenticatorFunctionRefV1,
     },
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
     crypto::{DefaultHash, EmptySignInfo, SignatureScheme},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::{self, Field},

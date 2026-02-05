@@ -10,8 +10,9 @@ use iota_sdk_types::crypto::{
     Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion, PersonalMessage,
 };
 use iota_types::{
-    IOTA_AUTHENTICATOR_STATE_ADDRESS, TypeTag,
+    IOTA_AUTHENTICATOR_STATE_ADDRESS,
     authenticator_state::{ActiveJwk, AuthenticatorStateInner},
+    base_types::TypeTag,
     crypto::ToFromBytes,
     dynamic_field::{DynamicFieldType, Field},
     signature::{GenericSignature, VerifyParams},

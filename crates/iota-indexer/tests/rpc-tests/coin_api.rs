@@ -16,9 +16,9 @@ use iota_json_rpc_types::{
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, IdentifierRef, StructTag, TypeTag,
+    IOTA_FRAMEWORK_PACKAGE_ID,
     balance::Supply,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{IdentifierRef, IotaAddress, ObjectID, StructTag, TypeTag},
     coin::{COIN_MODULE_NAME, CoinMetadata, TreasuryCap},
     crypto::{AccountKeyPair, IotaKeyPair, Signature, get_key_pair},
     parse_iota_struct_tag,

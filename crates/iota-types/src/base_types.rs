@@ -12,7 +12,7 @@ use std::{
 use anyhow::anyhow;
 use fastcrypto::hash::HashFunction;
 use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
-use iota_sdk_types::{IdentifierRef, StructTag, TypeTag};
+pub use iota_sdk_types::{Identifier, IdentifierRef, StructTag, TypeTag};
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{

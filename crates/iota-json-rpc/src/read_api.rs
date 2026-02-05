@@ -30,8 +30,7 @@ use iota_package_resolver::{
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    StructTag,
-    base_types::{ObjectID, SequenceNumber, TransactionDigest},
+    base_types::{ObjectID, SequenceNumber, StructTag, TransactionDigest},
     collection_types::VecMap,
     crypto::AggregateAuthoritySignature,
     display::DisplayVersionUpdatedEvent,

@@ -14,9 +14,9 @@ use iota_macros::sim_test;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_types::{
-    IOTA_SYSTEM_PACKAGE_ID, IdentifierRef,
+    IOTA_SYSTEM_PACKAGE_ID,
     authenticator_state::ActiveJwk,
-    base_types::dbg_addr,
+    base_types::{IdentifierRef, dbg_addr},
     crypto::{
         AccountKeyPair, IotaKeyPair, IotaSignature, PublicKey, Signature, ToFromBytes,
         ZkLoginPublicIdentifier, get_key_pair,

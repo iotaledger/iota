@@ -3,7 +3,7 @@
 
 use std::{fmt, str::FromStr};
 
-use iota_types::{StructTag, base_types::IotaAddress};
+use iota_types::base_types::{IotaAddress, StructTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{

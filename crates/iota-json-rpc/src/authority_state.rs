@@ -23,8 +23,9 @@ use iota_storage::key_value_store::{
     KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
 };
 use iota_types::{
-    TypeTag,
-    base_types::{IotaAddress, MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber},
+    base_types::{
+        IotaAddress, MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber, TypeTag,
+    },
     committee::{Committee, EpochId},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::DynamicFieldInfo,

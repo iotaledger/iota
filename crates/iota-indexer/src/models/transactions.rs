@@ -19,7 +19,7 @@ use iota_json_rpc_types::{
 };
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
-    TypeTag,
+    base_types::TypeTag,
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
     event::Event,

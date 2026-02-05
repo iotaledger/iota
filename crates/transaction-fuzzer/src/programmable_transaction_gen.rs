@@ -6,8 +6,7 @@ use std::cmp;
 
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    Identifier, IdentifierRef,
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{Identifier, IdentifierRef, IotaAddress, ObjectID, ObjectRef},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Argument, CallArg, Command, ProgrammableTransaction},
 };

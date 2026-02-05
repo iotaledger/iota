@@ -20,9 +20,12 @@ use iota_stardust_types::block::output::{
     NativeTokens, NftOutput as StardustNftOutput, OutputId, TokenId,
 };
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, IdentifierRef, STARDUST_PACKAGE_ID, StructTag, TypeTag,
+    IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID,
     balance::Balance,
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TxContext},
+    base_types::{
+        IdentifierRef, IotaAddress, ObjectID, ObjectRef, SequenceNumber, StructTag, TxContext,
+        TypeTag,
+    },
     coin_manager::{CoinManager, CoinManagerTreasuryCap},
     collection_types::Bag,
     dynamic_field::Field,
@@ -756,7 +759,7 @@ impl Executor {
 }
 
 mod pt {
-    use iota_types::IdentifierRef;
+    use iota_types::base_types::IdentifierRef;
 
     use super::*;
     use crate::stardust::migration::NATIVE_TOKEN_BAG_KEY_TYPE;

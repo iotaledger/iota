@@ -9,8 +9,7 @@ use diesel::prelude::*;
 use iota_json_rpc_types::{BcsEvent, IotaEvent, type_and_fields_from_move_event_data};
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
-    Identifier,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{Identifier, IotaAddress, ObjectID},
     digests::TransactionDigest,
     event::EventID,
     object::bounded_visitor::BoundedVisitor,
@@ -143,7 +142,7 @@ impl StoredEvent {
 
 #[cfg(test)]
 mod tests {
-    use iota_types::{StructTag, event::Event};
+    use iota_types::{base_types::StructTag, event::Event};
 
     use super::*;
 

@@ -6,9 +6,8 @@ use std::collections::HashMap;
 use anyhow::{anyhow, ensure};
 use iota_stardust_types::block::output::{NftOutput, OutputId, TokenId};
 use iota_types::{
-    TypeTag,
     balance::Balance,
-    base_types::ObjectID,
+    base_types::{ObjectID, TypeTag},
     dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
     in_memory_storage::InMemoryStorage,
     object::Owner,

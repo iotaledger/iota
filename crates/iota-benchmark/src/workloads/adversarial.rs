@@ -9,8 +9,7 @@ use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    Identifier,
-    base_types::{IotaAddress, ObjectID, ObjectRef, random_object_ref},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, random_object_ref},
     crypto::get_key_pair,
     effects::TransactionEffectsAPI,
     object::Owner,

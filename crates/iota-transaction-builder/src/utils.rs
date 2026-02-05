@@ -13,8 +13,10 @@ use iota_json::{
 use iota_json_rpc_types::{IotaArgument, IotaData, IotaObjectDataOptions, IotaRawData, PtbInput};
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    Identifier, IdentifierRef, TypeTag,
-    base_types::{IotaAddress, ObjectID, ObjectRef, ObjectType, TxContext, TxContextKind},
+    base_types::{
+        Identifier, IdentifierRef, IotaAddress, ObjectID, ObjectRef, ObjectType, TxContext,
+        TxContextKind, TypeTag,
+    },
     error::UserInputError,
     fp_ensure,
     gas_coin::GasCoin,

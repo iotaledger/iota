@@ -14,8 +14,8 @@ use iota_sdk::rpc_types::{
     IotaTransactionBlockKind, IotaTransactionBlockResponse,
 };
 use iota_types::{
-    IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID, IdentifierRef, StructTag,
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID,
+    base_types::{IdentifierRef, IotaAddress, ObjectID, SequenceNumber, StructTag},
     digests::TransactionDigest,
     gas_coin::{GAS, GasCoin},
     governance::{ADD_STAKE_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},

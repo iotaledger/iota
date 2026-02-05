@@ -5,8 +5,7 @@
 use std::str::FromStr;
 
 use iota_types::{
-    TypeTag,
-    base_types::ObjectID,
+    base_types::{ObjectID, TypeTag},
     crypto::{AccountKeyPair, get_key_pair},
     effects::TransactionEffectsAPI,
 };

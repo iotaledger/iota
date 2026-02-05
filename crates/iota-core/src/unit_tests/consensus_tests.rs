@@ -9,8 +9,8 @@ use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, IdentifierRef,
-    base_types::{ExecutionDigests, ObjectID},
+    IOTA_FRAMEWORK_PACKAGE_ID,
+    base_types::{ExecutionDigests, IdentifierRef, ObjectID},
     crypto::deterministic_random_account_key,
     gas::GasCostSummary,
     messages_checkpoint::{

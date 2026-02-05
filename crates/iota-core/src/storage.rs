@@ -5,8 +5,7 @@
 use std::sync::Arc;
 
 use iota_types::{
-    StructTag,
-    base_types::{IotaAddress, ObjectID, TransactionDigest},
+    base_types::{IotaAddress, ObjectID, StructTag, TransactionDigest},
     committee::{Committee, EpochId},
     digests::TransactionEventsDigest,
     effects::{TransactionEffects, TransactionEvents},

@@ -7,10 +7,9 @@ use std::{sync::Arc, time::Duration};
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_sdk_types::crypto::{Intent, IntentScope};
 use iota_types::{
-    IdentifierRef,
     base_types::{
-        AuthorityName, ExecutionDigests, IotaAddress, ObjectID, ObjectRef, TransactionDigest,
-        random_object_ref,
+        AuthorityName, ExecutionDigests, IdentifierRef, IotaAddress, ObjectID, ObjectRef,
+        TransactionDigest, random_object_ref,
     },
     committee::Committee,
     crypto::{

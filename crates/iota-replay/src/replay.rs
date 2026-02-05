@@ -19,8 +19,8 @@ use iota_json_rpc_types::{
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_types::{
-    IOTA_DENY_LIST_OBJECT_ID, StructTag,
-    base_types::{ObjectID, ObjectRef, SequenceNumber, VersionNumber},
+    IOTA_DENY_LIST_OBJECT_ID,
+    base_types::{ObjectID, ObjectRef, SequenceNumber, StructTag, VersionNumber},
     committee::EpochId,
     digests::{ObjectDigest, TransactionDigest},
     error::{ExecutionError, IotaError, IotaResult},

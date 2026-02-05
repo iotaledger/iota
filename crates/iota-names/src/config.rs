@@ -4,8 +4,7 @@
 use std::str::FromStr;
 
 use iota_types::{
-    TypeTag,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{IotaAddress, ObjectID, TypeTag},
     supported_protocol_versions::Chain,
 };
 use serde::{Deserialize, Serialize};

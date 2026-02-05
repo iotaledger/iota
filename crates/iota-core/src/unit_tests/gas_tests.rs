@@ -4,8 +4,7 @@
 
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    IdentifierRef,
-    base_types::dbg_addr,
+    base_types::{IdentifierRef, dbg_addr},
     crypto::{AccountKeyPair, get_key_pair},
     effects::TransactionEvents,
     execution_status::{ExecutionFailureStatus, ExecutionStatus},

@@ -10,7 +10,6 @@ use std::{
 };
 
 use iota_types::{
-    StructTag,
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
     committee::EpochId,
     digests::TransactionDigest,

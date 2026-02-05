@@ -8,9 +8,9 @@ use fastcrypto::encoding::{Encoding, Hex};
 use iota_framework::BuiltInFramework;
 use iota_move_build::BuildConfig;
 use iota_types::{
-    Identifier, StructTag,
     base_types::{
-        IotaAddress, ObjectID, STD_OPTION_MODULE_NAME, STD_OPTION_STRUCT_NAME, TransactionDigest,
+        Identifier, IotaAddress, ObjectID, STD_OPTION_MODULE_NAME, STD_OPTION_STRUCT_NAME,
+        StructTag, TransactionDigest,
     },
     dynamic_field::derive_dynamic_field_id,
     gas_coin::GasCoin,

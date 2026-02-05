@@ -23,8 +23,7 @@ use iota_sdk::{
 };
 use iota_sdk_types::crypto::Intent;
 use iota_types::{
-    IdentifierRef, StructTag, TypeTag,
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{IdentifierRef, IotaAddress, ObjectID, ObjectRef, StructTag, TypeTag},
     gas_coin::GasCoin,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,

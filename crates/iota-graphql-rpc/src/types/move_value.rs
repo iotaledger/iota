@@ -4,7 +4,7 @@
 
 use async_graphql::*;
 use iota_types::{
-    StructTag, TypeTag,
+    base_types::{StructTag, TypeTag},
     iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
     object::bounded_visitor::BoundedVisitor,
 };

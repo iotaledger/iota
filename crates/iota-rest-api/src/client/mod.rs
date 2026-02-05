@@ -6,8 +6,7 @@ pub mod sdk;
 
 use iota_sdk_types::EpochId;
 use iota_types::{
-    TypeTag,
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, TypeTag},
     crypto::AuthorityStrongQuorumSignInfo,
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::CheckpointData,

@@ -11,8 +11,8 @@ use iota_indexer::{errors::IndexerError, types::owner_to_owner_info};
 use iota_json_rpc_types::IotaMoveValue;
 use iota_package_resolver::Resolver;
 use iota_types::{
-    SYSTEM_PACKAGE_ADDRESSES, TypeTag,
-    base_types::ObjectID,
+    SYSTEM_PACKAGE_ADDRESSES,
+    base_types::{ObjectID, TypeTag},
     dynamic_field::{DynamicFieldName, DynamicFieldType, visitor as DFV},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_sdk_types_conversions::type_tag_core_to_sdk,

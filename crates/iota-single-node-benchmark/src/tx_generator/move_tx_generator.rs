@@ -6,8 +6,7 @@ use std::collections::HashMap;
 
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IdentifierRef,
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{IdentifierRef, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, DEFAULT_VALIDATOR_GAS_PRICE, ObjectArg, Transaction},
 };
