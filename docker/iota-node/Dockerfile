@@ -30,7 +30,7 @@ COPY iota-execution iota-execution
 COPY Cargo.toml Cargo.lock ./
 
 # Build the binaries and copy them to the working directory
-RUN cargo build --profile ${PROFILE} \
+RUN cargo +nightly build --profile ${PROFILE} \
       --bin iota-node \
       --features ${CARGO_BUILD_FEATURES:=default} && \
     cp $TARGET_FOLDER/iota-node ./iota-node
