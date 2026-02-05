@@ -1244,7 +1244,7 @@ impl<'l> ResolutionContext<'l> {
         tag: &mut TypeTag,
         store: &S,
         visit_fields: bool,
-        #[expect(unused)] visit_phantoms: bool,
+        visit_phantoms: bool,
     ) -> Result<()> {
         use TypeTag as T;
 
@@ -1311,12 +1311,11 @@ impl<'l> ResolutionContext<'l> {
                         max_type_argument_width >= s.type_params().len()
                     );
 
-                    // TODO: Fix this
-                    // for (param, def) in s.type_params().iter().zip(def.type_params.iter()) {
-                    //     if !def.is_phantom || visit_phantoms {
-                    //         push_ty_param!(param);
-                    //     }
-                    // }
+                    for (param, def) in s.type_params_mut().iter_mut().zip(def.type_params.iter()) {
+                        if !def.is_phantom || visit_phantoms {
+                            push_ty_param!(param);
+                        }
+                    }
 
                     if self.datatypes.contains_key(&key) {
                         continue;
