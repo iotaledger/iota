@@ -7,7 +7,7 @@ use std::{cmp::Ordering, collections::HashMap};
 use iota_types::{
     base_types::{CommitRound, ObjectID},
     executable_transaction::VerifiedExecutableTransaction,
-    transaction::{SharedInputObject, TransactionDataAPI}
+    transaction::{SharedInputObject, TransactionDataAPI},
 };
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
