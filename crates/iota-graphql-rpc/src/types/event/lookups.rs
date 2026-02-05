@@ -63,7 +63,12 @@ pub(crate) fn select_event_type(event_type: &TypeFilter, sender: Option<IotaAddr
                 for param in tag.type_params() {
                     name += prefix;
                     // SAFETY: write! to String always succeeds.
-                    write!(name, "{param}").unwrap();
+                    write!(
+                        name,
+                        "{}",
+                        param.to_canonical_string(/* with_prefix */ true)
+                    )
+                    .unwrap();
                     prefix = ", ";
                 }
                 name += ">";

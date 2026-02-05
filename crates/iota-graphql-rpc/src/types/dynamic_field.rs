@@ -74,10 +74,12 @@ impl DynamicField {
         let resolver: &PackageResolver = ctx.data_unchecked();
 
         let type_ = TypeTag::from(self.super_.native.type_().clone());
-        let layout = resolver
-            .type_layout(type_.clone())
-            .await
-            .map_err(|e| Error::Internal(format!("Error fetching layout for type {type_}: {e}")))?;
+        let layout = resolver.type_layout(type_.clone()).await.map_err(|e| {
+            Error::Internal(format!(
+                "Error fetching layout for type {}: {e}",
+                type_.to_canonical_string(/* with_prefix */ true)
+            ))
+        })?;
 
         let Field {
             name_layout,
@@ -101,10 +103,12 @@ impl DynamicField {
         let resolver: &PackageResolver = ctx.data_unchecked();
 
         let type_ = TypeTag::from(self.super_.native.type_().clone());
-        let layout = resolver
-            .type_layout(type_.clone())
-            .await
-            .map_err(|e| Error::Internal(format!("Error fetching layout for type {type_}: {e}")))?;
+        let layout = resolver.type_layout(type_.clone()).await.map_err(|e| {
+            Error::Internal(format!(
+                "Error fetching layout for type {}: {e}",
+                type_.to_canonical_string(/* with_prefix */ true)
+            ))
+        })?;
 
         let Field {
             kind,

@@ -318,7 +318,7 @@ impl fmt::Display for TypeFilter {
         match self {
             TypeFilter::ByModule(m) => write!(f, "{m}"),
             TypeFilter::ByType(t) => {
-                write!(f, "{t}")
+                write!(f, "{}", t.to_canonical_string(/* with_prefix */ true))
             }
         }
     }
@@ -326,7 +326,7 @@ impl fmt::Display for TypeFilter {
 
 impl fmt::Display for ExactTypeFilter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}", self.0.to_canonical_string(/* with_prefix */ true))
     }
 }
 
