@@ -1599,7 +1599,6 @@ impl From<ExecutionStatus> for IotaExecutionStatus {
                 error,
                 command: Some(idx),
             } => Self::Failure {
-                // TODO: this is where we should intervene
                 error: format!("{error:?} in command {idx}"),
             },
         }
