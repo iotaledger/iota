@@ -1012,6 +1012,11 @@ impl IotaTransactionBlockEffects {
         })
     }
 
+    /// Construct the RPC view of the transaction effects.
+    ///
+    /// This differs from the `TryFrom<TransactionEffects>` implementation
+    /// in that it tries to convert Move abort errors into human-readable form.
+    /// This is referred to as clever error.
     pub async fn from_native_with_clever_error<S: PackageStore>(
         native: TransactionEffects,
         resolver: &Resolver<S>,
@@ -1481,6 +1486,11 @@ pub enum IotaExecutionStatus {
 }
 
 impl IotaExecutionStatus {
+    /// Construct the RPC view of the execution status.
+    ///
+    /// This differs from the `From<ExecutionStatus>` implementation
+    /// in that it tries to convert Move abort errors into human-readable form.
+    /// This is referred to as clever error.
     pub async fn from_native_with_clever_error<S: PackageStore>(
         native: ExecutionStatus,
         resolver: &Resolver<S>,
