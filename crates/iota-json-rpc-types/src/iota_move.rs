@@ -14,6 +14,7 @@ use iota_types::{
     base_types::{Identifier, IotaAddress, ObjectID, StructTag},
     error::{IotaError, UserInputError},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
+    iota_serde::IotaStructTag,
 };
 use itertools::Itertools;
 use move_binary_format::{
@@ -490,7 +491,7 @@ impl From<MoveValue> for IotaMoveValue {
                 IotaMoveValue::Struct(value.into())
             }
             MoveValue::Signer(value) | MoveValue::Address(value) => {
-                IotaMoveValue::Address(IotaAddress::from(ObjectID::new(value.into_bytes())))
+                IotaMoveValue::Address(IotaAddress::new(value.into_bytes()))
             }
             MoveValue::Variant(MoveVariant {
                 type_,
@@ -531,7 +532,9 @@ fn to_bytearray(value: &[MoveValue]) -> Option<Vec<u8>> {
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, Eq, PartialEq)]
 #[serde(rename = "MoveVariant")]
 pub struct IotaMoveVariant {
+    #[schemars(with = "String")]
     #[serde(rename = "type")]
+    #[serde_as(as = "IotaStructTag")]
     pub type_: StructTag,
     pub variant: String,
     pub fields: BTreeMap<String, IotaMoveValue>,
@@ -584,7 +587,9 @@ impl Display for IotaMoveVariant {
 pub enum IotaMoveStruct {
     Runtime(Vec<IotaMoveValue>),
     WithTypes {
+        #[schemars(with = "String")]
         #[serde(rename = "type")]
+        #[serde_as(as = "IotaStructTag")]
         type_: StructTag,
         fields: BTreeMap<String, IotaMoveValue>,
     },

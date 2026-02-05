@@ -6,7 +6,7 @@ use std::fmt::{Display, Formatter, Result};
 
 use iota_types::{
     base_types::{IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber, StructTag},
-    iota_serde::SequenceNumber as AsSequenceNumber,
+    iota_serde::{IotaStructTag, SequenceNumber as AsSequenceNumber},
     object::Owner,
 };
 use schemars::JsonSchema;
@@ -34,6 +34,8 @@ pub enum ObjectChange {
     Transferred {
         sender: IotaAddress,
         recipient: Owner,
+        #[schemars(with = "String")]
+        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         #[schemars(with = "AsSequenceNumber")]
@@ -46,6 +48,8 @@ pub enum ObjectChange {
     Mutated {
         sender: IotaAddress,
         owner: Owner,
+        #[schemars(with = "String")]
+        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         #[schemars(with = "AsSequenceNumber")]
@@ -60,6 +64,8 @@ pub enum ObjectChange {
     #[serde(rename_all = "camelCase")]
     Deleted {
         sender: IotaAddress,
+        #[schemars(with = "String")]
+        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         #[schemars(with = "AsSequenceNumber")]
@@ -70,6 +76,8 @@ pub enum ObjectChange {
     #[serde(rename_all = "camelCase")]
     Wrapped {
         sender: IotaAddress,
+        #[schemars(with = "String")]
+        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         #[schemars(with = "AsSequenceNumber")]
@@ -81,6 +89,8 @@ pub enum ObjectChange {
     Created {
         sender: IotaAddress,
         owner: Owner,
+        #[schemars(with = "String")]
+        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         #[schemars(with = "AsSequenceNumber")]

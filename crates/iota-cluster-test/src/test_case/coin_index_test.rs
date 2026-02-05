@@ -653,7 +653,7 @@ async fn publish_managed_coin_package(
             owner: Owner::AddressOwner(_),
             object_type,
             ..
-        } if object_type.name().as_str() == "TreasuryCap")
+        } if object_type.is_treasury_cap())
         })
         .unwrap()
         .object_ref();

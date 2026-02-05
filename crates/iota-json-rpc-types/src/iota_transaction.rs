@@ -24,7 +24,9 @@ use iota_types::{
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     gas::GasCostSummary,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
-    iota_serde::{BigInt, Readable, SequenceNumber as AsSequenceNumber},
+    iota_serde::{
+        BigInt, IotaTypeTag as AsIotaTypeTag, Readable, SequenceNumber as AsSequenceNumber,
+    },
     layout_resolver::{LayoutResolver, get_layout_from_struct_tag},
     messages_checkpoint::CheckpointSequenceNumber,
     messages_consensus::ConsensusDeterminedVersionAssignments,
@@ -421,7 +423,7 @@ pub fn get_new_package_upgrade_cap_from_response(
                     owner: Owner::AddressOwner(_),
                     object_type,
                     ..
-                } if object_type.module().as_str() == "package" && object_type.name().as_str() == "UpgradeCap")
+                } if object_type.is_upgrade_cap())
             })
             .map(|change| change.object_ref())
     })
@@ -2544,6 +2546,8 @@ impl IotaCallArg {
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct IotaPureValue {
+    #[schemars(with = "Option<String>")]
+    #[serde_as(as = "Option<AsIotaTypeTag>")]
     value_type: Option<TypeTag>,
     value: IotaJsonValue,
 }

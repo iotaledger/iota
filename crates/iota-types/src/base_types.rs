@@ -20,7 +20,10 @@ use move_core_types::{
     language_storage::ModuleId,
 };
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize, Serializer, ser::SerializeSeq};
+use serde::{
+    Deserialize, Serialize, Serializer,
+    ser::{Error, SerializeSeq},
+};
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
@@ -40,6 +43,7 @@ use crate::{
     governance::{STAKED_IOTA_STRUCT_NAME, STAKING_POOL_MODULE_NAME, StakedIota},
     id::RESOLVED_IOTA_ID,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
+    iota_serde::to_iota_struct_tag_string,
     messages_checkpoint::CheckpointTimestamp,
     multisig::MultiSigPublicKey,
     object::{Object, Owner},
@@ -998,7 +1002,11 @@ pub enum ObjectIDParseError {
 impl fmt::Display for MoveObjectType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         let s: StructTag = self.clone().into();
-        write!(f, "{s}")
+        write!(
+            f,
+            "{}",
+            to_iota_struct_tag_string(&s).map_err(fmt::Error::custom)?
+        )
     }
 }
 

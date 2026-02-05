@@ -23,7 +23,7 @@ use iota_types::{
         UserInputResult,
     },
     gas_coin::GasCoin,
-    iota_serde::{BigInt, SequenceNumber as AsSequenceNumber},
+    iota_serde::{BigInt, IotaStructTag, SequenceNumber as AsSequenceNumber},
     messages_checkpoint::CheckpointSequenceNumber,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
     object::{Data, MoveObject, Object, ObjectInner, ObjectRead, Owner},
@@ -857,6 +857,8 @@ pub trait IotaMoveObject: Sized {
 #[serde(rename = "MoveObject", rename_all = "camelCase")]
 pub struct IotaParsedMoveObject {
     #[serde(rename = "type")]
+    #[serde_as(as = "IotaStructTag")]
+    #[schemars(with = "String")]
     pub type_: StructTag,
     pub fields: IotaMoveStruct,
 }
@@ -935,7 +937,9 @@ pub fn type_and_fields_from_move_event_data(
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, Eq, PartialEq)]
 #[serde(rename = "RawMoveObject", rename_all = "camelCase")]
 pub struct IotaRawMoveObject {
+    #[schemars(with = "String")]
     #[serde(rename = "type")]
+    #[serde_as(as = "IotaStructTag")]
     pub type_: StructTag,
     pub version: SequenceNumber,
     #[serde_as(as = "Base64")]
@@ -1141,7 +1145,11 @@ pub enum IotaObjectDataFilter {
         module: Identifier,
     },
     /// Query by type
-    StructType(StructTag),
+    StructType(
+        #[schemars(with = "String")]
+        #[serde_as(as = "IotaStructTag")]
+        StructTag,
+    ),
     AddressOwner(IotaAddress),
     ObjectOwner(ObjectID),
     ObjectId(ObjectID),

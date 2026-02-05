@@ -6,6 +6,7 @@ use std::str::FromStr;
 
 use iota_types::{
     base_types::{ObjectType, StructTag},
+    iota_serde::IotaStructTag,
     parse_iota_struct_tag,
 };
 use serde::Serialize;
@@ -17,7 +18,7 @@ fn test_struct_tag_serde() {
     let tag = parse_iota_struct_tag("0x7f89cdffd8968affa0b47bef91adc5314e19509080470c45bfd434cd83a766b::mymodule::MyStruct<0x7f89cdffd8968affa0b47bef91adc5314e19509080470c45bfd434cd83a766b::othermodule::OtherStruct>").unwrap();
     #[serde_as]
     #[derive(Serialize)]
-    struct TestStructTag(StructTag);
+    struct TestStructTag(#[serde_as(as = "IotaStructTag")] StructTag);
 
     // serialize to json should not trim the leading 0
     let Value::String(json) = serde_json::to_value(TestStructTag(tag.clone())).unwrap() else {

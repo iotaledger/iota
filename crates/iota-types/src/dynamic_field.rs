@@ -22,7 +22,7 @@ use crate::{
     error::{IotaError, IotaResult},
     id::UID,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
-    iota_serde::Readable,
+    iota_serde::{IotaTypeTag, Readable},
     object::Object,
     storage::ObjectStore,
 };
@@ -72,6 +72,8 @@ pub struct DynamicFieldInfo {
 #[derive(Clone, Serialize, Deserialize, JsonSchema, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct DynamicFieldName {
+    #[schemars(with = "String")]
+    #[serde_as(as = "Readable<IotaTypeTag, _>")]
     pub type_: TypeTag,
     // Bincode does not like serde_json::Value, rocksdb will not insert the value without
     // serializing value as string. TODO: investigate if this can be removed after switch to

@@ -10,7 +10,7 @@ use iota_types::{
     base_types::{Identifier, IotaAddress, ObjectID, StructTag, TransactionDigest},
     error::IotaResult,
     event::{Event, EventEnvelope, EventID},
-    iota_serde::BigInt,
+    iota_serde::{BigInt, IotaStructTag},
 };
 use json_to_table::json_to_table;
 use move_core_types::annotated_value::MoveDatatypeLayout;
@@ -40,6 +40,8 @@ pub struct IotaEvent {
     pub transaction_module: Identifier,
     /// Sender's IOTA address.
     pub sender: IotaAddress,
+    #[schemars(with = "String")]
+    #[serde_as(as = "IotaStructTag")]
     /// Move event type.
     pub type_: StructTag,
     /// Parsed json value of the event
@@ -303,7 +305,11 @@ pub enum EventFilter {
     /// Return events with the given Move event struct name (struct tag).
     /// For example, if the event is defined in `0xabcd::MyModule`, and named
     /// `Foo`, then the struct tag is `0xabcd::MyModule::Foo`.
-    MoveEventType(StructTag),
+    MoveEventType(
+        #[schemars(with = "String")]
+        #[serde_as(as = "IotaStructTag")]
+        StructTag,
+    ),
     /// Return events with the given Move module name where the event struct is
     /// defined. If the event is defined in Module A but emitted in a tx
     /// with Module B, query `MoveEventModule` by module A returns the

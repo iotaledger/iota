@@ -13,6 +13,7 @@ use iota_types::{
     dynamic_field::DynamicFieldType,
     effects::TransactionEffects,
     event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
+    iota_serde::IotaStructTag,
     messages_checkpoint::{
         CheckpointCommitment, CheckpointDigest, CheckpointSequenceNumber, EndOfEpochData,
     },
@@ -485,6 +486,7 @@ pub enum IndexedObjectChange {
     Transferred {
         sender: IotaAddress,
         recipient: Owner,
+        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         version: SequenceNumber,
@@ -494,6 +496,7 @@ pub enum IndexedObjectChange {
     Mutated {
         sender: IotaAddress,
         owner: Owner,
+        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         version: SequenceNumber,
@@ -503,6 +506,7 @@ pub enum IndexedObjectChange {
     /// Delete object
     Deleted {
         sender: IotaAddress,
+        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         version: SequenceNumber,
@@ -510,6 +514,7 @@ pub enum IndexedObjectChange {
     /// Wrapped object
     Wrapped {
         sender: IotaAddress,
+        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         version: SequenceNumber,
@@ -518,6 +523,7 @@ pub enum IndexedObjectChange {
     Created {
         sender: IotaAddress,
         owner: Owner,
+        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         version: SequenceNumber,
