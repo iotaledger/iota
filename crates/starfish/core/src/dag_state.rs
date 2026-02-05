@@ -1804,7 +1804,28 @@ impl DagState {
 
     /// Buffers validator score updates to be written to storage.
     fn score_updates_to_write(&mut self) -> Vec<(AuthorityIndex, VersionedStorageScoringMetrics)> {
-        vec![] // Placeholder for future implementation of scoring updates
+        let mut metrics_to_write = vec![];
+        let threshold_clock_round = self.threshold_clock_round();
+        for (authority_index, authority) in self.context.committee.authorities() {
+            let last_eviction_round = self.evicted_rounds[authority_index];
+            let current_eviction_round = self.calculate_authority_eviction_round(authority_index);
+            let metrics_to_write_from_authority = self
+                .context
+                .scoring_metrics_store
+                .update_scoring_metrics_on_eviction(
+                    authority_index,
+                    authority.hostname.as_str(),
+                    &self.recent_headers_refs_by_authority[authority_index],
+                    current_eviction_round,
+                    last_eviction_round,
+                    threshold_clock_round,
+                    &self.context,
+                );
+            if let Some(metrics_to_write_from_authority) = metrics_to_write_from_authority {
+                metrics_to_write.push((authority_index, metrics_to_write_from_authority));
+            }
+        }
+        metrics_to_write
     }
 
     /// Detects and returns the blocks of the round that forms the last quorum.
@@ -1857,6 +1878,11 @@ impl DagState {
     #[cfg(test)]
     pub(crate) fn set_pending_acknowledgments(&mut self, acknowledgments: Vec<BlockRef>) {
         self.pending_acknowledgments = acknowledgments.into_iter().collect::<BTreeSet<_>>();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn evicted_rounds(&self) -> Vec<Round> {
+        self.evicted_rounds.clone()
     }
 }
 #[cfg(test)]
