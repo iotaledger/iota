@@ -107,16 +107,19 @@ impl RemoteStore {
         timeout_secs: u64,
     ) -> IngestionResult<Self> {
         let store = match remote_url {
-            RemoteUrl::Fullnode(ref url) if url.ends_with("/api/v1") => {
-                RemoteStore::RestApiFullnode(iota_rest_api::Client::new(url))
-            }
             RemoteUrl::Fullnode(ref url) => {
                 let client = GrpcClient::connect(url)
                     .await?
                     // by increasing it we noticed improved performance downloading the genesis
                     // checkpoint
                     .with_max_decoding_message_size(MAX_MESSAGE_SIZE_BYTES);
-                RemoteStore::Fullnode(client)
+
+                // try to first connect to gRPC, if it fails, fallback to REST API
+                if client.get_service_info(None).await.is_ok() {
+                    RemoteStore::Fullnode(client)
+                } else {
+                    RemoteStore::RestApiFullnode(iota_rest_api::Client::new(url))
+                }
             }
             RemoteUrl::HybridHistoricalStore {
                 historical_url,
