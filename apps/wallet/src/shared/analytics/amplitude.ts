@@ -9,12 +9,12 @@ import { getNetwork, type Network } from '@iota/iota-sdk/client';
 
 import { ampli } from './ampli';
 import store from '_src/ui/app/redux/store';
+import { AppType } from '_src/ui/app/redux/slices/app/appType';
+import Browser from 'webextension-polyfill';
 
-const IS_ENABLED = process.env.BUILD_ENV === 'production';
+const IS_ENABLED = true;
 
 export async function initAmplitude() {
-    const { network, customRpc } = store.getState().app;
-
     ampli.load({
         environment: 'iotawallet',
         // Flip this if you'd like to test Amplitude locally
@@ -36,7 +36,7 @@ export async function initAmplitude() {
         },
     });
 
-    setNetworkGroup(network, customRpc);
+    setAmplitudeIdentity();
 
     // Flush events when popup is about to close
     window.addEventListener('pagehide', () => {
@@ -72,19 +72,39 @@ export function getNetworkName(network: Network, customRpc?: string | null): str
     return getNetwork(network)?.name || 'unknown';
 }
 
+type AmplitudeIdentityOptions = {
+    network?: Network;
+    customRpc?: string | null;
+    appType?: AppType;
+};
+
 /**
  * Update the user's network group in Amplitude.
  * This allows filtering events by network in Amplitude analytics.
  */
-export function setNetworkGroup(network: Network, customRpc?: string | null): void {
+export function setAmplitudeIdentity(options?: AmplitudeIdentityOptions): void {
     if (!ampli.isLoaded) {
         return;
     }
-    const networkName = getNetworkName(network, customRpc);
-    ampli.client.setGroup('network', networkName);
+    const {
+        network: stateNetwork,
+        customRpc: stateCustomRpc,
+        appType: stateAppType,
+    } = store.getState().app;
+
+    const networkName = getNetworkName(
+        options?.network ?? stateNetwork,
+        options?.customRpc ?? stateCustomRpc,
+    );
+
+    const appType = options?.appType ?? stateAppType;
+    const walletAppMode = appType === AppType.Fullscreen ? 'Fullscreen' : 'Pop-up';
+    const walletVersion = Browser.runtime.getManifest().version;
 
     const identifyEvent = new amplitude.Identify();
     identifyEvent.set('network', networkName);
+    identifyEvent.set('walletAppMode', walletAppMode);
+    identifyEvent.set('walletVersion', walletVersion);
 
     ampli.client.identify(identifyEvent);
 }
