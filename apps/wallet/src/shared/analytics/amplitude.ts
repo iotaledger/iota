@@ -12,7 +12,7 @@ import store from '_src/ui/app/redux/store';
 import { AppType } from '_src/ui/app/redux/slices/app/appType';
 import Browser from 'webextension-polyfill';
 
-const IS_ENABLED = true;
+const IS_ENABLED = process.env.BUILD_ENV === 'production';
 
 export async function initAmplitude() {
     ampli.load({
