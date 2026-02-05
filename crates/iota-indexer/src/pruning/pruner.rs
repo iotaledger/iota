@@ -107,8 +107,8 @@ pub enum PruningStrategy {
     ByCheckpoint,
     /// Delete rows by transaction sequence number
     ByTransaction,
-    /// Delete rows by optimistic transaction sequence number
-    ByOptimisticTxSeq,
+    /// Delete rows by global sequence number
+    ByGlobalSeq,
 }
 
 /// Represents a specific chunk of data to be pruned
@@ -120,8 +120,8 @@ enum PruningChunk {
     Checkpoint(u64),
     /// Prune a range of transactions [start..=end] inclusive
     TransactionRange(u64, u64),
-    /// Prune a range of optimistic transactions [start..=end] inclusive
-    OptimisticTxRange(u64, u64),
+    /// Prune by global_sequence_number range [start..=end] inclusive
+    GlobalSeqRange(u64, u64),
 }
 
 impl PruningChunk {
@@ -132,7 +132,7 @@ impl PruningChunk {
             PruningChunk::Epoch(epoch) => epoch + 1,
             PruningChunk::Checkpoint(checkpoint) => checkpoint + 1,
             PruningChunk::TransactionRange(_, end) => end + 1,
-            PruningChunk::OptimisticTxRange(_, end) => end + 1,
+            PruningChunk::GlobalSeqRange(_, end) => end + 1,
         }
     }
 }
@@ -173,8 +173,8 @@ impl PrunableTable {
             | PrunableTable::TxSenders
             | PrunableTable::TxWrappedOrDeletedObjects => PruningStrategy::ByTransaction,
 
-            // Optimistic transactions table - pruned by optimistic tx sequence number
-            PrunableTable::OptimisticTransactions => PruningStrategy::ByOptimisticTxSeq,
+            // Optimistic transactions table - pruned by global sequence number
+            PrunableTable::OptimisticTransactions => PruningStrategy::ByGlobalSeq,
         }
     }
 }
@@ -342,10 +342,10 @@ impl<'a> TablePruner<'a> {
                         }),
                 )
             }
-            PruningStrategy::ByOptimisticTxSeq => {
+            PruningStrategy::ByGlobalSeq => {
                 let range_end = min_available_tx;
                 info!(
-                    "pruning table {} in optimistic tx range: [{lowest_unpruned_key}..{range_end})",
+                    "pruning table {} by global_sequence_number in range: [{lowest_unpruned_key}..{range_end})",
                     self.table.as_ref()
                 );
                 Box::new(
@@ -353,7 +353,7 @@ impl<'a> TablePruner<'a> {
                         .step_by(MAX_TRANSACTIONS_PER_PRUNE_BATCH as usize)
                         .map(move |start| {
                             let end = (start + MAX_TRANSACTIONS_PER_PRUNE_BATCH).min(range_end);
-                            PruningChunk::OptimisticTxRange(start, end - 1)
+                            PruningChunk::GlobalSeqRange(start, end - 1)
                         }),
                 )
             }
@@ -446,25 +446,47 @@ impl<'a> TablePruner<'a> {
                 );
             }
 
-            PruningChunk::OptimisticTxRange(start, end) => {
-                // Prune by optimistic transaction range
-                if let Err(e) = self
-                    .store
-                    .prune_table_by_optimistic_tx_range(&self.table, start, end)
-                    .await
-                {
-                    error!(
-                        "failed to prune table {} for optimistic tx range [{start}..={end}]: {e}",
-                        self.table.as_ref(),
-                    );
-                }
-                info!(
-                    "pruned table {} for optimistic tx range [{start}..={end}]",
-                    self.table.as_ref(),
-                );
+            PruningChunk::GlobalSeqRange(start, end) => {
+                self.prune_by_global_seq_with_limit(start, end).await?;
             }
         }
+        Ok(())
+    }
 
+    /// Prune table by global_sequence_number range with LIMIT
+    /// Keeps deleting batches until no more rows are returned in the range
+    async fn prune_by_global_seq_with_limit(
+        &self,
+        start: u64,
+        end: u64,
+    ) -> Result<(), IndexerError> {
+        loop {
+            let deleted = self
+                .store
+                .prune_table_by_global_seq_with_limit(
+                    &self.table,
+                    start,
+                    end,
+                    MAX_TRANSACTIONS_PER_PRUNE_BATCH as i64,
+                )
+                .await?;
+
+            if deleted < MAX_TRANSACTIONS_PER_PRUNE_BATCH as usize {
+                info!(
+                    "finished pruning table {} for global_seq range [{start}..={end}]",
+                    self.table.as_ref(),
+                );
+                break;
+            }
+
+            info!(
+                "pruned {deleted} rows from table {} (global_seq range [{start}..={end}])",
+                self.table.as_ref(),
+            );
+
+            // Brief pause between batches
+            tokio::time::sleep(DELAY_BETWEEN_PRUNING_CHUNKS).await;
+        }
         Ok(())
     }
 }
@@ -575,30 +597,11 @@ async fn update_watermarks_lower_bounds(
         };
     }
 
-    // Extract optimistic transactions epoch if present
-    let optimistic_transactions_epoch = lower_bound_updates
-        .iter()
-        .find(|(table, _)| matches!(table, PrunableTable::OptimisticTransactions))
-        .map(|(_, epoch)| *epoch);
-
-    // Filter out optimistic transactions from lower_bound_updates
-    let lower_bound_updates: Vec<_> = lower_bound_updates
-        .into_iter()
-        .filter(|(table, _)| !matches!(table, PrunableTable::OptimisticTransactions))
-        .collect();
-
     if !lower_bound_updates.is_empty() {
         store
             .update_watermarks_lower_bound(lower_bound_updates)
             .await?;
         info!("Finished updating lower bounds for watermarks");
-    }
-
-    if let Some(epoch) = optimistic_transactions_epoch {
-        store
-            .update_optimistic_transactions_watermark_lower_bound(epoch)
-            .await?;
-        info!("Finished updating lower bound for optimistic transactions watermark");
     }
 
     Ok(())

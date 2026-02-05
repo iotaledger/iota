@@ -168,12 +168,16 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         max_tx: u64,
     ) -> Result<(), IndexerError>;
 
-    async fn prune_table_by_optimistic_tx_range(
+    /// Prune table by global_sequence_number range with DELETE LIMIT.
+    /// Uses DELETE with LIMIT to maintain consistent batch sizes.
+    /// Returns the number of rows deleted.
+    async fn prune_table_by_global_seq_with_limit(
         &self,
         table: &PrunableTable,
-        min_tx: u64,
-        max_tx: u64,
-    ) -> Result<(), IndexerError>;
+        start: u64,
+        end: u64,
+        limit: i64,
+    ) -> Result<usize, IndexerError>;
 
     async fn update_watermark_lowest_unpruned_key(
         &self,
