@@ -31,7 +31,7 @@ use iota_keys::keypair_file::read_keypair_from_file;
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockEffectsAPI};
 use iota_types::{
     IOTA_SYSTEM_PACKAGE_ID,
-    base_types::{IdentifierRef, IotaAddress, ObjectRef},
+    base_types::{Identifier, IotaAddress, ObjectRef},
     committee::EpochId,
     crypto::{IotaKeyPair, generate_proof_of_possession, get_authority_key_pair, get_key_pair},
     multiaddr::{Multiaddr, Protocol},
@@ -301,8 +301,8 @@ async fn update_metadata_on_chain(
     let tx_data = TransactionData::new_move_call(
         iota_address,
         IOTA_SYSTEM_PACKAGE_ID,
-        IdentifierRef::const_new("iota_system").to_owned(),
-        IdentifierRef::const_new(function).to_owned(),
+        Identifier::from_static("iota_system"),
+        Identifier::from_static(function),
         vec![],
         gas_obj_ref,
         args,

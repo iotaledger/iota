@@ -30,7 +30,7 @@ use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
     balance::Supply,
     base_types::{
-        IdentifierRef, IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectType,
+        Identifier, IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectType,
         SequenceNumber, StructTag, TransactionDigest, TypeTag, random_object_ref,
     },
     committee::Committee,
@@ -166,8 +166,8 @@ impl RpcExampleProvider {
             builder
                 .move_call(
                     IOTA_FRAMEWORK_PACKAGE_ID,
-                    IdentifierRef::const_new("pay").into(),
-                    IdentifierRef::const_new("split").into(),
+                    Identifier::from_static("pay"),
+                    Identifier::from_static("split"),
                     vec![],
                     vec![
                         CallArg::Object(ObjectArg::ImmOrOwnedObject(coin_ref)),
@@ -787,7 +787,7 @@ impl RpcExampleProvider {
                 event_seq: 0,
             },
             package_id: ObjectID::new(self.rng.gen()),
-            transaction_module: IdentifierRef::const_new("test_module").into(),
+            transaction_module: Identifier::from_static("test_module"),
             sender: IotaAddress::from(ObjectID::new(self.rng.gen())),
             type_: parse_iota_struct_tag("0x9::test::TestEvent").unwrap(),
             parsed_json: json!({"test": "example value"}),
@@ -1313,7 +1313,7 @@ impl RpcExampleProvider {
 
     fn iotax_query_events(&mut self) -> Examples {
         let package_id = ObjectID::new(self.rng.gen());
-        let identifier = IdentifierRef::const_new("test");
+        let identifier = Identifier::from_static("test");
         let mut event_ids = self.get_event_ids(5..9);
         let has_next_page = event_ids.len() > (9 - 5);
         event_ids.truncate(9 - 5);
@@ -1325,7 +1325,7 @@ impl RpcExampleProvider {
             .map(|event_id| IotaEvent {
                 id: event_id,
                 package_id,
-                transaction_module: identifier.into(),
+                transaction_module: identifier.clone(),
                 sender: IotaAddress::from(ObjectID::new(self.rng.gen())),
                 type_: StructTag::from_str("0x3::test::Test<0x3::test::Test>").unwrap(),
                 parsed_json: serde_json::Value::String("some_value".to_string()),
@@ -1348,7 +1348,7 @@ impl RpcExampleProvider {
                         "query",
                         json!(EventFilter::MoveModule {
                             package: ObjectID::new(self.rng.gen()),
-                            module: IdentifierRef::const_new("test").into(),
+                            module: Identifier::from_static("test"),
                         }),
                     ),
                     ("cursor", json!(cursor)),

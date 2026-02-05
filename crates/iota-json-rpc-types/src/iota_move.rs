@@ -482,7 +482,7 @@ impl From<MoveValue> for IotaMoveValue {
                 let type_ = struct_tag_core_to_sdk(type_);
                 let fields = fields
                     .iter()
-                    .map(|(id, value)| (Identifier::new(id.as_str()).unwrap(), value.clone()))
+                    .map(|(id, value)| (Identifier::new_unchecked(id.as_str()), value.clone()))
                     .collect::<Vec<_>>();
                 if let Some(value) = try_convert_type(&type_, &fields) {
                     return value;

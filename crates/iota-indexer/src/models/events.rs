@@ -151,12 +151,12 @@ mod tests {
         let tx_digest = TransactionDigest::default();
         let event = Event {
             package_id: ObjectID::random(),
-            transaction_module: Identifier::new("test").unwrap(),
+            transaction_module: Identifier::from_static("test"),
             sender: IotaAddress::random(),
             type_: StructTag::new(
                 IotaAddress::FRAMEWORK,
-                Identifier::new("test").unwrap(),
-                Identifier::new("test").unwrap(),
+                Identifier::from_static("test"),
+                Identifier::from_static("test"),
                 vec![],
             ),
             contents: vec![],

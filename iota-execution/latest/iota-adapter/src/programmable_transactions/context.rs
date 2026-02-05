@@ -19,8 +19,7 @@ mod checked {
     use iota_types::{
         balance::Balance,
         base_types::{
-            Identifier, IdentifierRef, IotaAddress, MoveObjectType, ObjectID, StructTag, TxContext,
-            TypeTag,
+            Identifier, IotaAddress, MoveObjectType, ObjectID, StructTag, TxContext, TypeTag,
         },
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
@@ -463,7 +462,7 @@ mod checked {
         /// an object that cannot be taken by value (shared or immutable)
         pub fn by_value_arg<V: TryFromValue>(
             &mut self,
-            command_kind: CommandKind<'_>,
+            command_kind: CommandKind,
             arg_idx: usize,
             arg: Arg,
         ) -> Result<V, ExecutionError> {
@@ -472,7 +471,7 @@ mod checked {
         }
         fn by_value_arg_<V: TryFromValue>(
             &mut self,
-            command_kind: CommandKind<'_>,
+            command_kind: CommandKind,
             arg: Arg,
         ) -> Result<V, EitherError> {
             let is_borrowed = self.arg_is_borrowed(&arg);
@@ -942,7 +941,7 @@ mod checked {
                 .map(|(module_id, tag, contents)| {
                     Event::new(
                         IotaAddress::new(module_id.address().into_bytes()),
-                        &Identifier::new(module_id.name().as_str()).unwrap(),
+                        Identifier::new_unchecked(module_id.name().as_str()),
                         tx_context.sender(),
                         tag,
                         contents,
@@ -1117,7 +1116,7 @@ mod checked {
         pub(crate) fn execute_function_bypass_visibility(
             &mut self,
             module: &ModuleId,
-            function_name: &IdentifierRef,
+            function_name: &Identifier,
             ty_args: Vec<Type>,
             args: Vec<impl Borrow<[u8]>>,
             tracer: &mut Option<MoveTraceBuilder>,
@@ -1143,7 +1142,7 @@ mod checked {
         pub(crate) fn load_function(
             &mut self,
             module_id: &ModuleId,
-            function_name: &IdentifierRef,
+            function_name: &Identifier,
             type_arguments: &[Type],
         ) -> VMResult<LoadedFunctionInstantiation> {
             let mut data_store = IotaDataStore::new(&self.linkage_view, &self.new_packages);

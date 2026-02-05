@@ -7,7 +7,7 @@ use std::sync::Arc;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{IdentifierRef, IotaAddress, ObjectID, ObjectRef, StructTag, TypeTag, dbg_addr},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag, TypeTag, dbg_addr},
     crypto::{AccountKeyPair, get_account_key_pair},
     deny_list_v1::{
         DenyCapV1, RegulatedCoinMetadata, check_address_denied_by_config, check_global_pause,
@@ -83,9 +83,9 @@ async fn test_regulated_coin_v1_types() {
     let deny_list_object_init_version =
         env.get_latest_object_ref(&IOTA_DENY_LIST_OBJECT_ID).await.1;
     let regulated_coin_type = TypeTag::Struct(Box::new(StructTag::new(
-        package_id.into(),
-        IdentifierRef::const_new("regulated_coin").to_owned(),
-        IdentifierRef::const_new("REGULATED_COIN").to_owned(),
+        package_id,
+        Identifier::from_static("regulated_coin"),
+        Identifier::from_static("REGULATED_COIN"),
         vec![],
     )));
     let deny_address = dbg_addr(2);

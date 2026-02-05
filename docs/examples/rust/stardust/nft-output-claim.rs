@@ -14,7 +14,6 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaData, IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
-        TypeTag,
         base_types::ObjectID,
         crypto::SignatureScheme::ED25519,
         gas_coin::GAS,
@@ -24,7 +23,7 @@ use iota_sdk::{
         transaction::{Argument, ObjectArg, Transaction, TransactionData},
     },
 };
-use iota_sdk_types::{IdentifierRef, crypto::Intent};
+use iota_sdk_types::{Identifier, TypeTag, crypto::Intent};
 use iota_types::{IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID};
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
@@ -114,8 +113,8 @@ async fn main() -> Result<(), anyhow::Error> {
         // Finally call the nft_output::extract_assets function
         if let Argument::Result(extracted_assets) = builder.programmable_move_call(
             STARDUST_PACKAGE_ID,
-            IdentifierRef::const_new("nft_output").into(),
-            IdentifierRef::const_new("extract_assets").into(),
+            Identifier::from_static("nft_output"),
+            Identifier::from_static("extract_assets"),
             type_arguments,
             arguments,
         ) {
@@ -131,8 +130,8 @@ async fn main() -> Result<(), anyhow::Error> {
             let type_arguments = vec![GAS::type_tag()];
             let iota_coin = builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
-                IdentifierRef::const_new("coin").into(),
-                IdentifierRef::const_new("from_balance").into(),
+                Identifier::from_static("coin"),
+                Identifier::from_static("from_balance"),
                 type_arguments,
                 arguments,
             );
@@ -150,8 +149,8 @@ async fn main() -> Result<(), anyhow::Error> {
                 // Transfer native token balance
                 extracted_native_tokens_bag = builder.programmable_move_call(
                     STARDUST_PACKAGE_ID,
-                    IdentifierRef::const_new("utilities").into(),
-                    IdentifierRef::const_new("extract_and_send_to").into(),
+                    Identifier::from_static("utilities"),
+                    Identifier::from_static("extract_and_send_to"),
                     type_arguments,
                     arguments,
                 );
@@ -164,8 +163,8 @@ async fn main() -> Result<(), anyhow::Error> {
             let arguments = vec![extracted_native_tokens_bag];
             builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
-                IdentifierRef::const_new("bag").into(),
-                IdentifierRef::const_new("destroy_empty").into(),
+                Identifier::from_static("bag"),
+                Identifier::from_static("destroy_empty"),
                 vec![],
                 arguments,
             );

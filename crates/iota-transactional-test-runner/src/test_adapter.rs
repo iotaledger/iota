@@ -42,8 +42,8 @@ use iota_types::{
     IOTA_SYSTEM_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_ADDRESS,
     MOVE_STDLIB_PACKAGE_ID, STARDUST_ADDRESS, STARDUST_PACKAGE_ID,
     base_types::{
-        IOTA_ADDRESS_LENGTH, Identifier, IdentifierRef, IotaAddress, ObjectID, ObjectRef,
-        SequenceNumber, TypeTag, VersionNumber,
+        IOTA_ADDRESS_LENGTH, Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag,
+        VersionNumber,
     },
     committee::EpochId,
     crypto::{AccountKeyPair, RandomnessRound, get_authority_key_pair, get_key_pair_from_rng},
@@ -593,7 +593,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
         let IotaRunArgs { summarize, .. } = extra;
         let transaction = self.build_function_call_tx(
             module_id,
-            IdentifierRef::new(function.as_str()).unwrap(),
+            &Identifier::new_unchecked(function.as_str()),
             type_args
                 .into_iter()
                 .map(|tt| type_tag_core_to_sdk(&tt))
@@ -1161,7 +1161,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let tx = self
                     .build_function_call_tx(
                         &module_id,
-                        IdentifierRef::new(name.as_str()).unwrap(),
+                        &Identifier::new_unchecked(name.as_str()),
                         type_args
                             .iter()
                             .map(type_tag_core_to_sdk)
@@ -1602,8 +1602,8 @@ impl IotaTestAdapter {
 
         let upgrade_ticket = builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
-            IdentifierRef::const_new("package").to_owned(),
-            IdentifierRef::const_new("authorize_upgrade").to_owned(),
+            Identifier::from_static("package"),
+            Identifier::from_static("authorize_upgrade"),
             vec![],
             vec![Argument::Input(0), upgrade_arg, digest_arg],
         );
@@ -1614,8 +1614,8 @@ impl IotaTestAdapter {
 
         builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
-            IdentifierRef::const_new("package").to_owned(),
-            IdentifierRef::const_new("commit_upgrade").to_owned(),
+            Identifier::from_static("package"),
+            Identifier::from_static("commit_upgrade"),
             vec![],
             vec![Argument::Input(0), upgrade_receipt],
         );
@@ -1757,7 +1757,7 @@ impl IotaTestAdapter {
     fn build_function_call_tx(
         &mut self,
         module_id: &ModuleId,
-        function: &IdentifierRef,
+        function: &Identifier,
         type_args: Vec<TypeTag>,
         signers: Vec<ParsedAddress>,
         args: Vec<IotaValue>,
@@ -1780,7 +1780,7 @@ impl IotaTestAdapter {
         let data = |sender, gas| {
             builder.command(Command::move_call(
                 package_id,
-                Identifier::new(module_id.name().as_str()).unwrap(),
+                Identifier::new_unchecked(module_id.name().as_str()),
                 function.to_owned(),
                 type_args,
                 arguments,

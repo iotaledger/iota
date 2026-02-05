@@ -23,7 +23,7 @@ use iota_sdk::{
         transaction::{Argument, ObjectArg, Transaction, TransactionData},
     },
 };
-use iota_sdk_types::{IdentifierRef, crypto::Intent};
+use iota_sdk_types::{Identifier, crypto::Intent};
 use iota_types::{IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID};
 
 pub const IOTA_COIN_TYPE: u32 = 4218;
@@ -94,8 +94,8 @@ async fn main() -> Result<(), anyhow::Error> {
         // Finally call the basic_output::extract_assets function
         if let Argument::Result(extracted_assets) = builder.programmable_move_call(
             STARDUST_PACKAGE_ID,
-            IdentifierRef::const_new("basic_output").into(),
-            IdentifierRef::const_new("extract_assets").into(),
+            Identifier::from_static("basic_output"),
+            Identifier::from_static("extract_assets"),
             type_arguments,
             arguments,
         ) {
@@ -108,8 +108,8 @@ async fn main() -> Result<(), anyhow::Error> {
             let arguments = vec![extracted_native_tokens_bag];
             builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
-                IdentifierRef::const_new("bag").into(),
-                IdentifierRef::const_new("destroy_empty").into(),
+                Identifier::from_static("bag"),
+                Identifier::from_static("destroy_empty"),
                 vec![],
                 arguments,
             );
@@ -120,8 +120,8 @@ async fn main() -> Result<(), anyhow::Error> {
             let arguments = vec![extracted_base_token];
             let new_iota_coin = builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
-                IdentifierRef::const_new("coin").into(),
-                IdentifierRef::const_new("from_balance").into(),
+                Identifier::from_static("coin"),
+                Identifier::from_static("from_balance"),
                 type_arguments,
                 arguments,
             );

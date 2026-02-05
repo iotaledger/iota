@@ -7,7 +7,7 @@ use std::{
     fmt,
 };
 
-use iota_sdk_types::{IdentifierRef, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{error, instrument};
 
@@ -23,8 +23,8 @@ use crate::{
     transaction::{CheckedInputObjects, ReceivingObjects},
 };
 
-pub const DENY_LIST_MODULE: &IdentifierRef = IdentifierRef::const_new("deny_list");
-pub const DENY_LIST_CREATE_FUNC: &IdentifierRef = IdentifierRef::const_new("create");
+pub const DENY_LIST_MODULE: Identifier = Identifier::from_static("deny_list");
+pub const DENY_LIST_CREATE_FUNC: Identifier = Identifier::from_static("create");
 
 pub const DENY_LIST_COIN_TYPE_INDEX: u64 = 0;
 

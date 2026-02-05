@@ -1885,7 +1885,7 @@ mod tests {
     use async_trait::async_trait;
     use iota_move_build::{BuildConfig, CompiledPackage};
     use iota_types::{
-        base_types::{IdentifierRef, ObjectID, random_object_ref},
+        base_types::{Identifier, ObjectID, random_object_ref},
         error::IotaResult,
         transaction::ObjectArg,
     };
@@ -2869,8 +2869,8 @@ mod tests {
                 ],
                 commands: vec![Command::move_call(
                     obj_id("0xe0"),
-                    IdentifierRef::const_new("m").to_owned(),
-                    IdentifierRef::const_new("foo").to_owned(),
+                    Identifier::from_static("m"),
+                    Identifier::from_static("foo"),
                     vec![t],
                     (0..=6).map(Argument::Input).collect(),
                 )],
@@ -2882,8 +2882,8 @@ mod tests {
         let ptb_opt = ptb(
             TypeTag::Struct(Box::new(StructTag::new(
                 addr("0x1"),
-                IdentifierRef::const_new("option").to_owned(),
-                IdentifierRef::const_new("Option").to_owned(),
+                Identifier::from_static("option"),
+                Identifier::from_static("Option"),
                 vec![TypeTag::U64],
             ))),
             I::Pure(bcs::to_bytes(&[vec![1u64], vec![], vec![3]]).unwrap()),
@@ -2892,8 +2892,8 @@ mod tests {
         let ptb_obj = ptb(
             TypeTag::Struct(Box::new(StructTag::new(
                 addr("0xe0"),
-                IdentifierRef::const_new("m").to_owned(),
-                IdentifierRef::const_new("O").to_owned(),
+                Identifier::from_static("m"),
+                Identifier::from_static("O"),
                 vec![],
             ))),
             I::Object(O(random_object_ref())),
@@ -2949,15 +2949,15 @@ mod tests {
             commands: vec![
                 Command::move_call(
                     obj_id("0xe0"),
-                    IdentifierRef::const_new("m").to_owned(),
-                    IdentifierRef::const_new("foo").to_owned(),
+                    Identifier::from_static("m"),
+                    Identifier::from_static("foo"),
                     vec![T::U64],
                     (0..=6).map(Argument::Input).collect(),
                 ),
                 Command::move_call(
                     obj_id("0xe0"),
-                    IdentifierRef::const_new("m").to_owned(),
-                    IdentifierRef::const_new("foo").to_owned(),
+                    Identifier::from_static("m"),
+                    Identifier::from_static("foo"),
                     vec![T::U64],
                     (0..=6).map(Argument::Input).collect(),
                 ),
@@ -3006,8 +3006,8 @@ mod tests {
             commands: vec![
                 Command::move_call(
                     obj_id("0xe0"),
-                    IdentifierRef::const_new("m").to_owned(),
-                    IdentifierRef::const_new("foo").to_owned(),
+                    Identifier::from_static("m"),
+                    Identifier::from_static("foo"),
                     vec![T::U64],
                     (0..=6).map(Argument::Input).collect(),
                 ),

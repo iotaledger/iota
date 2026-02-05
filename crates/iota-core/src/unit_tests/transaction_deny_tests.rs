@@ -15,7 +15,7 @@ use iota_swarm_config::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IdentifierRef, IotaAddress, ObjectID, ObjectRef, address_from_iota_pub_key},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, address_from_iota_pub_key},
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
@@ -153,8 +153,8 @@ async fn handle_move_call_transaction(
     let data = TransactionData::new_move_call(
         account.0,
         package,
-        IdentifierRef::const_new(module_name).to_owned(),
-        IdentifierRef::const_new(function_name).to_owned(),
+        Identifier::from_static(module_name),
+        Identifier::from_static(function_name),
         vec![],
         account.2[gas_payment_index],
         args,

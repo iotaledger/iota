@@ -5,7 +5,7 @@
 use std::str::FromStr;
 
 use anyhow::ensure;
-use iota_sdk_types::{Identifier, IdentifierRef, StructTag};
+use iota_sdk_types::{Identifier, StructTag};
 use move_core_types::annotated_value::{MoveDatatypeLayout, MoveValue};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -107,14 +107,14 @@ pub struct Event {
 impl Event {
     pub fn new(
         package_id: IotaAddress,
-        module: &IdentifierRef,
+        module: Identifier,
         sender: IotaAddress,
         type_: StructTag,
         contents: Vec<u8>,
     ) -> Self {
         Self {
             package_id: package_id.into(),
-            transaction_module: Identifier::from(module),
+            transaction_module: module,
             sender,
             type_,
             contents,
@@ -133,14 +133,14 @@ impl Event {
 
     pub fn is_system_epoch_info_event_v1(&self) -> bool {
         self.type_.address() == IotaAddress::SYSTEM
-            && self.type_.module() == IdentifierRef::const_new("iota_system_state_inner")
-            && self.type_.name() == IdentifierRef::const_new("SystemEpochInfoEventV1")
+            && self.type_.module() == &Identifier::from_static("iota_system_state_inner")
+            && self.type_.name() == &Identifier::from_static("SystemEpochInfoEventV1")
     }
 
     pub fn is_system_epoch_info_event_v2(&self) -> bool {
         self.type_.address() == IotaAddress::SYSTEM
-            && self.type_.module() == IdentifierRef::const_new("iota_system_state_inner")
-            && self.type_.name() == IdentifierRef::const_new("SystemEpochInfoEventV2")
+            && self.type_.module() == &Identifier::from_static("iota_system_state_inner")
+            && self.type_.name() == &Identifier::from_static("SystemEpochInfoEventV2")
     }
 
     pub fn is_system_epoch_info_event(&self) -> bool {
@@ -152,12 +152,12 @@ impl Event {
     pub fn random_for_testing() -> Self {
         Self {
             package_id: ObjectID::random(),
-            transaction_module: IdentifierRef::const_new("test").to_owned(),
+            transaction_module: Identifier::from_static("test"),
             sender: IotaAddress::random(),
             type_: StructTag::new(
                 IotaAddress::random(),
-                IdentifierRef::const_new("test"),
-                IdentifierRef::const_new("test"),
+                Identifier::from_static("test"),
+                Identifier::from_static("test"),
                 vec![],
             ),
             contents: vec![],

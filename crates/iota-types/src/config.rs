@@ -2,20 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{IdentifierRef, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 use serde::{Deserialize, Serialize};
 
 use crate::{IOTA_FRAMEWORK_ADDRESS, MoveTypeTagTrait, base_types::EpochId, id::UID};
 
-pub const CONFIG_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("config");
-pub const CONFIG_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Config");
-pub const SETTING_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Setting");
-pub const SETTING_DATA_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("SettingData");
+pub const CONFIG_MODULE_NAME: Identifier = Identifier::from_static("config");
+pub const CONFIG_STRUCT_NAME: Identifier = Identifier::from_static("Config");
+pub const SETTING_STRUCT_NAME: Identifier = Identifier::from_static("Setting");
+pub const SETTING_DATA_STRUCT_NAME: Identifier = Identifier::from_static("SettingData");
 pub const RESOLVED_IOTA_CONFIG: (&AccountAddress, &IdentStr, &IdentStr) = (
     &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
-    ident_str!(CONFIG_MODULE_NAME.as_str()),
-    ident_str!(CONFIG_STRUCT_NAME.as_str()),
+    ident_str!("config"),
+    ident_str!("Config"),
 );
 
 /// Rust representation of the Move type 0x2::config::Config.

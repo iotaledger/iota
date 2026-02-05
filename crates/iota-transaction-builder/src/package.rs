@@ -8,7 +8,7 @@ use anyhow::{Ok, anyhow, bail};
 use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{IdentifierRef, IotaAddress, ObjectID},
+    base_types::{Identifier, IotaAddress, ObjectID},
     move_package::MovePackage,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -107,8 +107,8 @@ impl TransactionBuilder {
             let digest_arg = builder.pure(digest).unwrap();
             let upgrade_ticket = builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
-                IdentifierRef::const_new("package").to_owned(),
-                IdentifierRef::const_new("authorize_upgrade").to_owned(),
+                Identifier::from_static("package"),
+                Identifier::from_static("authorize_upgrade"),
                 vec![],
                 vec![Argument::Input(0), upgrade_arg, digest_arg],
             );
@@ -116,8 +116,8 @@ impl TransactionBuilder {
 
             builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
-                IdentifierRef::const_new("package").to_owned(),
-                IdentifierRef::const_new("commit_upgrade").to_owned(),
+                Identifier::from_static("package"),
+                Identifier::from_static("commit_upgrade"),
                 vec![],
                 vec![Argument::Input(0), upgrade_receipt],
             );

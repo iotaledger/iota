@@ -16,7 +16,7 @@ use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_types::{
     IOTA_SYSTEM_PACKAGE_ID,
     authenticator_state::ActiveJwk,
-    base_types::{IdentifierRef, dbg_addr},
+    base_types::{Identifier, dbg_addr},
     crypto::{
         AccountKeyPair, IotaKeyPair, IotaSignature, PublicKey, Signature, ToFromBytes,
         ZkLoginPublicIdentifier, get_key_pair,
@@ -301,7 +301,7 @@ pub fn init_move_call_transaction(
         sender,
         IOTA_SYSTEM_PACKAGE_ID,
         IOTA_SYSTEM_MODULE_NAME.into(),
-        IdentifierRef::const_new("request_add_validator").to_owned(),
+        Identifier::from_static("request_add_validator"),
         vec![],
         gas_object_ref,
         vec![CallArg::IOTA_SYSTEM_MUT],
@@ -1747,8 +1747,8 @@ async fn test_handle_soft_bundle_certificates() {
             let data = TransactionData::new_move_call(
                 senders[i].0,
                 package.0,
-                IdentifierRef::const_new("object_basics").to_owned(),
-                IdentifierRef::const_new("set_value").to_owned(),
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("set_value"),
                 // type_args
                 vec![],
                 gas_object_ref,
@@ -2022,8 +2022,8 @@ async fn test_handle_soft_bundle_certificates_errors() {
             let data = TransactionData::new_move_call(
                 senders[6].0,
                 package.0,
-                IdentifierRef::const_new("object_basics").to_owned(),
-                IdentifierRef::const_new("set_value").to_owned(),
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("set_value"),
                 // type_args
                 vec![],
                 gas_object_ref,
@@ -2052,8 +2052,8 @@ async fn test_handle_soft_bundle_certificates_errors() {
             let data = TransactionData::new_move_call(
                 senders[7].0,
                 package.0,
-                IdentifierRef::const_new("object_basics").to_owned(),
-                IdentifierRef::const_new("set_value").to_owned(),
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("set_value"),
                 // type_args
                 vec![],
                 gas_object_ref,
@@ -2108,8 +2108,8 @@ async fn test_handle_soft_bundle_certificates_errors() {
             let data = TransactionData::new_move_call(
                 senders[8].0,
                 package.0,
-                IdentifierRef::const_new("object_basics").to_owned(),
-                IdentifierRef::const_new("set_value").to_owned(),
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("set_value"),
                 // type_args
                 vec![],
                 gas_object_ref,
@@ -2138,8 +2138,8 @@ async fn test_handle_soft_bundle_certificates_errors() {
             let data = TransactionData::new_move_call(
                 senders[9].0,
                 package.0,
-                IdentifierRef::const_new("object_basics").to_owned(),
-                IdentifierRef::const_new("set_value").to_owned(),
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("set_value"),
                 // type_args
                 vec![],
                 gas_object_ref,

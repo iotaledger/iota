@@ -10,7 +10,7 @@ use fastcrypto_zkp::{bn254::zk_login::OIDCProvider, zk_login_utils::Bn254FrEleme
 use iota_sdk_types::crypto::{Intent, IntentMessage, PersonalMessage};
 use iota_types::{
     base_types::{
-        self, IdentifierRef, IotaAddress, MoveObjectType, MoveObjectType_, ObjectDigest, ObjectID,
+        self, Identifier, IotaAddress, MoveObjectType, MoveObjectType_, ObjectDigest, ObjectID,
         StructTag, TransactionDigest, TransactionEffectsDigest, TypeTag,
     },
     crypto::{
@@ -47,9 +47,7 @@ use iota_types::{
     type_input::{StructInput, TypeInput},
     utils::DEFAULT_ADDRESS_SEED,
 };
-use move_core_types::{
-    account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
-};
+use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use pretty_assertions::assert_str_eq;
 use rand::{SeedableRng, rngs::StdRng};
 use roaring::RoaringBitmap;
@@ -88,8 +86,7 @@ fn get_registry() -> Result<Registry> {
     // Trace SDK Identifier, StructTag and TypeTag samples early - these use custom
     // serde that requires valid sample values to be provided before types
     // containing them (like MoveObjectType_) are traced.
-    let sdk_identifier =
-        iota_types::base_types::IdentifierRef::const_new("sample_identifier").to_owned();
+    let sdk_identifier = iota_types::base_types::Identifier::from_static("sample_identifier");
     tracer.trace_value(&mut samples, &sdk_identifier).unwrap();
     let struct_tag = StructTag::new_gas_coin();
     tracer.trace_value(&mut samples, &struct_tag).unwrap();
@@ -127,7 +124,10 @@ fn get_registry() -> Result<Registry> {
     let move_obj_type = MoveObjectType::gas_coin();
     tracer.trace_value(&mut samples, &move_obj_type).unwrap();
 
-    let m = ModuleId::new(AccountAddress::ZERO, Identifier::new("foo").unwrap());
+    let m = ModuleId::new(
+        AccountAddress::ZERO,
+        move_core_types::identifier::Identifier::new("foo").unwrap(),
+    );
     tracer.trace_value(&mut samples, &m).unwrap();
     tracer
         .trace_value(&mut samples, &Identifier::new("foo").unwrap())
@@ -240,7 +240,7 @@ fn get_registry() -> Result<Registry> {
     // Event while, sui's doesn't.
     let event = Event {
         package_id: ObjectID::random(),
-        transaction_module: IdentifierRef::const_new("foo").to_owned(),
+        transaction_module: Identifier::from_static("foo"),
         sender: IotaAddress::ZERO,
         type_: struct_tag.clone(),
         contents: vec![0],

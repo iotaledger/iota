@@ -13,8 +13,8 @@ use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver}
 use iota_types::{
     authenticator_state::ActiveJwk,
     base_types::{
-        EpochId, Identifier, IdentifierRef, IotaAddress, ObjectID, ObjectRef, SequenceNumber,
-        TransactionDigest, TypeTag,
+        EpochId, Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
+        TypeTag,
     },
     crypto::IotaSignature,
     digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
@@ -2104,7 +2104,7 @@ impl IotaProgrammableTransactionBlock {
 
 fn get_signature_types(
     id: ModuleId,
-    function: &IdentifierRef,
+    function: &Identifier,
     module_cache: &impl GetModule,
 ) -> Option<Vec<Option<MoveTypeLayout>>> {
     use std::borrow::Borrow;

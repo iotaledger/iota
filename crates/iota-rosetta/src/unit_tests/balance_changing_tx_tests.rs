@@ -23,7 +23,7 @@ use iota_sdk::{
 };
 use iota_sdk_types::crypto::Intent;
 use iota_types::{
-    base_types::{IdentifierRef, IotaAddress, ObjectID, ObjectRef, StructTag, TypeTag},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag, TypeTag},
     gas_coin::GasCoin,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -203,8 +203,8 @@ async fn test_publish_and_move_call() {
         builder
             .move_call(
                 *package,
-                IdentifierRef::const_new("my_coin").into(),
-                IdentifierRef::const_new("mint").into(),
+                Identifier::from_static("my_coin"),
+                Identifier::from_static("mint"),
                 vec![],
                 vec![
                     CallArg::Object(ObjectArg::ImmOrOwnedObject(treasury)),

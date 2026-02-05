@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{IdentifierRef, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use iota_stardust_sdk::types::block::output::AliasOutput as StardustAlias;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -16,10 +16,10 @@ use crate::{
     object::{Data, Object},
 };
 
-pub const ALIAS_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("alias");
-pub const ALIAS_OUTPUT_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("alias_output");
-pub const ALIAS_OUTPUT_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("AliasOutput");
-pub const ALIAS_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Alias");
+pub const ALIAS_MODULE_NAME: Identifier = Identifier::from_static("alias");
+pub const ALIAS_OUTPUT_MODULE_NAME: Identifier = Identifier::from_static("alias_output");
+pub const ALIAS_OUTPUT_STRUCT_NAME: Identifier = Identifier::from_static("AliasOutput");
+pub const ALIAS_STRUCT_NAME: Identifier = Identifier::from_static("Alias");
 pub const ALIAS_DYNAMIC_OBJECT_FIELD_KEY: &[u8] = b"alias";
 pub const ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE: &str = "vector<u8>";
 
@@ -96,8 +96,8 @@ impl AliasOutput {
 
     pub fn is_alias_output(s: &StructTag) -> bool {
         s.address() == IotaAddress::STARDUST
-            && s.module() == ALIAS_OUTPUT_MODULE_NAME
-            && s.name() == ALIAS_OUTPUT_STRUCT_NAME
+            && s.module() == &ALIAS_OUTPUT_MODULE_NAME
+            && s.name() == &ALIAS_OUTPUT_STRUCT_NAME
     }
 }
 

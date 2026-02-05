@@ -7,7 +7,7 @@
 
 use anyhow::Context;
 use indexmap::IndexMap;
-use iota_sdk_types::{Identifier, IdentifierRef, TypeTag};
+use iota_sdk_types::{Identifier, TypeTag};
 use serde::Serialize;
 
 use crate::{
@@ -193,7 +193,7 @@ impl ProgrammableTransactionBuilder {
         self.commands.push(Command::move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
             PACKAGE_MODULE_NAME.to_owned(),
-            IdentifierRef::const_new("make_immutable").to_owned(),
+            Identifier::from_static("make_immutable"),
             vec![],
             vec![cap],
         ));

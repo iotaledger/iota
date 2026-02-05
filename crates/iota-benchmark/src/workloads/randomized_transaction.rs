@@ -128,8 +128,8 @@ impl RandomizedTransactionPayload {
                 builder
                     .move_call(
                         self.package_id,
-                        Identifier::new("counter").unwrap(),
-                        Identifier::new("increment").unwrap(),
+                        Identifier::from_static("counter"),
+                        Identifier::from_static("increment"),
                         vec![],
                         vec![CallArg::Object(ObjectArg::SharedObject {
                             id: self.shared_objects[next_shared_input_index].0,
@@ -143,8 +143,8 @@ impl RandomizedTransactionPayload {
                 builder
                     .move_call(
                         self.package_id,
-                        Identifier::new("counter").unwrap(),
-                        Identifier::new("set_value").unwrap(),
+                        Identifier::from_static("counter"),
+                        Identifier::from_static("set_value"),
                         vec![],
                         vec![
                             CallArg::Object(ObjectArg::SharedObject {
@@ -163,8 +163,8 @@ impl RandomizedTransactionPayload {
                 builder
                     .move_call(
                         self.package_id,
-                        Identifier::new("counter").unwrap(),
-                        Identifier::new("value").unwrap(),
+                        Identifier::from_static("counter"),
+                        Identifier::from_static("value"),
                         vec![],
                         vec![CallArg::Object(ObjectArg::SharedObject {
                             id: self.shared_objects[next_shared_input_index].0,
@@ -181,8 +181,8 @@ impl RandomizedTransactionPayload {
         builder
             .move_call(
                 self.package_id,
-                Identifier::new("random").unwrap(),
-                Identifier::new("new").unwrap(),
+                Identifier::from_static("random"),
+                Identifier::from_static("new"),
                 vec![],
                 vec![CallArg::Object(ObjectArg::SharedObject {
                     id: IOTA_RANDOMNESS_STATE_OBJECT_ID,

@@ -235,7 +235,7 @@ impl AdversarialTestPayload {
                 builder.command(Command::move_call(
                     self.package_id,
                     Identifier::new(module_name).unwrap(),
-                    Identifier::new(args.fn_name.as_str()).unwrap(),
+                    Identifier::new(args.fn_name).unwrap(),
                     vec![],
                     vec![],
                 ));

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{IdentifierRef, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use move_core_types::{
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
@@ -20,15 +20,15 @@ use crate::{
     object::{Data, Object},
 };
 
-pub const COIN_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("coin");
-pub const COIN_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Coin");
-pub const COIN_METADATA_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("CoinMetadata");
-pub const COIN_TREASURE_CAP_NAME: &IdentifierRef = IdentifierRef::const_new("TreasuryCap");
-pub const COIN_JOIN_FUNC_NAME: &IdentifierRef = IdentifierRef::const_new("join");
+pub const COIN_MODULE_NAME: Identifier = Identifier::from_static("coin");
+pub const COIN_STRUCT_NAME: Identifier = Identifier::from_static("Coin");
+pub const COIN_METADATA_STRUCT_NAME: Identifier = Identifier::from_static("CoinMetadata");
+pub const COIN_TREASURE_CAP_NAME: Identifier = Identifier::from_static("TreasuryCap");
+pub const COIN_JOIN_FUNC_NAME: Identifier = Identifier::from_static("join");
 
-pub const PAY_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("pay");
-pub const PAY_SPLIT_N_FUNC_NAME: &IdentifierRef = IdentifierRef::const_new("divide_and_keep");
-pub const PAY_SPLIT_VEC_FUNC_NAME: &IdentifierRef = IdentifierRef::const_new("split_vec");
+pub const PAY_MODULE_NAME: Identifier = Identifier::from_static("pay");
+pub const PAY_SPLIT_N_FUNC_NAME: Identifier = Identifier::from_static("divide_and_keep");
+pub const PAY_SPLIT_VEC_FUNC_NAME: Identifier = Identifier::from_static("split_vec");
 
 // Rust version of the Move iota::coin::Coin type
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema, Eq, PartialEq)]
@@ -200,8 +200,8 @@ impl CoinMetadata {
     /// Is this other StructTag representing a CoinMetadata?
     pub fn is_coin_metadata(other: &StructTag) -> bool {
         other.address() == IotaAddress::FRAMEWORK
-            && other.module() == COIN_MODULE_NAME
-            && other.name() == COIN_METADATA_STRUCT_NAME
+            && other.module() == &COIN_MODULE_NAME
+            && other.name() == &COIN_METADATA_STRUCT_NAME
     }
 
     /// Create a coin from BCS bytes

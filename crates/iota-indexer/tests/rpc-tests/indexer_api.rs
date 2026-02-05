@@ -26,7 +26,7 @@ use iota_json_rpc_types::{
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_PACKAGE_ID,
-    base_types::{IdentifierRef, IotaAddress, ObjectID, StructTag, TypeTag},
+    base_types::{Identifier, IotaAddress, ObjectID, StructTag, TypeTag},
     crypto::{AccountKeyPair, get_key_pair},
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,
@@ -793,9 +793,9 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
         let tx_builder = iota_client.transaction_builder().clone();
         let mut pt_builder = ProgrammableTransactionBuilder::new();
 
-        let module = IdentifierRef::const_new("pay");
-        let function_1 = IdentifierRef::const_new("split");
-        let function_2 = IdentifierRef::const_new("divide_and_keep");
+        let module = Identifier::from_static("pay");
+        let function_1 = Identifier::from_static("split");
+        let function_2 = Identifier::from_static("divide_and_keep");
 
         let iota_type_args = type_args![GAS::type_tag()]?;
         let type_args = iota_type_args
@@ -808,8 +808,8 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
             .resolve_and_checks_json_args(
                 &mut pt_builder,
                 package_id,
-                module,
-                function_1,
+                &module,
+                &function_1,
                 &type_args,
                 iota_call_args_1,
             )
@@ -827,8 +827,8 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
             .resolve_and_checks_json_args(
                 &mut pt_builder,
                 package_id,
-                module,
-                function_2,
+                &module,
+                &function_2,
                 &type_args,
                 iota_call_args_2,
             )
@@ -1242,8 +1242,8 @@ fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
             let mut builder = ProgrammableTransactionBuilder::new();
             let bag = builder.programmable_move_call(
                 ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
-                IdentifierRef::const_new("bag").into(),
-                IdentifierRef::const_new("new").into(),
+                Identifier::from_static("bag"),
+                Identifier::from_static("new"),
                 vec![],
                 vec![],
             );
@@ -1253,8 +1253,8 @@ fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
 
             let _ = builder.programmable_move_call(
                 ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
-                IdentifierRef::const_new("bag").into(),
-                IdentifierRef::const_new("add").into(),
+                Identifier::from_static("bag"),
+                Identifier::from_static("add"),
                 vec![TypeTag::U64, TypeTag::U64],
                 vec![bag, field_name_argument, field_value_argument],
             );
@@ -1363,8 +1363,8 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
             let mut builder = ProgrammableTransactionBuilder::new();
             let bag = builder.programmable_move_call(
                 ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
-                IdentifierRef::const_new("object_bag").into(),
-                IdentifierRef::const_new("new").into(),
+                Identifier::from_static("object_bag"),
+                Identifier::from_static("new"),
                 vec![],
                 vec![],
             );
@@ -1376,8 +1376,8 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
 
             let _ = builder.programmable_move_call(
                 ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
-                IdentifierRef::const_new("object_bag").into(),
-                IdentifierRef::const_new("add").into(),
+                Identifier::from_static("object_bag"),
+                Identifier::from_static("add"),
                 vec![
                     TypeTag::U64,
                     TypeTag::Struct(Box::new(StructTag::new_gas_coin())),
@@ -1485,8 +1485,8 @@ fn test_query_transaction_blocks_tx_kind_filter() -> Result<(), anyhow::Error> {
         let signer = address;
 
         let package_id = MOVE_STDLIB_PACKAGE_ID;
-        let module = IdentifierRef::const_new("address").to_owned();
-        let function = IdentifierRef::const_new("length").to_owned();
+        let module = Identifier::from_static("address");
+        let function = Identifier::from_static("length");
 
         let mut pt_builder = ProgrammableTransactionBuilder::new();
         pt_builder.move_call(package_id, module, function, vec![], vec![])?;

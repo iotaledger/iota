@@ -1191,7 +1191,7 @@ impl IotaObjectDataFilter {
             }
             IotaObjectDataFilter::MoveModule { package, module } => {
                 matches!(&object.type_, ObjectType::Struct(s) if &ObjectID::from(s.address()) == package
-                        && s.module() == module)
+                        && &s.module() == module)
             }
             IotaObjectDataFilter::Package(p) => {
                 matches!(&object.type_, ObjectType::Struct(s) if &ObjectID::from(s.address()) == p)

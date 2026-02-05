@@ -3,7 +3,7 @@
 
 use anyhow::anyhow;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{IdentifierRef, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use iota_stardust_sdk::types::block::output::{
     NftOutput as StardustNft, feature::Irc27Metadata as StardustIrc27,
 };
@@ -23,12 +23,12 @@ use crate::{
     object::{Data, Object},
 };
 
-pub const IRC27_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("irc27");
-pub const NFT_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("nft");
-pub const NFT_OUTPUT_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("nft_output");
-pub const NFT_OUTPUT_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("NftOutput");
-pub const NFT_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Nft");
-pub const IRC27_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Irc27Metadata");
+pub const IRC27_MODULE_NAME: Identifier = Identifier::from_static("irc27");
+pub const NFT_MODULE_NAME: Identifier = Identifier::from_static("nft");
+pub const NFT_OUTPUT_MODULE_NAME: Identifier = Identifier::from_static("nft_output");
+pub const NFT_OUTPUT_STRUCT_NAME: Identifier = Identifier::from_static("NftOutput");
+pub const NFT_STRUCT_NAME: Identifier = Identifier::from_static("Nft");
+pub const IRC27_STRUCT_NAME: Identifier = Identifier::from_static("Irc27Metadata");
 pub const NFT_DYNAMIC_OBJECT_FIELD_KEY: &[u8] = b"nft";
 pub const NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE: &str = "vector<u8>";
 
@@ -190,8 +190,8 @@ impl NftOutput {
 
     pub fn is_nft_output(s: &StructTag) -> bool {
         s.address() == IotaAddress::STARDUST
-            && s.module() == NFT_OUTPUT_MODULE_NAME
-            && s.name() == NFT_OUTPUT_STRUCT_NAME
+            && s.module() == &NFT_OUTPUT_MODULE_NAME
+            && s.name() == &NFT_OUTPUT_STRUCT_NAME
     }
 }
 

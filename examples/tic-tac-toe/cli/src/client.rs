@@ -19,8 +19,7 @@ use iota_sdk::{
 };
 use iota_sdk_types::crypto::Intent;
 use iota_types::{
-    Identifier, IdentifierRef, StructTag,
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag},
     crypto::PublicKey,
     multisig::{MultiSig, MultiSigPublicKey},
     object::Owner,
@@ -161,7 +160,7 @@ impl Client {
         builder.programmable_move_call(
             self.package,
             raw.type_.module().clone(),
-            Identifier::new("ended").unwrap(),
+            Identifier::from_static("ended"),
             vec![],
             vec![g],
         );
@@ -220,9 +219,9 @@ impl Client {
         let (game_id, _, _) = game.object_ref();
 
         let turn_cap_type = StructTag::new(
-            self.package.into(),
-            IdentifierRef::const_new("owned"),
-            IdentifierRef::const_new("TurnCap"),
+            self.package,
+            Identifier::from_static("owned"),
+            Identifier::from_static("TurnCap"),
             vec![],
         );
 
@@ -290,8 +289,8 @@ impl Client {
 
         builder.programmable_move_call(
             self.package,
-            Identifier::new("shared").unwrap(),
-            Identifier::new("new").unwrap(),
+            Identifier::from_static("shared"),
+            Identifier::from_static("new"),
             vec![],
             vec![x, o],
         );
@@ -328,8 +327,8 @@ impl Client {
 
         let game = builder.programmable_move_call(
             self.package,
-            Identifier::new("owned").unwrap(),
-            Identifier::new("new").unwrap(),
+            Identifier::from_static("owned"),
+            Identifier::from_static("new"),
             vec![],
             vec![x, o, a],
         );
@@ -362,8 +361,8 @@ impl Client {
 
         builder.programmable_move_call(
             self.package,
-            Identifier::new("shared").unwrap(),
-            Identifier::new("burn").unwrap(),
+            Identifier::from_static("shared"),
+            Identifier::from_static("burn"),
             vec![],
             vec![g],
         );
@@ -390,8 +389,8 @@ impl Client {
 
         builder.programmable_move_call(
             self.package,
-            Identifier::new("owned").unwrap(),
-            Identifier::new("burn").unwrap(),
+            Identifier::from_static("owned"),
+            Identifier::from_static("burn"),
             vec![],
             vec![g],
         );
@@ -445,8 +444,8 @@ impl Client {
 
         builder.programmable_move_call(
             self.package,
-            Identifier::new("shared").unwrap(),
-            Identifier::new("place_mark").unwrap(),
+            Identifier::from_static("shared"),
+            Identifier::from_static("place_mark"),
             vec![],
             vec![g, r, c],
         );
@@ -480,8 +479,8 @@ impl Client {
 
         builder.programmable_move_call(
             self.package,
-            Identifier::new("owned").unwrap(),
-            Identifier::new("send_mark").unwrap(),
+            Identifier::from_static("owned"),
+            Identifier::from_static("send_mark"),
             vec![],
             vec![t, r, c],
         );
@@ -533,8 +532,8 @@ impl Client {
 
         builder.programmable_move_call(
             self.package,
-            Identifier::new("owned").unwrap(),
-            Identifier::new("place_mark").unwrap(),
+            Identifier::from_static("owned"),
+            Identifier::from_static("place_mark"),
             vec![],
             vec![g, m],
         );

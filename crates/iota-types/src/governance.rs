@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{IdentifierRef, StructTag};
+use iota_sdk_types::{Identifier, StructTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -42,14 +42,13 @@ pub const VALIDATOR_VERY_LOW_STAKE_THRESHOLD_NANOS: u64 = 1_000_000 * NANOS_PER_
 /// for this many epochs before being kicked out.
 pub const VALIDATOR_LOW_STAKE_GRACE_PERIOD: u64 = 7;
 
-pub const STAKING_POOL_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("staking_pool");
-pub const STAKED_IOTA_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("StakedIota");
+pub const STAKING_POOL_MODULE_NAME: Identifier = Identifier::from_static("staking_pool");
+pub const STAKED_IOTA_STRUCT_NAME: Identifier = Identifier::from_static("StakedIota");
 
-pub const ADD_STAKE_MUL_COIN_FUN_NAME: &IdentifierRef =
-    IdentifierRef::const_new("request_add_stake_mul_coin");
-pub const ADD_STAKE_FUN_NAME: &IdentifierRef = IdentifierRef::const_new("request_add_stake");
-pub const WITHDRAW_STAKE_FUN_NAME: &IdentifierRef =
-    IdentifierRef::const_new("request_withdraw_stake");
+pub const ADD_STAKE_MUL_COIN_FUN_NAME: Identifier =
+    Identifier::from_static("request_add_stake_mul_coin");
+pub const ADD_STAKE_FUN_NAME: Identifier = Identifier::from_static("request_add_stake");
+pub const WITHDRAW_STAKE_FUN_NAME: Identifier = Identifier::from_static("request_withdraw_stake");
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct StakedIota {

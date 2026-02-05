@@ -13,7 +13,7 @@ use iota_move_build::BuildConfig;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
-    base_types::{IdentifierRef, IotaAddress, ObjectID, ObjectRef, StructTag},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag},
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
@@ -45,8 +45,8 @@ macro_rules! move_call {
     {$builder:expr, ($addr:expr)::$module_name:ident::$func:ident($($args:expr),* $(,)?)} => {
         $builder.programmable_move_call(
             $addr,
-            iota_types::base_types::IdentifierRef::const_new(stringify!($module_name)).to_owned(),
-            iota_types::base_types::IdentifierRef::const_new(stringify!($func)).to_owned(),
+            iota_types::base_types::Identifier::from_static(stringify!($module_name)),
+            iota_types::base_types::Identifier::from_static(stringify!($func)),
             vec![],
             vec![$($args),*],
         )
@@ -422,9 +422,9 @@ async fn test_upgrade_introduces_type_then_uses_it() {
     assert_eq!(
         b.data.struct_tag().unwrap(),
         StructTag::new(
-            package_v2.into(),
-            IdentifierRef::const_new("base").to_owned(),
-            IdentifierRef::const_new("B").to_owned(),
+            package_v2,
+            Identifier::from_static("base"),
+            Identifier::from_static("B"),
             vec![],
         ),
     );

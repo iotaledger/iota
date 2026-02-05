@@ -8,7 +8,7 @@ use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_sdk_types::crypto::{Intent, IntentScope};
 use iota_types::{
     base_types::{
-        AuthorityName, ExecutionDigests, IdentifierRef, IotaAddress, ObjectID, ObjectRef,
+        AuthorityName, ExecutionDigests, Identifier, IotaAddress, ObjectID, ObjectRef,
         TransactionDigest, random_object_ref,
     },
     committee::Committee,
@@ -238,8 +238,8 @@ pub fn make_transfer_object_move_transaction(
         TransactionData::new_move_call(
             src,
             framework_obj_id,
-            IdentifierRef::const_new("object_basics").to_owned(),
-            IdentifierRef::const_new("transfer").to_owned(),
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("transfer"),
             Vec::new(),
             gas_object_ref,
             args,

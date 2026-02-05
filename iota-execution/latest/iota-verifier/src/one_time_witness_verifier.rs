@@ -88,7 +88,7 @@ pub fn verify_module(
     }
     for fn_def in &module.function_defs {
         let fn_handle = module.function_handle_at(fn_def.function);
-        let fn_name = Identifier::new(module.identifier_at(fn_handle.name).as_str()).unwrap();
+        let fn_name = Identifier::new_unchecked(module.identifier_at(fn_handle.name).as_str());
         if fn_name == INIT_FN_NAME {
             if let Some((candidate_name, candidate_handle, _)) = one_time_witness_candidate {
                 // only verify if init function conforms to one-time witness type requirements

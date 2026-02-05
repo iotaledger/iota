@@ -42,7 +42,7 @@ use std::{
 use derive_more::Display;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{IdentifierRef, StructTag};
+use iota_sdk_types::{Identifier, StructTag};
 use move_binary_format::{
     binary_config::BinaryConfig, file_format::CompiledModule, file_format_common::VERSION_6,
     normalized,
@@ -69,10 +69,10 @@ use crate::{
 #[path = "unit_tests/base_types_tests.rs"]
 mod base_types_tests;
 
-pub const PACKAGE_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("package");
-pub const UPGRADECAP_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("UpgradeCap");
-pub const UPGRADETICKET_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("UpgradeTicket");
-pub const UPGRADERECEIPT_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("UpgradeReceipt");
+pub const PACKAGE_MODULE_NAME: Identifier = Identifier::from_static("package");
+pub const UPGRADECAP_STRUCT_NAME: Identifier = Identifier::from_static("UpgradeCap");
+pub const UPGRADETICKET_STRUCT_NAME: Identifier = Identifier::from_static("UpgradeTicket");
+pub const UPGRADERECEIPT_STRUCT_NAME: Identifier = Identifier::from_static("UpgradeReceipt");
 
 pub const PACKAGE_METADATA_MODULE_NAME: &IdentStr = ident_str!("package_metadata");
 pub const PACKAGE_METADATA_V1_STRUCT_NAME: &IdentStr = ident_str!("PackageMetadataV1");
@@ -585,7 +585,7 @@ impl MovePackage {
 
     pub fn deserialize_module(
         &self,
-        module: &IdentifierRef,
+        module: &Identifier,
         binary_config: &BinaryConfig,
     ) -> IotaResult<CompiledModule> {
         // TODO use the session's cache
@@ -652,7 +652,7 @@ impl UpgradeReceipt {
 }
 
 /// Checks if a function is annotated with one of the test-related annotations
-pub fn is_test_fun(name: &IdentifierRef, module: &CompiledModule, fn_info_map: &FnInfoMap) -> bool {
+pub fn is_test_fun(name: &Identifier, module: &CompiledModule, fn_info_map: &FnInfoMap) -> bool {
     let fn_name = name.to_string();
     let mod_handle = module.self_handle();
     let mod_addr = IotaAddress::new(

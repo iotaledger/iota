@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{IdentifierRef, StructTag};
+use iota_sdk_types::{Identifier, StructTag};
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
@@ -10,15 +10,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::{IOTA_FRAMEWORK_ADDRESS, id::UID};
 
-pub const CLOCK_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("clock");
-pub const CLOCK_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Clock");
+pub const CLOCK_MODULE_NAME: Identifier = Identifier::from_static("clock");
+pub const CLOCK_STRUCT_NAME: Identifier = Identifier::from_static("Clock");
 pub const RESOLVED_IOTA_CLOCK: (&AccountAddress, &IdentStr, &IdentStr) = (
     &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
-    ident_str!(CLOCK_MODULE_NAME.as_str()),
-    ident_str!(CLOCK_STRUCT_NAME.as_str()),
+    ident_str!("clock"),
+    ident_str!("Clock"),
 );
-pub const CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME: &IdentifierRef =
-    IdentifierRef::const_new("consensus_commit_prologue");
+pub const CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME: Identifier =
+    Identifier::from_static("consensus_commit_prologue");
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Clock {

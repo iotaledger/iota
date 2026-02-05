@@ -17,7 +17,7 @@ mod checked {
     use iota_types::{
         IOTA_FRAMEWORK_ADDRESS, auth_context,
         base_types::{
-            Identifier, IdentifierRef, IotaAddress, MoveObjectType, ObjectID, RESOLVED_ASCII_STR,
+            Identifier, IotaAddress, MoveObjectType, ObjectID, RESOLVED_ASCII_STR,
             RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME,
             TxContext, TxContextKind, TypeTag,
         },
@@ -407,7 +407,7 @@ mod checked {
         argument_updates: &mut Mode::ArgumentUpdates,
         storage_id: &ModuleId,
         runtime_id: &ModuleId,
-        function: &IdentifierRef,
+        function: &Identifier,
         type_arguments: Vec<Type>,
         arguments: Vec<Arg>,
         is_init: bool,
@@ -1048,7 +1048,7 @@ mod checked {
     fn vm_move_call(
         context: &mut ExecutionContext<'_, '_, '_>,
         module_id: &ModuleId,
-        function: &IdentifierRef,
+        function: &Identifier,
         type_arguments: Vec<Type>,
         tx_context_kind: TxContextKind,
         has_auth_context: bool,
@@ -1184,7 +1184,7 @@ mod checked {
         let modules_to_init = modules.iter().filter_map(|module| {
             for fdef in &module.function_defs {
                 let fhandle = module.function_handle_at(fdef.function);
-                let fname = Identifier::new(module.identifier_at(fhandle.name).as_str()).unwrap();
+                let fname = Identifier::new_unchecked(module.identifier_at(fhandle.name).as_str());
                 if fname == INIT_FN_NAME {
                     return Some(module.self_id());
                 }
@@ -1201,7 +1201,7 @@ mod checked {
                 // for some reason, then we would need to perform relocation here.
                 &module_id,
                 &module_id,
-                INIT_FN_NAME,
+                &INIT_FN_NAME,
                 vec![],
                 vec![],
                 // is_init
@@ -1260,7 +1260,7 @@ mod checked {
     fn check_visibility_and_signature<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         module_id: &ModuleId,
-        function: &IdentifierRef,
+        function: &Identifier,
         type_arguments: &[Type],
         from_init: bool,
     ) -> Result<LoadedFunctionInfo, ExecutionError> {
@@ -1299,7 +1299,7 @@ mod checked {
         };
 
         // entry on init is banned, so ban invoking it
-        if !from_init && function == INIT_FN_NAME {
+        if !from_init && function == &INIT_FN_NAME {
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::NonEntryFunctionInvoked,
                 "Cannot call 'init'",
@@ -1317,7 +1317,7 @@ mod checked {
             (Visibility::Public, false) => FunctionKind::NonEntry,
             (Visibility::Private, false) if from_init => {
                 assert_invariant!(
-                    function == INIT_FN_NAME,
+                    function == &INIT_FN_NAME,
                     "module init specified non-init function"
                 );
                 FunctionKind::Init
@@ -1391,7 +1391,7 @@ mod checked {
     fn check_non_entry_signature<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         _module_id: &ModuleId,
-        _function: &IdentifierRef,
+        _function: &Identifier,
         signature: &LoadedFunctionInstantiation,
     ) -> Result<Vec<ValueKind>, ExecutionError> {
         signature
@@ -1461,12 +1461,12 @@ mod checked {
     fn check_private_generics(
         _context: &mut ExecutionContext,
         module_id: &ModuleId,
-        function: &IdentifierRef,
+        function: &Identifier,
         _type_arguments: &[Type],
     ) -> Result<(), ExecutionError> {
         let module_ident = (
             IotaAddress::new(module_id.address().into_bytes()),
-            IdentifierRef::new(module_id.name().as_str()).unwrap(),
+            Identifier::new_unchecked(module_id.name().as_str()),
         );
         if module_ident == (IotaAddress::FRAMEWORK, EVENT_MODULE) {
             return Err(ExecutionError::new_with_source(
@@ -1514,7 +1514,7 @@ mod checked {
     fn build_move_args<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         module_id: &ModuleId,
-        function: &IdentifierRef,
+        function: &Identifier,
         function_kind: FunctionKind,
         signature: &LoadedFunctionInstantiation,
         args: &[Arg],
@@ -1574,7 +1574,7 @@ mod checked {
         let mut serialized_args = Vec::with_capacity(num_args);
         let command_kind = CommandKind::MoveCall {
             package: ObjectID::new(module_id.address().into_bytes()),
-            module: IdentifierRef::new(module_id.name().as_str()).unwrap(),
+            module: &Identifier::new_unchecked(module_id.name().as_str()),
             function,
         };
         // an init function can have one or two arguments, with the last one always

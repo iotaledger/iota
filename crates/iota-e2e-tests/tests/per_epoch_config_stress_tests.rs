@@ -8,9 +8,7 @@ use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{
-        EpochId, IdentifierRef, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag,
-    },
+    base_types::{EpochId, Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, ObjectArg, TransactionData},
 };
@@ -186,8 +184,8 @@ async fn create_native_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> Tr
     let amount_input = pt_builder.pure(1u64).unwrap();
     let split_coin = pt_builder.programmable_move_call(
         IOTA_FRAMEWORK_PACKAGE_ID,
-        IdentifierRef::const_new("coin").to_owned(),
-        IdentifierRef::const_new("split").to_owned(),
+        Identifier::from_static("coin"),
+        Identifier::from_static("split"),
         vec![test_env.regulated_coin_type.clone()],
         vec![coin_input, amount_input],
     );

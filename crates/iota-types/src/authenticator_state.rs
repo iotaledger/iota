@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub(crate) use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
-use iota_sdk_types::IdentifierRef;
+use iota_sdk_types::Identifier;
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 use serde::{Deserialize, Serialize};
 
@@ -17,20 +17,19 @@ use crate::{
     storage::ObjectStore,
 };
 
-pub const AUTHENTICATOR_STATE_MODULE_NAME: &IdentifierRef =
-    IdentifierRef::const_new("authenticator_state");
-pub const AUTHENTICATOR_STATE_STRUCT_NAME: &IdentifierRef =
-    IdentifierRef::const_new("AuthenticatorState");
-pub const AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME: &IdentifierRef =
-    IdentifierRef::const_new("update_authenticator_state");
-pub const AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME: &IdentifierRef =
-    IdentifierRef::const_new("create");
-pub const AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME: &IdentifierRef =
-    IdentifierRef::const_new("expire_jwks");
+pub const AUTHENTICATOR_STATE_MODULE_NAME: Identifier =
+    Identifier::from_static("authenticator_state");
+pub const AUTHENTICATOR_STATE_STRUCT_NAME: Identifier =
+    Identifier::from_static("AuthenticatorState");
+pub const AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME: Identifier =
+    Identifier::from_static("update_authenticator_state");
+pub const AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME: Identifier = Identifier::from_static("create");
+pub const AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME: Identifier =
+    Identifier::from_static("expire_jwks");
 pub const RESOLVED_IOTA_AUTHENTICATOR_STATE: (&AccountAddress, &IdentStr, &IdentStr) = (
     &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
-    ident_str!(AUTHENTICATOR_STATE_MODULE_NAME.as_str()),
-    ident_str!(AUTHENTICATOR_STATE_STRUCT_NAME.as_str()),
+    ident_str!("authenticator_state"),
+    ident_str!("AuthenticatorState"),
 );
 
 /// Current latest version of the authenticator state object.

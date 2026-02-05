@@ -5,7 +5,7 @@
 use authority_tests::send_and_confirm_transaction;
 use bcs;
 use iota_types::{
-    base_types::IdentifierRef,
+    base_types::Identifier,
     crypto::{AccountKeyPair, get_key_pair},
     execution_status::ExecutionStatus,
     object::Owner,
@@ -48,8 +48,8 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
         builder
             .move_call(
                 package.0,
-                IdentifierRef::const_new("object_basics").to_owned(),
-                IdentifierRef::const_new("create").to_owned(),
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("create"),
                 vec![],
                 vec![
                     CallArg::Pure(16u64.to_le_bytes().to_vec()),
@@ -132,8 +132,8 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
     builder
         .move_call(
             package.0,
-            IdentifierRef::const_new("object_basics").to_owned(),
-            IdentifierRef::const_new("create").to_owned(),
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("create"),
             vec![],
             vec![],
         )
@@ -188,8 +188,8 @@ async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
         builder
             .move_call(
                 package.0,
-                IdentifierRef::const_new("object_basics").to_owned(),
-                IdentifierRef::const_new("create").to_owned(),
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("create"),
                 vec![],
                 vec![
                     CallArg::Pure(16u64.to_le_bytes().to_vec()),

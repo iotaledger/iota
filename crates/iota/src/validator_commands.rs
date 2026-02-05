@@ -34,7 +34,7 @@ use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_types::{
     IOTA_SYSTEM_PACKAGE_ID,
-    base_types::{IdentifierRef, IotaAddress, ObjectID, ObjectRef, TypeTag},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, TypeTag},
     crypto::{
         AuthorityKeyPair, AuthorityPublicKey, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID,
         IotaKeyPair, NetworkKeyPair, NetworkPublicKey, Signable, SignatureScheme,
@@ -602,8 +602,8 @@ async fn construct_unsigned_0x5_txn(
     TransactionData::new_move_call(
         sender,
         IOTA_SYSTEM_PACKAGE_ID,
-        IdentifierRef::const_new("iota_system").to_owned(),
-        IdentifierRef::const_new(function).to_owned(),
+        Identifier::from_static("iota_system"),
+        Identifier::from_static(function),
         vec![],
         gas_obj_ref,
         args,

@@ -12,7 +12,7 @@ use std::{
 use anyhow::anyhow;
 use fastcrypto::hash::HashFunction;
 use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
-pub use iota_sdk_types::{Identifier, IdentifierRef, StructTag, TypeTag};
+pub use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
@@ -160,19 +160,19 @@ impl MoveObjectType {
         }
     }
 
-    pub fn module(&self) -> &IdentifierRef {
+    pub fn module(&self) -> Identifier {
         match &self.0 {
             MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => COIN_MODULE_NAME,
             MoveObjectType_::StakedIota => STAKING_POOL_MODULE_NAME,
-            MoveObjectType_::Other(s) => s.module(),
+            MoveObjectType_::Other(s) => s.module().clone(),
         }
     }
 
-    pub fn name(&self) -> &IdentifierRef {
+    pub fn name(&self) -> Identifier {
         match &self.0 {
             MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => COIN_STRUCT_NAME,
             MoveObjectType_::StakedIota => STAKED_IOTA_STRUCT_NAME,
-            MoveObjectType_::Other(s) => s.name(),
+            MoveObjectType_::Other(s) => s.name().clone(),
         }
     }
 
@@ -281,14 +281,14 @@ impl MoveObjectType {
 
     pub fn is_regulated_coin_metadata(&self) -> bool {
         self.address() == IotaAddress::FRAMEWORK
-            && self.module() == IdentifierRef::const_new("coin")
-            && self.name() == IdentifierRef::const_new("RegulatedCoinMetadata")
+            && self.module() == Identifier::from_static("coin")
+            && self.name() == Identifier::from_static("RegulatedCoinMetadata")
     }
 
     pub fn is_coin_deny_cap_v1(&self) -> bool {
         self.address() == IotaAddress::FRAMEWORK
-            && self.module() == IdentifierRef::const_new("coin")
-            && self.name() == IdentifierRef::const_new("DenyCapV1")
+            && self.module() == Identifier::from_static("coin")
+            && self.name() == Identifier::from_static("DenyCapV1")
     }
 
     pub fn is_dynamic_field(&self) -> bool {
@@ -786,35 +786,35 @@ impl VerifiedExecutionData {
     }
 }
 
-pub const STD_OPTION_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("option");
-pub const STD_OPTION_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Option");
+pub const STD_OPTION_MODULE_NAME: Identifier = Identifier::from_static("option");
+pub const STD_OPTION_STRUCT_NAME: Identifier = Identifier::from_static("Option");
 pub const RESOLVED_STD_OPTION: (&AccountAddress, &IdentStr, &IdentStr) = (
     &AccountAddress::new(MOVE_STDLIB_ADDRESS.into_bytes()),
-    ident_str!(STD_OPTION_MODULE_NAME.as_str()),
-    ident_str!(STD_OPTION_STRUCT_NAME.as_str()),
+    ident_str!("option"),
+    ident_str!("Option"),
 );
 
-pub const STD_ASCII_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("ascii");
-pub const STD_ASCII_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("String");
+pub const STD_ASCII_MODULE_NAME: Identifier = Identifier::from_static("ascii");
+pub const STD_ASCII_STRUCT_NAME: Identifier = Identifier::from_static("String");
 pub const RESOLVED_ASCII_STR: (&AccountAddress, &IdentStr, &IdentStr) = (
     &AccountAddress::new(MOVE_STDLIB_ADDRESS.into_bytes()),
-    ident_str!(STD_ASCII_MODULE_NAME.as_str()),
-    ident_str!(STD_ASCII_STRUCT_NAME.as_str()),
+    ident_str!("ascii"),
+    ident_str!("String"),
 );
 
-pub const STD_UTF8_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("string");
-pub const STD_UTF8_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("String");
+pub const STD_UTF8_MODULE_NAME: Identifier = Identifier::from_static("string");
+pub const STD_UTF8_STRUCT_NAME: Identifier = Identifier::from_static("String");
 pub const RESOLVED_UTF8_STR: (&AccountAddress, &IdentStr, &IdentStr) = (
     &AccountAddress::new(MOVE_STDLIB_ADDRESS.into_bytes()),
-    ident_str!(STD_UTF8_MODULE_NAME.as_str()),
-    ident_str!(STD_UTF8_STRUCT_NAME.as_str()),
+    ident_str!("string"),
+    ident_str!("String"),
 );
 
-pub const TX_CONTEXT_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("tx_context");
-pub const TX_CONTEXT_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("TxContext");
+pub const TX_CONTEXT_MODULE_NAME: Identifier = Identifier::from_static("tx_context");
+pub const TX_CONTEXT_STRUCT_NAME: Identifier = Identifier::from_static("TxContext");
 
-pub const URL_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("url");
-pub const URL_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Url");
+pub const URL_MODULE_NAME: Identifier = Identifier::from_static("url");
+pub const URL_STRUCT_NAME: Identifier = Identifier::from_static("Url");
 
 pub fn move_ascii_str_layout() -> A::MoveStructLayout {
     A::MoveStructLayout {

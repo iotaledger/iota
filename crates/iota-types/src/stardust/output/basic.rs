@@ -6,7 +6,7 @@
 
 use anyhow::Result;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{IdentifierRef, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -22,8 +22,8 @@ use crate::{
     object::{Data, Object},
 };
 
-pub const BASIC_OUTPUT_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("basic_output");
-pub const BASIC_OUTPUT_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("BasicOutput");
+pub const BASIC_OUTPUT_MODULE_NAME: Identifier = Identifier::from_static("basic_output");
+pub const BASIC_OUTPUT_STRUCT_NAME: Identifier = Identifier::from_static("BasicOutput");
 
 /// Rust version of the stardust basic output.
 #[serde_as]
@@ -78,8 +78,8 @@ impl BasicOutput {
     /// Whether the given `StructTag` represents a `BasicOutput`.
     pub fn is_basic_output(s: &StructTag) -> bool {
         s.address() == IotaAddress::STARDUST
-            && s.module() == BASIC_OUTPUT_MODULE_NAME
-            && s.name() == BASIC_OUTPUT_STRUCT_NAME
+            && s.module() == &BASIC_OUTPUT_MODULE_NAME
+            && s.name() == &BASIC_OUTPUT_STRUCT_NAME
     }
 }
 

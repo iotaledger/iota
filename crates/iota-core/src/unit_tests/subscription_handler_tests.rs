@@ -5,7 +5,7 @@
 use iota_json_rpc_types::IotaMoveStruct;
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS,
-    base_types::{IdentifierRef, ObjectID, StructTag},
+    base_types::{Identifier, ObjectID, StructTag},
     gas_coin::GasCoin,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
     object::bounded_visitor::BoundedVisitor,
@@ -74,8 +74,8 @@ impl TestEvent {
     fn type_() -> StructTag {
         StructTag::new(
             IOTA_FRAMEWORK_ADDRESS,
-            IdentifierRef::const_new("IOTA").to_owned(),
-            IdentifierRef::const_new("new_foobar").to_owned(),
+            Identifier::from_static("IOTA"),
+            Identifier::from_static("new_foobar"),
             vec![],
         )
     }

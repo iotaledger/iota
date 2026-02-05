@@ -29,6 +29,7 @@ use iota_sdk_types::{
         TypeArgumentError,
     },
     gas::GasCostSummary,
+    move_core::{Identifier, StructTag, TypeParseError, TypeTag},
     object::{
         GenesisObject, MovePackage, MoveStruct, Object, ObjectData, ObjectReference, Owner,
         TypeOrigin, UpgradeInfo,
@@ -43,7 +44,6 @@ use iota_sdk_types::{
         SignedTransaction, SplitCoins, SystemPackage, Transaction, TransactionExpiration,
         TransactionKind, TransactionV1, TransferObjects, Upgrade, VersionAssignment,
     },
-    type_tag::{Identifier, StructTag, TypeParseError, TypeTag},
     validator::{ValidatorAggregatedSignature, ValidatorCommittee, ValidatorCommitteeMember},
 };
 use move_core_types::language_storage::ModuleId;
@@ -2223,8 +2223,8 @@ pub fn struct_tag_core_to_sdk(value: &move_core_types::language_storage::StructT
     } = value;
 
     let address = Address::new(address.into_bytes());
-    let module = Identifier::new(module.as_str()).unwrap();
-    let name = Identifier::new(name.as_str()).unwrap();
+    let module = Identifier::new_unchecked(module.as_str());
+    let name = Identifier::new_unchecked(name.as_str());
     let type_params = type_params.iter().map(type_tag_core_to_sdk).collect();
     StructTag::new(address, module, name, type_params)
 }

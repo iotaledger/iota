@@ -15,7 +15,7 @@ use iota_sdk::rpc_types::{
 };
 use iota_types::{
     IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID,
-    base_types::{IdentifierRef, IotaAddress, ObjectID, SequenceNumber, StructTag},
+    base_types::{Identifier, IotaAddress, ObjectID, SequenceNumber, StructTag},
     digests::TransactionDigest,
     gas_coin::{GAS, GasCoin},
     governance::{ADD_STAKE_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
@@ -633,8 +633,8 @@ impl TryFrom<IotaTransactionBlockResponse> for Operations {
 
 fn is_unstake_event(tag: &StructTag) -> bool {
     tag.address() == IOTA_SYSTEM_ADDRESS
-        && tag.module() == IdentifierRef::const_new("validator")
-        && tag.name() == IdentifierRef::const_new("UnstakingRequestEvent")
+        && tag.module() == &Identifier::from_static("validator")
+        && tag.name() == &Identifier::from_static("UnstakingRequestEvent")
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]

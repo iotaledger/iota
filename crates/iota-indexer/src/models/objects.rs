@@ -641,8 +641,8 @@ mod tests {
         ));
         let object_type = StructTag::new(
             IotaAddress::from_short_hex("0xe7").unwrap(),
-            Identifier::new("vec_coin").unwrap(),
-            Identifier::new("VecCoin").unwrap(),
+            Identifier::from_static("vec_coin"),
+            Identifier::from_static("VecCoin"),
             vec![vec_coins_type],
         );
 

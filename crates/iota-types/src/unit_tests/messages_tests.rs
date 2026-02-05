@@ -851,8 +851,8 @@ fn test_sponsored_transaction_validity_check() {
         builder
             .move_call(
                 ObjectID::random(),
-                Identifier::new("random_module").unwrap(),
-                Identifier::new("random_function").unwrap(),
+                Identifier::from_static("random_module"),
+                Identifier::from_static("random_function"),
                 vec![],
                 vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(
                     random_object_ref(),
@@ -1116,8 +1116,8 @@ fn test_move_input_objects() {
     let mk_st = |package: ObjectID, type_args| {
         TypeTag::Struct(Box::new(StructTag::new(
             IotaAddress::from_object_id(package),
-            IdentifierRef::const_new("foo"),
-            IdentifierRef::const_new("bar"),
+            Identifier::from_static("foo"),
+            Identifier::from_static("bar"),
             type_args,
         )))
     };
@@ -1146,8 +1146,8 @@ fn test_move_input_objects() {
     ];
     builder.command(Command::move_call(
         package,
-        IdentifierRef::const_new("foo").to_owned(),
-        IdentifierRef::const_new("bar").to_owned(),
+        Identifier::from_static("foo"),
+        Identifier::from_static("bar"),
         type_args,
         args,
     ));
@@ -1205,8 +1205,8 @@ fn test_unique_input_objects() {
     let mk_st = |package: ObjectID, type_args| {
         TypeTag::Struct(Box::new(StructTag::new(
             IotaAddress::from_object_id(package),
-            IdentifierRef::const_new("foo"),
-            IdentifierRef::const_new("bar"),
+            Identifier::from_static("foo"),
+            Identifier::from_static("bar"),
             type_args,
         )))
     };
@@ -1249,15 +1249,15 @@ fn test_unique_input_objects() {
 
     builder.command(Command::move_call(
         package,
-        Identifier::new("test_module").unwrap(),
-        Identifier::new("test_function").unwrap(),
+        Identifier::from_static("test_module"),
+        Identifier::from_static("test_function"),
         type_args.clone(),
         args_1,
     ));
     builder.command(Command::move_call(
         package,
-        Identifier::new("test_module").unwrap(),
-        Identifier::new("test_function").unwrap(),
+        Identifier::from_static("test_module"),
+        Identifier::from_static("test_function"),
         type_args,
         args_2,
     ));

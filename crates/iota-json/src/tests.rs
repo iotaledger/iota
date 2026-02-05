@@ -441,8 +441,8 @@ fn test_basic_args_linter_top_level() {
     .unwrap();
     let package = example_package.data.try_as_package().unwrap();
 
-    let module = Identifier::new("resolve_args").unwrap();
-    let function = Identifier::new("foo").unwrap();
+    let module = Identifier::from_static("resolve_args");
+    let function = Identifier::from_static("foo");
 
     // Function signature:
     // foo(

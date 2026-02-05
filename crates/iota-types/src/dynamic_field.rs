@@ -240,7 +240,7 @@ pub fn extract_id_value(id_value: &MoveValue) -> Option<ObjectID> {
 pub fn is_dynamic_object(move_struct: &MoveStruct) -> bool {
     matches!(
         &type_tag_core_to_sdk(&move_struct.type_.type_params[0]),
-        TypeTag::Struct(tag) if DynamicFieldInfo::is_dynamic_object_field_wrapper(tag)
+        TypeTag::Struct(tag) if DynamicFieldInfo::is_dynamic_object_field_wrapper(&tag)
     )
 }
 

@@ -18,7 +18,7 @@ use iota_keys::keystore::AccountKeystore;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
     balance::Supply,
-    base_types::{IdentifierRef, IotaAddress, ObjectID, StructTag, TypeTag},
+    base_types::{Identifier, IotaAddress, ObjectID, StructTag, TypeTag},
     coin::{COIN_MODULE_NAME, CoinMetadata, TreasuryCap},
     crypto::{AccountKeyPair, IotaKeyPair, Signature, get_key_pair},
     parse_iota_struct_tag,
@@ -899,13 +899,13 @@ async fn create_migrated_coin_manager_coins(
                 .object_id;
 
         let guardian_type = StructTag::new(
-            package_id.into(),
-            IdentifierRef::const_new("coin_manager_coin"),
-            IdentifierRef::const_new("Guardian"),
+            package_id,
+            Identifier::from_static("coin_manager_coin"),
+            Identifier::from_static("Guardian"),
             vec![TypeTag::Struct(Box::new(StructTag::new(
-                package_id.into(),
-                IdentifierRef::const_new("coin_manager_coin"),
-                IdentifierRef::const_new("COIN_MANAGER_COIN"),
+                package_id,
+                Identifier::from_static("coin_manager_coin"),
+                Identifier::from_static("COIN_MANAGER_COIN"),
                 vec![],
             )))],
         );
@@ -946,13 +946,13 @@ async fn create_migrated_coin_manager_coins(
             .unwrap();
 
         let guardian_type = StructTag::new(
-            package_id.into(),
-            IdentifierRef::const_new("immutable_metadata_coin_manager_coin"),
-            IdentifierRef::const_new("Guardian"),
+            package_id,
+            Identifier::from_static("immutable_metadata_coin_manager_coin"),
+            Identifier::from_static("Guardian"),
             vec![TypeTag::Struct(Box::new(StructTag::new(
-                package_id.into(),
-                IdentifierRef::const_new("immutable_metadata_coin_manager_coin"),
-                IdentifierRef::const_new("IMMUTABLE_METADATA_COIN_MANAGER_COIN"),
+                package_id,
+                Identifier::from_static("immutable_metadata_coin_manager_coin"),
+                Identifier::from_static("IMMUTABLE_METADATA_COIN_MANAGER_COIN"),
                 vec![],
             )))],
         );

@@ -981,6 +981,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bytestring"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "113b4343b5f6617e7ad401ced8de3cc8b012e73a594347c307b90db3e9271289"
+dependencies = [
+ "bytes",
+]
+
+[[package]]
 name = "cbc"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3396,13 +3405,14 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=610f9f2bdeef36a0ebebaef4004a2d2bfddf96b0#610f9f2bdeef36a0ebebaef4004a2d2bfddf96b0"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=34829ad2da23685ce2594c6dc945fac4e5690e3b#34829ad2da23685ce2594c6dc945fac4e5690e3b"
 dependencies = [
  "base64ct",
  "bcs",
  "blake2",
  "bnum",
  "bs58 0.5.1",
+ "bytestring",
  "derive_more 2.1.1",
  "hex",
  "itertools 0.13.0",

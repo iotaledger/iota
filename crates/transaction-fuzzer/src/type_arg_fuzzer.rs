@@ -5,7 +5,7 @@
 use iota_core::test_utils::send_and_confirm_transaction;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{Identifier, IdentifierRef, IotaAddress, ObjectID, StructTag, TypeTag},
+    base_types::{Identifier, IotaAddress, ObjectID, StructTag, TypeTag},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaError,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -92,8 +92,8 @@ pub fn generate_valid_and_invalid_type_factory_tags(
 pub fn base_type_factory_tag_gen(addr: ObjectID) -> impl Strategy<Value = TypeTag> {
     "[A-Z]".prop_map(move |name| {
         TypeTag::Struct(Box::new(StructTag::new(
-            addr.into(),
-            IdentifierRef::const_new("type_factory"),
+            addr,
+            Identifier::from_static("type_factory"),
             Identifier::new(name).unwrap(),
             vec![],
         )))
@@ -104,8 +104,8 @@ pub fn nested_type_factory_tag_gen(addr: ObjectID) -> impl Strategy<Value = Type
     base_type_factory_tag_gen(addr).prop_recursive(20, 256, 10, move |inner| {
         (inner, "[A-Z]").prop_map(move |(instantiation, name)| {
             TypeTag::Struct(Box::new(StructTag::new(
-                addr.into(),
-                IdentifierRef::const_new("type_factory"),
+                addr,
+                Identifier::from_static("type_factory"),
                 Identifier::new(name.to_string() + &name).unwrap(),
                 vec![instantiation],
             )))
@@ -122,7 +122,7 @@ pub fn type_factory_pt_for_tags(
     builder
         .move_call(
             package_id,
-            IdentifierRef::const_new("type_factory").into(),
+            Identifier::from_static("type_factory"),
             Identifier::new(format!("type_tags{len}")).unwrap(),
             type_tags,
             vec![],
@@ -136,8 +136,8 @@ pub fn pt_for_tags(type_tags: Vec<TypeTag>) -> ProgrammableTransaction {
     builder
         .move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
-            IdentifierRef::const_new("random_type_tag_fuzzing").into(),
-            IdentifierRef::const_new("random_type_tag_fuzzing_fn").into(),
+            Identifier::from_static("random_type_tag_fuzzing"),
+            Identifier::from_static("random_type_tag_fuzzing_fn"),
             type_tags,
             vec![],
         )

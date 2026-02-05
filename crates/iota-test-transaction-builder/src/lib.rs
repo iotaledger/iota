@@ -16,7 +16,7 @@ use iota_sdk::{
 use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_types::{
     IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID,
-    base_types::{IdentifierRef, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
     crypto::{AccountKeyPair, Signature, Signer, get_key_pair},
     digests::TransactionDigest,
     iota_system_state::IOTA_SYSTEM_MODULE_NAME,
@@ -62,15 +62,15 @@ impl TestTransactionBuilder {
     pub fn move_call(
         mut self,
         package_id: ObjectID,
-        module: &'static str,
-        function: &'static str,
+        module: &str,
+        function: &str,
         args: Vec<CallArg>,
     ) -> Self {
         assert!(matches!(self.test_data, TestTransactionData::Empty));
         self.test_data = TestTransactionData::Move(MoveData {
             package_id,
-            module,
-            function,
+            module: Identifier::new(module).unwrap(),
+            function: Identifier::new(function).unwrap(),
             args,
             type_args: vec![],
         });
@@ -305,8 +305,8 @@ impl TestTransactionBuilder {
             TestTransactionData::Move(data) => TransactionData::new_move_call(
                 self.sender,
                 data.package_id,
-                IdentifierRef::const_new(data.module).to_owned(),
-                IdentifierRef::const_new(data.function).to_owned(),
+                data.module,
+                data.function,
                 data.type_args,
                 self.gas_object,
                 data.args,
@@ -426,8 +426,8 @@ enum TestTransactionData {
 
 struct MoveData {
     package_id: ObjectID,
-    module: &'static str,
-    function: &'static str,
+    module: Identifier,
+    function: Identifier,
     args: Vec<CallArg>,
     type_args: Vec<TypeTag>,
 }

@@ -26,7 +26,7 @@ use iota_move_build::BuildConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{Identifier, IdentifierRef, IotaAddress, ObjectID, ObjectRef, StructTag, TypeTag},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag, TypeTag},
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     digests::TransactionDigest,
     gas_coin::NANOS_PER_IOTA,
@@ -833,9 +833,9 @@ fn test_repeatedly_update_display() {
             .unwrap();
 
         let bear_type_tag = TypeTag::Struct(Box::new(StructTag::new(
-            package_id.into(),
-            IdentifierRef::const_new("DemoBear"),
-            IdentifierRef::const_new("demo_bear"),
+            package_id,
+            Identifier::from_static("DemoBear"),
+            Identifier::from_static("demo_bear"),
             Vec::new(),
         )));
 

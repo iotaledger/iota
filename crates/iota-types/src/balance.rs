@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{IdentifierRef, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use move_core_types::{
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
@@ -16,12 +16,12 @@ use crate::{
     iota_sdk_types_conversions::{struct_tag_core_to_sdk, struct_tag_sdk_to_core},
     iota_serde::{BigInt, Readable},
 };
-pub const BALANCE_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("balance");
-pub const BALANCE_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("Balance");
-pub const BALANCE_CREATE_REWARDS_FUNCTION_NAME: &IdentifierRef =
-    IdentifierRef::const_new("create_staking_rewards");
-pub const BALANCE_DESTROY_REBATES_FUNCTION_NAME: &IdentifierRef =
-    IdentifierRef::const_new("destroy_storage_rebates");
+pub const BALANCE_MODULE_NAME: Identifier = Identifier::from_static("balance");
+pub const BALANCE_STRUCT_NAME: Identifier = Identifier::from_static("Balance");
+pub const BALANCE_CREATE_REWARDS_FUNCTION_NAME: Identifier =
+    Identifier::from_static("create_staking_rewards");
+pub const BALANCE_DESTROY_REBATES_FUNCTION_NAME: Identifier =
+    Identifier::from_static("destroy_storage_rebates");
 
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]

@@ -15,7 +15,6 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaData, IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
-        TypeTag,
         base_types::ObjectID,
         crypto::SignatureScheme::ED25519,
         gas_coin::GAS,
@@ -25,7 +24,7 @@ use iota_sdk::{
         transaction::{Argument, CallArg, ObjectArg, Transaction, TransactionData},
     },
 };
-use iota_sdk_types::{IdentifierRef, crypto::Intent};
+use iota_sdk_types::{Identifier, TypeTag, crypto::Intent};
 use iota_types::{IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID};
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
@@ -127,8 +126,8 @@ async fn main() -> Result<(), anyhow::Error> {
         // Call the nft_output::extract_assets function
         if let Argument::Result(extracted_assets) = builder.programmable_move_call(
             STARDUST_PACKAGE_ID,
-            IdentifierRef::const_new("alias_output").into(),
-            IdentifierRef::const_new("extract_assets").into(),
+            Identifier::from_static("alias_output"),
+            Identifier::from_static("extract_assets"),
             vec![GAS::type_tag()],
             arguments,
         ) {
@@ -143,8 +142,8 @@ async fn main() -> Result<(), anyhow::Error> {
             // extracted alias.
             let nft_collection_controller = builder.programmable_move_call(
                 custom_nft_package_id,
-                IdentifierRef::const_new("collection").into(),
-                IdentifierRef::const_new("convert_alias_to_collection_controller_cap").into(),
+                Identifier::from_static("collection"),
+                Identifier::from_static("convert_alias_to_collection_controller_cap"),
                 vec![],
                 vec![alias_asset],
             );
@@ -156,8 +155,8 @@ async fn main() -> Result<(), anyhow::Error> {
 
             let nft_collection = builder.programmable_move_call(
                 custom_nft_package_id,
-                IdentifierRef::const_new("collection").into(),
-                IdentifierRef::const_new("create_collection").into(),
+                Identifier::from_static("collection"),
+                Identifier::from_static("create_collection"),
                 vec![],
                 vec![nft_collection_controller, nft_collection_name],
             );
@@ -174,16 +173,16 @@ async fn main() -> Result<(), anyhow::Error> {
                 .unwrap();
             let nft_url = builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
-                IdentifierRef::const_new("url").into(),
-                IdentifierRef::const_new("new_unsafe").into(),
+                Identifier::from_static("url"),
+                Identifier::from_static("new_unsafe"),
                 vec![],
                 vec![nft_url_value],
             );
 
             let nft = builder.programmable_move_call(
                 custom_nft_package_id,
-                IdentifierRef::const_new("nft").into(),
-                IdentifierRef::const_new("mint_collection_related").into(),
+                Identifier::from_static("nft"),
+                Identifier::from_static("mint_collection_related"),
                 vec![],
                 vec![nft_collection, nft_name, nft_description, nft_url],
             );
@@ -194,8 +193,8 @@ async fn main() -> Result<(), anyhow::Error> {
             // Drop the NFT collection to make impossible to mint new related NFTs
             builder.programmable_move_call(
                 custom_nft_package_id,
-                IdentifierRef::const_new("collection").into(),
-                IdentifierRef::const_new("drop_collection").into(),
+                Identifier::from_static("collection"),
+                Identifier::from_static("drop_collection"),
                 vec![],
                 vec![nft_collection_controller, nft_collection],
             );
@@ -206,8 +205,8 @@ async fn main() -> Result<(), anyhow::Error> {
             // Extract IOTA balance
             let iota_coin = builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
-                IdentifierRef::const_new("coin").into(),
-                IdentifierRef::const_new("from_balance").into(),
+                Identifier::from_static("coin"),
+                Identifier::from_static("from_balance"),
                 vec![GAS::type_tag()],
                 vec![extracted_base_token],
             );
@@ -222,8 +221,8 @@ async fn main() -> Result<(), anyhow::Error> {
                 // Extract a native token balance.
                 extracted_native_tokens_bag = builder.programmable_move_call(
                     STARDUST_PACKAGE_ID,
-                    IdentifierRef::const_new("utilities").into(),
-                    IdentifierRef::const_new("extract_and_send_to").into(),
+                    Identifier::from_static("utilities"),
+                    Identifier::from_static("extract_and_send_to"),
                     type_arguments,
                     arguments,
                 );
@@ -232,8 +231,8 @@ async fn main() -> Result<(), anyhow::Error> {
             // Cleanup bag.
             builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
-                IdentifierRef::const_new("bag").into(),
-                IdentifierRef::const_new("destroy_empty").into(),
+                Identifier::from_static("bag"),
+                Identifier::from_static("destroy_empty"),
                 vec![],
                 vec![extracted_native_tokens_bag],
             );

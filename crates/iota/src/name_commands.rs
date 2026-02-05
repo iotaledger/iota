@@ -28,7 +28,7 @@ use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_types::{
     IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
     balance::Balance,
-    base_types::{IdentifierRef, IotaAddress, ObjectID, StructTag, TypeTag},
+    base_types::{Identifier, IotaAddress, ObjectID, StructTag, TypeTag},
     coin::Coin,
     collection_types::{Entry, LinkedTable, LinkedTableNode, VecMap},
     digests::{ChainIdentifier, TransactionDigest},
@@ -1407,8 +1407,8 @@ impl SubnameCommand {
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
                 let subnames_package = fetch_package_id_by_module_and_name(
                     &iota_client,
-                    IdentifierRef::const_new("subnames"),
-                    IdentifierRef::const_new("SubnamesAuth"),
+                    &Identifier::from_static("subnames"),
+                    &Identifier::from_static("SubnamesAuth"),
                 )
                 .await?;
 
@@ -2205,8 +2205,8 @@ impl IotaNamesNftProxy {
             IotaNamesNftProxy::Subname(_) => {
                 fetch_package_id_by_module_and_name(
                     client,
-                    IdentifierRef::const_new("subname_proxy"),
-                    IdentifierRef::const_new("SubnameProxyAuth"),
+                    &Identifier::from_static("subname_proxy"),
+                    &Identifier::from_static("SubnameProxyAuth"),
                 )
                 .await?
             }
@@ -2218,16 +2218,16 @@ impl IotaNamesNftProxy {
             IotaNamesNftProxy::Name(_) => {
                 fetch_package_id_by_module_and_name(
                     client,
-                    IdentifierRef::const_new("subnames"),
-                    IdentifierRef::const_new("SubnamesAuth"),
+                    &Identifier::from_static("subnames"),
+                    &Identifier::from_static("SubnamesAuth"),
                 )
                 .await?
             }
             IotaNamesNftProxy::Subname(_) => {
                 fetch_package_id_by_module_and_name(
                     client,
-                    IdentifierRef::const_new("subname_proxy"),
-                    IdentifierRef::const_new("SubnameProxyAuth"),
+                    &Identifier::from_static("subname_proxy"),
+                    &Identifier::from_static("SubnameProxyAuth"),
                 )
                 .await?
             }
@@ -2425,8 +2425,8 @@ async fn get_auction_house(
 // object by it's module name and struct name.
 async fn fetch_package_id_by_module_and_name(
     client: &IotaClient,
-    module_name: &IdentifierRef,
-    struct_name: &IdentifierRef,
+    module_name: &Identifier,
+    struct_name: &Identifier,
 ) -> anyhow::Result<ObjectID> {
     let names_config = get_iota_names_config(client).await?;
     let dynamic_fields_page = client
@@ -2450,8 +2450,8 @@ async fn fetch_package_id_by_module_and_name(
 async fn get_auction_package_address(client: &IotaClient) -> anyhow::Result<ObjectID> {
     let auction_package_address = fetch_package_id_by_module_and_name(
         client,
-        IdentifierRef::const_new("auction"),
-        IdentifierRef::const_new("AuctionAuth"),
+        &Identifier::from_static("auction"),
+        &Identifier::from_static("AuctionAuth"),
     )
     .await?;
 
@@ -2534,8 +2534,8 @@ fn deserialize_move_object_from_bcs<T: DeserializeOwned>(
 async fn get_coupons_package_address(client: &IotaClient) -> anyhow::Result<ObjectID> {
     let coupons_package_address = fetch_package_id_by_module_and_name(
         client,
-        IdentifierRef::const_new("coupon_house"),
-        IdentifierRef::const_new("CouponsAuth"),
+        &Identifier::from_static("coupon_house"),
+        &Identifier::from_static("CouponsAuth"),
     )
     .await?;
 

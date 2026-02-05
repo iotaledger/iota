@@ -4,7 +4,7 @@
 
 use std::fmt;
 
-use iota_sdk_types::{IdentifierRef, StructTag, TypeTag};
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
@@ -20,13 +20,13 @@ use crate::{
 };
 
 pub const OBJECT_MODULE_NAME_STR: &str = "object";
-pub const OBJECT_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new(OBJECT_MODULE_NAME_STR);
-pub const UID_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("UID");
-pub const ID_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("ID");
+pub const OBJECT_MODULE_NAME: Identifier = Identifier::from_static(OBJECT_MODULE_NAME_STR);
+pub const UID_STRUCT_NAME: Identifier = Identifier::from_static("UID");
+pub const ID_STRUCT_NAME: Identifier = Identifier::from_static("ID");
 pub const RESOLVED_IOTA_ID: (&AccountAddress, &IdentStr, &IdentStr) = (
     &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
-    ident_str!(OBJECT_MODULE_NAME.as_str()),
-    ident_str!(ID_STRUCT_NAME.as_str()),
+    ident_str!("object"),
+    ident_str!("ID"),
 );
 
 /// Rust version of the Move iota::object::Info type

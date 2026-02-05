@@ -7,7 +7,7 @@ use std::fmt;
 use anyhow::Result;
 use enum_dispatch::enum_dispatch;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{IdentifierRef, StructTag};
+use iota_sdk_types::{Identifier, StructTag};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use self::{
@@ -41,10 +41,10 @@ use self::simtest_iota_system_state_inner::{
     SimTestValidatorDeepV1, SimTestValidatorV1,
 };
 
-pub const IOTA_SYSTEM_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("iota_system");
-pub const ADVANCE_EPOCH_FUNCTION_NAME: &IdentifierRef = IdentifierRef::const_new("advance_epoch");
-pub const ADVANCE_EPOCH_SAFE_MODE_FUNCTION_NAME: &IdentifierRef =
-    IdentifierRef::const_new("advance_epoch_safe_mode");
+pub const IOTA_SYSTEM_MODULE_NAME: Identifier = Identifier::from_static("iota_system");
+pub const ADVANCE_EPOCH_FUNCTION_NAME: Identifier = Identifier::from_static("advance_epoch");
+pub const ADVANCE_EPOCH_SAFE_MODE_FUNCTION_NAME: Identifier =
+    Identifier::from_static("advance_epoch_safe_mode");
 
 #[cfg(msim)]
 pub const IOTA_SYSTEM_STATE_SIM_TEST_V1: u64 = 18446744073709551605; // u64::MAX - 10

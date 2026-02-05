@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
-    base_types::{IdentifierRef, IotaAddress, ObjectID, SequenceNumber},
+    base_types::{Identifier, IotaAddress, ObjectID, SequenceNumber},
     coin::Coin,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
     execution_status::CommandArgumentError,
@@ -75,8 +75,8 @@ pub enum UsageKind {
 pub enum CommandKind<'a> {
     MoveCall {
         package: ObjectID,
-        module: &'a IdentifierRef,
-        function: &'a IdentifierRef,
+        module: &'a Identifier,
+        function: &'a Identifier,
     },
     MakeMoveVec,
     TransferObjects,

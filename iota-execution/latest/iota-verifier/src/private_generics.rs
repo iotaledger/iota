@@ -4,7 +4,7 @@
 
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS,
-    base_types::{IdentifierRef, IotaAddress},
+    base_types::{Identifier, IotaAddress},
     error::ExecutionError,
 };
 use move_binary_format::{
@@ -19,29 +19,29 @@ use move_core_types::identifier::IdentStr;
 
 use crate::{TEST_SCENARIO_MODULE_NAME, verification_failure};
 
-pub const TRANSFER_MODULE: &IdentifierRef = IdentifierRef::const_new("transfer");
-pub const ACCOUNT_MODULE: &IdentifierRef = IdentifierRef::const_new("account");
-pub const EVENT_MODULE: &IdentifierRef = IdentifierRef::const_new("event");
-pub const EVENT_FUNCTION: &IdentifierRef = IdentifierRef::const_new("emit");
-pub const GET_EVENTS_TEST_FUNCTION: &IdentifierRef = IdentifierRef::const_new("events_by_type");
-pub const PUBLIC_TRANSFER_FUNCTIONS: &[&IdentifierRef] = &[
-    IdentifierRef::const_new("public_transfer"),
-    IdentifierRef::const_new("public_freeze_object"),
-    IdentifierRef::const_new("public_share_object"),
-    IdentifierRef::const_new("public_receive"),
-    IdentifierRef::const_new("receiving_object_id"),
+pub const TRANSFER_MODULE: Identifier = Identifier::from_static("transfer");
+pub const ACCOUNT_MODULE: Identifier = Identifier::from_static("account");
+pub const EVENT_MODULE: Identifier = Identifier::from_static("event");
+pub const EVENT_FUNCTION: Identifier = Identifier::from_static("emit");
+pub const GET_EVENTS_TEST_FUNCTION: Identifier = Identifier::from_static("events_by_type");
+pub const PUBLIC_TRANSFER_FUNCTIONS: [Identifier; 5] = [
+    Identifier::from_static("public_transfer"),
+    Identifier::from_static("public_freeze_object"),
+    Identifier::from_static("public_share_object"),
+    Identifier::from_static("public_receive"),
+    Identifier::from_static("receiving_object_id"),
 ];
-pub const PRIVATE_TRANSFER_FUNCTIONS: &[&IdentifierRef] = &[
-    IdentifierRef::const_new("transfer"),
-    IdentifierRef::const_new("freeze_object"),
-    IdentifierRef::const_new("share_object"),
-    IdentifierRef::const_new("receive"),
+pub const PRIVATE_TRANSFER_FUNCTIONS: [Identifier; 4] = [
+    Identifier::from_static("transfer"),
+    Identifier::from_static("freeze_object"),
+    Identifier::from_static("share_object"),
+    Identifier::from_static("receive"),
 ];
-pub const TRANSFER_IMPL_FUNCTIONS: &[&IdentifierRef] = &[
-    IdentifierRef::const_new("transfer_impl"),
-    IdentifierRef::const_new("freeze_object_impl"),
-    IdentifierRef::const_new("share_object_impl"),
-    IdentifierRef::const_new("receive_impl"),
+pub const TRANSFER_IMPL_FUNCTIONS: [Identifier; 4] = [
+    Identifier::from_static("transfer_impl"),
+    Identifier::from_static("freeze_object_impl"),
+    Identifier::from_static("share_object_impl"),
+    Identifier::from_static("receive_impl"),
 ];
 
 pub const PUBLIC_ACCOUNT_FUNCTIONS: &[&IdentStr] = &[
@@ -125,7 +125,7 @@ fn verify_private_transfer_module_functions(
     if addr_module(view, self_handle) == (IotaAddress::FRAMEWORK, TRANSFER_MODULE) {
         return Ok(());
     }
-    let fident = IdentifierRef::new(view.identifier_at(fhandle.name).as_str()).unwrap();
+    let fident = Identifier::new_unchecked(view.identifier_at(fhandle.name).as_str());
     // public transfer functions require `store` and have no additional rules
     if PUBLIC_TRANSFER_FUNCTIONS.contains(&fident) {
         return Ok(());
@@ -258,14 +258,11 @@ fn is_defined_in_current_module(view: &CompiledModule, type_arg: &SignatureToken
     }
 }
 
-fn addr_module<'a>(
-    view: &'a CompiledModule,
-    mhandle: &ModuleHandle,
-) -> (IotaAddress, &'a IdentifierRef) {
+fn addr_module<'a>(view: &'a CompiledModule, mhandle: &ModuleHandle) -> (IotaAddress, Identifier) {
     let maddr = view.address_identifier_at(mhandle.address);
     let mident = view.identifier_at(mhandle.name);
     (
         IotaAddress::new(maddr.into_bytes()),
-        IdentifierRef::new(mident.as_str()).unwrap(),
+        Identifier::new(mident.as_str()).unwrap(),
     )
 }

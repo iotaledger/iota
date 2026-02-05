@@ -15,12 +15,12 @@ pub mod runtime_module_metadata;
 pub mod struct_with_key_verifier;
 
 use iota_types::{
-    base_types::IdentifierRef,
+    base_types::Identifier,
     error::{ExecutionError, ExecutionErrorKind},
 };
 use move_core_types::vm_status::StatusCode;
 
-pub const INIT_FN_NAME: &IdentifierRef = IdentifierRef::const_new("init");
+pub const INIT_FN_NAME: Identifier = Identifier::from_static("init");
 pub const TEST_SCENARIO_MODULE_NAME: &str = "test_scenario";
 
 fn verification_failure(error: String) -> ExecutionError {

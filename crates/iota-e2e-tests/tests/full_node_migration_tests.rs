@@ -30,7 +30,7 @@ use iota_sdk_types::crypto::Intent;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID,
     balance::Balance,
-    base_types::{IdentifierRef, IotaAddress, MoveObjectType, ObjectID, TypeTag},
+    base_types::{Identifier, IotaAddress, MoveObjectType, ObjectID, TypeTag},
     crypto::SignatureScheme::ED25519,
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,
@@ -267,8 +267,8 @@ async fn address_unlock_condition(
         let arguments = vec![builder.obj(ObjectArg::ImmOrOwnedObject(alias_output_object_ref))?];
         if let Argument::Result(extracted_alias_output_assets) = builder.programmable_move_call(
             STARDUST_PACKAGE_ID,
-            IdentifierRef::const_new("alias_output").to_owned(),
-            IdentifierRef::const_new("extract_assets").to_owned(),
+            Identifier::from_static("alias_output"),
+            Identifier::from_static("extract_assets"),
             type_arguments,
             arguments,
         ) {
@@ -283,8 +283,8 @@ async fn address_unlock_condition(
             // Extract the IOTA balance.
             let iota_coin = builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
-                IdentifierRef::const_new("coin").to_owned(),
-                IdentifierRef::const_new("from_balance").to_owned(),
+                Identifier::from_static("coin"),
+                Identifier::from_static("from_balance"),
                 type_arguments,
                 arguments,
             );
@@ -296,8 +296,8 @@ async fn address_unlock_condition(
             let arguments = vec![extracted_native_tokens_bag];
             builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
-                IdentifierRef::const_new("bag").to_owned(),
-                IdentifierRef::const_new("destroy_empty").to_owned(),
+                Identifier::from_static("bag"),
+                Identifier::from_static("destroy_empty"),
                 vec![],
                 arguments,
             );
@@ -311,8 +311,8 @@ async fn address_unlock_condition(
 
             let nft_output = builder.programmable_move_call(
                 STARDUST_PACKAGE_ID,
-                IdentifierRef::const_new("address_unlock_condition").to_owned(),
-                IdentifierRef::const_new("unlock_alias_address_owned_nft").to_owned(),
+                Identifier::from_static("address_unlock_condition"),
+                Identifier::from_static("unlock_alias_address_owned_nft"),
                 type_arguments,
                 arguments,
             );
@@ -326,8 +326,8 @@ async fn address_unlock_condition(
             // Finally call the nft_output::extract_assets function
             if let Argument::Result(extracted_assets) = builder.programmable_move_call(
                 STARDUST_PACKAGE_ID,
-                IdentifierRef::const_new("nft_output").to_owned(),
-                IdentifierRef::const_new("extract_assets").to_owned(),
+                Identifier::from_static("nft_output"),
+                Identifier::from_static("extract_assets"),
                 type_arguments,
                 arguments,
             ) {
@@ -344,8 +344,8 @@ async fn address_unlock_condition(
                 // Extract the IOTA balance.
                 let iota_coin = builder.programmable_move_call(
                     IOTA_FRAMEWORK_PACKAGE_ID,
-                    IdentifierRef::const_new("coin").to_owned(),
-                    IdentifierRef::const_new("from_balance").to_owned(),
+                    Identifier::from_static("coin"),
+                    Identifier::from_static("from_balance"),
                     type_arguments,
                     arguments,
                 );
@@ -357,8 +357,8 @@ async fn address_unlock_condition(
                 let arguments = vec![extracted_native_tokens_bag];
                 builder.programmable_move_call(
                     IOTA_FRAMEWORK_PACKAGE_ID,
-                    IdentifierRef::const_new("bag").to_owned(),
-                    IdentifierRef::const_new("destroy_empty").to_owned(),
+                    Identifier::from_static("bag"),
+                    Identifier::from_static("destroy_empty"),
                     vec![],
                     arguments,
                 );

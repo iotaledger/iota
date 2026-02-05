@@ -14,7 +14,6 @@ use iota_sdk::{
         IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponseOptions,
     },
     types::{
-        TypeTag,
         base_types::ObjectID,
         coin_manager::CoinManagerTreasuryCap,
         crypto::SignatureScheme::ED25519,
@@ -25,7 +24,7 @@ use iota_sdk::{
         transaction::{Argument, ObjectArg, Transaction, TransactionData},
     },
 };
-use iota_sdk_types::{IdentifierRef, StructTag, crypto::Intent};
+use iota_sdk_types::{Identifier, StructTag, TypeTag, crypto::Intent};
 use iota_types::{IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID};
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/alias_ownership.rs
@@ -154,8 +153,8 @@ async fn main() -> Result<(), anyhow::Error> {
         // Finally call the alias_output::extract_assets function.
         if let Argument::Result(extracted_assets) = builder.programmable_move_call(
             STARDUST_PACKAGE_ID,
-            IdentifierRef::const_new("alias_output").into(),
-            IdentifierRef::const_new("extract_assets").into(),
+            Identifier::from_static("alias_output"),
+            Identifier::from_static("extract_assets"),
             type_arguments,
             arguments,
         ) {
@@ -171,8 +170,8 @@ async fn main() -> Result<(), anyhow::Error> {
             let arguments = vec![extracted_base_token];
             let iota_coin = builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
-                IdentifierRef::const_new("coin").into(),
-                IdentifierRef::const_new("from_balance").into(),
+                Identifier::from_static("coin"),
+                Identifier::from_static("from_balance"),
                 type_arguments,
                 arguments,
             );
@@ -184,8 +183,8 @@ async fn main() -> Result<(), anyhow::Error> {
             let arguments = vec![extracted_native_tokens_bag];
             builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
-                IdentifierRef::const_new("bag").into(),
-                IdentifierRef::const_new("destroy_empty").into(),
+                Identifier::from_static("bag"),
+                Identifier::from_static("destroy_empty"),
                 vec![],
                 arguments,
             );
@@ -198,8 +197,8 @@ async fn main() -> Result<(), anyhow::Error> {
             ];
             let coin_manager_treasury_cap = builder.programmable_move_call(
                 STARDUST_PACKAGE_ID,
-                IdentifierRef::const_new("address_unlock_condition").into(),
-                IdentifierRef::const_new("unlock_alias_address_owned_coinmanager_treasury").into(),
+                Identifier::from_static("address_unlock_condition"),
+                Identifier::from_static("unlock_alias_address_owned_coinmanager_treasury"),
                 type_arguments,
                 arguments,
             );

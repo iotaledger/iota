@@ -6,7 +6,7 @@ use std::cmp;
 
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::{Identifier, IdentifierRef, IotaAddress, ObjectID, ObjectRef},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Argument, CallArg, Command, ProgrammableTransaction},
 };
@@ -526,8 +526,8 @@ fn create_input_calls(
     builder
         .move_call(
             package,
-            IdentifierRef::const_new("coin_factory").into(),
-            IdentifierRef::const_new("mint_vec").into(),
+            Identifier::from_static("coin_factory"),
+            Identifier::from_static("mint_vec"),
             vec![],
             vec![
                 CallArg::from(cap),
@@ -547,7 +547,7 @@ fn create_unpack_call(
 ) {
     builder.programmable_move_call(
         package,
-        IdentifierRef::const_new("coin_factory").into(),
+        Identifier::from_static("coin_factory"),
         Identifier::new(format!("unpack_{input_size}")).unwrap(),
         vec![],
         vec![Argument::Result(prev_cmd_num as u16)],

@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::IdentifierRef;
+use iota_sdk_types::Identifier;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -13,10 +13,10 @@ use crate::{
     object::{Data, Object},
 };
 
-pub const COIN_MANAGER_MODULE_NAME: &IdentifierRef = IdentifierRef::const_new("coin_manager");
-pub const COIN_MANAGER_STRUCT_NAME: &IdentifierRef = IdentifierRef::const_new("CoinManager");
-pub const COIN_MANAGER_TREASURY_CAP_STRUCT_NAME: &IdentifierRef =
-    IdentifierRef::const_new("CoinManagerTreasuryCap");
+pub const COIN_MANAGER_MODULE_NAME: Identifier = Identifier::from_static("coin_manager");
+pub const COIN_MANAGER_STRUCT_NAME: Identifier = Identifier::from_static("CoinManager");
+pub const COIN_MANAGER_TREASURY_CAP_STRUCT_NAME: Identifier =
+    Identifier::from_static("CoinManagerTreasuryCap");
 
 /// The purpose of a CoinManager is to allow access to all
 /// properties of a Coin on-chain from within a single shared object
@@ -89,8 +89,8 @@ pub struct CoinManagerTreasuryCap {
 impl CoinManagerTreasuryCap {
     pub fn is_coin_manager_treasury_cap(object_type: &StructTag) -> bool {
         object_type.address() == IotaAddress::FRAMEWORK
-            && object_type.module() == COIN_MANAGER_MODULE_NAME
-            && object_type.name() == COIN_MANAGER_TREASURY_CAP_STRUCT_NAME
+            && object_type.module() == &COIN_MANAGER_MODULE_NAME
+            && object_type.name() == &COIN_MANAGER_TREASURY_CAP_STRUCT_NAME
     }
 }
 

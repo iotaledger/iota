@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{IdentifierRef, StructTag};
+use iota_sdk_types::{Identifier, StructTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -13,10 +13,10 @@ use crate::{
     object::{Data, Object},
 };
 
-pub const TIMELOCKED_STAKED_IOTA_MODULE_NAME: &IdentifierRef =
-    IdentifierRef::const_new("timelocked_staking");
-pub const TIMELOCKED_STAKED_IOTA_STRUCT_NAME: &IdentifierRef =
-    IdentifierRef::const_new("TimelockedStakedIota");
+pub const TIMELOCKED_STAKED_IOTA_MODULE_NAME: Identifier =
+    Identifier::from_static("timelocked_staking");
+pub const TIMELOCKED_STAKED_IOTA_STRUCT_NAME: Identifier =
+    Identifier::from_static("TimelockedStakedIota");
 
 /// Rust version of the Move
 /// stardust::timelocked_staked_iota::TimelockedStakedIota type.

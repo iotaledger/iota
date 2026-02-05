@@ -16,7 +16,7 @@ use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Identifier, IdentifierRef, TypeTag,
+    Identifier, TypeTag,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use itertools::Either;
@@ -2053,8 +2053,8 @@ impl TransactionData {
             let digest_arg = builder.pure(digest).unwrap();
             let upgrade_ticket = builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
-                IdentifierRef::const_new("package").to_owned(),
-                IdentifierRef::const_new("authorize_upgrade").to_owned(),
+                Identifier::from_static("package"),
+                Identifier::from_static("authorize_upgrade"),
                 vec![],
                 vec![Argument::Input(0), upgrade_arg, digest_arg],
             );
@@ -2062,8 +2062,8 @@ impl TransactionData {
 
             builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
-                IdentifierRef::const_new("package").to_owned(),
-                IdentifierRef::const_new("commit_upgrade").to_owned(),
+                Identifier::from_static("package"),
+                Identifier::from_static("commit_upgrade"),
                 vec![],
                 vec![Argument::Input(0), upgrade_receipt],
             );

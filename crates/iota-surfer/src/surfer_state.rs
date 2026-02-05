@@ -168,8 +168,8 @@ impl SurferState {
         let tx_data = TransactionData::new_move_call(
             self.address,
             package,
-            Identifier::new(module.as_str()).unwrap(),
-            Identifier::new(function.as_str()).unwrap(),
+            Identifier::new(&module).unwrap(),
+            Identifier::new(&function).unwrap(),
             vec![],
             self.gas_object,
             args,
