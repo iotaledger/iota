@@ -9,7 +9,7 @@ use std::{
 };
 
 use backoff::backoff::Backoff;
-use futures::{StreamExt, TryStreamExt};
+use futures::{StreamExt, TryFutureExt, TryStreamExt};
 use iota_config::{
     node::ArchiveReaderConfig,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
@@ -109,17 +109,29 @@ impl RemoteStore {
     ) -> IngestionResult<Self> {
         let store = match remote_url {
             RemoteUrl::Fullnode(ref url) => {
-                let client = GrpcClient::connect(url)
-                    .await?
-                    // by increasing it we noticed improved performance downloading the genesis
-                    // checkpoint
-                    .with_max_decoding_message_size(GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES);
+                let grpc_client = GrpcClient::connect(url)
+                    .and_then(|grpc_client| async {
+                        // check if we can make gRPC request to client
+                        match grpc_client.get_service_info(None).await {
+                            Ok(_) => Ok(grpc_client.with_max_decoding_message_size(
+                                GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES,
+                            )),
+                            Err(e) => Err(e),
+                        }
+                    })
+                    .await;
 
-                // try to first connect to gRPC, if it fails, fallback to REST API
-                if client.get_service_info(None).await.is_ok() {
-                    RemoteStore::Fullnode(client)
-                } else {
-                    RemoteStore::RestApiFullnode(iota_rest_api::Client::new(url))
+                match grpc_client {
+                    Ok(grpc_client) => {
+                        info!("using gRPC as checkpoint stream");
+                        RemoteStore::Fullnode(grpc_client)
+                    }
+                    // fallback to REST API if gRPC fails
+                    Err(e) => {
+                        debug!("unable to establish a gRPC connection to fullnode: {e}");
+                        info!("using REST API as checkpoint stream");
+                        RemoteStore::RestApiFullnode(iota_rest_api::Client::new(url))
+                    }
                 }
             }
             RemoteUrl::HybridHistoricalStore {
