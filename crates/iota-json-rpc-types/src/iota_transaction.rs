@@ -1593,13 +1593,13 @@ impl From<ExecutionStatus> for IotaExecutionStatus {
                 error,
                 command: None,
             } => Self::Failure {
-                error: format!("{error:?}"),
+                error: error.to_string(),
             },
             ExecutionStatus::Failure {
                 error,
                 command: Some(idx),
             } => Self::Failure {
-                error: format!("{error:?} in command {idx}"),
+                error: format!("{error} in command {idx}"),
             },
         }
     }
