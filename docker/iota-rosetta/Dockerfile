@@ -8,6 +8,8 @@ ARG CARGO_BUILD_FEATURES
 # The GIT_REVISION environment variable is used during build time inside the rust crates
 ARG GIT_REVISION
 ENV GIT_REVISION=$GIT_REVISION
+# RUSTFLAGS can be passed as build argument to control compilation flags
+ARG RUSTFLAGS
 
 WORKDIR "/iota"
 
@@ -29,6 +31,9 @@ COPY external-crates external-crates
 COPY iota-execution iota-execution
 COPY Cargo.toml Cargo.lock ./
 
+# Set RUSTFLAGS if provided via build argument
+ENV RUSTFLAGS=${RUSTFLAGS}
+
 # Build the binaries and copy them to the working directory
 RUN cargo build --profile ${PROFILE} \
       --bin iota-rosetta \
@@ -42,7 +47,7 @@ ARG WORKDIR="/iota"
 WORKDIR "$WORKDIR"
 
 # Install runtime dependencies and tools
-RUN apt update && apt install -y libpq5 ca-certificates curl
+RUN apt update && apt install -y libpq5 ca-certificates curl heaptrack
 
 # Install rosetta-cli (workaround because the install script is broken after rename)
 RUN curl -sSfL https://raw.githubusercontent.com/coinbase/mesh-cli/master/scripts/install.sh | sed -e 's/^REPO=.*/REPO=mesh-cli/' | sh -s

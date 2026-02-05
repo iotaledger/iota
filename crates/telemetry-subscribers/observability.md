@@ -200,7 +200,6 @@ See how to use Tokio console in this guide: [Live async inspection with Tokio Co
 
 ### Memory Profiling
 
-Memory profiling is might be useful to analyze the memory usage of an application, helping to identify memory leaks and optimize memory consumption.
-IOTA uses the [jemalloc](https://jemalloc.net/) memory allocator by default, which includes a lightweight sampling profiler suitable for production use.
+IOTA Docker images include [heaptrack](https://github.com/KDE/heaptrack), a heap memory profiler that tracks all memory allocations and can help identify memory leaks and excessive memory usage patterns. Heaptrack provides detailed information about where memory is allocated and can generate comprehensive reports for analysis.
 
-For detailed instructions on setting up and using memory profiling in IOTA, refer to the Memory Profiling Guide.
+For detailed instructions on setting up and using memory profiling in IOTA, refer to the [Memory Profiling Guide](observability_guides.md#memory-profiling).

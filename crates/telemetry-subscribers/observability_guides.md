@@ -197,29 +197,49 @@ To exit the process on panic, set the `CRASH_ON_PANIC` environment variable when
 
 ### Memory Profiling
 
-IOTA uses the [jemalloc memory allocator](https://jemalloc.net/) by default on most platforms, and there is code that enables automatic memory profiling using jemalloc's sampling profiler, which is very lightweight and designed for production use. The profiling code spits out profiles, at most, every 5 minutes, and only when total memory has increased by a default 20%. Profiling files are named `jeprof.<TIMESTAMP>.<memorysize>MB.prof` so that it is easy to
-correlate to metrics and incidents, for ease of debugging.
+IOTA Docker images include [heaptrack](https://github.com/KDE/heaptrack), a heap memory profiler that tracks all memory allocations and can help identify memory leaks and excessive memory usage patterns. Heaptrack provides detailed information about where memory is allocated and can generate comprehensive reports for analysis.
 
-For the memory profiling to work, you need to set the environment variable `_RJEM_MALLOC_CONF=prof:true`. If you use the [Docker image](https://hub.docker.com/r/iotaledger/iota-node) they are set automatically.
+For optimal profiling results with readable stack traces and function names, build Docker images with debug symbols by setting RUSTFLAGS before building:
 
-Running some allocator-based heap profilers such as [Bytehound](https://github.com/koute/bytehound) will essentially disable automatic jemalloc profiling, because they interfere with or don't implement `jemalloc_ctl` stats APIs.
+```bash
+export RUSTFLAGS="-C debuginfo=2"
+# Then build your Docker image
+docker build --build-arg RUSTFLAGS="-C debuginfo=2" -t iotaledger/iota-node .
+```
 
-To view the profile files, one needs to do the following, on the same platform as where the profiles were gathered:
+Or use the provided debug build script:
 
-1. Install `libunwind`, the `dot` utility from graphviz, and jeprof. On Debian: `apt-get install libjemalloc-dev libunwind-dev graphviz`.
-2. Build with debug symbols: `cargo build --profile bench-profiling`.
-3. Change directory to `$IOTA_REPO/target/bench-profiling`.
-4. Run `jeprof --svg iota-node jeprof.xxyyzz.heap` - select the heap profile based on
-   timestamp and memory size in the filename.
+```bash
+./docker/iota-node/build_debuginfo.sh
+```
+
+To profile memory usage with Docker containers, you can run the container with heaptrack enabled:
+
+```bash
+docker run -it --rm \
+  -v $(pwd)/heaptrack-data:/tmp/heaptrack-data \
+  iotaledger/iota-node \
+  heaptrack -o /tmp/heaptrack-data/iota-profile iota-node [your-node-arguments]
+```
+
+This will:
+
+1. Run the IOTA node under heaptrack profiling
+2. Save the profiling data to a volume-mounted directory for analysis
+3. Generate a profile file named `iota-profile.heaptrack` in the mounted directory
+
+To analyze the generated profiles:
+
+1. Install heaptrack on your host system. On Debian/Ubuntu: `apt-get install heaptrack-gui heaptrack`.
+2. Open the profile file with the heaptrack GUI: `heaptrack_gui /path/to/iota-profile.heaptrack`.
+3. Or generate text reports: `heaptrack_print /path/to/iota-profile.heaptrack`.
 
 > **tip**
 >
-> With automatic memory profiling, it is no longer necessary to configure environment variables beyond those previously listed. It is possible to configure custom profiling options:
+> For production environments, consider the performance impact of memory profiling. Heaptrack can introduce overhead, so use it primarily for debugging memory issues or performance analysis in non-production environments.
 >
-> - [Heap Profiling](https://github.com/jemalloc/jemalloc/wiki/Use-Case%3A-Heap-Profiling).
-> - [Heap Profiling with jemallocator](https://gist.github.com/ordian/928dc2bd45022cddd547528f64db9174).
+> You can also attach heaptrack to an already running process inside a Docker container:
 >
-> For example, set `_RJEM_MALLOC_CONF` to:
-> `prof:true,lg_prof_interval:24,lg_prof_sample:19`
->
-> The preceding setting means: turn on profiling, sample every 2^19 or 512KB bytes allocated, and dump out the profile every 2^24 or 16MB of memory allocated. However, the automatic profiling is designed to produce files that are better named and at less intervals, so overriding the default configuration is not usually recommended.
+> ```bash
+> docker exec -it <container-name> heaptrack -p <pid> -o /tmp/profile-name
+> ```

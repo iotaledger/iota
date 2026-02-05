@@ -8,6 +8,8 @@ ARG CARGO_BUILD_FEATURES
 # The GIT_REVISION environment variable is used during build time inside the rust crates
 ARG GIT_REVISION
 ENV GIT_REVISION=$GIT_REVISION
+# RUSTFLAGS can be passed as build argument to control compilation flags
+ARG RUSTFLAGS
 
 WORKDIR "/iota"
 
@@ -30,6 +32,9 @@ COPY examples examples
 COPY external-crates external-crates
 COPY iota-execution iota-execution
 COPY Cargo.toml Cargo.lock ./
+
+# Set RUSTFLAGS if provided via build argument
+ENV RUSTFLAGS=${RUSTFLAGS}
 
 # Build the binaries and copy them to the working directory
 RUN cargo build --profile ${PROFILE} \
@@ -58,7 +63,7 @@ ARG WORKDIR="/iota"
 WORKDIR "$WORKDIR"
 
 # Install runtime dependencies and tools
-RUN apt update && apt install -y libpq5 ca-certificates curl git
+RUN apt update && apt install -y libpq5 ca-certificates curl git heaptrack
 
 COPY --from=builder /iota/iota-node /usr/local/bin
 COPY --from=builder /iota/stress /usr/local/bin

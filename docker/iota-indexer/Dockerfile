@@ -8,6 +8,8 @@ ARG CARGO_BUILD_FEATURES
 # The GIT_REVISION environment variable is used during build time inside the rust crates
 ARG GIT_REVISION
 ENV GIT_REVISION=$GIT_REVISION
+# RUSTFLAGS can be passed as build argument to control compilation flags
+ARG RUSTFLAGS
 
 WORKDIR "/iota"
 
@@ -29,6 +31,9 @@ COPY external-crates external-crates
 COPY iota-execution iota-execution
 COPY Cargo.toml Cargo.lock ./
 
+# Set RUSTFLAGS if provided via build argument
+ENV RUSTFLAGS=${RUSTFLAGS}
+
 # Build the binaries and copy them to the working directory
 RUN cargo build --profile ${PROFILE} \
       --bin iota-indexer \
@@ -42,21 +47,7 @@ ARG WORKDIR="/iota"
 WORKDIR "$WORKDIR"
 
 # Install runtime dependencies and tools
-RUN apt update && apt install -y libpq5 ca-certificates curl
-
-# Install jemalloc as the default allocator used for memory profiling on supported
-# architectures and create a symlink for the correct version based on the architecture
-RUN ARCH=$(dpkg --print-architecture) && \
-  if [ "$ARCH" = "amd64" ] || [ "$ARCH" = "arm64" ]; then \
-    apt update && apt install -y libjemalloc-dev; \
-    ln -sf $(ldconfig -p | grep jemalloc | awk '{print $4}' | sort -u | head -n 1) /usr/lib/libjemalloc.so; \
-  else \
-    echo "Unsupported architecture: $ARCH. Only amd64 and arm64 are supported."; \
-  exit 1; \
-fi
-
-# Set LD_PRELOAD to the symlinked path
-ENV LD_PRELOAD=/usr/lib/libjemalloc.so
+RUN apt update && apt install -y libpq5 ca-certificates curl heaptrack
 
 COPY --from=builder /iota/iota-indexer /usr/local/bin
 

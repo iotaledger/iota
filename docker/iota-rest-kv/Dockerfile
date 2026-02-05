@@ -8,6 +8,8 @@ ARG CARGO_BUILD_FEATURES
 # The GIT_REVISION environment variable is used during build time inside the rust crates
 ARG GIT_REVISION
 ENV GIT_REVISION=$GIT_REVISION
+# RUSTFLAGS can be passed as build argument to control compilation flags
+ARG RUSTFLAGS
 
 WORKDIR "/iota"
 
@@ -29,18 +31,20 @@ COPY external-crates external-crates
 COPY iota-execution iota-execution
 COPY Cargo.toml Cargo.lock ./
 
+# Set RUSTFLAGS if provided via build argument
+ENV RUSTFLAGS=${RUSTFLAGS}
+
 # Build the binaries and copy them to the working directory
 RUN cargo build --profile ${PROFILE} \
       --bin iota-rest-kv \
       --features ${CARGO_BUILD_FEATURES:=default} && \
     cp $TARGET_FOLDER/iota-rest-kv ./iota-rest-kv
 
-
 # Production image
 FROM debian:trixie-slim AS runtime
 
 # Install runtime dependencies and tools
-RUN apt update && apt install -y ca-certificates curl
+RUN apt update && apt install -y ca-certificates curl heaptrack
 
 COPY --from=builder /iota/iota-rest-kv /usr/local/bin
 

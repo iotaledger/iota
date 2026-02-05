@@ -98,5 +98,6 @@ docker build -f "$DOCKERFILE" "$REPO_ROOT" \
 	--build-arg CARGO_BUILD_FEATURES="$CARGO_BUILD_FEATURES" \
 	--build-arg BUILD_DATE="$BUILD_DATE" \
 	--build-arg GIT_REVISION="$GIT_REVISION" \
+	${RUSTFLAGS:+--build-arg RUSTFLAGS="$RUSTFLAGS"} \
 	--target runtime \
 	"$@"
