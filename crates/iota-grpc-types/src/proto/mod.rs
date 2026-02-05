@@ -138,3 +138,31 @@ pub fn proto_to_timestamp_ms(timestamp: prost_types::Timestamp) -> Result<u64, T
         .try_into()
         .map_err(|e| TryFromProtoError::invalid("seconds + nanos", e))
 }
+
+// prost_types::Value to serde_json::Value conversion
+//
+
+/// Converts a prost_types::Value to serde_json::Value.
+pub fn prost_to_json(value: &prost_types::Value) -> serde_json::Value {
+    use prost_types::value::Kind;
+
+    match &value.kind {
+        None => serde_json::Value::Null,
+        Some(Kind::NullValue(_)) => serde_json::Value::Null,
+        Some(Kind::NumberValue(n)) => serde_json::json!(*n),
+        Some(Kind::StringValue(s)) => serde_json::Value::String(s.clone()),
+        Some(Kind::BoolValue(b)) => serde_json::Value::Bool(*b),
+        Some(Kind::StructValue(s)) => {
+            let map: serde_json::Map<String, serde_json::Value> = s
+                .fields
+                .iter()
+                .map(|(k, v)| (k.clone(), prost_to_json(v)))
+                .collect();
+            serde_json::Value::Object(map)
+        }
+        Some(Kind::ListValue(l)) => {
+            let arr: Vec<serde_json::Value> = l.values.iter().map(prost_to_json).collect();
+            serde_json::Value::Array(arr)
+        }
+    }
+}
