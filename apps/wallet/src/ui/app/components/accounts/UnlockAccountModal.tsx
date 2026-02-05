@@ -4,7 +4,7 @@
 
 import { toast } from '@iota/core';
 import { useBackgroundClient } from '_hooks';
-import { PasswordModalDialog } from './PasswordInputDialog';
+import { PasswordModalDialog } from './PasswordModalDialog';
 import { useState } from 'react';
 import { ForgotPasswordDialog } from './ForgotPasswordDialog';
 
