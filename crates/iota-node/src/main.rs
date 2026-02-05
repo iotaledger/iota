@@ -22,6 +22,13 @@ use tracing::{error, info};
 #[global_allocator]
 static GLOBAL: CounterAlloc<std::alloc::System> = CounterAlloc::new(std::alloc::System);
 
+#[cfg(all(feature = "flamegraph-alloc", nightly, feature = "jemalloc"))]
+compile_error!("jemalloc and flamegraph-alloc cannot be enabled at the same time");
+
+#[cfg(feature = "jemalloc")]
+#[global_allocator]
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
 // Define the `GIT_REVISION` and `VERSION` consts
 bin_version::bin_version!();
 

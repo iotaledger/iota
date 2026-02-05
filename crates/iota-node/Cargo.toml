@@ -11,6 +11,9 @@ workspace = true
 
 [features]
 flamegraph-alloc = ["telemetry-subscribers/flamegraph-alloc"]
+jemalloc = ["dep:tikv-jemallocator"]
+jemalloc-profiling = ["jemalloc", "tikv-jemallocator/profiling"]
+jemalloc-stats = ["jemalloc", "tikv-jemallocator/stats"]
 
 [dependencies]
 # external dependencies
@@ -30,6 +33,7 @@ prometheus.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 tap.workspace = true
+tikv-jemallocator = { version = "0.6", optional = true }
 tokio = { workspace = true, features = ["full"] }
 tokio-util.workspace = true
 tonic.workspace = true
