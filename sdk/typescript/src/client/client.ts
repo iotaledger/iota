@@ -431,6 +431,21 @@ export class IotaClient {
         });
     }
 
+    async transactionBlocksByDigests(input: {
+        digests: string[];
+    }): Promise<Array<{ digest: string } | null>> {
+        input.digests.forEach((d) => {
+            if (!isValidTransactionDigest(d)) {
+                throw new Error(`Invalid Transaction digest ${d}`);
+            }
+        });
+
+        return await this.transport.request({
+            method: 'transactionBlocksByDigests',
+            params: [input.digests],
+        });
+    }
+
     async executeTransactionBlock({
         transactionBlock,
         signature,

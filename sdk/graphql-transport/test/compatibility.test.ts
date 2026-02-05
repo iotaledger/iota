@@ -448,6 +448,40 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphQLTransactionBlock).toEqual(rpcTransactionBlock);
     });
 
+    test('transactionBlocksByDigests - single digest', async () => {
+        const result = await graphQLClient!.transactionBlocksByDigests({
+            digests: [transactionBlockDigest],
+        });
+
+        expect(result).toHaveLength(1);
+        expect(result[0]).toBeTruthy();
+        expect(result[0]?.digest).toBe(transactionBlockDigest);
+    });
+
+    test('transactionBlocksByDigests - multiple digests', async () => {
+        const result = await graphQLClient!.transactionBlocksByDigests({
+            digests: [transactionBlockDigest, transactionBlockDigest],
+        });
+
+        expect(result).toHaveLength(2);
+        expect(result[0]?.digest).toBe(transactionBlockDigest);
+        expect(result[1]?.digest).toBe(transactionBlockDigest);
+    });
+
+    test('transactionBlocksByDigests - with non-existent digest', async () => {
+        const nonExistentDigest =
+            '0x0000000000000000000000000000000000000000000000000000000000000000';
+
+        const result = await graphQLClient!.transactionBlocksByDigests({
+            digests: [transactionBlockDigest, nonExistentDigest],
+        });
+
+        expect(result).toHaveLength(2);
+        expect(result[0]).toBeTruthy();
+        expect(result[0]?.digest).toBe(transactionBlockDigest);
+        expect(result[1]).toBeNull();
+    });
+
     test('getTotalTransactionBlocks', async () => {
         const rpc = await toolbox.client.getTotalTransactionBlocks();
         const graphql = await graphQLClient!.getTotalTransactionBlocks();
