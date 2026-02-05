@@ -22,7 +22,7 @@ export function ImportPasskeyPage() {
             title="Import Passkey Account"
             isTitleCentered
             showBackButton
-            onBack={() => navigate(-1)}
+            onBack={() => navigate('/accounts/import-existing')}
         >
             {accountID ? (
                 <NicknameSetContent accountID={accountID} />

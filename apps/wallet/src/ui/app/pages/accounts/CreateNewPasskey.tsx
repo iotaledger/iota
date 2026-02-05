@@ -77,7 +77,7 @@ export function CreateNewPasskey() {
             title="Create Passkey Account"
             isTitleCentered
             showBackButton
-            onBack={() => navigate(-1)}
+            onBack={() => navigate('/accounts/import-existing')}
         >
             <Form
                 className="flex h-full flex-col justify-between"
