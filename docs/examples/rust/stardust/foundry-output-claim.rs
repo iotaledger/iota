@@ -14,7 +14,7 @@ use iota_sdk::{
         IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponseOptions,
     },
     types::{
-        base_types::ObjectID,
+        base_types::{ObjectID,Identifier, StructTag, TypeTag,},
         coin_manager::CoinManagerTreasuryCap,
         crypto::SignatureScheme::ED25519,
         dynamic_field::DynamicFieldName,
@@ -24,7 +24,7 @@ use iota_sdk::{
         transaction::{Argument, ObjectArg, Transaction, TransactionData},
     },
 };
-use iota_sdk_types::{Identifier, StructTag, TypeTag, crypto::Intent};
+use iota_sdk_types::{ crypto::Intent};
 use iota_types::{IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID};
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/alias_ownership.rs
