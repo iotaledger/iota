@@ -137,7 +137,9 @@ export function PasswordModalDialog({
                 <DialogBody
                     className={clsx(
                         'dialog-body-color flex flex-col overflow-y-auto p-md--rs text-body-sm',
-                        showForgotPassword ? 'max-h-[calc(100dvh-2rem)] min-h-[65vh] ' : '',
+                        showForgotPassword
+                            ? 'max-h-[calc(100dvh-2rem)] min-h-[90vh] '
+                            : 'min-h-[80vh]',
                     )}
                 >
                     <div
@@ -150,9 +152,9 @@ export function PasswordModalDialog({
                             <img
                                 src={theme === Theme.Dark ? UnlockWalletDarkmode : UnlockWallet}
                                 alt="Unlock wallet"
-                                height={210}
+                                height={178}
                                 width="auto"
-                                className="aspect-[4/3] h-[210px] w-auto object-cover"
+                                className="aspect-[4/3] h-[178px] w-auto object-cover"
                             />
                             <span className="py-xs text-headline-sm  text-iota-neutral-10 dark:text-iota-neutral-92">
                                 {title}
