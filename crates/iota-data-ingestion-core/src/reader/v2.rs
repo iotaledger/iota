@@ -15,7 +15,6 @@ use iota_config::{
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
 };
 use iota_grpc_client::{CheckpointResponse, Client as GrpcClient, Error, api::ExecutedTransaction};
-use iota_grpc_server::constants::MAX_MESSAGE_SIZE_BYTES;
 use iota_metrics::spawn_monitored_task;
 use iota_rest_api::CheckpointData;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
@@ -42,6 +41,8 @@ use crate::{
         v1::{DataLimiter, ReaderOptions},
     },
 };
+
+const GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES: usize = 128 * 1024 * 1024;
 
 /// Available sources for checkpoint streams supported by the ingestion
 /// framework.
@@ -112,7 +113,7 @@ impl RemoteStore {
                     .await?
                     // by increasing it we noticed improved performance downloading the genesis
                     // checkpoint
-                    .with_max_decoding_message_size(MAX_MESSAGE_SIZE_BYTES);
+                    .with_max_decoding_message_size(GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES);
 
                 // try to first connect to gRPC, if it fails, fallback to REST API
                 if client.get_service_info(None).await.is_ok() {
