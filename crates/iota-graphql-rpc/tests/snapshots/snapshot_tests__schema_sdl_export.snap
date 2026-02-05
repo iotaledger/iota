@@ -1,6 +1,7 @@
 ---
 source: crates/iota-graphql-rpc/tests/snapshot_tests.rs
 expression: sdl
+snapshot_kind: text
 ---
 type ActiveJwk {
 	"""
@@ -457,6 +458,10 @@ type ChangeEpochTransactionV2 {
 	next epoch.
 	"""
 	eligibleActiveValidators: [BigInt!]
+	"""
+	The validator scores at the end of the epoch.
+	"""
+	scores: [BigInt!]
 }
 
 """
@@ -1292,6 +1297,15 @@ type Epoch {
 }
 
 type Event {
+	"""
+	The transaction block that emitted this event. This information is only
+	available for events from transactions included in a checkpoint.
+	
+	For simulated transactions (e.g. dry run), or transactions that have
+	been just executed but not yet included in a checkpoint this returns
+	null.
+	"""
+	transactionBlock: TransactionBlock
 	"""
 	The Move module containing some function that when called by
 	a programmable transaction block (PTB) emitted this event.
@@ -2513,6 +2527,10 @@ type MovePackage implements IObject & IOwner {
 	"""
 	typeOrigins: [TypeOrigin!]
 	"""
+	BCS representation of the package itself, as a MovePackage.
+	"""
+	packageBcs: Base64
+	"""
 	BCS representation of the package's modules.  Modules appear as a
 	sequence of pairs (module name, followed by module bytes), in
 	alphabetic order by module name.
@@ -3722,6 +3740,11 @@ type Query {
 	"""
 	transactionBlock(digest: String!): TransactionBlock
 	"""
+	Fetch multiple transaction blocks by their digests.
+	This includes all transactions, even if they are not checkpointed yet.
+	"""
+	transactionBlocksByDigests(digests: [String!]!): [TransactionBlock]!
+	"""
 	The coin objects that exist in the network.
 	
 	The type field is a string of the inner type of the coin by which to
@@ -3755,10 +3778,11 @@ type Query {
 	direction of pagination, and so on until all transactions in the
 	scanning range have been visited.
 	
-	By default, the scanning range includes all transactions known to
-	GraphQL, but it can be restricted by the `after` and `before`
+	By default, the scanning range includes all checkpointed transactions
+	known to GraphQL, but it can be restricted by the `after` and `before`
 	cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
-	`atCheckpoint` filters.
+	`atCheckpoint` filters. Transactions that don't have a checkpoint yet
+	are always omitted.
 	"""
 	transactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int): TransactionBlockConnection!
 	"""
@@ -4611,11 +4635,12 @@ type TransactionBlockEffects {
 	"""
 	timestamp: DateTime
 	"""
-	The epoch this transaction was finalized in.
+	The epoch this transaction was executed in.
 	"""
 	epoch: Epoch
 	"""
-	The checkpoint this transaction was finalized in.
+	The checkpoint this transaction was finalized in, if it is within the
+	available range.
 	"""
 	checkpoint: Checkpoint
 	"""

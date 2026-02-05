@@ -191,6 +191,7 @@ export interface DryRunTransactionBlockResponse {
     balanceChanges: BalanceChange[];
     effects: TransactionEffects;
     events: IotaEvent[];
+    executionErrorSource?: string | null;
     input: TransactionBlockData;
     objectChanges: IotaObjectChange[];
     /** If an input object is congested, suggest a gas price to use. */
@@ -537,6 +538,7 @@ export interface IotaChangeEpochV2 {
     eligible_active_validators?: string[] | null;
     epoch: string;
     epoch_start_timestamp_ms: string;
+    scores?: string[] | null;
     storage_charge: string;
     storage_rebate: string;
 }

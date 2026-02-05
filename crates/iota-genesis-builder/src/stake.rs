@@ -10,10 +10,12 @@ use iota_config::genesis::{
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
     object::Object,
-    stardust::coin_kind::get_gas_balance_maybe,
 };
 
-use crate::stardust::migration::{ExpirationTimestamp, MigrationObjects};
+use crate::stardust::{
+    migration::{ExpirationTimestamp, MigrationObjects},
+    types::coin_kind::get_gas_balance_maybe,
+};
 
 #[derive(Default, Debug, Clone)]
 pub struct GenesisStake {

@@ -1,0 +1,119 @@
+---
+description: A guide on how to migrate legacy funds from the trinary protocol.
+teams:
+   - iotaledger/tooling
+title: Legacy Migration Tool
+---
+
+# Migrate Legacy Funds
+
+To migrate your legacy IOTA funds to your new IOTA Wallet you first have to install the latest version of the [IOTA Legacy Migration Tool](https://github.com/iotaledger/legacy-migration-tool/releases).
+
+:::warning Legacy Funds
+
+Legacy funds are funds that were held in the Trinity Wallet. If you already used the Firefly Wallet this guide does not apply to you and you should use [this guide](iota-wallet/how-to/import.mdx) instead.
+
+:::
+
+1. Open the [IOTA Legacy Migration Tool](https://github.com/iotaledger/legacy-migration-tool/releases)
+2. Click on continue
+![Legacy Migration Tool Continue](/img/users/iota-wallet/how-to/legacy/welcome.png)
+3. Select the type of import you want to use:
+![Legacy Migration Tool Import Type](/img/users/iota-wallet/how-to/legacy/select-import-type.png)
+<Tabs groupId="legacy-import-type">
+    <TabItem value="seed" label="Seed">
+        4. Enter your legacy seed and press continue
+        ![Legacy Migration Tool Seed](/img/users/iota-wallet/how-to/legacy/seed.png)
+    </TabItem>
+    <TabItem value="seedvault" label="SeedVault">
+        4. Drag and drop your SeedVault file or click to select it from your file system, then press continue.
+        ![Legacy Migration Tool SeedVault](/img/users/iota-wallet/how-to/legacy/seedvault.png)
+
+        Enter your password for the SeedVault and press continue.
+        ![Legacy Migration Tool SeedVault Password](/img/users/iota-wallet/how-to/legacy/seedvault-password.png)
+
+        Importing the SeedVault is complete and you can continue with the migration by pressing continue.
+        ![Legacy Migration Tool SeedVault Imported](/img/users/iota-wallet/how-to/legacy/seedvault-success.png)
+    </TabItem>
+    <TabItem value="ledger" label="Ledger">
+        4. Get your ledger device and press continue.
+        ![Legacy Migration Tool Ledger](/img/users/iota-wallet/how-to/legacy/ledger.png)
+
+        Make sure you have the IOTA legacy app installed on your ledger device, if not you can install it by following the guide shown in the tool. Once you have the app installed press continue.
+        ![Legacy Migration Tool Ledger App](/img/users/iota-wallet/how-to/legacy/install-ledger.png)
+
+        Connect your ledger device, open the IOTA legacy app and after the tool connected successfully, press continue.
+        ![Legacy Migration Tool Ledger Connected](/img/users/iota-wallet/how-to/legacy/connect-ledger.png)
+
+        Specify your account index if you used a different one than 0 in Trinity and press continue.
+        ![Legacy Migration Tool Ledger Account Index](/img/users/iota-wallet/how-to/legacy/ledger-account-index.png)
+    </TabItem>
+</Tabs>
+5. Search for your balance until you see the correct amount and press continue.
+![Legacy Migration Tool Search Balance](/img/users/iota-wallet/how-to/legacy/initial-balance.png)
+![Legacy Migration Tool Found Balance](/img/users/iota-wallet/how-to/legacy/balance.png)
+6. Enter your new Address where you want to send your claimed legacy funds to and press continue.
+![Legacy Migration Tool New Address](/img/users/iota-wallet/how-to/legacy/new-address.png)
+7. Depending on the distribution of your legacy funds, you can either migrate them in a single transaction or in multiple transactions:
+<Tabs groupId="legacy-import-type">
+    <TabItem value="seed" label="Seed">
+        <Tabs>
+            <TabItem value="single-tx-migration" label="Single Transaction Migration">
+                In this overview you can check everything again. Click on "Begin Migration" to start the migration.
+                ![Legacy Migration Tool Single Transaction](/img/users/iota-wallet/how-to/legacy/migration.png)
+            </TabItem>
+            <TabItem value="multi-tx-migration" label="Multiple Transaction Migration">
+                In this overview you can check everything again. Click on "Begin Migration" to start the migration.
+                ![Legacy Migration Tool Single Transaction](/img/users/iota-wallet/how-to/legacy/migration.png)
+
+                The tool will show you a list of all the transactions that have to be made. Click on "Migrate funds" to start the migration.
+                ![Legacy Migration Tool Multiple Transaction](/img/users/iota-wallet/how-to/legacy/migration-multi-tx.png)
+
+                On the next screen, you can monitor the progress of each individual transaction.
+                ![Legacy Migration Tool Multiple Transaction In Progress](/img/users/iota-wallet/how-to/legacy/success-multi-tx.png)
+            </TabItem>
+        </Tabs>
+    </TabItem>
+    <TabItem value="seedvault" label="SeedVault">
+        <Tabs>
+            <TabItem value="single-tx-migration" label="Single Transaction Migration">
+                In this overview you can check everything again. Click on "Begin Migration" to start the migration.
+                ![Legacy Migration Tool Single Transaction](/img/users/iota-wallet/how-to/legacy/migration.png)
+            </TabItem>
+            <TabItem value="multi-tx-migration" label="Multiple Transaction Migration">
+                In this overview you can check everything again. Click on "Begin Migration" to start the migration.
+                ![Legacy Migration Tool Single Transaction](/img/users/iota-wallet/how-to/legacy/migration.png)
+
+                The tool will show you a list of all the transactions that have to be made. Click on "Migrate funds" to start the migration.
+                ![Legacy Migration Tool Multiple Transaction](/img/users/iota-wallet/how-to/legacy/migration-multi-tx.png)
+
+                On the next screen, you can monitor the progress of each individual transaction.
+                ![Legacy Migration Tool Multiple Transaction In Progress](/img/users/iota-wallet/how-to/legacy/success-multi-tx.png)
+            </TabItem>
+        </Tabs>
+    </TabItem>
+    <TabItem value="ledger" label="Ledger">
+        <Tabs>
+            <TabItem value="single-tx-migration" label="Single Transaction Migration">
+                In this overview you can check everything again. Click on "Begin Migration" to start the migration.
+                ![Legacy Migration Tool Single Transaction](/img/users/iota-wallet/how-to/legacy/migration-ledger.png)
+
+                Now check your ledger device and confirm the transaction there. Make sure the tool and the ledger device show the same details before confirming.
+                ![Legacy Migration Tool Ledger Confirm](/img/users/iota-wallet/how-to/legacy/ledger-single-tx.png)
+            </TabItem>
+            <TabItem value="multi-tx-migration" label="Multiple Transaction Migration">
+                In this overview you can check everything again. Click on "Begin Migration" to start the migration.
+                ![Legacy Migration Tool Single Transaction](/img/users/iota-wallet/how-to/legacy/migration-ledger.png)
+                The tool will show you a list of all the transactions that have to be made. Click on "Migrate funds" to start the migration.
+                ![Legacy Migration Tool Multiple Transaction](/img/users/iota-wallet/how-to/legacy/migration-ledger-multi-tx.png)
+                Now you will confirm the transactions one by one on your ledger device. Make sure the tool and the ledger device show the same details before confirming each transaction.
+                The tool will let you monitor the progress of each individual transaction.
+                ![Legacy Migration Tool Ledger Confirm](/img/users/iota-wallet/how-to/legacy/ledger-multi-tx.png)
+                On the next screen, you can check the success of each individual transaction and press continue.
+                ![Legacy Migration Tool Multiple Transaction In Progress](/img/users/iota-wallet/how-to/legacy/ledger-success-multi-tx.png)
+            </TabItem>
+        </Tabs>
+    </TabItem>
+</Tabs>
+8. Your funds should now be migrated and you can export the logs or check the transaction on the Explorer.
+![Legacy Migration Tool Complete](/img/users/iota-wallet/how-to/legacy/success.png)

@@ -249,7 +249,7 @@ impl<C: ServerProviderClient> Testbed<C> {
     }
 
     /// Destroy all instances of the testbed.
-    pub async fn destroy(&mut self, keep_monitoring: bool) -> TestbedResult<()> {
+    pub async fn destroy(&mut self, keep_monitoring: bool, force: bool) -> TestbedResult<()> {
         let instances_to_destroy = self
             .instances()
             .into_iter()
@@ -279,7 +279,7 @@ impl<C: ServerProviderClient> Testbed<C> {
             \tClient Instances: {}\n",
             number_of_metrics_to_destroy, number_of_nodes_to_destroy, number_of_clients_to_destroy,
         );
-        if cfg!(not(test)) && !display::confirm(confirmation_message) {
+        if cfg!(not(test)) && !force && !display::confirm(confirmation_message) {
             return Ok(());
         };
         display::action("Destroying testbed");
@@ -519,7 +519,7 @@ mod test {
         let client = TestClient::new(settings.clone());
         let mut testbed = Testbed::new(settings, client).await.unwrap();
 
-        testbed.destroy(false).await.unwrap();
+        testbed.destroy(false, true).await.unwrap();
 
         assert_eq!(testbed.node_instances.len(), 0);
     }

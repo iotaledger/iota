@@ -67,6 +67,27 @@ impl IotaObjectResponse {
             error: Some(error),
         }
     }
+
+    pub fn try_from_object_read_and_options(
+        object_read: ObjectRead,
+        options: &IotaObjectDataOptions,
+    ) -> anyhow::Result<Self> {
+        match object_read {
+            ObjectRead::NotExists(id) => Ok(IotaObjectResponse::new_with_error(
+                IotaObjectResponseError::NotExists { object_id: id },
+            )),
+            ObjectRead::Exists(object_ref, o, layout) => Ok(IotaObjectResponse::new_with_data(
+                IotaObjectData::new(object_ref, o, layout, options, None)?,
+            )),
+            ObjectRead::Deleted((object_id, version, digest)) => Ok(
+                IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
+                    object_id,
+                    version,
+                    digest,
+                }),
+            ),
+        }
+    }
 }
 
 impl Ord for IotaObjectResponse {
@@ -226,7 +247,7 @@ impl IotaObjectData {
         object_ref: ObjectRef,
         obj: Object,
         layout: impl Into<Option<MoveStructLayout>>,
-        options: IotaObjectDataOptions,
+        options: &IotaObjectDataOptions,
         display_fields: impl Into<Option<DisplayFieldsResponse>>,
     ) -> anyhow::Result<Self> {
         let layout = layout.into();
@@ -243,13 +264,13 @@ impl IotaObjectData {
         } = options;
 
         let (object_id, version, digest) = object_ref;
-        let type_ = if show_type {
+        let type_ = if *show_type {
             Some(Into::<ObjectType>::into(&obj))
         } else {
             None
         };
 
-        let bcs: Option<IotaRawData> = if show_bcs {
+        let bcs: Option<IotaRawData> = if *show_bcs {
             let data = match obj.data.clone() {
                 Data::Move(m) => {
                     let layout = layout.clone().ok_or_else(|| {
@@ -267,7 +288,7 @@ impl IotaObjectData {
 
         let obj = obj.into_inner();
 
-        let content: Option<IotaParsedData> = if show_content {
+        let content: Option<IotaParsedData> = if *show_content {
             let data = match obj.data {
                 Data::Move(m) => {
                     let layout = layout.ok_or_else(|| {
@@ -287,13 +308,13 @@ impl IotaObjectData {
             version,
             digest,
             type_,
-            owner: if show_owner { Some(obj.owner) } else { None },
-            storage_rebate: if show_storage_rebate {
+            owner: if *show_owner { Some(obj.owner) } else { None },
+            storage_rebate: if *show_storage_rebate {
                 Some(obj.storage_rebate)
             } else {
                 None
             },
-            previous_transaction: if show_previous_transaction {
+            previous_transaction: if *show_previous_transaction {
                 Some(obj.previous_transaction)
             } else {
                 None
@@ -504,21 +525,7 @@ impl TryFrom<(ObjectRead, IotaObjectDataOptions)> for IotaObjectResponse {
     fn try_from(
         (object_read, options): (ObjectRead, IotaObjectDataOptions),
     ) -> Result<Self, Self::Error> {
-        match object_read {
-            ObjectRead::NotExists(id) => Ok(IotaObjectResponse::new_with_error(
-                IotaObjectResponseError::NotExists { object_id: id },
-            )),
-            ObjectRead::Exists(object_ref, o, layout) => Ok(IotaObjectResponse::new_with_data(
-                IotaObjectData::new(object_ref, o, layout, options, None)?,
-            )),
-            ObjectRead::Deleted((object_id, version, digest)) => Ok(
-                IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
-                    object_id,
-                    version,
-                    digest,
-                }),
-            ),
-        }
+        Self::try_from_object_read_and_options(object_read, &options)
     }
 }
 

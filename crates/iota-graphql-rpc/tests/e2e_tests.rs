@@ -82,7 +82,7 @@ mod tests {
     async fn prep_executor_cluster() -> (ConnectionConfig, ExecutorCluster) {
         let rng = StdRng::from_seed([12; 32]);
         let data_ingestion_path = tempdir().unwrap().keep();
-        let mut sim = Simulacrum::new_with_rng(rng);
+        let sim = Simulacrum::new_with_rng(rng);
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         sim.create_checkpoint();
@@ -152,7 +152,7 @@ mod tests {
     #[serial]
     async fn test_simple_client_simulator_cluster() {
         let rng = StdRng::from_seed([12; 32]);
-        let mut sim = Simulacrum::new_with_rng(rng);
+        let sim = Simulacrum::new_with_rng(rng);
         let data_ingestion_path = tempdir().unwrap().keep();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
@@ -160,9 +160,7 @@ mod tests {
         sim.create_checkpoint();
 
         let genesis_checkpoint_digest1 = *sim
-            .store()
-            .get_checkpoint_by_sequence_number(0)
-            .unwrap()
+            .with_store(|store| store.get_checkpoint_by_sequence_number(0).cloned().unwrap())
             .digest();
 
         let chain_id_actual = format!("{}", ChainIdentifier::from(genesis_checkpoint_digest1));
@@ -548,6 +546,88 @@ mod tests {
         assert_eq!(
             count, 1,
             "Transaction should be present in optimistic_transactions table"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_transaction_blocks_by_digests() {
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
+        let addresses = cluster.validator_fullnode_handle.wallet.get_addresses();
+        let sender1 = addresses[0];
+        let sender2 = addresses[1];
+        let recipient = addresses[2];
+
+        let tx1 = cluster
+            .validator_fullnode_handle
+            .test_transaction_builder_with_sender(sender1)
+            .await
+            .transfer_iota(Some(1_000), recipient)
+            .build();
+        let signed_tx1 = cluster.sign_transaction(&tx1);
+        let digest1 = signed_tx1.digest();
+
+        let tx2 = cluster
+            .validator_fullnode_handle
+            .test_transaction_builder_with_sender(sender2)
+            .await
+            .transfer_iota(Some(2_000), recipient)
+            .build();
+        let signed_tx2 = cluster.sign_transaction(&tx2);
+        let digest2 = signed_tx2.digest();
+
+        let response_fields = "effects { transactionBlock { digest } } errors";
+        mutation_execute_transaction(&cluster.graphql_client, &signed_tx1, response_fields).await;
+        mutation_execute_transaction(&cluster.graphql_client, &signed_tx2, response_fields).await;
+
+        let fake_digest = TransactionDigest::random().to_string();
+        let query = format!(
+            r#"
+                {{
+                    transactionBlocksByDigests(digests: ["{digest1}", "{digest2}", "{fake_digest}"]){{
+                        digest
+                        sender {{
+                            address
+                        }}
+                    }}
+                }}
+            "#,
+        );
+
+        let response_body = cluster
+            .graphql_client
+            .execute_to_graphql(query.to_string(), true, vec![], vec![])
+            .await
+            .unwrap()
+            .response_body_json();
+        let transactions = response_body["data"]["transactionBlocksByDigests"]
+            .as_array()
+            .unwrap();
+
+        assert_eq!(
+            transactions.len(),
+            3,
+            "3 results should be present in the response (2 real transactions and 1 null for fake digest)"
+        );
+
+        assert_eq!(
+            transactions[0]["digest"].as_str().unwrap(),
+            digest1.to_string(),
+            "First transaction should match digest1 (preserve input order)"
+        );
+        assert_eq!(
+            transactions[1]["digest"].as_str().unwrap(),
+            digest2.to_string(),
+            "Second transaction should match digest2 (preserve input order)"
+        );
+        assert!(
+            transactions[2].is_null(),
+            "Third transaction should be null for the fake digest"
         );
     }
 

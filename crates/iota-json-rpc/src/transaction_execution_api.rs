@@ -343,6 +343,7 @@ impl TransactionExecutionApi {
             balance_changes,
             input: resp.input,
             suggested_gas_price: resp.suggested_gas_price,
+            execution_error_source: resp.execution_error_source,
         })
     }
 }
@@ -368,7 +369,7 @@ impl WriteApiServer for TransactionExecutionApi {
         &self,
         function_name: String,
         type_args: Option<Vec<IotaTypeTag>>,
-        call_args: Vec<IotaJsonValue>,
+        arguments: Vec<IotaJsonValue>,
     ) -> RpcResult<IotaMoveViewCallResults> {
         let chain = self
             .state
@@ -395,7 +396,7 @@ impl WriteApiServer for TransactionExecutionApi {
                 &module,
                 &function,
                 type_args.unwrap_or_default(),
-                call_args,
+                arguments,
             )
             .await
             .map_err(Error::from)?;

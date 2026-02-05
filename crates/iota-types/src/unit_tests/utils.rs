@@ -328,9 +328,11 @@ mod move_authenticator {
             initial_shared_version: OBJECT_START_VERSION,
             mutable: false,
         });
-        let authenticator = GenericSignature::MoveAuthenticator(
-            MoveAuthenticator::new_for_testing(vec![], vec![], self_call_arg),
-        );
+        let authenticator = GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
+            vec![],
+            vec![],
+            self_call_arg,
+        ));
 
         Transaction::new(SenderSignedData::new(data, vec![authenticator]))
     }

@@ -937,7 +937,7 @@ mod checked {
                 // PackageMetadataV1 specific:
                 // - Process functions for each module in order to create function metadata:
                 //    - Authenticator attributes, if present, are extracted to create
-                //      AuthenticatorInfoMetadata to insert into the PackageMetadata
+                //      AuthenticatorMetadata to insert into the PackageMetadata
                 let mut module_metadata_map = BTreeMap::new();
                 for (fn_name, fn_attributes) in runtime_module_metadata.fun_attributes_iter() {
                     // Check attributes

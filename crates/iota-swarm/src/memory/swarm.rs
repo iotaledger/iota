@@ -73,6 +73,7 @@ pub struct SwarmBuilder<R = OsRng> {
     state_accumulator_config: StateAccumulatorV1EnabledConfig,
     disable_fullnode_pruning: bool,
     iota_names_config: Option<IotaNamesConfig>,
+    fullnode_enable_grpc_api: bool,
     fullnode_grpc_api_config: Option<GrpcApiConfig>,
     disable_address_verification_cooldown: bool,
 }
@@ -108,6 +109,7 @@ impl SwarmBuilder {
             state_accumulator_config: StateAccumulatorV1EnabledConfig::Global(true),
             disable_fullnode_pruning: false,
             iota_names_config: None,
+            fullnode_enable_grpc_api: false,
             fullnode_grpc_api_config: None,
             disable_address_verification_cooldown: false,
         }
@@ -145,6 +147,7 @@ impl<R> SwarmBuilder<R> {
             state_accumulator_config: self.state_accumulator_config,
             disable_fullnode_pruning: self.disable_fullnode_pruning,
             iota_names_config: self.iota_names_config,
+            fullnode_enable_grpc_api: self.fullnode_enable_grpc_api,
             fullnode_grpc_api_config: self.fullnode_grpc_api_config,
             disable_address_verification_cooldown: self.disable_address_verification_cooldown,
         }
@@ -323,6 +326,11 @@ impl<R> SwarmBuilder<R> {
 
     pub fn with_fullnode_fw_config(mut self, config: Option<RemoteFirewallConfig>) -> Self {
         self.fullnode_fw_config = config;
+        self
+    }
+
+    pub fn with_fullnode_enable_grpc_api(mut self, enable: bool) -> Self {
+        self.fullnode_enable_grpc_api = enable;
         self
     }
 
@@ -511,6 +519,8 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
         }
 
         // Add gRPC config wiring
+        fullnode_config_builder =
+            fullnode_config_builder.with_enable_grpc_api(self.fullnode_enable_grpc_api);
         if let Some(grpc_config) = &self.fullnode_grpc_api_config {
             fullnode_config_builder =
                 fullnode_config_builder.with_grpc_api_config(grpc_config.clone());

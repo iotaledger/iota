@@ -12,23 +12,27 @@ TEMP_EXPORT_DIR="${TEMP_EXPORT_DIR-"$PRIVNET_DIR/configs/temp"}"
 VALIDATOR_CONFIGS_DIR="$PRIVNET_DIR/configs/validators"
 GENESIS_DIR="$PRIVNET_DIR/configs/genesis"
 OVERLAY_PATH="$PRIVNET_DIR/configs/validator-common.yaml"
-# Parse `-n` for number of validators (default 4)
+# Parse `-n` for number of validators (default 4) and `-e` for epoch duration (default 1200000)
 NUM_VALIDATORS=4
-while getopts "n:" opt; do
+EPOCH_DURATION_MS=1200000
+FLAG_SPECIFIED=false
+while getopts "n:e:" opt; do
   case "$opt" in
-    n) NUM_VALIDATORS="$OPTARG" ;;
-    *) echo "Usage: $0 [-n num_validators]"; exit 1 ;;
+    n) NUM_VALIDATORS="$OPTARG"; FLAG_SPECIFIED=true ;;
+    e) EPOCH_DURATION_MS="$OPTARG"; FLAG_SPECIFIED=true ;;
+    *) echo "Usage: $0 [-n num_validators] [-e epoch_duration_ms]"; exit 1 ;;
   esac
 done
 
 generate_genesis_template_if_missing() {
     mkdir -p "$PRIVNET_DIR/configs"
     GENESIS_TEMPLATE="$PRIVNET_DIR/configs/genesis-template-${NUM_VALIDATORS}.yaml"
+    GENESIS_BLOB="$GENESIS_DIR/genesis.blob"
 
-    if [[ -f "$GENESIS_TEMPLATE" ]]; then
+    if [[ -f "$GENESIS_TEMPLATE" ]] && [[ -f "$GENESIS_BLOB" ]] && [[ "$FLAG_SPECIFIED" == "false" ]]; then
         echo "Genesis template already exists: $GENESIS_TEMPLATE"
     else
-        echo "Generating genesis template for $NUM_VALIDATORS validators..."
+        echo "Generating genesis template for $NUM_VALIDATORS validators (epoch: ${EPOCH_DURATION_MS}ms)..."
         cat > "$GENESIS_TEMPLATE" <<EOF
 accounts:
   - address: "0xd59d79516a4ed5b6825e80826c075a12bdd2759aaeb901df2f427f5f880c8f60"
@@ -47,7 +51,7 @@ accounts:
       - 750000000000000000
 parameters:
   allow_insertion_of_extra_objects: false
-  epoch_duration_ms: 1200000
+  epoch_duration_ms: $EPOCH_DURATION_MS
 validator_config_info:
 EOF
 

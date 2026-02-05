@@ -200,8 +200,11 @@ impl ObjectCacheRead for PassthroughCache {
         self.store.get_latest_marker(object_id, epoch_id)
     }
 
-    fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber> {
-        self.store.perpetual_tables.get_highest_pruned_checkpoint()
+    fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<Option<CheckpointSequenceNumber>> {
+        self.store
+            .perpetual_tables
+            .get_highest_pruned_checkpoint()
+            .map_err(IotaError::from)
     }
 }
 
@@ -224,7 +227,9 @@ impl TransactionCacheRead for PassthroughCache {
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
-        self.store.multi_get_executed_effects_digests(digests)
+        self.store
+            .multi_get_executed_effects_digests(digests)
+            .map_err(IotaError::from)
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -258,8 +263,8 @@ impl TransactionCacheRead for PassthroughCache {
 
 impl ExecutionCacheWrite for PassthroughCache {
     #[instrument(level = "debug", skip_all)]
-    fn try_write_transaction_outputs<'a>(
-        &'a self,
+    fn try_write_transaction_outputs(
+        &self,
         epoch_id: EpochId,
         tx_outputs: Arc<TransactionOutputs>,
     ) -> IotaResult {

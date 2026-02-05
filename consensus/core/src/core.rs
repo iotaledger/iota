@@ -3653,7 +3653,7 @@ mod test {
             .protocol_config
             .set_consensus_gc_depth_for_testing(GC_DEPTH);
         // context.protocol_config.
-        // set_narwhal_new_leader_election_schedule_for_testing(val);
+        // set_new_leader_election_schedule_for_testing(val);
         let context = Arc::new(context.with_parameters(Parameters {
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             ..Default::default()

@@ -17,6 +17,7 @@ concurrency: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.inputs.ta
 env:
   IOTA_NETWORKS: ${{ secrets.CHANGESETS_IOTA_NETWORKS }}
   DEFAULT_NETWORK: ${{ secrets.CHANGESETS_DEFAULT_NETWORK }}
+  APPS_BACKEND: ${{ secrets.CHANGESETS_APPS_BACKEND }}
   NPM_TOKEN: ""
 
 permissions:
@@ -36,7 +37,7 @@ jobs:
       - name: Install Nodejs
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "pnpm"
           registry-url: "https://registry.npmjs.org"
 
@@ -69,11 +70,7 @@ jobs:
 
       - name: Publish packages
         run: |
-          if [ "${{ github.event.inputs.create_snapshot }}" = "true" ]; then
-            pnpm changeset publish --snapshot --tag ${{ github.event.inputs.tag }}
-          else
-            pnpm changeset publish
-          fi
+          pnpm changeset publish --tag ${{ github.event.inputs.tag }}
 
       - name: Create summary
         run: |

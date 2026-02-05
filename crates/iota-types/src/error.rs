@@ -39,7 +39,6 @@ macro_rules! fp_ensure {
         }
     };
 }
-pub(crate) use fp_ensure;
 
 use crate::{
     digests::TransactionEventsDigest,
@@ -147,6 +146,8 @@ pub enum UserInputError {
     NotSharedObject,
     #[error("The transaction inputs contain duplicated ObjectRef's")]
     DuplicateObjectRefInput,
+    #[error("A transaction input {object_id} is inconsistent")]
+    InconsistentInput { object_id: ObjectID },
 
     // Gas related errors
     #[error("Transaction gas payment missing")]
@@ -271,7 +272,7 @@ pub enum UserInputError {
     #[error("Immutable parameter provided, mutable parameter expected")]
     MutableParameterExpected { object_id: ObjectID },
 
-    #[error("Address {address:?} is denied for coin {coin_type}")]
+    #[error("Address {address} is denied for coin {coin_type}")]
     AddressDeniedForCoin {
         address: IotaAddress,
         coin_type: String,
@@ -352,17 +353,19 @@ pub enum UserInputError {
     },
 
     #[error(
-        "AuthenticatorInfo {authenticator_info_id:?} not found for account {account_object_id:?} with version {account_object_version:?}"
+        "AuthenticatorFunctionRef {authenticator_function_ref_id:?} not found for account {account_object_id:?} with version {account_object_version:?}"
     )]
     MoveAuthenticatorNotFound {
-        authenticator_info_id: ObjectID,
+        authenticator_function_ref_id: ObjectID,
         account_object_id: ObjectID,
         account_object_version: SequenceNumber,
     },
     #[error("Unable to get a Move authenticator object ID for account {account_object_id:?}")]
     UnableToGetMoveAuthenticatorId { account_object_id: ObjectID },
-    #[error("Invalid authenticator field value found for the account {account_object_id:?}")]
-    InvalidAuthenticatorInfoField { account_object_id: ObjectID },
+    #[error(
+        "Invalid authenticator function ref field value found for the account {account_object_id:?}"
+    )]
+    InvalidAuthenticatorFunctionRefField { account_object_id: ObjectID },
 
     #[error("Package {package_id:?} is in the `MoveAuthenticator` input that is unsupported")]
     PackageIsInMoveAuthenticatorInput { package_id: ObjectID },
@@ -378,10 +381,6 @@ pub enum UserInputError {
         "Mutable shared object {object_id:?} is in the `MoveAuthenticator` input that is unsupported"
     )]
     MutableSharedIsInMoveAuthenticatorInput { object_id: ObjectID },
-    #[error(
-        "Authenticator input {object_id} is inconsistent with the other transaction input objects"
-    )]
-    InconsistentAuthenticatorInput { object_id: ObjectID },
 }
 
 #[derive(
@@ -428,10 +427,10 @@ pub enum IotaObjectResponseError {
     Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Error, Hash, AsRefStr, IntoStaticStr,
 )]
 pub enum IotaError {
-    #[error("Error checking transaction input objects: {:?}", error)]
+    #[error("Error checking transaction input objects: {error}")]
     UserInput { error: UserInputError },
 
-    #[error("Error checking transaction object: {:?}", error)]
+    #[error("Error checking transaction object: {error}")]
     IotaObjectResponse { error: IotaObjectResponseError },
 
     #[error("Expecting a single owner, shared ownership found")]

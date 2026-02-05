@@ -19,7 +19,7 @@ use crate::{
     block::{BlockAPI as _, BlockDigest, BlockRef, Round, SignedBlock, VerifiedBlock},
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
-    metrics::StoredScoringMetricsU64,
+    storage::StorageScoringMetrics,
 };
 
 /// Persistent storage with RocksDB.
@@ -36,7 +36,7 @@ pub(crate) struct RocksDBStore {
     /// Stores info related to Commit that helps recovery.
     commit_info: DBMap<(CommitIndex, CommitDigest), CommitInfo>,
     /// Stores scoring metrics for each authority.
-    scoring_metrics: DBMap<AuthorityIndex, StoredScoringMetricsU64>,
+    scoring_metrics: DBMap<AuthorityIndex, StorageScoringMetrics>,
 }
 
 impl RocksDBStore {
@@ -84,7 +84,7 @@ impl RocksDBStore {
             Self::COMMITS_CF;<(CommitIndex, CommitDigest), Bytes>,
             Self::COMMIT_VOTES_CF;<(CommitIndex, CommitDigest, BlockRef), ()>,
             Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>,
-            Self::SCORING_METRICS_CF;<AuthorityIndex, StoredScoringMetricsU64>
+            Self::SCORING_METRICS_CF;<AuthorityIndex, StorageScoringMetrics>
         );
 
         Self {
@@ -224,7 +224,9 @@ impl Store for RocksDBStore {
         Ok(blocks)
     }
 
-    fn scan_metrics(&self) -> ConsensusResult<Vec<(AuthorityIndex, StoredScoringMetricsU64)>> {
+    fn scan_scoring_metrics(
+        &self,
+    ) -> ConsensusResult<Vec<(AuthorityIndex, StorageScoringMetrics)>> {
         let mut metrics_by_author = vec![];
         for kv in self.scoring_metrics.safe_iter() {
             metrics_by_author.push(kv?);

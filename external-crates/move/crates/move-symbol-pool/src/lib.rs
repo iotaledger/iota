@@ -71,6 +71,8 @@ static_symbols!(
     "Clock",
     "tx_context",
     "TxContext",
+    "auth_context",
+    "AuthContext",
     "ID",
     "IOTA",
     "authenticator_state",
@@ -99,7 +101,7 @@ static_symbols!(
     "account",
     "create_account_v1",
     "create_immutable_account_v1",
-    "rotate_auth_info_v1",
+    "rotate_auth_function_ref_v1",
 );
 
 /// The global, unique cache of strings.

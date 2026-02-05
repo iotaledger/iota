@@ -152,13 +152,16 @@ export class InMemoryCache extends AsyncCache {
 
 export interface ObjectCacheOptions {
     cache?: AsyncCache;
+    onEffects?: (effects: typeof bcs.TransactionEffects.$inferType) => Promise<void>;
 }
 
 export class ObjectCache {
     #cache: AsyncCache;
+    #onEffects?: (effects: typeof bcs.TransactionEffects.$inferType) => Promise<void>;
 
-    constructor({ cache = new InMemoryCache() }: ObjectCacheOptions) {
+    constructor({ cache = new InMemoryCache(), onEffects }: ObjectCacheOptions) {
         this.#cache = cache;
+        this.#onEffects = onEffects;
     }
 
     asPlugin(): TransactionPlugin {
@@ -276,9 +279,9 @@ export class ObjectCache {
         const deletedIds: string[] = [];
         const addedObjects: ObjectCacheEntry[] = [];
 
-        changedObjects.map(async ([id, change]) => {
+        changedObjects.forEach(([id, change]) => {
             if (change.outputState.NotExist) {
-                await this.#cache.deleteObject(id);
+                deletedIds.push(id);
             } else if (change.outputState.ObjectWrite) {
                 const [digest, owner] = change.outputState.ObjectWrite;
 
@@ -295,6 +298,7 @@ export class ObjectCache {
         await Promise.all([
             this.#cache.addObjects(addedObjects),
             this.#cache.deleteObjects(deletedIds),
+            this.#onEffects?.(effects),
         ]);
     }
 }

@@ -11,6 +11,7 @@ export enum Feature {
     WalletBalanceRefetchInterval = 'wallet-balance-refetch-interval',
     WalletAppsBannerConfig = 'wallet-apps-banner-config',
     WalletInterstitialConfig = 'wallet-interstitial-config',
+    WalletPasskeys = 'wallet-passkeys',
     RecognizedPackages = 'recognized-packages',
     WalletSentryTracing = 'wallet-sentry-tracing',
     PollingTxnTable = 'polling-txn-table',
@@ -24,4 +25,5 @@ export enum Feature {
     KnownIotaEVMCoinTypes = 'known-iota-evm-coin-types',
     IotaNames = 'iota-names',
     ValidatorAddressAlias = 'validator-address-alias',
+    ExplorerTFIdentity = 'explorer-trust-framework-identity',
 }

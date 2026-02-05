@@ -29,7 +29,9 @@ export type BaseRulePackageIds = {
 export type TransferPolicyRule = {
     rule: string;
     packageId: string;
-    resolveRuleFunction: (rule: RuleResolvingParams) => ObjectArgument | void;
+    resolveRuleFunction: (
+        rule: RuleResolvingParams,
+    ) => ObjectArgument | void | Promise<ObjectArgument | void>;
     hasLockingRule?: boolean;
 };
 
@@ -42,7 +44,7 @@ export function getBaseRules({
     personalKioskRulePackageId,
     floorPriceRulePackageId,
 }: BaseRulePackageIds): TransferPolicyRule[] {
-    const rules = [];
+    const rules: TransferPolicyRule[] = [];
 
     if (royaltyRulePackageId) {
         rules.push({

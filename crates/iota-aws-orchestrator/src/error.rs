@@ -6,6 +6,8 @@ use std::net::SocketAddr;
 
 use reqwest::Url;
 
+use crate::client::Instance;
+
 #[macro_export(local_inner_macros)]
 macro_rules! ensure {
     ($cond:expr, $e:expr) => {
@@ -74,11 +76,12 @@ pub enum SshError {
         error: russh::Error,
     },
 
-    #[error("Remote execution on {address} returned exit code ({code}): {message}")]
+    #[error("Remote execution cmd '{command}' on {address} returned exit code ({code}): {message}")]
     NonZeroExitCode {
         address: SocketAddr,
         code: u32,
         message: String,
+        command: String,
     },
 }
 
@@ -105,6 +108,9 @@ pub enum TestbedError {
 
     #[error(transparent)]
     Ssh(#[from] SshError),
+
+    #[error("Failed to execute command '{1}' over ssh on instance {0}: {2}")]
+    SshCommandFailed(Instance, String, String),
 
     #[error("Not enough instances: missing {0} instances")]
     InsufficientCapacity(usize),

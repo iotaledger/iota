@@ -4,7 +4,7 @@
 /// This example demonstrates how to receive objects to a shared object and transfer them again.
 module shared_coins::shared_coins {
     use iota::coin::Coin;
-    use iota::transfer::{Receiving};
+    use iota::transfer::Receiving;
     use iota::iota::IOTA;
 
     /// Coins, anyone can deposit and transfer.

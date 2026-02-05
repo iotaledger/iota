@@ -305,7 +305,7 @@ fn test_auth_sig_commit_to_wrong_epoch_id_fail() {
     );
     let (_, sec): (_, AuthorityKeyPair) = get_key_pair();
 
-    // Auth signtaure commits to epoch 0 verifies ok.
+    // Auth signature commits to epoch 0 verifies ok.
     let sig = AuthoritySignature::new_secure(
         &IntentMessage::new(
             Intent::iota_app(IntentScope::SenderSignedTransaction),
@@ -318,7 +318,7 @@ fn test_auth_sig_commit_to_wrong_epoch_id_fail() {
     assert!(res.is_ok());
     assert!(obligation.verify_all().is_ok());
 
-    // Auth signtaure commits to epoch 1 fails to verify.
+    // Auth signature commits to epoch 1 fails to verify.
     let mut obligation = VerificationObligation::default();
     let idx1 = obligation.add_message(
         &message,

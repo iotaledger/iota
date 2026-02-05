@@ -24,8 +24,7 @@
         "pull-amplitude": "ampli pull web && node prependLicense.mjs && prettier -w ampli.json src/shared/analytics/ampli/index.ts"
     },
     "dependencies": {
-        "@amplitude/analytics-browser": "^1.10.3",
-        "@boxfish-studio/react-cookie-manager": "^1.0.5",
+        "@amplitude/analytics-browser": "^2.32.2",
         "@growthbook/growthbook": "^1.0.0",
         "@growthbook/growthbook-react": "^1.0.0",
         "@hookform/resolvers": "^3.9.0",
@@ -36,7 +35,7 @@
         "@iota/dapp-kit": "workspace:*",
         "@iota/iota-sdk": "workspace:*",
         "@iota/isc-sdk": "workspace:*",
-        "@rainbow-me/rainbowkit": "^2.2.3",
+        "@rainbow-me/rainbowkit": "^2.2.10",
         "@tanstack/react-query": "^5.50.1",
         "autoprefixer": "^10.4.19",
         "bignumber.js": "^9.1.1",
@@ -45,14 +44,14 @@
         "react-dom": "^18.3.1",
         "react-hook-form": "^7.45.2",
         "react-hot-toast": "^2.4.1",
-        "viem": "^2.23.3",
-        "wagmi": "^2.14.11",
+        "viem": "^2.41.2",
+        "wagmi": "^2.19.5",
         "zod": "^3.21.4",
         "zustand": "^4.4.1"
     },
     "devDependencies": {
-        "@amplitude/ampli": "^1.31.5",
-        "@amplitude/analytics-types": "^0.20.0",
+        "@amplitude/ampli": "^1.36.2",
+        "@amplitude/analytics-types": "^2.11.0",
         "@playwright/test": "^1.56.1",
         "@types/node": "^20.14.10",
         "@types/react": "^18.3.3",

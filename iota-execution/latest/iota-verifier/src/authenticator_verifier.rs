@@ -3,36 +3,36 @@
 
 /// Account authenticator verifier
 ///
-/// This module contains the verifier for the `authenticate` function used
+/// This module contains the verifier for the authenticator function used
 /// by account objects to verify access to the account. The verifier checks
 /// that the function signature matches the expected signature for an
-/// `authenticate` function.
+/// authenticator function.
 use iota_types::{
     Identifier,
     auth_context::{AuthContext, AuthContextKind},
-    base_types::{
-        RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TxContext, TxContextKind,
-    },
+    base_types::{TxContext, TxContextKind},
     error::ExecutionError,
-    id::RESOLVED_IOTA_ID,
-    transfer::RESOLVED_RECEIVING_STRUCT,
+    is_object_struct, is_primitive_strict,
+    transfer::Receiving,
 };
 use move_binary_format::{
     CompiledModule,
     file_format::{AbilitySet, SignatureToken, Visibility},
 };
-use move_bytecode_utils::resolve_struct;
+use move_bytecode_utils::format_signature_token;
 
 use crate::verification_failure;
 
-/// Verify if a given function can be used as an `authenticate` function
+/// Verify if a given function can be used as an authenticator function
 ///
-/// A function is an authenticate function if:
+/// A function is an authenticator function if:
 /// - only has read-only inputs (immutable owned/shared references or pure
 ///   types)
 /// - has no return type
 /// - must be a public non-entry function
-/// - the first argument is a reference to the account object type (a Datatype)
+/// - the first argument is a reference to the account object type (a Datatype
+///   or a concrete DatatypeInstantiation, i.e., with no template type
+///   parameters but concrete ones, both with `key` ability)
 /// - the last two arguments in order are AuthContext and TxContext
 /// - AuthContext has to be an immutable reference
 /// - TxContext has to be an immutable reference
@@ -78,7 +78,8 @@ pub fn verify_authenticate_func_v1(
     // Additional restrictions on the first argument type are enforced in the
     // following check.
     let account_parameter = &function_signature.0[0];
-    verify_authenticate_account_type(module, account_parameter).map_err(verification_failure)?;
+    verify_authenticate_account_type(module, &function_handle.type_parameters, account_parameter)
+        .map_err(verification_failure)?;
 
     // Check params 2nd to N-2th /////////////////////////////
 
@@ -102,7 +103,7 @@ pub fn verify_authenticate_func_v1(
     let tx_context = &function_signature.0[function_signature.len() - 1];
 
     // AuthContext could potentially be passed as value, but that opens up the
-    // possibility for the `authenticate` function to receive it as mutable
+    // possibility for the authenticator function to receive it as mutable
     // value, from which it could mutate before passing it to further `authenticate`
     // functions, so similarly to TxContext, it is simply not allowed.
     if !matches!(
@@ -110,13 +111,12 @@ pub fn verify_authenticate_func_v1(
         AuthContextKind::Immutable
     ) {
         return Err(verification_failure(format!(
-            "Authenticator function '{function_identifier}' can only receive
-            'AuthContext' as immutable reference"
+            "Authenticator function '{function_identifier}' can only receive 'AuthContext' as immutable reference"
         )));
     }
 
     // TxContext can only be an immutable reference. Passing it as mutable would
-    // allow `authenticate` functions to create objects, which would be
+    // allow authenticator functions to create objects, which would be
     // problematic.
     if !matches!(
         TxContext::kind(module, tx_context),
@@ -139,80 +139,54 @@ pub fn verify_authenticate_func_v1(
     Ok(())
 }
 
-/// Verify that the first parameter type of the authenticate function is an
+/// Verify that the first parameter type of the authenticator function is an
 /// immutable reference to an Object type, i.e., a Datatype with `key` ability.
 fn verify_authenticate_account_type(
     module: &CompiledModule,
+    function_type_args: &[AbilitySet],
     param: &SignatureToken,
 ) -> Result<(), String> {
     use SignatureToken::*;
 
-    match param {
-        Reference(ref_param) => match &**ref_param {
-            Datatype(i) => {
-                if module.datatype_handle_at(*i).abilities.has_key() {
-                    Ok(())
-                } else {
-                    Err(format!(
-                        "Invalid account type. Account must be a Datatype with key ability, offending argument: {param:?}"
-                    ))
+    // Check that the parameter is an immutable reference
+    if let Reference(ref_param) = param {
+        // Check if a type is a concrete object type (i.e., a Datatype with
+        // `key` ability or a DatatypeInstantiation with `key` ability
+        // and all type arguments being concrete object types).
+        let s = &**ref_param;
+        match s {
+            Datatype(_) => {
+                let abilities = module
+                    .abilities(s, function_type_args)
+                    .map_err(|vm_err| vm_err.to_string())?;
+                if abilities.has_key() {
+                    return Ok(());
                 }
             }
-            _ => Err(format!(
-                "Invalid account type. Account can only be a Datatype, offending argument: {param:?}"
-            )),
-        },
-        _ => Err(format!(
-            "Invalid account type. Account can only be a reference type, offending argument: {param:?}"
-        )),
-    }
-}
-
-/// Verify that the parameter type when it is an immutable reference.
-/// An immutable reference is valid for an authenticate function in any case
-/// except for the `iota::transfer::Receiving` struct
-fn verify_immutable_reference(
-    module: &CompiledModule,
-    param: &SignatureToken,
-) -> Result<(), String> {
-    use SignatureToken::*;
-
-    match param {
-        U8 | U16 | U32 | U64 | U128 | U256 | Bool | Address | Datatype(_) | TypeParameter(_) => {
-            Ok(())
-        }
-        Vector(inner) => verify_immutable_reference(module, inner),
-        DatatypeInstantiation(datatype_instance) => {
-            let (idx, type_args) = &**datatype_instance;
-            let resolved_struct = resolve_struct(module, *idx);
-            if resolved_struct == RESOLVED_RECEIVING_STRUCT {
-                Err(format!(
-                    "Invalid immutable reference. A datatype instantiation must NOT be a receiving struct, offending argument: {param:?}"
-                ))
-            } else {
-                for type_arg in type_args.iter() {
-                    verify_immutable_reference(module, type_arg)?
+            DatatypeInstantiation(struct_inst) => {
+                let (_, type_args) = &**struct_inst;
+                let abilities = module
+                    .abilities(s, function_type_args)
+                    .map_err(|vm_err| vm_err.to_string())?;
+                if abilities.has_key() && type_args.iter().all(is_not_type_parameter) {
+                    return Ok(());
                 }
-                Ok(())
             }
+            _ => {}
         }
-        Signer => Err(format!(
-            "Invalid immutable reference. Signer cannot be immutably referenced, offending argument: {param:?}"
-        )),
-        Reference(_) => Err(format!(
-            "Invalid immutable reference. Reference cannot be immutably referenced, offending argument: {param:?}"
-        )),
-        MutableReference(_) => Err(format!(
-            "Invalid immutable reference. MutableReference cannot be immutably referenced, offending argument: {param:?}"
-        )),
     }
+    Err(format!(
+        "Invalid authenticator function account type: {}. Valid types for the first parameter are immutable references to an object type (with no generics).",
+        format_signature_token(module, param),
+    ))
 }
 
-/// Verify that the parameter type is a valid type for an `authenticate`
-/// function The parameter type can be:
-/// - an immutable reference to anything but a receiving object (see
-///   [verify_immutable_reference])
-/// - a pure input type (see [verify_pure_input_type])
+/// Verify that the parameter type is a valid type for an authenticator
+/// function. Check that:
+/// - no Receiving objects are passed at all;
+/// - no objects are passed by value or by mutable reference, but only by
+///   immutable reference;
+/// - only primitive types are allowed by value.
 fn verify_authenticate_param_type(
     module: &CompiledModule,
     function_type_args: &[AbilitySet],
@@ -220,113 +194,59 @@ fn verify_authenticate_param_type(
 ) -> Result<(), String> {
     use SignatureToken::*;
 
+    // Reject receiving objects even if passed by immutable reference
+    if Receiving::is_receiving(module, param) {
+        return Err(format!(
+            "Invalid authenticator function parameter type: {}. Receiving objects are invalid. Valid types are immutable references to objects or primitive types.",
+            format_signature_token(module, param),
+        ));
+    }
+
     match param {
-        Reference(ref_param) => verify_immutable_reference(module, ref_param),
-        _ => verify_pure_input_type(module, function_type_args, param),
+        Reference(inner) => {
+            if is_object_struct(module, function_type_args, inner)? {
+                Ok(())
+            } else {
+                Err(format!(
+                    "Invalid parameter type for authenticator function: {}. Non object immutable references are invalid. Valid types are immutable references to objects or primitive types.",
+                    format_signature_token(module, param)
+                ))
+            }
+        }
+        _ => {
+            if is_primitive_strict(module, function_type_args, param) {
+                Ok(())
+            } else {
+                Err(format!(
+                    "Invalid parameter type for authenticator function: {}. Valid types are immutable references to objects or primitive types.",
+                    format_signature_token(module, param)
+                ))
+            }
+        }
     }
 }
 
-/// Evaluate that signature type is of [pure input](https://docs.iota.org/developer/iota-101/transactions/ptb/programmable-transaction-blocks#inputs)
-///
-/// ATTENTION!///
-/// This check implements a very loose definition of a pure type, because it is
-/// based on the assumption that the authenticate function is executed
-/// equivalently to a PTB with a single command.
-/// 1. This means that potentially, a parameter of type `T`, with `T` being a
-///    generic, would be accepted by the check of this verify function even if
-///    the instance of `T` is not pure by definition. An example is passing an
-///    instance of the `Simple` as concrete type of T; in this case, `Simple` is
-///    not considered pure. This verify function works as this because it is
-///    executed in a moment in which the concrete types of a generic are not
-///    known. However, since the authenticate function is executed equivalently
-///    to a PTB with a single command, this assures that only pure types and
-///    objects can actually be passed by design. So the case of having ´Simple´
-///    as concrete type of `T` cannot exist.
-/// 2. Moreover, this check assures that no object can be passed as concrete
-///    type of a generic `T` because in the constraints of every generic it
-///    checks that the `key` ability is not set. This is not enough because a
-///    case like this could happen `fn authenticate()<T>(...)` where the key
-///    constraint is not set. In this case the compiler helps us by forcing the
-///    `T` concrete type to have a `drop` ability. To calm the compiler down the
-///    function `authenticate` must either:
-///    1. not use the `<T: drop>` constraint and return the parameter with type
-///       `T` -> this is not allowed by design, as an authenticate function has
-///       no returns;
-///    2. not use the `<T: drop>` constraint but the `<T: key>` constraint ->
-///       this is not allowed by this verify function;
-///    3. use the `<T: drop>` constraint -> this means no object type can be
-///       used as concrete type because an object with `drop` ability cannot
-///       exist.
-///
-///
-/// A parameter is considered `pure input` if that can't be used to modify
-/// ledger state in any way, i.e., not an object, and that can be constructed
-/// before calling the function itself.
-///
-/// A general struct, with no unresolved template arguments:
-/// ```move
-/// public struct Simple has store {
-///   a: u8,
-///   some_vec: vector<ascii::String>
-/// }
-/// ```
-/// is not considered a `pure input` either as it is not a built-in type so it
-/// can't be constructed before the (single) PTB move call itself. On
-/// the contrary std::ascii::String and std::string::String are okay.
-/// On a similar notion a simple `vector<T>` and an `Option<T>` are both also
-/// acceptable as they are built-in move types with rust side counterpart as
-/// long as `T` is recursively `pure` as well.
-fn verify_pure_input_type(
-    module: &CompiledModule,
-    function_type_args: &[AbilitySet],
-    param: &SignatureToken,
-) -> Result<(), String> {
-    use SignatureToken::*;
-
-    match param {
-        U8 | U16 | U32 | U64 | U128 | U256 | Bool | Address => Ok(()),
-        Vector(inner) => verify_pure_input_type(module, function_type_args, inner),
-        Datatype(handle_index) => {
-            let resolved_struct = resolve_struct(module, *handle_index);
-            if resolved_struct == RESOLVED_ASCII_STR
-                || resolved_struct == RESOLVED_UTF8_STR
-                || resolved_struct == RESOLVED_IOTA_ID
-            {
-                Ok(())
-            } else {
-                Err(format!(
-                    "Invalid pure type. A datatype must be a string or an ID, offending argument: {param:?}"
-                ))
-            }
+/// Check that a type is not a type parameter, recursively
+fn is_not_type_parameter(s: &SignatureToken) -> bool {
+    use SignatureToken as S;
+    match s {
+        S::TypeParameter(_) => false,
+        S::Bool
+        | S::U8
+        | S::U16
+        | S::U32
+        | S::U64
+        | S::U128
+        | S::U256
+        | S::Address
+        | S::Signer
+        | S::Datatype(_) => true,
+        S::DatatypeInstantiation(struct_inst) => {
+            let (_, type_args) = &**struct_inst;
+            type_args.iter().all(is_not_type_parameter)
         }
-        DatatypeInstantiation(datatype_instance) => {
-            let (idx, type_args) = &**datatype_instance;
-            let resolved_struct = resolve_struct(module, *idx);
-            if resolved_struct == RESOLVED_STD_OPTION && type_args.len() == 1 {
-                verify_pure_input_type(module, function_type_args, &type_args[0])
-            } else {
-                Err(format!(
-                    "Invalid pure type. A datatype instantiation must be an option of pure types, offending argument: {param:?}"
-                ))
-            }
+        S::Vector(inner) | S::Reference(inner) | S::MutableReference(inner) => {
+            is_not_type_parameter(inner)
         }
-        TypeParameter(idx) => {
-            if function_type_args[*idx as usize].has_key() {
-                Err(format!(
-                    "Invalid pure type. A type parameter cannot have the 'key' ability, offending argument: {param:?}"
-                ))
-            } else {
-                Ok(())
-            }
-        }
-        Signer => Err(format!(
-            "Invalid pure type. Signer is not a pure type, offending argument: {param:?}"
-        )),
-        Reference(_) => Err(format!(
-            "Invalid pure type. Reference is not a pure type, offending argument: {param:?}"
-        )),
-        MutableReference(_) => Err(format!(
-            "Invalid pure type. MutableReference is not a pure type, offending argument: {param:?}"
-        )),
     }
 }

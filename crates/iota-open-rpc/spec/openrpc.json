@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.14.0-alpha"
+    "version": "1.17.0-alpha"
   },
   "methods": [
     {
@@ -1301,14 +1301,17 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "18",
+              "maxSupportedProtocolVersion": "19",
               "protocolVersion": "6",
               "featureFlags": {
                 "accept_passkey_in_multisig": false,
                 "accept_zklogin_in_multisig": false,
                 "additional_multisig_checks": false,
+                "adjust_rewards_by_score": false,
+                "calculate_validator_scores": false,
                 "congestion_control_gas_price_feedback_mechanism": false,
                 "congestion_control_min_free_execution_slot": false,
+                "congestion_limit_overshoot_in_gas_price_feedback_mechanism": false,
                 "consensus_batched_block_sync": false,
                 "consensus_commit_transactions_only_for_traversed_headers": false,
                 "consensus_distributed_vote_scoring_strategy": false,
@@ -1333,6 +1336,7 @@
                 "native_charging_v2": true,
                 "no_extraneous_module_bytes": true,
                 "normalize_ptb_arguments": false,
+                "pass_validator_scores_to_advance_epoch": false,
                 "passkey_auth": true,
                 "protocol_defined_base_fee": true,
                 "publish_package_metadata": false,
@@ -1340,6 +1344,7 @@
                 "rethrow_serialization_type_layout_errors": true,
                 "select_committee_from_eligible_validators": false,
                 "select_committee_supporting_next_epoch_version": false,
+                "separate_gas_price_feedback_mechanism_for_randomness": false,
                 "track_non_committee_eligible_validators": false,
                 "uncompressed_g1_group_elements": true,
                 "validate_identifier_inputs": false,
@@ -2076,6 +2081,7 @@
                 "reward_slashing_rate": {
                   "u64": "10000"
                 },
+                "scorer_version": null,
                 "storage_gas_price": {
                   "u64": "76"
                 },
@@ -3281,7 +3287,7 @@
           }
         },
         {
-          "name": "call_args",
+          "name": "arguments",
           "required": true,
           "schema": {
             "type": "array",
@@ -6811,6 +6817,12 @@
               "$ref": "#/components/schemas/Event"
             }
           },
+          "executionErrorSource": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "input": {
             "$ref": "#/components/schemas/TransactionBlockData"
           },
@@ -8102,6 +8114,15 @@
           },
           "epoch_start_timestamp_ms": {
             "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "scores": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/BigInt_for_uint64"
+            }
           },
           "storage_charge": {
             "$ref": "#/components/schemas/BigInt_for_uint64"

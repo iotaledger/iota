@@ -4,9 +4,9 @@
 
 import { isBasePayload } from '_payloads';
 import type { BasePayload, Payload } from '_payloads';
-import type { GrowthBook } from '@growthbook/growthbook';
+import type { GrowthBook, FeatureDefinition } from '@growthbook/growthbook';
 
-export type LoadedFeatures = Parameters<GrowthBook['setFeatures']>['0'];
+export type LoadedFeatures = Record<string, FeatureDefinition>;
 export type LoadedAttributes = Parameters<GrowthBook['setAttributes']>['0'];
 
 export interface LoadedFeaturesPayload extends BasePayload {

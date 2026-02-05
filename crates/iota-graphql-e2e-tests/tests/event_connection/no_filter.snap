@@ -27,12 +27,6 @@ task 4, lines 32-45:
 Response: {
   "data": {
     "events": {
-      "pageInfo": {
-        "hasPreviousPage": false,
-        "hasNextPage": true,
-        "startCursor": "eyJ0eCI6MCwiZSI6MCwiYyI6MX0",
-        "endCursor": "eyJ0eCI6MiwiZSI6MTcsImMiOjF9"
-      },
       "nodes": [
         {
           "json": {
@@ -41,8 +35,6 @@ Response: {
         },
         {
           "json": {
-            "id": "0x4fe0424cf997fd29d280684bfb2b33cafc2c28da316c489b4ba80ba598081d8c",
-            "version": 1,
             "fields": {
               "contents": [
                 {
@@ -78,7 +70,9 @@ Response: {
                   "value": "{immutable_issuer}"
                 }
               ]
-            }
+            },
+            "id": "0x4fe0424cf997fd29d280684bfb2b33cafc2c28da316c489b4ba80ba598081d8c",
+            "version": 1
           }
         },
         {
@@ -171,7 +165,13 @@ Response: {
             "new_value": "17"
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJ0eCI6MiwiZSI6MTcsImMiOjF9",
+        "hasNextPage": true,
+        "hasPreviousPage": false,
+        "startCursor": "eyJ0eCI6MCwiZSI6MCwiYyI6MX0"
+      }
     }
   }
 }
@@ -181,12 +181,6 @@ task 5, lines 47-60:
 Response: {
   "data": {
     "events": {
-      "pageInfo": {
-        "hasPreviousPage": true,
-        "hasNextPage": true,
-        "startCursor": "eyJ0eCI6MiwiZSI6MjAsImMiOjF9",
-        "endCursor": "eyJ0eCI6MiwiZSI6MzksImMiOjF9"
-      },
       "nodes": [
         {
           "json": {
@@ -288,7 +282,13 @@ Response: {
             "new_value": "39"
           }
         }
-      ]
+      ],
+      "pageInfo": {
+        "endCursor": "eyJ0eCI6MiwiZSI6MzksImMiOjF9",
+        "hasNextPage": true,
+        "hasPreviousPage": true,
+        "startCursor": "eyJ0eCI6MiwiZSI6MjAsImMiOjF9"
+      }
     }
   }
 }

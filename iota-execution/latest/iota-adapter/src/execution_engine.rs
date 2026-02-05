@@ -8,7 +8,7 @@ pub use checked::*;
 mod checked {
 
     use std::{
-        collections::{BTreeSet, HashSet},
+        collections::{BTreeMap, BTreeSet, HashSet},
         sync::Arc,
     };
 
@@ -19,7 +19,10 @@ mod checked {
     use iota_types::{
         IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
         IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, Identifier,
-        account::AuthenticatorInfoV1,
+        account_abstraction::authenticator_function::{
+            AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+            AuthenticatorFunctionRefV1,
+        },
         auth_context::AuthContext,
         authenticator_state::{
             AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME,
@@ -55,9 +58,9 @@ mod checked {
         storage::{BackingStore, Storage},
         transaction::{
             Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, CallArg, ChangeEpoch,
-            ChangeEpochV2, ChangeEpochV3, CheckedInputObjects, Command, EndOfEpochTransactionKind,
-            GenesisTransaction, InputObjects, ObjectArg, ProgrammableTransaction,
-            RandomnessStateUpdate, TransactionKind,
+            ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, CheckedInputObjects, Command,
+            EndOfEpochTransactionKind, GenesisTransaction, InputObjects, ObjectArg,
+            ProgrammableTransaction, RandomnessStateUpdate, TransactionKind,
         },
     };
     use move_binary_format::CompiledModule;
@@ -299,7 +302,7 @@ mod checked {
         gas_coins: Vec<ObjectRef>,
         // Authenticator
         authenticator: MoveAuthenticator,
-        authenticator_info: AuthenticatorInfoV1,
+        authenticator_function_ref_for_execution: AuthenticatorFunctionRefForExecution,
         authenticator_input_objects: CheckedInputObjects,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
@@ -365,21 +368,38 @@ mod checked {
         // It does not alter the state, if not for command execution gas charging, and
         // produces no effects other than possible errors.
 
-        // Run the authentication execution.
-        let authentication_execution_result = authenticate_transaction_inner(
-            &mut temporary_store,
-            protocol_config,
-            metrics.clone(),
-            &mut gas_charger,
-            authenticator,
-            authenticator_info,
-            &authenticator_input_objects.into_inner(),
-            transaction_kind.clone(),
-            transaction_digest,
-            &mut tx_ctx,
-            trace_builder_opt,
-            move_vm,
-        );
+        let AuthenticatorFunctionRefForExecution {
+            authenticator_function_ref,
+            loaded_object_id,
+            loaded_object_metadata,
+        } = authenticator_function_ref_for_execution;
+
+        let authentication_execution_result = match authenticator_function_ref {
+            AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
+                // Save the loaded object metadata, i.e., the field object containing the
+                // AuthenticatorFunctionRef, in the temporary store.
+                temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
+                    loaded_object_id,
+                    loaded_object_metadata,
+                )]));
+
+                // Run the authentication execution.
+                authenticate_transaction_inner(
+                    &mut temporary_store,
+                    protocol_config,
+                    metrics.clone(),
+                    &mut gas_charger,
+                    authenticator,
+                    authenticator_function_ref_v1,
+                    &authenticator_input_objects.into_inner(),
+                    transaction_kind.clone(),
+                    transaction_digest,
+                    &mut tx_ctx,
+                    trace_builder_opt,
+                    move_vm,
+                )
+            }
+        };
 
         // Transaction execution.
         // At this stage we arrive with gas charged for the execution of the
@@ -428,7 +448,7 @@ mod checked {
         gas_status: IotaGasStatus,
         // Authenticator
         authenticator: MoveAuthenticator,
-        authenticator_info: AuthenticatorInfoV1,
+        authenticator_function_ref: AuthenticatorFunctionRef,
         authenticator_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
@@ -466,20 +486,24 @@ mod checked {
         );
 
         // Run the authentication.
-        authenticate_transaction_inner(
-            &mut temporary_store,
-            protocol_config,
-            metrics.clone(),
-            &mut gas_charger,
-            authenticator,
-            authenticator_info,
-            &input_objects,
-            transaction_kind.clone(),
-            transaction_digest,
-            &mut tx_ctx,
-            trace_builder_opt,
-            move_vm,
-        )
+        match authenticator_function_ref {
+            AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
+                authenticate_transaction_inner(
+                    &mut temporary_store,
+                    protocol_config,
+                    metrics.clone(),
+                    &mut gas_charger,
+                    authenticator,
+                    authenticator_function_ref_v1,
+                    &input_objects,
+                    transaction_kind.clone(),
+                    transaction_digest,
+                    &mut tx_ctx,
+                    trace_builder_opt,
+                    move_vm,
+                )
+            }
+        }
     }
 
     // This function implements the authentication execution. It checks that the
@@ -487,7 +511,7 @@ mod checked {
     /// `MoveAuthenticator` PTB with a single move call for execution, then
     /// executes it through an inner execution method. The
     /// `MoveAuthenticator` provides the inputs to use for the
-    /// authentication function found in `AuthenticatorInfo`,
+    /// authentication function found in `AuthenticatorFunctionRef`,
     /// that is retrieved from an account.
     /// If the execution fails, it returns an execution error; otherwise it
     /// returns an empty value.
@@ -501,7 +525,7 @@ mod checked {
         gas_charger: &mut GasCharger,
         // Authenticator
         authenticator: MoveAuthenticator,
-        authenticator_info: AuthenticatorInfoV1,
+        authenticator_function_ref: AuthenticatorFunctionRefV1,
         authenticator_input_objects: &InputObjects,
         // Transaction
         transaction_kind: TransactionKind,
@@ -552,7 +576,7 @@ mod checked {
         let authentication_execution_result = execute_authenticator_move_call(
             temporary_store,
             authenticator,
-            authenticator_info,
+            authenticator_function_ref,
             gas_charger,
             tx_ctx,
             move_vm,
@@ -596,7 +620,7 @@ mod checked {
     fn execute_authenticator_move_call(
         temporary_store: &mut TemporaryStore<'_>,
         authenticator: MoveAuthenticator,
-        authenticator_info: AuthenticatorInfoV1,
+        authenticator_function_ref: AuthenticatorFunctionRefV1,
         gas_charger: &mut GasCharger,
         tx_ctx: &mut TxContext,
         move_vm: &Arc<MoveVM>,
@@ -624,7 +648,7 @@ mod checked {
         )
         .and_then(|()| {
             let authenticator_move_call =
-                setup_authenticator_move_call(authenticator, authenticator_info)?;
+                setup_authenticator_move_call(authenticator, authenticator_function_ref)?;
             programmable_transactions::execution::execute::<execution_mode::Authentication>(
                 protocol_config,
                 metrics.clone(),
@@ -765,7 +789,7 @@ mod checked {
             }
 
             if execution_result.is_ok() {
-                let gas_check = check_written_objects_limit::<Mode>(
+                let gas_check = check_written_objects_limit(
                     temporary_store,
                     gas_charger,
                     protocol_config,
@@ -1044,7 +1068,7 @@ mod checked {
     /// transactions, it enforces a hard limit, while for system transactions,
     /// it allows a soft limit with warnings.
     #[instrument(name = "check_written_objects_limit", level = "debug", skip_all)]
-    fn check_written_objects_limit<Mode: ExecutionMode>(
+    fn check_written_objects_limit(
         temporary_store: &mut TemporaryStore<'_>,
         gas_charger: &mut GasCharger,
         protocol_config: &ProtocolConfig,
@@ -1198,6 +1222,21 @@ mod checked {
                             advance_epoch_v3(
                                 builder,
                                 change_epoch_v3,
+                                temporary_store,
+                                tx_ctx,
+                                move_vm,
+                                gas_charger,
+                                protocol_config,
+                                metrics,
+                                trace_builder_opt,
+                            )?;
+                            return Ok(Mode::empty_results());
+                        }
+                        EndOfEpochTransactionKind::ChangeEpochV4(change_epoch_v4) => {
+                            assert_eq!(i, len - 1);
+                            advance_epoch_v4(
+                                builder,
+                                change_epoch_v4,
                                 temporary_store,
                                 tx_ctx,
                                 move_vm,
@@ -1419,6 +1458,32 @@ mod checked {
         construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
     }
 
+    pub fn construct_advance_epoch_pt_v4(
+        builder: ProgrammableTransactionBuilder,
+        params: &AdvanceEpochParams,
+    ) -> Result<ProgrammableTransaction, ExecutionError> {
+        // the first three arguments to the advance_epoch function, namely
+        // validator_subsidy, storage_charges and computation_charges, are
+        // common to both v1, v2, v3 and v4 and are added in
+        // `construct_advance_epoch_pt_impl`. The remaining arguments are added
+        // here.
+        let call_arg_vec = vec![
+            CallArg::Pure(bcs::to_bytes(&params.computation_charge_burned).unwrap()), /* computation_charge_burned: u64 */
+            CallArg::IOTA_SYSTEM_MUT, // wrapper: &mut IotaSystemState
+            CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()), // new_epoch: u64
+            CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()), /* next_protocol_version: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.storage_rebate).unwrap()), // storage_rebate: u64
+            CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()), /* non_refundable_storage_fee: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()), /* reward_slashing_rate: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()), /* epoch_start_timestamp_ms: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.max_committee_members_count).unwrap()), /* max_committee_members_count: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.eligible_active_validators).unwrap()), /* eligible_active_validators: Vec<u64> */
+            CallArg::Pure(bcs::to_bytes(&params.scores).unwrap()), // scores: Vec<u64>
+            CallArg::Pure(bcs::to_bytes(&params.adjust_rewards_by_score).unwrap()), /* adjust_rewards_by_score: bool */
+        ];
+        construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
+    }
+
     /// Advances the epoch by executing a `ProgrammableTransaction`. If the
     /// transaction fails, it switches to safe mode and retries the epoch
     /// advancement in a more controlled environment. The function also
@@ -1516,6 +1581,8 @@ mod checked {
             // separate AdvanceEpochParams struct.
             max_committee_members_count: 0,
             eligible_active_validators: vec![],
+            scores: vec![],
+            adjust_rewards_by_score: false,
         };
         let advance_epoch_pt = construct_advance_epoch_pt_v1(builder, &params)?;
         advance_epoch_impl(
@@ -1558,9 +1625,11 @@ mod checked {
             reward_slashing_rate: protocol_config.reward_slashing_rate(),
             epoch_start_timestamp_ms: change_epoch_v2.epoch_start_timestamp_ms,
             max_committee_members_count: protocol_config.max_committee_members_count(),
-            // AdvanceEpochV2 does not use this field, but keeping them to avoid creating a
+            // AdvanceEpochV2 does not use these fields, but keeping them to avoid creating a
             // separate AdvanceEpochParams struct.
             eligible_active_validators: vec![],
+            scores: vec![],
+            adjust_rewards_by_score: false,
         };
         let advance_epoch_pt = construct_advance_epoch_pt_v2(builder, &params)?;
         advance_epoch_impl(
@@ -1604,12 +1673,61 @@ mod checked {
             epoch_start_timestamp_ms: change_epoch_v3.epoch_start_timestamp_ms,
             max_committee_members_count: protocol_config.max_committee_members_count(),
             eligible_active_validators: change_epoch_v3.eligible_active_validators,
+            // AdvanceEpochV3 does not use these fields, but keeping them to avoid creating a
+            // separate AdvanceEpochParams struct.
+            scores: vec![],
+            adjust_rewards_by_score: false,
         };
         let advance_epoch_pt = construct_advance_epoch_pt_v3(builder, &params)?;
         advance_epoch_impl(
             advance_epoch_pt,
             params,
             change_epoch_v3.system_packages,
+            temporary_store,
+            tx_ctx,
+            move_vm,
+            gas_charger,
+            protocol_config,
+            metrics,
+            trace_builder_opt,
+        )
+    }
+
+    /// Advances the epoch for the given `ChangeEpochV4` transaction kind by
+    /// constructing a programmable transaction, executing it and processing the
+    /// system packages.
+    fn advance_epoch_v4(
+        builder: ProgrammableTransactionBuilder,
+        change_epoch_v4: ChangeEpochV4,
+        temporary_store: &mut TemporaryStore<'_>,
+        tx_ctx: &mut TxContext,
+        move_vm: &Arc<MoveVM>,
+        gas_charger: &mut GasCharger,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> Result<(), ExecutionError> {
+        let params = AdvanceEpochParams {
+            epoch: change_epoch_v4.epoch,
+            next_protocol_version: change_epoch_v4.protocol_version,
+            validator_subsidy: protocol_config.validator_target_reward(),
+            storage_charge: change_epoch_v4.storage_charge,
+            computation_charge: change_epoch_v4.computation_charge,
+            computation_charge_burned: change_epoch_v4.computation_charge_burned,
+            storage_rebate: change_epoch_v4.storage_rebate,
+            non_refundable_storage_fee: change_epoch_v4.non_refundable_storage_fee,
+            reward_slashing_rate: protocol_config.reward_slashing_rate(),
+            epoch_start_timestamp_ms: change_epoch_v4.epoch_start_timestamp_ms,
+            max_committee_members_count: protocol_config.max_committee_members_count(),
+            eligible_active_validators: change_epoch_v4.eligible_active_validators,
+            scores: change_epoch_v4.scores,
+            adjust_rewards_by_score: change_epoch_v4.adjust_rewards_by_score,
+        };
+        let advance_epoch_pt = construct_advance_epoch_pt_v4(builder, &params)?;
+        advance_epoch_impl(
+            advance_epoch_pt,
+            params,
+            change_epoch_v4.system_packages,
             temporary_store,
             tx_ctx,
             move_vm,
@@ -1876,14 +1994,14 @@ mod checked {
     }
 
     /// Construct a PTB with a single move call. This calls the authenticator
-    /// function found in `AuthenticatorInfo`. The inputs for the function are
-    /// found in `MoveAuthenticator`.
+    /// function found in `AuthenticatorFunctionRef`. The inputs for the
+    /// function are found in `MoveAuthenticator`.
     /// `MoveAuthenticator::object_to_authenticate` is added as the first
     /// argument to the created PTB, followed by all arguments in
     /// `MoveAuthenticator::call_args`.
     fn setup_authenticator_move_call(
         authenticator: MoveAuthenticator,
-        authenticator_info: AuthenticatorInfoV1,
+        authenticator_function_ref: AuthenticatorFunctionRefV1,
     ) -> Result<ProgrammableTransaction, ExecutionError> {
         let mut builder = ProgrammableTransactionBuilder::new();
 
@@ -1904,11 +2022,13 @@ mod checked {
             .collect::<Result<Vec<_>, _>>()?;
 
         let res = builder.move_call(
-            authenticator_info.package,
-            Identifier::new(authenticator_info.module.clone())
-                .expect("`AuthenticatorInfoV1::module` is expected to be a valid `Identifier`"),
-            Identifier::new(authenticator_info.function.clone())
-                .expect("`AuthenticatorInfoV1::function` is expected to be a valid `Identifier`"),
+            authenticator_function_ref.package,
+            Identifier::new(authenticator_function_ref.module.clone()).expect(
+                "`AuthenticatorFunctionRefV1::module` is expected to be a valid `Identifier`",
+            ),
+            Identifier::new(authenticator_function_ref.function.clone()).expect(
+                "`AuthenticatorFunctionRefV1::function` is expected to be a valid `Identifier`",
+            ),
             type_arguments,
             args,
         );

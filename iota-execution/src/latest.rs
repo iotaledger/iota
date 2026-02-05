@@ -16,7 +16,9 @@ use iota_adapter_latest::{
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    account::AuthenticatorInfoV1,
+    account_abstraction::authenticator_function::{
+        AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+    },
     base_types::{IotaAddress, ObjectRef, TxContext},
     committee::EpochId,
     digests::TransactionDigest,
@@ -186,7 +188,7 @@ impl executor::Executor for Executor {
         gas_coins: Vec<ObjectRef>,
         // Authenticator
         authenticator: MoveAuthenticator,
-        authenticator_info: AuthenticatorInfoV1,
+        authenticator_function_ref_for_execution: AuthenticatorFunctionRefForExecution,
         authenticator_input_objects: CheckedInputObjects,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
@@ -212,7 +214,7 @@ impl executor::Executor for Executor {
             gas_status,
             gas_coins,
             authenticator,
-            authenticator_info,
+            authenticator_function_ref_for_execution,
             authenticator_input_objects,
             authenticator_and_transaction_input_objects,
             transaction_kind,
@@ -236,7 +238,7 @@ impl executor::Executor for Executor {
         gas_status: IotaGasStatus,
         // Authenticator
         authenticator: MoveAuthenticator,
-        authenticator_info: AuthenticatorInfoV1,
+        authenticator_function_ref: AuthenticatorFunctionRef,
         authenticator_input_objects: CheckedInputObjects,
         // Transaction
         authenticated_transaction_kind: TransactionKind,
@@ -253,7 +255,7 @@ impl executor::Executor for Executor {
             epoch_timestamp_ms,
             gas_status,
             authenticator,
-            authenticator_info,
+            authenticator_function_ref,
             authenticator_input_objects,
             authenticated_transaction_kind,
             authenticated_transaction_signer,

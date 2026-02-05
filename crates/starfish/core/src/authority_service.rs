@@ -33,7 +33,7 @@ use crate::{
     context::Context,
     cordial_knowledge::CordialKnowledgeHandle,
     core_thread::CoreThreadDispatcher,
-    dag_state::DagState,
+    dag_state::{DagState, DataSource},
     encoder::ShardEncoder,
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
@@ -49,7 +49,7 @@ use crate::{
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
 
-const MAX_FILTER_SIZE: u32 = 10000;
+const MAX_FILTER_SIZE: u32 = 100000;
 
 struct FilterForHeaders {
     header_digests: DashSet<BlockHeaderDigest>,
@@ -446,6 +446,13 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             .processed_duplicated_headers_in_bundles
             .with_label_values(&[peer_hostname, "handle_subscribed_block_bundle"])
             .inc_by(digests_to_exclude.len() as u64);
+        for header in additional_block_headers.iter() {
+            self.context
+                .metrics
+                .node_metrics
+                .additional_headers_round_gap
+                .observe(block_ref.round.saturating_sub(header.round()) as f64);
+        }
     }
 }
 
@@ -560,7 +567,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // sent in order of increasing rounds.
         let (mut missing_ancestors, mut missing_committed_txns) = self
             .core_dispatcher
-            .add_block_headers(additional_block_headers.clone())
+            .add_block_headers(
+                additional_block_headers.clone(),
+                DataSource::BlockBundleStream,
+            )
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
         self.context
@@ -573,7 +583,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // 10. Add the block to dag, add its missing ancestors to the set
         let (missing_block_ancestors, missing_block_committed_transactions) = self
             .core_dispatcher
-            .add_blocks(vec![verified_block])
+            .add_blocks(vec![verified_block], DataSource::BlockStreaming)
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
         self.context
@@ -596,8 +606,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // 11. Add our shard from the received block and its proof to the dag_state
         // only if it contains transactions
-        if shard_for_core.is_some() {
-            let shard_for_core = shard_for_core.unwrap();
+        if let Some(shard_for_core) = shard_for_core {
             let serialized_shard_for_core: Bytes = bcs::to_bytes(&shard_for_core)
                 .map_err(ConsensusError::SerializationFailure)?
                 .into();
@@ -1325,7 +1334,7 @@ mod tests {
         cordial_knowledge::{ConnectionKnowledgeMessage, CordialKnowledge},
         core::{Core, CoreSignals, ReasonToCreateBlock},
         core_thread::{CoreError, CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
-        dag_state::{DagState, TransactionSource},
+        dag_state::{DagState, DataSource},
         encoder::create_encoder,
         error::{ConsensusError, ConsensusResult},
         header_synchronizer::HeaderSynchronizer,
@@ -1962,7 +1971,7 @@ mod tests {
 
         for round in 1..=rounds / 2 {
             core_dispatcher
-                .add_block_headers(all_block_headers[round as usize].clone())
+                .add_block_headers(all_block_headers[round as usize].clone(), DataSource::Test)
                 .await
                 .expect("block headers are expected to be added successfully");
         }
@@ -1985,7 +1994,7 @@ mod tests {
         for round in rounds / 2 + 1..=rounds {
             let headers = &all_block_headers[round as usize];
             core_dispatcher
-                .add_block_headers(headers[..2].to_vec())
+                .add_block_headers(headers[..2].to_vec(), DataSource::Test)
                 .await
                 .expect("block headers are expected to be added successfully");
         }
@@ -2005,7 +2014,7 @@ mod tests {
         for round in rounds / 2 + 1..=rounds {
             let headers = &all_block_headers[round as usize];
             core_dispatcher
-                .add_block_headers(headers[2..].to_vec())
+                .add_block_headers(headers[2..].to_vec(), DataSource::Test)
                 .await
                 .expect("block headers are expected to be added successfully");
         }
@@ -2028,6 +2037,7 @@ mod tests {
         async fn add_blocks(
             &self,
             blocks: Vec<VerifiedBlock>,
+            source: DataSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
@@ -2041,13 +2051,14 @@ mod tests {
                 let entry = &mut vec[block.author()];
                 *entry = max(*entry, block.round());
             }
-            let _ = guard.add_blocks(blocks);
+            let _ = guard.add_blocks(blocks, source);
             Ok((BTreeSet::new(), BTreeMap::new()))
         }
 
         async fn add_block_headers(
             &self,
             block_headers: Vec<VerifiedBlockHeader>,
+            source: DataSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
@@ -2061,14 +2072,14 @@ mod tests {
                 let entry = &mut vec[block_header.author()];
                 *entry = max(*entry, block_header.round());
             }
-            let _ = guard.add_block_headers(block_headers);
+            let _ = guard.add_block_headers(block_headers, source);
             Ok((BTreeSet::new(), BTreeMap::new()))
         }
 
         async fn add_transactions(
             &self,
             _transactions: Vec<VerifiedTransactions>,
-            _source: TransactionSource,
+            _source: DataSource,
         ) -> Result<(), CoreError> {
             unimplemented!("Unimplemented")
         }
@@ -2226,7 +2237,10 @@ mod tests {
         }
         for round in 1..=rounds {
             core_dispatcher
-                .add_block_headers(vec![all_headers[round as usize][0].clone()])
+                .add_block_headers(
+                    vec![all_headers[round as usize][0].clone()],
+                    DataSource::Test,
+                )
                 .await
                 .expect("blocks header is expected to be added successfully");
             for peer in 1..validators {
@@ -2381,7 +2395,10 @@ mod tests {
         }
         for round in 1..=rounds {
             core_dispatcher
-                .add_block_headers(vec![all_headers[round as usize][0].clone()])
+                .add_block_headers(
+                    vec![all_headers[round as usize][0].clone()],
+                    DataSource::Test,
+                )
                 .await
                 .expect("blocks header is expected to be added successfully");
             for peer in 1..validators {
@@ -2557,11 +2574,14 @@ mod tests {
         let first_batch_end_exclusive = 5;
         for round in 1..first_batch_end_exclusive {
             core_dispatcher
-                .add_blocks(all_blocks[round as usize - 1].clone())
+                .add_blocks(all_blocks[round as usize - 1].clone(), DataSource::Test)
                 .await
                 .expect("blocks are expected to be added successfully");
             core_dispatcher
-                .add_blocks(vec![all_blocks[round as usize][0].clone()])
+                .add_blocks(
+                    vec![all_blocks[round as usize][0].clone()],
+                    DataSource::Test,
+                )
                 .await
                 .expect("blocks are expected to be added successfully");
             sleep(Duration::from_millis(50)).await;
@@ -2669,11 +2689,14 @@ mod tests {
 
         for round in first_batch_end_exclusive..=rounds {
             core_dispatcher
-                .add_blocks(all_blocks[round as usize - 1].clone())
+                .add_blocks(all_blocks[round as usize - 1].clone(), DataSource::Test)
                 .await
                 .expect("blocks are expected to be added successfully");
             core_dispatcher
-                .add_blocks(vec![all_blocks[round as usize][0].clone()])
+                .add_blocks(
+                    vec![all_blocks[round as usize][0].clone()],
+                    DataSource::Test,
+                )
                 .await
                 .expect("blocks are expected to be added successfully");
             sleep(Duration::from_millis(50)).await;
@@ -3172,7 +3195,7 @@ mod tests {
 
         for round in 1..=rounds {
             core_dispatcher
-                .add_block_headers(all_block_headers[round as usize].clone())
+                .add_block_headers(all_block_headers[round as usize].clone(), DataSource::Test)
                 .await
                 .expect("block headers are expected to be added successfully");
         }
@@ -3203,7 +3226,7 @@ mod tests {
         }
         all_block_headers.push(new_block_headers.clone());
         core_dispatcher
-            .add_block_headers(new_block_headers.clone())
+            .add_block_headers(new_block_headers.clone(), DataSource::Test)
             .await
             .expect("block headers are expected to be added successfully");
 
@@ -3225,7 +3248,7 @@ mod tests {
             }
             all_block_headers.push(new_block_headers.clone());
             core_dispatcher
-                .add_block_headers(new_block_headers.clone())
+                .add_block_headers(new_block_headers.clone(), DataSource::Test)
                 .await
                 .expect("block headers are expected to be added successfully");
         }

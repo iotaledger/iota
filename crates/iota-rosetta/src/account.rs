@@ -65,7 +65,7 @@ pub async fn balance(
                     balances: balances_first,
                 });
             } else {
-                // retry logic needs to be aaded
+                // retry logic needs to be added
                 retry_attempts -= 1;
             }
         }
