@@ -66,7 +66,6 @@ export function CoinsPanel({ coinType, id, sortField, sortOrder }: CoinsPanelPro
                     </div>
                 ))}
             </div>
-
             <div className="flex justify-center" ref={containerRef}>
                 {isSpinnerVisible && (
                     <div className="mt-5 flex">
