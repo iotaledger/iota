@@ -123,7 +123,7 @@ export function ValidatorsCard() {
                 />
             </div>
             <Title title="In progress" size={TitleSize.Small} />
-            <div className="flex max-h-[420px] w-full flex-1 flex-col items-start overflow-auto">
+            <div className="flex w-full flex-1 flex-col items-start overflow-auto">
                 <div className="w-full gap-2">
                     {system &&
                         delegations

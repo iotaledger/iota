@@ -7,7 +7,6 @@ use futures::Stream;
 use iota_grpc_types::{
     field::{FieldMaskTree, FieldMaskUtil},
     google::rpc::bad_request::FieldViolation,
-    merge::Merge,
     v0::{
         error_reason::ErrorReason,
         ledger_service::{
@@ -23,6 +22,7 @@ use prost_types::FieldMask;
 use crate::{
     constants::validate_max_message_size,
     error::RpcError,
+    merge::Merge,
     transaction_execution_service::TransactionReadSource,
     types::{GrpcReader, TransactionsStreamResult},
 };

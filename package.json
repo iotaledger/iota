@@ -53,7 +53,7 @@
 	},
 	"engines": {
 		"node": ">=24",
-		"pnpm": ">=9.0.0"
+		"pnpm": ">=9.6.0 <=9.15.9"
 	},
 	"manypkg": {
 		"ignoredRules": [

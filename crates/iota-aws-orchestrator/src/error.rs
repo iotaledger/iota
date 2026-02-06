@@ -61,7 +61,7 @@ pub enum SshError {
     #[error("Failed to load private key for {address}: {error}")]
     PrivateKeyError {
         address: SocketAddr,
-        error: russh_keys::Error,
+        error: russh::keys::Error,
     },
 
     #[error("Failed to create ssh session with {address}: {error}")]

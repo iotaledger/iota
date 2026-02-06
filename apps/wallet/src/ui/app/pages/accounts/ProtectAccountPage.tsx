@@ -23,6 +23,7 @@ import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount'
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 import { useFeature } from '@growthbook/growthbook-react';
 import { Feature, toast } from '@iota/core';
+import { isPasskeyAccountSerializedUI } from '_src/background/accounts/passkeyAccount';
 
 const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
     AccountsFormType.NewMnemonic,
@@ -32,6 +33,7 @@ const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
     AccountsFormType.SeedSource,
     AccountsFormType.ImportPrivateKey,
     AccountsFormType.Passkey,
+    AccountsFormType.ImportPasskey,
     AccountsFormType.ImportLedger,
     AccountsFormType.ImportKeystone,
 ];
@@ -107,6 +109,17 @@ export function ProtectAccountPage() {
                 ) {
                     const path = '/accounts/manage/accounts-finder/intro';
                     navigate(path, {
+                        replace: true,
+                        state: {
+                            type: type,
+                        },
+                    });
+                } else if (
+                    type === AccountsFormType.ImportPasskey &&
+                    isPasskeyAccountSerializedUI(createdAccounts[0])
+                ) {
+                    const url = `/accounts/import-passkey?accountID=${createdAccounts[0].id}`;
+                    navigate(url, {
                         replace: true,
                         state: {
                             type: type,

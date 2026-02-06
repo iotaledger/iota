@@ -34,9 +34,11 @@ export type AccountsFormValues =
     | { type: AccountsFormType.ImportPrivateKey; keyPair: string }
     | {
           type: AccountsFormType.Passkey;
-          authenticatorAttachment?: AuthenticatorAttachment;
+          authenticatorAttachment: AuthenticatorAttachment;
           username: string;
-          isRestoreAccount: boolean;
+      }
+    | {
+          type: AccountsFormType.ImportPasskey;
       }
     | {
           type: AccountsFormType.ImportLedger;

@@ -25,7 +25,7 @@ use iota_storage::{
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
 };
-use object_store::{DynObjectStore, Error as ObjectStoreError, ObjectStore};
+use object_store::{DynObjectStore, Error as ObjectStoreError, ObjectStore, ObjectStoreExt};
 use serde::{Deserialize, Serialize};
 
 use crate::RelayWorker;
