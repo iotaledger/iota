@@ -468,7 +468,7 @@ describe('GraphQL IotaClient compatibility', () => {
     });
 
     test('transactionBlocksByDigests - with non-existent digest', async () => {
-        const nonExistentDigest = '11111111111111111111111111111111111111111111';
+        const nonExistentDigest = 'C6G8PsqwNpMqrK7ApwuQUvDgzkFcUaUy6Y5ycrAN2q3F';
 
         const result = await graphQLClient!.transactionBlocksByDigests({
             digests: [transactionBlockDigest, nonExistentDigest],
