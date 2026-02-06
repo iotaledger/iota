@@ -441,7 +441,7 @@ export class IotaClient {
         });
 
         return await this.transport.request({
-            method: 'transactionBlocksByDigests',
+            method: 'iota_transactionBlocksByDigests',
             params: [input.digests],
         });
     }
