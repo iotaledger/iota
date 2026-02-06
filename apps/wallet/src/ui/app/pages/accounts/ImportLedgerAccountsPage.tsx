@@ -138,7 +138,7 @@ export function ImportLedgerAccountsPage() {
                 <div className="flex flex-1 items-end gap-xs">
                     <Button
                         type={ButtonType.Secondary}
-                        disabled={areLedgerAccountsLoading}
+                        disabled={isLoading}
                         text="Load More"
                         onClick={() => loadMore()}
                         fullWidth
