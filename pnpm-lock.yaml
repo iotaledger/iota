@@ -1761,24 +1761,12 @@ importers:
 
   sdk/examples:
     dependencies:
-      '@iota/bcs':
-        specifier: workspace:*
-        version: link:../bcs
-      '@iota/dapp-kit':
-        specifier: workspace:*
-        version: link:../dapp-kit
       '@iota/graphql-transport':
         specifier: workspace:*
         version: link:../graphql-transport
       '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
-      '@iota/isc-sdk':
-        specifier: workspace:*
-        version: link:../isc-sdk
-      '@iota/kiosk':
-        specifier: workspace:*
-        version: link:../kiosk
     devDependencies:
       '@types/node':
         specifier: ^20.14.10
