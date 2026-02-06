@@ -66,7 +66,7 @@ export function Toaster({ bottomNavEnabled = false }: ToasterProps) {
         <Portal containerId="toaster-portal-container">
             <ToasterCore
                 containerClassName={cl('!absolute transition-all', bottomSpace)}
-                snackbarWrapClassName="w-full"
+                snackbarWrapClassName="w-full break-words"
             />
         </Portal>
     );

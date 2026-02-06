@@ -47,9 +47,6 @@ ignore = [
   "RUSTSEC-2024-0370",
   # `atty` is unmaintained
   "RUSTSEC-2024-0375",
-  # Potential unaligned read in `atty`
-  "RUSTSEC-2021-0145",
-
   # allow unmaintained instant crate used in transitive dependencies (backoff, cached, fastrand, parking_lot_*)
   "RUSTSEC-2024-0384",
   # `paste` is unmaintained
