@@ -287,12 +287,10 @@ pub mod setup_postgres {
         let pending_migrations = conn
             .pending_migrations(MIGRATIONS)
             .map_err(|e| anyhow!("failed to identify pending migrations {e}"))?;
-        if !pending_migrations.is_empty() {
-            for migration in pending_migrations {
-                info!("Applying migration {}", migration.name());
-                conn.run_migration(&migration)
-                    .map_err(|e| anyhow!("failed to run migration {e}"))?;
-            }
+        for migration in pending_migrations {
+            info!("Applying migration {}", migration.name());
+            conn.run_migration(&migration)
+                .map_err(|e| anyhow!("failed to run migration {e}"))?;
         }
         Ok(())
     }
