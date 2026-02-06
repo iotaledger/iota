@@ -416,6 +416,17 @@ impl DagState {
     ) {
         let block_ref = transactions.block_ref();
         if self.recent_transactions_by_authority[block_ref.author].contains_key(&block_ref) {
+            if transactions.has_transactions() {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .core_skipped_transactions
+                    .with_label_values(&[
+                        self.context.authority_hostname(block_ref.author),
+                        source.as_str(),
+                    ])
+                    .inc();
+            }
             return;
         }
         self.update_transaction_metadata(&transactions, source);

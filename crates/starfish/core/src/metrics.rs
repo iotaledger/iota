@@ -139,6 +139,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) accepted_block_headers_source: IntCounterVec,
     pub(crate) accepted_block_headers_round_gap: HistogramVec,
     pub(crate) core_skipped_headers: IntCounterVec,
+    pub(crate) core_skipped_transactions: IntCounterVec,
     pub(crate) cordial_knowledge_useful_headers_authors: IntCounterVec,
     pub(crate) cordial_knowledge_useful_shards_authors: IntCounterVec,
     pub(crate) dag_state_recent_transactions: IntGauge,
@@ -147,6 +148,9 @@ pub(crate) struct NodeMetrics {
     pub(crate) dag_state_recent_refs: IntGauge,
     pub(crate) cordial_knowledge_message_batch_size: Histogram,
     pub(crate) cordial_knowledge_processed_messages: IntCounterVec,
+    pub(crate) cordial_knowledge_entries: IntGauge,
+    pub(crate) cordial_knowledge_headers_not_known: IntGauge,
+    pub(crate) cordial_knowledge_shards_not_known: IntGauge,
     pub(crate) dag_state_store_read_count: IntCounterVec,
     pub(crate) dag_state_store_write_count: IntCounter,
     pub(crate) synchronizer_fetch_block_headers_scheduler_inflight: IntGauge,
@@ -471,6 +475,12 @@ impl NodeMetrics {
                 &["authority", "source"],
                 registry,
             ).unwrap(),
+            core_skipped_transactions: register_int_counter_vec_with_registry!(
+                "core_skipped_transactions",
+                "Number of non-empty transactions skipped in core because already in DAG",
+                &["authority", "source"],
+                registry,
+            ).unwrap(),
             shard_accumulators: register_int_gauge_with_registry!(
                 "shard_accumulators",
                 "The number of shard accumulators currently in memory",
@@ -516,6 +526,21 @@ impl NodeMetrics {
                 "cordial_knowledge_processed_messages",
                 "Number of Cordial Knowledge messages processed",
                 &["type"],
+                registry,
+            ).unwrap(),
+            cordial_knowledge_entries: register_int_gauge_with_registry!(
+                "cordial_knowledge_entries",
+                "Total entries in the global cordial knowledge map",
+                registry,
+            ).unwrap(),
+            cordial_knowledge_headers_not_known: register_int_gauge_with_registry!(
+                "cordial_knowledge_headers_not_known",
+                "Total unknown header entries across all connection knowledges",
+                registry,
+            ).unwrap(),
+            cordial_knowledge_shards_not_known: register_int_gauge_with_registry!(
+                "cordial_knowledge_shards_not_known",
+                "Total unknown shard entries across all connection knowledges",
                 registry,
             ).unwrap(),
             dag_state_store_read_count: register_int_counter_vec_with_registry!(
