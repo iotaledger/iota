@@ -87,15 +87,6 @@ impl<T> MisbehaviorsV1<T> {
         ]
         .into_iter()
     }
-
-    pub fn misbehaviors(&self) -> (&T, &T, &T, &T) {
-        (
-            &self.faulty_blocks_provable,
-            &self.faulty_blocks_unprovable,
-            &self.missing_proposals,
-            &self.equivocations,
-        )
-    }
 }
 
 impl<T> FromIterator<T> for MisbehaviorsV1<T> {

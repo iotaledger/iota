@@ -311,8 +311,8 @@ async fn scan_scoring_metrics(
         VersionedStorageScoringMetrics::new_v1_for_test(
             1, // faulty_blocks_provable
             2, // faulty_blocks_unprovable
-            4, // missing_proposals
-            3, // equivocations
+            3, // missing_proposals
+            4, // equivocations
         ),
         VersionedStorageScoringMetrics::new_v1_for_test(
             0, // faulty_blocks_provable
