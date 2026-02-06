@@ -349,7 +349,7 @@ struct Options {
     action: Action,
 }
 
-const FILE_PATH: &str = "crates/iota-core/tests/staged/iota.yaml";
+const FILE_PATH: &str = "iota-core/tests/staged/iota.yaml";
 
 fn main() {
     let options = Options::parse();
