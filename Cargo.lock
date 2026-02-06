@@ -6511,8 +6511,6 @@ version = "1.17.0-alpha"
 dependencies = [
  "bcs",
  "iota-sdk-types",
- "iota-types",
- "move-core-types",
  "prost 0.14.1",
  "prost-types 0.14.1",
  "serde",
