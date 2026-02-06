@@ -2,12 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { useRef } from 'react';
-import { Button, ButtonType } from '@iota/apps-ui-kit';
+import { Button, ButtonSize, ButtonType } from '@iota/apps-ui-kit';
 import { type AccountType } from '_src/background/accounts/account';
 import { useInitializedGuard, useAccountGroups } from '_hooks';
 import { useNavigate } from 'react-router-dom';
 import { Overlay } from '_components';
 import { AccountGroup } from './AccountGroup';
+import { LockLocked } from '@iota/apps-ui-icons';
 
 export function ManageAccountsPage() {
     const navigate = useNavigate();
@@ -19,12 +20,25 @@ export function ManageAccountsPage() {
         navigate('/accounts/add-account');
     }
 
+    function handleLock() {
+        console.log('Lock clicked');
+    }
+
     return (
         <Overlay
             showModal
             title="Manage Accounts"
             closeOverlay={() => navigate('/tokens')}
             titleCentered={false}
+            headerAction={
+                <Button
+                    type={ButtonType.Secondary}
+                    size={ButtonSize.Small}
+                    onClick={handleLock}
+                    icon={<LockLocked className="h-5 w-5" />}
+                    text="Lock"
+                />
+            }
         >
             <div className="flex h-full w-full flex-col">
                 <div className="flex flex-1 flex-col overflow-y-auto">

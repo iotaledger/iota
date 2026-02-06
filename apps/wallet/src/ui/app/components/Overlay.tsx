@@ -19,6 +19,7 @@ interface OverlayProps {
     titleCentered?: boolean;
     showBackButton?: boolean;
     onBack?: () => void;
+    headerAction?: ReactNode;
 }
 
 export function Overlay({
@@ -30,6 +31,7 @@ export function Overlay({
     titleCentered = true,
     showBackButton,
     onBack,
+    headerAction,
 }: OverlayProps) {
     const closeModal = useCallback(
         (e: React.MouseEvent<HTMLElement>) => {
@@ -50,13 +52,20 @@ export function Overlay({
         <Portal containerId="overlay-portal-container">
             <div className="absolute inset-0 z-[9999] flex flex-col flex-nowrap items-center backdrop-blur-[20px]">
                 {title && (
-                    <Header
-                        onBack={showBackButton ? handleBack : undefined}
-                        title={title}
-                        onClose={closeModal}
-                        titleCentered={titleCentered}
-                        testId="overlay-title"
-                    />
+                    <div className="relative w-full">
+                        <Header
+                            onBack={showBackButton ? handleBack : undefined}
+                            title={title}
+                            onClose={closeModal}
+                            titleCentered={titleCentered}
+                            testId="overlay-title"
+                        />
+                        {headerAction && (
+                            <div className="absolute right-14 -top-0.5 translate-y-1/2">
+                                {headerAction}
+                            </div>
+                        )}
+                    </div>
                 )}
                 <div className="flex w-full flex-1 flex-col overflow-hidden bg-iota-neutral-100 p-md dark:bg-iota-neutral-6">
                     {children}
