@@ -1,9 +1,6 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use std::{
-    collections::{BTreeMap, HashSet},
-    time::Duration,
-};
+use std::{collections::BTreeMap, time::Duration};
 
 use diesel::{PgConnection, RunQueryDsl, result::DatabaseErrorKind, sql_query, sql_types};
 use downcast::Any;
@@ -11,8 +8,8 @@ use fastcrypto::{encoding::Base64, error::FastCryptoError, traits::ToFromBytes};
 use iota_json_rpc_types::{IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions};
 use iota_rest_api::{ExecuteTransactionQueryParameters, client::TransactionExecutionResponse};
 use iota_types::{
-    base_types::TransactionDigest,
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    base_types::{ObjectID, SequenceNumber, TransactionDigest},
+    effects::TransactionEffectsAPI,
     full_checkpoint_content::CheckpointTransaction,
     signature::GenericSignature,
     transaction::{Transaction, TransactionData},
@@ -72,37 +69,22 @@ impl OptimisticTransactionExecutor {
         }
     }
 
-    /// Wait until all dependencies are indexed through the `tx_global_order`
-    /// table.
-    ///
-    /// It uses exponential backoff to retry the check.
-    ///
-    /// This does not cover old transactions that do not have
-    /// entries in `tx_global_order`.
-    pub(crate) async fn wait_for_tx_dependencies(
+    pub(crate) async fn wait_for_dependencies(
         &self,
-        effects: &TransactionEffects,
+        input_obj_keys: Vec<(ObjectID, SequenceNumber)>,
     ) -> Result<(), IndexerError> {
-        let expected_dependencies = effects
-            .dependencies()
-            .iter()
-            .copied()
-            .collect::<HashSet<_>>();
+        let expected_count = input_obj_keys.len();
         let backoff = backoff::ExponentialBackoff {
             max_elapsed_time: Some(WAIT_FOR_DEPS_MAX_ELAPSED_TIME),
             ..Default::default()
         };
 
         backoff::future::retry(backoff, async || {
-            let digests: Vec<Vec<u8>> = expected_dependencies
-                .iter()
-                .map(|d| d.inner().to_vec())
-                .collect();
             let count = self
                 .read
-                .count_indexed_tx_global_orders_in_blocking_task(digests.into_iter())
+                .count_existing_object_keys_in_blocking_task(input_obj_keys.clone())
                 .await?;
-            if count as usize != expected_dependencies.len() {
+            if count as usize != expected_count {
                 return Err(IndexerError::TransactionDependenciesNotIndexed)?;
             }
             Ok(())
@@ -150,22 +132,22 @@ impl OptimisticTransactionExecutor {
             .metrics
             .optimistic_tx_dependencies_wait_time
             .start_timer();
-        tokio::select! {
-            Ok(_) = self.wait_for_tx_dependencies(&effects) => {
-                deps_timer.stop_and_record();
-            },
-            Ok(true) = self.deep_check_all_dependencies_are_indexed(&effects) => {
-                deps_timer.stop_and_record();
-            },
-            else => {
-                deps_timer.stop_and_discard();
-                tracing::warn!(
-                    "transaction {tx_digest} dependencies are not indexed, skipping optimistic indexing",
-                );
-                self.metrics.optimistic_tx_with_missing_dependencies_count.inc();
-                return Ok(());
-            }
-        };
+        let input_obj_keys = input_objects
+            .iter()
+            .map(|ob| (ob.id(), ob.version()))
+            .collect::<Vec<_>>();
+        if self.wait_for_dependencies(input_obj_keys).await.is_ok() {
+            deps_timer.stop_and_record();
+        } else {
+            deps_timer.stop_and_discard();
+            tracing::warn!(
+                "transaction {tx_digest} dependencies are not indexed, skipping optimistic indexing",
+            );
+            self.metrics
+                .optimistic_tx_with_missing_dependencies_count
+                .inc();
+            return Ok(());
+        }
         let full_tx_data = CheckpointTransaction {
             transaction,
             effects,
@@ -175,22 +157,6 @@ impl OptimisticTransactionExecutor {
         };
 
         self.index_transaction_in_blocking_task(&full_tx_data).await
-    }
-
-    /// Expensive operation that checks if all transactions
-    /// are indexed.
-    ///
-    /// This queries both `tx_global_order` which represents
-    /// the index status for newer transactions, and the `checkpoints`
-    /// table for older transactions that do not have entries
-    /// in `tx_global_order`.
-    pub(crate) async fn deep_check_all_dependencies_are_indexed(
-        &self,
-        effects: &TransactionEffects,
-    ) -> Result<bool, IndexerError> {
-        self.read
-            .deep_check_all_transactions_are_indexed_in_blocking_task(effects.dependencies())
-            .await
     }
 
     pub async fn execute_and_index_transaction(
