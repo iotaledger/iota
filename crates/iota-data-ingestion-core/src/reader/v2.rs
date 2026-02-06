@@ -109,19 +109,15 @@ impl RemoteStore {
     ) -> IngestionResult<Self> {
         let store = match remote_url {
             RemoteUrl::Fullnode(ref url) => {
-                let grpc_client = GrpcClient::connect(url)
+                match GrpcClient::connect(url)
                     .and_then(|grpc_client| async {
                         // check if we can make gRPC request to client
-                        match grpc_client.get_service_info(None).await {
-                            Ok(_) => Ok(grpc_client.with_max_decoding_message_size(
-                                GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES,
-                            )),
-                            Err(e) => Err(e),
-                        }
+                        grpc_client.get_service_info(None).await?;
+                        Ok(grpc_client
+                            .with_max_decoding_message_size(GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES))
                     })
-                    .await;
-
-                match grpc_client {
+                    .await
+                {
                     Ok(grpc_client) => {
                         info!("using gRPC as checkpoint stream");
                         RemoteStore::Fullnode(grpc_client)
