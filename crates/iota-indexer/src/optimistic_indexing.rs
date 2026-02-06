@@ -136,7 +136,7 @@ impl OptimisticTransactionExecutor {
             .iter()
             .map(|ob| (ob.id(), ob.version()))
             .collect::<Vec<_>>();
-        if let Ok(_) = self.wait_for_dependencies(input_obj_keys).await {
+        if self.wait_for_dependencies(input_obj_keys).await.is_ok() {
             deps_timer.stop_and_record();
         } else {
             deps_timer.stop_and_discard();
