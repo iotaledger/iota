@@ -1748,7 +1748,7 @@ mod checked {
             })
         } else {
             // SAFETY: Preserving existing behaviour for identifier deserialization.
-            Ok(Identifier::new(ident).unwrap())
+            Ok(Identifier::new_unchecked(&ident))
         }
     }
 
