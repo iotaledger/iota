@@ -31,8 +31,9 @@ mod ingestion_tests {
         types::{EventIndex, TxIndex},
     };
     use iota_types::{
-        IOTA_FRAMEWORK_PACKAGE_ID, base_types::IotaAddress, effects::TransactionEffectsAPI,
-        gas_coin::GasCoin,
+        IOTA_FRAMEWORK_PACKAGE_ID,
+        base_types::{IotaAddress, StructTag},
+        effects::TransactionEffectsAPI,
     };
     use simulacrum::Simulacrum;
     use tempfile::tempdir;
@@ -165,7 +166,7 @@ mod ingestion_tests {
         })
         .context("Failed reading object from PostgresDB")?;
 
-        let obj_type_tag = GasCoin::type_();
+        let obj_type_tag = StructTag::new_gas_coin();
 
         // Check that the different components of the event type were stored correctly.
         assert_eq!(

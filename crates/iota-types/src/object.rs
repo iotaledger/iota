@@ -106,7 +106,7 @@ impl MoveObject {
         // unwrap safe because coins are always smaller than the max object size
         {
             Self::new_from_execution_with_limit(
-                GasCoin::type_().into(),
+                StructTag::new_gas_coin().into(),
                 version,
                 GasCoin::new(id, value).to_bcs_bytes(),
                 256,
@@ -195,7 +195,7 @@ impl MoveObject {
     }
 
     pub fn is_clock(&self) -> bool {
-        self.type_.is(&crate::clock::Clock::type_())
+        self.type_.is(&StructTag::new_clock())
     }
 
     pub fn version(&self) -> SequenceNumber {
@@ -904,7 +904,7 @@ impl Object {
 
     pub fn immutable_with_id_for_testing(id: ObjectID) -> Self {
         let data = Data::Move(MoveObject {
-            type_: GasCoin::type_().into(),
+            type_: StructTag::new_gas_coin().into(),
             version: OBJECT_START_VERSION,
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
         });
@@ -937,7 +937,7 @@ impl Object {
 
     pub fn with_id_owner_gas_for_testing(id: ObjectID, owner: IotaAddress, gas: u64) -> Self {
         let data = Data::Move(MoveObject {
-            type_: GasCoin::type_().into(),
+            type_: StructTag::new_gas_coin().into(),
             version: OBJECT_START_VERSION,
             contents: GasCoin::new(id, gas).to_bcs_bytes(),
         });
@@ -952,7 +952,7 @@ impl Object {
 
     pub fn treasury_cap_for_testing(struct_tag: StructTag, treasury_cap: TreasuryCap) -> Self {
         let data = Data::Move(MoveObject {
-            type_: TreasuryCap::type_(struct_tag).into(),
+            type_: StructTag::new_treasury_cap(struct_tag).into(),
             version: OBJECT_START_VERSION,
             contents: bcs::to_bytes(&treasury_cap).expect("Failed to serialize"),
         });
@@ -967,7 +967,7 @@ impl Object {
 
     pub fn coin_metadata_for_testing(struct_tag: StructTag, metadata: CoinMetadata) -> Self {
         let data = Data::Move(MoveObject {
-            type_: CoinMetadata::type_(struct_tag).into(),
+            type_: StructTag::new_coin_metadata(struct_tag).into(),
             version: OBJECT_START_VERSION,
             contents: bcs::to_bytes(&metadata).expect("Failed to serialize"),
         });
@@ -982,7 +982,7 @@ impl Object {
 
     pub fn with_object_owner_for_testing(id: ObjectID, owner: ObjectID) -> Self {
         let data = Data::Move(MoveObject {
-            type_: GasCoin::type_().into(),
+            type_: StructTag::new_gas_coin().into(),
             version: OBJECT_START_VERSION,
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
         });
@@ -1006,7 +1006,7 @@ impl Object {
         owner: Owner,
     ) -> Self {
         let data = Data::Move(MoveObject {
-            type_: GasCoin::type_().into(),
+            type_: StructTag::new_gas_coin().into(),
             version,
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
         });

@@ -2544,7 +2544,7 @@ make_vec_tests_for_type!(
 make_vec_tests_for_type!(
     test_make_move_vec_address_id,
     ObjectID,
-    TypeTag::Struct(Box::new(iota_types::id::ID::type_())),
+    TypeTag::Struct(Box::new(StructTag::new_id())),
     ObjectID::ZERO
 );
 make_vec_tests_for_type!(test_make_move_vec_utf8, &str, utf8_tag(), "❤️🧀");
@@ -2732,7 +2732,7 @@ make_vec_error_tests_for_type!(
 make_vec_error_tests_for_type!(
     test_error_make_move_vec_address_id,
     ObjectID,
-    TypeTag::Struct(Box::new(iota_types::id::ID::type_())),
+    TypeTag::Struct(Box::new(StructTag::new_id())),
     ObjectID::ZERO
 );
 make_vec_error_tests_for_type!(test_error_make_move_vec_utf8, &str, utf8_tag(), "❤️🧀");

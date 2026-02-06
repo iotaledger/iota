@@ -19,10 +19,9 @@ use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     balance::Supply,
     base_types::{IotaAddress, ObjectID, StructTag, TypeTag},
-    coin::{CoinMetadata, TreasuryCap},
+    coin::TreasuryCap,
     coin_manager::CoinManager,
     effects::TransactionEffectsAPI,
-    gas_coin::GAS,
     iota_system_state::{
         IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummaryV2,
     },
@@ -50,7 +49,7 @@ pub fn parse_to_struct_tag(coin_type: &str) -> Result<StructTag, IotaRpcInputErr
 pub fn parse_to_type_tag(coin_type: Option<String>) -> Result<TypeTag, IotaRpcInputError> {
     Ok(TypeTag::Struct(Box::new(match coin_type {
         Some(c) => parse_to_struct_tag(&c)?,
-        None => GAS::type_(),
+        None => StructTag::new_gas_coin(),
     })))
 }
 
@@ -216,7 +215,7 @@ impl CoinReadApiServer for CoinReadApi {
                 .internal
                 .find_package_object(
                     &coin_struct.address().into(),
-                    CoinMetadata::type_(coin_struct.clone()),
+                    StructTag::new_coin_metadata(coin_struct.clone()),
                 )
                 .await
                 .ok();
@@ -226,7 +225,7 @@ impl CoinReadApiServer for CoinReadApi {
                         .internal
                         .find_package_object(
                             &coin_struct.address().into(),
-                            CoinManager::type_(coin_struct),
+                            StructTag::new_coin_manager(coin_struct),
                         )
                         .await
                         .ok();
@@ -272,8 +271,8 @@ impl CoinReadApiServer for CoinReadApi {
 
             Err(IotaRpcInputError::GenericNotFound(format!(
                 "Cannot find object [{}] or [{}] from [{}] package event.",
-                TreasuryCap::type_(coin_struct.clone()),
-                CoinManager::type_(coin_struct.clone()),
+                StructTag::new_treasury_cap(coin_struct.clone()),
+                StructTag::new_coin_manager(coin_struct.clone()),
                 coin_struct.address()
             )))?
         }
@@ -378,7 +377,7 @@ async fn gas_total_supply<I>(internal: &I, tag: &StructTag) -> Result<Option<Sup
 where
     I: CoinReadInternal + Send + Sync + ?Sized,
 {
-    if !GAS::is_gas(tag) {
+    if !tag.is_iota_coin_type() {
         return Ok(None);
     }
 
@@ -405,7 +404,10 @@ where
     I: CoinReadInternal + Send + Sync + ?Sized,
 {
     if let Ok(obj) = internal
-        .find_package_object(&tag.address().into(), TreasuryCap::type_(tag.clone()))
+        .find_package_object(
+            &tag.address().into(),
+            StructTag::new_treasury_cap(tag.clone()),
+        )
         .await
     {
         let data = obj
@@ -428,7 +430,10 @@ where
     I: CoinReadInternal + Send + Sync + ?Sized,
 {
     if let Ok(obj) = internal
-        .find_package_object(&tag.address().into(), CoinManager::type_(tag.clone()))
+        .find_package_object(
+            &tag.address().into(),
+            StructTag::new_coin_manager(tag.clone()),
+        )
         .await
     {
         let cm = CoinManager::try_from(obj).map_err(Error::from)?;
@@ -575,7 +580,6 @@ mod tests {
         digests::{ObjectDigest, TransactionDigest},
         effects::{TransactionEffects, TransactionEvents},
         error::{IotaError, IotaResult},
-        gas_coin::GAS,
         id::UID,
         messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
         object::Object,
@@ -676,7 +680,7 @@ mod tests {
 
     fn get_test_coin(id_hex_literal: Option<&str>, coin_type: CoinType) -> Coin {
         let (arr, coin_type_string, balance, default_hex) = match coin_type {
-            CoinType::Gas => ([0; 32], GAS::type_().to_string(), 42, "0xA"),
+            CoinType::Gas => ([0; 32], StructTag::new_gas_coin().to_string(), 42, "0xA"),
             CoinType::Usdc => (
                 [1; 32],
                 "0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC".to_string(),
@@ -706,7 +710,7 @@ mod tests {
     ) -> (String, StructTag, StructTag, TreasuryCap, Object) {
         let coin_name = get_test_coin_type(package_id);
         let input_coin_struct = parse_iota_struct_tag(&coin_name).expect("should not fail");
-        let treasury_cap_struct = TreasuryCap::type_(input_coin_struct.clone());
+        let treasury_cap_struct = StructTag::new_treasury_cap(input_coin_struct.clone());
         let treasury_cap = TreasuryCap {
             id: UID::new(get_test_package_id()),
             total_supply: Supply { value: 420 },
@@ -736,7 +740,7 @@ mod tests {
                 .expect_get_owned_coins()
                 .with(
                     predicate::eq(owner),
-                    predicate::eq((GAS::type_().to_string(), ObjectID::ZERO)),
+                    predicate::eq((StructTag::new_gas_coin().to_string(), ObjectID::ZERO)),
                     predicate::eq(51),
                     predicate::eq(true),
                 )
@@ -771,7 +775,10 @@ mod tests {
                 .expect_get_owned_coins()
                 .with(
                     predicate::eq(owner),
-                    predicate::eq((GAS::type_().to_string(), coins[0].coin_object_id)),
+                    predicate::eq((
+                        StructTag::new_gas_coin().to_string(),
+                        coins[0].coin_object_id,
+                    )),
                     predicate::eq(limit + 1),
                     predicate::eq(true),
                 )
@@ -1324,7 +1331,7 @@ mod tests {
     }
 
     mod get_coin_metadata_tests {
-        use iota_types::id::UID;
+        use iota_types::{coin::CoinMetadata, id::UID};
         use mockall::predicate;
 
         use super::{super::*, *};
@@ -1335,7 +1342,7 @@ mod tests {
             let package_id = get_test_package_id();
             let coin_name = get_test_coin_type(package_id);
             let input_coin_struct = parse_iota_struct_tag(&coin_name).expect("should not fail");
-            let coin_metadata_struct = CoinMetadata::type_(input_coin_struct.clone());
+            let coin_metadata_struct = StructTag::new_coin_metadata(input_coin_struct.clone());
             let coin_metadata = CoinMetadata {
                 id: UID::new(get_test_package_id()),
                 decimals: 2,
@@ -1399,7 +1406,7 @@ mod tests {
             let package_id = get_test_package_id();
             let coin_name = get_test_coin_type(package_id);
             let input_coin_struct = parse_iota_struct_tag(&coin_name).expect("should not fail");
-            let coin_metadata_struct = CoinMetadata::type_(input_coin_struct.clone());
+            let coin_metadata_struct = StructTag::new_coin_metadata(input_coin_struct.clone());
             let treasury_cap = TreasuryCap {
                 id: UID::new(get_test_package_id()),
                 total_supply: Supply { value: 420 },
@@ -1433,6 +1440,7 @@ mod tests {
 
     mod get_total_supply_tests {
         use iota_types::{
+            coin::CoinMetadata,
             collection_types::VecMap,
             gas_coin::IotaTreasuryCap,
             id::UID,

@@ -35,10 +35,6 @@ pub struct DisplayVersionUpdatedEvent {
 }
 
 impl DisplayVersionUpdatedEvent {
-    pub fn type_(inner: &StructTag) -> StructTag {
-        StructTag::new_display_version_updated(inner.clone())
-    }
-
     // Checks if the provided `StructTag` is a DisplayVersionUpdatedEvent<T>
     pub fn is_display_updated_event(inner: &StructTag) -> bool {
         inner.is_display_version_updated()
@@ -70,10 +66,4 @@ impl DisplayVersionUpdatedEvent {
 pub struct DisplayCreatedEvent {
     // The Object ID of Display Object
     pub id: ID,
-}
-
-impl DisplayCreatedEvent {
-    pub fn type_(inner: &StructTag) -> StructTag {
-        StructTag::new_display_created(inner.clone())
-    }
 }

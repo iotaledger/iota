@@ -874,7 +874,10 @@ async fn test_dev_inspect_gas_price() {
 
 fn check_coin_value(actual_value: &[u8], actual_type: &IotaTypeTag, expected_value: u64) {
     let actual_type: TypeTag = actual_type.clone().try_into().unwrap();
-    assert_eq!(actual_type, TypeTag::Struct(Box::new(GasCoin::type_())));
+    assert_eq!(
+        actual_type,
+        TypeTag::Struct(Box::new(StructTag::new_gas_coin()))
+    );
     let actual_coin: GasCoin = bcs::from_bytes(actual_value).unwrap();
     assert_eq!(actual_coin.value(), expected_value);
 }
@@ -3295,7 +3298,7 @@ async fn test_genesis_iota_system_state_object() {
     let move_object = wrapper.data.try_as_move().unwrap();
     let _iota_system_state =
         bcs::from_bytes::<IotaSystemStateWrapper>(move_object.contents()).unwrap();
-    assert!(move_object.type_().is(&IotaSystemStateWrapper::type_()));
+    assert!(move_object.type_().is(&StructTag::new_iota_system_state()));
     let iota_system_state = authority_state
         .get_iota_system_state_object_for_testing()
         .unwrap();

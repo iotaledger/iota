@@ -4,6 +4,7 @@
 use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{anyhow, bail, ensure};
+use iota_sdk_types::StructTag;
 use iota_stardust_types::block::{
     address::AliasAddress,
     output::{
@@ -15,9 +16,7 @@ use iota_stardust_types::block::{
 };
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID,
-    balance::Balance,
     base_types::{Identifier, IotaAddress, TxContext, TypeTag},
-    coin::Coin,
     digests::TransactionDigest,
     epoch_data::EpochData,
     in_memory_storage::InMemoryStorage,
@@ -327,7 +326,7 @@ fn extract_native_tokens_from_bag(
                     NATIVE_TOKEN_BAG_KEY_TYPE
                         .parse()
                         .expect("should be a valid type tag"),
-                    Balance::type_(token_type_tag.clone()).into(),
+                    StructTag::new_balance(token_type_tag.clone()).into(),
                 ],
                 vec![bag_arg, bag_key_arg],
             );
@@ -365,7 +364,7 @@ fn extract_native_tokens_from_bag(
     let InnerTemporaryStore { written, .. } = executor.execute_pt_unmetered(input_objects, pt)?;
 
     for (native_token, _, token_type_tag) in native_tokens {
-        let coin_token_struct_tag = Coin::type_(token_type_tag);
+        let coin_token_struct_tag = StructTag::new_coin(token_type_tag);
         let coin_token = written
             .values()
             .find(|obj| {

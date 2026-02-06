@@ -12,7 +12,7 @@ use move_core_types::annotated_value::MoveStructLayout;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    balance::{Balance, Supply},
+    balance::Supply,
     base_types::{ObjectID, SequenceNumber},
     coin::{Coin, TreasuryCap},
     error::{ExecutionError, ExecutionErrorKind},
@@ -46,21 +46,13 @@ mod checked {
 
     pub struct GAS {}
     impl GAS {
-        pub fn type_() -> StructTag {
-            StructTag::new_iota_coin_type()
-        }
-
         pub fn type_tag() -> TypeTag {
-            TypeTag::Struct(Box::new(Self::type_()))
-        }
-
-        pub fn is_gas(other: &StructTag) -> bool {
-            other.is_iota_coin_type()
+            StructTag::new_iota_coin_type().into()
         }
 
         pub fn is_gas_type(other: &TypeTag) -> bool {
             match other {
-                TypeTag::Struct(s) => Self::is_gas(s),
+                TypeTag::Struct(s) => s.is_iota_coin_type(),
                 _ => false,
             }
         }
@@ -79,22 +71,10 @@ mod checked {
             self.0.value()
         }
 
-        pub fn type_() -> StructTag {
-            StructTag::new_gas_coin()
-        }
-
-        /// Return `true` if `s` is the type of a gas coin (i.e.,
-        /// 0x2::coin::Coin<0x2::iota::IOTA>)
-        pub fn is_gas_coin(s: &StructTag) -> bool {
-            s.is_gas_coin()
-        }
-
         /// Return `true` if `s` is the type of a gas balance (i.e.,
         /// 0x2::balance::Balance<0x2::iota::IOTA>)
         pub fn is_gas_balance(s: &StructTag) -> bool {
-            Balance::is_balance(s)
-                && s.type_params().len() == 1
-                && GAS::is_gas_type(&s.type_params()[0])
+            s.is_balance() && GAS::is_gas_type(&s.type_params()[0])
         }
 
         pub fn id(&self) -> &ObjectID {
@@ -110,7 +90,7 @@ mod checked {
         }
 
         pub fn layout() -> MoveStructLayout {
-            Coin::layout(TypeTag::Struct(Box::new(GAS::type_())))
+            Coin::layout(TypeTag::Struct(Box::new(StructTag::new_iota_coin_type())))
         }
 
         pub fn new_for_testing(value: u64) -> Self {
@@ -169,10 +149,6 @@ mod checked {
     }
 
     impl IotaTreasuryCap {
-        pub fn type_() -> StructTag {
-            StructTag::new_iota_treasury_cap()
-        }
-
         /// Returns the `TreasuryCap<IOTA>` object ID.
         pub fn id(&self) -> &ObjectID {
             self.inner.id.object_id()

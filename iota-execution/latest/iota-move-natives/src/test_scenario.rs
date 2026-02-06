@@ -13,7 +13,6 @@ use better_any::{Tid, TidAble};
 use indexmap::{IndexMap, IndexSet};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TypeTag},
-    config,
     digests::{ObjectDigest, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
     execution::DynamicallyLoadedObjectMetadata,
@@ -316,7 +315,7 @@ pub fn end_transaction(
     for child in object_runtime_ref.all_active_child_objects() {
         let s: StructTag = child.move_type.clone().into();
         let is_setting = DynamicFieldInfo::is_dynamic_field(&s)
-            && matches!(&s.type_params()[1], TypeTag::Struct(s) if config::is_setting(s));
+            && matches!(&s.type_params()[1], TypeTag::Struct(s) if s.is_config_setting());
         if is_setting {
             config_settings.push((
                 *child.owner,

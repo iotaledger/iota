@@ -46,11 +46,6 @@ impl<T> TimeLock<T> {
         }
     }
 
-    /// Get the TimeLock's `type`.
-    pub fn type_(type_param: TypeTag) -> StructTag {
-        StructTag::new_time_lock(type_param)
-    }
-
     /// Get the TimeLock's `id`.
     pub fn id(&self) -> &ObjectID {
         self.id.object_id()
@@ -89,34 +84,21 @@ where
     }
 }
 
-/// Is this other StructTag representing a TimeLock?
-pub fn is_timelock(other: &StructTag) -> bool {
-    other.is_time_lock()
-}
-
 /// Is this other StructTag representing a `TimeLock<Balance<T>>`?
 pub fn is_timelocked_balance(other: &StructTag) -> bool {
-    if !is_timelock(other) {
-        return false;
-    }
-
-    if other.type_params().len() != 1 {
+    if !other.is_time_lock() {
         return false;
     }
 
     match &other.type_params()[0] {
-        TypeTag::Struct(tag) => Balance::is_balance(tag),
+        TypeTag::Struct(tag) => tag.is_balance(),
         _ => false,
     }
 }
 
 /// Is this other StructTag representing a `TimeLock<Balance<IOTA>>`?
 pub fn is_timelocked_gas_balance(other: &StructTag) -> bool {
-    if !is_timelock(other) {
-        return false;
-    }
-
-    if other.type_params().len() != 1 {
+    if !other.is_time_lock() {
         return false;
     }
 

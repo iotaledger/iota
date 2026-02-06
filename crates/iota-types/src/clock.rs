@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Identifier, StructTag};
+use iota_sdk_types::Identifier;
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
@@ -29,10 +29,6 @@ pub struct Clock {
 impl Clock {
     pub fn timestamp_ms(&self) -> u64 {
         self.timestamp_ms
-    }
-
-    pub fn type_() -> StructTag {
-        StructTag::new_clock()
     }
 
     /// Detects a `&mut iota::clock::Clock` or `iota::clock::Clock` in the

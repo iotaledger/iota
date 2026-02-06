@@ -11,7 +11,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    IotaAddress,
     balance::{Balance, Supply},
     base_types::ObjectID,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
@@ -43,15 +42,6 @@ impl Coin {
             id: UID::new(id),
             balance: Balance::new(value),
         }
-    }
-
-    pub fn type_(type_param: TypeTag) -> StructTag {
-        StructTag::new_coin(type_param)
-    }
-
-    /// Is this other StructTag representing a Coin?
-    pub fn is_coin(other: &StructTag) -> bool {
-        other.is_coin()
     }
 
     /// Create a coin from BCS bytes
@@ -89,7 +79,7 @@ impl Coin {
 
     pub fn layout(type_param: TypeTag) -> MoveStructLayout {
         MoveStructLayout {
-            type_: struct_tag_sdk_to_core(&Self::type_(type_param.clone())),
+            type_: struct_tag_sdk_to_core(&StructTag::new_coin(type_param.clone())),
             fields: vec![
                 MoveFieldLayout::new(
                     ident_str!("id").to_owned(),
@@ -133,10 +123,6 @@ pub struct TreasuryCap {
 }
 
 impl TreasuryCap {
-    pub fn is_treasury_type(other: &StructTag) -> bool {
-        other.is_treasury_cap()
-    }
-
     /// Create a TreasuryCap from BCS bytes
     pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
         bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
@@ -144,14 +130,10 @@ impl TreasuryCap {
         })
     }
 
-    pub fn type_(type_param: StructTag) -> StructTag {
-        StructTag::new_treasury_cap(type_param)
-    }
-
     /// Checks if the provided type is `TreasuryCap<T>`, returning the type T if
     /// so.
     pub fn is_treasury_with_coin_type(other: &StructTag) -> Option<&StructTag> {
-        if Self::is_treasury_type(other) && other.type_params().len() == 1 {
+        if other.is_treasury_cap() {
             match other.type_params().first() {
                 Some(TypeTag::Struct(coin_type)) => Some(coin_type),
                 _ => None,
@@ -197,13 +179,6 @@ pub struct CoinMetadata {
 }
 
 impl CoinMetadata {
-    /// Is this other StructTag representing a CoinMetadata?
-    pub fn is_coin_metadata(other: &StructTag) -> bool {
-        other.address() == IotaAddress::FRAMEWORK
-            && other.module() == &COIN_MODULE_NAME
-            && other.name() == &COIN_METADATA_STRUCT_NAME
-    }
-
     /// Create a coin from BCS bytes
     pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
         bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
@@ -211,14 +186,10 @@ impl CoinMetadata {
         })
     }
 
-    pub fn type_(type_param: StructTag) -> StructTag {
-        StructTag::new_coin_metadata(type_param)
-    }
-
     /// Checks if the provided type is `CoinMetadata<T>`, returning the type T
     /// if so.
     pub fn is_coin_metadata_with_coin_type(other: &StructTag) -> Option<&StructTag> {
-        if Self::is_coin_metadata(other) && other.type_params().len() == 1 {
+        if other.is_coin_metadata() {
             match other.type_params().first() {
                 Some(TypeTag::Struct(coin_type)) => Some(coin_type),
                 _ => None,

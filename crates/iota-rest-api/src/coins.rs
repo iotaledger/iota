@@ -96,7 +96,7 @@ async fn get_coin_info(
                 id: treasury.id.id.bytes,
                 total_supply: treasury.total_supply.value,
             })
-    } else if iota_types::gas_coin::GAS::is_gas(&coin_type) {
+    } else if coin_type.is_iota_coin_type() {
         let system_state_summary = state.get_system_state_summary()?;
 
         Some(CoinTreasury {

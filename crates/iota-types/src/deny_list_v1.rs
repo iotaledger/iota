@@ -52,15 +52,9 @@ struct ConfigKey {
     per_type_key: Vec<u8>,
 }
 
-impl ConfigKey {
-    pub fn type_() -> StructTag {
-        StructTag::new_deny_list_config_key()
-    }
-}
-
 impl MoveTypeTagTrait for ConfigKey {
     fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(Self::type_()))
+        TypeTag::Struct(Box::new(StructTag::new_deny_list_config_key()))
     }
 }
 
@@ -68,15 +62,9 @@ impl MoveTypeTagTrait for ConfigKey {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct AddressKey(IotaAddress);
 
-impl AddressKey {
-    pub fn type_() -> StructTag {
-        StructTag::new_deny_list_address_key()
-    }
-}
-
 impl MoveTypeTagTrait for AddressKey {
     fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(Self::type_()))
+        TypeTag::Struct(Box::new(StructTag::new_deny_list_address_key()))
     }
 }
 
@@ -90,14 +78,11 @@ impl GlobalPauseKey {
     pub fn new() -> Self {
         Self(false)
     }
-    pub fn type_() -> StructTag {
-        StructTag::new_deny_list_global_pause_key()
-    }
 }
 
 impl MoveTypeTagTrait for GlobalPauseKey {
     fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(Self::type_()))
+        TypeTag::Struct(Box::new(StructTag::new_deny_list_global_pause_key()))
     }
 }
 

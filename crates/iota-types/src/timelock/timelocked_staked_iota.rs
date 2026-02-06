@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Identifier, StructTag};
+use iota_sdk_types::Identifier;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -32,16 +32,6 @@ pub struct TimelockedStakedIota {
 }
 
 impl TimelockedStakedIota {
-    /// Get the TimeLock's `type`.
-    pub fn type_() -> StructTag {
-        StructTag::new_timelocked_staked_iota()
-    }
-
-    /// Is this other StructTag representing a TimelockedStakedIota?
-    pub fn is_timelocked_staked_iota(s: &StructTag) -> bool {
-        s.is_timelocked_staked_iota()
-    }
-
     /// Get the TimelockedStakedIota's `id`.
     pub fn id(&self) -> ObjectID {
         self.id.id.bytes

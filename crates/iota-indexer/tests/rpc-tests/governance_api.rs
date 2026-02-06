@@ -9,8 +9,7 @@ use iota_protocol_config::ProtocolVersion;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID,
-    balance::Balance,
-    base_types::{Identifier, TypeTag},
+    base_types::{Identifier, StructTag, TypeTag},
     crypto::{AccountKeyPair, get_key_pair},
     gas_coin::GAS,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
@@ -264,7 +263,9 @@ fn test_timelocked_staking() {
                 IOTA_FRAMEWORK_PACKAGE_ID,
                 Identifier::from_static("timelock"),
                 Identifier::from_static("lock"),
-                vec![TypeTag::Struct(Box::new(Balance::type_(GAS::type_tag())))],
+                vec![TypeTag::Struct(Box::new(StructTag::new_balance(
+                    GAS::type_tag(),
+                )))],
                 vec![iota_balance, timelock_timestamp],
             );
 
@@ -376,7 +377,9 @@ fn test_timelocked_unstaking() {
                 IOTA_FRAMEWORK_PACKAGE_ID,
                 Identifier::from_static("timelock"),
                 Identifier::from_static("lock"),
-                vec![TypeTag::Struct(Box::new(Balance::type_(GAS::type_tag())))],
+                vec![TypeTag::Struct(Box::new(StructTag::new_balance(
+                    GAS::type_tag(),
+                )))],
                 vec![iota_balance, timelock_timestamp],
             );
 

@@ -14,7 +14,8 @@ use iota_json_rpc_types::{IotaArgument, IotaData, IotaObjectDataOptions, IotaRaw
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::{
-        Identifier, IotaAddress, ObjectID, ObjectRef, ObjectType, TxContext, TxContextKind, TypeTag,
+        Identifier, IotaAddress, ObjectID, ObjectRef, ObjectType, StructTag, TxContext,
+        TxContextKind, TypeTag,
     },
     error::UserInputError,
     fp_ensure,
@@ -55,7 +56,7 @@ impl TransactionBuilder {
                     .0
                     .get_owned_objects(
                         signer,
-                        GasCoin::type_(),
+                        StructTag::new_gas_coin(),
                         cursor,
                         None,
                         IotaObjectDataOptions::new().with_bcs(),

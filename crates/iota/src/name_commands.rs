@@ -2387,7 +2387,7 @@ struct AuctionHouse {
 impl AuctionHouse {
     async fn get_auction(&self, name: &Name, client: &IotaClient) -> anyhow::Result<Auction> {
         let iota_names_config = get_iota_names_config(client).await?;
-        let name_type_tag = Name::type_(iota_names_config.package_address);
+        let name_type_tag = StructTag::new_name(iota_names_config.package_address);
         let name_bytes = bcs::to_bytes(name).unwrap();
 
         let object_id = iota_types::dynamic_field::derive_dynamic_field_id(

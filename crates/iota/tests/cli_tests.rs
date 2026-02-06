@@ -49,6 +49,7 @@ use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::{
     IotaClient, PagedFn, iota_client_config::IotaClientConfig, wallet_context::WalletContext,
 };
+use iota_sdk_types::StructTag;
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_NUMBER_OF_AUTHORITIES, GenesisConfig},
     network_config::NetworkConfigLight,
@@ -765,7 +766,7 @@ async fn test_ptb_publish_upgrade() -> Result<(), anyhow::Error> {
         .iter()
         .filter_map(|c| {
             if let iota_json_rpc_types::ObjectChange::Created { object_type, .. } = c {
-                if object_type == &iota_types::move_package::UpgradeCap::type_() {
+                if object_type.is_upgrade_cap() {
                     Some(c.object_id())
                 } else {
                     None
@@ -4075,7 +4076,7 @@ async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Resul
         .get_owned_objects(
             address,
             Some(IotaObjectResponseQuery::new(
-                Some(IotaObjectDataFilter::StructType(GasCoin::type_())),
+                Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
                 Some(
                     IotaObjectDataOptions::new()
                         .with_type()
@@ -4106,7 +4107,7 @@ async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Resul
             .get_owned_objects(
                 address,
                 Some(IotaObjectResponseQuery::new(
-                    Some(IotaObjectDataFilter::StructType(GasCoin::type_())),
+                    Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
                     Some(
                         IotaObjectDataOptions::new()
                             .with_type()

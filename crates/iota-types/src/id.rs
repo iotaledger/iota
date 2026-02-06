@@ -49,10 +49,6 @@ impl UID {
         }
     }
 
-    pub fn type_() -> StructTag {
-        StructTag::new_uid()
-    }
-
     pub fn object_id(&self) -> &ObjectID {
         &self.id.bytes
     }
@@ -63,7 +59,7 @@ impl UID {
 
     pub fn layout() -> MoveStructLayout {
         MoveStructLayout {
-            type_: struct_tag_sdk_to_core(&Self::type_()),
+            type_: struct_tag_sdk_to_core(&StructTag::new_uid()),
             fields: vec![MoveFieldLayout::new(
                 ident_str!("id").to_owned(),
                 MoveTypeLayout::Struct(Box::new(ID::layout())),
@@ -83,13 +79,9 @@ impl ID {
         Self { bytes: object_id }
     }
 
-    pub fn type_() -> StructTag {
-        StructTag::new_id()
-    }
-
     pub fn layout() -> MoveStructLayout {
         MoveStructLayout {
-            type_: struct_tag_sdk_to_core(&Self::type_()),
+            type_: struct_tag_sdk_to_core(&StructTag::new_id()),
             fields: vec![MoveFieldLayout::new(
                 ident_str!("bytes").to_owned(),
                 MoveTypeLayout::Address,
@@ -106,6 +98,6 @@ impl fmt::Display for ID {
 
 impl MoveTypeTagTrait for ID {
     fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(Self::type_()))
+        TypeTag::Struct(Box::new(StructTag::new_id()))
     }
 }

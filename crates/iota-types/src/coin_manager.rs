@@ -47,18 +47,10 @@ pub struct CoinManager {
 }
 
 impl CoinManager {
-    pub fn is_coin_manager(object_type: &StructTag) -> bool {
-        object_type.is_coin_manager()
-    }
-
     pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
         bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
             error: format!("Unable to deserialize CoinManager object: {err}"),
         })
-    }
-
-    pub fn type_(type_param: StructTag) -> StructTag {
-        StructTag::new_coin_manager(type_param)
     }
 }
 

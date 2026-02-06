@@ -12,7 +12,6 @@ pub use checked::*;
 
 #[iota_macros::with_checked_arithmetic]
 mod checked {
-    use iota_sdk_types::StructTag;
     use serde::{Deserialize, Serialize};
 
     /// Rust version of the IotaSystemAdminCap type.
@@ -22,11 +21,5 @@ mod checked {
         // An empty Move struct contains a 1-byte dummy bool field because empty fields are not
         // allowed in the bytecode.
         dummy_field: bool,
-    }
-
-    impl IotaSystemAdminCap {
-        pub fn type_() -> StructTag {
-            StructTag::new_iota_system_admin_cap()
-        }
     }
 }

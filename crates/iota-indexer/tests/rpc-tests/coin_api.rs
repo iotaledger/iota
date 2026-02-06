@@ -19,7 +19,7 @@ use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
     balance::Supply,
     base_types::{Identifier, IotaAddress, ObjectID, StructTag, TypeTag},
-    coin::{COIN_MODULE_NAME, CoinMetadata, TreasuryCap},
+    coin::COIN_MODULE_NAME,
     crypto::{AccountKeyPair, IotaKeyPair, Signature, get_key_pair},
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -833,7 +833,7 @@ async fn mint_trusted_coin(
     assert_eq!(0, result.value);
 
     let coin_type = parse_iota_struct_tag(&coin_name).unwrap();
-    let treasury_cap_type = TreasuryCap::type_(coin_type);
+    let treasury_cap_type = StructTag::new_treasury_cap(coin_type);
     let treasury_cap = get_single_owned_object_by_type(http_client, address, treasury_cap_type)
         .await
         .object_id;
@@ -887,12 +887,12 @@ async fn create_migrated_coin_manager_coins(
 
     {
         let coin_type = parse_iota_struct_tag(&coin_name).unwrap();
-        let treasury_cap_type = TreasuryCap::type_(coin_type.clone());
+        let treasury_cap_type = StructTag::new_treasury_cap(coin_type.clone());
         let treasury_cap = get_single_owned_object_by_type(http_client, address, treasury_cap_type)
             .await
             .object_id;
 
-        let coin_metadata_type = CoinMetadata::type_(coin_type.clone());
+        let coin_metadata_type = StructTag::new_coin_metadata(coin_type.clone());
         let coin_metadata =
             get_single_owned_object_by_type(http_client, address, coin_metadata_type)
                 .await
@@ -932,7 +932,7 @@ async fn create_migrated_coin_manager_coins(
 
     {
         let imm_coin_type = parse_iota_struct_tag(&immutable_metadata_coin_name).unwrap();
-        let treasury_cap_type = TreasuryCap::type_(imm_coin_type.clone());
+        let treasury_cap_type = StructTag::new_treasury_cap(imm_coin_type.clone());
         let treasury_cap = get_single_owned_object_by_type(http_client, address, treasury_cap_type)
             .await
             .object_id;

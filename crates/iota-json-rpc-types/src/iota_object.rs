@@ -397,7 +397,7 @@ impl TryFrom<&IotaObjectData> for GasCoin {
             .ok_or_else(|| anyhow!("Expect object content to not be empty"))?
         {
             IotaParsedData::MoveObject(o) => {
-                if GasCoin::type_() == o.type_ {
+                if StructTag::new_gas_coin() == o.type_ {
                     return GasCoin::try_from(&o.fields);
                 }
             }
@@ -1164,7 +1164,7 @@ pub enum IotaObjectDataFilter {
 
 impl IotaObjectDataFilter {
     pub fn gas_coin() -> Self {
-        Self::StructType(GasCoin::type_())
+        Self::StructType(StructTag::new_gas_coin())
     }
 
     pub fn and(self, other: Self) -> Self {

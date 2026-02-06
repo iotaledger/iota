@@ -39,8 +39,8 @@ use crate::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     epoch_data::EpochData,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
-    gas_coin::{GAS, GasCoin},
-    governance::{STAKED_IOTA_STRUCT_NAME, STAKING_POOL_MODULE_NAME, StakedIota},
+    gas_coin::GAS,
+    governance::{STAKED_IOTA_STRUCT_NAME, STAKING_POOL_MODULE_NAME},
     id::RESOLVED_IOTA_ID,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
     iota_serde::to_iota_struct_tag_string,
@@ -50,10 +50,7 @@ use crate::{
     parse_iota_struct_tag,
     signature::GenericSignature,
     stardust::output::{AliasOutput, BasicOutput, Nft, NftOutput},
-    timelock::{
-        timelock::{self, TimeLock},
-        timelocked_staked_iota::TimelockedStakedIota,
-    },
+    timelock::timelock::{self},
     transaction::{Transaction, VerifiedTransaction},
     zk_login_authenticator::ZkLoginAuthenticator,
 };
@@ -103,7 +100,7 @@ pub fn random_object_ref() -> ObjectRef {
 /// types like coins The StructTag for a gas coin is 84 bytes, so using 1 byte
 /// instead is a win. The inner representation is private to prevent incorrectly
 /// constructing an `Other` instead of one of the specialized variants, e.g.
-/// `Other(GasCoin::type_())` instead of `GasCoin`
+/// `Other(StructTag::new_gas_coin())` instead of `GasCoin`
 #[derive(Eq, PartialEq, PartialOrd, Ord, Debug, Clone, Deserialize, Serialize, Hash)]
 pub struct MoveObjectType(MoveObjectType_);
 
@@ -143,13 +140,15 @@ impl MoveObjectType {
     }
 
     pub fn timelocked_iota_balance() -> Self {
-        Self(MoveObjectType_::Other(TimeLock::<Balance>::type_(
-            Balance::type_(GAS::type_().into()).into(),
+        Self(MoveObjectType_::Other(StructTag::new_time_lock(
+            StructTag::new_balance(StructTag::new_iota_coin_type()),
         )))
     }
 
     pub fn timelocked_staked_iota() -> Self {
-        Self(MoveObjectType_::Other(TimelockedStakedIota::type_()))
+        Self(MoveObjectType_::Other(
+            StructTag::new_timelocked_staked_iota(),
+        ))
     }
 
     pub fn stardust_nft() -> Self {
@@ -266,12 +265,12 @@ impl MoveObjectType {
             MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
                 false
             }
-            MoveObjectType_::Other(s) => CoinMetadata::is_coin_metadata(s),
+            MoveObjectType_::Other(s) => s.is_coin_metadata(),
         }
     }
 
     pub fn is_coin_manager(&self) -> bool {
-        matches!(&self.0, MoveObjectType_::Other(struct_tag) if CoinManager::is_coin_manager(struct_tag))
+        matches!(&self.0, MoveObjectType_::Other(struct_tag) if struct_tag.is_coin_manager())
     }
 
     pub fn is_treasury_cap(&self) -> bool {
@@ -279,7 +278,7 @@ impl MoveObjectType {
             MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
                 false
             }
-            MoveObjectType_::Other(s) => TreasuryCap::is_treasury_type(s),
+            MoveObjectType_::Other(s) => s.is_treasury_cap(),
         }
     }
 
@@ -309,7 +308,7 @@ impl MoveObjectType {
             MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
                 false
             }
-            MoveObjectType_::Other(s) => timelock::is_timelock(s),
+            MoveObjectType_::Other(s) => s.is_time_lock(),
         }
     }
 
@@ -327,7 +326,7 @@ impl MoveObjectType {
             MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
                 false
             }
-            MoveObjectType_::Other(s) => TimelockedStakedIota::is_timelocked_staked_iota(s),
+            MoveObjectType_::Other(s) => s.is_timelocked_staked_iota(),
         }
     }
 
@@ -393,11 +392,9 @@ impl MoveObjectType {
 
     pub fn is(&self, s: &StructTag) -> bool {
         match &self.0 {
-            MoveObjectType_::GasCoin => GasCoin::is_gas_coin(s),
-            MoveObjectType_::StakedIota => StakedIota::is_staked_iota(s),
-            MoveObjectType_::Coin(inner) => {
-                Coin::is_coin(s) && s.type_params().len() == 1 && inner == &s.type_params()[0]
-            }
+            MoveObjectType_::GasCoin => s.is_gas_coin(),
+            MoveObjectType_::StakedIota => s.is_staked_iota(),
+            MoveObjectType_::Coin(inner) => s.is_coin() && inner == &s.type_params()[0],
             MoveObjectType_::Other(o) => s == o,
         }
     }
@@ -419,12 +416,12 @@ impl MoveObjectType {
 
 impl From<&StructTag> for MoveObjectType {
     fn from(s: &StructTag) -> Self {
-        Self(if GasCoin::is_gas_coin(s) {
+        Self(if s.is_gas_coin() {
             MoveObjectType_::GasCoin
-        } else if Coin::is_coin(s) {
+        } else if s.is_coin() {
             // unwrap safe because a coin has exactly one type parameter
             MoveObjectType_::Coin(s.type_params()[0].clone())
-        } else if StakedIota::is_staked_iota(s) {
+        } else if s.is_staked_iota() {
             MoveObjectType_::StakedIota
         } else {
             MoveObjectType_::Other(s.clone())
@@ -434,12 +431,12 @@ impl From<&StructTag> for MoveObjectType {
 
 impl From<StructTag> for MoveObjectType {
     fn from(s: StructTag) -> Self {
-        Self(if GasCoin::is_gas_coin(&s) {
+        Self(if s.is_gas_coin() {
             MoveObjectType_::GasCoin
-        } else if Coin::is_coin(&s) {
+        } else if s.is_coin() {
             // unwrap safe because a coin has exactly one type parameter
             MoveObjectType_::Coin(s.type_params()[0].clone())
-        } else if StakedIota::is_staked_iota(&s) {
+        } else if s.is_staked_iota() {
             MoveObjectType_::StakedIota
         } else {
             MoveObjectType_::Other(s)
@@ -450,9 +447,9 @@ impl From<StructTag> for MoveObjectType {
 impl From<MoveObjectType> for StructTag {
     fn from(t: MoveObjectType) -> Self {
         match t.0 {
-            MoveObjectType_::GasCoin => GasCoin::type_(),
-            MoveObjectType_::StakedIota => StakedIota::type_(),
-            MoveObjectType_::Coin(inner) => Coin::type_(inner),
+            MoveObjectType_::GasCoin => StructTag::new_gas_coin(),
+            MoveObjectType_::StakedIota => StructTag::new_staked_iota(),
+            MoveObjectType_::Coin(inner) => StructTag::new_coin(inner),
             MoveObjectType_::Other(s) => s,
         }
     }

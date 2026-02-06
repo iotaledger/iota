@@ -1180,7 +1180,7 @@ async fn get_display_object_by_type(
         .state
         .query_events(
             kv_store,
-            EventFilter::MoveEventType(DisplayVersionUpdatedEvent::type_(object_type)),
+            EventFilter::MoveEventType(StructTag::new_display_version_updated(object_type.clone())),
             None,
             1,
             true,

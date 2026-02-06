@@ -7,7 +7,6 @@
 
 use std::str::FromStr;
 
-use base_types_tests::timelock::TimeLock;
 use fastcrypto::{
     encoding::{Base58, Encoding},
     traits::EncodeDecodeBase64,
@@ -19,7 +18,6 @@ use move_binary_format::file_format;
 use super::*;
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
-    balance::Balance,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
         IotaSignature, Signature,
@@ -28,7 +26,6 @@ use crate::{
     },
     digests::Digest,
     gas_coin::GasCoin,
-    id::{ID, UID},
     object::Object,
 };
 
@@ -449,34 +446,34 @@ fn move_object_type_consistency() {
         ty
     }
 
-    let ty = assert_consistent(&GasCoin::type_());
+    let ty = assert_consistent(&StructTag::new_gas_coin());
     assert!(ty.is_coin());
     assert!(ty.is_gas_coin());
-    let ty = assert_consistent(&StakedIota::type_());
+    let ty = assert_consistent(&StructTag::new_staked_iota());
     assert!(ty.is_staked_iota());
-    let ty = assert_consistent(&Coin::type_(TypeTag::U64));
+    let ty = assert_consistent(&StructTag::new_coin(TypeTag::U64));
     assert!(ty.is_coin());
-    let ty = assert_consistent(&CoinMetadata::type_(GasCoin::type_()));
+    let ty = assert_consistent(&StructTag::new_coin_metadata(StructTag::new_gas_coin()));
     assert!(ty.is_coin_metadata());
     let ty = assert_consistent(&DynamicFieldInfo::dynamic_field_type(
-        TypeTag::Struct(Box::new(ID::type_())),
+        TypeTag::Struct(Box::new(StructTag::new_id())),
         TypeTag::U64,
     ));
     assert!(ty.is_dynamic_field());
-    let ty = assert_consistent(&TimeLock::<Balance>::type_(
-        Balance::type_(GAS::type_().into()).into(),
-    ));
+    let ty = assert_consistent(&StructTag::new_time_lock(StructTag::new_balance(
+        StructTag::new_iota_coin_type(),
+    )));
     assert_eq!(ty, MoveObjectType::timelocked_iota_balance());
     assert!(ty.is_timelock());
     assert!(ty.is_timelocked_balance());
-    let ty = assert_consistent(&TimeLock::<Coin>::type_(GasCoin::type_().into()));
+    let ty = assert_consistent(&StructTag::new_time_lock(StructTag::new_gas_coin()));
     assert!(ty.is_timelock());
     assert!(!ty.is_timelocked_balance());
-    let ty = assert_consistent(&TimelockedStakedIota::type_());
+    let ty = assert_consistent(&StructTag::new_timelocked_staked_iota());
     assert_eq!(ty, MoveObjectType::timelocked_staked_iota());
     assert!(ty.is_timelocked_staked_iota());
-    assert_consistent(&UID::type_());
-    assert_consistent(&ID::type_());
+    assert_consistent(&StructTag::new_uid());
+    assert_consistent(&StructTag::new_id());
 }
 
 #[test]

@@ -42,7 +42,7 @@ use std::{
 use derive_more::Display;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, StructTag};
+use iota_sdk_types::Identifier;
 use move_binary_format::{
     binary_config::BinaryConfig, file_format::CompiledModule, file_format_common::VERSION_6,
     normalized,
@@ -614,10 +614,6 @@ impl MovePackage {
 }
 
 impl UpgradeCap {
-    pub fn type_() -> StructTag {
-        StructTag::new_upgrade_cap()
-    }
-
     /// Create an `UpgradeCap` for the newly published package at `package_id`,
     /// and associate it with the fresh `uid`.
     pub fn new(uid: ObjectID, package_id: ObjectID) -> Self {
@@ -630,17 +626,7 @@ impl UpgradeCap {
     }
 }
 
-impl UpgradeTicket {
-    pub fn type_() -> StructTag {
-        StructTag::new_upgrade_ticket()
-    }
-}
-
 impl UpgradeReceipt {
-    pub fn type_() -> StructTag {
-        StructTag::new_upgrade_receipt()
-    }
-
     /// Create an `UpgradeReceipt` for the upgraded package at `package_id`
     /// using the `UpgradeTicket` and newly published package id.
     pub fn new(upgrade_ticket: UpgradeTicket, upgraded_package_id: ObjectID) -> Self {

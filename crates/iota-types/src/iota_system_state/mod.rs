@@ -7,7 +7,7 @@ use std::fmt;
 use anyhow::Result;
 use enum_dispatch::enum_dispatch;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{Identifier, StructTag};
+use iota_sdk_types::Identifier;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use self::{
@@ -68,10 +68,6 @@ pub struct IotaSystemStateWrapper {
 }
 
 impl IotaSystemStateWrapper {
-    pub fn type_() -> StructTag {
-        StructTag::new_iota_system_state()
-    }
-
     /// Advances epoch in safe mode natively in Rust, without involking Move.
     /// This ensures that there cannot be any failure from Move and is
     /// guaranteed to succeed. Returns the old and new inner system state

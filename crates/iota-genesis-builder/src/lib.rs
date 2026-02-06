@@ -28,10 +28,14 @@ use iota_execution::{self, Executor};
 use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_config};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use iota_sdk::Url;
+use iota_sdk_types::{
+    StructTag,
+    crypto::{Intent, IntentMessage, IntentScope},
+};
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
-    balance::{BALANCE_MODULE_NAME, Balance},
+    balance::BALANCE_MODULE_NAME,
     base_types::{
         ExecutionDigests, Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber,
         TransactionDigest, TxContext,
@@ -1718,7 +1722,7 @@ pub fn split_timelocks(
                 IOTA_FRAMEWORK_PACKAGE_ID,
                 Identifier::from_static("timelock"),
                 Identifier::from_static("transfer"),
-                vec![Balance::type_tag(GAS::type_tag())],
+                vec![StructTag::new_balance(GAS::type_tag()).into()],
                 arguments,
             );
         }

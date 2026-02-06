@@ -41,16 +41,8 @@ impl Balance {
         Self { value }
     }
 
-    pub fn type_(type_param: TypeTag) -> StructTag {
-        StructTag::new_balance(type_param)
-    }
-
     pub fn type_tag(inner_type_param: TypeTag) -> TypeTag {
-        TypeTag::Struct(Box::new(Self::type_(inner_type_param)))
-    }
-
-    pub fn is_balance(s: &StructTag) -> bool {
-        s.is_balance()
+        StructTag::new_balance(inner_type_param).into()
     }
 
     pub fn withdraw(&mut self, amount: u64) -> Result<(), ExecutionError> {
@@ -79,7 +71,7 @@ impl Balance {
 
     pub fn layout(type_param: TypeTag) -> MoveStructLayout {
         MoveStructLayout {
-            type_: struct_tag_sdk_to_core(&Self::type_(type_param)),
+            type_: struct_tag_sdk_to_core(&StructTag::new_balance(type_param)),
             fields: vec![MoveFieldLayout::new(
                 ident_str!("value").to_owned(),
                 MoveTypeLayout::U64,
@@ -92,7 +84,7 @@ impl Balance {
     pub fn is_balance_layout(struct_layout: &MoveStructLayout) -> bool {
         let ty = struct_tag_core_to_sdk(&struct_layout.type_);
 
-        if !Self::is_balance(&ty) {
+        if !ty.is_balance() {
             return false;
         }
 

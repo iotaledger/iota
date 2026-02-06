@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Identifier, StructTag};
+use iota_sdk_types::Identifier;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -59,14 +59,6 @@ pub struct StakedIota {
 }
 
 impl StakedIota {
-    pub fn type_() -> StructTag {
-        StructTag::new_staked_iota()
-    }
-
-    pub fn is_staked_iota(s: &StructTag) -> bool {
-        s.is_staked_iota()
-    }
-
     pub fn id(&self) -> ObjectID {
         self.id.id.bytes
     }

@@ -579,9 +579,8 @@ impl TryFrom<CoinBalance> for Balance {
 mod tests {
     use iota_types::{
         base_types::{Identifier, IotaAddress, StructTag, TypeTag},
-        coin::Coin,
         digests::TransactionDigest,
-        gas_coin::{GAS, GasCoin},
+        gas_coin::GasCoin,
         object::{Data, MoveObject, ObjectInner, Owner},
     };
 
@@ -637,7 +636,7 @@ mod tests {
     fn test_vec_of_coin_iota_conversion() {
         // 0xe7::vec_coin::VecCoin<vector<0x2::coin::Coin<0x2::iota::IOTA>>>
         let vec_coins_type = TypeTag::Vector(Box::new(
-            Coin::type_(TypeTag::Struct(Box::new(GAS::type_()))).into(),
+            StructTag::new_coin(TypeTag::Struct(Box::new(StructTag::new_gas_coin()))).into(),
         ));
         let object_type = StructTag::new(
             IotaAddress::from_short_hex("0xe7").unwrap(),

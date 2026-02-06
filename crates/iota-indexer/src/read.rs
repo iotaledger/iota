@@ -34,7 +34,7 @@ use iota_transaction_builder::DataReader;
 use iota_types::{
     balance::Supply,
     base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TypeTag, VersionNumber},
-    coin::{CoinMetadata, TreasuryCap},
+    coin::TreasuryCap,
     coin_manager::CoinManager,
     committee::EpochId,
     digests::{ChainIdentifier, TransactionDigest},
@@ -2182,7 +2182,7 @@ impl IndexerReader {
         &self,
         coin_struct: StructTag,
     ) -> Result<Option<IotaCoinMetadata>, IndexerError> {
-        let coin_metadata_type = CoinMetadata::type_(coin_struct.clone());
+        let coin_metadata_type = StructTag::new_coin_metadata(coin_struct.clone());
         let metadata_object = self
             .get_singleton_object(coin_metadata_type)?
             .and_then(|o| IotaCoinMetadata::try_from(o).ok());
@@ -2212,7 +2212,7 @@ impl IndexerReader {
         &self,
         coin_type: StructTag,
     ) -> Result<Option<CoinManager>, IndexerError> {
-        let coin_manager_type = CoinManager::type_(coin_type);
+        let coin_manager_type = StructTag::new_coin_manager(coin_type);
         let coin_manager_object = self
             .get_singleton_object(coin_manager_type)?
             .and_then(|o| CoinManager::try_from(o).ok());
@@ -2244,7 +2244,7 @@ impl IndexerReader {
         &self,
         coin_struct: &StructTag,
     ) -> Result<Option<Supply>, IndexerError> {
-        let tag = TreasuryCap::type_(coin_struct.clone());
+        let tag = StructTag::new_treasury_cap(coin_struct.clone());
         Ok(self
             .get_object_as::<TreasuryCap>(tag)?
             .map(|tc| tc.total_supply))
@@ -2254,7 +2254,7 @@ impl IndexerReader {
         &self,
         coin_struct: &StructTag,
     ) -> Result<Option<Supply>, IndexerError> {
-        let tag = CoinManager::type_(coin_struct.clone());
+        let tag = StructTag::new_coin_manager(coin_struct.clone());
         Ok(self
             .get_object_as::<CoinManager>(tag)?
             .map(|mgr| mgr.treasury_cap.total_supply))

@@ -25,14 +25,14 @@ use iota_types::{
     base_types::{
         Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, StructTag, TxContext, TypeTag,
     },
-    coin_manager::{CoinManager, CoinManagerTreasuryCap},
+    coin_manager::CoinManagerTreasuryCap,
     collection_types::Bag,
     dynamic_field::Field,
     id::UID,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
     metrics::LimitsMetrics,
-    move_package::{MovePackage, TypeOrigin, UpgradeCap},
+    move_package::{MovePackage, TypeOrigin},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     stardust::{
@@ -270,7 +270,7 @@ impl Executor {
                     native_token_coin_id = Some(object.id());
                     created_objects.set_native_token_coin(object.id())?;
                 } else if let Some(tag) = object.struct_tag() {
-                    if CoinManager::is_coin_manager(&tag) {
+                    if tag.is_coin_manager() {
                         created_objects.set_coin_manager(object.id())?;
                     } else if CoinManagerTreasuryCap::is_coin_manager_treasury_cap(&tag) {
                         created_objects.set_coin_manager_treasury_cap(object.id())?;
@@ -306,7 +306,7 @@ impl Executor {
                 written
                     .into_iter()
                     // We ignore the [`UpgradeCap`] objects.
-                    .filter(|(_, object)| object.struct_tag() != Some(UpgradeCap::type_()))
+                    .filter(|(_, object)| object.struct_tag() != Some(StructTag::new_upgrade_cap()))
                     .collect(),
             );
             res.push((header.output_id(), created_objects));
@@ -795,7 +795,7 @@ mod pt {
         token_type: String,
     ) -> Result<()> {
         let key_type: StructTag = NATIVE_TOKEN_BAG_KEY_TYPE.parse()?;
-        let value_type = Balance::type_(token_type.parse::<TypeTag>()?);
+        let value_type = StructTag::new_balance(token_type.parse::<TypeTag>()?);
         let bag_key_arg = builder.pure(bag_key)?;
         builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,

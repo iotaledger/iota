@@ -3,7 +3,6 @@
 
 use std::{fmt, str::FromStr};
 
-use iota_types::base_types::{IotaAddress, StructTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -66,10 +65,6 @@ impl fmt::Display for Name {
 }
 
 impl Name {
-    pub fn type_(package_address: IotaAddress) -> StructTag {
-        StructTag::new_name(package_address)
-    }
-
     /// Derive the parent name for a given name. Only subnames have
     /// parents; second-level names return `None`.
     ///

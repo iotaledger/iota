@@ -18,8 +18,8 @@ mod checked {
         IOTA_FRAMEWORK_ADDRESS, auth_context,
         base_types::{
             Identifier, IotaAddress, MoveObjectType, ObjectID, RESOLVED_ASCII_STR,
-            RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME,
-            TxContext, TxContextKind, TypeTag,
+            RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, StructTag, TX_CONTEXT_MODULE_NAME,
+            TX_CONTEXT_STRUCT_NAME, TxContext, TxContextKind, TypeTag,
         },
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
@@ -616,7 +616,7 @@ mod checked {
             // Upgrade cap creation
             let cap = &UpgradeCap::new(context.fresh_id()?, storage_id);
             vec![Value::Object(context.make_object_value(
-                UpgradeCap::type_().into(),
+                StructTag::new_upgrade_cap().into(),
                 // used_in_non_entry_move_call
                 false,
                 &bcs::to_bytes(cap).unwrap(),
@@ -643,10 +643,10 @@ mod checked {
             .charge_upgrade_package(module_bytes.iter().map(|v| v.len()).sum())?;
 
         let upgrade_ticket_type = context
-            .load_type_from_struct(&UpgradeTicket::type_())
+            .load_type_from_struct(&StructTag::new_upgrade_ticket())
             .map_err(|e| context.convert_vm_error(e))?;
         let upgrade_receipt_type = context
-            .load_type_from_struct(&UpgradeReceipt::type_())
+            .load_type_from_struct(&StructTag::new_upgrade_receipt())
             .map_err(|e| context.convert_vm_error(e))?;
 
         let upgrade_ticket: UpgradeTicket = {

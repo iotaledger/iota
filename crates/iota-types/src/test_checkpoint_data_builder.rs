@@ -913,7 +913,7 @@ mod tests {
                 IotaAddress::ZERO,
                 Identifier::from_static("test"),
                 TestCheckpointDataBuilder::derive_address(0),
-                GAS::type_(),
+                StructTag::new_iota_coin_type(),
                 vec![],
             )])
             .finish_transaction()

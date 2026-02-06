@@ -10,10 +10,10 @@ use iota_json_rpc_types::{
 };
 use iota_move_build::test_utils::compile_managed_coin_package;
 use iota_sdk::PagedFn;
+use iota_sdk_types::StructTag;
 use iota_test_transaction_builder::make_staking_transaction;
 use iota_types::{
     base_types::{ObjectID, ObjectRef},
-    gas_coin::GAS,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     object::Owner,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -79,7 +79,7 @@ impl TestCaseImpl for CoinIndexTest {
             coin_type,
             ..
         } = client.coin_read_api().get_balance(account, None).await?;
-        assert_eq!(coin_type, GAS::type_().to_string());
+        assert_eq!(coin_type, StructTag::new_gas_coin().to_string());
 
         assert_eq!(coin_object_count, old_coin_object_count);
         assert_eq!(
