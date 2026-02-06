@@ -4,7 +4,9 @@
 
 import { toast } from '@iota/core';
 import { useBackgroundClient } from '_hooks';
-import { PasswordModalDialog } from './PasswordInputDialog';
+import { PasswordModalDialog } from './PasswordModalDialog';
+import { useState } from 'react';
+import { ForgotPasswordDialog } from './ForgotPasswordDialog';
 
 interface UnlockAccountModalProps {
     onClose: () => void;
@@ -13,27 +15,33 @@ interface UnlockAccountModalProps {
 }
 
 export function UnlockAccountModal({ onClose, onSuccess, open }: UnlockAccountModalProps) {
+    const [isForgotPasswordOpen, setForgotPasswordOpen] = useState(false);
     const backgroundService = useBackgroundClient();
+
     return (
-        <PasswordModalDialog
-            {...{
-                open,
-                onClose,
-                title: 'Unlock Account',
-                confirmText: 'Unlock',
-                cancelText: 'Back',
-                showForgotPassword: true,
-                onSubmit: async (password: string) => {
+        <>
+            <PasswordModalDialog
+                open={open && !isForgotPasswordOpen}
+                onClose={onClose}
+                title="Unlock wallet"
+                confirmText="Unlock wallet"
+                cancelText="Back"
+                showForgotPassword={true}
+                onForgotPassword={() => {
+                    setForgotPasswordOpen(true);
+                }}
+                onSubmit={async (password: string) => {
                     await backgroundService.unlockAllAccountsAndSources({
                         password,
                     });
-                    toast('Accounts unlocked');
+                    toast('Wallet unlocked');
                     onSuccess();
-                },
+                }}
                 // this is not necessary for unlocking but will show the wrong password error as a form error
                 // so doing it like this to keep it simple. The extra verification shouldn't be a problem
-                verify: true,
-            }}
-        />
+                verify={true}
+            />
+            <ForgotPasswordDialog isOpen={isForgotPasswordOpen} setOpen={setForgotPasswordOpen} />
+        </>
     );
 }
