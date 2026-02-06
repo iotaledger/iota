@@ -34,6 +34,8 @@ export function useDeriveLedgerAccounts({ chunkSize }: UseDeriveLedgerAccountOpt
             await advance.mutateAsync();
             return data;
         },
+        gcTime: 0,
+        enabled: !!iotaLedgerClient,
     });
 
     const advance = useMutation({

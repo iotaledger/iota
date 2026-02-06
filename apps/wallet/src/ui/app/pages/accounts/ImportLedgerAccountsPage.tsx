@@ -24,10 +24,10 @@ export function ImportLedgerAccountsPage() {
     const [searchParams] = useSearchParams();
     const successRedirect = searchParams.get('successRedirect') || '/tokens';
     const navigate = useNavigate();
-    const { data: existingAccounts } = useAccounts();
+    const { data: existingAccounts, isLoading: isLoadingAccounts } = useAccounts();
     const [selectedLedgerAccounts, setSelectedLedgerAccounts] = useState<Set<string>>(new Set());
     const {
-        mainPublicKey: { data: mainPublicKey },
+        mainPublicKey: { data: mainPublicKey, isLoading: isLoadingMainPublicKey },
         accounts,
         advance: {
             error: ledgerError,
@@ -71,8 +71,10 @@ export function ImportLedgerAccountsPage() {
     const isUnlockButtonDisabled = numSelectedAccounts === 0;
     const [, setAccountsFormValues] = useAccountsFormContext();
 
+    const isLoading = isLoadingAccounts || areLedgerAccountsLoading || isLoadingMainPublicKey;
+
     let importLedgerAccountsBody: JSX.Element | null = null;
-    if (areLedgerAccountsLoading) {
+    if (isLoading) {
         importLedgerAccountsBody = <LedgerViewLoading />;
     } else if (areAllAccountsImported) {
         importLedgerAccountsBody = <LedgerViewAllAccountsImported />;
