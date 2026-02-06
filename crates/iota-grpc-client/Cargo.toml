@@ -17,7 +17,7 @@ futures.workspace = true
 http.workspace = true
 serde.workspace = true
 thiserror.workspace = true
-tonic = { workspace = true, features = ["tls-ring"] }
+tonic = { workspace = true, features = ["tls-native-roots"] }
 
 # internal dependencies
 iota-grpc-types.workspace = true
