@@ -126,6 +126,8 @@ iota-package-resolver:
   - "crates/iota-package-resolver/**"
 iota-proc-macros:
   - "crates/iota-proc-macros/**"
+iota-proto-build:
+  - "crates/iota-proto-build/**"
 iota-protocol-config:
   - "crates/iota-protocol-config/**"
 iota-protocol-config-macros:
@@ -186,6 +188,8 @@ prometheus-closure-metric:
   - "crates/prometheus-closure-metric/**"
 simulacrum:
   - "crates/simulacrum/**"
+simulacrum-server:
+  - "crates/simulacrum-server/**"
 telemetry-subscribers:
   - "crates/telemetry-subscribers/**"
 test-cluster:

@@ -27,7 +27,7 @@ initAmplitude();
 initIdentityWasmWeb();
 
 // Start loading features as early as we can:
-growthbook.loadFeatures();
+growthbook.refreshFeatures();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>

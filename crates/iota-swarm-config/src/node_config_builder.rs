@@ -310,6 +310,7 @@ pub struct FullnodeConfigBuilder {
     data_ingestion_dir: Option<PathBuf>,
     disable_pruning: bool,
     iota_names_config: Option<IotaNamesConfig>,
+    enable_grpc_api: bool,
     grpc_api_config: Option<GrpcApiConfig>,
     discovery_config: Option<DiscoveryConfig>,
     chain_override: Option<Chain>,
@@ -444,6 +445,11 @@ impl FullnodeConfigBuilder {
         self
     }
 
+    pub fn with_enable_grpc_api(mut self, enable_grpc_api: bool) -> Self {
+        self.enable_grpc_api = enable_grpc_api;
+        self
+    }
+
     pub fn with_grpc_api_config(mut self, config: GrpcApiConfig) -> Self {
         self.grpc_api_config = Some(config);
         self
@@ -519,6 +525,19 @@ impl FullnodeConfigBuilder {
                 .rpc_port
                 .unwrap_or_else(|| local_ip_utils::get_available_port(&ip));
             format!("{ip}:{rpc_port}").parse().unwrap()
+        });
+
+        let grpc_api_config = self.grpc_api_config.or_else(|| {
+            if self.enable_grpc_api {
+                Some(GrpcApiConfig {
+                    address: format!("{ip}:{}", local_ip_utils::get_available_port(&ip))
+                        .parse()
+                        .unwrap(),
+                    ..Default::default()
+                })
+            } else {
+                None
+            }
         });
 
         let checkpoint_executor_config = CheckpointExecutorConfig {
@@ -601,8 +620,8 @@ impl FullnodeConfigBuilder {
             verifier_signing_config: VerifierSigningConfig::default(),
             enable_db_write_stall: None,
             iota_names_config: self.iota_names_config,
-            enable_grpc_api: self.grpc_api_config.is_some(),
-            grpc_api_config: self.grpc_api_config,
+            enable_grpc_api: self.enable_grpc_api,
+            grpc_api_config,
             chain_override_for_testing: self.chain_override,
         }
     }
