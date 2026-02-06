@@ -108,6 +108,15 @@ fn main() -> Result<()> {
                 .codec_path(codec_path)
                 .build(),
         )
+        .method(
+            Method::builder()
+                .name("submit_transaction_v1")
+                .route_name("SubmitTransactionV1")
+                .input_type("iota_types::transaction::Transaction")
+                .output_type("iota_types::messages_grpc::SubmitTransactionV1Response")
+                .codec_path(codec_path)
+                .build(),
+        )
         .build();
 
     Builder::new()

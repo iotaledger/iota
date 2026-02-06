@@ -308,8 +308,9 @@ mod tests {
             HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
             HandleCertificateRequestV1, HandleCertificateResponseV1,
             HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
-            HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
-            TransactionInfoRequest, TransactionInfoResponse,
+            HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
+            SubmitTransactionV1Response, SystemStateRequest, TransactionInfoRequest,
+            TransactionInfoResponse,
         },
         object::Object,
         transaction::{
@@ -423,6 +424,14 @@ mod tests {
             &self,
             _request: HandleCapabilityNotificationRequestV1,
         ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
+            unimplemented!()
+        }
+
+        async fn submit_transaction_v1(
+            &self,
+            _transaction: Transaction,
+            _client_addr: Option<SocketAddr>,
+        ) -> Result<SubmitTransactionV1Response, IotaError> {
             unimplemented!()
         }
     }

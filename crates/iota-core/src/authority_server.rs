@@ -32,8 +32,8 @@ use iota_types::{
         HandleCertificateRequestV1, HandleCertificateResponseV1,
         HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
         HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
-        SubmitCertificateResponse, SystemStateRequest, TransactionInfoRequest,
-        TransactionInfoResponse,
+        SubmitCertificateResponse, SubmitTransactionV1Response, SystemStateRequest,
+        TransactionInfoRequest, TransactionInfoResponse,
     },
     multiaddr::Multiaddr,
     traffic_control::{ClientIdSource, PolicyConfig, RemoteFirewallConfig, Weight},
@@ -1222,6 +1222,68 @@ impl ValidatorService {
             Weight::one(),
         ))
     }
+
+    async fn submit_transaction_v1_impl(
+        &self,
+        request: tonic::Request<Transaction>,
+    ) -> WrappedServiceResponse<SubmitTransactionV1Response> {
+        let Self {
+            state,
+            consensus_adapter,
+            metrics,
+            ..
+        } = self.clone();
+
+        let transaction = request.into_inner();
+        let epoch_store = state.load_epoch_store_one_call_per_task();
+
+        // 1. Check feature flag
+        fp_ensure!(
+            epoch_store.protocol_config().enable_white_flag_flow(),
+            IotaError::UnsupportedFeature {
+                error: "White flag flow is not enabled in this protocol version".to_string()
+            }
+            .into()
+        );
+
+        // 2. Not a fullnode
+        fp_ensure!(
+            !state.is_fullnode(&epoch_store),
+            IotaError::FullNodeCantHandleCertificate.into()
+        );
+
+        // 3. Validity check
+        transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
+
+        // 4. Consensus overload check
+        consensus_adapter.check_consensus_overload()?;
+
+        // 5. Verify user signature
+        let _verified = epoch_store
+            .verify_transaction(transaction.clone())
+            .tap_err(|_| {
+                metrics.signature_errors.inc();
+            })?;
+
+        let tx_digest = *transaction.digest();
+
+        // 6. Submit to consensus (no pending tracking, no retry)
+        {
+            let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
+            if !reconfiguration_lock.should_accept_user_certs() {
+                return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
+            }
+
+            // Submit directly - UserTransactionV1 already accepts Box<Transaction>
+            let consensus_tx = ConsensusTransaction::new_user_transaction(transaction);
+            consensus_adapter.submit(consensus_tx, Some(&reconfiguration_lock), &epoch_store)?;
+        }
+
+        Ok((
+            tonic::Response::new(SubmitTransactionV1Response { digest: tx_digest }),
+            Weight::zero(),
+        ))
+    }
 }
 
 fn make_tonic_request_for_testing<T>(message: T) -> tonic::Request<T> {
@@ -1366,5 +1428,17 @@ impl Validator for ValidatorService {
         request: tonic::Request<HandleCapabilityNotificationRequestV1>,
     ) -> Result<tonic::Response<HandleCapabilityNotificationResponseV1>, tonic::Status> {
         handle_with_decoration!(self, handle_capability_notification_v1_impl, request)
+    }
+
+    async fn submit_transaction_v1(
+        &self,
+        request: tonic::Request<Transaction>,
+    ) -> Result<tonic::Response<SubmitTransactionV1Response>, tonic::Status> {
+        let validator_service = self.clone();
+        spawn_monitored_task!(async move {
+            handle_with_decoration!(validator_service, submit_transaction_v1_impl, request)
+        })
+        .await
+        .unwrap()
     }
 }

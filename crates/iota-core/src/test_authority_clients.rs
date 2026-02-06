@@ -22,8 +22,9 @@ use iota_types::{
         HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
         HandleCertificateRequestV1, HandleCertificateResponseV1,
         HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
-        HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
-        TransactionInfoRequest, TransactionInfoResponse,
+        HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
+        SubmitTransactionV1Response, SystemStateRequest, TransactionInfoRequest,
+        TransactionInfoResponse,
     },
     transaction::{Transaction, VerifiedTransaction},
 };
@@ -159,6 +160,14 @@ impl AuthorityAPI for LocalAuthorityClient {
         epoch_store.record_capabilities_v1(verified_authority_capabilities.data())?;
 
         Ok(HandleCapabilityNotificationResponseV1 { _unused: false })
+    }
+
+    async fn submit_transaction_v1(
+        &self,
+        _transaction: Transaction,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<SubmitTransactionV1Response, IotaError> {
+        unimplemented!("submit_transaction_v1 not used in tests")
     }
 }
 
@@ -364,6 +373,14 @@ impl AuthorityAPI for MockAuthorityApi {
             None => Ok(HandleCapabilityNotificationResponseV1 { _unused: false }),
         }
     }
+
+    async fn submit_transaction_v1(
+        &self,
+        _transaction: Transaction,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<SubmitTransactionV1Response, IotaError> {
+        unimplemented!("submit_transaction_v1 not used in tests")
+    }
 }
 
 #[derive(Clone)]
@@ -440,6 +457,14 @@ impl AuthorityAPI for HandleTransactionTestAuthorityClient {
         _request: HandleCapabilityNotificationRequestV1,
     ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
         unimplemented!()
+    }
+
+    async fn submit_transaction_v1(
+        &self,
+        _transaction: Transaction,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<SubmitTransactionV1Response, IotaError> {
+        unimplemented!("submit_transaction_v1 not used in tests")
     }
 }
 

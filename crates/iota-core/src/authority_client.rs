@@ -24,8 +24,9 @@ use iota_types::{
         HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
         HandleCertificateRequestV1, HandleCertificateResponseV1,
         HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
-        HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
-        TransactionInfoRequest, TransactionInfoResponse,
+        HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
+        SubmitTransactionV1Response, SystemStateRequest, TransactionInfoRequest,
+        TransactionInfoResponse,
     },
     multiaddr::Multiaddr,
     transaction::*,
@@ -86,6 +87,13 @@ pub trait AuthorityAPI {
         &self,
         request: HandleCapabilityNotificationRequestV1,
     ) -> Result<HandleCapabilityNotificationResponseV1, IotaError>;
+
+    /// Submit a transaction via the white flag flow (no certification).
+    async fn submit_transaction_v1(
+        &self,
+        transaction: Transaction,
+        client_addr: Option<SocketAddr>,
+    ) -> Result<SubmitTransactionV1Response, IotaError>;
 }
 
 /// A client for the network authority.
@@ -251,6 +259,21 @@ impl AuthorityAPI for NetworkAuthorityClient {
     ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
         self.client()?
             .handle_capability_notification_v1(request)
+            .await
+            .map(tonic::Response::into_inner)
+            .map_err(Into::into)
+    }
+
+    async fn submit_transaction_v1(
+        &self,
+        transaction: Transaction,
+        client_addr: Option<SocketAddr>,
+    ) -> Result<SubmitTransactionV1Response, IotaError> {
+        let mut request = transaction.into_request();
+        insert_metadata(&mut request, client_addr);
+
+        self.client()?
+            .submit_transaction_v1(request)
             .await
             .map(tonic::Response::into_inner)
             .map_err(Into::into)

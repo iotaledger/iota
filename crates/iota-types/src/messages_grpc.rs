@@ -284,3 +284,8 @@ pub struct HandleCapabilityNotificationResponseV1 {
     // This is needed to make gRPC happy.
     pub _unused: bool,
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SubmitTransactionV1Response {
+    pub digest: TransactionDigest,
+}
