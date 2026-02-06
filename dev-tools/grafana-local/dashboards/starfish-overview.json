@@ -2694,7 +2694,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Measures the size of buffers for different monitored channels",
           "fieldConfig": {
@@ -2777,7 +2777,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "code",
@@ -2799,7 +2799,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Measures the size of buffers for different monitored channels",
           "fieldConfig": {
@@ -2882,7 +2882,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "code",
@@ -2904,7 +2904,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "",
           "fieldConfig": {
@@ -2987,7 +2987,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "code",
@@ -3009,7 +3009,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Measures the size of buffers for different monitored channels",
           "fieldConfig": {
@@ -3092,7 +3092,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "code",
@@ -3114,7 +3114,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Measures the size of buffers for different monitored channels",
           "fieldConfig": {
@@ -3197,7 +3197,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "code",
@@ -3233,7 +3233,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Measures the number of sequencing certificate attempts",
           "fieldConfig": {
@@ -3316,7 +3316,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "code",
@@ -3338,7 +3338,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Measures the number of in-flight sequencing certificates",
           "fieldConfig": {
@@ -3421,7 +3421,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "code",
@@ -3443,7 +3443,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "",
           "fieldConfig": {
@@ -3526,7 +3526,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "code",
@@ -3548,7 +3548,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "",
           "fieldConfig": {
@@ -3631,7 +3631,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "code",
