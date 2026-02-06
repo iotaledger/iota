@@ -1763,7 +1763,7 @@ importers:
         specifier: ^20.14.10
         version: 20.16.9
       tsx:
-        specifier: ^3.14.0
+        specifier: ^3.12.7
         version: 3.14.0
       typescript:
         specifier: ^5.5.3
