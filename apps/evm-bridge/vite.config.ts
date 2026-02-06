@@ -4,8 +4,7 @@ import { execSync } from 'child_process';
 import { sentryVitePlugin } from '@sentry/vite-plugin';
 import { SENTRY_ORG_NAME, SENTRY_PROJECT_NAME } from './sentry.config';
 
-const COMMIT_REV = execSync('git rev-parse HEAD').toString().trim().toString();
-const VITE_SENTRY_BUILD_ENV = process.env.VITE_SENTRY_BUILD_ENV || process.env.VITE_BUILD_ENV;
+const COMMIT_REV = execSync('git rev-parse HEAD').toString().trim();
 
 // https://vitejs.dev/config/
 export default defineConfig({
