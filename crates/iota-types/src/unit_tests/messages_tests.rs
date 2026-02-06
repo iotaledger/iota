@@ -1115,7 +1115,7 @@ fn test_move_input_objects() {
     let gas_object_ref = random_object_ref();
     let mk_st = |package: ObjectID, type_args| {
         TypeTag::Struct(Box::new(StructTag::new(
-            IotaAddress::from_object_id(package),
+            package,
             Identifier::from_static("foo"),
             Identifier::from_static("bar"),
             type_args,
@@ -1204,7 +1204,7 @@ fn test_unique_input_objects() {
 
     let mk_st = |package: ObjectID, type_args| {
         TypeTag::Struct(Box::new(StructTag::new(
-            IotaAddress::from_object_id(package),
+            package,
             Identifier::from_static("foo"),
             Identifier::from_static("bar"),
             type_args,
