@@ -240,11 +240,11 @@ async-graphql = { version = "7.1.0", default-features = false }
 async-recursion = "1.0.4"
 async-stream = "0.3.6"
 async-trait = "0.1.61"
-aws-config = "1.5.6"
-aws-sdk-dynamodb = "1.42"
+aws-config = "1.8"
+aws-sdk-dynamodb = "1.103"
 axum = { version = "0.8", default-features = false, features = ["tokio", "http2", "json", "matched-path", "original-uri", "form", "query", "ws", "macros"] }
 axum-extra = { version = "0.10", features = ["typed-header"] }
-axum-server = { git = "https://github.com/bmwill/axum-server.git", rev = "f44323e271afdd1365fd0c8b0a4c0bbdf4956cb7", version = "0.6", default-features = false, features = ["tls-rustls"] }
+axum-server = { version = "0.8", default-features = false, features = ["tls-rustls"] }
 backoff = { version = "0.4.0", features = ["futures", "futures-core", "pin-project-lite", "tokio", "tokio_1"] }
 base64 = "0.21.2"
 base64-url = "2"
@@ -295,7 +295,7 @@ http-body = "1.0"
 http-body-util = "0.1.2"
 humantime = "2.1.0"
 hyper = "1"
-hyper-util = { version = "0.1.4", features = ["tokio", "server-auto", "service"] }
+hyper-util = { version = "0.1.20", features = ["tokio", "server-auto", "service"] }
 im = "15"
 indexmap = { version = "2.11.0", features = ["serde"] }
 indicatif = "0.18.3"
@@ -317,7 +317,7 @@ num-bigint = "0.4.4"
 num-rational = "0.4"
 num_cpus = "1.15.0"
 num_enum = "0.7"
-object_store = { version = "0.10", features = ["aws", "gcp", "azure", "http"] }
+object_store = { version = "0.13", features = ["aws", "gcp", "azure", "http"] }
 once_cell = "1.18.0"
 p256 = { version = "0.13.2", features = ["ecdsa"] }
 packable = { version = "0.8.3", features = ["io"], default-features = false }
