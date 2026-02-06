@@ -13,7 +13,7 @@ export * from './ImportPrivateKeyForm';
 export * from './ImportRecoveryPhraseForm';
 export * from './ImportSeedForm';
 export * from './NicknameDialog';
-export * from './PasswordInputDialog';
+export * from './PasswordModalDialog';
 export * from './ProtectAccountForm';
 export * from './RecoverAccountsGroup';
 export * from './SelectAllButton';
