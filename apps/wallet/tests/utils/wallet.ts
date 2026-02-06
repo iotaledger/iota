@@ -119,18 +119,17 @@ export async function createPasskeyWallet(
     };
 }
 
-export async function restorePasskeyAccount(page: Page, username: string) {
+export async function restorePasskeyAccount(page: Page) {
     await page.getByRole('button', { name: /Get Started/ }).click({ timeout: SHORT_TIMEOUT });
     await page.getByText('Add existing wallet').click();
     await page.getByText('Passkey', { exact: true }).click();
 
-    await page.getByTestId('username-input').fill(username);
-
-    await page.getByRole('button', { name: /Restore/ }).click();
+    await page.getByRole('button', { name: /Continue/ }).click();
 
     await page.getByTestId('password.input').fill('iotae2etests');
     await page.getByTestId('password.confirmation').fill('iotae2etests');
 
     await page.getByText('I read and agree').click();
+
     await page.getByRole('button', { name: /Create Wallet/ }).click();
 }
