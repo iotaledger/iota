@@ -35,6 +35,7 @@ export function useDeriveLedgerAccounts({ chunkSize }: UseDeriveLedgerAccountOpt
             return data;
         },
         gcTime: 0,
+        staleTime: 0,
         enabled: !!iotaLedgerClient,
     });
 

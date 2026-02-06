@@ -27,7 +27,7 @@ export function ImportLedgerAccountsPage() {
     const { data: existingAccounts, isLoading: isLoadingAccounts } = useAccounts();
     const [selectedLedgerAccounts, setSelectedLedgerAccounts] = useState<Set<string>>(new Set());
     const {
-        mainPublicKey: { data: mainPublicKey, isLoading: isLoadingMainPublicKey },
+        mainPublicKey: { data: mainPublicKey, isFetching: isLoadingMainPublicKey },
         accounts,
         advance: {
             error: ledgerError,
