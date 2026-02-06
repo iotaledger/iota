@@ -159,7 +159,6 @@ export function ImportLedgerAccountsPage() {
                             fullWidth
                         />
                     )}
-                    ;
                 </div>
             </div>
         </Overlay>
