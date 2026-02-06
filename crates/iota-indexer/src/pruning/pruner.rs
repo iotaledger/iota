@@ -28,7 +28,7 @@ const UPDATE_WATERMARKS_LOWER_BOUNDS_TASK_INTERVAL: Duration = Duration::from_se
 const PRUNING_DELAY_MS: u64 = 1000; // 1 second for tests
 
 #[cfg(not(any(test, feature = "pg_integration", feature = "shared_test_runtime")))]
-const PRUNING_DELAY_MS: u64 = 60000; // 60 seconds for production
+const PRUNING_DELAY_MS: u64 = 2 * 60 * 60 * 1000; // 2 hours for production
 
 /// Maximum number of transactions to prune in a single batch for ByTransaction
 /// strategy
