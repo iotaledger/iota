@@ -212,6 +212,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) block_header_unsuspensions: IntCounterVec,
     pub(crate) suspended_block_header_time: HistogramVec,
     pub(crate) block_manager_suspended_block_headers: IntGauge,
+    pub(crate) block_manager_suspended_blocks: IntGauge,
     pub(crate) block_manager_missing_ancestors: IntGauge,
     pub(crate) block_manager_missing_block_headers: IntGauge,
     pub(crate) block_manager_missing_block_headers_by_authority: IntCounterVec,
@@ -876,6 +877,11 @@ impl NodeMetrics {
             block_manager_suspended_block_headers: register_int_gauge_with_registry!(
                 "block_manager_suspended_block_headers",
                 "The number of block headers currently suspended in the block manager",
+                registry,
+            ).unwrap(),
+            block_manager_suspended_blocks: register_int_gauge_with_registry!(
+                "block_manager_suspended_blocks",
+                "The number of full blocks suspended in the block manager awaiting header acceptance",
                 registry,
             ).unwrap(),
             block_manager_missing_ancestors: register_int_gauge_with_registry!(
