@@ -7,6 +7,7 @@ import './globals.css';
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import * as Sentry from '@sentry/react';
 import {
     getDefaultConfig,
     darkTheme as rainbowDarkTheme,
@@ -37,6 +38,26 @@ import { metaMaskWallet, walletConnectWallet } from '@rainbow-me/rainbowkit/wall
 import { LEGAL_LINKS } from './lib/constants/routes.constants.ts';
 import { Link } from './components/link/Link.tsx';
 import { initAmplitude } from './shared/analytics';
+import { IS_PROD, SENTRY_DSN } from '../sentry.config';
+
+// Initialize Sentry
+Sentry.init({
+    enabled: IS_PROD,
+    dsn: SENTRY_DSN,
+    integrations: [
+        Sentry.browserTracingIntegration(),
+        Sentry.replayIntegration({
+            maskAllText: false,
+            blockAllMedia: false,
+        }),
+    ],
+    // Performance Monitoring
+    tracesSampleRate: 0.0025,
+    // Session Replay
+    replaysSessionSampleRate: 0.0,
+    replaysOnErrorSampleRate: 1.0,
+    debug: false,
+});
 
 // We intercept EIP-6963 announcements
 // to only allow certain wallets (metamask) to be discovered
