@@ -1061,7 +1061,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // Combine and serialize the results
         let result: Vec<_> = store_transactions
             .into_iter()
-            .chain(dag_transactions.into_iter())
+            .chain(dag_transactions)
             .filter_map(|(opt_serialized_tx, block_ref)| {
                 opt_serialized_tx.map(|serialized_tx| {
                     Bytes::from(

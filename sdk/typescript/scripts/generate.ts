@@ -596,6 +596,9 @@ async function generateTypeReference(
                     await Promise.all(type.items.map((t) => generateTypeReference(t, namespace))),
                 );
             }
+            if (!type.items) {
+                return ts.factory.createTupleTypeNode([]);
+            }
             return ts.factory.createArrayTypeNode(
                 await generateTypeReference(type.items, namespace),
             );

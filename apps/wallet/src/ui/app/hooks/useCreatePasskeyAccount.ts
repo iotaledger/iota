@@ -5,18 +5,26 @@ import { PasskeyKeypair } from '@iota/iota-sdk/keypairs/passkey';
 import { useRestorePasskeyAccount } from './useRestorePasskeyAccount';
 import { createBrowserPasskeyProvider } from '../helpers/passkeys';
 
+type CreatePasskeyAccountOptions =
+    | {
+          username: string;
+          authenticatorAttachment: AuthenticatorAttachment;
+          isRestore?: false | undefined;
+      }
+    | {
+          username?: never;
+          authenticatorAttachment?: never;
+          isRestore: true;
+      };
+
 export function useCreatePasskeyAccount() {
     const { mutateAsync: restorePasskeyAccount } = useRestorePasskeyAccount();
 
     const createPasskeyAccount = async ({
         username,
         authenticatorAttachment,
-        isRestore = false,
-    }: {
-        username: string;
-        authenticatorAttachment?: AuthenticatorAttachment;
-        isRestore?: boolean;
-    }) => {
+        isRestore,
+    }: CreatePasskeyAccountOptions) => {
         const { provider, options } = createBrowserPasskeyProvider({
             providerOptions: {
                 authenticatorSelection: {
