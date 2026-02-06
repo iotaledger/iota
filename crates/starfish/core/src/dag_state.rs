@@ -501,8 +501,16 @@ impl DagState {
             .metrics
             .node_metrics
             .accepted_block_headers_source
-            .with_label_values(&[source.as_str()])
+            .with_label_values(&[source.as_str(), hostname])
             .inc();
+        let clock_round = self.threshold_clock_round();
+        let clock_round_gap = clock_round.saturating_sub(block_ref.round);
+        self.context
+            .metrics
+            .node_metrics
+            .accepted_block_headers_round_gap
+            .with_label_values(&[source.as_str()])
+            .observe(clock_round_gap as f64);
         if source != DataSource::CommitSyncer && source != DataSource::Recover {
             if let Some((sender, _)) = &self.cordial_knowledge_senders {
                 let cordial_message = CordialKnowledgeMessage::NewHeader(block_header.clone());
@@ -529,32 +537,38 @@ impl DagState {
         let has_transactions = transactions.has_transactions();
         let clock_round = self.threshold_clock_round();
         let min_round: Round = clock_round.saturating_sub(self.context.protocol_config.gc_depth());
+        let hostname = self
+            .context
+            .committee
+            .authority(block_ref.author)
+            .hostname
+            .as_str();
+        let clock_round_gap = clock_round.saturating_sub(block_ref.round);
 
-        if block_ref.round >= min_round {
-            if has_transactions {
+        if has_transactions {
+            // Record metrics
+            self.context
+                .metrics
+                .node_metrics
+                .accepted_transactions_source
+                .with_label_values(&[source.as_str(), hostname])
+                .inc();
+            self.context
+                .metrics
+                .node_metrics
+                .accepted_transactions_round_gap
+                .with_label_values(&[source.as_str()])
+                .observe(clock_round_gap as f64);
+            if block_ref.round >= min_round {
                 self.add_pending_acknowledgment(block_ref);
-
-                // Record metrics
-                self.context
-                    .metrics
-                    .node_metrics
-                    .accepted_transactions
-                    .with_label_values(&[source.as_str()])
-                    .inc();
-            } else {
-                let hostname = self
-                    .context
-                    .committee
-                    .authority(block_ref.author)
-                    .hostname
-                    .as_str();
-                self.context
-                    .metrics
-                    .node_metrics
-                    .skipped_empty_transaction_acknowledgments
-                    .with_label_values(&[hostname])
-                    .inc()
             }
+        } else {
+            self.context
+                .metrics
+                .node_metrics
+                .skipped_empty_transaction_acknowledgments
+                .with_label_values(&[hostname])
+                .inc()
         }
     }
 

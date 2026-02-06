@@ -124,7 +124,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) core_lock_dequeued: IntCounter,
     pub(crate) reconstruction_jobs_started: IntCounter,
     pub(crate) reconstruction_jobs_finished: IntCounter,
-    pub(crate) accepted_transactions: IntCounterVec,
+    pub(crate) accepted_transactions_source: IntCounterVec,
+    pub(crate) accepted_transactions_round_gap: HistogramVec,
     pub(crate) shard_accumulators: IntGauge,
     pub(crate) reconstruction_lag: Histogram,
     pub(crate) reconstructed_transactions_unknown: IntGauge,
@@ -136,6 +137,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) accepted_block_header_time_drift_ms: IntCounterVec,
     pub(crate) accepted_block_headers: IntCounterVec,
     pub(crate) accepted_block_headers_source: IntCounterVec,
+    pub(crate) accepted_block_headers_round_gap: HistogramVec,
     pub(crate) core_skipped_headers: IntCounterVec,
     pub(crate) cordial_knowledge_useful_headers_authors: IntCounterVec,
     pub(crate) cordial_knowledge_useful_shards_authors: IntCounterVec,
@@ -398,10 +400,17 @@ impl NodeMetrics {
                 "Number of reconstruction jobs finished",
                 registry,
             ).unwrap(),
-            accepted_transactions: register_int_counter_vec_with_registry!(
-                "accepted_transactions",
-                "Number of accepted transactions by source (own, others)",
+            accepted_transactions_source: register_int_counter_vec_with_registry!(
+                "accepted_transactions_source",
+                "Number of accepted transactions by source and authority",
+                &["source", "authority"],
+                registry,
+            ).unwrap(),
+            accepted_transactions_round_gap: register_histogram_vec_with_registry!(
+                "accepted_transactions_round_gap",
+                "Round gap of accepted transactions to clock round",
                 &["source"],
+                vec![0.0, 1.0, 2.0, 5.0, 10.0, 20.0, 40.0, 80.0, 100.0, 200.0, 400.0, 800.0, 1000.0],
                 registry,
             ).unwrap(),
             core_lock_dequeued: register_int_counter_with_registry!(
@@ -445,8 +454,15 @@ impl NodeMetrics {
             ).unwrap(),
             accepted_block_headers_source: register_int_counter_vec_with_registry!(
                 "accepted_block_headers_source",
-                "Number of accepted block headers by ingestion source",
+                "Number of accepted block headers by source and authority",
+                &["source", "authority"],
+                registry,
+            ).unwrap(),
+            accepted_block_headers_round_gap: register_histogram_vec_with_registry!(
+                "accepted_block_headers_round_gap",
+                "Round gap of accepted block headers to clock round",
                 &["source"],
+                vec![0.0, 1.0, 2.0, 5.0, 10.0, 20.0, 40.0, 80.0, 100.0, 200.0, 400.0, 800.0, 1000.0],
                 registry,
             ).unwrap(),
             core_skipped_headers: register_int_counter_vec_with_registry!(
