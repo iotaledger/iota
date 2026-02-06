@@ -284,11 +284,31 @@ mod tests {
     use std::{fs, io::Read, path::PathBuf, str::FromStr};
 
     use iota_types::{
+        base_types::IotaAddress,
         event::Event,
+        iota_sdk_types_conversions::struct_tag_core_to_sdk,
         messages_checkpoint::{CertifiedCheckpointSummary, FullCheckpointContents},
     };
+    use move_core_types::account_address::AccountAddress;
 
     use super::*;
+
+    fn random_event() -> Event {
+        use iota_sdk_types::Identifier as SdkIdentifier;
+        Event {
+            package_id: ObjectID::random(),
+            module: SdkIdentifier::new("test").unwrap(),
+            sender: IotaAddress::new(AccountAddress::random().into_bytes()),
+            type_: struct_tag_core_to_sdk(move_core_types::language_storage::StructTag {
+                address: AccountAddress::random(),
+                module: move_core_types::identifier::Identifier::new("test").unwrap(),
+                name: move_core_types::identifier::Identifier::new("test").unwrap(),
+                type_params: vec![],
+            })
+            .unwrap(),
+            contents: vec![],
+        }
+    }
 
     const FIXTURES_DIR: &str = "tests/fixtures";
 
@@ -417,14 +437,10 @@ mod tests {
         if tx0.events.is_none() {
             // if there are no events yet, add them
             tx0.events = Some(TransactionEvents {
-                data: vec![Event::random_for_testing()],
+                data: vec![random_event()],
             });
         } else {
-            tx0.events
-                .as_mut()
-                .unwrap()
-                .data
-                .push(Event::random_for_testing());
+            tx0.events.as_mut().unwrap().data.push(random_event());
         }
 
         assert!(

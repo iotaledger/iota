@@ -94,6 +94,7 @@ typed-store.workspace = true
 
 [dev-dependencies]
 # external dependencies
+iota-sdk-types.workspace = true
 clap.workspace = true
 criterion.workspace = true
 expect-test.workspace = true
