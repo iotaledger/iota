@@ -554,9 +554,7 @@ impl CordialKnowledge {
             .iter()
             .map(|m| m.values().map(|v| v.len()).sum::<usize>())
             .sum();
-        metrics
-            .cordial_knowledge_entries
-            .set(global_entries as i64);
+        metrics.cordial_knowledge_entries.set(global_entries as i64);
 
         let mut total_headers_not_known: usize = 0;
         let mut total_shards_not_known: usize = 0;
