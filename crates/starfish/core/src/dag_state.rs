@@ -1754,6 +1754,12 @@ impl DagState {
                 .map(BTreeSet::len)
                 .sum::<usize>() as i64,
         );
+        metrics
+            .dag_state_pending_commit_votes
+            .set(self.pending_commit_votes.len() as i64);
+        metrics
+            .dag_state_pending_acknowledgments
+            .set(self.pending_acknowledgments.len() as i64);
     }
 
     pub(crate) fn recover_last_commit_info(&self) -> Option<(CommitRef, CommitInfo)> {

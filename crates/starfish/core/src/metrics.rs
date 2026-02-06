@@ -130,6 +130,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) reconstruction_lag: Histogram,
     pub(crate) reconstructed_transactions_unknown: IntGauge,
     pub(crate) reconstruction_queue: IntGauge,
+    pub(crate) shard_reconstructor_processed_transactions: IntGauge,
     pub(crate) core_lock_enqueued: IntCounter,
     pub(crate) core_skipped_proposals: IntCounterVec,
     pub(crate) highest_accepted_authority_round: IntGaugeVec,
@@ -146,6 +147,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) dag_state_recent_headers: IntGauge,
     pub(crate) dag_state_recent_shards: IntGauge,
     pub(crate) dag_state_recent_refs: IntGauge,
+    pub(crate) dag_state_pending_commit_votes: IntGauge,
+    pub(crate) dag_state_pending_acknowledgments: IntGauge,
     pub(crate) cordial_knowledge_message_batch_size: Histogram,
     pub(crate) cordial_knowledge_processed_messages: IntCounterVec,
     pub(crate) cordial_knowledge_entries: IntGauge,
@@ -492,6 +495,11 @@ impl NodeMetrics {
                 "The current number of pending reconstruction jobs in the queue",
                 registry,
             ).unwrap(),
+            shard_reconstructor_processed_transactions: register_int_gauge_with_registry!(
+                "shard_reconstructor_processed_transactions",
+                "Number of processed transactions tracked to prevent duplicate reconstruction",
+                registry,
+            ).unwrap(),
             reconstructed_transactions_unknown: register_int_gauge_with_registry!(
             "reconstructed_transactions_unknown",
             "The current number of reconstructed transactions which are unknown to dag state",
@@ -515,6 +523,16 @@ impl NodeMetrics {
             dag_state_recent_refs: register_int_gauge_with_registry!(
                 "dag_state_recent_refs",
                 "Number of recent refs cached in the DagState",
+                registry,
+            ).unwrap(),
+            dag_state_pending_commit_votes: register_int_gauge_with_registry!(
+                "dag_state_pending_commit_votes",
+                "Number of pending commit votes in the DagState",
+                registry,
+            ).unwrap(),
+            dag_state_pending_acknowledgments: register_int_gauge_with_registry!(
+                "dag_state_pending_acknowledgments",
+                "Number of pending acknowledgments in the DagState",
                 registry,
             ).unwrap(),
             cordial_knowledge_message_batch_size: register_histogram_with_registry!(
