@@ -3,20 +3,15 @@
 
 //! High-level API for transaction simulation.
 
-use iota_grpc_types::v0::{
-    transaction::ExecutedTransaction,
-    transaction_execution_service::{
-        SimulateTransactionRequest, simulate_transaction_request::TransactionCheckModes,
-    },
+use iota_grpc_types::v0::transaction_execution_service::{
+    SimulateTransactionRequest, SimulateTransactionResponse,
+    simulate_transaction_request::TransactionCheckModes,
 };
 use iota_sdk_types::Transaction;
 
 use crate::{
     Client,
-    api::{
-        EXECUTION_READ_MASK, Result, TryFromProtoError, build_proto_transaction,
-        field_mask_with_default,
-    },
+    api::{EXECUTION_READ_MASK, Result, build_proto_transaction, field_mask_with_default},
 };
 
 impl Client {
@@ -76,7 +71,7 @@ impl Client {
         dev_inspect: bool,
         estimate_gas_budget: bool,
         read_mask: Option<&str>,
-    ) -> Result<ExecutedTransaction> {
+    ) -> Result<SimulateTransactionResponse> {
         // Build proto transaction directly from SDK types
         let proto_transaction = build_proto_transaction(&transaction, transaction.digest())?;
 
@@ -92,14 +87,10 @@ impl Client {
             .with_estimate_gas_budget(estimate_gas_budget)
             .with_read_mask(field_mask_with_default(read_mask, EXECUTION_READ_MASK));
 
-        let response = self
+        Ok(self
             .execution_service_client()
             .simulate_transaction(request)
             .await?
-            .into_inner();
-
-        response
-            .transaction
-            .ok_or_else(|| TryFromProtoError::missing("transaction").into())
+            .into_inner())
     }
 }
