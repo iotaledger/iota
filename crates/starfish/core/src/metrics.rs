@@ -315,7 +315,7 @@ impl NodeMetrics {
                 "latency_to_process_stream",
                 "The latency between block creation and processing stream from peer",
                 &["peer"],
-                exponential_buckets(1.0, 2.0, 14).unwrap(),
+                exponential_buckets(0.002, 1.5, 18).unwrap(),
                 registry,
             ).unwrap(),
             highest_verified_authority_round: register_int_gauge_vec_with_registry!(
