@@ -206,6 +206,11 @@ impl BlockManager {
             }
             all_accepted_transactions.extend(accepted_transactions_from_blocks);
         }
+        self.context
+            .metrics
+            .node_metrics
+            .block_manager_suspended_blocks
+            .set(self.suspended_blocks.len() as i64);
         all_accepted_transactions
     }
 
