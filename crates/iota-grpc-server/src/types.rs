@@ -35,14 +35,15 @@ use tracing::debug;
 use crate::merge::Merge;
 
 /// Flags indicating which optional transaction fields to fetch from storage.
-///
 /// Derived from a `FieldMaskTree` to skip unnecessary storage reads.
-/// Follows the same pattern as `ExecuteTransactionRequestV1` which uses
-/// `include_events`, `include_input_objects`, `include_output_objects` flags.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TransactionReadFields {
+    pub include_transaction: bool,
+    pub include_signatures: bool,
+    pub include_effects: bool,
     pub include_events: bool,
     pub include_checkpoint: bool,
+    pub include_timestamp: bool,
     pub include_input_objects: bool,
     pub include_output_objects: bool,
 }
@@ -51,10 +52,14 @@ impl TransactionReadFields {
     /// Derive which fields to fetch from an `ExecutedTransaction` field mask.
     pub fn from_mask(mask: &FieldMaskTree) -> Self {
         use iota_grpc_types::v0::transaction::ExecutedTransaction;
+
         Self {
+            include_transaction: mask.contains(ExecutedTransaction::TRANSACTION_FIELD.name),
+            include_signatures: mask.contains(ExecutedTransaction::SIGNATURES_FIELD.name),
+            include_effects: mask.contains(ExecutedTransaction::EFFECTS_FIELD.name),
             include_events: mask.contains(ExecutedTransaction::EVENTS_FIELD.name),
-            include_checkpoint: mask.contains(ExecutedTransaction::CHECKPOINT_FIELD.name)
-                || mask.contains(ExecutedTransaction::TIMESTAMP_FIELD.name),
+            include_checkpoint: mask.contains(ExecutedTransaction::CHECKPOINT_FIELD.name),
+            include_timestamp: mask.contains(ExecutedTransaction::TIMESTAMP_FIELD.name),
             include_input_objects: mask.contains(ExecutedTransaction::INPUT_OBJECTS_FIELD.name),
             include_output_objects: mask.contains(ExecutedTransaction::OUTPUT_OBJECTS_FIELD.name),
         }
@@ -962,58 +967,89 @@ impl GrpcReader {
         digest: &TransactionDigest,
         fields: &TransactionReadFields,
     ) -> Result<TransactionReadData, crate::error::RpcError> {
-        // Get the transaction — always needed
-        let transaction = self
-            .state_reader
-            .get_transaction(digest)
-            .ok_or(crate::error::TransactionNotFoundError(*digest))?;
+        let (transaction, signatures) = if fields.include_transaction || fields.include_signatures {
+            // Get the transaction if transaction data or signatures are requested
+            let transaction = self
+                .state_reader
+                .get_transaction(digest)
+                .ok_or(crate::error::TransactionNotFoundError(*digest))?;
 
-        // Get the effects — always needed as prerequisite
-        let effects = self
-            .state_reader
-            .get_transaction_effects(digest)
-            .ok_or(crate::error::TransactionNotFoundError(*digest))?;
+            let transaction_data = fields
+                .include_transaction
+                .then(|| transaction.transaction_data().clone().try_into())
+                .transpose()?;
 
-        // Get events only if requested
-        let events = if fields.include_events {
-            effects
-                .events_digest()
-                .and_then(|event_digest| self.state_reader.get_transaction_events(event_digest))
+            let signatures_data = fields
+                .include_signatures
+                .then(|| {
+                    transaction
+                        .tx_signatures()
+                        .iter()
+                        .map(|sig| sig.clone().try_into())
+                        .collect::<Result<Vec<_>, _>>()
+                })
+                .transpose()?;
+
+            (transaction_data, signatures_data)
         } else {
-            None
+            (None, None)
         };
 
-        // Get checkpoint and timestamp only if requested
-        let (checkpoint, timestamp_ms) = if fields.include_checkpoint {
+        let (checkpoint, timestamp_ms) = if fields.include_checkpoint || fields.include_timestamp {
             let checkpoint = self.state_reader.get_transaction_checkpoint(digest);
-            let timestamp_ms = checkpoint.and_then(|checkpoint_seq| {
-                self.state_reader
-                    .get_checkpoint_summary(checkpoint_seq)
-                    .map(|summary| summary.data().timestamp_ms)
-            });
+
+            let timestamp_ms = fields
+                .include_timestamp
+                .then(|| {
+                    checkpoint.and_then(|checkpoint_seq| {
+                        self.state_reader
+                            .get_checkpoint_summary(checkpoint_seq)
+                            .map(|summary| summary.data().timestamp_ms)
+                    })
+                })
+                .flatten();
             (checkpoint, timestamp_ms)
         } else {
             (None, None)
         };
 
-        // Get input objects only if requested
-        let input_objects = if fields.include_input_objects {
-            Some(
+        // Get the effects if any of the following are requested: effects, events,
+        // checkpoint/timestamp, input/output objects
+        let (effects, events, input_objects, output_objects) = if fields.include_effects
+            || fields.include_events
+            || fields.include_input_objects
+            || fields.include_output_objects
+        {
+            // Effects are required for events and input/output objects, so we fetch them if
+            // any of those are requested
+            let effects = self
+                .state_reader
+                .get_transaction_effects(digest)
+                .ok_or(crate::error::TransactionNotFoundError(*digest))?;
+
+            // Get events only if requested
+            let events = fields
+                .include_events
+                .then(|| {
+                    effects.events_digest().and_then(|event_digest| {
+                        self.state_reader.get_transaction_events(event_digest)
+                    })
+                })
+                .flatten();
+
+            // Get input objects only if requested
+            let input_objects = fields.include_input_objects.then(|| {
                 effects
                     .modified_at_versions()
                     .into_iter()
                     .filter_map(|(object_id, version)| {
                         self.state_reader.get_object_by_key(&object_id, version)
                     })
-                    .collect(),
-            )
-        } else {
-            None
-        };
+                    .collect()
+            });
 
-        // Get output objects only if requested
-        let output_objects = if fields.include_output_objects {
-            Some(
+            // Get output objects only if requested
+            let output_objects = fields.include_output_objects.then(|| {
                 effects
                     .created()
                     .into_iter()
@@ -1022,15 +1058,19 @@ impl GrpcReader {
                     .filter_map(|((object_id, version, _digest), _owner)| {
                         self.state_reader.get_object_by_key(&object_id, version)
                     })
-                    .collect(),
-            )
+                    .collect()
+            });
+
+            (Some(effects), events, input_objects, output_objects)
         } else {
-            None
+            // If none of the above are requested, we can skip fetching effects entirely
+            (None, None, None, None)
         };
 
         Ok(TransactionReadData {
             digest: *digest,
             transaction,
+            signatures,
             effects,
             events,
             checkpoint,
@@ -1047,14 +1087,14 @@ impl GrpcReader {
 /// `iota-sdk-types` types and used with `Merge` trait to populate gRPC
 /// responses.
 ///
-/// Optional fields (`events`, `checkpoint`, `timestamp_ms`, `input_objects`,
-/// `output_objects`) are `None` when the corresponding data was not requested
+/// Optional fields are `None` when the corresponding data was not requested
 /// via `TransactionReadFields`, meaning the storage read was skipped entirely.
 #[derive(Debug)]
 pub struct TransactionReadData {
     pub digest: TransactionDigest,
-    pub transaction: Arc<VerifiedTransaction>,
-    pub effects: TransactionEffects,
+    pub transaction: Option<iota_sdk_types::transaction::Transaction>,
+    pub signatures: Option<Vec<iota_sdk_types::UserSignature>>,
+    pub effects: Option<TransactionEffects>,
     pub events: Option<TransactionEvents>,
     pub checkpoint: Option<u64>,
     pub timestamp_ms: Option<u64>,

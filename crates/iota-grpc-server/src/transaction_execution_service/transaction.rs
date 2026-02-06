@@ -21,8 +21,8 @@ use crate::{GrpcReader, merge::Merge, utils::render_json};
 pub struct TransactionReadSource<'a> {
     pub reader: Arc<GrpcReader>,
     pub config: &'a iota_config::node::GrpcApiConfig,
-    pub transaction_data: iota_types::transaction::TransactionData,
-    pub signatures: Option<Vec<iota_types::signature::GenericSignature>>,
+    pub transaction: Option<iota_sdk_types::transaction::Transaction>,
+    pub signatures: Option<Vec<iota_sdk_types::UserSignature>>,
     pub effects: Option<iota_types::effects::TransactionEffects>,
     pub events: Option<iota_types::effects::TransactionEvents>,
     pub checkpoint: Option<u64>,
@@ -106,20 +106,16 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::Transaction {
             return Ok(());
         }
 
-        let sdk_transaction: iota_sdk_types::Transaction = source
-            .transaction_data
-            .clone()
-            .try_into()
-            .map_err(|e| format!("failed to convert transaction to SDK type: {e}"))?;
+        let transaction = source.transaction.as_ref().ok_or("missing transaction")?;
 
         // Set digest if requested
         if mask.contains(Self::DIGEST_FIELD.name) {
-            self.digest = Some(sdk_transaction.digest().into());
+            self.digest = Some(transaction.digest().into());
         }
 
         // Set BCS if requested
         if mask.contains(Self::BCS_FIELD.name) {
-            self.bcs = grpc_bcs::BcsData::serialize(&sdk_transaction).ok();
+            self.bcs = grpc_bcs::BcsData::serialize(transaction).ok();
         }
 
         Ok(())

@@ -125,16 +125,13 @@ fn get_transaction_impl(
     // Get transaction data from storage, skipping unrequested fields
     let tx_read = reader.get_transaction_read(&digest, &fields)?;
 
-    let transaction_data = tx_read.transaction.transaction_data().clone();
-    let signatures = tx_read.transaction.tx_signatures().to_owned();
-
     // Create a source for the merge
     let source = TransactionReadSource {
         reader: reader.clone(),
         config,
-        transaction_data,
-        signatures: Some(signatures),
-        effects: Some(tx_read.effects),
+        transaction: tx_read.transaction,
+        signatures: tx_read.signatures,
+        effects: tx_read.effects,
         events: tx_read.events,
         checkpoint: tx_read.checkpoint,
         timestamp_ms: tx_read.timestamp_ms,
