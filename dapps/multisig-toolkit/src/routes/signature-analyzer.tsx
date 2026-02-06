@@ -252,6 +252,7 @@ export default function SignatureAnalyzer() {
                                     weight,
                                     iotaAddress: publicKey.toIotaAddress(),
                                     keyType:
+                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                         (publicKey as any).keyType ||
                                         getKeyTypeFromFlag(publicKey.flag()),
                                 }));
