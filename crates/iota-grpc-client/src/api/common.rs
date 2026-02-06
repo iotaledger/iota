@@ -30,6 +30,10 @@ pub enum Error {
     #[error("signature conversion error: {0}")]
     Signature(String),
 
+    /// The server stream ended unexpectedly while `has_next` was still true.
+    #[error("stream ended unexpectedly: server indicated more results with has_next=true")]
+    UnexpectedEndOfStream,
+
     /// gRPC transport or protocol error.
     #[error("grpc error: {0}")]
     Grpc(#[from] tonic::Status),
@@ -51,6 +55,9 @@ impl From<Error> for tonic::Status {
             Error::Server(msg) => tonic::Status::internal(format!("server error: {msg}")),
             Error::Signature(msg) => {
                 tonic::Status::internal(format!("signature conversion error: {msg}"))
+            }
+            Error::UnexpectedEndOfStream => {
+                tonic::Status::internal("stream ended unexpectedly: has_next was true")
             }
             Error::Grpc(status) => status,
         }

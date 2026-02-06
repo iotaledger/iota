@@ -11,7 +11,7 @@ use iota_sdk_types::Digest;
 
 use crate::{
     Client,
-    api::{ProtoResult, Result, TRANSACTIONS_READ_MASK, field_mask_with_default},
+    api::{Error, ProtoResult, Result, TRANSACTIONS_READ_MASK, field_mask_with_default},
 };
 
 impl Client {
@@ -99,11 +99,17 @@ impl Client {
 
         // Server guarantees results are returned in request order
         let mut results = Vec::with_capacity(digests.len());
+        let mut has_next = false;
 
         while let Some(response) = stream.message().await? {
+            has_next = response.has_next;
             for result in response.transactions {
                 results.push(result.into_result()?);
             }
+        }
+
+        if has_next {
+            return Err(Error::UnexpectedEndOfStream);
         }
 
         Ok(results)
