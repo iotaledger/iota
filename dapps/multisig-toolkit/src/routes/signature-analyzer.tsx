@@ -2,7 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { parseSerializedSignature, PublicKey, SignatureScheme } from '@iota/iota-sdk/cryptography';
+import {
+    parseSerializedSignature,
+    PublicKey,
+    SIGNATURE_FLAG_TO_SCHEME,
+    SignatureScheme,
+} from '@iota/iota-sdk/cryptography';
 import { MultiSigPublicKey, parsePartialSignatures } from '@iota/iota-sdk/multisig';
 import { toBase64 } from '@iota/iota-sdk/utils';
 import { publicKeyFromRawBytes } from '@iota/iota-sdk/verify';
@@ -34,20 +39,10 @@ interface MultiSigInfo {
 
 // Helper function to determine key type from flag
 function getKeyTypeFromFlag(flag: number): string {
-    switch (flag) {
-        case 0:
-            return 'Ed25519';
-        case 1:
-            return 'Secp256k1';
-        case 2:
-            return 'Secp256r1';
-        case 3:
-            return 'MultiSig';
-        case 5:
-            return 'ZkLogin';
-        default:
-            return `Unknown (${flag})`;
-    }
+    return (
+        SIGNATURE_FLAG_TO_SCHEME[flag as keyof typeof SIGNATURE_FLAG_TO_SCHEME] ??
+        `unknown (flag: ${flag})`
+    );
 }
 
 /*
