@@ -18,7 +18,7 @@ test('account lock-unlock', async ({ page, extensionUrl }) => {
     // Wait for the unlock modal to disappear
     await expect(page.getByPlaceholder('Password')).not.toBeVisible();
     // Check that the account is unlocked
-    await page.getByText('Main').hover();
+    await page.getByTestId('account-tile').hover();
     await expect(page.getByTestId('account-lock')).toBeVisible();
 });
 test('wallet auto-lock', async ({ page, extensionUrl }) => {
