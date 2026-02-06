@@ -4,10 +4,21 @@ export const Networks: Record<string, NetworkProps> = {
     protocol: 'Rebased',
     rpc: {
       json: {
-        core: 'https://api.mainnet.iota.cafe',
-        websocket: 'wss://api.mainnet.iota.cafe',
-        indexer: 'https://indexer.mainnet.iota.cafe',
-        monochain: 'https://rpc.mainnet.iota.monochain.p2p.org',
+        official: {
+          core: 'https://api.mainnet.iota.cafe',
+          websocket: 'wss://api.mainnet.iota.cafe',
+          indexer: 'https://indexer.mainnet.iota.cafe',
+        },
+        thirdParty: [
+          {
+            provider: 'Ankr',
+            core: 'https://rpc.ankr.com/iota_mainnet',
+          },
+          {
+            provider: 'Monochain',
+            core: 'https://rpc.mainnet.iota.monochain.p2p.org',
+          },
+        ],
       },
       graphql: 'https://graphql.mainnet.iota.cafe',
     },
@@ -43,9 +54,17 @@ export const Networks: Record<string, NetworkProps> = {
     protocol: 'Rebased',
     rpc: {
       json: {
-        core: 'https://api.testnet.iota.cafe',
-        websocket: 'wss://api.testnet.iota.cafe',
-        indexer: 'https://indexer.testnet.iota.cafe',
+        official: {
+          core: 'https://api.testnet.iota.cafe',
+          websocket: 'wss://api.testnet.iota.cafe',
+          indexer: 'https://indexer.testnet.iota.cafe',
+        },
+        thirdParty: [
+          {
+            provider: 'Ankr',
+            core: 'https://rpc.ankr.com/iota_testnet',
+          },
+        ],
       },
       graphql: 'https://graphql.testnet.iota.cafe',
     },
@@ -85,9 +104,11 @@ export const Networks: Record<string, NetworkProps> = {
     protocol: 'Rebased',
     rpc: {
       json: {
-        core: 'https://api.devnet.iota.cafe',
-        websocket: 'wss://api.devnet.iota.cafe',
-        indexer: 'https://indexer.devnet.iota.cafe',
+        official: {
+          core: 'https://api.devnet.iota.cafe',
+          websocket: 'wss://api.devnet.iota.cafe',
+          indexer: 'https://indexer.devnet.iota.cafe',
+        },
       },
       graphql: 'https://graphql.devnet.iota.cafe',
     },
@@ -102,9 +123,11 @@ export const Networks: Record<string, NetworkProps> = {
     protocol: 'Custom',
     rpc: {
       json: {
-        core: 'http://127.0.0.1:9000',
-        websocket: 'ws://127.0.0.1:9000',
-        indexer: 'http://127.0.0.1:9124',
+        official: {
+          core: 'http://127.0.0.1:9000',
+          websocket: 'ws://127.0.0.1:9000',
+          indexer: 'http://127.0.0.1:9124',
+        },
       },
       graphql: 'http://127.0.0.1:8000',
     },
@@ -155,10 +178,15 @@ export interface NetworkProps {
 
 export interface Rpc {
   json: {
-    core: string;
-    indexer: string;
-    websocket: string;
-    monochain: string;
+    official: JsonRpcEndpoints;
+    thirdParty?: JsonRpcEndpoints[];
   };
   graphql: string;
+};
+
+export interface JsonRpcEndpoints {
+  provider?: string;
+  core?: string;
+  websocket?: string;
+  indexer?: string;
 }

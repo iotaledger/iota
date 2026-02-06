@@ -9,6 +9,9 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+flamegraph-alloc = ["telemetry-subscribers/flamegraph-alloc"]
+
 [dependencies]
 # external dependencies
 anyhow = { workspace = true, features = ["backtrace"] }
@@ -57,3 +60,11 @@ iota-macros.workspace = true
 iota-simulator.workspace = true
 iota-surfer.workspace = true
 typed-store.workspace = true
+
+[build-dependencies]
+rustc_version_runtime = "0.3"
+
+[[bin]]
+name = "flamegraph"
+path = "src/bin/flamegraph.rs"
+required-features = ["flamegraph-alloc"]

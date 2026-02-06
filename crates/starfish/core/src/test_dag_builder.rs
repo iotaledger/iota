@@ -21,7 +21,7 @@ use crate::{
     },
     commit::{CertifiedCommit, CommitDigest, TrustedCommit, WAVE_LENGTH},
     context::Context,
-    dag_state::{DagState, TransactionSource},
+    dag_state::{DagState, DataSource},
     encoder::{ShardEncoder, create_encoder},
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
     linearizer::{BlockStoreAPI, Linearizer},
@@ -300,9 +300,9 @@ impl DagBuilder {
             );
 
             // Update the last committed rounds
-            for block in &to_commit {
-                self.last_committed_rounds[block.author()] =
-                    self.last_committed_rounds[block.author()].max(block.round());
+            for block_header in &to_commit {
+                self.last_committed_rounds[block_header.author()] =
+                    self.last_committed_rounds[block_header.author()].max(block_header.round());
             }
 
             let commit = TrustedCommit::new_for_test(
@@ -361,12 +361,11 @@ impl DagBuilder {
             .map(|(sub_dag, commit)| {
                 // TODO: we need to request real blocks from sub_dag after we add the
                 // corresponding field and logic in sub_dag
-                let mut block_headers = vec![];
-                for block_header in sub_dag.headers.iter() {
-                    block_headers.push(block_header.clone());
-                }
+                let block_headers = sub_dag.headers.clone();
+                let transactions = sub_dag.transactions.clone();
 
-                let certified_commit = CertifiedCommit::new_certified(commit, block_headers);
+                let certified_commit =
+                    CertifiedCommit::new_certified(commit, block_headers, transactions);
                 (sub_dag, certified_commit)
             })
             .collect()
@@ -413,13 +412,14 @@ impl DagBuilder {
     }
 
     pub(crate) fn persist_all_blocks(&self, dag_state: Arc<RwLock<DagState>>) {
-        dag_state
-            .write()
-            .accept_block_headers(self.block_headers.values().cloned().collect());
+        dag_state.write().accept_block_headers(
+            self.block_headers.values().cloned().collect(),
+            DataSource::Test,
+        );
         for block_transactions in self.transactions.values() {
             dag_state
                 .write()
-                .add_transactions(block_transactions.clone(), TransactionSource::Test);
+                .add_transactions(block_transactions.clone(), DataSource::Test);
         }
     }
 
@@ -893,9 +893,9 @@ impl<'a> LayerBuilder<'a> {
             "Called to persist layers although no blocks have been created. Make sure you have called build before."
         );
         let mut dag_state = dag_state.write();
-        dag_state.accept_block_headers(self.block_headers.clone());
+        dag_state.accept_block_headers(self.block_headers.clone(), DataSource::Test);
         for transactions in self.transactions.clone() {
-            dag_state.add_transactions(transactions, TransactionSource::Test);
+            dag_state.add_transactions(transactions, DataSource::Test);
         }
     }
 

@@ -7,9 +7,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use effects_v1::TransactionEffectsV1;
 pub use effects_v1::UnchangedSharedKind;
 use enum_dispatch::enum_dispatch;
+use iota_sdk_types::crypto::{Intent, IntentScope};
 pub use object_change::{EffectsObjectChange, ObjectIn, ObjectOut};
 use serde::{Deserialize, Serialize};
-use shared_crypto::intent::{Intent, IntentScope};
 pub use test_effects_builder::TestEffectsBuilder;
 
 use crate::{
@@ -210,6 +210,26 @@ impl TransactionEffects {
         self.mutated()
             .into_iter()
             .filter(|o| o != &self.gas_object())
+            .collect()
+    }
+
+    /// Returns all affected objects in this transaction effects.
+    /// Affected objects include created, mutated, unwrapped, deleted,
+    /// unwrapped_then_deleted, wrapped and input shared objects.
+    pub fn all_affected_objects(&self) -> Vec<ObjectRef> {
+        self.created()
+            .into_iter()
+            .map(|(r, _)| r)
+            .chain(self.mutated().into_iter().map(|(r, _)| r))
+            .chain(self.unwrapped().into_iter().map(|(r, _)| r))
+            .chain(
+                self.input_shared_objects()
+                    .into_iter()
+                    .map(|r| r.object_ref()),
+            )
+            .chain(self.deleted())
+            .chain(self.unwrapped_then_deleted())
+            .chain(self.wrapped())
             .collect()
     }
 

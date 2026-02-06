@@ -3,10 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module iota_extra::msim_extra_1 {
-    use iota::object::{Self, UID};
-    use iota::transfer;
-    use iota::tx_context::TxContext;
-
     public struct S has key { id: UID }
 
     fun init(ctx: &mut TxContext) {

@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { bcs } from '@iota/iota-sdk/bcs';
 
 export const Receipt = bcs.struct('Receipt', {

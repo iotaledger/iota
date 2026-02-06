@@ -45,8 +45,8 @@ mod universal_committer;
 #[path = "tests/randomized_tests.rs"]
 mod randomized_tests;
 
+mod commit_solidifier;
 mod cordial_knowledge;
-mod data_manager;
 mod decoder;
 mod encoder;
 mod shard_reconstructor;
@@ -59,11 +59,9 @@ mod test_dag_parser;
 
 /// Exported consensus API.
 pub use authority_node::ConsensusAuthority;
-#[cfg(test)]
-pub use block_header::TestBlockHeader;
 pub use block_header::{BlockHeaderAPI, BlockRef, Round};
 /// Exported API for testing.
-pub use block_header::{BlockTimestampMs, Transaction, VerifiedBlockHeader};
+pub use block_header::{BlockTimestampMs, TestBlockHeader, Transaction, VerifiedBlockHeader};
 pub use commit::{CommitDigest, CommitIndex, CommitRef, CommittedSubDag};
 pub use commit_consumer::{CommitConsumer, CommitConsumerMonitor};
 pub use context::Clock;

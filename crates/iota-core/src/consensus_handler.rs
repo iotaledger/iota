@@ -295,6 +295,10 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             .with_label_values(&[&leader_author.to_string()])
             .inc();
 
+        self.metrics
+            .consensus_handler_leader_round
+            .set(round as i64);
+
         for (authority_index, number_of_committed_headers) in
             consensus_output.number_of_headers_in_commit_by_authority()
         {
@@ -517,6 +521,7 @@ pub struct StarfishConsensusHandler {
 
 impl StarfishConsensusHandler {
     pub fn new(
+        last_processed_commit_at_startup: starfish_core::CommitIndex,
         mut consensus_handler: ConsensusHandler<CheckpointService>,
         mut receiver: UnboundedReceiver<starfish_core::CommittedSubDag>,
         commit_consumer_monitor: Arc<starfish_core::CommitConsumerMonitor>,
@@ -526,10 +531,14 @@ impl StarfishConsensusHandler {
             // backpressure.
             while let Some(consensus_output) = receiver.recv().await {
                 let commit_index = consensus_output.commit_ref.index;
-                consensus_handler
-                    .handle_consensus_output(consensus_output)
-                    .await;
-                commit_consumer_monitor.set_highest_handled_commit(commit_index);
+                if commit_index <= last_processed_commit_at_startup {
+                    consensus_handler.handle_prior_consensus_output(consensus_output);
+                } else {
+                    consensus_handler
+                        .handle_consensus_output(consensus_output)
+                        .await;
+                    commit_consumer_monitor.set_highest_handled_commit(commit_index);
+                }
             }
         });
         Self {
@@ -592,6 +601,7 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
         ConsensusTransactionKind::CheckpointSignature(_) => "checkpoint_signature",
         ConsensusTransactionKind::EndOfPublish(_) => "end_of_publish",
         ConsensusTransactionKind::CapabilityNotificationV1(_) => "capability_notification_v1",
+        ConsensusTransactionKind::MisbehaviorReport(_, _, _) => "misbehavior_report",
         ConsensusTransactionKind::SignedCapabilityNotificationV1(_) => {
             "signed_capability_notification_v1"
         }
@@ -754,7 +764,7 @@ impl SequencedConsensusTransaction {
         else {
             return false;
         };
-        certificate.transaction_data().uses_randomness()
+        certificate.uses_randomness()
     }
 
     pub fn as_shared_object_txn(&self) -> Option<&SenderSignedData> {

@@ -55,13 +55,13 @@ task 9, lines 46-67:
 Response: {
   "data": {
     "transactionBlocks": {
+      "edges": [],
       "pageInfo": {
-        "hasPreviousPage": false,
+        "endCursor": null,
         "hasNextPage": false,
-        "startCursor": null,
-        "endCursor": null
-      },
-      "edges": []
+        "hasPreviousPage": false,
+        "startCursor": null
+      }
     }
   }
 }
@@ -71,13 +71,13 @@ task 10, lines 69-90:
 Response: {
   "data": {
     "transactionBlocks": {
+      "edges": [],
       "pageInfo": {
-        "hasPreviousPage": false,
+        "endCursor": null,
         "hasNextPage": false,
-        "startCursor": null,
-        "endCursor": null
-      },
-      "edges": []
+        "hasPreviousPage": false,
+        "startCursor": null
+      }
     }
   }
 }
@@ -87,13 +87,13 @@ task 11, lines 92-113:
 Response: {
   "data": {
     "transactionBlocks": {
+      "edges": [],
       "pageInfo": {
-        "hasPreviousPage": false,
+        "endCursor": null,
         "hasNextPage": false,
-        "startCursor": null,
-        "endCursor": null
-      },
-      "edges": []
+        "hasPreviousPage": false,
+        "startCursor": null
+      }
     }
   }
 }
@@ -103,13 +103,13 @@ task 12, lines 115-136:
 Response: {
   "data": {
     "transactionBlocks": {
+      "edges": [],
       "pageInfo": {
-        "hasPreviousPage": false,
+        "endCursor": null,
         "hasNextPage": false,
-        "startCursor": null,
-        "endCursor": null
-      },
-      "edges": []
+        "hasPreviousPage": false,
+        "startCursor": null
+      }
     }
   }
 }

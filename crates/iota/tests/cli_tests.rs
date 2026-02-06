@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-#[cfg(not(target_os = "windows"))]
-use std::os::unix::fs::FileExt;
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::FileExt;
 #[cfg(not(msim))]
@@ -13,7 +11,7 @@ use std::{
     env,
     fmt::Write,
     fs::{self, read_dir},
-    io::{self, Read},
+    io::{self, Read, Seek, SeekFrom, Write as IoWrite},
     net::SocketAddr,
     path::{Path, PathBuf},
     str, thread,
@@ -42,7 +40,7 @@ use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions,
     IotaObjectResponse, IotaObjectResponseQuery, IotaRawData, IotaTransactionBlockDataAPI,
-    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, OwnedObjectRef,
+    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, ObjectChange, OwnedObjectRef,
     get_new_package_obj_from_response,
 };
 use iota_keys::keystore::AccountKeystore;
@@ -358,9 +356,12 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         benchmark_ips: None,
         with_faucet: false,
         committee_size: DEFAULT_NUMBER_OF_AUTHORITIES,
+        num_additional_gas_accounts: None,
         local_migration_snapshots: vec![],
         remote_migration_snapshots: vec![],
         delegator: None,
+        chain_start_timestamp_ms: None,
+        admin_interface_address: None,
     }
     .execute()
     .await?;
@@ -400,9 +401,12 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         benchmark_ips: None,
         with_faucet: false,
         committee_size: DEFAULT_NUMBER_OF_AUTHORITIES,
+        num_additional_gas_accounts: None,
         local_migration_snapshots: vec![],
         remote_migration_snapshots: vec![],
         delegator: None,
+        chain_start_timestamp_ms: None,
+        admin_interface_address: None,
     }
     .execute()
     .await;
@@ -712,6 +716,151 @@ async fn test_ptb_publish() -> Result<(), anyhow::Error> {
     }
     .execute(context)
     .await?;
+    Ok(())
+}
+
+#[sim_test]
+async fn test_ptb_publish_upgrade() -> Result<(), anyhow::Error> {
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
+    let context = &mut test_cluster.wallet;
+    let mut package_path = PathBuf::from(TEST_DATA_DIR);
+    package_path.push("ptb_complex_args_test_functions");
+    let mut package_path_2 = PathBuf::from(TEST_DATA_DIR);
+    package_path_2.push("clever_errors");
+
+    let publish_ptb_string = format!(
+        r#"
+        --move-call iota::tx_context::sender
+        --assign sender
+        --publish {}
+        --assign upgrade_cap
+        --publish {}
+        --assign upgrade_cap_2
+        --transfer-objects "[upgrade_cap, upgrade_cap_2]" sender
+        "#,
+        package_path.display(),
+        package_path_2.display()
+    );
+    let args = shlex::split(&publish_ptb_string).unwrap();
+    let PTBCommandResult::CommandResult(res) = iota::client_ptb::ptb::PTB {
+        args: args.clone(),
+        display: HashSet::new(),
+    }
+    .execute(context)
+    .await?
+    else {
+        panic!("unexpected PTB result");
+    };
+    let IotaClientCommandResult::TransactionBlock(transaction_response) = *res else {
+        panic!("unexpected PTB result");
+    };
+
+    let object_changes = transaction_response.object_changes.unwrap();
+
+    let upgrade_capabilities: Vec<ObjectID> = object_changes
+        .iter()
+        .filter_map(|c| {
+            if let iota_json_rpc_types::ObjectChange::Created { object_type, .. } = c {
+                if object_type == &iota_types::move_package::UpgradeCap::type_() {
+                    Some(c.object_id())
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    let client = context.get_client().await?;
+    let mut packages_with_upgrade_cap = Vec::new();
+    for cap_id in upgrade_capabilities {
+        let cap_object = client
+            .read_api()
+            .get_object_with_options(cap_id, IotaObjectDataOptions::default().with_content())
+            .await?
+            .into_object()
+            .unwrap();
+
+        let move_obj = cap_object.content.unwrap();
+        if let iota_json_rpc_types::IotaParsedData::MoveObject(parsed) = move_obj {
+            let fields_map = match parsed.fields {
+                iota_json_rpc_types::IotaMoveStruct::WithFields(f) => f,
+                _ => panic!("Unexpected struct type"),
+            };
+            let package_value = &fields_map["package"];
+            let package_addr =
+                IotaAddress::from_str(package_value.clone().to_json_value().as_str().unwrap())
+                    .unwrap();
+
+            let package_object = client
+                .read_api()
+                .get_object_with_options(
+                    package_addr.into(),
+                    IotaObjectDataOptions::default().with_content(),
+                )
+                .await?
+                .into_object()
+                .unwrap();
+
+            let is_clever_errors = if let Some(iota_json_rpc_types::IotaParsedData::Package(pkg)) =
+                &package_object.content
+            {
+                pkg.disassembled.contains_key("clever_errors")
+            } else {
+                false
+            };
+            let pkg_path = if is_clever_errors {
+                package_path_2.clone()
+            } else {
+                package_path.clone()
+            };
+
+            packages_with_upgrade_cap.push((pkg_path, package_addr, cap_id));
+        } else {
+            panic!("Expected MoveObject");
+        }
+    }
+
+    // Update lock file for both packages
+    for (pkg_path, package_id, _) in &packages_with_upgrade_cap {
+        let mut build_config = BuildConfig::new_for_testing().config;
+        build_config.lock_file = Some(pkg_path.join("Move.lock"));
+        iota_package_management::update_lock_file_with_package_id(
+            context,
+            iota_package_management::LockCommand::Publish,
+            build_config.install_dir,
+            build_config.lock_file,
+            (*package_id).into(),
+            1,
+        )
+        .await?;
+    }
+
+    let publish_ptb_string = format!(
+        r#"
+        --move-call iota::tx_context::sender
+        --assign sender
+        --upgrade {} @{}
+        --upgrade {} @{}
+        "#,
+        packages_with_upgrade_cap[0].0.display(),
+        packages_with_upgrade_cap[0].2,
+        packages_with_upgrade_cap[1].0.display(),
+        packages_with_upgrade_cap[1].2,
+    );
+    let args = shlex::split(&publish_ptb_string).unwrap();
+    iota::client_ptb::ptb::PTB {
+        args: args.clone(),
+        display: HashSet::new(),
+    }
+    .execute(context)
+    .await?;
+
     Ok(())
 }
 
@@ -2406,10 +2555,10 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
         ),
     );
     let new = lines.join("\n");
-    #[cfg(target_os = "windows")]
-    move_toml.seek_write(new.as_bytes(), 0).unwrap();
-    #[cfg(not(target_os = "windows"))]
-    move_toml.write_at(new.as_bytes(), 0).unwrap();
+
+    move_toml.seek(SeekFrom::Start(0))?;
+    move_toml.set_len(0)?; // Truncate the file
+    move_toml.write_all(new.as_bytes())?;
 
     // Now run the upgrade
     let build_config = BuildConfig::new_for_testing().config;
@@ -2707,10 +2856,9 @@ async fn test_package_management_on_upgrade_command_conflict() -> Result<(), any
     lines.insert(idx + 1, "published-at = \"0xbad\"".to_string());
     let new = lines.join("\n");
 
-    #[cfg(target_os = "windows")]
-    move_toml.seek_write(new.as_bytes(), 0).unwrap();
-    #[cfg(not(target_os = "windows"))]
-    move_toml.write_at(new.as_bytes(), 0).unwrap();
+    move_toml.seek(SeekFrom::Start(0))?;
+    move_toml.set_len(0)?; // Truncate the file
+    move_toml.write_all(new.as_bytes())?;
 
     // Create a new build config for the upgrade. Initialize its lock file to the
     // package we published.
@@ -6371,6 +6519,226 @@ async fn test_ptb_gas_coins_smashing() -> Result<(), anyhow::Error> {
         payment_len > 1,
         "Expected more than one gas payment, got {payment_len}"
     );
+
+    Ok(())
+}
+
+#[sim_test]
+async fn test_move_authenticator() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(1)
+        .build()
+        .await;
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let sender_address = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+
+    let client = context.get_client().await?;
+    let gas_obj_id = client
+        .read_api()
+        .get_owned_objects(sender_address, None, None, None)
+        .await?
+        .data
+        .first()
+        .unwrap()
+        .object()
+        .unwrap()
+        .object_id;
+
+    // Publish the account package
+    let package_path = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("examples/move/account");
+    let mut build_config = BuildConfig::new_for_testing().config;
+    build_config.lock_file = Some(package_path.join("Move.lock"));
+    let resp = IotaClientCommands::Publish {
+        package_path,
+        build_config,
+        skip_dependency_verification: false,
+        with_unpublished_dependencies: false,
+        verify_deps: true,
+        payment: PaymentArgs {
+            gas: vec![gas_obj_id],
+        },
+        gas_data: GasDataArgs {
+            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+            ..Default::default()
+        },
+        processing: TxProcessingArgs::default(),
+    }
+    .execute(context)
+    .await?;
+
+    // Extract IDs from publish response
+    let IotaClientCommandResult::TransactionBlock(response) = resp else {
+        panic!("Expected TransactionBlock");
+    };
+    let object_changes = response.object_changes.as_ref().unwrap();
+    let account_address = object_changes
+        .iter()
+        .find_map(|oc| match oc {
+            ObjectChange::Created {
+                object_type,
+                object_id,
+                ..
+            } if object_type.to_string().ends_with("::account::Account") => Some(*object_id),
+            _ => None,
+        })
+        .unwrap();
+    let package_id = object_changes
+        .iter()
+        .find_map(|oc| match oc {
+            ObjectChange::Published { package_id, .. } => Some(*package_id),
+            _ => None,
+        })
+        .unwrap();
+    let metadata_id = object_changes
+        .iter()
+        .find_map(|oc| match oc {
+            ObjectChange::Created {
+                object_type,
+                object_id,
+                ..
+            } if object_type.to_string() == "0x2::package_metadata::PackageMetadataV1" => {
+                Some(*object_id)
+            }
+            _ => None,
+        })
+        .unwrap();
+
+    // Link auth
+    IotaClientCommands::Call {
+        package: package_id,
+        module: "account".to_string(),
+        function: "link_auth".to_string(),
+        type_args: vec![],
+        args: vec![
+            IotaJsonValue::from_str(&account_address.to_string()).unwrap(),
+            IotaJsonValue::from_str(&metadata_id.to_string()).unwrap(),
+            IotaJsonValue::from_str("\"account\"").unwrap(),
+            IotaJsonValue::from_str("\"authenticate\"").unwrap(),
+        ],
+        payment: PaymentArgs::default(),
+        gas_data: GasDataArgs {
+            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+            ..Default::default()
+        },
+        processing: TxProcessingArgs::default(),
+    }
+    .execute(context)
+    .await?;
+
+    // Send funds to account
+    let transfer_resp = IotaClientCommands::PTB(PTB {
+        args: vec![
+            "--split-coins".to_string(),
+            "gas".to_string(),
+            "[2000000000]".to_string(),
+            "--assign".to_string(),
+            "coin".to_string(),
+            "--transfer-objects".to_string(),
+            "[coin]".to_string(),
+            format!("@{account_address}"),
+        ],
+        display: HashSet::new(),
+    })
+    .execute(context)
+    .await?;
+    assert!(matches!(
+        transfer_resp,
+        IotaClientCommandResult::TransactionBlock(ref tx) if tx.effects.as_ref().unwrap().status().is_ok()
+    ));
+
+    // Add and switch to account
+    IotaClientCommands::AddAccount {
+        alias: None,
+        address: account_address.into(),
+    }
+    .execute(context)
+    .await?;
+    IotaClientCommands::Switch {
+        address: Some(IotaAddress::from(account_address).into()),
+        env: None,
+    }
+    .execute(context)
+    .await?;
+
+    // Perform auth transaction
+    let ptb_resp = IotaClientCommands::PTB(PTB {
+        args: vec![
+            "--split-coins".to_string(),
+            "gas".to_string(),
+            "[1]".to_string(),
+            "--assign".to_string(),
+            "coin".to_string(),
+            "--transfer-objects".to_string(),
+            "[coin]".to_string(),
+            format!("@{account_address}"),
+            "--auth-call-args".to_string(),
+            "hello".to_string(),
+        ],
+        display: HashSet::new(),
+    })
+    .execute(context)
+    .await?;
+    assert!(matches!(
+        ptb_resp,
+        IotaClientCommandResult::TransactionBlock(ref tx) if tx.effects.as_ref().unwrap().status().is_ok()
+    ));
+
+    // Perform auth transaction with client sign command
+    let ptb_resp = IotaClientCommands::PTB(PTB {
+        args: vec![
+            "--split-coins".to_string(),
+            "gas".to_string(),
+            "[1]".to_string(),
+            "--assign".to_string(),
+            "coin".to_string(),
+            "--transfer-objects".to_string(),
+            "[coin]".to_string(),
+            format!("@{account_address}"),
+            "--sender".to_string(),
+            format!("@{account_address}"),
+            "--serialize-unsigned-transaction".to_string(),
+        ],
+        display: HashSet::new(),
+    })
+    .execute(context)
+    .await?;
+    let tx_data = if let IotaClientCommandResult::SerializedUnsignedTransaction(tx) = ptb_resp {
+        tx
+    } else {
+        panic!("Expected SerializedUnsignedTransaction");
+    };
+
+    let sign_result = IotaClientCommands::Sign {
+        address: KeyIdentity::Address(account_address.into()),
+        data: Base64::encode(bcs::to_bytes(&tx_data).unwrap()),
+        intent: None,
+        auth_call_args: Some(vec!["hello".to_string()]),
+        auth_type_args: None,
+    }
+    .execute(context)
+    .await?;
+    let sign_data = if let IotaClientCommandResult::Sign(data) = sign_result {
+        data
+    } else {
+        panic!("Expected Sign result");
+    };
+
+    let execute_result = IotaClientCommands::ExecuteSignedTx {
+        tx_bytes: sign_data.raw_tx_data,
+        signatures: vec![sign_data.iota_signature],
+    }
+    .execute(context)
+    .await?;
+    assert!(matches!(
+        execute_result,
+        IotaClientCommandResult::TransactionBlock(ref tx) if tx.effects.as_ref().unwrap().status().is_ok()
+    ));
 
     Ok(())
 }

@@ -146,7 +146,23 @@ export function useCreateAccountsMutation() {
                     await createPasskeyAccount({
                         username: accountsFormValues.username,
                         authenticatorAttachment: accountsFormValues.authenticatorAttachment,
-                        isRestore: accountsFormValues.isRestoreAccount,
+                    });
+
+                createdAccounts = await backgroundClient.createAccounts({
+                    type: AccountType.PasskeyDerived,
+                    address,
+                    publicKey,
+                    providerOptions,
+                    credentialId,
+                    password: password!,
+                });
+            } else if (
+                type === AccountsFormType.ImportPasskey &&
+                validateAccountFormValues(type, accountsFormValues, password)
+            ) {
+                const { address, publicKey, providerOptions, credentialId } =
+                    await createPasskeyAccount({
+                        isRestore: true,
                     });
 
                 createdAccounts = await backgroundClient.createAccounts({

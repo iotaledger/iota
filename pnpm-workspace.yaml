@@ -27,3 +27,5 @@ packages:
   - "!sdk/signers/gcp"
   - "!sdk/signers/ledger"
   - "!sdk/signers/webcrypto"
+  - "!sdk/typescript/test/**/**"
+minimumReleaseAge: 1440

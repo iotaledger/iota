@@ -18,6 +18,7 @@ use iota_json_rpc_types::{
     StakeStatus,
 };
 use iota_sdk::rpc_types::IotaExecutionStatus;
+use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_types::{
     base_types::IotaAddress,
     crypto::{DefaultHash, SignatureScheme, ToFromBytes},
@@ -26,7 +27,6 @@ use iota_types::{
     signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},
     transaction::{Transaction, TransactionData, TransactionDataAPI},
 };
-use shared_crypto::intent::{Intent, IntentMessage};
 
 use crate::{
     IotaEnv, OnlineServerContext,

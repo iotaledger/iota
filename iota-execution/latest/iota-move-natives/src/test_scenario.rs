@@ -21,7 +21,7 @@ use iota_types::{
     id::UID,
     in_memory_storage::InMemoryStorage,
     object::{MoveObject, Object, Owner},
-    storage::ChildObjectResolver,
+    storage::{BackingPackageStore, ChildObjectResolver},
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
@@ -87,6 +87,16 @@ impl ChildObjectResolver for InMemoryTestStore {
                 epoch_id,
             )
         })
+    }
+}
+
+impl BackingPackageStore for InMemoryTestStore {
+    fn get_package_object(
+        &self,
+        package_id: &ObjectID,
+    ) -> iota_types::error::IotaResult<Option<iota_types::storage::PackageObject>> {
+        self.0
+            .with_borrow(|store| store.get_package_object(package_id))
     }
 }
 
@@ -775,7 +785,7 @@ fn most_recent_at_ty_opt(
     ty: Type,
 ) -> Option<Value> {
     let s = inv.get(&ty)?;
-    let most_recent_id = s.iter().filter(|id| !taken.contains_key(id)).next_back()?;
+    let most_recent_id = s.iter().rfind(|id| !taken.contains_key(id))?;
     Some(pack_id(*most_recent_id))
 }
 

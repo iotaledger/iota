@@ -64,6 +64,7 @@ use crate::{
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     network::NetworkClient,
+    scoring_metrics_store::ErrorSource,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
 };
 
@@ -512,12 +513,13 @@ impl<C: NetworkClient> CommitSyncer<C> {
                             .clone();
                         inner
                             .context
-                            .metrics
+                            .scoring_metrics_store
                             .update_scoring_metrics_on_block_receival(
                                 authority,
                                 hostname.as_str(),
                                 e.clone(),
-                                "fetch_once",
+                                ErrorSource::CommitSyncer,
+                                &inner.context.metrics.node_metrics,
                             );
                         warn!("Failed to fetch {commit_range:?} from {hostname}: {}", e);
                         let error: &'static str = e.into();
@@ -561,6 +563,10 @@ impl<C: NetworkClient> CommitSyncer<C> {
         commit_range: CommitRange,
         timeout: Duration,
     ) -> ConsensusResult<CertifiedCommits> {
+        // Maximum delay between consecutive pipelined requests, to avoid
+        // overwhelming the peer while still maintaining reasonable throughput.
+        const MAX_PIPELINE_DELAY: Duration = Duration::from_secs(1);
+
         let hostname = inner
             .context
             .committee
@@ -614,7 +620,8 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 async move {
                     // 4. Send out pipelined fetch requests to avoid overloading the target
                     //    authority.
-                    sleep(timeout * i as u32 / num_chunks).await;
+                    let individual_delay = (timeout / num_chunks).min(MAX_PIPELINE_DELAY);
+                    sleep(individual_delay * i as u32).await;
                     // TODO: add some retries.
                     let serialized_blocks = inner
                         .network_client

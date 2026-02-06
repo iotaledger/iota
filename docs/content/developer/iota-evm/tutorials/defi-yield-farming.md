@@ -37,7 +37,6 @@ At its core, yield farming allows cryptocurrency holders to lock up their assets
 
 - [Node.js](https://nodejs.org) >= v18.0
 - [Hardhat](https://hardhat.org) >= v2.0.0
-- [npx](https://www.npmjs.com/package/npx) >= v7.1.0.
 - Basic understanding of Solidity and smart contracts.
 
 ## 1. Set Up the Hardhat Project
@@ -183,7 +182,7 @@ npx hardhat run scripts/deploy.js --network iota_evm_testnet
 ```
 
 You can verify your contract by visiting
-the [IOTA EVM Testnet Explorer](https://explorer.evm.testnet.iota.network/),
+the [IOTA EVM Testnet Explorer](https://explorer.evm.testnet.iota.cafe),
 and searching for the address from the previous step. If you access the `Contract` tab, you should be able to see your code and interact with your contract or you can use the below command to verify the contracts through hardhat :
 
 ```bash

@@ -31,7 +31,7 @@ use iota_json_rpc_types::{
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_node::IotaNodeHandle;
-use iota_protocol_config::ProtocolVersion;
+use iota_protocol_config::{Chain, ProtocolVersion};
 use iota_sdk::{
     IotaClient, IotaClientBuilder,
     apis::QuorumDriverApi,
@@ -53,6 +53,7 @@ use iota_types::{
     base_types::{AuthorityName, ConciseableName, IotaAddress, ObjectID, ObjectRef},
     committee::{Committee, CommitteeTrait, EpochId},
     crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, get_key_pair},
+    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
@@ -131,6 +132,14 @@ impl TestCluster {
 
     pub fn rpc_url(&self) -> &str {
         &self.fullnode_handle.rpc_url
+    }
+
+    pub fn grpc_url(&self) -> String {
+        let grpc_config = self
+            .fullnode_handle
+            .iota_node
+            .with(|node| node.get_config().grpc_api_config.clone());
+        format!("http://{}", grpc_config.unwrap_or_default().address)
     }
 
     pub fn wallet(&mut self) -> &WalletContext {
@@ -728,14 +737,15 @@ impl TestCluster {
     }
 
     /// This call sends some funds from the seeded faucet address to the funding
-    /// address for the given amount and returns the gas object ref. This
-    /// is useful to construct transactions from the funding address.
-    pub async fn fund_address_and_return_gas(
+    /// address for the given amount and returns the gas object ref and
+    /// transaction digest. This is useful to construct transactions from
+    /// the funding address.
+    pub async fn fund_address_and_return_gas_and_tx(
         &self,
         rgp: u64,
         amount: Option<u64>,
         funding_address: IotaAddress,
-    ) -> ObjectRef {
+    ) -> (ObjectRef, TransactionDigest) {
         let Faucet { address, keypair } = &self
             .faucet
             .as_ref()
@@ -768,14 +778,34 @@ impl TestCluster {
             .await
             .unwrap();
 
-        response
+        let object_ref = response
             .effects
+            .as_ref()
             .unwrap()
             .created()
             .first()
             .unwrap()
             .reference
-            .to_object_ref()
+            .to_object_ref();
+
+        let tx_digest = response.digest;
+
+        (object_ref, tx_digest)
+    }
+
+    /// This call sends some funds from the seeded faucet address to the funding
+    /// address for the given amount and returns the gas object ref. This
+    /// is useful to construct transactions from the funding address.
+    pub async fn fund_address_and_return_gas(
+        &self,
+        rgp: u64,
+        amount: Option<u64>,
+        funding_address: IotaAddress,
+    ) -> ObjectRef {
+        let (object_ref, _tx_digest) = self
+            .fund_address_and_return_gas_and_tx(rgp, amount, funding_address)
+            .await;
+        object_ref
     }
 
     pub async fn transfer_iota_must_exceed(
@@ -1002,11 +1032,13 @@ pub struct TestClusterBuilder {
     fullnode_run_with_range: Option<RunWithRange>,
     fullnode_policy_config: Option<PolicyConfig>,
     fullnode_fw_config: Option<RemoteFirewallConfig>,
+    fullnode_enable_grpc_api: bool,
     fullnode_grpc_api_config: Option<GrpcApiConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
     validator_state_accumulator_config: StateAccumulatorV1EnabledConfig,
     disable_address_verification_cooldown: bool,
+    chain_override: Option<Chain>,
 }
 
 impl TestClusterBuilder {
@@ -1014,6 +1046,7 @@ impl TestClusterBuilder {
         TestClusterBuilder {
             genesis_config: None,
             network_config: None,
+            chain_override: None,
             additional_objects: vec![],
             fullnode_rpc_port: None,
             fullnode_rpc_addr: None,
@@ -1035,6 +1068,7 @@ impl TestClusterBuilder {
             fullnode_run_with_range: None,
             fullnode_policy_config: None,
             fullnode_fw_config: None,
+            fullnode_enable_grpc_api: false,
             fullnode_grpc_api_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
@@ -1067,6 +1101,11 @@ impl TestClusterBuilder {
 
     pub fn with_fullnode_rpc_addr(mut self, addr: SocketAddr) -> Self {
         self.fullnode_rpc_addr = Some(addr);
+        self
+    }
+
+    pub fn with_fullnode_enable_grpc_api(mut self, enable: bool) -> Self {
+        self.fullnode_enable_grpc_api = enable;
         self
     }
 
@@ -1273,6 +1312,11 @@ impl TestClusterBuilder {
         self
     }
 
+    pub fn with_chain_override(mut self, chain: Chain) -> Self {
+        self.chain_override = Some(chain);
+        self
+    }
+
     pub async fn build(mut self) -> TestCluster {
         // We can add a faucet account to the `GenesisConfig` if there was no
         // `NetworkConfig` provided. Only either a `GenesisConfig` or a
@@ -1374,6 +1418,10 @@ impl TestClusterBuilder {
             .with_fullnode_policy_config(self.fullnode_policy_config.clone())
             .with_fullnode_fw_config(self.fullnode_fw_config.clone());
 
+        if let Some(chain) = self.chain_override {
+            builder = builder.with_chain_override(chain);
+        }
+
         if let Some(genesis_config) = self.genesis_config.take() {
             builder = builder.with_genesis_config(genesis_config);
         }
@@ -1428,6 +1476,7 @@ impl TestClusterBuilder {
         if self.disable_fullnode_pruning {
             builder = builder.with_disable_fullnode_pruning();
         }
+        builder = builder.with_fullnode_enable_grpc_api(self.fullnode_enable_grpc_api);
         if let Some(config) = &self.fullnode_grpc_api_config {
             builder = builder.with_fullnode_grpc_api_config(config.clone());
         }

@@ -31,7 +31,7 @@ use rand::{rngs::StdRng, SeedableRng};
 use regex::Regex;
 use reqwest::Client;
 use serde_json::json;
-use shared_crypto::intent::Intent;
+use iota_sdk_types::crypto::Intent;
 
 /// Read a line from stdin, parse the id_token field and return.
 pub fn read_cli_line() -> Result<String, anyhow::Error> {

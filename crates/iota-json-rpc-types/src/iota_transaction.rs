@@ -2,10 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    fmt::{self, Display, Formatter, Write},
-    sync::Arc,
-};
+use std::fmt::{self, Display, Formatter, Write};
 
 use enum_dispatch::enum_dispatch;
 use fastcrypto::encoding::Base64;
@@ -36,7 +33,7 @@ use iota_types::{
     signature::GenericSignature,
     storage::{DeleteKind, WriteKind},
     transaction::{
-        Argument, CallArg, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, Command,
+        Argument, CallArg, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
         EndOfEpochTransactionKind, GenesisObject, InputObjectKind, ObjectArg, ProgrammableMoveCall,
         ProgrammableTransaction, SenderSignedData, TransactionData, TransactionDataAPI,
         TransactionKind,
@@ -556,6 +553,9 @@ impl IotaTransactionBlockKind {
                             EndOfEpochTransactionKind::ChangeEpochV3(e) => {
                                 IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
+                            EndOfEpochTransactionKind::ChangeEpochV4(e) => {
+                                IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
+                            }
                             EndOfEpochTransactionKind::AuthenticatorStateCreate => {
                                 IotaEndOfEpochTransactionKind::AuthenticatorStateCreate
                             }
@@ -575,7 +575,7 @@ impl IotaTransactionBlockKind {
 
     async fn try_from_with_package_resolver(
         tx: TransactionKind,
-        package_resolver: Arc<Resolver<impl PackageStore>>,
+        package_resolver: &Resolver<impl PackageStore>,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         Ok(match tx {
@@ -636,6 +636,9 @@ impl IotaTransactionBlockKind {
                                 IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
                             EndOfEpochTransactionKind::ChangeEpochV3(e) => {
+                                IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
+                            }
+                            EndOfEpochTransactionKind::ChangeEpochV4(e) => {
                                 IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
                             EndOfEpochTransactionKind::AuthenticatorStateCreate => {
@@ -731,6 +734,10 @@ pub struct IotaChangeEpochV2 {
     #[serde_as(as = "Option<Vec<BigInt<u64>>>")]
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub eligible_active_validators: Option<Vec<u64>>,
+    #[schemars(with = "Option<Vec<BigInt<u64>>>")]
+    #[serde_as(as = "Option<Vec<BigInt<u64>>>")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub scores: Option<Vec<u64>>,
 }
 
 impl From<ChangeEpochV2> for IotaChangeEpochV2 {
@@ -743,6 +750,7 @@ impl From<ChangeEpochV2> for IotaChangeEpochV2 {
             storage_rebate: e.storage_rebate,
             epoch_start_timestamp_ms: e.epoch_start_timestamp_ms,
             eligible_active_validators: None,
+            scores: None,
         }
     }
 }
@@ -757,6 +765,22 @@ impl From<ChangeEpochV3> for IotaChangeEpochV2 {
             storage_rebate: e.storage_rebate,
             epoch_start_timestamp_ms: e.epoch_start_timestamp_ms,
             eligible_active_validators: Some(e.eligible_active_validators),
+            scores: None,
+        }
+    }
+}
+
+impl From<ChangeEpochV4> for IotaChangeEpochV2 {
+    fn from(e: ChangeEpochV4) -> Self {
+        Self {
+            epoch: e.epoch,
+            storage_charge: e.storage_charge,
+            computation_charge: e.computation_charge,
+            computation_charge_burned: e.computation_charge_burned,
+            storage_rebate: e.storage_rebate,
+            epoch_start_timestamp_ms: e.epoch_start_timestamp_ms,
+            eligible_active_validators: Some(e.eligible_active_validators),
+            scores: Some(e.scores),
         }
     }
 }
@@ -1164,6 +1188,8 @@ pub struct DryRunTransactionBlockResponse {
     /// suggested gas price with nn.
     // #[serde_as(as = "Option<BigInt<u64>>")]
     pub suggested_gas_price_with_nn: Option<u64>,
+    pub suggested_gas_price: Option<u64>,
+    pub execution_error_source: Option<String>,
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
@@ -1624,7 +1650,7 @@ impl IotaTransactionBlockData {
 
     pub async fn try_from_with_package_resolver(
         data: TransactionData,
-        package_resolver: Arc<Resolver<impl PackageStore>>,
+        package_resolver: &Resolver<impl PackageStore>,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         let message_version = data.message_version();
@@ -1686,7 +1712,7 @@ impl IotaTransactionBlock {
     // IotaTransactionBlockData etc.
     pub async fn try_from_with_package_resolver(
         data: SenderSignedData,
-        package_resolver: Arc<Resolver<impl PackageStore>>,
+        package_resolver: &Resolver<impl PackageStore>,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
@@ -1912,7 +1938,7 @@ impl IotaProgrammableTransactionBlock {
 
     async fn try_from_with_package_resolver(
         value: ProgrammableTransaction,
-        package_resolver: Arc<Resolver<impl PackageStore>>,
+        package_resolver: &Resolver<impl PackageStore>,
     ) -> Result<Self, anyhow::Error> {
         // If the pure input layouts cannot be built, we will use `None` for the input
         // types.

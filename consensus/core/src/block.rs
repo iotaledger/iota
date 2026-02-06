@@ -16,8 +16,8 @@ use consensus_config::{
 };
 use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::{Digest, HashFunction};
+use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use serde::{Deserialize, Serialize};
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 
 use crate::{
     commit::CommitVote,
@@ -87,6 +87,7 @@ pub struct BlockV1 {
     ancestors: Vec<BlockRef>,
     transactions: Vec<Transaction>,
     commit_votes: Vec<CommitVote>,
+    //  This form of misbehavior report is now deprecated
     misbehavior_reports: Vec<MisbehaviorReport>,
 }
 
@@ -459,6 +460,18 @@ impl VerifiedBlock {
         }
     }
 
+    pub(crate) fn new_verified_with_digest(
+        signed_block: SignedBlock,
+        serialized: Bytes,
+        digest: BlockDigest,
+    ) -> Self {
+        VerifiedBlock {
+            block: Arc::new(signed_block),
+            digest,
+            serialized,
+        }
+    }
+
     /// This method is public for testing in other crates.
     pub fn new_for_test(block: Block) -> Self {
         let signed_block = SignedBlock {
@@ -625,7 +638,7 @@ impl TestBlock {
     }
 }
 
-/// A block can attach reports of misbehavior by other authorities.
+//  This form of misbehavior report is now deprecated
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct MisbehaviorReport {
     pub target: AuthorityIndex,

@@ -5,9 +5,9 @@
 use std::collections::BTreeMap;
 
 use fastcrypto::{ed25519::Ed25519KeyPair, hash::HashFunction, traits::KeyPair as KeypairTraits};
+use iota_sdk_types::crypto::{Intent, IntentMessage};
 use rand::{SeedableRng, rngs::StdRng};
 use serde::Deserialize;
-use shared_crypto::intent::{Intent, IntentMessage};
 
 use crate::{
     IotaAddress,
@@ -120,6 +120,22 @@ pub fn to_sender_signed_transaction(
     to_sender_signed_transaction_with_multi_signers(data, vec![signer])
 }
 
+pub fn to_sender_signed_transaction_with_optional_sponsor(
+    data: TransactionData,
+    sender_signature: GenericSignature,
+    sponsor_signer_opt: Option<&dyn Signer<Signature>>,
+) -> Transaction {
+    let mut signatures = vec![sender_signature];
+    if let Some(sponsor) = sponsor_signer_opt {
+        let sponsor_sig =
+            Transaction::signature_from_signer(data.clone(), Intent::iota_transaction(), sponsor)
+                .into();
+        signatures.push(sponsor_sig);
+    };
+
+    Transaction::from_generic_sig_data(data, signatures)
+}
+
 pub fn to_sender_signed_transaction_with_multi_signers(
     data: TransactionData,
     signers: Vec<&dyn Signer<Signature>>,
@@ -129,7 +145,7 @@ pub fn to_sender_signed_transaction_with_multi_signers(
 
 mod zk_login {
     use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
-    use shared_crypto::intent::PersonalMessage;
+    use iota_sdk_types::crypto::PersonalMessage;
 
     use super::*;
     use crate::{crypto::PublicKey, zk_login_util::get_zklogin_inputs};
@@ -199,9 +215,9 @@ mod zk_login {
         USER_ADDRESS.with(|a| *a)
     }
 
-    pub fn sign_zklogin_personal_msg(data: PersonalMessage) -> (IotaAddress, GenericSignature) {
+    pub fn sign_zklogin_personal_msg(data: PersonalMessage<'_>) -> (IotaAddress, GenericSignature) {
         let inputs = get_zklogin_inputs();
-        let msg = IntentMessage::new(Intent::personal_message(), data);
+        let msg = IntentMessage::new(Intent::personal_message(), data.0);
         let s = Signature::new_secure(&msg, &get_zklogin_user_key());
         let authenticator =
             GenericSignature::ZkLoginAuthenticator(ZkLoginAuthenticator::new(inputs, 10, s));
@@ -288,4 +304,39 @@ mod zk_login {
         ))
     }
 }
+
+mod move_authenticator {
+    pub use crate::move_authenticator::MoveAuthenticator;
+    use crate::{
+        base_types::IotaAddress,
+        object::OBJECT_START_VERSION,
+        signature::GenericSignature,
+        transaction::{CallArg, ObjectArg, SenderSignedData, Transaction},
+        utils::make_transaction_data,
+    };
+
+    /// Make a transaction signed with `MoveAuthenticator` for testing.
+    pub fn make_move_authenticator_tx(address: IotaAddress) -> Transaction {
+        let data = make_transaction_data(address);
+
+        // There is no a real Move account behind this address.
+        //
+        // TODO: if it is necessary, AA accounts need to be supported properly in the
+        // `AuthorityState` used for testing.
+        let self_call_arg = CallArg::Object(ObjectArg::SharedObject {
+            id: address.into(),
+            initial_shared_version: OBJECT_START_VERSION,
+            mutable: false,
+        });
+        let authenticator = GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
+            vec![],
+            vec![],
+            self_call_arg,
+        ));
+
+        Transaction::new(SenderSignedData::new(data, vec![authenticator]))
+    }
+}
+
+pub use move_authenticator::*;
 pub use zk_login::*;

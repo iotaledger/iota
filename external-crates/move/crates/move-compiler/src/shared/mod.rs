@@ -480,6 +480,10 @@ impl CompilationEnv {
         self.package_config(package).edition
     }
 
+    pub fn flavor(&self, package: Option<Symbol>) -> Flavor {
+        self.package_config(package).flavor
+    }
+
     pub fn package_config(&self, package: Option<Symbol>) -> &PackageConfig {
         package
             .and_then(|p| self.package_configs.get(&p))

@@ -31,7 +31,7 @@ use jsonrpsee::{RpcModule, core::RpcResult};
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::sync::Mutex;
 
-use crate::{errors::IndexerError, read::IndexerReader, types::IotaSystemStateSummaryView};
+use crate::{errors::IndexerError, read::IndexerReader};
 
 /// Maximum amount of staked objects for querying.
 const MAX_QUERY_STAKED_OBJECTS: usize = 1000;
@@ -240,10 +240,17 @@ impl GovernanceReadApi {
         let system_state_summary = self.get_latest_iota_system_state().await?;
         let epoch = system_state_summary.epoch();
 
+        let (candidate_rates, pending_rates) = tokio::try_join!(
+            self.candidate_validators_exchange_rate(&system_state_summary),
+            self.pending_validators_exchange_rate()
+        )?;
+
         let rates = self
             .exchange_rates(&system_state_summary)
             .await?
             .into_iter()
+            .chain(candidate_rates)
+            .chain(pending_rates)
             .map(|rates| (rates.pool_id, rates))
             .collect::<BTreeMap<_, _>>();
 

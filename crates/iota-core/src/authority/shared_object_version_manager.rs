@@ -14,7 +14,7 @@ use iota_types::{
     storage::{
         ObjectKey, transaction_non_shared_input_object_keys, transaction_receiving_object_keys,
     },
-    transaction::{SenderSignedData, SharedInputObject, TransactionDataAPI, TransactionKey},
+    transaction::{SenderSignedData, SharedInputObject, TransactionKey},
 };
 use tracing::{debug, trace};
 
@@ -152,7 +152,7 @@ impl SharedObjVerManager {
         let txn_cancelled = cancellation_info.is_some();
 
         // Make an iterator to update the locks of the transaction's shared objects.
-        let shared_input_objects: Vec<_> = cert.shared_input_objects().collect();
+        let shared_input_objects = cert.shared_input_objects();
 
         let mut input_object_keys = transaction_non_shared_input_object_keys(cert)
             .expect("Transaction input should have been verified");
@@ -268,8 +268,7 @@ fn get_or_init_versions<'a>(
 ) -> IotaResult<HashMap<ObjectID, SequenceNumber>> {
     let mut shared_input_objects: Vec<_> = transactions
         .flat_map(|tx| {
-            tx.transaction_data()
-                .shared_input_objects()
+            tx.shared_input_objects()
                 .into_iter()
                 .map(|so| so.into_id_and_version())
         })
@@ -645,13 +644,13 @@ mod tests {
             .with_starting_objects(std::slice::from_ref(&shared_object))
             .build()
             .await;
-        let certs = vec![
+        let certs = [
             generate_shared_objs_tx_with_gas_version(&[(id, init_shared_version, true)], 3),
             generate_shared_objs_tx_with_gas_version(&[(id, init_shared_version, false)], 5),
             generate_shared_objs_tx_with_gas_version(&[(id, init_shared_version, true)], 9),
             generate_shared_objs_tx_with_gas_version(&[(id, init_shared_version, true)], 11),
         ];
-        let effects = vec![
+        let effects = [
             TestEffectsBuilder::new(certs[0].data()).build(),
             TestEffectsBuilder::new(certs[1].data())
                 .with_shared_input_versions(BTreeMap::from([(id, SequenceNumber::from_u64(4))]))

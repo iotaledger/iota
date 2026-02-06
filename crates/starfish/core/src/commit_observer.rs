@@ -18,9 +18,9 @@ use crate::{
     BlockRef, CommitConsumer, CommittedSubDag,
     block_header::{BlockHeaderAPI, VerifiedBlockHeader},
     commit::{CommitAPI, CommitIndex, PendingSubDag, load_pending_subdag_from_store},
+    commit_solidifier::CommitSolidifier,
     context::Context,
     dag_state::DagState,
-    data_manager::DataManager,
     error::{ConsensusError, ConsensusResult},
     leader_schedule::LeaderSchedule,
     linearizer::Linearizer,
@@ -45,9 +45,9 @@ use crate::{
 pub(crate) struct CommitObserver {
     context: Arc<Context>,
     /// Component to deterministically collect subdags for committed leaders.
-    commit_interpreter: Linearizer,
+    linearizer: Linearizer,
     /// Component to deterministically collect subdags for committed leaders.
-    commit_solidifier: DataManager,
+    commit_solidifier: CommitSolidifier,
     /// An unbounded channel to send committed sub-dags to the consumer of
     /// consensus output.
     sender: UnboundedSender<CommittedSubDag>,
@@ -72,12 +72,12 @@ impl CommitObserver {
     ) -> Self {
         let last_processed_commit_index = commit_consumer.last_processed_commit_index;
         let mut observer = Self {
-            commit_interpreter: Linearizer::new(
+            linearizer: Linearizer::new(
                 context.clone(),
                 dag_state.clone(),
                 leader_schedule.clone(),
             ),
-            commit_solidifier: DataManager::new(dag_state.clone()),
+            commit_solidifier: CommitSolidifier::new(dag_state.clone()),
             context,
             sender: commit_consumer.sender,
             store,
@@ -100,7 +100,7 @@ impl CommitObserver {
     /// - A vector of block references to transactions that were missing during
     ///   the commit.
     #[instrument(level = "trace", skip_all)]
-    pub(crate) fn handle_commit(
+    pub(crate) fn handle_committed_leaders(
         &mut self,
         committed_leaders: Vec<VerifiedBlockHeader>,
     ) -> ConsensusResult<(
@@ -112,16 +112,23 @@ impl CommitObserver {
             .metrics
             .node_metrics
             .scope_processing_time
-            .with_label_values(&["CommitObserver::handle_commit"])
+            .with_label_values(&["CommitObserver::handle_committed_leaders"])
             .start_timer();
 
-        let pending_sub_dags = self.commit_interpreter.handle_commit(committed_leaders);
+        let pending_sub_dags = self.linearizer.get_pending_sub_dags(committed_leaders);
 
         // First, add the commits to the commit solidifier to make sure that the data is
         // available. This function returns not only the just-created commits but also
         // any pending ones that'd become solid since the last commit.
-        let (solid_sub_dags, missing_transactions) =
-            self.commit_solidifier.try_commit(&pending_sub_dags);
+        let (solid_sub_dags, missing_transactions) = self
+            .commit_solidifier
+            .try_get_solid_sub_dags(&pending_sub_dags);
+
+        // Committed headers and sequenced transactions must be persisted to storage
+        // before sending them outside consensus.
+        if !pending_sub_dags.is_empty() || !solid_sub_dags.is_empty() {
+            self.dag_state.write().flush();
+        }
 
         tracing::trace!("Missing committed transactions {missing_transactions:#?}");
 
@@ -130,7 +137,7 @@ impl CommitObserver {
         // fetch the missing transactions from the authorities that acknowledged
         // them.
         let missing_transaction_acknowledgers = self
-            .commit_interpreter
+            .linearizer
             .get_transaction_ack_authors(missing_transactions);
 
         let mut sent_sub_dags = Vec::with_capacity(solid_sub_dags.len());
@@ -175,8 +182,8 @@ impl CommitObserver {
                 .expect("There should be at least one solid subdag")
                 .leader
                 .round;
-            self.commit_interpreter
-                .evict_old_acknowledgments(max_solid_commit_leader_round);
+            self.linearizer
+                .evict_linearizer(max_solid_commit_leader_round);
         }
         tracing::trace!("Committed & sent {sent_sub_dags:#?}");
 
@@ -255,13 +262,18 @@ impl CommitObserver {
             let pending_sub_dag =
                 load_pending_subdag_from_store(self.store.as_ref(), commit, reputation_scores);
 
+            // Rebuild traversed headers tracker so recovery can honor the
+            // traversed-headers gate when committing transactions.
+            self.linearizer
+                .record_traversed_headers(pending_sub_dag.headers.iter());
+
             // Recover transaction acknowledgments tracker state by adding transaction
             // acknowledgments from all pending sub-dags that still might
             // correctly acknowledge transactions.
             for ((round, authority_idx), transaction_acknowledgments) in
                 pending_sub_dag.transaction_acknowledgments().into_iter()
             {
-                self.commit_interpreter.add_committed_transaction_acks(
+                self.linearizer.add_committed_transaction_acks(
                     round,
                     authority_idx,
                     transaction_acknowledgments,
@@ -271,7 +283,9 @@ impl CommitObserver {
             // they are tracked there. The commit will be sent to IOTA here if all the
             // transactions are available or will be kept in the buffer and sent later when
             // the transactions become available.
-            let (solid_sub_dags, _missing) = self.commit_solidifier.try_commit(&[pending_sub_dag]);
+            let (solid_sub_dags, _missing) = self
+                .commit_solidifier
+                .try_get_solid_sub_dags(&[pending_sub_dag]);
             // Only submit unprocessed commits to IOTA
             for solid_sub_dag in solid_sub_dags {
                 if solid_sub_dag.commit_ref.index > last_processed_commit_index {
@@ -315,7 +329,7 @@ impl CommitObserver {
         &self,
     ) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
         let missing_refs = self.commit_solidifier.get_missing_transaction_data();
-        self.commit_interpreter
+        self.linearizer
             .get_transaction_ack_authors(missing_refs.into_iter().collect())
     }
 
@@ -356,11 +370,13 @@ impl CommitObserver {
             }
         }
 
-        self.context
-            .metrics
-            .node_metrics
-            .sub_dags_per_commit_count
-            .observe(pending_sub_dags.len() as f64);
+        if !pending_sub_dags.is_empty() {
+            self.context
+                .metrics
+                .node_metrics
+                .sub_dags_per_commit_count
+                .observe(pending_sub_dags.len() as f64);
+        }
 
         // Now report transaction-related metrics for committed subdags
         for commit in committed_sub_dags {
@@ -475,7 +491,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         let (commits, _missing_transactions_refs) =
-            observer.handle_commit(leaders.clone()).unwrap();
+            observer.handle_committed_leaders(leaders.clone()).unwrap();
 
         // Check commits are returned by CommitObserver::handle_commit is accurate
         let mut expected_stored_refs: Vec<BlockRef> = vec![];
@@ -594,7 +610,7 @@ mod tests {
         // consumer of the consensus output channel.
         let expected_last_processed_index: usize = 2;
         let (mut created_commits, _missing_transactions_refs) = observer
-            .handle_commit(
+            .handle_committed_leaders(
                 leaders
                     .clone()
                     .into_iter()
@@ -630,7 +646,7 @@ mod tests {
         // the consumer side where the commits were not persisted.
         created_commits.append(
             &mut observer
-                .handle_commit(
+                .handle_committed_leaders(
                     leaders
                         .clone()
                         .into_iter()
@@ -732,7 +748,7 @@ mod tests {
         // the consensus output channel.
         let expected_last_processed_index: usize = 10;
         let (created_commits, _missing_transactions_refs) =
-            observer.handle_commit(leaders.clone()).unwrap();
+            observer.handle_committed_leaders(leaders.clone()).unwrap();
 
         // Check commits sent over consensus output channel is accurate
         let mut processed_subdag_index = 0;
@@ -784,5 +800,216 @@ mod tests {
                 }
             },
         }
+    }
+
+    /// Test consensus node recovery and state restoration across restarts.
+    ///
+    /// ## Objective
+    /// This test verifies that when a consensus node restarts and enters
+    /// recovery mode, persisted state is correctly restored, allowing the
+    /// node to resume normal transaction processing after restart.
+    ///
+    /// ## Test Scenario
+    /// 1. Creates a DAG and commits blocks before simulated restart
+    /// 2. Simulates node restart by creating a new CommitObserver (clearing
+    ///    in-memory state)
+    /// 3. Verifies the observer recovers persisted state during initialization
+    /// 4. Commits new blocks after restart that reference pre-restart blocks
+    /// 5. Verifies transaction commit ratios demonstrate proper state recovery
+    ///
+    /// ## Key Metrics
+    /// - Before restart: commits some leaders and tracks transaction count
+    /// - After restart: new blocks can acknowledge and commit transactions from
+    ///   pre-restart blocks
+    /// - Expected ratio: transactions after restart should be 4x or more
+    ///   compared to before This high ratio indicates internal state was
+    ///   properly restored, allowing subsequent blocks to process
+    ///   acknowledgments from recovered blocks.
+    ///
+    /// ## Detection Coverage
+    /// This test will detect regressions if:
+    /// - The recovery process fails to restore necessary internal state
+    /// - Changes to the linearizer affect state restoration mechanisms
+    /// - The CommitObserver recovery logic is modified without updating state
+    ///   restoration
+    /// - The persisted state format changes without updating recovery
+    ///   procedures
+    /// - Transaction processing logic prevents acknowledgments from recovered
+    ///   blocks
+    #[tokio::test]
+    async fn test_recovery_restores_persistent_state_across_restart() {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities = 4;
+
+        // Create context with traversed headers tracking enabled
+        let mut protocol_config =
+            iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE();
+        protocol_config
+            .set_consensus_commit_transactions_only_for_traversed_headers_for_testing(true);
+
+        let (committee, _keypairs) =
+            starfish_config::local_committee_and_keys(0, vec![1; num_authorities]);
+        let metrics = crate::metrics::test_metrics();
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let clock = Arc::new(crate::context::Clock::default());
+        let context = Arc::new(Context::new(
+            0,
+            starfish_config::AuthorityIndex::new_for_test(0),
+            committee,
+            starfish_config::Parameters {
+                db_path: temp_dir.keep(),
+                ..Default::default()
+            },
+            protocol_config,
+            metrics,
+            clock,
+        ));
+
+        let mem_store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            mem_store.clone(),
+        )));
+
+        let (sender, mut receiver) = unbounded_channel("consensus_output");
+        let leader_schedule = Arc::new(LeaderSchedule::from_store(
+            context.clone(),
+            dag_state.clone(),
+        ));
+
+        // Phase 1: Normal operation before restart
+        let mut observer = CommitObserver::new(
+            context.clone(),
+            CommitConsumer::new(sender.clone(), 0),
+            dag_state.clone(),
+            mem_store.clone(),
+            leader_schedule.clone(),
+        );
+
+        let mut builder = DagBuilder::new(context.clone());
+        // Build 6 rounds (layers 1-6 each with 4 authorities = 24 blocks total)
+        builder
+            .layers(1..=6)
+            .build()
+            .persist_layers(dag_state.clone());
+
+        let all_leaders = builder
+            .leader_blocks(1..=6)
+            .into_iter()
+            .map(Option::unwrap)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            all_leaders.len(),
+            6,
+            "Should have 6 leaders (one per round)"
+        );
+
+        // Commit first 3 leaders (rounds 1-3)
+        // Each leader in the first 3 rounds has transactions from previous rounds
+        let (commits_before, _) = observer
+            .handle_committed_leaders(all_leaders[0..3].to_vec())
+            .unwrap();
+        // Expect 3 commits (one per leader committed)
+        assert_eq!(
+            commits_before.len(),
+            3,
+            "Should commit exactly 3 leaders in phase 1"
+        );
+
+        // Count transactions: with 4 authorities and standard DAG, each commit includes
+        // transactions from blocks 2 rounds back. For commits 1-3, expect transactions.
+        let mut txs_before = 0;
+        while let Ok(subdag) = receiver.try_recv() {
+            txs_before += subdag.transactions.len();
+        }
+        // Expect 4 transactions: roughly 1 per authority per commit window
+        assert_eq!(
+            txs_before, 4,
+            "Phase 1 should commit exactly 4 transactions"
+        );
+
+        let persisted_commits = mem_store
+            .scan_commits((0..=CommitIndex::MAX).into())
+            .unwrap();
+        // All 3 commits must be persisted
+        assert_eq!(
+            persisted_commits.len(),
+            3,
+            "All 3 commits must be persisted to storage"
+        );
+
+        // Phase 2: Simulate restart and recovery
+        // Create new observer with last_processed_index=0 to force recovery of all
+        // commits
+        let mut observer_after_restart = CommitObserver::new(
+            context.clone(),
+            CommitConsumer::new(sender.clone(), 0),
+            dag_state.clone(),
+            mem_store.clone(),
+            leader_schedule.clone(),
+        );
+
+        // Recovery should resend all 3 persisted commits
+        let mut recovery_commits_count = 0;
+        while let Ok(_subdag) = receiver.try_recv() {
+            recovery_commits_count += 1;
+        }
+        assert_eq!(
+            recovery_commits_count, 3,
+            "Recovery must resend exactly 3 persisted commits"
+        );
+
+        // Phase 3: New blocks after restart
+        // Build 2 new rounds (layers 7-8 each with 4 authorities = 8 new blocks)
+        // These new blocks will reference and acknowledge blocks from rounds 1-6
+        builder
+            .layers(7..=8)
+            .build()
+            .persist_layers(dag_state.clone());
+
+        let new_leaders = builder
+            .leader_blocks(7..=8)
+            .into_iter()
+            .map(Option::unwrap)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            new_leaders.len(),
+            2,
+            "Should have 2 new leaders from layers 7-8"
+        );
+
+        // Process new blocks - they acknowledge transactions from rounds 5-6
+        // plus transactions from recovered blocks (rounds 1-3)
+        let (_commits_after, _) = observer_after_restart
+            .handle_committed_leaders(new_leaders)
+            .unwrap();
+
+        // Count transactions from new commits: new leaders in rounds 7-8 will process
+        // acknowledgments from all previous rounds including recovered state
+        let mut txs_after = 0;
+        let mut new_commits_count = 0;
+        while let Ok(subdag) = receiver.try_recv() {
+            txs_after += subdag.transactions.len();
+            new_commits_count += 1;
+        }
+        // Expect 2 new commits (one per new leader)
+        assert_eq!(
+            new_commits_count, 2,
+            "Should generate exactly 2 new commits from new leaders"
+        );
+        // Expect 20 transactions: with proper state restoration, new blocks can process
+        // acknowledgments from all 4 authorities across multiple rounds (16 + 4 from
+        // recovery)
+        assert_eq!(
+            txs_after, 20,
+            "Phase 3 should commit exactly 20 transactions after recovery"
+        );
+
+        // Verify recovery was complete: recovery commits count must match persisted
+        assert_eq!(
+            recovery_commits_count,
+            persisted_commits.len(),
+            "Recovery must resend all persisted commits without loss or duplication"
+        );
     }
 }

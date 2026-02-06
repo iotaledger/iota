@@ -33,7 +33,7 @@ use crate::{
     context::Context,
     cordial_knowledge::CordialKnowledgeHandle,
     core_thread::CoreThreadDispatcher,
-    dag_state::DagState,
+    dag_state::{DagState, DataSource},
     encoder::ShardEncoder,
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
@@ -49,7 +49,7 @@ use crate::{
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
 
-const MAX_FILTER_SIZE: u32 = 10000;
+const MAX_FILTER_SIZE: u32 = 100000;
 
 struct FilterForHeaders {
     header_digests: DashSet<BlockHeaderDigest>,
@@ -446,6 +446,13 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             .processed_duplicated_headers_in_bundles
             .with_label_values(&[peer_hostname, "handle_subscribed_block_bundle"])
             .inc_by(digests_to_exclude.len() as u64);
+        for header in additional_block_headers.iter() {
+            self.context
+                .metrics
+                .node_metrics
+                .additional_headers_round_gap
+                .observe(block_ref.round.saturating_sub(header.round()) as f64);
+        }
     }
 }
 
@@ -458,6 +465,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
     ) -> ConsensusResult<()> {
         fail_point_async!("consensus-rpc-response");
+        let _s = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["AuthorityService::handle_stream"])
+            .start_timer();
 
         let peer_hostname = &self.context.committee.authority(peer).hostname;
         let mut serialized_block_bundle_parts =
@@ -481,6 +495,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .block_timestamp_drift_ms
             .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
             .inc_by(forward_time_drift.as_millis() as u64);
+        let latency_to_process_stream =
+            Duration::from_millis(now.saturating_sub(verified_block.timestamp_ms()));
+        self.context
+            .metrics
+            .node_metrics
+            .latency_to_process_stream
+            .with_label_values(&[peer_hostname.as_str()])
+            .observe(latency_to_process_stream.as_secs_f64());
 
         // 3. Create block headers from bytes from a bundle
 
@@ -545,24 +567,46 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // sent in order of increasing rounds.
         let (mut missing_ancestors, mut missing_committed_txns) = self
             .core_dispatcher
-            .add_block_headers(additional_block_headers.clone())
+            .add_block_headers(
+                additional_block_headers.clone(),
+                DataSource::BlockBundleStream,
+            )
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
+        self.context
+            .metrics
+            .node_metrics
+            .missing_ancestors_from_streaming
+            .with_label_values(&["headers"])
+            .observe(missing_ancestors.len() as f64);
 
         // 10. Add the block to dag, add its missing ancestors to the set
         let (missing_block_ancestors, missing_block_committed_transactions) = self
             .core_dispatcher
-            .add_blocks(vec![verified_block])
+            .add_blocks(vec![verified_block], DataSource::BlockStreaming)
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
+        self.context
+            .metrics
+            .node_metrics
+            .missing_ancestors_from_streaming
+            .with_label_values(&["block"])
+            .observe(missing_block_ancestors.len() as f64);
 
         missing_ancestors.extend(missing_block_ancestors);
         missing_committed_txns.extend(missing_block_committed_transactions);
 
+        for missing_block_ref in missing_ancestors.iter() {
+            self.context
+                .metrics
+                .node_metrics
+                .missing_ancestors_from_streaming_round_gap
+                .observe(block_ref.round as f64 - missing_block_ref.round as f64);
+        }
+
         // 11. Add our shard from the received block and its proof to the dag_state
         // only if it contains transactions
-        if shard_for_core.is_some() {
-            let shard_for_core = shard_for_core.unwrap();
+        if let Some(shard_for_core) = shard_for_core {
             let serialized_shard_for_core: Bytes = bcs::to_bytes(&shard_for_core)
                 .map_err(ConsensusError::SerializationFailure)?
                 .into();
@@ -605,8 +649,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .await
             {
                 warn!(
-                    "Errored while trying to fetch missing transactions via
-             transactions synchronizer: {err}"
+                    "Errored while trying to fetch missing transactions via transactions synchronizer: {err}"
                 );
             }
         }
@@ -735,13 +778,40 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // Get requested block headers from store.
         let serialized_headers = if commit_sync_handle {
-            // For commit sync, we respond with all blocks from the store
-            self.dag_state
-                .read()
-                .get_serialized_block_headers(&block_refs)
-                .into_iter()
-                .flatten()
-                .collect()
+            // For commit sync, optimize by fetching from store for headers below GC round
+            let gc_round = self.dag_state.read().gc_round_for_last_solid_commit();
+
+            // Partition block_refs into those below and at-or-above GC round
+            let (below_gc, above_gc): (Vec<_>, Vec<_>) = block_refs
+                .iter()
+                .partition(|block_ref| block_ref.round < gc_round);
+
+            let mut headers = Vec::new();
+
+            // Read headers below GC from store
+            if !below_gc.is_empty() {
+                let store_headers = self
+                    .store
+                    .read_serialized_block_headers(&below_gc)?
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>();
+                headers.extend(store_headers);
+            }
+
+            // Read headers at-or-above GC from dag_state
+            if !above_gc.is_empty() {
+                let dag_headers = self
+                    .dag_state
+                    .read()
+                    .get_serialized_block_headers(&above_gc)
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>();
+                headers.extend(dag_headers);
+            }
+
+            headers
         } else {
             // For periodic or live synchronizer, we respond with requested blocks from the
             // store and with additional blocks from the cache
@@ -934,8 +1004,20 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             return Ok(Vec::new());
         }
 
-        if block_refs.len() > self.context.parameters.max_transactions_per_fetch {
-            block_refs.truncate(self.context.parameters.max_transactions_per_fetch);
+        // Use the maximum of both limits to accommodate both commit sync and regular
+        // sync requests
+        let max_transactions = self
+            .context
+            .parameters
+            .max_transactions_per_regular_sync_fetch
+            .max(
+                self.context
+                    .parameters
+                    .max_transactions_per_commit_sync_fetch,
+            );
+
+        if block_refs.len() > max_transactions {
+            block_refs.truncate(max_transactions);
         }
 
         // Some quick validation of the requested block refs
@@ -945,21 +1027,46 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             &self.context.committee,
         )?;
 
-        // Get the transactions from the dag state
-        let transactions = self
-            .dag_state
-            .read()
-            .get_serialized_transactions(&block_refs);
+        // Optimize by reading from store for transactions below GC round
+        let gc_round = self.dag_state.read().gc_round_for_last_solid_commit();
 
-        // Return the serialized transactions
-        let result: Vec<_> = transactions
+        // Partition block_refs into those below and at-or-above GC round
+        let (below_gc, above_gc): (Vec<_>, Vec<_>) = block_refs
+            .iter()
+            .partition(|block_ref| block_ref.round < gc_round);
+
+        // Fetch transactions below GC from store
+        let store_transactions = if !below_gc.is_empty() {
+            self.store
+                .read_serialized_transactions(&below_gc)?
+                .into_iter()
+                .zip(below_gc.iter())
+                .collect::<Vec<_>>()
+        } else {
+            vec![]
+        };
+
+        // Fetch transactions at-or-above GC from dag_state
+        let dag_transactions = if !above_gc.is_empty() {
+            self.dag_state
+                .read()
+                .get_serialized_transactions(&above_gc)
+                .into_iter()
+                .zip(above_gc.iter())
+                .collect::<Vec<_>>()
+        } else {
+            vec![]
+        };
+
+        // Combine and serialize the results
+        let result: Vec<_> = store_transactions
             .into_iter()
-            .zip(block_refs)
+            .chain(dag_transactions)
             .filter_map(|(opt_serialized_tx, block_ref)| {
                 opt_serialized_tx.map(|serialized_tx| {
                     Bytes::from(
                         bcs::to_bytes(&SerializedTransactions {
-                            block_ref,
+                            block_ref: *block_ref,
                             serialized_transactions: serialized_tx,
                         })
                         .map_err(ConsensusError::SerializationFailure)
@@ -1227,7 +1334,7 @@ mod tests {
         cordial_knowledge::{ConnectionKnowledgeMessage, CordialKnowledge},
         core::{Core, CoreSignals, ReasonToCreateBlock},
         core_thread::{CoreError, CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
-        dag_state::{DagState, TransactionSource},
+        dag_state::{DagState, DataSource},
         encoder::create_encoder,
         error::{ConsensusError, ConsensusResult},
         header_synchronizer::HeaderSynchronizer,
@@ -1315,7 +1422,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
@@ -1393,7 +1499,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
@@ -1482,7 +1587,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
@@ -1562,7 +1666,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
@@ -1700,7 +1803,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
@@ -1827,7 +1929,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
@@ -1870,7 +1971,7 @@ mod tests {
 
         for round in 1..=rounds / 2 {
             core_dispatcher
-                .add_block_headers(all_block_headers[round as usize].clone())
+                .add_block_headers(all_block_headers[round as usize].clone(), DataSource::Test)
                 .await
                 .expect("block headers are expected to be added successfully");
         }
@@ -1893,7 +1994,7 @@ mod tests {
         for round in rounds / 2 + 1..=rounds {
             let headers = &all_block_headers[round as usize];
             core_dispatcher
-                .add_block_headers(headers[..2].to_vec())
+                .add_block_headers(headers[..2].to_vec(), DataSource::Test)
                 .await
                 .expect("block headers are expected to be added successfully");
         }
@@ -1913,7 +2014,7 @@ mod tests {
         for round in rounds / 2 + 1..=rounds {
             let headers = &all_block_headers[round as usize];
             core_dispatcher
-                .add_block_headers(headers[2..].to_vec())
+                .add_block_headers(headers[2..].to_vec(), DataSource::Test)
                 .await
                 .expect("block headers are expected to be added successfully");
         }
@@ -1936,6 +2037,7 @@ mod tests {
         async fn add_blocks(
             &self,
             blocks: Vec<VerifiedBlock>,
+            source: DataSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
@@ -1949,13 +2051,14 @@ mod tests {
                 let entry = &mut vec[block.author()];
                 *entry = max(*entry, block.round());
             }
-            let _ = guard.add_blocks(blocks);
+            let _ = guard.add_blocks(blocks, source);
             Ok((BTreeSet::new(), BTreeMap::new()))
         }
 
         async fn add_block_headers(
             &self,
             block_headers: Vec<VerifiedBlockHeader>,
+            source: DataSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
@@ -1969,14 +2072,14 @@ mod tests {
                 let entry = &mut vec[block_header.author()];
                 *entry = max(*entry, block_header.round());
             }
-            let _ = guard.add_block_headers(block_headers);
+            let _ = guard.add_block_headers(block_headers, source);
             Ok((BTreeSet::new(), BTreeMap::new()))
         }
 
         async fn add_transactions(
             &self,
             _transactions: Vec<VerifiedTransactions>,
-            _source: TransactionSource,
+            _source: DataSource,
         ) -> Result<(), CoreError> {
             unimplemented!("Unimplemented")
         }
@@ -2094,7 +2197,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
@@ -2135,7 +2237,10 @@ mod tests {
         }
         for round in 1..=rounds {
             core_dispatcher
-                .add_block_headers(vec![all_headers[round as usize][0].clone()])
+                .add_block_headers(
+                    vec![all_headers[round as usize][0].clone()],
+                    DataSource::Test,
+                )
                 .await
                 .expect("blocks header is expected to be added successfully");
             for peer in 1..validators {
@@ -2250,7 +2355,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
@@ -2291,7 +2395,10 @@ mod tests {
         }
         for round in 1..=rounds {
             core_dispatcher
-                .add_block_headers(vec![all_headers[round as usize][0].clone()])
+                .add_block_headers(
+                    vec![all_headers[round as usize][0].clone()],
+                    DataSource::Test,
+                )
                 .await
                 .expect("blocks header is expected to be added successfully");
             for peer in 1..validators {
@@ -2422,7 +2529,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
@@ -2468,11 +2574,14 @@ mod tests {
         let first_batch_end_exclusive = 5;
         for round in 1..first_batch_end_exclusive {
             core_dispatcher
-                .add_blocks(all_blocks[round as usize - 1].clone())
+                .add_blocks(all_blocks[round as usize - 1].clone(), DataSource::Test)
                 .await
                 .expect("blocks are expected to be added successfully");
             core_dispatcher
-                .add_blocks(vec![all_blocks[round as usize][0].clone()])
+                .add_blocks(
+                    vec![all_blocks[round as usize][0].clone()],
+                    DataSource::Test,
+                )
                 .await
                 .expect("blocks are expected to be added successfully");
             sleep(Duration::from_millis(50)).await;
@@ -2580,11 +2689,14 @@ mod tests {
 
         for round in first_batch_end_exclusive..=rounds {
             core_dispatcher
-                .add_blocks(all_blocks[round as usize - 1].clone())
+                .add_blocks(all_blocks[round as usize - 1].clone(), DataSource::Test)
                 .await
                 .expect("blocks are expected to be added successfully");
             core_dispatcher
-                .add_blocks(vec![all_blocks[round as usize][0].clone()])
+                .add_blocks(
+                    vec![all_blocks[round as usize][0].clone()],
+                    DataSource::Test,
+                )
                 .await
                 .expect("blocks are expected to be added successfully");
             sleep(Duration::from_millis(50)).await;
@@ -2738,7 +2850,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
@@ -2880,7 +2991,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
@@ -3043,7 +3153,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
@@ -3086,7 +3195,7 @@ mod tests {
 
         for round in 1..=rounds {
             core_dispatcher
-                .add_block_headers(all_block_headers[round as usize].clone())
+                .add_block_headers(all_block_headers[round as usize].clone(), DataSource::Test)
                 .await
                 .expect("block headers are expected to be added successfully");
         }
@@ -3117,7 +3226,7 @@ mod tests {
         }
         all_block_headers.push(new_block_headers.clone());
         core_dispatcher
-            .add_block_headers(new_block_headers.clone())
+            .add_block_headers(new_block_headers.clone(), DataSource::Test)
             .await
             .expect("block headers are expected to be added successfully");
 
@@ -3139,7 +3248,7 @@ mod tests {
             }
             all_block_headers.push(new_block_headers.clone());
             core_dispatcher
-                .add_block_headers(new_block_headers.clone())
+                .add_block_headers(new_block_headers.clone(), DataSource::Test)
                 .await
                 .expect("block headers are expected to be added successfully");
         }
@@ -3168,7 +3277,8 @@ mod tests {
         let (context, key_pairs) = Context::new_for_test(validators);
         let context = Context {
             parameters: Parameters {
-                max_transactions_per_fetch: 20,
+                max_transactions_per_regular_sync_fetch: 20,
+                max_transactions_per_commit_sync_fetch: 10,
                 ..context.parameters
             },
             ..context
@@ -3228,7 +3338,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
 
@@ -3292,7 +3401,8 @@ mod tests {
             .await
             .expect("We should expect a correct return of serialized transactions");
 
-        block_refs_to_request_first_batch.truncate(context.parameters.max_transactions_per_fetch);
+        block_refs_to_request_first_batch
+            .truncate(context.parameters.max_transactions_per_regular_sync_fetch);
         // Verify that we received the correct number of requested transactions
         assert_eq!(
             serialized_transactions.len(),
@@ -3325,7 +3435,8 @@ mod tests {
             );
         }
 
-        block_refs_to_request_second_batch.truncate(context.parameters.max_transactions_per_fetch);
+        block_refs_to_request_second_batch
+            .truncate(context.parameters.max_transactions_per_regular_sync_fetch);
 
         let serialized_transactions = authority_service
             .handle_fetch_transactions(peer, block_refs_to_request_second_batch.clone())

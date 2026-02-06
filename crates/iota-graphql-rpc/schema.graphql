@@ -102,7 +102,7 @@ type Address implements IOwner {
 	"""
 	Similar behavior to the `transactionBlocks` in Query but supporting the
 	additional `AddressTransactionBlockRelationship` filter, which
-	defaults to `SIGN`.
+	defaults to `SENT`.
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
 	gathering a page of results. It is required for queries that apply
@@ -171,14 +171,22 @@ type AddressOwner {
 }
 
 """
-The possible relationship types for a transaction block: sign, sent,
-received, or paid.
+The possible relationship types for a transaction block: sent or received.
 """
 enum AddressTransactionBlockRelationship {
 	"""
-	Transactions this address has signed either as a sender or as a sponsor.
+	Transactions this address has sent. NOTE: this input filter has been
+	deprecated in favor of `SENT` which behaves identically but is named
+	more clearly. Both filters restrict transactions by their sender,
+	only, not signers in general.
+	
+	This filter will be removed after 6 months with the 1.24.0 release.
 	"""
-	SIGN
+	SIGN @deprecated(reason: "Misleading semantics. Use `SENT` instead. This will be removed with the 1.24.0 release.")
+	"""
+	Transactions this address has sent.
+	"""
+	SENT
 	"""
 	Transactions that sent objects to this address.
 	"""
@@ -445,6 +453,10 @@ type ChangeEpochTransactionV2 {
 	next epoch.
 	"""
 	eligibleActiveValidators: [BigInt!]
+	"""
+	The validator scores at the end of the epoch.
+	"""
+	scores: [BigInt!]
 }
 
 """
@@ -1232,7 +1244,7 @@ type Epoch {
 	"""
 	The total IOTA supply.
 	"""
-	iotaTotalSupply: Int
+	iotaTotalSupply: BigInt
 	"""
 	The treasury-cap id.
 	"""
@@ -1280,6 +1292,15 @@ type Epoch {
 }
 
 type Event {
+	"""
+	The transaction block that emitted this event. This information is only
+	available for events from transactions included in a checkpoint.
+	
+	For simulated transactions (e.g. dry run), or transactions that have
+	been just executed but not yet included in a checkpoint this returns
+	null.
+	"""
+	transactionBlock: TransactionBlock
 	"""
 	The Move module containing some function that when called by
 	a programmable transaction block (PTB) emitted this event.
@@ -1355,8 +1376,18 @@ type EventEdge {
 	cursor: String!
 }
 
+"""
+Represents optional available filters for events.
+"""
 input EventFilter {
+	"""
+	Filter down to events from transactions sent by this address.
+	"""
 	sender: IotaAddress
+	"""
+	Filter down to the events from this transaction (given by its
+	transaction digest).
+	"""
 	transactionDigest: String
 	"""
 	Events emitted by a particular module. An event is emitted by a
@@ -1381,6 +1412,16 @@ input EventFilter {
 	"""
 	eventType: String
 }
+
+"""
+Possible responses from a subscription.
+
+It could be one of the following:
+- A successful payload from the subscription stream.
+- A notice that the subscription has been lagged behind the network with the
+number of lost payloads.
+"""
+union EventSubscriptionPayload = Event | Lagged
 
 """
 The result of an execution, including errors that occurred during said
@@ -1706,6 +1747,17 @@ scalar IotaAddress
 Arbitrary JSON data.
 """
 scalar JSON
+
+"""
+Notifies that the subscription consumer has fallen behind the live
+subscription stream and missed one or more payloads.
+"""
+type Lagged {
+	"""
+	Number of missed payloads since the previous emitted one.
+	"""
+	count: Int!
+}
 
 """
 Information used by a package to link to a specific version of its
@@ -2470,6 +2522,10 @@ type MovePackage implements IObject & IOwner {
 	"""
 	typeOrigins: [TypeOrigin!]
 	"""
+	BCS representation of the package itself, as a MovePackage.
+	"""
+	packageBcs: Base64
+	"""
 	BCS representation of the package's modules.  Modules appear as a
 	sequence of pairs (module name, followed by module bytes), in
 	alphabetic order by module name.
@@ -3203,11 +3259,8 @@ resulting set of objects are ones whose
 """
 input ObjectFilter {
 	"""
-	This field is used to specify the type of objects that should be
-	included in the query results.
-	
-	Objects can be filtered by their type's package, package::module, or
-	their fully qualified type name.
+	Filter objects by their type's `package`, `package::module`, or their
+	fully qualified type name.
 	
 	Generic types can be queried by either the generic type name, e.g.
 	`0x2::coin::Coin`, or by the full type name, such as
@@ -3682,6 +3735,11 @@ type Query {
 	"""
 	transactionBlock(digest: String!): TransactionBlock
 	"""
+	Fetch multiple transaction blocks by their digests.
+	This includes all transactions, even if they are not checkpointed yet.
+	"""
+	transactionBlocksByDigests(digests: [String!]!): [TransactionBlock]!
+	"""
 	The coin objects that exist in the network.
 	
 	The type field is a string of the inner type of the coin by which to
@@ -3715,10 +3773,11 @@ type Query {
 	direction of pagination, and so on until all transactions in the
 	scanning range have been visited.
 	
-	By default, the scanning range includes all transactions known to
-	GraphQL, but it can be restricted by the `after` and `before`
+	By default, the scanning range includes all checkpointed transactions
+	known to GraphQL, but it can be restricted by the `after` and `before`
 	cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
-	`atCheckpoint` filters.
+	`atCheckpoint` filters. Transactions that don't have a checkpoint yet
+	are always omitted.
 	"""
 	transactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int): TransactionBlockConnection!
 	"""
@@ -4326,6 +4385,56 @@ type StorageFund {
 	nonRefundableBalance: BigInt
 }
 
+type Subscription {
+	"""
+	Subscribe to incoming transactions from the IOTA network.
+	
+	If no filter is provided, all transactions will be returned.
+	"""
+	transactions(filter: SubscriptionTransactionFilter): TransactionBlockSubscriptionPayload!
+	"""
+	Subscribe to incoming events from the IOTA network.
+	
+	If no filter is provided, all events will be returned.
+	"""
+	events(filter: SubscriptionEventFilter): EventSubscriptionPayload!
+}
+
+"""
+Filter incoming events in a subscription.
+"""
+input SubscriptionEventFilter @oneOf {
+	"""
+	Filter incoming events by emitting module.
+	
+	- Filter by package: "0x02"
+	- Filter by module: "0x02::coin"
+	"""
+	emittingModule: String
+}
+
+"""
+Filter incoming transactions in a subscription.
+"""
+input SubscriptionTransactionFilter @oneOf {
+	"""
+	Filter incoming transactions by kind.
+	"""
+	kind: TransactionBlockKindInput
+	"""
+	Filter incoming transactions by signing address.
+	"""
+	signingAddress: IotaAddress
+	"""
+	Filter incoming transactions by package, module, or function name.
+	
+	- Filter by package: "0x03"
+	- Filter by module: "0x03::iota_system"
+	- Filter by function: "0x03::iota_system::request_add_stake"
+	"""
+	function: String
+}
+
 """
 Details of the system that are decided during genesis.
 """
@@ -4521,11 +4630,12 @@ type TransactionBlockEffects {
 	"""
 	timestamp: DateTime
 	"""
-	The epoch this transaction was finalized in.
+	The epoch this transaction was executed in.
 	"""
 	epoch: Epoch
 	"""
-	The checkpoint this transaction was finalized in.
+	The checkpoint this transaction was finalized in, if it is within the
+	available range.
 	"""
 	checkpoint: Checkpoint
 	"""
@@ -4534,21 +4644,66 @@ type TransactionBlockEffects {
 	bcs: Base64!
 }
 
+"""
+Represents optional available filters for transaction blocks.
+"""
 input TransactionBlockFilter {
+	"""
+	Filter transactions by move function called.
+	
+	Calls can be filtered by the `package`, `package::module`, or the
+	`package::module::name` of their function.
+	"""
 	function: String
 	"""
 	An input filter selecting for either system or programmable
 	transactions.
 	"""
 	kind: TransactionBlockKindInput
+	"""
+	Limit to transactions that occurred strictly after the given checkpoint.
+	"""
 	afterCheckpoint: UInt53
+	"""
+	Limit to transactions in the given checkpoint.
+	"""
 	atCheckpoint: UInt53
+	"""
+	Limit to transaction that occurred strictly before the given checkpoint.
+	"""
 	beforeCheckpoint: UInt53
-	signAddress: IotaAddress
+	"""
+	Limit to transactions that were sent by the given address. NOTE: this
+	input filter has been deprecated in favor of `sentAddress` which has
+	clearer semantics. Both filters restrict transactions by their sender,
+	only, not signers in general.
+	
+	This filter will be removed after 6 months with the 1.24.0 release.
+	"""
+	signAddress: IotaAddress @deprecated(reason: "Misleading semantics. Use `sentAddress` instead. This will be removed with the 1.24.0 release.")
+	"""
+	Limit to transactions that were sent by the given address.
+	"""
+	sentAddress: IotaAddress
+	"""
+	Limit to transactions that sent an object to the given address.
+	"""
 	recvAddress: IotaAddress
+	"""
+	Limit to transactions that accepted the given object as an input.
+	"""
 	inputObject: IotaAddress
+	"""
+	Limit to transactions that output a version of this object.
+	"""
 	changedObject: IotaAddress
+	"""
+	Limit to transactions that wrapped or deleted the given object.
+	"""
 	wrappedOrDeletedObject: IotaAddress
+	"""
+	Select transactions by their digest.
+	"""
 	transactionIds: [String!]
 }
 
@@ -4592,6 +4747,16 @@ enum TransactionBlockKindInput {
 	"""
 	END_OF_EPOCH_TX
 }
+
+"""
+Possible responses from a subscription.
+
+It could be one of the following:
+- A successful payload from the subscription stream.
+- A notice that the subscription has been lagged behind the network with the
+number of lost payloads.
+"""
+union TransactionBlockSubscriptionPayload = TransactionBlock | Lagged
 
 union TransactionInput = OwnedOrImmutable | SharedInput | Receiving | Pure
 
@@ -5015,10 +5180,15 @@ Directs the executor to include this field or fragment only when the `if` argume
 """
 directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
 """
+Indicates that an Input Object is a OneOf Input Object (and thus requires exactly one of its field be provided)
+"""
+directive @oneOf on INPUT_OBJECT
+"""
 Directs the executor to skip this field or fragment when the `if` argument is true.
 """
 directive @skip(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
 schema {
 	query: Query
 	mutation: Mutation
+	subscription: Subscription
 }

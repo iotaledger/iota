@@ -110,7 +110,7 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
             let message = CheckpointSignatureMessage { summary };
             let transaction = ConsensusTransaction::new_checkpoint_signature_message(message);
             self.sender
-                .submit_to_consensus(&vec![transaction], epoch_store)?;
+                .submit_to_consensus(&[transaction], epoch_store)?;
             self.metrics
                 .last_sent_checkpoint_signature
                 .set(checkpoint_seq as i64);
@@ -121,6 +121,24 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
             self.metrics
                 .last_skipped_checkpoint_signature_submission
                 .set(checkpoint_seq as i64);
+        }
+
+        // If scoring is enabled in protocol config, we also send misbehavior reports to
+        // consensus at this point. Misbehavior reports containing proofs of
+        // misbehaviour can be send whenever the misbehavior is detected, but we
+        // choose to send the ones that include only unprovable counts at this
+        // point, due to periodicity reasons and to ensure a (approximate)
+        // synchronization with the score updates.
+        if epoch_store.protocol_config().calculate_validator_scores() {
+            let misbehavior_report = epoch_store.scorer.current_local_metrics_count.to_report();
+            let transaction = ConsensusTransaction::new_misbehavior_report(
+                epoch_store.name,
+                &misbehavior_report,
+                checkpoint_seq,
+            );
+            info!(?transaction, "submitting misbehavior report to consensus");
+            self.sender
+                .submit_to_consensus(&[transaction], epoch_store)?;
         }
 
         if checkpoint_timestamp >= self.next_reconfiguration_timestamp_ms {

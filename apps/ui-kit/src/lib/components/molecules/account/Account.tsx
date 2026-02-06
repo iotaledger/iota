@@ -117,6 +117,7 @@ export function Account({
 
     return (
         <div
+            data-testid="account-tile"
             className={cx(
                 'state-layer group relative flex w-full items-center justify-between space-x-3 rounded-xl px-sm py-xs hover:cursor-pointer',
                 isActive && 'state-active',

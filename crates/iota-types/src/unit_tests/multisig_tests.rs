@@ -17,9 +17,9 @@ use fastcrypto_zkp::{
     zk_login_utils::Bn254FrElement,
 };
 use im::hashmap::HashMap as ImHashMap;
+use iota_sdk_types::crypto::{Intent, IntentMessage, PersonalMessage};
 use once_cell::sync::OnceCell;
 use rand::{SeedableRng, rngs::StdRng};
-use shared_crypto::intent::{Intent, IntentMessage, PersonalMessage};
 
 use super::{MultiSigPublicKey, ThresholdUnit, WeightUnit};
 use crate::{
@@ -51,9 +51,7 @@ fn test_combine_sigs() {
 
     let msg = IntentMessage::new(
         Intent::iota_transaction(),
-        PersonalMessage {
-            message: "Hello".as_bytes().to_vec(),
-        },
+        PersonalMessage("Hello".as_bytes().to_vec().into()),
     );
     let sig1: GenericSignature = Signature::new_secure(&msg, &kp1).into();
     let sig2 = Signature::new_secure(&msg, &kp2).into();
@@ -71,9 +69,7 @@ fn test_combine_sigs() {
 fn test_serde_roundtrip() {
     let msg = IntentMessage::new(
         Intent::iota_transaction(),
-        PersonalMessage {
-            message: "Hello".as_bytes().to_vec(),
-        },
+        PersonalMessage("Hello".as_bytes().to_vec().into()),
     );
 
     for kp in keys() {
@@ -210,9 +206,7 @@ fn test_multisig_address() {
 fn test_max_sig() {
     let msg = IntentMessage::new(
         Intent::iota_transaction(),
-        PersonalMessage {
-            message: "Hello".as_bytes().to_vec(),
-        },
+        PersonalMessage("Hello".as_bytes().to_vec().into()),
     );
     let mut seed = StdRng::from_seed([0; 32]);
     let mut keys = Vec::new();
@@ -289,9 +283,7 @@ fn multisig_get_pk() {
     let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2], vec![1, 1], 2).unwrap();
     let msg = IntentMessage::new(
         Intent::iota_transaction(),
-        PersonalMessage {
-            message: "Hello".as_bytes().to_vec(),
-        },
+        PersonalMessage("Hello".as_bytes().to_vec().into()),
     );
     let sig1: GenericSignature = Signature::new_secure(&msg, &keys[0]).into();
     let sig2: GenericSignature = Signature::new_secure(&msg, &keys[1]).into();
@@ -315,9 +307,7 @@ fn multisig_get_indices() {
     let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2, pk3], vec![1, 1, 1], 2).unwrap();
     let msg = IntentMessage::new(
         Intent::iota_transaction(),
-        PersonalMessage {
-            message: "Hello".as_bytes().to_vec(),
-        },
+        PersonalMessage("Hello".as_bytes().to_vec().into()),
     );
     let sig1: GenericSignature = Signature::new_secure(&msg, &keys[0]).into();
     let sig2: GenericSignature = Signature::new_secure(&msg, &keys[1]).into();

@@ -16,12 +16,12 @@ eyre.workspace = true
 futures.workspace = true
 http.workspace = true
 http-body.workspace = true
-hyper-rustls.workspace = true
+hyper-rustls = { version = "0.27", default-features = false, features = ["webpki-roots", "http1", "http2", "ring", "tls12"] }
 hyper-util.workspace = true
 idna = "1.1.0"
-multiaddr = "0.17.0"
+multiaddr.workspace = true
 once_cell.workspace = true
-pin-project-lite = "0.2.13"
+pin-project-lite.workspace = true
 serde.workspace = true
 snap.workspace = true
 tokio = { workspace = true, features = ["sync", "rt", "macros"] }

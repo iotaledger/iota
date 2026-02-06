@@ -78,7 +78,7 @@ jobs:
       - name: Install Nodejs
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "pnpm"
 
       - name: Install dependencies
@@ -128,7 +128,7 @@ jobs:
 
       - name: Build Wallet
         if: (!cancelled()) && (inputs.isWalletDashboard || inputs.isWallet || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop')
-        run: pnpm wallet build
+        run: pnpm wallet build:rc
 
       - name: Build Dashboard
         if: (!cancelled()) && (inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop')

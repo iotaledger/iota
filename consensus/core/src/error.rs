@@ -89,6 +89,15 @@ pub(crate) enum ConsensusError {
     #[error("Invalid authority index: {index} > {max}")]
     InvalidAuthorityIndex { index: AuthorityIndex, max: usize },
 
+    #[error(
+        "Invalid ancestor authority index: block {block_authority}, ancestor {ancestor_index} > {max}"
+    )]
+    InvalidAncestorAuthorityIndex {
+        block_authority: AuthorityIndex,
+        ancestor_index: AuthorityIndex,
+        max: usize,
+    },
+
     #[error("Failed to deserialize signature: {0}")]
     MalformedSignature(FastCryptoError),
 

@@ -4,7 +4,6 @@
 
 import {
     KioskClientProvider,
-    useCookieConsentBanner,
     ThemeProvider,
     Toaster,
     IotaGraphQLClientProvider,
@@ -17,18 +16,11 @@ import { Fragment } from 'react';
 import { Outlet, ScrollRestoration } from 'react-router-dom';
 import { NetworkContext } from '~/contexts';
 import { useInitialPageView, useNetwork } from '~/hooks';
-import { createIotaClient, persistableStorage, SupportedNetworks } from '~/lib/utils';
+import { createIotaClient, SupportedNetworks } from '~/lib/utils';
+import { TrustFrameworkProvider } from '../trust-framework/trustFrameworkProvider';
 
 export function Layout(): JSX.Element {
     const [network, setNetwork] = useNetwork();
-
-    useCookieConsentBanner(persistableStorage, {
-        cookie_name: 'iota_explorer_cookie_consent',
-        onBeforeLoad: async () => {
-            await import('./CookieConsent.css');
-            document.body.classList.add('cookie-consent-theme');
-        },
-    });
 
     useInitialPageView(network);
 
@@ -42,25 +34,27 @@ export function Layout(): JSX.Element {
                 network={network as Network}
                 onNetworkChange={setNetwork}
             >
-                <IotaGraphQLClientProvider>
-                    <IotaNamesClientProvider>
-                        <WalletProvider
-                            autoConnect
-                            enableUnsafeBurner={import.meta.env.DEV}
-                            chain={getNetwork(network).chain}
-                        >
-                            <KioskClientProvider>
-                                <NetworkContext.Provider value={[network, setNetwork]}>
-                                    <ThemeProvider appId="iota-explorer">
-                                        <Outlet />
-                                        <Toaster />
-                                        <ReactQueryDevtools />
-                                    </ThemeProvider>
-                                </NetworkContext.Provider>
-                            </KioskClientProvider>
-                        </WalletProvider>
-                    </IotaNamesClientProvider>
-                </IotaGraphQLClientProvider>
+                <TrustFrameworkProvider>
+                    <IotaGraphQLClientProvider>
+                        <IotaNamesClientProvider>
+                            <WalletProvider
+                                autoConnect
+                                enableUnsafeBurner={import.meta.env.DEV}
+                                chain={getNetwork(network).chain}
+                            >
+                                <KioskClientProvider>
+                                    <NetworkContext.Provider value={[network, setNetwork]}>
+                                        <ThemeProvider appId="iota-explorer">
+                                            <Outlet />
+                                            <Toaster />
+                                            <ReactQueryDevtools />
+                                        </ThemeProvider>
+                                    </NetworkContext.Provider>
+                                </KioskClientProvider>
+                            </WalletProvider>
+                        </IotaNamesClientProvider>
+                    </IotaGraphQLClientProvider>
+                </TrustFrameworkProvider>
             </IotaClientProvider>
         </Fragment>
     );

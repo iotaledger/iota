@@ -1,5 +1,5 @@
 module ctf::recycle {
-    use iota::transfer::{Receiving};
+    use iota::transfer::Receiving;
     use iota::dynamic_field as df;
     use ctf::pizza::{Self, PizzaBox};
 

@@ -1,5 +1,17 @@
 # @iota/bcs
 
+## 1.4.0
+
+### Minor Changes
+
+-   ae1385d: Update dependencies.
+
+## 1.3.0
+
+### Minor Changes
+
+-   147c97e: Update repository URLs.
+
 ## 1.2.0
 
 ### Minor Changes

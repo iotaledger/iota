@@ -8,6 +8,7 @@ import type { ReactNode } from 'react';
 import { ErrorBoundary as ReactErrorBoundary } from 'react-error-boundary';
 import type { FallbackProps } from 'react-error-boundary';
 import { useLocation } from 'react-router-dom';
+import { LegacyBrowserBanner } from '@iota/core/utils/isLegacyBrowser';
 
 function Fallback({ error }: FallbackProps) {
     return (
@@ -29,9 +30,13 @@ export interface ErrorBoundaryProps {
 
 export function ErrorBoundary({ children }: ErrorBoundaryProps) {
     const location = useLocation();
+
     return (
-        <ReactErrorBoundary FallbackComponent={Fallback} resetKeys={[location]}>
-            {children}
-        </ReactErrorBoundary>
+        <>
+            <LegacyBrowserBanner />
+            <ReactErrorBoundary FallbackComponent={Fallback} resetKeys={[location]}>
+                {children}
+            </ReactErrorBoundary>
+        </>
     );
 }

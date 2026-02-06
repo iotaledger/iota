@@ -78,9 +78,6 @@ pub(crate) enum ConsensusError {
     )]
     TooManyFetchedTransactionsReturned(AuthorityIndex),
 
-    #[error("Too many block headers have been rteurned from authority {0}")]
-    TooManyFetchedHeadersReturned(AuthorityIndex),
-
     #[error("Too many authorities have been provided from authority {0}")]
     TooManyAuthoritiesProvided(AuthorityIndex),
 
@@ -181,10 +178,16 @@ pub(crate) enum ConsensusError {
         commit: Box<Commit>,
     },
 
-    #[error("Received unexpected block from peer {peer}: {requested:?} vs {received:?}")]
-    UnexpectedBlockForCommit {
+    #[error("Received unexpected block header from peer {peer}: {requested:?} vs {received:?}")]
+    UnexpectedBlockHeaderForCommit {
         peer: AuthorityIndex,
         requested: BlockRef,
+        received: BlockRef,
+    },
+
+    #[error("Received unexpected transaction from peer {peer}: {received:?}")]
+    UnexpectedTransactionForCommit {
+        peer: AuthorityIndex,
         received: BlockRef,
     },
 
