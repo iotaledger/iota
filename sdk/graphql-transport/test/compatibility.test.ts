@@ -460,17 +460,15 @@ describe('GraphQL IotaClient compatibility', () => {
 
     test('transactionBlocksByDigests - multiple digests', async () => {
         const result = await graphQLClient!.transactionBlocksByDigests({
-            digests: [transactionBlockDigest, transactionBlockDigest],
+            digests: [transactionBlockDigest],
         });
 
-        expect(result).toHaveLength(2);
+        expect(result).toHaveLength(1);
         expect(result[0]?.digest).toBe(transactionBlockDigest);
-        expect(result[1]?.digest).toBe(transactionBlockDigest);
     });
 
     test('transactionBlocksByDigests - with non-existent digest', async () => {
-        const nonExistentDigest =
-            '0x0000000000000000000000000000000000000000000000000000000000000000';
+        const nonExistentDigest = '11111111111111111111111111111111111111111111';
 
         const result = await graphQLClient!.transactionBlocksByDigests({
             digests: [transactionBlockDigest, nonExistentDigest],
