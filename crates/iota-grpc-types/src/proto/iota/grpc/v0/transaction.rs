@@ -193,23 +193,21 @@ impl ExecutedTransaction {
     }
 
     /// Deserialize transaction events.
-    ///
-    /// Returns `Ok(None)` if events were not included in the response.
-    pub fn events(&self) -> Result<Option<iota_sdk_types::TransactionEvents>, TryFromProtoError> {
+    pub fn events(&self) -> Result<iota_sdk_types::TransactionEvents, TryFromProtoError> {
         self.events
             .as_ref()
-            .map(|ev| ev.events().map_err(|e| e.nested(Self::EVENTS_FIELD.name)))
-            .transpose()
+            .ok_or_else(|| TryFromProtoError::missing(Self::EVENTS_FIELD.name))?
+            .events()
+            .map_err(|e| e.nested(Self::EVENTS_FIELD.name))
     }
 
     /// Get the events digest directly.
-    ///
-    /// Returns `Ok(None)` if events were not included in the response.
-    pub fn events_digest(&self) -> Result<Option<iota_sdk_types::Digest>, TryFromProtoError> {
+    pub fn events_digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
         self.events
             .as_ref()
-            .map(|ev| ev.digest().map_err(|e| e.nested(Self::EVENTS_FIELD.name)))
-            .transpose()
+            .ok_or_else(|| TryFromProtoError::missing(Self::EVENTS_FIELD.name))?
+            .digest()
+            .map_err(|e| e.nested(Self::EVENTS_FIELD.name))
     }
 
     /// Get checkpoint sequence number.
@@ -227,29 +225,19 @@ impl ExecutedTransaction {
     }
 
     /// Deserialize input objects.
-    ///
-    /// Returns `Ok(None)` if input objects were not included in the response.
-    pub fn input_objects(&self) -> Result<Option<Vec<iota_sdk_types::Object>>, TryFromProtoError> {
+    pub fn input_objects(&self) -> Result<Vec<iota_sdk_types::Object>, TryFromProtoError> {
         self.input_objects
             .as_ref()
-            .map(|objs| {
-                objs.objects()
-                    .map_err(|e| e.nested(Self::INPUT_OBJECTS_FIELD.name))
-            })
-            .transpose()
+            .ok_or_else(|| TryFromProtoError::missing(Self::INPUT_OBJECTS_FIELD.name))?
+            .objects()
     }
 
     /// Deserialize output objects.
-    ///
-    /// Returns `Ok(None)` if output objects were not included in the response.
-    pub fn output_objects(&self) -> Result<Option<Vec<iota_sdk_types::Object>>, TryFromProtoError> {
+    pub fn output_objects(&self) -> Result<Vec<iota_sdk_types::Object>, TryFromProtoError> {
         self.output_objects
             .as_ref()
-            .map(|objs| {
-                objs.objects()
-                    .map_err(|e| e.nested(Self::OUTPUT_OBJECTS_FIELD.name))
-            })
-            .transpose()
+            .ok_or_else(|| TryFromProtoError::missing(Self::OUTPUT_OBJECTS_FIELD.name))?
+            .objects()
     }
 }
 

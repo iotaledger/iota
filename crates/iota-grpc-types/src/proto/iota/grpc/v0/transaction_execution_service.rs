@@ -56,9 +56,7 @@ macro_rules! impl_transaction_response_getters {
             /// Deserialize the transaction events.
             ///
             /// Returns `Ok(None)` if events were not included in the response.
-            pub fn events(
-                &self,
-            ) -> Result<Option<iota_sdk_types::TransactionEvents>, TryFromProtoError> {
+            pub fn events(&self) -> Result<iota_sdk_types::TransactionEvents, TryFromProtoError> {
                 self.transaction
                     .as_ref()
                     .ok_or_else(|| TryFromProtoError::missing(Self::TRANSACTION_FIELD.name))?
@@ -69,9 +67,7 @@ macro_rules! impl_transaction_response_getters {
             /// Get the events digest directly.
             ///
             /// Returns `Ok(None)` if events were not included in the response.
-            pub fn events_digest(
-                &self,
-            ) -> Result<Option<iota_sdk_types::Digest>, TryFromProtoError> {
+            pub fn events_digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
                 self.transaction
                     .as_ref()
                     .ok_or_else(|| TryFromProtoError::missing(Self::TRANSACTION_FIELD.name))?
@@ -116,11 +112,7 @@ macro_rules! impl_transaction_response_getters {
             }
 
             /// Deserialize input objects.
-            ///
-            /// Returns `Ok(None)` if input objects were not included in the response.
-            pub fn input_objects(
-                &self,
-            ) -> Result<Option<Vec<iota_sdk_types::Object>>, TryFromProtoError> {
+            pub fn input_objects(&self) -> Result<Vec<iota_sdk_types::Object>, TryFromProtoError> {
                 self.transaction
                     .as_ref()
                     .ok_or_else(|| TryFromProtoError::missing(Self::TRANSACTION_FIELD.name))?
@@ -129,11 +121,7 @@ macro_rules! impl_transaction_response_getters {
             }
 
             /// Deserialize output objects.
-            ///
-            /// Returns `Ok(None)` if output objects were not included in the response.
-            pub fn output_objects(
-                &self,
-            ) -> Result<Option<Vec<iota_sdk_types::Object>>, TryFromProtoError> {
+            pub fn output_objects(&self) -> Result<Vec<iota_sdk_types::Object>, TryFromProtoError> {
                 self.transaction
                     .as_ref()
                     .ok_or_else(|| TryFromProtoError::missing(Self::TRANSACTION_FIELD.name))?
