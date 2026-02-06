@@ -665,11 +665,13 @@ impl GrpcCheckpoint {
             input_objects: value
                 .input_objects()
                 .map_err(Error::ProtoConversion)?
-                .unwrap_or_default(),
+                .ok_or(IngestionError::Grpc("missing `input_objects` field".into()))?,
             output_objects: value
                 .output_objects()
                 .map_err(Error::ProtoConversion)?
-                .unwrap_or_default(),
+                .ok_or(IngestionError::Grpc(
+                    "missing `output_objects` field".into(),
+                ))?,
         })
     }
 }
