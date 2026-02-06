@@ -80,7 +80,6 @@ if [ "${DOCKER_BUILDKIT:-0}" = "1" ]; then
 		echo "# syntax=docker/dockerfile:1"
 		sed 's/^RUN cargo build --profile \${PROFILE}/RUN --mount=type=cache,target=\/usr\/local\/cargo\/registry \\\
     --mount=type=cache,target=\/usr\/local\/cargo\/git \\\
-    --mount=type=cache,target=\/iota\/target,sharing=locked \\\
     cargo build --profile ${PROFILE}/' "$DOCKERFILE"
 	} > "$DOCKERFILE_TMP"
 	

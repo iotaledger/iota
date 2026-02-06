@@ -2016,6 +2016,9 @@ impl AuthorityState {
                 suggested_gas_price_with_nn: self
                     .congestion_tracker
                     .get_suggested_gas_price_with_nn(&transaction),
+                suggested_gas_price: self
+                    .congestion_tracker
+                    .get_prediction_suggested_gas_price(&transaction),
                 input: IotaTransactionBlockData::try_from(
                     transaction.clone(),
                     &module_cache,
