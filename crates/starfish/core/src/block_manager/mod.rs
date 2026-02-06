@@ -76,11 +76,14 @@ impl BlockManager {
             .iter()
             .map(|b| b.verified_block_header.clone())
             .collect();
-        let (block_headers_to_accept, missing_block_headers) =
+        let (block_headers_to_accept, missing_block_headers, already_in_dag_state) =
             self.process_block_headers(block_headers, source);
         // collect suspended transactions for accepted headers.
-        let accepted_transactions =
-            self.resolve_transactions(&block_headers_to_accept, Some(blocks));
+        let accepted_transactions = self.resolve_transactions(
+            &block_headers_to_accept,
+            Some(already_in_dag_state),
+            Some(blocks),
+        );
 
         self.write_block_headers_and_transactions_to_dag_state(
             block_headers_to_accept.clone(),
@@ -106,10 +109,10 @@ impl BlockManager {
         let _s = monitored_scope("BlockManager::try_accept_block_headers");
         // Headers are added through synchronizer, commit syncer and cordial
         // dissemination.
-        let (block_headers_to_accept, ancestors_to_fetch) =
+        let (block_headers_to_accept, ancestors_to_fetch, _) =
             self.process_block_headers(block_headers, source);
         // collect transactions we already have for accepted headers.
-        let accepted_transactions = self.resolve_transactions(&block_headers_to_accept, None);
+        let accepted_transactions = self.resolve_transactions(&block_headers_to_accept, None, None);
         self.write_block_headers_and_transactions_to_dag_state(
             block_headers_to_accept.clone(),
             accepted_transactions,
@@ -125,19 +128,26 @@ impl BlockManager {
         &mut self,
         block_headers: Vec<VerifiedBlockHeader>,
         source: DataSource,
-    ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
+    ) -> (
+        Vec<VerifiedBlockHeader>,
+        BTreeSet<BlockRef>,
+        Vec<VerifiedBlockHeader>,
+    ) {
         let _s = monitored_scope("BlockManager::try_accept_block_headers_internal");
 
         // Filter out already processed and suspended block headers.
-        let block_headers = self.filter_out_already_processed_and_sort(block_headers, source);
+        let (block_headers, already_in_dag_state) =
+            self.filter_out_already_processed_and_sort(block_headers, source);
         // update received block rounds
         for block_header in &block_headers {
             self.update_block_received_metrics(block_header);
         }
         // Find missing ancestors for the provided block headers in the DAG state.
         let missing_ancestors = self.find_missing_ancestors(block_headers);
-        self.block_suspender
-            .accept_or_suspend_received_headers(missing_ancestors)
+        let (accepted_headers, missing_ancestors) = self
+            .block_suspender
+            .accept_or_suspend_received_headers(missing_ancestors);
+        (accepted_headers, missing_ancestors, already_in_dag_state)
     }
 
     fn write_block_headers_and_transactions_to_dag_state(
@@ -162,9 +172,15 @@ impl BlockManager {
     fn resolve_transactions(
         &mut self,
         block_headers_to_be_accepted: &[VerifiedBlockHeader],
+        block_headers_already_in_dag_state: Option<Vec<VerifiedBlockHeader>>,
         blocks: Option<Vec<VerifiedBlock>>,
     ) -> Vec<VerifiedTransactions> {
         let block_refs_to_be_accepted = block_headers_to_be_accepted
+            .iter()
+            .map(|h| h.reference())
+            .collect::<BTreeSet<_>>();
+        let block_refs_already_in_dag_state = block_headers_already_in_dag_state
+            .unwrap_or_default()
             .iter()
             .map(|h| h.reference())
             .collect::<BTreeSet<_>>();
@@ -180,9 +196,11 @@ impl BlockManager {
         if let Some(blocks) = blocks {
             let mut accepted_transactions_from_blocks = vec![];
             for block in blocks {
-                if block_refs_to_be_accepted.contains(&block.reference()) {
+                if block_refs_to_be_accepted.contains(&block.reference())
+                    || block_refs_already_in_dag_state.contains(&block.reference())
+                {
                     accepted_transactions_from_blocks.push(block.verified_transactions);
-                } else {
+                } else if block.verified_transactions.has_transactions() {
                     self.suspended_blocks.insert(block.reference(), block);
                 }
             }
@@ -303,6 +321,12 @@ impl BlockManager {
         self.block_suspender.suspended_blocks_refs()
     }
 
+    /// Returns the number of full blocks currently in suspended_blocks
+    #[cfg(test)]
+    pub(crate) fn suspended_full_blocks_count(&self) -> usize {
+        self.suspended_blocks.len()
+    }
+
     fn find_missing_ancestors(
         &self,
         incoming_headers: Vec<VerifiedBlockHeader>,
@@ -331,12 +355,13 @@ impl BlockManager {
         &self,
         block_headers: Vec<VerifiedBlockHeader>,
         source: DataSource,
-    ) -> Vec<VerifiedBlockHeader> {
+    ) -> (Vec<VerifiedBlockHeader>, Vec<VerifiedBlockHeader>) {
         let block_references = block_headers
             .iter()
             .map(|b| b.reference())
             .collect::<Vec<_>>();
         let dag_state = self.dag_state.read();
+        let mut already_in_dag_state_headers = Vec::new();
         let mut filtered = block_headers
             .into_iter()
             .zip(dag_state.contains_block_headers(block_references))
@@ -355,6 +380,9 @@ impl BlockManager {
                             source.as_str(),
                         ])
                         .inc();
+                    if found {
+                        already_in_dag_state_headers.push(block_header);
+                    }
                     None // filter out
                 } else {
                     Some(block_header) // keep
@@ -362,7 +390,7 @@ impl BlockManager {
             })
             .collect::<Vec<_>>();
         filtered.sort_by_key(|h| h.round());
-        filtered
+        (filtered, already_in_dag_state_headers)
     }
 }
 
@@ -826,5 +854,124 @@ mod tests {
                 .chain(missing_block_refs_from_find.into_iter())
                 .collect()
         );
+    }
+
+    /// Test that verifies the scenario where:
+    /// 1. A header without transactions is added first and gets accepted
+    /// 2. Later the full block with transactions is added
+    /// 3. The bug: the full block gets stuck in suspended_blocks instead of
+    ///    being processed
+    ///
+    /// Expected behavior:
+    /// - When a full block arrives and its header is already accepted in
+    ///   DagState, the transactions should be extracted and added to DagState
+    /// - The full block should NOT remain in suspended_blocks
+    ///
+    /// Actual behavior (BUG):
+    /// - The header is filtered out in filter_out_already_processed_and_sort()
+    /// - block_headers_to_accept becomes empty
+    /// - In resolve_transactions(), block_refs_to_be_accepted is empty
+    /// - The full block gets added to suspended_blocks at line 186
+    /// - Transactions are never added to DagState
+    /// - The full block remains stuck in suspended_blocks forever
+    #[tokio::test]
+    async fn header_then_full_block_doesnt_leave_block_suspended() {
+        // GIVEN
+        let (context, _key_pairs) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        let mut block_manager = BlockManager::new(context.clone(), dag_state.clone());
+
+        // Create a DAG with 2 rounds
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=2).build();
+
+        let round_1_headers = dag_builder
+            .block_headers
+            .iter()
+            .filter_map(|(_, block_header)| {
+                (block_header.round() == 1).then_some(block_header.clone())
+            })
+            .collect::<Vec<_>>();
+
+        // Get full blocks with transactions for round 2
+        let round_2_blocks = dag_builder.blocks(2..=2);
+
+        let round_2_headers = round_2_blocks
+            .iter()
+            .map(|b| b.verified_block_header.clone())
+            .collect::<Vec<_>>();
+
+        let round_2_block_refs = round_2_blocks
+            .iter()
+            .map(|b| b.reference())
+            .collect::<Vec<_>>();
+
+        // WHEN: First, accept only the headers (without transactions) for round 1 and 2
+        let (accepted_round_1_headers, missing) =
+            block_manager.try_accept_block_headers(round_1_headers.clone(), DataSource::Test);
+        assert_eq!(accepted_round_1_headers.len(), 4);
+        assert!(missing.is_empty());
+
+        let (accepted_round_2_headers, missing) =
+            block_manager.try_accept_block_headers(round_2_headers.clone(), DataSource::Test);
+        assert_eq!(accepted_round_2_headers.len(), 4);
+        assert!(missing.is_empty());
+
+        // Verify that the headers are now in DagState
+        for header in &round_2_headers {
+            assert!(dag_state.read().contains_block_header(&header.reference()));
+        }
+
+        // AND: Now try to accept the full blocks with transactions for round 2
+        let (accepted_blocks, missing) =
+            block_manager.try_accept_blocks(round_2_blocks.clone(), DataSource::Test);
+
+        // THEN: The blocks should be accepted (headers already exist, just adding
+        // transactions) But the suspected bug is that these blocks get stuck in
+        // suspended_blocks
+        assert_eq!(
+            accepted_blocks.len(),
+            0,
+            "Expected headers to be returned as already processed"
+        );
+        assert!(missing.is_empty());
+
+        // VERIFY: Check if the full blocks are stuck in suspended_blocks
+        let suspended_count = block_manager.suspended_full_blocks_count();
+
+        // Verify that transactions were actually added to DagState
+        let has_transactions_results = dag_state
+            .read()
+            .contains_transactions(round_2_block_refs.clone());
+
+        let transactions_added_count = has_transactions_results.iter().filter(|&&x| x).count();
+
+        // Print diagnostic information
+        println!("Suspended full blocks count: {}", suspended_count);
+        println!(
+            "Transactions added to DagState: {}/{}",
+            transactions_added_count,
+            round_2_blocks.len()
+        );
+
+        // Assert the bug: suspended_blocks should be empty but it's not
+        assert_eq!(
+            suspended_count, 0,
+            "BUG CONFIRMED: {} full blocks are stuck in suspended_blocks! They should have been processed or dropped.",
+            suspended_count
+        );
+
+        // Assert that transactions should have been added
+        for (block, has_transactions) in round_2_blocks.iter().zip(has_transactions_results.iter())
+        {
+            assert!(
+                *has_transactions,
+                "BUG CONFIRMED: Transactions should have been added to DagState for block {:?}",
+                block.reference()
+            );
+        }
     }
 }
