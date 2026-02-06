@@ -253,6 +253,24 @@ impl ExecutedTransaction {
     }
 }
 
+// TryFrom implementations for CheckpointTransaction
+impl TryFrom<&ExecutedTransaction> for iota_sdk_types::CheckpointTransaction {
+    type Error = TryFromProtoError;
+
+    fn try_from(value: &ExecutedTransaction) -> Result<Self, Self::Error> {
+        Ok(Self {
+            transaction: iota_sdk_types::SignedTransaction {
+                transaction: value.transaction()?,
+                signatures: value.signatures()?,
+            },
+            effects: value.effects()?,
+            events: Some(value.events()?),
+            input_objects: value.input_objects()?,
+            output_objects: value.output_objects()?,
+        })
+    }
+}
+
 // TryFrom implementations for Transaction
 impl TryFrom<&Transaction> for iota_sdk_types::Transaction {
     type Error = TryFromProtoError;
