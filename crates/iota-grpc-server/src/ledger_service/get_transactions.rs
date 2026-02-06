@@ -24,7 +24,7 @@ use crate::{
     error::RpcError,
     merge::Merge,
     transaction_execution_service::TransactionReadSource,
-    types::{GrpcReader, TransactionsStreamResult},
+    types::{GrpcReader, TransactionReadFields, TransactionsStreamResult},
 };
 
 pub const READ_MASK_DEFAULT: &str = crate::field_mask!("transaction.digest");
@@ -119,24 +119,24 @@ fn get_transaction_impl(
     digest: TransactionDigest,
     read_mask: &FieldMaskTree,
 ) -> Result<ExecutedTransaction, RpcError> {
-    // Get transaction data from storage
-    let tx_read = reader.get_transaction_read(&digest)?;
+    // Derive which optional fields to fetch based on the read_mask
+    let fields = TransactionReadFields::from_mask(read_mask);
 
-    let transaction_data = tx_read.transaction.transaction_data().clone();
-    let signatures = tx_read.transaction.tx_signatures().to_owned();
+    // Get transaction data from storage, skipping unrequested fields
+    let tx_read = reader.get_transaction_read(&digest, &fields)?;
 
     // Create a source for the merge
     let source = TransactionReadSource {
         reader: reader.clone(),
         config,
-        transaction_data,
-        signatures: Some(signatures),
-        effects: Some(tx_read.effects),
+        transaction: tx_read.transaction,
+        signatures: tx_read.signatures,
+        effects: tx_read.effects,
         events: tx_read.events,
         checkpoint: tx_read.checkpoint,
         timestamp_ms: tx_read.timestamp_ms,
-        input_objects: Some(tx_read.input_objects),
-        output_objects: Some(tx_read.output_objects),
+        input_objects: tx_read.input_objects,
+        output_objects: tx_read.output_objects,
     };
 
     ExecutedTransaction::merge_from(&source, read_mask).map_err(|e| {

@@ -12,7 +12,7 @@ use iota_sdk_types::{ObjectId, Version};
 
 use crate::{
     Client,
-    api::{OBJECTS_READ_MASK, ProtoResult, Result, field_mask_with_default},
+    api::{Error, OBJECTS_READ_MASK, ProtoResult, Result, field_mask_with_default},
 };
 
 impl Client {
@@ -89,11 +89,17 @@ impl Client {
 
         // Server guarantees results are returned in request order
         let mut results = Vec::with_capacity(refs.len());
+        let mut has_next = false;
 
         while let Some(response) = stream.message().await? {
+            has_next = response.has_next;
             for result in response.objects {
                 results.push(result.into_result()?);
             }
+        }
+
+        if has_next {
+            return Err(Error::UnexpectedEndOfStream);
         }
 
         Ok(results)

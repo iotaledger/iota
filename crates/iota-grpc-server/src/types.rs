@@ -34,6 +34,38 @@ use tracing::debug;
 
 use crate::merge::Merge;
 
+/// Flags indicating which optional transaction fields to fetch from storage.
+/// Derived from a `FieldMaskTree` to skip unnecessary storage reads.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TransactionReadFields {
+    pub include_transaction: bool,
+    pub include_signatures: bool,
+    pub include_effects: bool,
+    pub include_events: bool,
+    pub include_checkpoint: bool,
+    pub include_timestamp: bool,
+    pub include_input_objects: bool,
+    pub include_output_objects: bool,
+}
+
+impl TransactionReadFields {
+    /// Derive which fields to fetch from an `ExecutedTransaction` field mask.
+    pub fn from_mask(mask: &FieldMaskTree) -> Self {
+        use iota_grpc_types::v0::transaction::ExecutedTransaction;
+
+        Self {
+            include_transaction: mask.contains(ExecutedTransaction::TRANSACTION_FIELD.name),
+            include_signatures: mask.contains(ExecutedTransaction::SIGNATURES_FIELD.name),
+            include_effects: mask.contains(ExecutedTransaction::EFFECTS_FIELD.name),
+            include_events: mask.contains(ExecutedTransaction::EVENTS_FIELD.name),
+            include_checkpoint: mask.contains(ExecutedTransaction::CHECKPOINT_FIELD.name),
+            include_timestamp: mask.contains(ExecutedTransaction::TIMESTAMP_FIELD.name),
+            include_input_objects: mask.contains(ExecutedTransaction::INPUT_OBJECTS_FIELD.name),
+            include_output_objects: mask.contains(ExecutedTransaction::OUTPUT_OBJECTS_FIELD.name),
+        }
+    }
+}
+
 pub type GetObjectsStream = Pin<Box<dyn futures::Stream<Item = ObjectsStreamResult> + Send>>;
 pub type GetTransactionsStream =
     Pin<Box<dyn futures::Stream<Item = TransactionsStreamResult> + Send>>;
@@ -128,8 +160,8 @@ pub trait GrpcStateReader: Send + Sync + 'static {
     ) -> Option<(CertifiedCheckpointSummary, CheckpointContents)>;
 
     /// Stream checkpoint transactions individually to avoid large memory
-    /// footprint Returns a stream of individual CheckpointTransaction items
-    /// along with metadata
+    /// footprint. Returns a stream of individual CheckpointTransaction items
+    /// along with metadata.
     fn stream_checkpoint_transactions(
         &self,
         checkpoint_contents: CheckpointContents,
@@ -926,65 +958,119 @@ impl GrpcReader {
 
     /// Get transaction data for a single transaction digest.
     ///
-    /// Returns all transaction-related data needed to build a gRPC response.
+    /// Only fetches optional fields (events, checkpoint/timestamp, objects)
+    /// when indicated by `fields`. Transaction and effects are always fetched
+    /// as they are required prerequisites.
     #[tracing::instrument(skip(self))]
     pub fn get_transaction_read(
         &self,
         digest: &TransactionDigest,
+        fields: &TransactionReadFields,
     ) -> Result<TransactionReadData, crate::error::RpcError> {
-        // Get the transaction
-        let transaction = self
-            .state_reader
-            .get_transaction(digest)
-            .ok_or(crate::error::TransactionNotFoundError(*digest))?;
+        let (transaction, signatures) = if fields.include_transaction || fields.include_signatures {
+            // Get the transaction if transaction data or signatures are requested
+            let transaction = self
+                .state_reader
+                .get_transaction(digest)
+                .ok_or(crate::error::TransactionNotFoundError(*digest))?;
 
-        // Get the effects - required
-        let effects = self
-            .state_reader
-            .get_transaction_effects(digest)
-            .ok_or(crate::error::TransactionNotFoundError(*digest))?;
+            let transaction_data = fields
+                .include_transaction
+                .then(|| transaction.transaction_data().clone().try_into())
+                .transpose()?;
 
-        // Get events if they exist
-        let events = effects
-            .events_digest()
-            .and_then(|event_digest| self.state_reader.get_transaction_events(event_digest));
+            let signatures_data = fields
+                .include_signatures
+                .then(|| {
+                    transaction
+                        .tx_signatures()
+                        .iter()
+                        .map(|sig| sig.clone().try_into())
+                        .collect::<Result<Vec<_>, _>>()
+                })
+                .transpose()?;
 
-        // Get checkpoint from indexes if available
-        let checkpoint = self.state_reader.get_transaction_checkpoint(digest);
+            (transaction_data, signatures_data)
+        } else {
+            (None, None)
+        };
 
-        // Get timestamp from checkpoint if we have it
-        let timestamp_ms = checkpoint.and_then(|checkpoint_seq| {
-            self.state_reader
-                .get_checkpoint_summary(checkpoint_seq)
-                .map(|summary| summary.data().timestamp_ms)
-        });
+        let (checkpoint, timestamp_ms) = if fields.include_checkpoint || fields.include_timestamp {
+            let checkpoint = self.state_reader.get_transaction_checkpoint(digest);
 
-        // Get input objects (objects at their state before the transaction)
-        // modified_at_versions() returns the object IDs and their versions before
-        // modification
-        let input_objects: Vec<Object> = effects
-            .modified_at_versions()
-            .into_iter()
-            .filter_map(|(object_id, version)| {
-                self.state_reader.get_object_by_key(&object_id, version)
-            })
-            .collect();
+            let timestamp_ms = fields
+                .include_timestamp
+                .then(|| {
+                    checkpoint.and_then(|checkpoint_seq| {
+                        self.state_reader
+                            .get_checkpoint_summary(checkpoint_seq)
+                            .map(|summary| summary.data().timestamp_ms)
+                    })
+                })
+                .flatten();
+            (checkpoint, timestamp_ms)
+        } else {
+            (None, None)
+        };
 
-        // Get output objects (created, mutated, unwrapped objects at their state after
-        // the transaction)
-        let output_objects: Vec<Object> = effects
-            .created()
-            .into_iter()
-            .chain(effects.mutated())
-            .chain(effects.unwrapped())
-            .filter_map(|((object_id, version, _digest), _owner)| {
-                self.state_reader.get_object_by_key(&object_id, version)
-            })
-            .collect();
+        // Get the effects if any of the following are requested: effects, events,
+        // checkpoint/timestamp, input/output objects
+        let (effects, events, input_objects, output_objects) = if fields.include_effects
+            || fields.include_events
+            || fields.include_input_objects
+            || fields.include_output_objects
+        {
+            // Effects are required for events and input/output objects, so we fetch them if
+            // any of those are requested
+            let effects = self
+                .state_reader
+                .get_transaction_effects(digest)
+                .ok_or(crate::error::TransactionNotFoundError(*digest))?;
+
+            // Get events only if requested
+            let events = fields
+                .include_events
+                .then(|| {
+                    effects.events_digest().and_then(|event_digest| {
+                        self.state_reader.get_transaction_events(event_digest)
+                    })
+                })
+                .flatten();
+
+            // Get input objects only if requested
+            let input_objects = fields.include_input_objects.then(|| {
+                effects
+                    .modified_at_versions()
+                    .into_iter()
+                    .filter_map(|(object_id, version)| {
+                        self.state_reader.get_object_by_key(&object_id, version)
+                    })
+                    .collect()
+            });
+
+            // Get output objects only if requested
+            let output_objects = fields.include_output_objects.then(|| {
+                effects
+                    .created()
+                    .into_iter()
+                    .chain(effects.mutated())
+                    .chain(effects.unwrapped())
+                    .filter_map(|((object_id, version, _digest), _owner)| {
+                        self.state_reader.get_object_by_key(&object_id, version)
+                    })
+                    .collect()
+            });
+
+            (Some(effects), events, input_objects, output_objects)
+        } else {
+            // If none of the above are requested, we can skip fetching effects entirely
+            (None, None, None, None)
+        };
 
         Ok(TransactionReadData {
             digest: *digest,
             transaction,
+            signatures,
             effects,
             events,
             checkpoint,
@@ -1000,16 +1086,20 @@ impl GrpcReader {
 /// This struct holds owned data from storage, which is then converted to
 /// `iota-sdk-types` types and used with `Merge` trait to populate gRPC
 /// responses.
+///
+/// Optional fields are `None` when the corresponding data was not requested
+/// via `TransactionReadFields`, meaning the storage read was skipped entirely.
 #[derive(Debug)]
 pub struct TransactionReadData {
     pub digest: TransactionDigest,
-    pub transaction: Arc<VerifiedTransaction>,
-    pub effects: TransactionEffects,
+    pub transaction: Option<iota_sdk_types::transaction::Transaction>,
+    pub signatures: Option<Vec<iota_sdk_types::UserSignature>>,
+    pub effects: Option<TransactionEffects>,
     pub events: Option<TransactionEvents>,
     pub checkpoint: Option<u64>,
     pub timestamp_ms: Option<u64>,
-    pub input_objects: Vec<Object>,
-    pub output_objects: Vec<Object>,
+    pub input_objects: Option<Vec<Object>>,
+    pub output_objects: Option<Vec<Object>>,
 }
 
 /// Wrapper type that includes checkpoint context for a CheckpointTransaction.
