@@ -291,6 +291,7 @@ mod tests {
         account_address::AccountAddress,
         annotated_value::{MoveStruct, MoveValue, MoveVariant},
         identifier::Identifier,
+        language_storage::StructTag as MoveStructTag,
     };
 
     use crate::handlers::parse_struct;
@@ -298,13 +299,11 @@ mod tests {
     #[tokio::test]
     async fn test_wrapped_object_parsing() -> anyhow::Result<()> {
         let uid_field = MoveValue::Struct(MoveStruct {
-            type_: move_core_types::language_storage::StructTag::from_str("0x2::object::UID")?,
+            type_: MoveStructTag::from_str("0x2::object::UID")?,
             fields: vec![(
                 Identifier::from_str("id")?,
                 MoveValue::Struct(MoveStruct {
-                    type_: move_core_types::language_storage::StructTag::from_str(
-                        "0x2::object::ID",
-                    )?,
+                    type_: MoveStructTag::from_str("0x2::object::ID")?,
                     fields: vec![(
                         Identifier::from_str("bytes")?,
                         MoveValue::Signer(AccountAddress::from_hex_literal("0x300")?),
@@ -313,11 +312,11 @@ mod tests {
             )],
         });
         let balance_field = MoveValue::Struct(MoveStruct {
-            type_: move_core_types::language_storage::StructTag::from_str("0x2::balance::Balance")?,
+            type_: MoveStructTag::from_str("0x2::balance::Balance")?,
             fields: vec![(Identifier::from_str("value")?, MoveValue::U32(10))],
         });
         let move_struct = MoveStruct {
-            type_: move_core_types::language_storage::StructTag::from_str("0x2::test::Test")?,
+            type_: MoveStructTag::from_str("0x2::test::Test")?,
             fields: vec![
                 (Identifier::from_str("id")?, uid_field),
                 (Identifier::from_str("principal")?, balance_field),
@@ -339,13 +338,11 @@ mod tests {
     #[tokio::test]
     async fn test_wrapped_object_parsing_within_enum() -> anyhow::Result<()> {
         let uid_field = MoveValue::Struct(MoveStruct {
-            type_: move_core_types::language_storage::StructTag::from_str("0x2::object::UID")?,
+            type_: MoveStructTag::from_str("0x2::object::UID")?,
             fields: vec![(
                 Identifier::from_str("id")?,
                 MoveValue::Struct(MoveStruct {
-                    type_: move_core_types::language_storage::StructTag::from_str(
-                        "0x2::object::ID",
-                    )?,
+                    type_: MoveStructTag::from_str("0x2::object::ID")?,
                     fields: vec![(
                         Identifier::from_str("bytes")?,
                         MoveValue::Signer(AccountAddress::from_hex_literal("0x300")?),
@@ -354,11 +351,11 @@ mod tests {
             )],
         });
         let balance_field = MoveValue::Struct(MoveStruct {
-            type_: move_core_types::language_storage::StructTag::from_str("0x2::balance::Balance")?,
+            type_: MoveStructTag::from_str("0x2::balance::Balance")?,
             fields: vec![(Identifier::from_str("value")?, MoveValue::U32(10))],
         });
         let move_enum = MoveVariant {
-            type_: move_core_types::language_storage::StructTag::from_str("0x2::test::TestEnum")?,
+            type_: MoveStructTag::from_str("0x2::test::TestEnum")?,
             variant_name: Identifier::from_str("TestVariant")?,
             tag: 0,
             fields: vec![
@@ -367,7 +364,7 @@ mod tests {
             ],
         };
         let move_struct = MoveStruct {
-            type_: move_core_types::language_storage::StructTag::from_str("0x2::test::Test")?,
+            type_: MoveStructTag::from_str("0x2::test::Test")?,
             fields: vec![
                 (Identifier::from_str("id")?, uid_field),
                 (
