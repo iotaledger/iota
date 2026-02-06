@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import nacl from 'tweetnacl';
+import { ed25519 } from '@noble/curves/ed25519';
 
 import {
     decodeIotaPrivateKey,
@@ -19,8 +19,7 @@ export const DEFAULT_ED25519_DERIVATION_PATH = "m/44'/4218'/0'/0'/0'";
 
 /**
  * Ed25519 Keypair data. The publickey is the 32-byte public key and
- * the secretkey is 64-byte, where the first 32 bytes is the secret
- * key and the last 32 bytes is the public key.
+ * the secretkey is the 32-byte secret key.
  */
 export interface Ed25519KeypairData {
     publicKey: Uint8Array;
@@ -42,9 +41,18 @@ export class Ed25519Keypair extends Keypair {
     constructor(keypair?: Ed25519KeypairData) {
         super();
         if (keypair) {
-            this.keypair = keypair;
+            // Slice to 32 bytes for backward compatibility with the old tweetnacl format
+            // which used 64-byte secret keys (first 32 bytes: secret, last 32 bytes: public key)
+            this.keypair = {
+                publicKey: keypair.publicKey,
+                secretKey: keypair.secretKey.slice(0, 32),
+            };
         } else {
-            this.keypair = nacl.sign.keyPair();
+            const privateKey = ed25519.utils.randomPrivateKey();
+            this.keypair = {
+                publicKey: ed25519.getPublicKey(privateKey),
+                secretKey: privateKey,
+            };
         }
     }
 
@@ -59,7 +67,11 @@ export class Ed25519Keypair extends Keypair {
      * Generate a new random Ed25519 keypair
      */
     static generate(): Ed25519Keypair {
-        return new Ed25519Keypair(nacl.sign.keyPair());
+        const secretKey = ed25519.utils.randomPrivateKey();
+        return new Ed25519Keypair({
+            publicKey: ed25519.getPublicKey(secretKey),
+            secretKey,
+        });
     }
 
     /**
@@ -92,12 +104,16 @@ export class Ed25519Keypair extends Keypair {
                 `Wrong secretKey size. Expected ${PRIVATE_KEY_SIZE} bytes, got ${secretKeyLength}.`,
             );
         }
-        const keypair = nacl.sign.keyPair.fromSeed(secretKey);
+        const keypair = {
+            publicKey: ed25519.getPublicKey(secretKey),
+            secretKey,
+        };
+
         if (!options || !options.skipValidation) {
             const encoder = new TextEncoder();
             const signData = encoder.encode('iota validation');
-            const signature = nacl.sign.detached(signData, keypair.secretKey);
-            if (!nacl.sign.detached.verify(signData, signature, keypair.publicKey)) {
+            const signature = ed25519.sign(signData, secretKey);
+            if (!ed25519.verify(signature, signData, keypair.publicKey)) {
                 throw new Error('provided secretKey is invalid');
             }
         }
@@ -125,7 +141,7 @@ export class Ed25519Keypair extends Keypair {
      * Return the signature for the provided data using Ed25519.
      */
     async sign(data: Uint8Array) {
-        return nacl.sign.detached(data, this.keypair.secretKey);
+        return ed25519.sign(data, this.keypair.secretKey);
     }
 
     /**
