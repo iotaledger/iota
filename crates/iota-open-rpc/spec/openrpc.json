@@ -11172,36 +11172,22 @@
         }
       },
       "ObjectReference": {
-        "description": "Reference to an object\n\nContains sufficient information to uniquely identify a specific object.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text object-ref = object-id u64 digest ```",
-        "type": "object",
-        "required": [
-          "digest",
-          "objectId",
-          "version"
-        ],
-        "properties": {
-          "digest": {
-            "description": "The digest of this object.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Digest"
-              }
-            ]
+        "type": "array",
+        "items": [
+          {
+            "$ref": "#/components/schemas/ObjectId"
           },
-          "objectId": {
-            "description": "The object id of this object.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ObjectId"
-              }
-            ]
-          },
-          "version": {
-            "description": "The version of this object.",
+          {
+            "description": "Radix-10 encoded 64-bit unsigned integer",
             "type": "string",
             "format": "u64"
+          },
+          {
+            "$ref": "#/components/schemas/Digest"
           }
-        }
+        ],
+        "maxItems": 3,
+        "minItems": 3
       },
       "ObjectResponseError": {
         "oneOf": [
