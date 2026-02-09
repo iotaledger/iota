@@ -4,11 +4,11 @@ Runnable examples demonstrating common operations with the IOTA TypeScript SDK.
 
 ## Examples
 
-| Example | Description |
-| --- | --- |
-| `get-balance.ts` | Fetch an account's IOTA balance and coin objects from devnet |
-| `transfer-iota.ts` | Build and execute a transaction to transfer IOTA tokens on devnet |
-| `tx-with-graphql.ts` | Execute a transaction and query details via GraphQL transport |
+| Example              | Description                                                       |
+| -------------------- | ----------------------------------------------------------------- |
+| `get-balance.ts`     | Fetch an account's IOTA balance and coin objects from devnet      |
+| `transfer-iota.ts`   | Build and execute a transaction to transfer IOTA tokens on devnet |
+| `tx-with-graphql.ts` | Execute a transaction and query details via GraphQL transport     |
 
 ## Running
 
