@@ -271,18 +271,33 @@ impl BenchmarkCmp<'_> {
         }
     }
     pub fn cmp_error_rate(&self) -> Comparison {
-        let old_error_rate =
-            self.old.num_error_txes / (self.old.num_error_txes + self.old.num_success_txes);
-        let new_error_rate =
-            self.new.num_error_txes / (self.new.num_error_txes + self.new.num_success_txes);
-        let diff = new_error_rate as i64 - old_error_rate as i64;
-        let diff_ratio = diff as f64 / old_error_rate as f64;
+        let old_denom = (self.old.num_error_txes + self.old.num_success_txes) as f64;
+        let new_denom = (self.new.num_error_txes + self.new.num_success_txes) as f64;
+
+        let old_error_rate = if old_denom == 0.0 {
+            0.0
+        } else {
+            self.old.num_error_txes as f64 / old_denom
+        };
+        let new_error_rate = if new_denom == 0.0 {
+            0.0
+        } else {
+            self.new.num_error_txes as f64 / new_denom
+        };
+
+        let diff = (new_error_rate - old_error_rate) * 100.0;
+        let diff_ratio = if old_error_rate == 0.0 {
+            0.0
+        } else {
+            (new_error_rate - old_error_rate) / old_error_rate
+        };
         let speedup = 1.0 / (1.0 + diff_ratio);
+
         Comparison {
             name: "error_rate".to_string(),
-            old_value: format!("{old_error_rate:.2}"),
-            new_value: format!("{new_error_rate:.2}"),
-            diff,
+            old_value: format!("{old_error_rate:.4}"),
+            new_value: format!("{new_error_rate:.4}"),
+            diff: diff.round() as i64,
             diff_ratio,
             speedup,
         }

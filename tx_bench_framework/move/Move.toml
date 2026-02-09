@@ -1,0 +1,9 @@
+[package]
+name = "abstract_account_with_pub_key"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../crates/iota-framework/packages/iota-framework" }
+
+[addresses]
+abstract_account_with_pub_key = "0x0"

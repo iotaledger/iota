@@ -1,13 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::str::FromStr;
 
 use clap::*;
-use strum_macros::EnumString;
 
-use crate::drivers::Interval;
+use crate::{
+    drivers::Interval,
+    workloads::abstract_account::{AuthenticatorKind, TxType},
+};
 
 #[derive(Parser)]
 #[command(name = "Stress Testing Framework")]
@@ -111,7 +113,7 @@ pub struct Opts {
     pub protocol_version: Option<u64>,
 }
 
-#[derive(Debug, Clone, Parser, Eq, PartialEq, EnumString)]
+#[derive(Debug, Clone, Parser, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum RunSpec {
     // Allow the ability to mix shared object and
@@ -244,5 +246,61 @@ pub enum RunSpec {
         // Setting the duration of each benchmark. Benchmarks will run in sequence.
         #[arg(long, num_args(1..), value_delimiter = ',', default_values_t = [Interval::from_str("unbounded").unwrap()])]
         duration: Vec<Interval>,
+    },
+
+    AbstractAccountBench {
+        #[arg(long, default_value = "ed25519")]
+        authenticator: AuthenticatorKind,
+
+        #[arg(long, default_value = "1000")]
+        split_amount: u64,
+
+        // It determines whether to use owned object transactions
+        // or shared object transactions in the benchmark.
+        #[arg(long, default_value = "owned-object")]
+        tx_type: TxType,
+        // --- generic options ---
+        /// Target offered load in "transactions per second" for the benchmark
+        /// driver. The scheduler uses this to pace how many txs it
+        /// *attempts* to submit per second (aggregate).
+        #[arg(long, default_value = "1000")]
+        target_qps: u64,
+
+        /// Number of concurrent worker tasks generating/submitting
+        /// transactions.
+        ///
+        /// Effect on the flow:
+        /// - Workers execute in parallel: build tx payloads, sign/authenticate,
+        ///   submit, and track completions according to the driver design.
+        /// - Higher num_workers increases concurrency and can improve
+        ///   throughput *only if* the workload is shardable (independent input
+        ///   objects / accounts).
+        /// - For contention-heavy workloads (e.g, many txs touching the same
+        ///   shared object), increasing num_workers often *reduces* TPS and
+        ///   increases tail latency due to serialized execution and extra
+        ///   queuing.
+        #[arg(long, default_value = "12")]
+        num_workers: u64,
+
+        /// Maximum pipeline depth relative to the target send rate
+        /// (backpressure).
+        ///
+        /// Effect on the flow:
+        /// - The driver limits how many transactions can be "in flight"
+        ///   (submitted but not yet observed as complete) at a time.
+        /// - Larger values keep the pipeline full when end-to-end latency is
+        ///   high, which can improve throughput up to capacity.
+        /// - Too large values increase memory/CPU overhead, amplify queueing,
+        ///   and typically worsen p99 latency.
+        #[arg(long, default_value = "5")]
+        in_flight_ratio: u64,
+
+        /// Benchmark run duration (measurement window).
+        /// - "unbounded" typically means run until externally stopped (Ctrl+C
+        ///   or orchestrator stop).
+        /// - it's better to keet it unbounded and use run_duration from the
+        ///   top-level options,
+        #[arg(long, default_value = "unbounded")]
+        duration: Interval,
     },
 }

@@ -5,6 +5,7 @@
 use std::{
     collections::HashSet,
     fs::{self},
+    future::Future,
     marker::PhantomData,
     path::Path,
     time::Duration,
@@ -15,7 +16,7 @@ use futures;
 use tokio::time::{self, Instant};
 
 use crate::{
-    benchmark::{BenchmarkParameters, BenchmarkParametersGenerator, BenchmarkType},
+    benchmark::{BenchmarkParameters, BenchmarkParametersGenerator, BenchmarkType, RunInterval},
     build_cache::BuildCacheService,
     client::Instance,
     display,
@@ -162,6 +163,30 @@ impl<P, T> Orchestrator<P, T> {
         }
         instances
     }
+
+    fn effective_scrape_interval(&self, parameters: &BenchmarkParameters<T>) -> Duration {
+        const MIN: Duration = Duration::from_secs(1);
+        // upper bound: current self.scrape_interval (e.g., 15s)
+        let max = self.scrape_interval;
+
+        match parameters.run_interval {
+            RunInterval::Time(_) => self.scrape_interval,
+
+            RunInterval::Count(tx_count) => {
+                // Evaluate the scrape interval based on the estimated benchmark duration,
+                // aiming for around 30 samples, but never less than 1s and never more than
+                // self.scrape_interval.
+                let qps = parameters.load.max(1) as u64; // protect against division by zero, even if load is set to 0
+                let est_secs = (tx_count + qps - 1) / qps;
+
+                let target_samples = 30u64;
+                let raw = (est_secs / target_samples).max(1);
+                let candidate = Duration::from_secs(raw);
+
+                candidate.clamp(MIN, max)
+            }
+        }
+    }
 }
 
 impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P, T> {
@@ -301,7 +326,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
         let command = [
             &basic_commands[..],
-            &Prometheus::install_commands(),
+            // &Prometheus::install_commands(), TODO: remove
             &cloud_provider_specific_dependencies[..],
             &protocol_dependencies[..],
         ]
@@ -352,6 +377,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                 .settings
                 .enable_prometheus_snapshots
                 .then_some(timestamp);
+            monitor.start_tempo().await?;
             monitor
                 .start_prometheus(
                     &self.protocol_commands,
@@ -611,34 +637,61 @@ done"#
 
     /// Collect metrics from the load generators.
     pub async fn run(&self, parameters: &BenchmarkParameters<T>) -> TestbedResult<()> {
-        display::action(format!(
-            "Running benchmark (at least {}s)",
-            parameters.duration.as_secs()
-        ));
+        let run_label = match parameters.run_interval {
+            RunInterval::Time(d) => format!("at least {}s", d.as_secs()),
+            RunInterval::Count(n) => format!("until {n} tx executed"),
+        };
+        display::action(format!("Running benchmark ({run_label})"));
 
-        let mut metrics_interval = time::interval(Duration::from_secs(5));
-        metrics_interval.tick().await; // The first tick returns immediately.
-
+        let scrape_every = self.effective_scrape_interval(parameters);
+        let mut metrics_interval = time::interval(scrape_every);
+        metrics_interval.tick().await;
         let faults_type = parameters.faults.clone();
         let mut faults_schedule =
             CrashRecoverySchedule::new(faults_type, self.node_instances.clone());
+
         let mut faults_interval = time::interval(self.crash_interval);
-        faults_interval.tick().await; // The first tick returns immediately.
+        faults_interval.tick().await;
+
+        // In Count-mode we should stop when the client tmux session terminates,
+        // not when "elapsed seconds" reaches some value.
+        let is_count_mode = matches!(parameters.run_interval, RunInterval::Count(_));
+        let clients = self.client_instances.clone();
+        let ssh = self.ssh_manager.clone();
+
+        let wait_clients_future: std::pin::Pin<Box<dyn Future<Output = TestbedResult<()>> + Send>> =
+            if is_count_mode && !clients.is_empty() {
+                Box::pin(async move {
+                    ssh.wait_for_command(clients, "client", CommandStatus::Terminated)
+                        .await
+                        .map_err(Into::into)
+                })
+            } else {
+                Box::pin(std::future::pending::<TestbedResult<()>>())
+            };
+        tokio::pin!(wait_clients_future);
 
         let start = Instant::now();
+
         loop {
             tokio::select! {
-                // Update elapsed time display.
                 _ = metrics_interval.tick() => {
                     let elapsed = Instant::now().duration_since(start).as_secs_f64().ceil() as u64;
                     display::status(format!("{elapsed}s"));
 
-                    if elapsed > parameters.duration.as_secs() {
-                        break;
+                    if let Some(limit) = parameters.run_interval.time_limit_secs() {
+                        if elapsed >= limit {
+                            break;
+                        }
                     }
-                },
+                }
 
-                // Kill and recover nodes according to the input schedule.
+                res = &mut wait_clients_future => {
+                    // Work only count-based benchmarks, for time-based the future is pending and will never complete
+                    res?;
+                    break;
+                }
+
                 _ = faults_interval.tick() => {
                     let  action = faults_schedule.update();
                     if !action.kill.is_empty() {
@@ -651,7 +704,7 @@ done"#
                         display::newline();
                         display::config("Testbed update", action);
                     }
-                }
+                 }
             }
         }
 
@@ -966,6 +1019,35 @@ done"#
         let timestamp = chrono::Local::now().format("%y%m%d_%H%M%S").to_string();
         let benchmark_dir = self.settings.results_dir.join(&commit).join(&timestamp);
 
+        display::config("dedicated_clients", self.dedicated_clients);
+        display::config("nodes", self.node_instances.len());
+        display::config("clients", self.client_instances.len());
+        display::config("metrics", self.metrics_instance.is_some());
+
+        display::config(
+            "nodes",
+            self.node_instances
+                .iter()
+                .map(|i| i.ssh_address().to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+        display::config(
+            "clients",
+            self.client_instances
+                .iter()
+                .map(|i| i.ssh_address().to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+        display::config(
+            "metrics",
+            self.metrics_instance
+                .as_ref()
+                .map(|i| i.ssh_address().to_string())
+                .unwrap_or("<none>".to_string()),
+        );
+
         // Update the software on all instances.
         if !self.skip_testbed_update {
             self.install().await?;
@@ -987,6 +1069,26 @@ done"#
 
             parameters.benchmark_dir = benchmark_dir.join(format!("{parameters:?}"));
 
+            if !self.skip_monitoring {
+                if let Some(metrics) = &self.metrics_instance {
+                    let host_ip = if generator.use_internal_ip_address {
+                        metrics.private_ip
+                    } else {
+                        metrics.main_ip
+                    };
+
+                    parameters.otel.get_or_insert(crate::benchmark::OtelConfig {
+                        otlp_endpoint: format!(
+                            "http://{}:{}",
+                            host_ip,
+                            crate::monitor::Tempo::OTLP_GRPC_PORT
+                        ),
+                        protocol: "grpc".to_string(),
+                        sampler: "parentbased_traceidratio".to_string(),
+                        sampler_arg: "0.1".to_string(),
+                    });
+                }
+            }
             // Cleanup the testbed (in case the previous run was not completed).
             self.cleanup(true).await?;
             // Create benchmark directory.

@@ -35,6 +35,7 @@ sysinfo.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tokio-util.workspace = true
 tracing.workspace = true
+fastcrypto.workspace = true
 
 # internal dependencies
 iota-config.workspace = true

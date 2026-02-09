@@ -114,3 +114,11 @@ crates/iota-aws-orchestrator/assets/logs/
 
 # ignore explorer files
 apps/explorer/public/*.wasm
+
+
+#grafana
+dev-tools/grafana-local/tempo-data
+
+# tx_bench_framework
+tx_bench_framework/build/
+tx_bench_framework/metrics/tempo-data

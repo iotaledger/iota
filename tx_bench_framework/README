@@ -1,0 +1,162 @@
+## TX Bench Framework 
+A lightweight benchmarking CLI for IOTA Move transactions on a local private network. It supports two execution modes:
+- Standard transactions (signed by an EOA / keystore)
+- Account Abstraction (AA) transactions (signed via MoveAuthenticator and executed under an AA “account address”)
+The primary goal is to generate large batches of transactions and correlate them with node-side spans in Tempo/Grafana for execution-time analysis (e.g., `handle_transaction`, `process_certificate`).
+
+### Local network + observability setup
+
+1) ***Start localnet***.
+Export required environment variables to enable Tempo tracing:
+
+```bash
+export TRACE_FILTER=[handle_transaction]=trace,[process_certificate]=trace
+```
+
+Run from the repository root:
+```bash
+cargo run --release --bin iota start --force-regenesis --with-faucet
+```
+
+2) ***Start Grafana/Tempo***.
+Run from tx_bench_framework/metrics:
+```bash
+docker-compose up -d
+```
+
+### Quick start
+
+1) ***Initialize an AA account*** (and optionally publish the Move package)
+
+This command:
+
+- publishes the AA Move package unless a cached deployment exists (same RPC + same canonical package path), unless --force-republish is used;
+- calls abstract_account::create(...) to create a shared AbstractAccount;
+- if the authenticator requires extra bench objects (MaxArgs128/MaxArgs255), it will create and store those object refs in the registry.
+
+```bash
+cargo run -- --use-faucet init \
+  --name <ACC_NAME> \
+  --aa-package-path <PACKAGE_PATH> \
+  --authenticator <ed25519|ed25519-heavy|hello-world|max-args128|max-args255>
+```
+
+`--force-republish` — bypass deployment cache and publish a fresh package.
+
+2. ***Accounts List***
+
+```bash
+cargo run -- accounts list
+```
+
+This prints:
+
+- active account name
+
+- per-account: AA address, authenticator kind, package id, etc.
+
+Example 
+
+```
+Active: acc_max_arg_255
+- acc_ed25519: aa_address=0x9c197b00cb4fc7aaa6ef4f7cc2efb65bfde80baa06538346e4016547bfb478c4 auth=Ed25519 package_id=0x973f6ab43670324b5ec54dae1df5e7615443cc24a6e964165bee13ee738d6a50
+- acc_ed25519_heavy: aa_address=0x2af137d53697a1f9166e578e98fecc771601628166c41953df323bc1affc2508 auth=Ed25519Heavy package_id=0x973f6ab43670324b5ec54dae1df5e7615443cc24a6e964165bee13ee738d6a50
+- acc_max_arg_255: aa_address=0x913015d14237bf4d03baeec6f8b2fcaa2af3814811ba74d6938b86fc08e7e7c2 auth=MaxArgs255 package_id=0x973f6ab43670324b5ec54dae1df5e7615443cc24a6e964165bee13ee738d6a50
+```
+
+3. ***Switch Active Account***
+
+```bash
+cargo run -- accounts use --name acc1
+```
+
+4. ***Submit Transactions***
+
+Common parameters:
+
+- `--mode <standard|aa>`
+
+- `--count <TX_COUNT>`
+
+- `--recipient <RECIPIENT_ADDR>` (optional; defaults to sender)
+
+- `--split-amount <N>` (default: 1000)
+
+- `--wait-mode <effects|local>` (default: effects)
+
+- `--use-faucet` (optional; funds the sender or AA address depending on mode)
+
+Standard mode: 
+```bash
+cargo run -- --use-faucet submit --recipient <RECIPIENT_ADDR> --mode standard --count <TX_COUNT>
+```
+
+AA mode:
+```bash
+cargo run -- --use-faucet submit --recipient <RECIPIENT_ADDR> --mode aa --count <TX_COUNT>
+```
+
+#### What a “submit” batch does
+
+For each transaction in the batch:
+1. Fund coints (if needed).
+2. Select two distinct coins owned by the sender:
+ - one used as gas coin
+ - one used as payment coin to split and transfer
+3. Build a programmable transaction:
+ - `coin::split` (split split_amount)
+ - `transfer::public_transfer` (send split coin to recipient)
+4. Sign and submit:
+ - standard: keystore signature over TransactionData
+ - aa: MoveAuthenticator signature with authenticator args, and a shared AA object passed as self call arg
+
+### Registry state file (`tx_bench_state.json`)
+
+The framework stores state in a JSON registry file (default: tx_bench_state.json), containing:
+
+ - `active_account`: currently selected account name
+ - `accounts`: map { name -> AccountState }
+ - `deployments`: map { deployment_name -> DeploymentState } (used to avoid republishing the same Move package)
+
+```json
+{
+  "active_account": "acc_hello_world",
+  "accounts": {
+    "acc_hello_world": {
+      "created_at_unix_ms": 1767182193568,
+      "rpc": "http://127.0.0.1:9000",
+      "sender": "0x9afe68c43ec52e0ec78148c32aacc5b582d0d198bac76f463e1b0907335b38f2",
+      "deployment": "deploy-1767182000000",
+      "publish_tx_digest": "GGWdJEHGp7xEKvFFewucjmQC5L9J14f3ThbaB8Broe19",
+      "package_id": "0x4e5d2501a5db57402abf97824a43680c1e67f94ee3806d0796d4cfded3db072c",
+      "package_metadata_object_id": "0xe2bf77960d032e71cafecf35421f40441763b65a36865cb2a36d39014c6852e5",
+      "aa_account_object_id": "0x7fae7a98eaf4f53d7d8de7c35e9dc5e572e441fd7750000e5ddd6541c052274d",
+      "aa_account_version": 4,
+      "aa_account_digest": "7JeF8evt2V9RWuifLHq33naBRFDFm1MxuQqpLcTehw1L",
+      "aa_address": "0x7fae7a98eaf4f53d7d8de7c35e9dc5e572e441fd7750000e5ddd6541c052274d",
+      "authenticator": "HelloWorld",
+      "bench_objects": []
+    }
+  },
+  "deployments": {
+    "deploy-1767182000000": {
+      "created_at_unix_ms": 1767182000000,
+      "rpc": "http://127.0.0.1:9000",
+      "package_path": "/abs/path/to/aa/package",
+      "publish_tx_digest": "GGWdJEHGp7xEKvFFewucjmQC5L9J14f3ThbaB8Broe19",
+      "package_id": "0x4e5d2501a5db57402abf97824a43680c1e67f94ee3806d0796d4cfded3db072c",
+      "package_metadata_object_id": "0xe2bf77960d032e71cafecf35421f40441763b65a36865cb2a36d39014c6852e5",
+      "package_metadata_version": 1,
+      "package_metadata_digest": "..."
+    }
+  }
+}
+```
+
+### Tempo / TraceQL correlation
+
+After a successful batch, the tool prints a TraceQL query snippet that:
+- filters by service name (default `"iota"`)
+- filters by span name (e.g. `"handle_transaction"`)
+- filters by sender (`span.sender`)
+- filters by regex matching the batch digests (`span.tx_digest =~ "..."`)

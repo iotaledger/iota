@@ -16,6 +16,7 @@ aws-smithy-runtime-api = "1.11"
 chrono.workspace = true
 clap.workspace = true
 color-eyre = "0.6"
+duration-str = "0.5.0"
 crossterm.workspace = true
 eyre.workspace = true
 futures.workspace = true

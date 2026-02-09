@@ -3,14 +3,126 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    fmt::{Debug, Display},
+    fmt::{Debug, Display, Formatter},
     hash::Hash,
     path::PathBuf,
     str::FromStr,
     time::Duration,
 };
 
+use duration_str::parse;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+
+use crate::ValueEnum;
+
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
+pub enum RunInterval {
+    Count(u64),
+    Time(tokio::time::Duration),
+}
+
+impl RunInterval {
+    pub fn time_limit_secs(&self) -> Option<u64> {
+        match self {
+            RunInterval::Time(d) => Some(d.as_secs()),
+            RunInterval::Count(_) => None,
+        }
+    }
+    pub fn as_stress_flag(&self) -> String {
+        match self {
+            RunInterval::Time(d) => format!("--run-duration {}s", d.as_secs()),
+            RunInterval::Count(n) => format!("--run-duration {n}"),
+        }
+    }
+}
+
+impl FromStr for RunInterval {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Ok(i) = s.parse() {
+            Ok(RunInterval::Count(i))
+        } else if let Ok(d) = parse(s) {
+            Ok(RunInterval::Time(d))
+        } else {
+            Err("Required integer number of cycles or time duration".to_string())
+        }
+    }
+}
+
+impl std::fmt::Display for RunInterval {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RunInterval::Count(count) => f.write_str(format!("{count}").as_str()),
+            RunInterval::Time(d) => f.write_str(format!("{}sec", d.as_secs()).as_str()),
+        }
+    }
+}
+
+#[derive(ValueEnum, Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum AbstractAccountAuthenticator {
+    Ed25519,
+    Ed25519Heavy,
+    HelloWorld,
+    MaxArgs128,
+}
+
+impl Default for AbstractAccountAuthenticator {
+    fn default() -> Self {
+        Self::Ed25519
+    }
+}
+
+impl AbstractAccountAuthenticator {
+    pub fn as_cli_str(&self) -> &'static str {
+        match self {
+            Self::Ed25519 => "ed25519",
+            Self::Ed25519Heavy => "ed25519heavy",
+            Self::HelloWorld => "helloworld",
+            Self::MaxArgs128 => "maxargs128",
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct OtelConfig {
+    pub otlp_endpoint: String, // example "http://10.0.0.12:4317"
+    pub protocol: String,      // "grpc" (or "http/protobuf")
+    pub sampler: String,       // "parentbased_traceidratio"
+    pub sampler_arg: String,   // "0.1"
+}
+
+impl Default for OtelConfig {
+    fn default() -> Self {
+        Self {
+            otlp_endpoint: String::new(),
+            protocol: "grpc".to_string(),
+            sampler: "parentbased_traceidratio".to_string(),
+            sampler_arg: "0.1".to_string(),
+        }
+    }
+}
+
+#[derive(ValueEnum, Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum TxType {
+    OwnedObject,
+    SharedObject,
+}
+
+impl Default for TxType {
+    fn default() -> Self {
+        Self::OwnedObject
+    }
+}
+
+impl TxType {
+    pub fn as_cli_str(&self) -> &'static str {
+        match self {
+            Self::OwnedObject => "owned-object",
+            Self::SharedObject => "shared-object",
+        }
+    }
+}
 
 use crate::{
     ConsensusProtocol,
@@ -41,6 +153,8 @@ pub trait BenchmarkType:
 pub struct BenchmarkParameters<T> {
     /// The type of benchmark to run.
     pub benchmark_type: T,
+    /// Optional OpenTelemetry configuration.
+    pub otel: Option<OtelConfig>,
     /// The committee size.
     pub nodes: usize,
     /// The number of additional gas accounts to create.
@@ -49,8 +163,25 @@ pub struct BenchmarkParameters<T> {
     pub faults: FaultsType,
     /// The total load (tx/s) to submit to the system.
     pub load: usize,
-    /// The duration of the benchmark.
-    pub duration: Duration,
+    /// The run interval of the benchmark. This can be either a duration (e.g.,
+    /// 60s) or a transaction count (e.g., 100_000 txs).
+    pub run_interval: RunInterval,
+    /// AA workload: which authenticator kind to use.
+    pub aa_authenticator: AbstractAccountAuthenticator,
+    /// AA workload: which authenticator kind to use.
+    pub tx_type: TxType,
+    /// AA workload: number of worker tasks inside stress.
+    pub aa_num_workers: u64,
+    /// AA workload: in-flight ratio inside stress.
+    pub aa_in_flight_ratio: u64,
+    /// AA workload: split amount inside stress.
+    pub aa_split_amount: u64,
+    /// Stress client threads used for AA workload (bench keeps the old
+    /// hardcoded behavior).
+    pub stress_num_client_threads: u64,
+    /// Stress server threads used for AA workload (bench keeps the old
+    /// hardcoded behavior).
+    pub stress_num_server_threads: u64,
     /// Flag indicating whether nodes should advertise their internal or public
     /// IP address for inter-node communication. When running the simulation
     /// in multiple regions, nodes need to use their public IPs to correctly
@@ -86,11 +217,19 @@ impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
     fn default() -> Self {
         Self {
             benchmark_type: T::default(),
+            otel: None,
             nodes: 4,
             additional_gas_accounts: 0,
             faults: FaultsType::default(),
             load: 500,
-            duration: Duration::from_secs(60),
+            run_interval: RunInterval::Time(Duration::from_secs(60)),
+            aa_authenticator: AbstractAccountAuthenticator::default(),
+            tx_type: TxType::default(),
+            aa_split_amount: 1_000,
+            aa_num_workers: 2,
+            aa_in_flight_ratio: 10,
+            stress_num_client_threads: 8,
+            stress_num_server_threads: 8,
             use_internal_ip_address: true,
             latency_topology: Some(TopologyLayout::Mainnet),
             perturbation_spec: PerturbationSpec::None,
@@ -139,11 +278,19 @@ impl<T> BenchmarkParameters<T> {
     /// Make a new benchmark parameters.
     pub fn new(
         benchmark_type: T,
+        otel: Option<OtelConfig>,
         nodes: usize,
         additional_gas_accounts: usize,
         faults: FaultsType,
         load: usize,
-        duration: Duration,
+        run_interval: RunInterval,
+        aa_authenticator: AbstractAccountAuthenticator,
+        tx_type: TxType,
+        aa_num_workers: u64,
+        aa_split_amount: u64,
+        aa_in_flight_ratio: u64,
+        stress_num_client_threads: u64,
+        stress_num_server_threads: u64,
         use_internal_ip_address: bool,
         latency_topology: Option<TopologyLayout>,
         perturbation_spec: PerturbationSpec,
@@ -158,12 +305,21 @@ impl<T> BenchmarkParameters<T> {
     ) -> Self {
         Self {
             benchmark_type,
+            otel,
             nodes,
             additional_gas_accounts,
             faults,
             load,
-            duration,
+            run_interval,
+            aa_authenticator,
+            tx_type,
+            aa_split_amount,
+            aa_num_workers,
+            aa_in_flight_ratio,
+            stress_num_client_threads,
+            stress_num_server_threads,
             use_internal_ip_address,
+
             latency_topology,
             perturbation_spec,
             consensus_protocol,
@@ -199,6 +355,8 @@ pub enum LoadType {
 pub struct BenchmarkParametersGenerator<T> {
     /// The type of benchmark to run.
     benchmark_type: T,
+    /// Optional OpenTelemetry configuration.
+    otel: Option<OtelConfig>,
     /// The committee size.
     pub nodes: usize,
     /// The number of additional clients.
@@ -208,7 +366,7 @@ pub struct BenchmarkParametersGenerator<T> {
     /// The number of faulty nodes.
     pub faults: FaultsType,
     /// The duration of the benchmark.
-    duration: Duration,
+    run_interval: RunInterval,
     /// The load of the next benchmark run.
     next_load: Option<usize>,
     /// Temporary hold a lower bound of the breaking point.
@@ -220,6 +378,24 @@ pub struct BenchmarkParametersGenerator<T> {
     /// Flag indicating whether nodes should advertise their internal or public
     /// IP address for inter-node communication.
     pub use_internal_ip_address: bool,
+
+    /// AA workload authenticator.
+    aa_authenticator: AbstractAccountAuthenticator,
+
+    /// Type of object transaction uses - owned or shared.
+    tx_type: TxType,
+
+    /// AA tuning.
+    aa_num_workers: u64,
+
+    aa_split_amount: u64,
+
+    aa_in_flight_ratio: u64,
+
+    /// Stress threads used for AA.
+    stress_num_client_threads: u64,
+    stress_num_server_threads: u64,
+
     /// The topology of private network latencies, RandomGeographical,
     /// RandomClustered, HardCodedClustered, or Mainnet
     pub latency_topology: Option<TopologyLayout>,
@@ -261,11 +437,19 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
         self.next_load.map(|load| {
             BenchmarkParameters::new(
                 self.benchmark_type.clone(),
+                self.otel.clone(),
                 self.nodes,
                 self.additional_gas_accounts,
                 self.faults.clone(),
                 load,
-                self.duration,
+                self.run_interval,
+                self.aa_authenticator.clone(),
+                self.tx_type.clone(),
+                self.aa_num_workers,
+                self.aa_split_amount,
+                self.aa_in_flight_ratio,
+                self.stress_num_client_threads,
+                self.stress_num_server_threads,
                 self.use_internal_ip_address,
                 self.latency_topology.clone(),
                 self.perturbation_spec.clone(),
@@ -283,8 +467,8 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
 }
 
 impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
-    /// The default benchmark duration.
-    const DEFAULT_DURATION: Duration = Duration::from_secs(180);
+    /// The default benchmark run interval.
+    const DEFAULT_RUN_INTERVAL: RunInterval = RunInterval::Time(Duration::from_secs(180));
 
     /// make a new generator.
     pub fn new(
@@ -305,11 +489,12 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
         };
         Self {
             benchmark_type: T::default(),
+            otel: None,
             nodes,
             additional_gas_accounts,
             load_type,
             faults: FaultsType::default(),
-            duration: Self::DEFAULT_DURATION,
+            run_interval: Self::DEFAULT_RUN_INTERVAL,
             next_load,
             lower_bound_result: None,
             upper_bound_result: None,
@@ -324,7 +509,49 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
             max_pipeline_delay: 400,
             shared_counter_hotness_factor: None,
             num_shared_counters: None,
+            aa_authenticator: AbstractAccountAuthenticator::default(),
+            tx_type: TxType::default(),
+            aa_num_workers: 2,
+            aa_in_flight_ratio: 5,
+            aa_split_amount: 1_000,
+            stress_num_client_threads: 8,
+            stress_num_server_threads: 8,
         }
+    }
+
+    pub fn with_aa_authenticator(mut self, aa_authenticator: AbstractAccountAuthenticator) -> Self {
+        self.aa_authenticator = aa_authenticator;
+        self
+    }
+
+    pub fn with_tx_type(mut self, tx_type: TxType) -> Self {
+        self.tx_type = tx_type;
+        self
+    }
+
+    pub fn with_aa_num_workers(mut self, aa_num_workers: u64) -> Self {
+        self.aa_num_workers = aa_num_workers;
+        self
+    }
+
+    pub fn with_aa_split_amount(mut self, aa_split_amount: u64) -> Self {
+        self.aa_split_amount = aa_split_amount;
+        self
+    }
+
+    pub fn with_aa_in_flight_ratio(mut self, aa_in_flight_ratio: u64) -> Self {
+        self.aa_in_flight_ratio = aa_in_flight_ratio;
+        self
+    }
+
+    pub fn with_stress_client_threads(mut self, stress_num_client_threads: u64) -> Self {
+        self.stress_num_client_threads = stress_num_client_threads;
+        self
+    }
+
+    pub fn with_stress_server_threads(mut self, stress_num_server_threads: u64) -> Self {
+        self.stress_num_server_threads = stress_num_server_threads;
+        self
     }
 
     /// Set the benchmark type.
@@ -339,9 +566,9 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
         self
     }
 
-    /// Set a custom benchmark duration.
-    pub fn with_custom_duration(mut self, duration: Duration) -> Self {
-        self.duration = duration;
+    /// Set a custom benchmark run interval.
+    pub fn with_custom_run_interval(mut self, run_interval: RunInterval) -> Self {
+        self.run_interval = run_interval;
         self
     }
 
