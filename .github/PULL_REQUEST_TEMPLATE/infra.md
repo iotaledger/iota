@@ -36,11 +36,9 @@ Make sure to provide instructions for the maintainer as well as any relevant con
 
 #### Breaking Changes Rollout
 
-If your PR introduces breaking changes, add a sub-section for each affected crate that users might depend on as shown below.
+If you introduce breaking changes to one or several crates, list each crate as a sub-heading using the template below. Replace XYZ with the crate's name (e.g., iota-data-ingestion-core). For each box you select, include information about the rollout plan and any actions users must take to keep their applications up to date on the respective public network.
 
-For each box you select, include information after the relevant heading that describes the rollout plan for your changes that a user might notice and any actions they must take to stay compatible with the changes.
-
-##### iota-
+##### XYZ
 
 - [ ] devnet:
 - [ ] testnet:
