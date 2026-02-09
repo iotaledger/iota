@@ -31,6 +31,7 @@ use crate::{
     decoder::{ShardsDecoder, create_decoder},
     encoder::{ShardEncoder, create_encoder},
     error::{ConsensusError, ConsensusResult},
+    transaction_ref::TransactionRef,
 };
 
 const EVICTION_TIMEOUT: Duration = Duration::from_secs(1);
@@ -64,6 +65,17 @@ pub(crate) struct FullTransactionMessage {
     transactions_commitment: TransactionsCommitment,
 }
 
+impl FullTransactionMessage {
+    pub fn transaction_ref(&self) -> TransactionRef {
+        TransactionRef {
+            round: self.block_ref.round,
+            author: self.block_ref.author,
+            transactions_commitment: self.transactions_commitment,
+            block_digest: self.block_ref.digest,
+        }
+    }
+}
+
 impl TransactionMessage {
     pub fn block_ref(&self) -> BlockRef {
         match self {
@@ -76,6 +88,16 @@ impl TransactionMessage {
         match self {
             TransactionMessage::FullTransaction(msg) => msg.transactions_commitment,
             TransactionMessage::Shard(msg) => msg.transactions_commitment,
+        }
+    }
+
+    pub fn transaction_ref(&self) -> TransactionRef {
+        let block_ref = self.block_ref();
+        TransactionRef {
+            round: block_ref.round,
+            author: block_ref.author,
+            transactions_commitment: self.transactions_commitment(),
+            block_digest: block_ref.digest,
         }
     }
 
@@ -285,15 +307,14 @@ pub struct ShardReconstructor<C: CoreThreadDispatcher> {
     context: Arc<Context>,
     /// Already processed transaction either by authority service or by shard
     /// reconstructor
-    processed_transactions: BTreeSet<BlockRef>,
+    processed_transactions: BTreeSet<TransactionRef>,
     /// A cache of reconstructed transactions that will be periodically sent in
     /// the core
-    reconstructed_transactions: BTreeMap<BlockRef, VerifiedTransactions>,
-    /// A map of all shard accumulators. Periodically evicted. Keyed by a pair
-    /// (BlockRef, TransactionsCommitment) since transaction commitment is not
-    /// supposed to be verified against the block ref when receiving by
-    /// ShardReconstructor
-    shard_accumulators: BTreeMap<(BlockRef, TransactionsCommitment), ShardAccumulator>,
+    reconstructed_transactions: BTreeMap<TransactionRef, VerifiedTransactions>,
+    /// A map of all shard accumulators. Periodically evicted. Keyed by
+    /// TransactionRef which uniquely identifies transactions via
+    /// transactions_commitment
+    shard_accumulators: BTreeMap<TransactionRef, ShardAccumulator>,
     /// Use only read access to the dag state to read the transaction GC round
     /// and check whether the respected headers are available
     dag_state: Arc<RwLock<DagState>>,
@@ -302,7 +323,7 @@ pub struct ShardReconstructor<C: CoreThreadDispatcher> {
     /// After full reconstruction and verification, send data to the core
     core_dispatcher: Arc<C>,
     /// Queue is used to not reconstruct the same data twice
-    reconstruction_queue: BTreeSet<BlockRef>,
+    reconstruction_queue: BTreeSet<TransactionRef>,
     /// Once enough shards are collected, they are sent to reconstructor workers
     ready_to_reconstruct_sender: Sender<ShardAccumulator>,
     /// Channel to receive accumulated shard for reconstruction by workers
@@ -428,9 +449,10 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                     }
                     // A transaction is reconstructed in one of the reconstruction workers
                     Some(verified_transactions) = self.reconstructed_transactions_receiver.recv() => {
-                        self.processed_transactions.insert(verified_transactions.block_ref());
-                        self.reconstruction_queue.remove(&verified_transactions.block_ref());
-                        self.reconstructed_transactions.insert(verified_transactions.block_ref(), verified_transactions);
+                        let tx_ref = verified_transactions.transaction_ref();
+                        self.processed_transactions.insert(tx_ref);
+                        self.reconstruction_queue.remove(&tx_ref);
+                        self.reconstructed_transactions.insert(tx_ref, verified_transactions);
                     }
 
                  () = &mut send_to_core_timeout => {
@@ -485,16 +507,16 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         // Update the internal transaction_gc_round
         self.transaction_gc_round = transaction_gc_round;
 
-        let lower_bound = BlockRef::new(
-            transaction_gc_round,
-            AuthorityIndex::ZERO,
-            BlockHeaderDigest::MIN,
-        );
+        let lower_bound = TransactionRef {
+            round: transaction_gc_round,
+            author: AuthorityIndex::ZERO,
+            transactions_commitment: TransactionsCommitment::MIN,
+            block_digest: BlockHeaderDigest::MIN,
+        };
 
         self.processed_transactions = self.processed_transactions.split_off(&lower_bound);
         self.reconstructed_transactions = self.reconstructed_transactions.split_off(&lower_bound);
-        let lower_bound_key = (lower_bound, TransactionsCommitment::MIN);
-        self.shard_accumulators = self.shard_accumulators.split_off(&lower_bound_key);
+        self.shard_accumulators = self.shard_accumulators.split_off(&lower_bound);
     }
 
     async fn get_transactions_with_headers_in_dag_state(&mut self) -> Vec<VerifiedTransactions> {
@@ -509,12 +531,15 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             {
                 let mut to_stay_transactions = BTreeMap::new();
                 let block_headers_opt = {
-                    let block_refs: Vec<BlockRef> = transactions_map.keys().copied().collect();
+                    let block_refs: Vec<BlockRef> = transactions_map
+                        .keys()
+                        .map(|tx_ref| BlockRef::from(*tx_ref))
+                        .collect();
                     self.dag_state
                         .read()
                         .get_verified_block_headers(&block_refs)
                 };
-                for (block_header_opt, (block_ref, transactions)) in block_headers_opt
+                for (block_header_opt, (tx_ref, transactions)) in block_headers_opt
                     .into_iter()
                     .zip(transactions_map.into_iter())
                 {
@@ -527,7 +552,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                         );
                         ready_to_be_sent_transactions.push(transactions);
                     } else {
-                        to_stay_transactions.insert(block_ref, transactions);
+                        to_stay_transactions.insert(tx_ref, transactions);
                     }
                 }
                 to_stay_transactions
@@ -555,8 +580,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         if !transactions.is_empty() {
             let highest_accepted_round = self.dag_state.read().highest_accepted_round();
             for transaction in &transactions {
-                let difference =
-                    highest_accepted_round.saturating_sub(transaction.round());
+                let difference = highest_accepted_round.saturating_sub(transaction.round());
                 self.context
                     .metrics
                     .node_metrics
@@ -575,18 +599,19 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
 
     /// Handle a message and update internal state
     async fn handle_transaction_message(&mut self, msg: TransactionMessage) -> ConsensusResult<()> {
-        if self.processed_transactions.contains(&msg.block_ref())
-            || self.reconstruction_queue.contains(&msg.block_ref())
-            || msg.block_ref().round < self.transaction_gc_round
+        let tx_ref = msg.transaction_ref();
+
+        if self.processed_transactions.contains(&tx_ref)
+            || self.reconstruction_queue.contains(&tx_ref)
+            || tx_ref.round < self.transaction_gc_round
         {
             return Ok(());
         }
 
-        let key = (msg.block_ref(), msg.transactions_commitment());
         let total_length = self.total_length;
 
         match msg {
-            TransactionMessage::Shard(shard_msg) => match self.shard_accumulators.entry(key) {
+            TransactionMessage::Shard(shard_msg) => match self.shard_accumulators.entry(tx_ref) {
                 Entry::Vacant(v) => {
                     v.insert(ShardAccumulator::new_with_shard(shard_msg, total_length));
                 }
@@ -596,7 +621,8 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             },
 
             TransactionMessage::FullTransaction(full_msg) => {
-                self.processed_transactions.insert(full_msg.block_ref);
+                self.processed_transactions
+                    .insert(full_msg.transaction_ref());
                 return Ok(());
             }
         }
@@ -607,7 +633,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             &mut self.reconstruction_queue,
             &self.ready_to_reconstruct_sender,
             self.info_length,
-            &key,
+            &tx_ref,
         )
         .await?;
 
@@ -617,23 +643,23 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
     /// If the accumulator for the given key is ready to reconstruct, remove it
     /// from the map and enqueue it for reconstruction
     async fn enqueue_if_ready(
-        accumulators: &mut BTreeMap<(BlockRef, TransactionsCommitment), ShardAccumulator>,
-        reconstruction_queue: &mut BTreeSet<BlockRef>,
+        accumulators: &mut BTreeMap<TransactionRef, ShardAccumulator>,
+        reconstruction_queue: &mut BTreeSet<TransactionRef>,
         sender: &Sender<ShardAccumulator>,
         info_length: usize,
-        key: &(BlockRef, TransactionsCommitment),
+        tx_ref: &TransactionRef,
     ) -> ConsensusResult<()> {
-        if let Some(acc) = accumulators.get(key) {
+        if let Some(acc) = accumulators.get(tx_ref) {
             if acc.is_ready_to_reconstruct(info_length) {
                 // take ownership out of map
                 let acc = accumulators
-                    .remove(key)
+                    .remove(tx_ref)
                     .expect("We should expect the shard accumulator to be present");
                 sender
                     .send(acc)
                     .await
                     .map_err(|_| ConsensusError::AccumulatorSenderClosed)?;
-                reconstruction_queue.insert(key.0);
+                reconstruction_queue.insert(*tx_ref);
             }
         }
         Ok(())

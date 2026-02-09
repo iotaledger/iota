@@ -1119,10 +1119,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             .with_label_values(&[peer_hostname.as_str(), &sync_method.get_string()])
             .inc_by(transactions.len() as u64);
         for transactions in &transactions {
-            let block_hostname = &context
-                .committee
-                .authority(transactions.author())
-                .hostname;
+            let block_hostname = &context.committee.authority(transactions.author()).hostname;
             metrics
                 .transactions_synchronizer_fetched_transactions_by_authority
                 .with_label_values(&[block_hostname.as_str(), &sync_method.get_string()])
