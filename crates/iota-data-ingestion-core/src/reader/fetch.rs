@@ -15,7 +15,7 @@ use iota_storage::blob::Blob;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 #[cfg(not(target_os = "macos"))]
 use notify::{RecommendedWatcher, RecursiveMode};
-use object_store::{ObjectStore, path::Path as ObjectStorePath};
+use object_store::{ObjectStore, ObjectStoreExt, path::Path as ObjectStorePath};
 use tracing::{debug, info};
 
 use crate::{

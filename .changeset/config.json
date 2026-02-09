@@ -18,7 +18,8 @@
 		"@iota/core",
 		"sponsored-transactions",
 		"kiosk-demo",
-		"kiosk-cli"
+		"kiosk-cli",
+		"@iota/examples"
 	],
 	"___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
 		"onlyUpdatePeerDependentsWhenOutOfRange": true

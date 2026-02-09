@@ -5,7 +5,7 @@
 import { useCurrentAccount, useSignTransaction, useIotaClientContext } from '@iota/dapp-kit';
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { AlertCircle, Terminal } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -69,6 +69,17 @@ export default function OfflineSigner() {
                 }),
             });
         },
+    });
+
+    // Step 3: compute the blake2b hash
+    const { data: ledgerTransactionHash } = useQuery({
+        queryFn: async () => {
+            if (!bytes) return null;
+            const transaction = Transaction.from(bytes);
+            return transaction.getSigningDigest();
+        },
+        queryKey: ['offline-signer', 'ledgerTransactionHash', bytes],
+        enabled: !!bytes,
     });
 
     return (
@@ -156,6 +167,24 @@ export default function OfflineSigner() {
                             <DryRunProvider network={dryRunNetwork}>
                                 <EffectsPreview output={dryRunData} network={dryRunNetwork} />
                             </DryRunProvider>
+                        )}
+
+                        {ledgerTransactionHash && (
+                            <div>
+                                <h4 className="text-lg font-semibold">Ledger Transaction Hash</h4>
+                                <div className="border text-mono break-all rounded p-4">
+                                    {ledgerTransactionHash}
+                                </div>
+                            </div>
+                        )}
+
+                        {dryRunData?.effects?.transactionDigest && (
+                            <div>
+                                <h4 className="text-lg font-semibold">Transaction Digest</h4>
+                                <div className="border text-mono break-all rounded p-4">
+                                    {dryRunData.effects.transactionDigest}
+                                </div>
+                            </div>
                         )}
                     </div>
                 </TabsContent>
