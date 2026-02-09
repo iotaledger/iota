@@ -194,9 +194,10 @@ impl Worker for BlobWorker {
         {
             let mut current_epoch = self.current_epoch.lock().await;
             if epoch > *current_epoch {
-                let (_, delete_start) =
+                let (_, epoch_first_checkpoint_seq_num) =
                     common::epoch_info(&self.grpc_client, Some(*current_epoch)).await?;
-                self.reset_remote_store(delete_start..chk_seq_num).await?;
+                self.reset_remote_store(epoch_first_checkpoint_seq_num..chk_seq_num)
+                    .await?;
                 // we update the epoch once we made sure that reset was successful.
                 *current_epoch = epoch;
             }

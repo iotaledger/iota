@@ -39,6 +39,6 @@ pub async fn checkpoint_sequence_number_range_to_watermark(
         .await?;
 
     let epoch_id = chk.summary()?.epoch;
-    let (_, chk_seq_num) = epoch_info(client, Some(epoch_id)).await?;
-    Ok(chk_seq_num..watermark)
+    let (_, epoch_first_checkpoint_seq_num) = epoch_info(client, Some(epoch_id)).await?;
+    Ok(epoch_first_checkpoint_seq_num..watermark)
 }
