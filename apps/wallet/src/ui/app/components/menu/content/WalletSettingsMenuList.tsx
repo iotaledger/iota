@@ -3,13 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useNextMenuUrl, Overlay } from '_components';
-import {
-    useAppSelector,
-    formatAutoLock,
-    useAutoLockMinutes,
-    useActiveAccount,
-    useLogoutMutation,
-} from '_hooks';
+import { useAppSelector, formatAutoLock, useAutoLockMinutes, useLogoutMutation } from '_hooks';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
@@ -21,7 +15,6 @@ import {
     Globe,
     Info,
     LockLocked,
-    LockUnlocked,
     Logout,
     Expand,
     Discord,
@@ -49,7 +42,6 @@ import { openInNewTab } from '_src/shared/utils';
 export function MenuList() {
     const { themePreference } = useTheme();
     const navigate = useNavigate();
-    const activeAccount = useActiveAccount();
     const networkUrl = useNextMenuUrl(true, '/network');
     const autoLockUrl = useNextMenuUrl(true, '/auto-lock');
     const themeUrl = useNextMenuUrl(true, '/theme');
@@ -117,7 +109,7 @@ export function MenuList() {
         {
             title: 'Auto Lock Profile',
             subtitle: autoLockSubtitle,
-            icon: activeAccount?.isLocked ? <LockLocked /> : <LockUnlocked />,
+            icon: <LockLocked />,
             onClick: onAutoLockClick,
         },
         {
@@ -167,7 +159,7 @@ export function MenuList() {
                     {MENU_ITEMS.filter((item) => !item.hidden).map((item, index) => (
                         <Card key={index} type={CardType.Default} onClick={item.onClick}>
                             <CardImage type={ImageType.BgSolid}>
-                                <div className="flex h-10 w-10 items-center justify-center rounded-full  text-iota-neutral-10 dark:text-iota-neutral-92 [&_svg]:h-5 [&_svg]:w-5">
+                                <div className="dark:text-iota-neutral-92 flex h-10 w-10 items-center justify-center  rounded-full text-iota-neutral-10 [&_svg]:h-5 [&_svg]:w-5">
                                     <span className="text-2xl">{item.icon}</span>
                                 </div>
                             </CardImage>
@@ -196,14 +188,14 @@ export function MenuList() {
                 <div className="flex flex-col gap-y-lg">
                     <FaucetRequestButton />
                     <div className="flex flex-row items-center justify-center gap-x-md">
-                        <span className="text-label-sm text-iota-neutral-40 dark:text-iota-neutral-60">
+                        <span className="dark:text-iota-neutral-60 text-label-sm text-iota-neutral-40">
                             IOTA Wallet v{version}
                         </span>
                         <Link
                             to={ToS_LINK}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-label-sm text-iota-primary-30 dark:text-iota-primary-80"
+                            className="dark:text-iota-primary-80 text-label-sm text-iota-primary-30"
                         >
                             Terms of Service
                         </Link>

@@ -50,9 +50,8 @@ export function AccountItem({
         <Account
             title={accountName}
             subtitle={formatAddress(account.address)}
-            isLocked={account.isLocked}
             onOpen={handleOpen}
-            avatarContent={() => <AccountAvatar isLocked={account.isLocked} icon={icon} />}
+            avatarContent={() => <AccountAvatar icon={icon} />}
             onCopy={copyAddress}
             isCopyable={!hideCopy}
             isExternal={!hideExplorerLink}
@@ -62,16 +61,9 @@ export function AccountItem({
     );
 }
 
-function AccountAvatar({ isLocked, icon }: { isLocked?: boolean; icon?: ReactNode }) {
+function AccountAvatar({ icon }: { icon?: ReactNode }) {
     return (
-        <div
-            className={cn(
-                'flex h-10 w-10 items-center justify-center rounded-full [&_svg]:h-5 [&_svg]:w-5 ',
-                isLocked
-                    ? 'bg-iota-neutral-96 dark:bg-iota-neutral-12 [&_svg]:text-iota-neutral-10 [&_svg]:dark:text-iota-neutral-92'
-                    : 'bg-iota-primary-30 [&_svg]:text-white',
-            )}
-        >
+        <div className="flex h-10 w-10 items-center justify-center rounded-full [&_svg]:h-5 [&_svg]:w-5 ">
             {icon}
         </div>
     );

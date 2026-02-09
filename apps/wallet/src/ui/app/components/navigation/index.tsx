@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useActiveAccount } from '_hooks';
 import { Navbar, type NavbarItemWithId } from '@iota/apps-ui-kit';
 import { Activity, Apps, Assets, Home } from '@iota/apps-ui-icons';
 
@@ -12,7 +11,6 @@ type NavbarItemWithPath = NavbarItemWithId & {
 };
 
 export function Navigation() {
-    const activeAccount = useActiveAccount();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -21,19 +19,16 @@ export function Navigation() {
         {
             id: 'assets',
             icon: <Assets />,
-            isDisabled: activeAccount?.isLocked,
             path: '/nfts',
         },
         {
             id: 'apps',
             icon: <Apps />,
-            isDisabled: activeAccount?.isLocked,
             path: '/apps',
         },
         {
             id: 'activity',
             icon: <Activity />,
-            isDisabled: activeAccount?.isLocked,
             path: '/transactions',
         },
     ];

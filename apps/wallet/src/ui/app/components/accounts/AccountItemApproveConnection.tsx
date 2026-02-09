@@ -12,18 +12,16 @@ import { useGetDefaultIotaName } from '@iota/core';
 interface AccountItemApproveConnectionProps {
     account: SerializedUIAccount;
     selected?: boolean;
-    onLock?: (id: string) => void;
 }
 
 export function AccountItemApproveConnection({
     account,
     selected,
-    onLock,
 }: AccountItemApproveConnectionProps) {
     const { data: iotaName } = useGetDefaultIotaName(account?.address);
     const accountName = formatAccountName(account?.nickname, iotaName, account?.address);
 
-    const { unlockAccounts, lockAccounts } = useUnlockAccounts();
+    const { unlockAccounts } = useUnlockAccounts();
 
     function onUnlockedAccountClick() {
         if (account.isLocked && account.isPasswordUnlockable) {
@@ -37,17 +35,7 @@ export function AccountItemApproveConnection({
                 title={accountName}
                 subtitle={formatAddress(account.address)}
                 isSelected={selected}
-                isLocked={account.isLocked}
                 showSelected={true}
-                onLockAccountClick={(event) => {
-                    event.stopPropagation();
-                    lockAccounts();
-                    onLock?.(account.id);
-                }}
-                onUnlockAccountClick={(event) => {
-                    event.stopPropagation();
-                    unlockAccounts();
-                }}
                 avatarContent={() => <AccountIcon account={account} />}
             />
         </div>

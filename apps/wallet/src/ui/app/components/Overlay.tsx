@@ -13,7 +13,7 @@ interface OverlayProps {
     children: ReactNode;
     showModal: boolean;
     closeOverlay?: () => void;
-    closeIcon?: ReactNode | null;
+    hideCloseIcon?: boolean;
     setShowModal?: (showModal: boolean) => void;
     background?: 'bg-iota-neutral-100 dark:bg-iota-neutral-6';
     titleCentered?: boolean;
@@ -32,6 +32,7 @@ export function Overlay({
     showBackButton,
     onBack,
     headerAction,
+    hideCloseIcon,
 }: OverlayProps) {
     const closeModal = useCallback(
         (e: React.MouseEvent<HTMLElement>) => {
@@ -56,12 +57,12 @@ export function Overlay({
                         <Header
                             onBack={showBackButton ? handleBack : undefined}
                             title={title}
-                            onClose={closeModal}
+                            onClose={!hideCloseIcon ? closeModal : undefined}
                             titleCentered={titleCentered}
                             testId="overlay-title"
                         />
-                        {headerAction && (
-                            <div className="absolute right-14 -top-0.5 translate-y-1/2">
+                        {headerAction && hideCloseIcon && (
+                            <div className="absolute right-4 top-[-4.5px] translate-y-1/2">
                                 {headerAction}
                             </div>
                         )}
