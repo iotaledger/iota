@@ -213,6 +213,7 @@ impl ObjectExecutionSlots {
 pub(crate) struct SharedObjectCongestionTracker {
     object_execution_slots: HashMap<ObjectID, ObjectExecutionSlots>,
     congestion_control_parameters: CongestionControlParameters,
+    pub(crate) worker_utilisation: Vec<u64>,
 }
 
 impl SharedObjectCongestionTracker {
@@ -237,9 +238,16 @@ impl SharedObjectCongestionTracker {
             })
             .collect::<HashMap<_, _>>();
 
+        let worker_utilisation = vec![
+            0;
+            congestion_control_parameters
+                .get_effective_congestion_limit_per_commit()
+                .unwrap_or(MAX_EXECUTION_TIME) as usize
+        ];
         Self {
             object_execution_slots,
             congestion_control_parameters,
+            worker_utilisation,
         }
     }
 
@@ -505,6 +513,8 @@ impl SharedObjectCongestionTracker {
                 .expect("object execution slot should have been initialized before.")
                 .remove(occupied_slot);
         });
+
+        self.worker_utilisation[start_time as usize] += 1;
 
         Some(BumpObjectExecutionSlotsResult::new(
             object_ids,
@@ -1939,6 +1949,131 @@ mod object_cost_tests {
             }
             PerObjectCongestionControlMode::TotalTxCount => {
                 assert_eq!(accumulated_debts[0], (shared_obj_0, 1)); // overshoot = initial_debt (2) + tx_duration (1) - max_execution_duration_per_commit (2) = 1
+            }
+        }
+    }
+}
+#[cfg(test)]
+mod paper_simulations {
+    use csv::Writer;
+    use iota_protocol_config::PerObjectCongestionControlMode;
+    use rand::prelude::*;
+    use rstest::rstest;
+
+    use super::{shared_object_test_utils::*, *};
+
+    fn create_random_transactions(
+        num_txs: usize,
+        num_shared_objects_per_tx: usize,
+        shared_objects: &Vec<ObjectID>,
+        seed: u64,
+    ) -> Vec<VerifiedExecutableTransaction> {
+        assert!(num_shared_objects_per_tx <= shared_objects.len());
+        let mut transactions = vec![];
+        let mut rng = StdRng::seed_from_u64(seed);
+        for _ in 0..num_txs {
+            let mut touched_objects = vec![];
+            while touched_objects.len() != num_shared_objects_per_tx {
+                let obj = shared_objects[rng.gen_range(0..shared_objects.len())];
+                if !touched_objects.contains(&obj) {
+                    touched_objects.push(obj);
+                }
+            }
+            let tx = build_transaction(
+                &touched_objects
+                    .iter()
+                    .map(|obj_id| (*obj_id, true))
+                    .collect::<Vec<(ObjectID, bool)>>(),
+                1, // not important in this test
+                TEST_ONLY_GAS_PRICE,
+            );
+            transactions.push(tx);
+        }
+        transactions
+    }
+
+    #[rstest]
+    fn test_simulation_scenario_1(#[values(true, false)] assign_min_free_execution_slot: bool) {
+        // Create shared objects.
+        let num_objects = 20;
+        let max_objects_per_tx = 10;
+        let shared_objects: Vec<ObjectID> = (0..num_objects).map(|_| ObjectID::random()).collect();
+        let (mut deffered_writer, mut worker_writer) = if assign_min_free_execution_slot {
+            (
+                Writer::from_path("simulations/data/iota_def.csv").unwrap(),
+                Writer::from_path("simulations/data/iota_worker.csv").unwrap(),
+            )
+        } else {
+            (
+                Writer::from_path("simulations/data/sui_def.csv").unwrap(),
+                Writer::from_path("simulations/data/sui_worker.csv").unwrap(),
+            )
+        };
+        let header: Vec<String> = (1..=max_objects_per_tx)
+            .map(|num| format!("num_shared_objects_per_tx_{}", num))
+            .collect();
+        deffered_writer.write_record(header).unwrap();
+        for seed in 1..100 {
+            let mut deferred_record = Vec::new();
+            let mut worker_record = Vec::new();
+            for num_objects_per_tx in 1..=max_objects_per_tx {
+                // Initialize the congestion tracker with all objects having zero initial debt.
+                let mut shared_object_congestion_tracker =
+                    new_congestion_tracker_with_initial_value_for_test(
+                        &shared_objects
+                            .iter()
+                            .map(|obj_id| (*obj_id, 0))
+                            .collect::<Vec<(ObjectID, u64)>>(),
+                        CongestionControlParameters::new_for_test(
+                            PerObjectCongestionControlMode::TotalGasBudget,
+                            assign_min_free_execution_slot,
+                            Some(10),
+                            Some(10),
+                            0,     // not important in this test
+                            false, // not important in this test
+                            true,  // not important in this test
+                        ),
+                    );
+                let transactions =
+                    create_random_transactions(100, num_objects_per_tx, &shared_objects, seed);
+                // Try to schedule all transactions sequentially.
+                let mut deferred_count = 0;
+                for tx in transactions.iter() {
+                    match initialize_tracker_and_try_schedule(
+                        &mut shared_object_congestion_tracker,
+                        tx,
+                        &HashMap::new(),
+                        0,
+                    ) {
+                        SequencingResult::Schedule(start_time) => {
+                            shared_object_congestion_tracker
+                                .bump_object_execution_slots(tx, start_time);
+                        }
+                        SequencingResult::Defer(_, _) => {
+                            deferred_count += 1;
+                        }
+                    }
+                }
+                deferred_record.push(deferred_count);
+                worker_record.push(shared_object_congestion_tracker.worker_utilisation);
+            }
+            deffered_writer
+                .write_record(
+                    deferred_record
+                        .iter()
+                        .map(|count| count.to_string())
+                        .collect::<Vec<String>>(),
+                )
+                .unwrap();
+            for i in 0..worker_record.len() {
+                worker_writer
+                    .write_record(
+                        worker_record
+                            .iter()
+                            .map(|count| count[i].to_string())
+                            .collect::<Vec<String>>(),
+                    )
+                    .unwrap();
             }
         }
     }

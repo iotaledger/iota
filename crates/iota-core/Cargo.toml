@@ -91,6 +91,7 @@ starfish-config.workspace = true
 starfish-core.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
+csv.workspace = true
 
 [dev-dependencies]
 # external dependencies

@@ -5948,6 +5948,7 @@ dependencies = [
  "consensus-core",
  "count-min-sketch",
  "criterion",
+ "csv",
  "dashmap",
  "diffy",
  "either",
