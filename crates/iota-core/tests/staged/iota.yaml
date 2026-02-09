@@ -597,7 +597,7 @@ GasData:
   STRUCT:
     - payment:
         SEQ:
-          TYPENAME: ObjectReference
+          TYPENAME: TupleObjectReference
     - owner:
         TYPENAME: Address
     - price: U64
@@ -739,7 +739,7 @@ ObjectArg:
     0:
       ImmOrOwnedObject:
         NEWTYPE:
-          TYPENAME: ObjectReference
+          TYPENAME: TupleObjectReference
     1:
       SharedObject:
         STRUCT:
@@ -750,7 +750,7 @@ ObjectArg:
     2:
       Receiving:
         NEWTYPE:
-          TYPENAME: ObjectReference
+          TYPENAME: TupleObjectReference
 ObjectId:
   NEWTYPESTRUCT:
     TYPENAME: Address
@@ -789,13 +789,6 @@ ObjectOut:
           TUPLE:
             - U64
             - TYPENAME: Digest
-ObjectReference:
-  STRUCT:
-    - objectId:
-        TYPENAME: ObjectId
-    - version: U64
-    - digest:
-        TYPENAME: Digest
 Owner:
   ENUM:
     0:
@@ -1019,6 +1012,11 @@ TransactionKind:
       RandomnessStateUpdate:
         NEWTYPE:
           TYPENAME: RandomnessStateUpdate
+TupleObjectReference:
+  TUPLESTRUCT:
+    - TYPENAME: ObjectId
+    - U64
+    - TYPENAME: Digest
 TypeArgumentError:
   ENUM:
     0:
