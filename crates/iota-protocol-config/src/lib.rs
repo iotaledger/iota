@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 19;
+pub const MAX_PROTOCOL_VERSION: u64 = 20;
 
 // Record history of protocol version allocations here:
 //
@@ -108,6 +108,10 @@ pub const MAX_PROTOCOL_VERSION: u64 = 19;
 //             Change epoch transaction will contain validator scores.
 //             Enable validator scoring on testnet and enable adjustment of
 //             validator rewards based on scores on Devnet.
+// Version 20: Supports the calculation of validator scores while still passing
+//             a default score value to the advance_epoch call. Enables this
+//             decoupling on Testnet; Devnet and Mainnet behavior remain the
+//             same.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -421,6 +425,11 @@ struct FeatureFlags {
     // If true, validators will use the committee's score to adjust rewards.
     #[serde(skip_serializing_if = "is_false")]
     adjust_rewards_by_score: bool,
+
+    // If true, the change epoch transaction will contain the locally calculated validator scores.
+    // If false, a default score (MAX_SCORE) is passed
+    #[serde(skip_serializing_if = "is_false")]
+    pass_calculated_validator_scores_to_advance_epoch: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1554,6 +1563,19 @@ impl ProtocolConfig {
         );
         adjust
     }
+
+    pub fn pass_calculated_validator_scores_to_advance_epoch(&self) -> bool {
+        let pass = self
+            .feature_flags
+            .pass_calculated_validator_scores_to_advance_epoch;
+        assert!(
+            !pass
+                || (self.pass_validator_scores_to_advance_epoch()
+                    && self.calculate_validator_scores()),
+            "pass_calculated_validator_scores_to_advance_epoch requires pass_validator_scores_to_advance_epoch and calculate_validator_scores to be enabled"
+        );
+        pass
+    }
 }
 
 #[cfg(not(msim))]
@@ -2477,6 +2499,13 @@ impl ProtocolConfig {
 
                     // Enable passkey authentication support in mainnet
                     cfg.feature_flags.passkey_auth = true;
+                }
+                20 => {
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Passes the calculated validator scores to advance epoch only on Devnet
+                        cfg.feature_flags
+                            .pass_calculated_validator_scores_to_advance_epoch = true;
+                    }
                 }
 
                 // Use this template when making changes:
