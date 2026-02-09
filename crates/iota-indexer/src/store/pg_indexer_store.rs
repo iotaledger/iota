@@ -32,7 +32,7 @@ use super::pg_partition_manager::{EpochPartitionData, PgPartitionManager};
 use crate::{
     blocking_call_is_ok_or_panic,
     db::ConnectionPool,
-    errors::{Context, IndexerError, IndexerResult},
+    errors::{Context, IndexerError},
     ingestion::{
         common::{
             persist::{CommitterWatermark, ObjectsSnapshotHandlerTables},
@@ -182,23 +182,6 @@ impl PgIndexerStore {
         self.blocking_cp.clone()
     }
 
-    pub(crate) async fn get_latest_epoch_id_in_blocking_worker(
-        &self,
-    ) -> Result<Option<u64>, IndexerError> {
-        self.execute_in_blocking_worker(move |this| this.get_latest_epoch_id())
-            .await
-    }
-
-    pub fn get_latest_epoch_id(&self) -> Result<Option<u64>, IndexerError> {
-        read_only_blocking!(&self.blocking_cp, |conn| {
-            epochs::dsl::epochs
-                .select(max(epochs::epoch))
-                .first::<Option<i64>>(conn)
-                .map(|v| v.map(|v| v as u64))
-        })
-        .context("Failed reading latest epoch id from PostgresDB")
-    }
-
     /// Get the range of the protocol versions that need to be indexed.
     pub fn get_protocol_version_index_range(&self) -> Result<(i64, i64), IndexerError> {
         // We start indexing from the next protocol version after the latest one stored
@@ -273,84 +256,6 @@ impl PgIndexerStore {
                 })
         })
         .context("Failed reading min and max epoch numbers from PostgresDB")
-    }
-
-    pub(crate) async fn get_global_order_for_tx_seq_in_blocking_worker(
-        &self,
-        tx_seq: i64,
-    ) -> Result<TxGlobalOrderCursor, IndexerError> {
-        self.execute_in_blocking_worker(move |this| this.get_global_order_for_tx_seq(tx_seq))
-            .await
-    }
-
-    fn get_global_order_for_tx_seq(
-        &self,
-        tx_seq: i64,
-    ) -> Result<TxGlobalOrderCursor, IndexerError> {
-        let result = read_only_blocking!(&self.blocking_cp, |conn| {
-            tx_global_order::dsl::tx_global_order
-                .select((
-                    tx_global_order::global_sequence_number,
-                    tx_global_order::optimistic_sequence_number,
-                ))
-                .filter(tx_global_order::chk_tx_sequence_number.eq(tx_seq))
-                .first::<(i64, i64)>(conn)
-        })
-        .context(
-            format!("failed reading global sequence number from PostgresDB for tx seq {tx_seq}")
-                .as_str(),
-        )?;
-        let (global_sequence_number, optimistic_sequence_number) = result;
-        Ok(TxGlobalOrderCursor {
-            global_sequence_number,
-            optimistic_sequence_number,
-        })
-    }
-
-    pub(crate) async fn prune_optimistic_transactions_up_to_in_blocking_worker(
-        &self,
-        to: TxGlobalOrderCursor,
-        limit: i64,
-    ) -> IndexerResult<usize> {
-        self.execute_in_blocking_worker(move |this| {
-            this.prune_optimistic_transactions_up_to(to, limit)
-        })
-        .await
-    }
-
-    fn prune_optimistic_transactions_up_to(
-        &self,
-        to: TxGlobalOrderCursor,
-        limit: i64,
-    ) -> IndexerResult<usize> {
-        transactional_blocking_with_retry!(
-            &self.blocking_cp,
-            |conn| {
-                let sql = r#"
-                    WITH ids_to_delete AS (
-                         SELECT global_sequence_number, optimistic_sequence_number
-                         FROM optimistic_transactions
-                         WHERE (global_sequence_number, optimistic_sequence_number) <= ($1, $2)
-                         ORDER BY global_sequence_number, optimistic_sequence_number
-                         FOR UPDATE LIMIT $3
-                     )
-                     DELETE FROM optimistic_transactions otx
-                     USING ids_to_delete
-                     WHERE (otx.global_sequence_number, otx.optimistic_sequence_number) =
-                           (ids_to_delete.global_sequence_number, ids_to_delete.optimistic_sequence_number)
-                "#;
-                diesel::sql_query(sql)
-                    .bind::<BigInt, _>(to.global_sequence_number)
-                    .bind::<BigInt, _>(to.optimistic_sequence_number)
-                    .bind::<BigInt, _>(limit)
-                    .execute(conn)
-                    .map_err(IndexerError::from)
-                    .context(
-                        format!("failed to prune optimistic_transactions table to {to:?} with limit {limit}").as_str(),
-                    )
-            },
-            PG_DB_COMMIT_SLEEP_DURATION
-        )
     }
 
     fn get_latest_object_snapshot_watermark(
@@ -1525,7 +1430,6 @@ impl PgIndexerStore {
                             "Failed to prune tx_kinds table"
                         );
                     }
-
                     _ => {
                         return Err(IndexerError::InvalidArgument(format!(
                             "table {} is not a transaction or event index table",
@@ -1534,6 +1438,50 @@ impl PgIndexerStore {
                     }
                 }
                 Ok::<(), IndexerError>(())
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+    }
+
+    /// Prune optimistic_transactions table by global_sequence_number range.
+    /// Prunes at most `limit` rows and returns the number of rows deleted.
+    fn prune_optimistic_tx_by_global_seq(
+        &self,
+        start: u64,
+        end: u64,
+        limit: i64,
+    ) -> Result<usize, IndexerError> {
+        use diesel::prelude::*;
+
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                let sql = r#"
+                    WITH ids_to_delete AS (
+                         SELECT global_sequence_number, optimistic_sequence_number
+                         FROM optimistic_transactions
+                         WHERE global_sequence_number BETWEEN $1 AND $2
+                         ORDER BY global_sequence_number, optimistic_sequence_number
+                         FOR UPDATE
+                         LIMIT $3
+                     )
+                     DELETE FROM optimistic_transactions otx
+                     USING ids_to_delete
+                     WHERE (otx.global_sequence_number, otx.optimistic_sequence_number) =
+                           (ids_to_delete.global_sequence_number, ids_to_delete.optimistic_sequence_number)
+                "#;
+                diesel::sql_query(sql)
+                    .bind::<diesel::sql_types::BigInt, _>(start as i64)
+                    .bind::<diesel::sql_types::BigInt, _>(end as i64)
+                    .bind::<diesel::sql_types::BigInt, _>(limit)
+                    .execute(conn)
+                    .map_err(IndexerError::from)
+                    .context(
+                        format!(
+                            "failed to prune optimistic_transactions table by global_sequence_number range [{start}..={end}] with limit {limit}"
+                        )
+                        .as_str(),
+                    )
             },
             PG_DB_COMMIT_SLEEP_DURATION
         )
@@ -1612,6 +1560,8 @@ impl PgIndexerStore {
     where
         E::Iterator: Iterator<Item: AsRef<str>>,
     {
+        use diesel::query_dsl::methods::FilterDsl;
+
         let guard = self
             .metrics
             .checkpoint_db_commit_latency_watermarks
@@ -1633,6 +1583,9 @@ impl PgIndexerStore {
                         watermarks::max_committed_cp.eq(excluded(watermarks::max_committed_cp)),
                         watermarks::max_committed_tx.eq(excluded(watermarks::max_committed_tx)),
                     ))
+                    .filter(excluded(watermarks::max_committed_cp).ge(watermarks::max_committed_cp))
+                    .filter(excluded(watermarks::max_committed_tx).ge(watermarks::max_committed_tx))
+                    .filter(excluded(watermarks::current_epoch).ge(watermarks::current_epoch))
                     .execute(conn)
                     .map_err(IndexerError::from)
                     .context("Failed to update watermarks upper bound")?;
@@ -1737,7 +1690,7 @@ impl PgIndexerStore {
         )
         .tap_ok(|_| {
             let elapsed = guard.stop_and_record();
-            info!(elapsed, "Persisted watermarks");
+            tracing::info!(elapsed, "Persisted watermarks lower bounds");
         })
         .tap_err(|e| {
             tracing::error!("Failed to persist watermarks with error: {}", e);
@@ -2500,6 +2453,28 @@ impl IndexerStore for PgIndexerStore {
         let table_clone = *table;
         self.execute_in_blocking_worker(move |this| {
             this.prune_single_tx_or_event_table(&table_clone, min_tx, max_tx)
+        })
+        .await
+    }
+
+    async fn prune_table_by_global_seq_with_limit(
+        &self,
+        table: &crate::pruning::pruner::PrunableTable,
+        start: u64,
+        end: u64,
+        limit: i64,
+    ) -> Result<usize, IndexerError> {
+        use crate::pruning::pruner::PrunableTable;
+
+        if !matches!(table, PrunableTable::OptimisticTransactions) {
+            return Err(IndexerError::InvalidArgument(format!(
+                "table {} does not support pruning by global order with limit",
+                table.as_ref()
+            )));
+        }
+
+        self.execute_in_blocking_worker(move |this| {
+            this.prune_optimistic_tx_by_global_seq(start, end, limit)
         })
         .await
     }

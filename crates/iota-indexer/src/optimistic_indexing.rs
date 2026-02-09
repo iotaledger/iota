@@ -18,7 +18,10 @@ use iota_types::{
 use crate::{
     errors::IndexerError,
     ingestion::{
-        common::prepare::extract_df_kind,
+        common::{
+            persist::{CommitterWatermark, OptimisticIndexingTables},
+            prepare::extract_df_kind,
+        },
         primary::{
             persist::TransactionObjectChangesToCommit,
             prepare::{IndexedTransactionComponents, PrimaryWorker},
@@ -93,6 +96,27 @@ impl OptimisticTransactionExecutor {
         .or(Err(IndexerError::TransactionDependenciesNotIndexed))
     }
 
+    async fn update_optimistic_watermark(
+        &self,
+        epoch: u64,
+        global_order: Option<TxGlobalOrder>,
+    ) -> Result<(), IndexerError> {
+        if let Some(order) = global_order {
+            let optimistic_seq = order
+                .optimistic_sequence_number
+                .expect("optimistic sequence number is always set for optimistic transactions");
+            self.store
+                .update_watermarks_upper_bound::<OptimisticIndexingTables>(CommitterWatermark {
+                    current_epoch: epoch,
+                    max_committed_cp: 0,
+                    max_committed_tx: optimistic_seq as u64,
+                })
+                .await
+        } else {
+            Ok(())
+        }
+    }
+
     /// Index the executed transaction under the following conditions:
     ///
     /// * If the transaction has input and output objects, and
@@ -156,7 +180,12 @@ impl OptimisticTransactionExecutor {
             output_objects,
         };
 
-        self.index_transaction_in_blocking_task(&full_tx_data).await
+        let global_order = self
+            .index_transaction_in_blocking_task(&full_tx_data)
+            .await?;
+
+        self.update_optimistic_watermark(full_tx_data.effects.executed_epoch(), global_order)
+            .await
     }
 
     pub async fn execute_and_index_transaction(
@@ -265,7 +294,7 @@ impl OptimisticTransactionExecutor {
     async fn index_transaction_in_blocking_task(
         &self,
         full_tx_data: &CheckpointTransaction,
-    ) -> Result<(), IndexerError> {
+    ) -> Result<Option<TxGlobalOrder>, IndexerError> {
         let db_write_timer = self.metrics.optimistic_tx_db_write_time.start_timer();
         match tokio::task::spawn_blocking({
             let this: OptimisticTransactionExecutor = self.clone();
@@ -277,10 +306,10 @@ impl OptimisticTransactionExecutor {
             tracing::error!("failed to join optimistic index_transaction: {e}");
             IndexerError::from(e)
         })? {
-            Ok(_) => {
+            Ok(global_order) => {
                 db_write_timer.stop_and_record();
                 self.metrics.optimistic_tx_successful_db_writes_count.inc();
-                Ok(())
+                Ok(global_order)
             }
             // The unique violation error means that checkpoint indexing was faster than the
             // optimistic indexing. Let's just return and let checkpoint indexing handle
@@ -290,7 +319,7 @@ impl OptimisticTransactionExecutor {
                 self.metrics
                     .optimistic_tx_unique_global_order_violations_count
                     .inc();
-                Ok(())
+                Ok(None)
             }
             Err(e) => {
                 db_write_timer.stop_and_discard();
@@ -302,7 +331,10 @@ impl OptimisticTransactionExecutor {
         }
     }
 
-    fn index_transaction(&self, full_tx_data: &CheckpointTransaction) -> Result<(), IndexerError> {
+    fn index_transaction(
+        &self,
+        full_tx_data: &CheckpointTransaction,
+    ) -> Result<Option<TxGlobalOrder>, IndexerError> {
         let pool = self.store.blocking_cp();
         transactional_blocking_with_retry_with_conditional_abort!(
             &pool,
@@ -330,7 +362,8 @@ impl OptimisticTransactionExecutor {
                 let tx_data_to_commit = extractor
                     .to_transaction_data_to_commit(assigned_global_order.global_sequence_number)?;
 
-                self.persist_optimistic_tx(conn, tx_data_to_commit)
+                self.persist_optimistic_tx(conn, tx_data_to_commit)?;
+                Ok(Some(assigned_global_order))
             },
             |e: &IndexerError| matches!(*e, IndexerError::PostgresUniqueTxGlobalOrderViolation(_)),
             Duration::from_secs(3600)
