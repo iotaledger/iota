@@ -1657,6 +1657,23 @@ impl AuthorityPerEpochStore {
             .map_err(Into::into)
     }
 
+    /// Returns future containing the state accumulator for the given epoch
+    /// once available.
+    pub async fn notify_read_checkpoint_state_accumulator(
+        &self,
+        checkpoints: &[CheckpointSequenceNumber],
+    ) -> IotaResult<Vec<Accumulator>> {
+        let tables = self.tables()?;
+        self.checkpoint_state_notify_read
+            .read(checkpoints, |checkpoints| {
+                tables
+                    .state_hash_by_checkpoint
+                    .multi_get(checkpoints)
+                    .map_err(Into::into)
+            })
+            .await
+    }
+
     pub async fn notify_read_running_root(
         &self,
         checkpoint: CheckpointSequenceNumber,

@@ -80,26 +80,33 @@ pub(crate) struct CheckpointExecutionData {
     pub checkpoint_contents: CheckpointContents,
     pub tx_digests: Vec<TransactionDigest>,
     pub fx_digests: Vec<TransactionEffectsDigest>,
+}
+
+pub(crate) struct CheckpointTransactionData {
     pub transactions: Vec<VerifiedExecutableTransaction>,
     pub effects: Vec<TransactionEffects>,
+    pub executed_fx_digests: Vec<Option<TransactionEffectsDigest>>,
 }
 
 pub(crate) struct CheckpointExecutionState {
     pub data: CheckpointExecutionData,
-    executed_fx_digests: Vec<Option<TransactionEffectsDigest>>,
     accumulator: Option<Accumulator>,
     full_data: Option<CheckpointData>,
 }
 
 impl CheckpointExecutionState {
-    pub fn new(
-        data: CheckpointExecutionData,
-        executed_fx_digests: Vec<Option<TransactionEffectsDigest>>,
-    ) -> Self {
+    pub fn new(data: CheckpointExecutionData) -> Self {
         Self {
             data,
-            executed_fx_digests,
             accumulator: None,
+            full_data: None,
+        }
+    }
+
+    pub fn new_with_accumulator(data: CheckpointExecutionData, accumulator: Accumulator) -> Self {
+        Self {
+            data,
+            accumulator: Some(accumulator),
             full_data: None,
         }
     }
@@ -359,12 +366,12 @@ impl CheckpointExecutor {
         checkpoint: VerifiedCheckpoint,
     ) -> CheckpointExecutionState {
         info!("executing checkpoint");
+        let sequence_number = checkpoint.sequence_number;
 
         checkpoint.report_checkpoint_age(&self.metrics.checkpoint_contents_age);
         self.backpressure_manager
-            .update_highest_certified_checkpoint(*checkpoint.sequence_number());
+            .update_highest_certified_checkpoint(sequence_number);
 
-        let sequence_number = checkpoint.sequence_number;
         if checkpoint.is_last_checkpoint_of_epoch() && sequence_number > 0 {
             let _wait_for_previous_checkpoints_guard =
                 iota_metrics::monitored_scope("CheckpointExecutor::wait_for_previous_checkpoints");
@@ -380,14 +387,101 @@ impl CheckpointExecutor {
         let _parallel_step_guard =
             iota_metrics::monitored_scope("CheckpointExecutor::parallel_step");
 
-        let (mut ckpt_state, unexecuted_tx_digests) = tokio::task::spawn_blocking({
+        // Note: only the fullnode path has end-of-epoch logic.
+        if self.state.is_fullnode(&self.epoch_store) || checkpoint.is_last_checkpoint_of_epoch() {
+            self.execute_checkpoint_fullnode(checkpoint).await
+        } else {
+            self.execute_checkpoint_validator(checkpoint).await
+        }
+    }
+
+    // On validators, checkpoints have often already been constructed locally, in
+    // which case we can skip many steps of the checkpoint execution process.
+    async fn execute_checkpoint_validator(
+        self: Arc<Self>,
+        checkpoint: VerifiedCheckpoint,
+    ) -> CheckpointExecutionState {
+        assert!(
+            !checkpoint.is_last_checkpoint_of_epoch(),
+            "only fullnode path has end-of-epoch logic"
+        );
+
+        let sequence_number = checkpoint.sequence_number;
+        let locally_built_checkpoint = self
+            .checkpoint_store
+            .get_locally_computed_checkpoint(sequence_number)
+            .expect("db error");
+
+        let Some(locally_built_checkpoint) = locally_built_checkpoint else {
+            // fall back to full node path if we are catching up.
+            // TODO: we may want to wait a small amount of time here before falling back.
+            // But its hard to know how long to wait. We could do something like wait up
+            // to 1 second if we are less than N checkpoints behind for some small N.
+            return self.execute_checkpoint_fullnode(checkpoint).await;
+        };
+
+        self.metrics.checkpoint_executor_validator_path.inc();
+
+        // Check for fork
+        assert_checkpoint_not_forked(
+            &locally_built_checkpoint,
+            &checkpoint,
+            &self.checkpoint_store,
+        );
+
+        // Checkpoint builder triggers accumulation of the checkpoint, so this is
+        // guaranteed to finish.
+        let accumulator = self
+            .epoch_store
+            .notify_read_checkpoint_state_accumulator(&[sequence_number])
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
+
+        // Checkpoint builder triggers accumulation of the checkpoint, so this is
+        // guaranteed to finish.
+
+        let checkpoint_contents = self
+            .checkpoint_store
+            .get_checkpoint_contents(&checkpoint.content_digest)
+            .expect("db error")
+            .expect("checkpoint contents not found");
+
+        let (tx_digests, fx_digests): (Vec<_>, Vec<_>) = checkpoint_contents
+            .iter()
+            .map(|digests| (digests.transaction, digests.effects))
+            .unzip();
+
+        self.epoch_store
+            .insert_finalized_transactions(&tx_digests, sequence_number)
+            .expect("failed to insert finalized transactions");
+
+        CheckpointExecutionState::new_with_accumulator(
+            CheckpointExecutionData {
+                checkpoint,
+                checkpoint_contents,
+                tx_digests,
+                fx_digests,
+            },
+            accumulator,
+        )
+    }
+
+    async fn execute_checkpoint_fullnode(
+        self: Arc<Self>,
+        checkpoint: VerifiedCheckpoint,
+    ) -> CheckpointExecutionState {
+        let sequence_number = checkpoint.sequence_number;
+        let (mut ckpt_state, tx_data, unexecuted_tx_digests) = tokio::task::spawn_blocking({
             let this = self.clone();
             move || {
                 let _scope =
                     iota_metrics::monitored_scope("CheckpointExecutor::execute_transactions");
-                let ckpt_state = this.load_checkpoint_transactions(checkpoint);
-                let unexecuted_tx_digests = this.schedule_transaction_execution(&ckpt_state);
-                (ckpt_state, unexecuted_tx_digests)
+                let (ckpt_state, tx_data) = this.load_checkpoint_transactions(checkpoint);
+                let unexecuted_tx_digests =
+                    this.schedule_transaction_execution(&ckpt_state, &tx_data);
+                (ckpt_state, tx_data, unexecuted_tx_digests)
             }
         })
         .await
@@ -398,7 +492,7 @@ impl CheckpointExecutor {
             .await;
 
         if ckpt_state.data.checkpoint.is_last_checkpoint_of_epoch() {
-            self.execute_change_epoch_tx(&ckpt_state).await;
+            self.execute_change_epoch_tx(&tx_data).await;
         }
 
         tokio::task::spawn_blocking(move || {
@@ -411,7 +505,7 @@ impl CheckpointExecutor {
                 self.state.congestion_tracker.process_checkpoint_effects(
                     &*self.transaction_cache_reader,
                     &ckpt_state.data.checkpoint,
-                    &ckpt_state.data.effects,
+                    &tx_data.effects,
                 );
             }
 
@@ -429,15 +523,11 @@ impl CheckpointExecutor {
             // before accumulating the checkpoint.
             ckpt_state.accumulator = Some(
                 self.accumulator
-                    .accumulate_checkpoint(
-                        &ckpt_state.data.effects,
-                        sequence_number,
-                        &self.epoch_store,
-                    )
+                    .accumulate_checkpoint(&tx_data.effects, sequence_number, &self.epoch_store)
                     .expect("epoch cannot have ended"),
             );
 
-            ckpt_state.full_data = self.process_checkpoint_data(&ckpt_state);
+            ckpt_state.full_data = self.process_checkpoint_data(&ckpt_state.data, &tx_data);
             ckpt_state
         })
         .await
@@ -445,19 +535,23 @@ impl CheckpointExecutor {
     }
 
     fn checkpoint_data_enabled(&self) -> bool {
-        self.state.rest_index.is_some() || self.config.data_ingestion_dir.is_some()
+        self.state.rest_index.is_some()
+            || self.config.data_ingestion_dir.is_some()
+            || self.data_sender.is_some()
     }
 
     fn process_checkpoint_data(
         &self,
-        ckpt_state: &CheckpointExecutionState,
+        ckpt_data: &CheckpointExecutionData,
+        tx_data: &CheckpointTransactionData,
     ) -> Option<CheckpointData> {
         if !self.checkpoint_data_enabled() {
             return None;
         }
 
         let checkpoint_data = load_checkpoint_data(
-            &ckpt_state.data,
+            ckpt_data,
+            tx_data,
             self.state.get_object_store(),
             &*self.transaction_cache_reader,
         )
@@ -491,7 +585,7 @@ impl CheckpointExecutor {
     fn load_checkpoint_transactions(
         &self,
         checkpoint: VerifiedCheckpoint,
-    ) -> CheckpointExecutionState {
+    ) -> (CheckpointExecutionState, CheckpointTransactionData) {
         let seq = checkpoint.sequence_number;
         let epoch = checkpoint.epoch;
 
@@ -537,16 +631,18 @@ impl CheckpointExecutor {
                 .transaction_cache_reader
                 .multi_get_executed_effects_digests(&tx_digests);
 
-            CheckpointExecutionState::new(
-                CheckpointExecutionData {
+            (
+                CheckpointExecutionState::new(CheckpointExecutionData {
                     checkpoint,
                     checkpoint_contents,
                     tx_digests,
                     fx_digests,
+                }),
+                CheckpointTransactionData {
                     transactions,
                     effects,
+                    executed_fx_digests,
                 },
-                executed_fx_digests,
             )
         } else {
             // load items one-by-one
@@ -583,16 +679,18 @@ impl CheckpointExecutor {
                 .transaction_cache_reader
                 .multi_get_executed_effects_digests(&tx_digests);
 
-            CheckpointExecutionState::new(
-                CheckpointExecutionData {
+            (
+                CheckpointExecutionState::new(CheckpointExecutionData {
                     checkpoint,
                     checkpoint_contents,
                     tx_digests,
                     fx_digests,
+                }),
+                CheckpointTransactionData {
                     transactions,
                     effects,
+                    executed_fx_digests,
                 },
-                executed_fx_digests,
             )
         }
     }
@@ -601,16 +699,17 @@ impl CheckpointExecutor {
     fn schedule_transaction_execution(
         &self,
         ckpt_state: &CheckpointExecutionState,
+        tx_data: &CheckpointTransactionData,
     ) -> Vec<TransactionDigest> {
         // Find unexecuted transactions and their expected effects digests
         let (unexecuted_tx_digests, unexecuted_txns, unexecuted_effects): (Vec<_>, Vec<_>, Vec<_>) =
             itertools::multiunzip(
                 itertools::izip!(
-                    ckpt_state.data.transactions.iter(),
+                    tx_data.transactions.iter(),
                     ckpt_state.data.tx_digests.iter(),
                     ckpt_state.data.fx_digests.iter(),
-                    ckpt_state.data.effects.iter(),
-                    ckpt_state.executed_fx_digests.iter()
+                    tx_data.effects.iter(),
+                    tx_data.executed_fx_digests.iter()
                 )
                 .filter_map(
                     |(txn, tx_digest, expected_fx_digest, effects, executed_fx_digest)| {
@@ -652,9 +751,9 @@ impl CheckpointExecutor {
     }
 
     // Execute the change epoch txn
-    async fn execute_change_epoch_tx(&self, ckpt_state: &CheckpointExecutionState) {
-        let change_epoch_tx = ckpt_state.data.transactions.last().unwrap();
-        let change_epoch_fx = ckpt_state.data.effects.last().unwrap();
+    async fn execute_change_epoch_tx(&self, tx_data: &CheckpointTransactionData) {
+        let change_epoch_tx = tx_data.transactions.last().unwrap();
+        let change_epoch_fx = tx_data.effects.last().unwrap();
         assert_eq!(
             change_epoch_tx.digest(),
             change_epoch_fx.transaction_digest()
@@ -777,8 +876,13 @@ impl CheckpointExecutor {
             let checkpoint_data = if let Some(data) = checkpoint_data {
                 data.clone()
             } else {
+                // Reconstruct checkpoint data if needed (rare case: data_sender configured but
+                // checkpoint_data_enabled is false)
+                let (_, tx_data) =
+                    self.load_checkpoint_transactions(checkpoint_exec_data.checkpoint.clone());
                 load_checkpoint_data(
                     checkpoint_exec_data,
+                    &tx_data,
                     self.state.get_object_store(),
                     self.transaction_cache_reader.as_ref(),
                 )

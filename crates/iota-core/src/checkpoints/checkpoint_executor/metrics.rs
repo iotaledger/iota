@@ -21,6 +21,7 @@ pub struct CheckpointExecutorMetrics {
     pub checkpoint_transaction_count: Histogram,
     pub checkpoint_contents_age: Histogram,
     pub last_executed_checkpoint_age: Histogram,
+    pub checkpoint_executor_validator_path: IntGauge,
 }
 
 impl CheckpointExecutorMetrics {
@@ -94,6 +95,12 @@ impl CheckpointExecutorMetrics {
                 "last_executed_checkpoint_age",
                 "Age of the last executed checkpoint",
                 iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
+                registry
+            )
+            .unwrap(),
+            checkpoint_executor_validator_path: register_int_gauge_with_registry!(
+                "checkpoint_executor_validator_path",
+                "Number of checkpoints executed using the validator path",
                 registry
             )
             .unwrap(),
