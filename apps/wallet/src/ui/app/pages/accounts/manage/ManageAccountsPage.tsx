@@ -44,6 +44,7 @@ export function ManageAccountsPage() {
                     onClick={handleLock}
                     icon={<LockLocked className="h-5 w-5" />}
                     text="Lock"
+                    testId="lock-wallet"
                 />
             }
         >
