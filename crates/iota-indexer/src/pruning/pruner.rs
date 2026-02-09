@@ -92,6 +92,7 @@ pub enum PrunableTable {
     TxRecipients,
     TxSenders,
     TxWrappedOrDeletedObjects,
+    TxGlobalOrder,
 
     Checkpoints,
     PrunerCpWatermark,
@@ -171,7 +172,8 @@ impl PrunableTable {
             | PrunableTable::TxKinds
             | PrunableTable::TxRecipients
             | PrunableTable::TxSenders
-            | PrunableTable::TxWrappedOrDeletedObjects => PruningStrategy::ByTransaction,
+            | PrunableTable::TxWrappedOrDeletedObjects
+            | PrunableTable::TxGlobalOrder => PruningStrategy::ByTransaction,
 
             // Optimistic transactions table - pruned by global sequence number
             PrunableTable::OptimisticTransactions => PruningStrategy::ByGlobalSeq,

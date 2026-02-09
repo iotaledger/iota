@@ -1259,6 +1259,24 @@ impl PgIndexerStore {
         )
     }
 
+    /// Prunes tx_global_order table by transaction range using
+    /// chk_tx_sequence_number
+    fn prune_tx_global_order(
+        &self,
+        conn: &mut PgConnection,
+        min_tx: i64,
+        max_tx: i64,
+    ) -> Result<(), IndexerError> {
+        diesel::delete(
+            tx_global_order::table
+                .filter(tx_global_order::chk_tx_sequence_number.between(min_tx, max_tx)),
+        )
+        .execute(conn)
+        .map_err(IndexerError::from)
+        .context("Failed to prune tx_global_order table")
+        .map(|_| ())
+    }
+
     /// Prunes a single transaction or event index table by transaction range
     fn prune_single_tx_or_event_table(
         &self,
@@ -1429,6 +1447,9 @@ impl PgIndexerStore {
                             max_tx,
                             "Failed to prune tx_kinds table"
                         );
+                    }
+                    PrunableTable::TxGlobalOrder => {
+                        self.prune_tx_global_order(conn, min_tx, max_tx)?;
                     }
                     _ => {
                         return Err(IndexerError::InvalidArgument(format!(
