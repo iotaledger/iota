@@ -11,7 +11,6 @@ use std::{
     ops::Range,
     path::{Path, PathBuf},
     sync::Arc,
-    thread::sleep,
     time::Duration,
 };
 
@@ -134,17 +133,20 @@ impl CheckpointWriter {
         })
     }
 
-    pub fn write(
+    pub async fn write(
         &mut self,
         checkpoint_contents: CheckpointContents,
         checkpoint_summary: Checkpoint,
     ) -> Result<()> {
         match self.storage_format {
-            StorageFormat::Blob => self.write_as_blob(checkpoint_contents, checkpoint_summary),
+            StorageFormat::Blob => {
+                self.write_as_blob(checkpoint_contents, checkpoint_summary)
+                    .await
+            }
         }
     }
 
-    pub fn write_as_blob(
+    pub async fn write_as_blob(
         &mut self,
         checkpoint_contents: CheckpointContents,
         checkpoint_summary: Checkpoint,
@@ -160,7 +162,7 @@ impl CheckpointWriter {
                 .checked_add(1)
                 .context("Epoch num overflow")?
         {
-            self.cut()?;
+            self.cut().await?;
             self.update_to_next_epoch();
             if self.epoch_dir().exists() {
                 fs::remove_dir_all(self.epoch_dir())?;
@@ -185,7 +187,7 @@ impl CheckpointWriter {
             > self.commit_file_size
             || (self.last_commit_instant.elapsed() > self.commit_duration);
         if cut_new_checkpoint_file {
-            self.cut()?;
+            self.cut().await?;
             self.reset()?;
         }
 
@@ -240,7 +242,7 @@ impl CheckpointWriter {
 
     /// Finalizes the on-hold checkpoint and summary contents, and sends the
     /// CheckpointUpdates to notify the channel listeners.
-    fn cut(&mut self) -> Result<()> {
+    async fn cut(&mut self) -> Result<()> {
         if !self.checkpoint_range.is_empty() {
             let checkpoint_file_metadata = self.finalize()?;
             let summary_file_metadata = self.finalize_summary()?;
@@ -252,7 +254,7 @@ impl CheckpointWriter {
                 &mut self.manifest,
             );
             info!("Checkpoint file cut for: {:?}", checkpoint_updates);
-            self.sender.blocking_send(checkpoint_updates)?;
+            self.sender.send(checkpoint_updates).await?;
         }
         Ok(())
     }
@@ -412,14 +414,12 @@ impl ArchiveWriter {
         ));
 
         // Tails checkpoints from the store and writes them to the CheckpointWriter.
-        tokio::task::spawn_blocking(move || {
-            Self::start_tailing_checkpoints(
-                start_checkpoint_sequence_number,
-                checkpoint_writer,
-                store,
-                kill_receiver,
-            )
-        });
+        tokio::task::spawn(Self::start_tailing_checkpoints(
+            start_checkpoint_sequence_number,
+            checkpoint_writer,
+            store,
+            kill_receiver,
+        ));
         Ok(kill_sender)
     }
 
@@ -427,7 +427,7 @@ impl ArchiveWriter {
     /// to read from store, if not, sleeps for some time (3 secs) and retries.
     /// If the checkpoint is available, writes the checkpoint contents and
     /// summary to the CheckpointWriter.
-    fn start_tailing_checkpoints<S>(
+    async fn start_tailing_checkpoints<S>(
         start_checkpoint_sequence_number: CheckpointSequenceNumber,
         mut checkpoint_writer: CheckpointWriter,
         store: S,
@@ -439,7 +439,13 @@ impl ArchiveWriter {
         let mut checkpoint_sequence_number = start_checkpoint_sequence_number;
         info!("Starting checkpoint tailing from sequence number: {checkpoint_sequence_number}");
 
-        while kill.try_recv().is_err() {
+        loop {
+            if matches!(
+                kill.try_recv(),
+                Ok(()) | Err(tokio::sync::broadcast::error::TryRecvError::Closed)
+            ) {
+                break;
+            }
             if let Some(checkpoint_summary) = store
                 .try_get_checkpoint_by_sequence_number(checkpoint_sequence_number)
                 .map_err(|_| anyhow!("Failed to read checkpoint summary from store"))?
@@ -449,7 +455,8 @@ impl ArchiveWriter {
                     .map_err(|_| anyhow!("Failed to read checkpoint content from store"))?
                 {
                     checkpoint_writer
-                        .write(checkpoint_contents, checkpoint_summary.into_inner())?;
+                        .write(checkpoint_contents, checkpoint_summary.into_inner())
+                        .await?;
                     checkpoint_sequence_number = checkpoint_sequence_number
                         .checked_add(1)
                         .context("checkpoint seq number overflow")?;
@@ -459,7 +466,7 @@ impl ArchiveWriter {
             }
             // Checkpoint with `checkpoint_sequence_number` is not available to read from
             // store yet, sleep for sometime and then retry
-            sleep(Duration::from_secs(3));
+            tokio::time::sleep(Duration::from_secs(3)).await;
         }
         Ok(())
     }
