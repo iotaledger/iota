@@ -25,7 +25,6 @@ use crate::{
     metrics::IndexerMetrics,
     processors::processor_orchestrator::ProcessorOrchestrator,
     pruning::{
-        optimistic_pruner::OptimisticPruner,
         pruner::Pruner,
         watermark_task::{WatermarkCache, WatermarkTask},
     },
@@ -43,7 +42,6 @@ impl Indexer {
         metrics: IndexerMetrics,
         snapshot_config: SnapshotLagConfig,
         retention_config: Option<RetentionConfig>,
-        optimistic_pruner_batch_size: Option<u64>,
         cancel: CancellationToken,
     ) -> Result<(), IndexerError> {
         info!(
@@ -73,19 +71,6 @@ impl Indexer {
             let pruner = Pruner::new(store.clone(), retention_config, metrics.clone())?;
             let cancel_clone = cancel.clone();
             spawn_monitored_task!(pruner.start(cancel_clone));
-        }
-
-        if let Some(optimistic_pruner_batch_size) = optimistic_pruner_batch_size {
-            info!("Starting indexer optimistic tables pruner");
-            let optimistic_pruner = OptimisticPruner::new(
-                store.clone(),
-                optimistic_pruner_batch_size,
-                metrics.clone(),
-            )?;
-            let cancellation_token_for_optimistic_pruner = cancel.child_token();
-            spawn_monitored_task!(
-                optimistic_pruner.start(cancellation_token_for_optimistic_pruner)
-            );
         }
 
         // If we already have chain identifier indexed (i.e. the first checkpoint has

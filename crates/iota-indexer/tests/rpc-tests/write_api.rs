@@ -43,9 +43,10 @@ use move_core_types::{identifier::IdentStr, language_storage::StructTag};
 use crate::{
     coin_api::execute_move_call,
     common::{
-        ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_object,
-        indexer_wait_for_optimistic_transactions_count, node_wait_for_object,
-        publish_test_move_package, start_test_cluster_with_read_write_indexer,
+        ApiTestSetup, force_new_epoch_and_wait, indexer_wait_for_checkpoint,
+        indexer_wait_for_object, indexer_wait_for_optimistic_transactions_count,
+        node_wait_for_object, publish_test_move_package,
+        start_test_cluster_with_read_write_indexer,
     },
 };
 
@@ -883,20 +884,18 @@ fn test_repeatedly_update_display() {
 #[tokio::test]
 #[ignore = "https://github.com/iotaledger/iota/issues/10291"]
 async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
-    let optimistic_pruner_batch_size = 5;
     let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
         Some("test_optimistic_tables_pruning"),
         None,
         Some(PruningOptions {
-            epochs_to_keep: Some(2),
+            epochs_to_keep: Some(1),
             pruning_config_path: None,
-            optimistic_pruner_batch_size: Some(optimistic_pruner_batch_size),
+            optimistic_pruner_batch_size: None,
         }),
     )
     .await;
     indexer_wait_for_checkpoint(store, 1).await;
 
-    // arbitrary numbers, just need to be > optimistic_pruner_batch_size
     let txs_epoch_1 = 16;
     let txs_epoch_2 = 22;
     let txs_epoch_3 = 18;
@@ -916,10 +915,9 @@ async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
     let (_, counter_obj) = create_counter_object(sender, &sender_kp, client, &package_id)
         .await
         .unwrap();
-    cluster.force_new_epoch().await;
-
     // deploy pkg tx and create counter obj tx
     indexer_wait_for_optimistic_transactions_count(store, 2).await;
+    force_new_epoch_and_wait(store, cluster).await;
 
     for _ in 0..txs_epoch_1 {
         let res = increment_counter(sender, &sender_kp, client, &package_id, &counter_obj, None)
@@ -927,9 +925,8 @@ async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
             .unwrap();
         assert_eq!(res.status_ok(), Some(true));
     }
-    indexer_wait_for_optimistic_transactions_count(store, txs_epoch_1 + 2).await;
-    cluster.force_new_epoch().await;
     indexer_wait_for_optimistic_transactions_count(store, txs_epoch_1).await;
+    force_new_epoch_and_wait(store, cluster).await;
 
     for _ in 0..txs_epoch_2 {
         let res = increment_counter(sender, &sender_kp, client, &package_id, &counter_obj, None)
@@ -937,9 +934,8 @@ async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
             .unwrap();
         assert_eq!(res.status_ok(), Some(true));
     }
-    indexer_wait_for_optimistic_transactions_count(store, txs_epoch_1 + txs_epoch_2).await;
-    cluster.force_new_epoch().await;
     indexer_wait_for_optimistic_transactions_count(store, txs_epoch_2).await;
+    force_new_epoch_and_wait(store, cluster).await;
 
     for _ in 0..txs_epoch_3 {
         let res = increment_counter(sender, &sender_kp, client, &package_id, &counter_obj, None)
@@ -947,8 +943,11 @@ async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
             .unwrap();
         assert_eq!(res.status_ok(), Some(true));
     }
-    indexer_wait_for_optimistic_transactions_count(store, txs_epoch_2 + txs_epoch_3).await;
-    cluster.force_new_epoch().await;
+    indexer_wait_for_optimistic_transactions_count(store, txs_epoch_3).await;
+    force_new_epoch_and_wait(store, cluster).await;
+
+    // we are in epoch 4, but epoch 3 transactions will not be pruned until we have
+    // at least one new optimistic tx
     indexer_wait_for_optimistic_transactions_count(store, txs_epoch_3).await;
 
     Ok(())

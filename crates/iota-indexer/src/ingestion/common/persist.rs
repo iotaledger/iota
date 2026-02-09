@@ -196,6 +196,7 @@ impl From<&CheckpointData> for CommitterWatermark {
         }
     }
 }
+
 /// Enum representing tables that a committer updates.
 #[derive(
     Debug,
@@ -246,6 +247,7 @@ pub enum CommitterTables {
     Checkpoints,
     PrunerCpWatermark,
 }
+
 /// Enum representing tables that the objects snapshot processor updates.
 #[derive(
     Debug,
@@ -264,4 +266,25 @@ pub enum CommitterTables {
 #[serde(rename_all = "snake_case")]
 pub enum ObjectsSnapshotHandlerTables {
     ObjectsSnapshot,
+}
+
+/// Enum representing tables that are written by optimistic indexing, and not by
+/// main pipeline
+#[derive(
+    Debug,
+    Eq,
+    PartialEq,
+    strum_macros::Display,
+    strum_macros::EnumString,
+    strum_macros::EnumIter,
+    strum_macros::AsRefStr,
+    Hash,
+    Serialize,
+    Deserialize,
+    Clone,
+)]
+#[strum(serialize_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum OptimisticIndexingTables {
+    OptimisticTransactions,
 }
