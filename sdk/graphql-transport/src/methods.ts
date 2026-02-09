@@ -326,11 +326,13 @@ export const RPC_METHODS: {
             let hasMoreFriends = moveModule.friends?.pageInfo.hasNextPage ?? false;
             let hasMoreFunctions = moveModule.functions?.pageInfo.hasNextPage ?? false;
             let hasMoreStructs = moveModule.structs?.pageInfo.hasNextPage ?? false;
+            let hasMoreEnums = moveModule.enums?.pageInfo.hasNextPage ?? false;
             let afterFriends = moveModule.friends?.pageInfo.endCursor;
             let afterFunctions = moveModule.functions?.pageInfo.endCursor;
             let afterStructs = moveModule.structs?.pageInfo.endCursor;
+            let afterEnums = moveModule.enums?.pageInfo.endCursor;
 
-            while (hasMoreFriends || hasMoreStructs || hasMoreFunctions) {
+            while (hasMoreFriends || hasMoreStructs || hasMoreFunctions || hasMoreEnums) {
                 const page = await transport.graphqlQuery(
                     {
                         query: PaginateMoveModuleListsDocument,
@@ -340,9 +342,11 @@ export const RPC_METHODS: {
                             hasMoreFriends,
                             hasMoreFunctions,
                             hasMoreStructs,
+                            hasMoreEnums,
                             afterFriends,
                             afterFunctions,
                             afterStructs,
+                            afterEnums,
                         },
                     },
                     (data) => data.object?.asMovePackage?.module,
@@ -351,12 +355,15 @@ export const RPC_METHODS: {
                 moveModule.friends.nodes.push(...(page.friends?.nodes ?? []));
                 moveModule.functions?.nodes.push(...(page.functions?.nodes ?? []));
                 moveModule.structs?.nodes.push(...(page.structs?.nodes ?? []));
+                moveModule.enums?.nodes.push(...(page.enums?.nodes ?? []));
                 hasMoreFriends = page.friends?.pageInfo.hasNextPage ?? false;
                 hasMoreFunctions = page.functions?.pageInfo.hasNextPage ?? false;
                 hasMoreStructs = page.structs?.pageInfo.hasNextPage ?? false;
+                hasMoreEnums = page.enums?.pageInfo.hasNextPage ?? false;
                 afterFriends = page.friends?.pageInfo.endCursor;
                 afterFunctions = page.functions?.pageInfo.endCursor;
                 afterStructs = page.structs?.pageInfo.endCursor;
+                afterEnums = page.enums?.pageInfo.endCursor;
             }
         }
 
@@ -381,11 +388,13 @@ export const RPC_METHODS: {
         let hasMoreFriends = moveModule.friends?.pageInfo.hasNextPage ?? false;
         let hasMoreFunctions = moveModule.functions?.pageInfo.hasNextPage ?? false;
         let hasMoreStructs = moveModule.structs?.pageInfo.hasNextPage ?? false;
+        let hasMoreEnums = moveModule.enums?.pageInfo.hasNextPage ?? false;
         let afterFriends = moveModule.friends?.pageInfo.endCursor;
         let afterFunctions = moveModule.functions?.pageInfo.endCursor;
         let afterStructs = moveModule.structs?.pageInfo.endCursor;
+        let afterEnums = moveModule.enums?.pageInfo.endCursor;
 
-        while (hasMoreFriends || hasMoreStructs || hasMoreFunctions) {
+        while (hasMoreFriends || hasMoreStructs || hasMoreFunctions || hasMoreEnums) {
             const page = await transport.graphqlQuery(
                 {
                     query: PaginateMoveModuleListsDocument,
@@ -395,9 +404,11 @@ export const RPC_METHODS: {
                         hasMoreFriends,
                         hasMoreFunctions,
                         hasMoreStructs,
+                        hasMoreEnums,
                         afterFriends,
                         afterFunctions,
                         afterStructs,
+                        afterEnums,
                     },
                 },
                 (data) => data.object?.asMovePackage?.module,
@@ -406,12 +417,15 @@ export const RPC_METHODS: {
             moveModule.friends.nodes.push(...(page.friends?.nodes ?? []));
             moveModule.functions?.nodes.push(...(page.functions?.nodes ?? []));
             moveModule.structs?.nodes.push(...(page.structs?.nodes ?? []));
+            moveModule.enums?.nodes.push(...(page.enums?.nodes ?? []));
             hasMoreFriends = page.friends?.pageInfo.hasNextPage ?? false;
             hasMoreFunctions = page.functions?.pageInfo.hasNextPage ?? false;
             hasMoreStructs = page.structs?.pageInfo.hasNextPage ?? false;
+            hasMoreEnums = page.enums?.pageInfo.hasNextPage ?? false;
             afterFriends = page.friends?.pageInfo.endCursor;
             afterFunctions = page.functions?.pageInfo.endCursor;
             afterStructs = page.structs?.pageInfo.endCursor;
+            afterEnums = page.enums?.pageInfo.endCursor;
         }
 
         return mapNormalizedMoveModule(moveModule, normalizeIotaAddress(pkg));
