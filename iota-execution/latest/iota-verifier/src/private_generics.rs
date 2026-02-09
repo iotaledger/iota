@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
     base_types::{Identifier, IotaAddress},
     error::ExecutionError,
 };
@@ -65,7 +64,7 @@ pub const PRIVATE_ACCOUNT_FUNCTIONS: &[&IdentStr] = &[
 /// Concretely, with `event::emit<T>(...)`:
 /// - `T` must be a type declared in the current module
 pub fn verify_module(module: &CompiledModule) -> Result<(), ExecutionError> {
-    if module.address().as_ref() == IOTA_FRAMEWORK_ADDRESS.as_bytes()
+    if module.address().as_ref() == IotaAddress::FRAMEWORK.as_bytes()
         && module.name() == IdentStr::new(TEST_SCENARIO_MODULE_NAME).unwrap()
     {
         // exclude test_module which is a test-only module in the IOTA framework which
@@ -148,7 +147,7 @@ fn verify_private_transfer_module_functions(
             The transferred object's type must be defined in the current module. \
             If the object has the 'store' type ability, you can use the non-internal variant \
             instead, i.e. '{iota}::transfer::public_{f}'",
-            iota = IOTA_FRAMEWORK_ADDRESS,
+            iota = IotaAddress::FRAMEWORK,
             f = fident,
             t = format_signature_token(view, type_arg),
         ));
@@ -222,7 +221,7 @@ fn verify_private_event_emit(
         return Err(format!(
             "Invalid call to '{}::event::{}' with an event type '{}'. \
                 The event's type must be defined in the current module",
-            IOTA_FRAMEWORK_ADDRESS,
+            IotaAddress::FRAMEWORK,
             fident,
             format_signature_token(view, type_arg),
         ));

@@ -18,7 +18,6 @@ use iota_json_rpc_types::{
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID, SequenceNumber},
     digests::TransactionDigest,
     error::IotaObjectResponseError,
@@ -416,7 +415,7 @@ async fn get_package_with_display_should_not_fail() -> Result<(), anyhow::Error>
 
     let response = http_client
         .get_object(
-            IOTA_FRAMEWORK_PACKAGE_ID,
+            ObjectID::FRAMEWORK,
             Some(IotaObjectDataOptions::new().with_display()),
         )
         .await;

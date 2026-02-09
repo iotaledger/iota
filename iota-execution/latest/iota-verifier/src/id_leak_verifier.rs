@@ -16,7 +16,7 @@
 use std::{collections::BTreeMap, error::Error, num::NonZeroU64};
 
 use iota_types::{
-    GENESIS_BRIDGE_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
+    base_types::IotaAddress,
     error::{ExecutionError, VMMVerifierErrorSubStatusCode},
 };
 use move_abstract_interpreter::absint::{
@@ -49,48 +49,48 @@ enum AbstractValue {
 
 type FunctionIdent<'a> = (&'a AccountAddress, &'a IdentStr, &'a IdentStr);
 const OBJECT_NEW: FunctionIdent = (
-    &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+    &AccountAddress::new(IotaAddress::FRAMEWORK.into_bytes()),
     ident_str!("object"),
     ident_str!("new"),
 );
 const OBJECT_NEW_UID_FROM_HASH: FunctionIdent = (
-    &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+    &AccountAddress::new(IotaAddress::FRAMEWORK.into_bytes()),
     ident_str!("object"),
     ident_str!("new_uid_from_hash"),
 );
 const TS_NEW_OBJECT: FunctionIdent = (
-    &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+    &AccountAddress::new(IotaAddress::FRAMEWORK.into_bytes()),
     ident_str!("test_scenario"),
     ident_str!("new_object"),
 );
 const IOTA_SYSTEM_CREATE: FunctionIdent = (
-    &AccountAddress::new(IOTA_SYSTEM_ADDRESS.into_bytes()),
+    &AccountAddress::new(IotaAddress::SYSTEM.into_bytes()),
     ident_str!("iota_system"),
     ident_str!("create"),
 );
 const IOTA_CLOCK_CREATE: FunctionIdent = (
-    &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+    &AccountAddress::new(IotaAddress::FRAMEWORK.into_bytes()),
     ident_str!("clock"),
     ident_str!("create"),
 );
 const IOTA_AUTHENTICATOR_STATE_CREATE: FunctionIdent = (
-    &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+    &AccountAddress::new(IotaAddress::FRAMEWORK.into_bytes()),
     ident_str!("authenticator_state"),
     ident_str!("create"),
 );
 const IOTA_RANDOMNESS_STATE_CREATE: FunctionIdent = (
-    &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+    &AccountAddress::new(IotaAddress::FRAMEWORK.into_bytes()),
     ident_str!("random"),
     ident_str!("create"),
 );
 const IOTA_DENY_LIST_CREATE: FunctionIdent = (
-    &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+    &AccountAddress::new(IotaAddress::FRAMEWORK.into_bytes()),
     ident_str!("deny_list"),
     ident_str!("create"),
 );
 
 const IOTA_BRIDGE_CREATE: FunctionIdent = (
-    &AccountAddress::new(GENESIS_BRIDGE_ADDRESS.into_bytes()),
+    &AccountAddress::new(IotaAddress::GENESIS_BRIDGE.into_bytes()),
     ident_str!("bridge"),
     ident_str!("create"),
 );

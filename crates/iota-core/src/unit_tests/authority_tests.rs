@@ -18,8 +18,6 @@ use iota_protocol_config::{
 };
 use iota_sdk_types::Address;
 use iota_types::{
-    IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
-    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_PACKAGE_ID,
     base_types::{AuthorityName, Identifier, StructTag, dbg_addr},
     crypto::{
         AccountKeyPair, AuthorityKeyPair, Signature, get_key_pair,
@@ -3092,7 +3090,7 @@ async fn test_invalid_mutable_clock_parameter() {
     assert_eq!(
         UserInputError::try_from(e).unwrap(),
         UserInputError::ImmutableParameterExpected {
-            object_id: IOTA_CLOCK_OBJECT_ID
+            object_id: ObjectID::CLOCK
         }
     );
 }
@@ -3141,7 +3139,7 @@ async fn test_invalid_authenticator_state_parameter() {
     assert_eq!(
         UserInputError::try_from(e).unwrap(),
         UserInputError::InaccessibleSystemObject {
-            object_id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID
+            object_id: ObjectID::AUTHENTICATOR_STATE
         }
     );
 }
@@ -3161,7 +3159,7 @@ async fn test_invalid_randomness_parameter() {
         get_randomness_state_obj_initial_shared_version(authority_state.get_object_store())
             .unwrap();
     let random_mut = CallArg::Object(ObjectArg::SharedObject {
-        id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
+        id: ObjectID::RANDOMNESS_STATE,
         initial_shared_version: init_random_version,
         mutable: true,
     });
@@ -3195,7 +3193,7 @@ async fn test_invalid_randomness_parameter() {
     assert_eq!(
         UserInputError::try_from(e).unwrap(),
         UserInputError::ImmutableParameterExpected {
-            object_id: IOTA_RANDOMNESS_STATE_OBJECT_ID
+            object_id: ObjectID::RANDOMNESS_STATE
         }
     );
 }
@@ -3291,7 +3289,7 @@ async fn test_genesis_iota_system_state_object() {
     // deserialize it).
     let authority_state = TestAuthorityBuilder::new().build().await;
     let wrapper = authority_state
-        .get_object(&IOTA_SYSTEM_STATE_OBJECT_ID)
+        .get_object(&ObjectID::SYSTEM_STATE)
         .await
         .unwrap();
     assert_eq!(wrapper.version(), SequenceNumber::from(1));
@@ -4709,7 +4707,7 @@ async fn make_test_transaction(
         .unwrap();
     let data = TransactionData::new_move_call(
         *sender,
-        IOTA_FRAMEWORK_PACKAGE_ID,
+        ObjectID::FRAMEWORK,
         Identifier::from_static(module),
         Identifier::from_static(function),
         // type_args
@@ -4935,7 +4933,7 @@ async fn test_consensus_commit_prologue_generation() {
             .expect("versions should be set")
             .iter()
             .filter_map(|(id, seq)| {
-                if id == &IOTA_CLOCK_OBJECT_ID {
+                if id == &ObjectID::CLOCK {
                     Some(*seq)
                 } else {
                     None
@@ -5906,7 +5904,7 @@ async fn test_function_not_found() {
     builder
         .move_call(
             Address::STD.into(),
-            Identifier::from_static("option"),
+            Identifier::OPTION_MODULE,
             Identifier::from_static("bad_function"),
             vec![],
             vec![],
@@ -5962,7 +5960,7 @@ async fn test_arity_mismatch() {
     builder
         .move_call(
             Address::STD.into(),
-            Identifier::from_static("option"),
+            Identifier::OPTION_MODULE,
             Identifier::from_static("is_none"),
             vec![TypeTag::U64],
             vec![],
@@ -6221,7 +6219,7 @@ async fn test_publish_missing_dependency() {
         .get_package_bytes(/* with_unpublished_deps */ false);
 
     let mut builder = ProgrammableTransactionBuilder::new();
-    builder.publish_immutable(modules, vec![IOTA_FRAMEWORK_PACKAGE_ID]);
+    builder.publish_immutable(modules, vec![ObjectID::FRAMEWORK]);
     let kind = TransactionKind::programmable(builder.finish());
 
     let rgp = state.reference_gas_price_for_testing().unwrap();
@@ -6270,7 +6268,7 @@ async fn test_publish_missing_transitive_dependency() {
         .get_package_bytes(/* with_unpublished_deps */ false);
 
     let mut builder = ProgrammableTransactionBuilder::new();
-    builder.publish_immutable(modules, vec![MOVE_STDLIB_PACKAGE_ID]);
+    builder.publish_immutable(modules, vec![ObjectID::STD]);
     let kind = TransactionKind::programmable(builder.finish());
 
     let rgp = state.reference_gas_price_for_testing().unwrap();
@@ -6321,7 +6319,7 @@ async fn test_publish_not_a_package_dependency() {
     let mut builder = ProgrammableTransactionBuilder::new();
     let mut deps = BuiltInFramework::all_package_ids();
     // One of these things is not like the others
-    deps.push(IOTA_SYSTEM_STATE_OBJECT_ID);
+    deps.push(ObjectID::SYSTEM_STATE);
     builder.publish_immutable(modules, deps);
     let kind = TransactionKind::programmable(builder.finish());
 
@@ -6342,7 +6340,7 @@ async fn test_publish_not_a_package_dependency() {
     assert_eq!(
         IotaError::UserInput {
             error: UserInputError::MoveObjectAsPackage {
-                object_id: IOTA_SYSTEM_STATE_OBJECT_ID
+                object_id: ObjectID::SYSTEM_STATE
             }
         },
         failure,

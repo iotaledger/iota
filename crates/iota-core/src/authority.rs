@@ -54,7 +54,6 @@ use iota_storage::{
 #[cfg(msim)]
 use iota_types::committee::CommitteeTrait;
 use iota_types::{
-    IOTA_SYSTEM_PACKAGE_ID,
     account_abstraction::{
         account::AuthenticatorFunctionRefV1Key,
         authenticator_function::{
@@ -3586,9 +3585,9 @@ impl AuthorityState {
 
     pub async fn get_iota_system_package_object_ref(&self) -> IotaResult<ObjectRef> {
         Ok(self
-            .try_get_object(&IOTA_SYSTEM_PACKAGE_ID)
+            .try_get_object(&ObjectID::SYSTEM)
             .await?
-            .expect("framework object should always exist")
+            .expect("system package should always exist")
             .compute_object_reference())
     }
 

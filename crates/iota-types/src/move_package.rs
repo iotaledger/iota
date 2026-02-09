@@ -69,14 +69,11 @@ use crate::{
 #[path = "unit_tests/base_types_tests.rs"]
 mod base_types_tests;
 
-pub const PACKAGE_MODULE_NAME: Identifier = Identifier::from_static("package");
-pub const UPGRADECAP_STRUCT_NAME: Identifier = Identifier::from_static("UpgradeCap");
-pub const UPGRADETICKET_STRUCT_NAME: Identifier = Identifier::from_static("UpgradeTicket");
-pub const UPGRADERECEIPT_STRUCT_NAME: Identifier = Identifier::from_static("UpgradeReceipt");
-
-pub const PACKAGE_METADATA_MODULE_NAME: &IdentStr = ident_str!("package_metadata");
-pub const PACKAGE_METADATA_V1_STRUCT_NAME: &IdentStr = ident_str!("PackageMetadataV1");
-pub const PACKAGE_METADATA_KEY_STRUCT_NAME: &IdentStr = ident_str!("PackageMetadataKey");
+pub const PACKAGE_METADATA_MODULE_NAME: Identifier = Identifier::from_static("package_metadata");
+pub const PACKAGE_METADATA_V1_STRUCT_NAME: Identifier =
+    Identifier::from_static("PackageMetadataV1");
+pub const PACKAGE_METADATA_KEY_STRUCT_NAME: Identifier =
+    Identifier::from_static("PackageMetadataKey");
 
 #[derive(Clone, Debug)]
 /// Additional information about a function

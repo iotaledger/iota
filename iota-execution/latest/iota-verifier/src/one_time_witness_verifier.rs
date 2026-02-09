@@ -21,8 +21,7 @@
 //!   initializer
 //! - it is never instantiated anywhere in its defining module
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
-    base_types::{Identifier, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME},
+    base_types::{Identifier, IotaAddress},
     error::ExecutionError,
     move_package::{FnInfoMap, is_test_fun},
 };
@@ -50,7 +49,7 @@ pub fn verify_module(
     let self_id = module.self_id();
 
     if ModuleId::new(
-        AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+        AccountAddress::new(IotaAddress::FRAMEWORK.into_bytes()),
         ident_str!("iota").to_owned(),
     ) == self_id
     {
@@ -192,9 +191,9 @@ fn verify_init_single_param(
              single field of type bool",
             module.self_id(),
             INIT_FN_NAME,
-            IOTA_FRAMEWORK_ADDRESS,
-            TX_CONTEXT_MODULE_NAME,
-            TX_CONTEXT_STRUCT_NAME,
+            IotaAddress::FRAMEWORK,
+            Identifier::TX_CONTEXT_MODULE,
+            Identifier::TX_CONTEXT,
             module.self_id(),
             module.self_id().name().as_str().to_uppercase(),
         ));

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Identifier, StructTag, TypeTag};
+use iota_sdk_types::{StructTag, TypeTag};
 use serde::Deserialize;
 
 use crate::{
@@ -10,11 +10,6 @@ use crate::{
     event::Event,
     id::{ID, UID},
 };
-
-pub const DISPLAY_MODULE_NAME: Identifier = Identifier::from_static("display");
-pub const DISPLAY_CREATED_EVENT_NAME: Identifier = Identifier::from_static("DisplayCreated");
-pub const DISPLAY_VERSION_UPDATED_EVENT_NAME: Identifier =
-    Identifier::from_static("VersionUpdated");
 
 // TODO: add tests to keep in sync
 /// Rust version of the Move iota::display::Display type

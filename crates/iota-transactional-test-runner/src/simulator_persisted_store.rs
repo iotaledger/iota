@@ -216,7 +216,7 @@ impl SimulatorStore for PersistedStore {
     }
 
     fn get_clock(&self) -> iota_types::clock::Clock {
-        SimulatorStore::get_object(self, &iota_types::IOTA_CLOCK_OBJECT_ID)
+        SimulatorStore::get_object(self, &ObjectID::CLOCK)
             .expect("clock should exist")
             .to_rust()
             .expect("clock object should deserialize")

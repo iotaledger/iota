@@ -14,7 +14,6 @@ use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffec
 use iota_move_build::BuildConfig;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
     base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, StructTag},
     execution_config_utils::to_binary_config,
     object::{Object, Owner},
@@ -414,7 +413,7 @@ fn is_type_tx_context(ty: &Type) -> bool {
     match ty {
         Type::Reference(_, inner) => match inner.as_ref() {
             Type::Datatype(dt) => {
-                dt.module.address.as_ref() == IOTA_FRAMEWORK_ADDRESS.as_bytes()
+                dt.module.address.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
                     && dt.module.name.as_ident_str() == IdentStr::new("tx_context").unwrap()
                     && dt.name.as_ident_str() == IdentStr::new("TxContext").unwrap()
                     && dt.type_arguments.is_empty()

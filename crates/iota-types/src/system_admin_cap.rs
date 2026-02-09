@@ -1,13 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::Identifier;
-
-pub const IOTA_SYSTEM_ADMIN_CAP_MODULE_NAME: Identifier =
-    Identifier::from_static("system_admin_cap");
-pub const IOTA_SYSTEM_ADMIN_CAP_STRUCT_NAME: Identifier =
-    Identifier::from_static("IotaSystemAdminCap");
-
 pub use checked::*;
 
 #[iota_macros::with_checked_arithmetic]

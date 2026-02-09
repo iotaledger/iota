@@ -2881,7 +2881,7 @@ mod tests {
         let ptb_opt = ptb(
             TypeTag::Struct(Box::new(StructTag::new(
                 addr("0x1"),
-                Identifier::from_static("option"),
+                Identifier::OPTION_MODULE,
                 Identifier::from_static("Option"),
                 vec![TypeTag::U64],
             ))),

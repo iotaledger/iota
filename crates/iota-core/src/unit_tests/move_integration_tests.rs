@@ -7,7 +7,6 @@ use std::{collections::HashSet, env, path::PathBuf, str::FromStr};
 
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{
         Identifier, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, StructTag, TypeTag,
     },
@@ -3018,8 +3017,8 @@ pub fn build_multi_upgrade_txns(
         let policy = builder.pure(package_upgrade.policy).unwrap();
         let digest = builder.pure(package_upgrade.digest).unwrap();
         let ticket = builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            Identifier::from_static("package"),
+            ObjectID::FRAMEWORK,
+            Identifier::PACKAGE_MODULE,
             Identifier::from_static("authorize_upgrade"),
             vec![],
             vec![cap, policy, digest],
@@ -3031,8 +3030,8 @@ pub fn build_multi_upgrade_txns(
             package_upgrade.modules,
         );
         builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            Identifier::from_static("package"),
+            ObjectID::FRAMEWORK,
+            Identifier::PACKAGE_MODULE,
             Identifier::from_static("commit_upgrade"),
             vec![],
             vec![cap, receipt],

@@ -23,7 +23,6 @@ use crate::{
     transaction::{CheckedInputObjects, ReceivingObjects},
 };
 
-pub const DENY_LIST_MODULE: Identifier = Identifier::from_static("deny_list");
 pub const DENY_LIST_CREATE_FUNC: Identifier = Identifier::from_static("create");
 
 pub const DENY_LIST_COIN_TYPE_INDEX: u64 = 0;

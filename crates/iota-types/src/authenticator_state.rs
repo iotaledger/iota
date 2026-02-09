@@ -3,13 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub(crate) use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
-use iota_sdk_types::Identifier;
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS,
-    base_types::SequenceNumber,
+    base_types::{Identifier, IotaAddress, ObjectID, SequenceNumber},
     dynamic_field::get_dynamic_field_from_store,
     error::{IotaError, IotaResult},
     id::UID,
@@ -17,17 +15,13 @@ use crate::{
     storage::ObjectStore,
 };
 
-pub const AUTHENTICATOR_STATE_MODULE_NAME: Identifier =
-    Identifier::from_static("authenticator_state");
-pub const AUTHENTICATOR_STATE_STRUCT_NAME: Identifier =
-    Identifier::from_static("AuthenticatorState");
 pub const AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME: Identifier =
     Identifier::from_static("update_authenticator_state");
 pub const AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME: Identifier = Identifier::from_static("create");
 pub const AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME: Identifier =
     Identifier::from_static("expire_jwks");
 pub const RESOLVED_IOTA_AUTHENTICATOR_STATE: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+    &AccountAddress::new(IotaAddress::FRAMEWORK.into_bytes()),
     ident_str!("authenticator_state"),
     ident_str!("AuthenticatorState"),
 );
@@ -115,7 +109,7 @@ impl std::cmp::Ord for ActiveJwk {
 pub fn get_authenticator_state(
     object_store: impl ObjectStore,
 ) -> IotaResult<Option<AuthenticatorStateInner>> {
-    let outer = object_store.try_get_object(&IOTA_AUTHENTICATOR_STATE_OBJECT_ID)?;
+    let outer = object_store.try_get_object(&ObjectID::AUTHENTICATOR_STATE)?;
     let Some(outer) = outer else {
         return Ok(None);
     };
@@ -144,7 +138,7 @@ pub fn get_authenticator_state_obj_initial_shared_version(
     object_store: &dyn ObjectStore,
 ) -> IotaResult<Option<SequenceNumber>> {
     Ok(object_store
-        .try_get_object(&IOTA_AUTHENTICATOR_STATE_OBJECT_ID)?
+        .try_get_object(&ObjectID::AUTHENTICATOR_STATE)?
         .map(|obj| match obj.owner {
             Owner::Shared {
                 initial_shared_version,

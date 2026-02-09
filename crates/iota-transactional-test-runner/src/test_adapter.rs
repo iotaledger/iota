@@ -37,10 +37,6 @@ use iota_storage::{
 };
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
-    IOTA_CLOCK_OBJECT_ID, IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS,
-    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_ADDRESS,
-    IOTA_SYSTEM_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_ADDRESS,
-    MOVE_STDLIB_PACKAGE_ID, STARDUST_ADDRESS, STARDUST_PACKAGE_ID,
     base_types::{
         IOTA_ADDRESS_LENGTH, Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag,
         VersionNumber,
@@ -117,14 +113,14 @@ pub enum FakeID {
 const DEFAULT_GAS_PRICE: u64 = 1_000;
 
 const WELL_KNOWN_OBJECTS: &[ObjectID] = &[
-    MOVE_STDLIB_PACKAGE_ID,
-    IOTA_FRAMEWORK_PACKAGE_ID,
-    IOTA_SYSTEM_PACKAGE_ID,
-    STARDUST_PACKAGE_ID,
-    IOTA_SYSTEM_STATE_OBJECT_ID,
-    IOTA_CLOCK_OBJECT_ID,
-    IOTA_DENY_LIST_OBJECT_ID,
-    IOTA_RANDOMNESS_STATE_OBJECT_ID,
+    ObjectID::STD,
+    ObjectID::FRAMEWORK,
+    ObjectID::FRAMEWORK,
+    ObjectID::STARDUST,
+    ObjectID::SYSTEM_STATE,
+    ObjectID::CLOCK,
+    ObjectID::DENY_LIST,
+    ObjectID::RANDOMNESS_STATE,
 ];
 // TODO use the file name as a seed
 const RNG_SEED: [u8; 32] = [
@@ -509,7 +505,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
 
         // we are assuming that all packages depend on Move Stdlib and IOTA Framework,
         // so these don't have to be provided explicitly as parameters
-        dependencies.extend([MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]);
+        dependencies.extend([ObjectID::STD, ObjectID::FRAMEWORK]);
 
         let data = |sender, gas| {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -1601,8 +1597,8 @@ impl IotaTestAdapter {
         let digest_arg = builder.pure(digest).unwrap();
 
         let upgrade_ticket = builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            Identifier::from_static("package"),
+            ObjectID::FRAMEWORK,
+            Identifier::PACKAGE_MODULE,
             Identifier::from_static("authorize_upgrade"),
             vec![],
             vec![Argument::Input(0), upgrade_arg, digest_arg],
@@ -1613,8 +1609,8 @@ impl IotaTestAdapter {
             builder.upgrade(package_id, upgrade_ticket, dependencies, modules_bytes);
 
         builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            Identifier::from_static("package"),
+            ObjectID::FRAMEWORK,
+            Identifier::PACKAGE_MODULE,
             Identifier::from_static("commit_upgrade"),
             vec![],
             vec![Argument::Input(0), upgrade_receipt],
@@ -2224,7 +2220,7 @@ impl IotaTestAdapter {
         // we are assuming that all packages depend on Move Stdlib and IOTA Framework,
         // so these don't have to be provided explicitly as parameters
         if include_std {
-            dependencies.extend([MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]);
+            dependencies.extend([ObjectID::STD, ObjectID::FRAMEWORK]);
         }
         Ok(dependencies)
     }
@@ -2446,26 +2442,26 @@ impl Default for AdapterInitConfig {
 
 static NAMED_ADDRESSES: Lazy<BTreeMap<String, NumericalAddress>> = Lazy::new(|| {
     let mut map = move_stdlib::move_stdlib_named_addresses();
-    assert!(map.get("std").unwrap().as_ref() == MOVE_STDLIB_ADDRESS.as_bytes());
+    assert!(map.get("std").unwrap().as_ref() == IotaAddress::STD.as_bytes());
     // TODO fix IOTA framework constants
     map.insert(
         "iota".to_string(),
         NumericalAddress::new(
-            IOTA_FRAMEWORK_ADDRESS.into_bytes(),
+            IotaAddress::FRAMEWORK.into_bytes(),
             move_compiler::shared::NumberFormat::Hex,
         ),
     );
     map.insert(
         "iota_system".to_string(),
         NumericalAddress::new(
-            IOTA_SYSTEM_ADDRESS.into_bytes(),
+            IotaAddress::SYSTEM.into_bytes(),
             move_compiler::shared::NumberFormat::Hex,
         ),
     );
     map.insert(
         "stardust".to_string(),
         NumericalAddress::new(
-            STARDUST_ADDRESS.into_bytes(),
+            IotaAddress::STARDUST.into_bytes(),
             move_compiler::shared::NumberFormat::Hex,
         ),
     );

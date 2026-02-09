@@ -4,7 +4,6 @@
 
 use iota_core::test_utils::send_and_confirm_transaction;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{Identifier, IotaAddress, ObjectID, StructTag, TypeTag},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaError,
@@ -135,7 +134,7 @@ pub fn pt_for_tags(type_tags: Vec<TypeTag>) -> ProgrammableTransaction {
     let mut builder = ProgrammableTransactionBuilder::new();
     builder
         .move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
+            ObjectID::FRAMEWORK,
             Identifier::from_static("random_type_tag_fuzzing"),
             Identifier::from_static("random_type_tag_fuzzing_fn"),
             type_tags,

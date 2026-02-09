@@ -16,7 +16,7 @@ use self::{
     iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
 };
 use crate::{
-    IOTA_SYSTEM_STATE_OBJECT_ID, MoveTypeTagTrait,
+    MoveTypeTagTrait,
     base_types::ObjectID,
     committee::CommitteeWithNetworkMetadata,
     dynamic_field::{Field, get_dynamic_field_from_store, get_dynamic_field_object_from_store},
@@ -41,7 +41,6 @@ use self::simtest_iota_system_state_inner::{
     SimTestValidatorDeepV1, SimTestValidatorV1,
 };
 
-pub const IOTA_SYSTEM_MODULE_NAME: Identifier = Identifier::from_static("iota_system");
 pub const ADVANCE_EPOCH_FUNCTION_NAME: Identifier = Identifier::from_static("advance_epoch");
 pub const ADVANCE_EPOCH_SAFE_MODE_FUNCTION_NAME: Identifier =
     Identifier::from_static("advance_epoch_safe_mode");
@@ -225,7 +224,7 @@ pub fn get_iota_system_state_wrapper(
     object_store: &dyn ObjectStore,
 ) -> Result<IotaSystemStateWrapper, IotaError> {
     let wrapper = object_store
-        .try_get_object(&IOTA_SYSTEM_STATE_OBJECT_ID)?
+        .try_get_object(&ObjectID::SYSTEM_STATE)?
         // Don't panic here on None because object_store is a generic store.
         .ok_or_else(|| {
             IotaError::IotaSystemStateRead("IotaSystemStateWrapper object not found".to_owned())

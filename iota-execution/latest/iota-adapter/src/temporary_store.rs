@@ -7,7 +7,6 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    IOTA_DENY_LIST_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
     auth_context::AuthContext,
     base_types::{
         IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionDigest,
@@ -480,7 +479,7 @@ impl<'backing> TemporaryStore<'backing> {
             unmetered_storage_rebate
         );
         let mut system_state_wrapper = self
-            .read_object(&IOTA_SYSTEM_STATE_OBJECT_ID)
+            .read_object(&ObjectID::SYSTEM_STATE)
             .expect("0x5 object must be mutated in system tx with unmetered storage rebate")
             .clone();
         // In unmetered execution, storage_rebate field of mutated object must be 0.
@@ -1086,11 +1085,11 @@ impl Storage for TemporaryStore<'_> {
         // And also if we already have it in the input there is no need to commit it
         // again in the effects.
         if result.num_non_gas_coin_owners > 0
-            && !self.input_objects.contains_key(&IOTA_DENY_LIST_OBJECT_ID)
+            && !self.input_objects.contains_key(&ObjectID::DENY_LIST)
         {
             self.loaded_per_epoch_config_objects
                 .write()
-                .insert(IOTA_DENY_LIST_OBJECT_ID);
+                .insert(ObjectID::DENY_LIST);
         }
         result
     }

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::StructTag;
+use crate::base_types::StructTag;
 
 #[cfg(test)]
 #[path = "../unit_tests/timelock/label_tests.rs"]

@@ -8,12 +8,10 @@ use move_bytecode_utils::resolve_struct;
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 use serde::{Deserialize, Serialize};
 
-use crate::{IOTA_FRAMEWORK_ADDRESS, id::UID};
+use crate::{base_types::IotaAddress, id::UID};
 
-pub const CLOCK_MODULE_NAME: Identifier = Identifier::from_static("clock");
-pub const CLOCK_STRUCT_NAME: Identifier = Identifier::from_static("Clock");
 pub const RESOLVED_IOTA_CLOCK: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+    &AccountAddress::new(IotaAddress::FRAMEWORK.into_bytes()),
     ident_str!("clock"),
     ident_str!("Clock"),
 );

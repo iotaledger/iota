@@ -25,7 +25,6 @@ use iota_json_rpc_types::{
 use iota_move_build::BuildConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag, TypeTag},
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     digests::TransactionDigest,
@@ -1049,7 +1048,7 @@ async fn update_display_object(
         client,
         address,
         address_kp,
-        IOTA_FRAMEWORK_PACKAGE_ID,
+        ObjectID::FRAMEWORK,
         "display".to_string(),
         "edit".to_string(),
         type_args![display_obj_type_tag].unwrap(),
@@ -1075,7 +1074,7 @@ async fn bump_display_object_version(
         client,
         address,
         address_kp,
-        IOTA_FRAMEWORK_PACKAGE_ID,
+        ObjectID::FRAMEWORK,
         "display".to_string(),
         "update_version".to_string(),
         type_args![display_obj_type_tag].unwrap(),

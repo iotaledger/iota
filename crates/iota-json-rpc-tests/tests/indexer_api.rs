@@ -16,7 +16,6 @@ use iota_protocol_config::ProtocolConfig;
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
     base_types::{Identifier, IotaAddress, MoveObjectType, ObjectID, StructTag, TypeTag},
     collection_types::VecMap,
     crypto::deterministic_random_account_key,
@@ -453,7 +452,7 @@ async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
         .data;
 
     // make 2 move calls of same package & module, but different functions
-    let package_id = ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes());
+    let package_id = ObjectID::new(IotaAddress::FRAMEWORK.into_bytes());
     let coin = objects.first().unwrap();
     let coin_2 = &objects[1];
     let signer = cluster.wallet.active_address().unwrap();
@@ -557,7 +556,7 @@ async fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         let bag = builder.programmable_move_call(
-            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+            ObjectID::new(IotaAddress::FRAMEWORK.into_bytes()),
             Identifier::from_str("bag")?,
             Identifier::from_str("new")?,
             vec![],
@@ -568,7 +567,7 @@ async fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
         let field_value_argument = builder.pure(0u64).expect("valid pure");
 
         let _ = builder.programmable_move_call(
-            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+            ObjectID::new(IotaAddress::FRAMEWORK.into_bytes()),
             Identifier::from_str("bag")?,
             Identifier::from_str("add")?,
             vec![TypeTag::U64, TypeTag::U64],
@@ -642,7 +641,7 @@ async fn test_get_dynamic_field_object() -> Result<(), anyhow::Error> {
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         let bag = builder.programmable_move_call(
-            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+            ObjectID::new(IotaAddress::FRAMEWORK.into_bytes()),
             Identifier::from_str("object_bag")?,
             Identifier::from_str("new")?,
             vec![],
@@ -655,7 +654,7 @@ async fn test_get_dynamic_field_object() -> Result<(), anyhow::Error> {
             .unwrap();
 
         let _ = builder.programmable_move_call(
-            ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+            ObjectID::new(IotaAddress::FRAMEWORK.into_bytes()),
             Identifier::from_str("object_bag")?,
             Identifier::from_str("add")?,
             vec![

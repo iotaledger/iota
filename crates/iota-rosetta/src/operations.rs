@@ -14,12 +14,10 @@ use iota_sdk::rpc_types::{
     IotaTransactionBlockKind, IotaTransactionBlockResponse,
 };
 use iota_types::{
-    IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID,
     base_types::{Identifier, IotaAddress, ObjectID, SequenceNumber, StructTag},
     digests::TransactionDigest,
     gas_coin::{GAS, GasCoin},
     governance::{ADD_STAKE_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
-    iota_system_state::IOTA_SYSTEM_MODULE_NAME,
     object::Owner,
     transaction::TransactionData,
 };
@@ -482,14 +480,14 @@ impl Operations {
     }
 
     fn is_stake_call(tx: &IotaProgrammableMoveCall) -> bool {
-        tx.package == IOTA_SYSTEM_PACKAGE_ID
-            && tx.module == IOTA_SYSTEM_MODULE_NAME.as_str()
+        tx.package == ObjectID::FRAMEWORK
+            && tx.module == Identifier::IOTA_SYSTEM_MODULE.as_str()
             && tx.function == ADD_STAKE_FUN_NAME.as_str()
     }
 
     fn is_unstake_call(tx: &IotaProgrammableMoveCall) -> bool {
-        tx.package == IOTA_SYSTEM_PACKAGE_ID
-            && tx.module == IOTA_SYSTEM_MODULE_NAME.as_str()
+        tx.package == ObjectID::FRAMEWORK
+            && tx.module == Identifier::IOTA_SYSTEM_MODULE.as_str()
             && tx.function == WITHDRAW_STAKE_FUN_NAME.as_str()
     }
 
@@ -632,7 +630,7 @@ impl TryFrom<IotaTransactionBlockResponse> for Operations {
 }
 
 fn is_unstake_event(tag: &StructTag) -> bool {
-    tag.address() == IOTA_SYSTEM_ADDRESS
+    tag.address() == IotaAddress::SYSTEM
         && tag.module() == &Identifier::from_static("validator")
         && tag.name() == &Identifier::from_static("UnstakingRequestEvent")
 }

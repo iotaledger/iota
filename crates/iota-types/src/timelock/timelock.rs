@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, StructTag, TypeTag};
+use iota_sdk_types::{StructTag, TypeTag};
 use iota_stardust_sdk::types::block::output::{BasicOutput, OutputId};
 use serde::{Deserialize, Serialize};
 
@@ -14,9 +14,6 @@ use crate::{
     id::UID,
     object::{Data, Object},
 };
-
-pub const TIMELOCK_MODULE_NAME: Identifier = Identifier::from_static("timelock");
-pub const TIMELOCK_STRUCT_NAME: Identifier = Identifier::from_static("TimeLock");
 
 /// All basic outputs whose IDs start with this prefix represent vested rewards
 /// that were created during the stardust upgrade on IOTA mainnet.

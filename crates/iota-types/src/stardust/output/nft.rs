@@ -23,12 +23,10 @@ use crate::{
     object::{Data, Object},
 };
 
-pub const IRC27_MODULE_NAME: Identifier = Identifier::from_static("irc27");
 pub const NFT_MODULE_NAME: Identifier = Identifier::from_static("nft");
 pub const NFT_OUTPUT_MODULE_NAME: Identifier = Identifier::from_static("nft_output");
 pub const NFT_OUTPUT_STRUCT_NAME: Identifier = Identifier::from_static("NftOutput");
 pub const NFT_STRUCT_NAME: Identifier = Identifier::from_static("Nft");
-pub const IRC27_STRUCT_NAME: Identifier = Identifier::from_static("Irc27Metadata");
 pub const NFT_DYNAMIC_OBJECT_FIELD_KEY: &[u8] = b"nft";
 pub const NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE: &str = "vector<u8>";
 

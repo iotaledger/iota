@@ -27,7 +27,6 @@ use iota_json_rpc_types::{
 use iota_open_rpc::ExamplePairing;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
     balance::Supply,
     base_types::{
         Identifier, IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectType,
@@ -143,7 +142,7 @@ impl RpcExampleProvider {
 
         let tx_params = vec![
             RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
-                package_object_id: IOTA_FRAMEWORK_PACKAGE_ID,
+                package_object_id: ObjectID::FRAMEWORK,
                 module: "pay".to_string(),
                 function: "split".to_string(),
                 type_arguments: vec![IotaTypeTag::new("0x2::iota::IOTA".to_string())],
@@ -165,7 +164,7 @@ impl RpcExampleProvider {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder
                 .move_call(
-                    IOTA_FRAMEWORK_PACKAGE_ID,
+                    ObjectID::FRAMEWORK,
                     Identifier::from_static("pay"),
                     Identifier::from_static("split"),
                     vec![],

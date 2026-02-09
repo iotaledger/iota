@@ -18,7 +18,6 @@ use iota_package_management::{
     system_package_versions::{SYSTEM_GIT_REPO, SystemPackagesVersion},
 };
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS, STARDUST_ADDRESS,
     base_types::{IotaAddress, ObjectID},
     error::{IotaError, IotaResult},
     move_package::{
@@ -532,26 +531,26 @@ impl CompiledPackage {
     /// Get bytecode modules from the IOTA System that are used by this package
     pub fn get_iota_system_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()
-            .filter(|m| m.self_id().address().as_ref() == IOTA_SYSTEM_ADDRESS.as_bytes())
+            .filter(|m| m.self_id().address().as_ref() == IotaAddress::SYSTEM.as_bytes())
     }
 
     /// Get bytecode modules from the IOTA Framework that are used by this
     /// package
     pub fn get_iota_framework_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()
-            .filter(|m| m.self_id().address().as_ref() == IOTA_FRAMEWORK_ADDRESS.as_bytes())
+            .filter(|m| m.self_id().address().as_ref() == IotaAddress::FRAMEWORK.as_bytes())
     }
 
     /// Get bytecode modules from the Move stdlib that are used by this package
     pub fn get_stdlib_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()
-            .filter(|m| m.self_id().address().as_ref() == MOVE_STDLIB_ADDRESS.as_bytes())
+            .filter(|m| m.self_id().address().as_ref() == IotaAddress::STD.as_bytes())
     }
 
     /// Get bytecode modules from Stardust that are used by this package
     pub fn get_stardust_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()
-            .filter(|m| m.self_id().address().as_ref() == STARDUST_ADDRESS.as_bytes())
+            .filter(|m| m.self_id().address().as_ref() == IotaAddress::STARDUST.as_bytes())
     }
 
     /// Generate layout schemas for all types declared by this package, as well

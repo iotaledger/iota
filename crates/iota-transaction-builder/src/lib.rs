@@ -15,7 +15,6 @@ use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponse, IotaTypeTag, PtbInput, RPCTransactionRequestParams,
 };
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{Identifier, IotaAddress, ObjectID, ObjectInfo, StructTag},
     coin,
     error::UserInputError,
@@ -585,8 +584,8 @@ impl TransactionBuilder {
         let coin_object_ref = coin.object_ref();
         let coin: Object = coin.try_into()?;
         let type_args = vec![coin.get_move_template_type()?];
-        let package = IOTA_FRAMEWORK_PACKAGE_ID;
-        let module = coin::PAY_MODULE_NAME.to_owned();
+        let package = ObjectID::FRAMEWORK;
+        let module = Identifier::PAY_MODULE;
 
         let (arguments, function) = if let Some(split_amounts) = split_amounts {
             (
@@ -594,7 +593,7 @@ impl TransactionBuilder {
                     CallArg::Object(ObjectArg::ImmOrOwnedObject(coin_object_ref)),
                     CallArg::Pure(bcs::to_bytes(&split_amounts)?),
                 ],
-                coin::PAY_SPLIT_VEC_FUNC_NAME.to_owned(),
+                coin::PAY_SPLIT_VEC_FUNC_NAME,
             )
         } else {
             (
@@ -602,7 +601,7 @@ impl TransactionBuilder {
                     CallArg::Object(ObjectArg::ImmOrOwnedObject(coin_object_ref)),
                     CallArg::Pure(bcs::to_bytes(&split_count.unwrap())?),
                 ],
-                coin::PAY_SPLIT_N_FUNC_NAME.to_owned(),
+                coin::PAY_SPLIT_N_FUNC_NAME,
             )
         };
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -636,9 +635,9 @@ impl TransactionBuilder {
 
         TransactionData::new_move_call(
             signer,
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            coin::PAY_MODULE_NAME.to_owned(),
-            coin::PAY_SPLIT_VEC_FUNC_NAME.to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::PAY_MODULE,
+            coin::PAY_SPLIT_VEC_FUNC_NAME,
             type_args,
             gas,
             vec![
@@ -674,9 +673,9 @@ impl TransactionBuilder {
 
         TransactionData::new_move_call(
             signer,
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            coin::PAY_MODULE_NAME.to_owned(),
-            coin::PAY_SPLIT_N_FUNC_NAME.to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::PAY_MODULE,
+            coin::PAY_SPLIT_N_FUNC_NAME,
             type_args,
             gas,
             vec![
@@ -704,9 +703,9 @@ impl TransactionBuilder {
         let coin_to_merge_ref = self.get_object_ref(coin_to_merge).await?;
         let coin: Object = coin.try_into()?;
         let type_arguments = vec![coin.get_move_template_type()?];
-        let package = IOTA_FRAMEWORK_PACKAGE_ID;
-        let module = coin::COIN_MODULE_NAME.to_owned();
-        let function = coin::COIN_JOIN_FUNC_NAME.to_owned();
+        let package = ObjectID::FRAMEWORK;
+        let module = Identifier::COIN_MODULE;
+        let function = coin::COIN_JOIN_FUNC_NAME;
         let arguments = vec![
             CallArg::Object(ObjectArg::ImmOrOwnedObject(primary_coin_ref)),
             CallArg::Object(ObjectArg::ImmOrOwnedObject(coin_to_merge_ref)),
@@ -751,9 +750,9 @@ impl TransactionBuilder {
 
         TransactionData::new_move_call(
             signer,
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            coin::COIN_MODULE_NAME.to_owned(),
-            coin::COIN_JOIN_FUNC_NAME.to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::COIN_MODULE,
+            coin::COIN_JOIN_FUNC_NAME,
             type_args,
             gas,
             vec![

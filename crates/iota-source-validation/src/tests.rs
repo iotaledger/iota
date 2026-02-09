@@ -17,7 +17,6 @@ use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_sdk::wallet_context::WalletContext;
 use iota_test_transaction_builder::{make_publish_transaction, make_publish_transaction_with_deps};
 use iota_types::{
-    IOTA_SYSTEM_STATE_OBJECT_ID,
     base_types::{IotaAddress, ObjectID, ObjectRef, TransactionDigest},
     move_package::UpgradePolicy,
     transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
@@ -364,7 +363,7 @@ async fn dependency_is_an_object() -> anyhow::Result<()> {
 
     let a_pkg_fixtures = tempfile::tempdir()?;
     let a_pkg = {
-        let b_id = IOTA_SYSTEM_STATE_OBJECT_ID.into();
+        let b_id = ObjectID::SYSTEM_STATE.into();
         copy_published_package(&a_pkg_fixtures, "b", b_id).await?;
         let a_src = copy_published_package(&a_pkg_fixtures, "a", IotaAddress::ZERO).await?;
         compile_package(a_src)

@@ -15,11 +15,10 @@ mod checked {
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
-        IOTA_FRAMEWORK_ADDRESS, auth_context,
+        auth_context,
         base_types::{
             Identifier, IotaAddress, MoveObjectType, ObjectID, RESOLVED_ASCII_STR,
-            RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, StructTag, TX_CONTEXT_MODULE_NAME,
-            TX_CONTEXT_STRUCT_NAME, TxContext, TxContextKind, TypeTag,
+            RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, StructTag, TxContext, TxContextKind, TypeTag,
         },
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
@@ -1799,9 +1798,9 @@ mod checked {
             invariant_violation!("Loaded struct not found")
         };
         let (module_addr, module_name, struct_name) = get_datatype_ident(&s);
-        let is_tx_context_type = module_addr.as_ref() == IOTA_FRAMEWORK_ADDRESS.as_bytes()
-            && module_name.as_str() == TX_CONTEXT_MODULE_NAME.as_str()
-            && struct_name.as_str() == TX_CONTEXT_STRUCT_NAME.as_str();
+        let is_tx_context_type = module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
+            && module_name.as_str() == Identifier::TX_CONTEXT_MODULE.as_str()
+            && struct_name.as_str() == Identifier::TX_CONTEXT.as_str();
         Ok(if is_tx_context_type {
             if is_mut {
                 TxContextKind::Mutable

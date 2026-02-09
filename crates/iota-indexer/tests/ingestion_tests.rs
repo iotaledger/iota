@@ -31,7 +31,6 @@ mod ingestion_tests {
         types::{EventIndex, TxIndex},
     };
     use iota_types::{
-        IOTA_FRAMEWORK_PACKAGE_ID,
         base_types::{IotaAddress, StructTag},
         effects::TransactionEffectsAPI,
     };
@@ -175,7 +174,7 @@ mod ingestion_tests {
         );
         assert_eq!(
             db_object.object_type_package,
-            Some(IOTA_FRAMEWORK_PACKAGE_ID.as_bytes().to_vec())
+            Some(IotaAddress::FRAMEWORK.as_bytes().to_vec())
         );
         assert_eq!(db_object.object_type_module, Some("coin".to_string()));
         assert_eq!(db_object.object_type_name, Some("Coin".to_string()));

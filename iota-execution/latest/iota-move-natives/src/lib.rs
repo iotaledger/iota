@@ -7,7 +7,7 @@ use std::sync::Arc;
 use better_any::{Tid, TidAble};
 use crypto::vdf::{self, VDFCostParams};
 use iota_protocol_config::ProtocolConfig;
-use iota_types::{IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS};
+use iota_types::base_types::IotaAddress;
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
     account_address::AccountAddress,
@@ -1098,7 +1098,7 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             .cloned()
             .map(|(module_name, func_name, func)| {
                 (
-                    AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                    AccountAddress::new(IotaAddress::FRAMEWORK.into_bytes()),
                     move_core_types::identifier::Identifier::new(module_name).unwrap(),
                     move_core_types::identifier::Identifier::new(func_name).unwrap(),
                     func,
@@ -1114,7 +1114,7 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
         .cloned()
         .map(|(module_name, func_name, func)| {
             (
-                AccountAddress::new(IOTA_SYSTEM_ADDRESS.into_bytes()),
+                AccountAddress::new(IotaAddress::SYSTEM.into_bytes()),
                 move_core_types::identifier::Identifier::new(module_name).unwrap(),
                 move_core_types::identifier::Identifier::new(func_name).unwrap(),
                 func,
@@ -1122,7 +1122,7 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
         })
         .chain(iota_framework_natives_iter)
         .chain(move_stdlib_natives::all_natives(
-            AccountAddress::new(MOVE_STDLIB_ADDRESS.into_bytes()),
+            AccountAddress::new(IotaAddress::STD.into_bytes()),
             make_stdlib_gas_params_for_protocol_config(protocol_config),
             silent,
         ))

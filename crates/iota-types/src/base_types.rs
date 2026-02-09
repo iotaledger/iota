@@ -26,10 +26,8 @@ use serde::{
 };
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
     account_abstraction::authenticator_function::AuthenticatorFunctionRefV1,
-    balance::Balance,
-    coin::{COIN_MODULE_NAME, COIN_STRUCT_NAME, Coin, CoinMetadata, TreasuryCap},
+    coin::{Coin, CoinMetadata},
     coin_manager::CoinManager,
     crypto::{
         AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, IotaSignature, PublicKey,
@@ -40,7 +38,6 @@ use crate::{
     epoch_data::EpochData,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
     gas_coin::GAS,
-    governance::{STAKED_IOTA_STRUCT_NAME, STAKING_POOL_MODULE_NAME},
     id::RESOLVED_IOTA_ID,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
     iota_serde::to_iota_struct_tag_string,
@@ -165,16 +162,16 @@ impl MoveObjectType {
 
     pub fn module(&self) -> Identifier {
         match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => COIN_MODULE_NAME,
-            MoveObjectType_::StakedIota => STAKING_POOL_MODULE_NAME,
+            MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => Identifier::COIN_MODULE,
+            MoveObjectType_::StakedIota => Identifier::STAKING_POOL_MODULE,
             MoveObjectType_::Other(s) => s.module().clone(),
         }
     }
 
     pub fn name(&self) -> Identifier {
         match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => COIN_STRUCT_NAME,
-            MoveObjectType_::StakedIota => STAKED_IOTA_STRUCT_NAME,
+            MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => Identifier::COIN,
+            MoveObjectType_::StakedIota => Identifier::STAKED_IOTA,
             MoveObjectType_::Other(s) => s.name().clone(),
         }
     }
@@ -284,13 +281,13 @@ impl MoveObjectType {
 
     pub fn is_regulated_coin_metadata(&self) -> bool {
         self.address() == IotaAddress::FRAMEWORK
-            && self.module() == Identifier::from_static("coin")
+            && self.module() == Identifier::COIN_MODULE
             && self.name() == Identifier::from_static("RegulatedCoinMetadata")
     }
 
     pub fn is_coin_deny_cap_v1(&self) -> bool {
         self.address() == IotaAddress::FRAMEWORK
-            && self.module() == Identifier::from_static("coin")
+            && self.module() == Identifier::COIN_MODULE
             && self.name() == Identifier::from_static("DenyCapV1")
     }
 
@@ -787,35 +784,23 @@ impl VerifiedExecutionData {
     }
 }
 
-pub const STD_OPTION_MODULE_NAME: Identifier = Identifier::from_static("option");
-pub const STD_OPTION_STRUCT_NAME: Identifier = Identifier::from_static("Option");
 pub const RESOLVED_STD_OPTION: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &AccountAddress::new(MOVE_STDLIB_ADDRESS.into_bytes()),
+    &AccountAddress::new(IotaAddress::STD.into_bytes()),
     ident_str!("option"),
     ident_str!("Option"),
 );
 
-pub const STD_ASCII_MODULE_NAME: Identifier = Identifier::from_static("ascii");
-pub const STD_ASCII_STRUCT_NAME: Identifier = Identifier::from_static("String");
 pub const RESOLVED_ASCII_STR: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &AccountAddress::new(MOVE_STDLIB_ADDRESS.into_bytes()),
+    &AccountAddress::new(IotaAddress::STD.into_bytes()),
     ident_str!("ascii"),
     ident_str!("String"),
 );
 
-pub const STD_UTF8_MODULE_NAME: Identifier = Identifier::from_static("string");
-pub const STD_UTF8_STRUCT_NAME: Identifier = Identifier::from_static("String");
 pub const RESOLVED_UTF8_STR: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &AccountAddress::new(MOVE_STDLIB_ADDRESS.into_bytes()),
+    &AccountAddress::new(IotaAddress::STD.into_bytes()),
     ident_str!("string"),
     ident_str!("String"),
 );
-
-pub const TX_CONTEXT_MODULE_NAME: Identifier = Identifier::from_static("tx_context");
-pub const TX_CONTEXT_STRUCT_NAME: Identifier = Identifier::from_static("TxContext");
-
-pub const URL_MODULE_NAME: Identifier = Identifier::from_static("url");
-pub const URL_STRUCT_NAME: Identifier = Identifier::from_static("Url");
 
 pub fn move_ascii_str_layout() -> A::MoveStructLayout {
     A::MoveStructLayout {
@@ -912,9 +897,9 @@ impl TxContext {
         };
 
         let (module_addr, module_name, struct_name) = resolve_struct(view, *idx);
-        let is_tx_context_type = module_name.as_str() == TX_CONTEXT_MODULE_NAME.as_str()
-            && module_addr.as_ref() == IOTA_FRAMEWORK_ADDRESS.as_bytes()
-            && struct_name.as_str() == TX_CONTEXT_STRUCT_NAME.as_str();
+        let is_tx_context_type = module_name.as_str() == Identifier::TX_CONTEXT_MODULE.as_str()
+            && module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
+            && struct_name.as_str() == Identifier::TX_CONTEXT.as_str();
 
         if is_tx_context_type {
             kind

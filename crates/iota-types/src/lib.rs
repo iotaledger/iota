@@ -144,7 +144,7 @@ const fn builtin_address(suffix: u16) -> IotaAddress {
 }
 
 pub fn iota_framework_address_concat_string(suffix: &str) -> String {
-    format!("{}{suffix}", IOTA_FRAMEWORK_ADDRESS.to_short_hex())
+    format!("{}{suffix}", IotaAddress::FRAMEWORK.to_short_hex())
 }
 
 /// Parses `s` as an address. Valid formats for addresses are:
@@ -211,10 +211,10 @@ pub fn parse_iota_type_tag(s: &str) -> anyhow::Result<TypeTag> {
 /// Resolve well-known named addresses into numeric addresses.
 pub fn resolve_address(addr: &str) -> Option<AccountAddress> {
     match addr {
-        "std" => Some(MOVE_STDLIB_ADDRESS),
-        "iota" => Some(IOTA_FRAMEWORK_ADDRESS),
-        "iota_system" => Some(IOTA_SYSTEM_ADDRESS),
-        "stardust" => Some(STARDUST_ADDRESS),
+        "std" => Some(IotaAddress::STD),
+        "iota" => Some(IotaAddress::FRAMEWORK),
+        "iota_system" => Some(IotaAddress::SYSTEM),
+        "stardust" => Some(IotaAddress::STARDUST),
         _ => None,
     }
     .map(|addr| AccountAddress::new(addr.into_bytes()))

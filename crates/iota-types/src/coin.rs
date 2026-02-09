@@ -19,13 +19,8 @@ use crate::{
     object::{Data, Object},
 };
 
-pub const COIN_MODULE_NAME: Identifier = Identifier::from_static("coin");
-pub const COIN_STRUCT_NAME: Identifier = Identifier::from_static("Coin");
-pub const COIN_METADATA_STRUCT_NAME: Identifier = Identifier::from_static("CoinMetadata");
-pub const COIN_TREASURE_CAP_NAME: Identifier = Identifier::from_static("TreasuryCap");
 pub const COIN_JOIN_FUNC_NAME: Identifier = Identifier::from_static("join");
 
-pub const PAY_MODULE_NAME: Identifier = Identifier::from_static("pay");
 pub const PAY_SPLIT_N_FUNC_NAME: Identifier = Identifier::from_static("divide_and_keep");
 pub const PAY_SPLIT_VEC_FUNC_NAME: Identifier = Identifier::from_static("split_vec");
 

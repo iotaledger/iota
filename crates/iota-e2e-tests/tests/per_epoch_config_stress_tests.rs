@@ -7,7 +7,6 @@ use std::{future::Future, path::PathBuf, sync::Arc, time::Duration};
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
 use iota_types::{
-    IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{EpochId, Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, ObjectArg, TransactionData},
@@ -117,7 +116,7 @@ async fn create_deny_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionDa
         .test_transaction_builder_with_gas_object(test_env.regulated_coin_owner, gas)
         .await
         .move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
+            ObjectID::FRAMEWORK,
             "coin",
             if deny {
                 "deny_list_v1_add"
@@ -126,7 +125,7 @@ async fn create_deny_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionDa
             },
             vec![
                 CallArg::Object(ObjectArg::SharedObject {
-                    id: IOTA_DENY_LIST_OBJECT_ID,
+                    id: ObjectID::DENY_LIST,
                     initial_shared_version: test_env.deny_list_object_init_version,
                     mutable: true,
                 }),
@@ -155,7 +154,7 @@ async fn create_move_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> Tran
         .test_transaction_builder_with_gas_object(test_env.regulated_coin_owner, gas)
         .await
         .move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
+            ObjectID::FRAMEWORK,
             "pay",
             "split_and_transfer",
             vec![
@@ -183,8 +182,8 @@ async fn create_native_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> Tr
         .unwrap();
     let amount_input = pt_builder.pure(1u64).unwrap();
     let split_coin = pt_builder.programmable_move_call(
-        IOTA_FRAMEWORK_PACKAGE_ID,
-        Identifier::from_static("coin"),
+        ObjectID::FRAMEWORK,
+        Identifier::COIN_MODULE,
         Identifier::from_static("split"),
         vec![test_env.regulated_coin_type.clone()],
         vec![coin_input, amount_input],
@@ -225,7 +224,7 @@ async fn create_test_env() -> TestEnv {
         .build()
         .await;
     let deny_list_object_init_version = test_cluster
-        .get_object_from_fullnode_store(&IOTA_DENY_LIST_OBJECT_ID)
+        .get_object_from_fullnode_store(&ObjectID::DENY_LIST)
         .await
         .unwrap()
         .version();

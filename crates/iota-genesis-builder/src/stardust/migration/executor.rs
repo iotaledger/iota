@@ -20,7 +20,6 @@ use iota_stardust_types::block::output::{
     NativeTokens, NftOutput as StardustNftOutput, OutputId, TokenId,
 };
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID,
     balance::Balance,
     base_types::{
         Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, StructTag, TxContext, TypeTag,
@@ -377,7 +376,7 @@ impl Executor {
             let alias_arg = builder.obj(ObjectArg::ImmOrOwnedObject(move_alias_object_ref))?;
 
             builder.programmable_move_call(
-                STARDUST_PACKAGE_ID,
+                ObjectID::STARDUST,
                 Identifier::from_static("alias_output"),
                 Identifier::from_static("attach_alias"),
                 vec![coin_type.to_type_tag()],
@@ -721,7 +720,7 @@ impl Executor {
                 builder.obj(ObjectArg::ImmOrOwnedObject(move_nft_output_object_ref))?;
             let nft_arg = builder.obj(ObjectArg::ImmOrOwnedObject(move_nft_object_ref))?;
             builder.programmable_move_call(
-                STARDUST_PACKAGE_ID,
+                ObjectID::STARDUST,
                 Identifier::from_static("nft_output"),
                 Identifier::from_static("attach_nft"),
                 vec![coin_type.to_type_tag()],
@@ -774,15 +773,15 @@ mod pt {
         let foundry_coin_ref = builder.obj(ObjectArg::ImmOrOwnedObject(foundry_coin_ref))?;
         let amount = builder.pure(amount)?;
         let coin = builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            Identifier::from_static("coin"),
+            ObjectID::FRAMEWORK,
+            Identifier::COIN_MODULE,
             Identifier::from_static("split"),
             vec![token_type_tag.clone()],
             vec![foundry_coin_ref, amount],
         );
         Ok(builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            Identifier::from_static("coin"),
+            ObjectID::FRAMEWORK,
+            Identifier::COIN_MODULE,
             Identifier::from_static("into_balance"),
             vec![token_type_tag],
             vec![coin],
@@ -800,8 +799,8 @@ mod pt {
         let value_type = StructTag::new_balance(token_type.parse::<TypeTag>()?);
         let bag_key_arg = builder.pure(bag_key)?;
         builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            Identifier::from_static("bag"),
+            ObjectID::FRAMEWORK,
+            Identifier::BAG_MODULE,
             Identifier::from_static("add"),
             vec![key_type.into(), value_type.into()],
             vec![bag, bag_key_arg, balance],
@@ -811,8 +810,8 @@ mod pt {
 
     pub fn bag_new(builder: &mut ProgrammableTransactionBuilder) -> Argument {
         builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            Identifier::from_static("bag"),
+            ObjectID::FRAMEWORK,
+            Identifier::BAG_MODULE,
             Identifier::from_static("new"),
             vec![],
             vec![],

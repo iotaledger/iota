@@ -1082,7 +1082,7 @@ fn test_consensus_commit_prologue_v1_transaction() {
     assert_eq!(
         tx.shared_input_objects().into_iter().next().unwrap(),
         SharedInputObject {
-            id: IOTA_CLOCK_OBJECT_ID,
+            id: ObjectID::CLOCK,
             initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
             mutable: true,
         },

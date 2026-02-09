@@ -8,10 +8,7 @@ use fastcrypto::encoding::{Encoding, Hex};
 use iota_framework::BuiltInFramework;
 use iota_move_build::BuildConfig;
 use iota_types::{
-    base_types::{
-        Identifier, IotaAddress, ObjectID, STD_OPTION_MODULE_NAME, STD_OPTION_STRUCT_NAME,
-        StructTag, TransactionDigest,
-    },
+    base_types::{Identifier, IotaAddress, ObjectID, StructTag, TransactionDigest},
     dynamic_field::derive_dynamic_field_id,
     gas_coin::GasCoin,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
@@ -655,8 +652,8 @@ fn test_iota_call_arg_option_type() {
     let option_layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
         type_: struct_tag_sdk_to_core(&StructTag::new(
             IotaAddress::STD,
-            STD_OPTION_MODULE_NAME,
-            STD_OPTION_STRUCT_NAME,
+            Identifier::OPTION_MODULE,
+            Identifier::OPTION,
             vec![],
         )),
         fields: vec![MoveFieldLayout {

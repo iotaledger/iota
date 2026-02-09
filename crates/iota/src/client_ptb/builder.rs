@@ -12,7 +12,6 @@ use iota_json_rpc_types::{IotaObjectData, IotaObjectDataOptions, IotaRawData};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_sdk::apis::ReadApi;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{
         Identifier, IotaAddress, ObjectID, TxContext, TxContextKind, TypeTag, is_primitive_type_tag,
     },
@@ -1115,8 +1114,8 @@ impl<'a> PTBBuilder<'a> {
                     .pure(package_digest.to_vec())
                     .map_err(|e| err!(cmd_span, "{e}"))?;
                 let upgrade_ticket = self.ptb.command(Tx::Command::move_call(
-                    IOTA_FRAMEWORK_PACKAGE_ID,
-                    Identifier::from_static("package"),
+                    ObjectID::FRAMEWORK,
+                    Identifier::PACKAGE_MODULE,
                     Identifier::from_static("authorize_upgrade"),
                     vec![],
                     vec![upgrade_cap_arg, upgrade_arg, digest_arg],
@@ -1132,8 +1131,8 @@ impl<'a> PTBBuilder<'a> {
                     compiled_modules,
                 );
                 let res = self.ptb.command(Tx::Command::move_call(
-                    IOTA_FRAMEWORK_PACKAGE_ID,
-                    Identifier::from_static("package"),
+                    ObjectID::FRAMEWORK,
+                    Identifier::PACKAGE_MODULE,
                     Identifier::from_static("commit_upgrade"),
                     vec![],
                     vec![upgrade_cap_arg, upgrade_receipt],

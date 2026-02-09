@@ -7,7 +7,6 @@ use std::{
     fmt::{Display, Formatter},
 };
 
-use iota_sdk_types::Identifier;
 use move_core_types::annotated_value::MoveStructLayout;
 use serde::{Deserialize, Serialize};
 
@@ -31,10 +30,6 @@ pub const STARDUST_TOTAL_SUPPLY_IOTA: u64 = 4_600_000_000;
 /// Total supply at genesis denominated in Nanos, after the migration from a
 /// Stardust ledger, before any inflation mechanism
 pub const STARDUST_TOTAL_SUPPLY_NANOS: u64 = STARDUST_TOTAL_SUPPLY_IOTA * NANOS_PER_IOTA;
-
-pub const GAS_MODULE_NAME: Identifier = Identifier::from_static("iota");
-pub const GAS_STRUCT_NAME: Identifier = Identifier::from_static("IOTA");
-pub const GAS_TREASURY_CAP_STRUCT_NAME: Identifier = Identifier::from_static("IotaTreasuryCap");
 
 pub use checked::*;
 

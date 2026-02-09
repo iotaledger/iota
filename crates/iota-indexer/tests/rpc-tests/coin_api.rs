@@ -16,10 +16,8 @@ use iota_json_rpc_types::{
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
     balance::Supply,
     base_types::{Identifier, IotaAddress, ObjectID, StructTag, TypeTag},
-    coin::COIN_MODULE_NAME,
     crypto::{AccountKeyPair, IotaKeyPair, Signature, get_key_pair},
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -842,8 +840,8 @@ async fn mint_trusted_coin(
         http_client,
         address,
         account_keypair,
-        IOTA_FRAMEWORK_PACKAGE_ID,
-        COIN_MODULE_NAME.to_string(),
+        ObjectID::FRAMEWORK,
+        Identifier::COIN_MODULE.to_string(),
         "mint_and_transfer".into(),
         type_args![coin_name.clone()].unwrap(),
         call_args![treasury_cap, amount, address].unwrap(),

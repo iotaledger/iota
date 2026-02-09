@@ -14,7 +14,6 @@ use iota_macros::sim_test;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_types::{
-    IOTA_SYSTEM_PACKAGE_ID,
     authenticator_state::ActiveJwk,
     base_types::{Identifier, dbg_addr},
     crypto::{
@@ -22,7 +21,6 @@ use iota_types::{
         ZkLoginPublicIdentifier, get_key_pair,
     },
     error::{IotaError, UserInputError},
-    iota_system_state::IOTA_SYSTEM_MODULE_NAME,
     messages_consensus::ConsensusDeterminedVersionAssignments,
     messages_grpc::HandleSoftBundleCertificatesRequestV1,
     multisig::{MultiSig, MultiSigPublicKey},
@@ -299,8 +297,8 @@ pub fn init_move_call_transaction(
 ) -> Transaction {
     let mut data = TransactionData::new_move_call(
         sender,
-        IOTA_SYSTEM_PACKAGE_ID,
-        IOTA_SYSTEM_MODULE_NAME,
+        ObjectID::SYSTEM,
+        Identifier::IOTA_SYSTEM_MODULE,
         Identifier::from_static("request_add_validator"),
         vec![],
         gas_object_ref,

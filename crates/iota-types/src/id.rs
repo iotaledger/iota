@@ -4,7 +4,7 @@
 
 use std::fmt;
 
-use iota_sdk_types::{Identifier, StructTag, TypeTag};
+use iota_sdk_types::{StructTag, TypeTag};
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
@@ -15,16 +15,13 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS, MoveTypeTagTrait, base_types::ObjectID,
+    MoveTypeTagTrait,
+    base_types::{IotaAddress, ObjectID},
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
 };
 
-pub const OBJECT_MODULE_NAME_STR: &str = "object";
-pub const OBJECT_MODULE_NAME: Identifier = Identifier::from_static(OBJECT_MODULE_NAME_STR);
-pub const UID_STRUCT_NAME: Identifier = Identifier::from_static("UID");
-pub const ID_STRUCT_NAME: Identifier = Identifier::from_static("ID");
 pub const RESOLVED_IOTA_ID: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &AccountAddress::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+    &AccountAddress::new(IotaAddress::FRAMEWORK.into_bytes()),
     ident_str!("object"),
     ident_str!("ID"),
 );

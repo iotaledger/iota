@@ -14,7 +14,6 @@ use iota_macros::*;
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_SYSTEM_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     effects::{TransactionEffects, TransactionEffectsAPI},
     iota_system_state::{
@@ -314,7 +313,7 @@ mod add_stake {
                 let coin = StressTestRunner::split_off(&mut builder, self.stake_amount);
                 move_call! {
                     builder,
-                    (IOTA_SYSTEM_PACKAGE_ID)::iota_system::request_add_stake(Argument::Input(0), coin, Argument::Input(1))
+                    (ObjectID::SYSTEM)::iota_system::request_add_stake(Argument::Input(0), coin, Argument::Input(1))
                 };
                 builder.finish()
             };

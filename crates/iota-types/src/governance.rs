@@ -42,9 +42,6 @@ pub const VALIDATOR_VERY_LOW_STAKE_THRESHOLD_NANOS: u64 = 1_000_000 * NANOS_PER_
 /// for this many epochs before being kicked out.
 pub const VALIDATOR_LOW_STAKE_GRACE_PERIOD: u64 = 7;
 
-pub const STAKING_POOL_MODULE_NAME: Identifier = Identifier::from_static("staking_pool");
-pub const STAKED_IOTA_STRUCT_NAME: Identifier = Identifier::from_static("StakedIota");
-
 pub const ADD_STAKE_MUL_COIN_FUN_NAME: Identifier =
     Identifier::from_static("request_add_stake_mul_coin");
 pub const ADD_STAKE_FUN_NAME: Identifier = Identifier::from_static("request_add_stake");

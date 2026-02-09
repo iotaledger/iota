@@ -8,7 +8,6 @@ use async_trait::async_trait;
 use futures::future::join_all;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_RANDOMNESS_STATE_OBJECT_ID,
     base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     object::Owner,
@@ -181,11 +180,11 @@ impl RandomizedTransactionPayload {
         builder
             .move_call(
                 self.package_id,
-                Identifier::from_static("random"),
+                Identifier::RANDOM_MODULE,
                 Identifier::from_static("new"),
                 vec![],
                 vec![CallArg::Object(ObjectArg::SharedObject {
-                    id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                    id: ObjectID::RANDOMNESS_STATE,
                     initial_shared_version: self.randomness_initial_shared_version,
                     mutable: false,
                 })],
@@ -500,7 +499,7 @@ impl Workload<dyn Payload> for RandomizedTransactionWorkload {
         // Get randomness shared object initial version
         if self.randomness_initial_shared_version.is_none() {
             let obj = proxy
-                .get_object(IOTA_RANDOMNESS_STATE_OBJECT_ID)
+                .get_object(ObjectID::RANDOMNESS_STATE)
                 .await
                 .expect("Failed to get randomness object");
             let Owner::Shared {

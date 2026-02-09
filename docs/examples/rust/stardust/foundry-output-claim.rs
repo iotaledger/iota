@@ -25,7 +25,7 @@ use iota_sdk::{
     },
 };
 use iota_sdk_types::crypto::Intent;
-use iota_types::{IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID};
+use iota_types::base_types::{Identifier, IotaAddress, ObjectID};
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/alias_ownership.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "few hood high omit camp keep burger give happy iron evolve draft few dawn pulp jazz box dash load snake gown bag draft car";
@@ -152,7 +152,7 @@ async fn main() -> Result<(), anyhow::Error> {
         let arguments = vec![builder.obj(ObjectArg::ImmOrOwnedObject(alias_output_object_ref))?];
         // Finally call the alias_output::extract_assets function.
         if let Argument::Result(extracted_assets) = builder.programmable_move_call(
-            STARDUST_PACKAGE_ID,
+            ObjectID::STARDUST,
             Identifier::from_static("alias_output"),
             Identifier::from_static("extract_assets"),
             type_arguments,
@@ -169,8 +169,8 @@ async fn main() -> Result<(), anyhow::Error> {
             let type_arguments = vec![GAS::type_tag()];
             let arguments = vec![extracted_base_token];
             let iota_coin = builder.programmable_move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
-                Identifier::from_static("coin"),
+                IotaAddress::FRAMEWORK,
+                Identifier::COIN_MODULE,
                 Identifier::from_static("from_balance"),
                 type_arguments,
                 arguments,
@@ -182,8 +182,8 @@ async fn main() -> Result<(), anyhow::Error> {
             // In this example the native tokens bag is empty, so it can be destroyed.
             let arguments = vec![extracted_native_tokens_bag];
             builder.programmable_move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
-                Identifier::from_static("bag"),
+                IotaAddress::FRAMEWORK,
+                Identifier::BAG_MODULE,
                 Identifier::from_static("destroy_empty"),
                 vec![],
                 arguments,
@@ -196,7 +196,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 builder.obj(ObjectArg::Receiving(coin_manager_treasury_cap_object_ref))?,
             ];
             let coin_manager_treasury_cap = builder.programmable_move_call(
-                STARDUST_PACKAGE_ID,
+                ObjectID::STARDUST,
                 Identifier::from_static("address_unlock_condition"),
                 Identifier::from_static("unlock_alias_address_owned_coinmanager_treasury"),
                 type_arguments,

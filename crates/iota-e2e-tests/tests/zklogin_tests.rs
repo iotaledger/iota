@@ -10,8 +10,7 @@ use iota_macros::sim_test;
 use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-    base_types::IotaAddress,
+    base_types::{IotaAddress, ObjectID},
     committee::EpochId,
     crypto::Signature,
     error::{IotaError, IotaResult, UserInputError},
@@ -224,7 +223,7 @@ async fn test_zklogin_create_authenticator_state_object() {
             assert!(
                 node.state()
                     .get_object_cache_reader()
-                    .get_latest_object_ref_or_tombstone(IOTA_AUTHENTICATOR_STATE_OBJECT_ID)
+                    .get_latest_object_ref_or_tombstone(ObjectID::AUTHENTICATOR_STATE)
                     .is_none()
             );
         });
@@ -240,7 +239,7 @@ async fn test_zklogin_create_authenticator_state_object() {
         h.with(|node| {
             node.state()
                 .get_object_cache_reader()
-                .get_latest_object_ref_or_tombstone(IOTA_AUTHENTICATOR_STATE_OBJECT_ID)
+                .get_latest_object_ref_or_tombstone(ObjectID::AUTHENTICATOR_STATE)
                 .expect("auth state object should exist");
         });
     }
