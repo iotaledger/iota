@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { formatAddress } from '@iota/iota-sdk/utils';
-import cn from 'clsx';
 import { type ReactNode } from 'react';
 import { useExplorerLink, useAccounts, useCopyToClipboard } from '_hooks';
 import { ExplorerLinkType } from '_components';
