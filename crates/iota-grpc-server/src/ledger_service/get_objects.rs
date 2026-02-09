@@ -129,11 +129,11 @@ fn get_object_impl(
 ) -> Result<Object, RpcError> {
     let object = if let Some(version) = version {
         reader
-            .get_object_by_key(&object_id, version.into())
+            .get_object_by_key(&object_id, version.into())?
             .ok_or_else(|| ObjectNotFoundError::new_with_version(object_id, version))?
     } else {
         reader
-            .get_object(&object_id)
+            .get_object(&object_id)?
             .ok_or_else(|| ObjectNotFoundError::new(object_id))?
     };
 
