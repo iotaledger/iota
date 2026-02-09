@@ -6,7 +6,7 @@
     "background": {
         "service_worker": "background.js"
     },
-    "permissions": ["tabs", "storage", "alarms", "unlimitedStorage"],
+    "permissions": ["tabs", "storage", "alarms", "unlimitedStorage", "sidePanel"],
     "action": {
         "default_popup": "ui.html?type=popup"
     },

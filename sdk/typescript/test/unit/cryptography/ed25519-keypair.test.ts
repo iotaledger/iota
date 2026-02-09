@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { fromBase64, toBase58 } from '@iota/bcs';
-import nacl from 'tweetnacl';
+import { ed25519 } from '@noble/curves/ed25519';
 import { describe, expect, it } from 'vitest';
 
 import { decodeIotaPrivateKey } from '../../../src/cryptography/keypair';
@@ -78,11 +78,7 @@ describe('ed25519-keypair', () => {
         const keypair = new Ed25519Keypair();
         const signData = new TextEncoder().encode('hello world');
         const signature = await keypair.sign(signData);
-        const isValid = nacl.sign.detached.verify(
-            signData,
-            signature,
-            keypair.getPublicKey().toRawBytes(),
-        );
+        const isValid = ed25519.verify(signature, signData, keypair.getPublicKey().toRawBytes());
         expect(isValid).toBeTruthy();
         expect(keypair.getPublicKey().verify(signData, signature));
     });
@@ -92,11 +88,7 @@ describe('ed25519-keypair', () => {
 
         const signData = new TextEncoder().encode('hello world');
         const signature = await keypair.sign(signData);
-        const isValid = nacl.sign.detached.verify(
-            signData,
-            signature,
-            keypair.getPublicKey().toRawBytes(),
-        );
+        const isValid = ed25519.verify(signature, signData, keypair.getPublicKey().toRawBytes());
         expect(isValid).toBeTruthy();
     });
 

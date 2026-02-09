@@ -118,5 +118,4 @@ runs:
             - "setups/**"
             - "external-crates/**"
             - "kiosk/**"
-            - "nre/**"
             - "iota-execution/**"
