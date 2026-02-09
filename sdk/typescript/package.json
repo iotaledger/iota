@@ -151,7 +151,6 @@
         "bignumber.js": "^9.1.1",
         "gql.tada": "^1.8.2",
         "graphql": "^16.9.0",
-        "tweetnacl": "^1.0.3",
         "valibot": "^1.2.0"
     }
 }

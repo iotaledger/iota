@@ -76,8 +76,7 @@ export function ImportExistingWallet() {
                 break;
             case AccountsFormType.ImportPasskey:
                 ampli.clickedCreatePasskey({ sourceFlow });
-                const flowType = 'import';
-                const url = `/accounts/passkey-account?flowType=${flowType}`;
+                const url = '/accounts/import-passkey';
                 if (isPopupOrSidePanel) {
                     openInNewTab(url);
                     window.close();
@@ -102,7 +101,7 @@ export function ImportExistingWallet() {
             isTitleCentered
             onClose={() => navigate('/')}
             showBackButton
-            onBack={() => navigate(-1)}
+            onBack={() => navigate('/accounts/add-account')}
         >
             <div className="flex h-full w-full flex-col">
                 <div className="flex w-full flex-1 flex-col justify-center gap-4 py-md--rs text-center">
