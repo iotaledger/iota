@@ -8,7 +8,7 @@ use clap::*;
 
 use crate::{
     drivers::Interval,
-    workloads::abstract_account::{AuthenticatorKind, TxType},
+    workloads::abstract_account::{AuthenticatorKind, TxPayloadObjType},
 };
 
 #[derive(Parser)]
@@ -258,7 +258,7 @@ pub enum RunSpec {
         // It determines whether to use owned object transactions
         // or shared object transactions in the benchmark.
         #[arg(long, default_value = "owned-object")]
-        tx_type: TxType,
+        tx_payload_obj_type: TxPayloadObjType,
         // --- generic options ---
         /// Target offered load in "transactions per second" for the benchmark
         /// driver. The scheduler uses this to pace how many txs it

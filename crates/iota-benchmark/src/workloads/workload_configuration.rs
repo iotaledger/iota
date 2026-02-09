@@ -145,7 +145,7 @@ impl WorkloadConfiguration {
             RunSpec::AbstractAccountBench {
                 authenticator,
                 split_amount,
-                tx_type,
+                tx_payload_obj_type,
                 target_qps,
                 num_workers,
                 in_flight_ratio,
@@ -164,7 +164,7 @@ impl WorkloadConfiguration {
                     num_workers,
                     in_flight_ratio,
                     authenticator,
-                    tx_type,
+                    tx_payload_obj_type,
                     split_amount,
                     duration,
                     // group
