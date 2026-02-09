@@ -168,11 +168,6 @@ export function SiteConnectPage() {
                                             value.map((id) => accounts.find((a) => a.id === id)!),
                                         );
                                     }}
-                                    onLock={(id) => {
-                                        setAccountsToConnect((prev) => {
-                                            return prev.filter((account) => account.id !== id);
-                                        });
-                                    }}
                                 />
                             ) : (
                                 <InfoBox

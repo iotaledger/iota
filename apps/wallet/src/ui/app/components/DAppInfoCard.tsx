@@ -32,15 +32,7 @@ export function DAppInfoCard({
 }: DAppInfoCardProps) {
     const validDAppUrl = getValidDAppUrl(url);
     const { data: account } = useAccountByAddress(connectedAddress);
-    const { unlockAccounts, lockAccounts } = useUnlockAccounts();
-    function handleLockAndUnlockClick() {
-        if (!account) return;
-        if (account?.isLocked) {
-            unlockAccounts();
-        } else {
-            lockAccounts();
-        }
-    }
+
     return (
         <div className="flex flex-col gap-y-md">
             <Card type={CardType.Default}>
@@ -68,8 +60,6 @@ export function DAppInfoCard({
                 <AccountItem
                     icon={<AccountIcon account={account} />}
                     accountID={account.id}
-                    onLockAccountClick={handleLockAndUnlockClick}
-                    onUnlockAccountClick={handleLockAndUnlockClick}
                     hideCopy
                     hideExplorerLink
                 />
