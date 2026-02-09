@@ -566,7 +566,7 @@ impl CommitObserver {
                 .observe(commit.transactions.len() as f64);
             // Report the number of blocks committed with transactions per authority
             for verified_transaction in &commit.transactions {
-                let authority_index = verified_transaction.block_ref().author;
+                let authority_index = verified_transaction.author();
                 let hostname = &self.context.committee.authority(authority_index).hostname;
                 metrics
                     .committed_non_empty_blocks_per_authority

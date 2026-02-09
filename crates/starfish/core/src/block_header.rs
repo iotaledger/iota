@@ -462,7 +462,6 @@ pub(crate) trait ShardWithProofAPI {
     fn proof(&self) -> &MerkleProofBytes;
     fn transaction_commitment(&self) -> TransactionsCommitment;
     fn round(&self) -> Round;
-    fn block_ref(&self) -> BlockRef;
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -520,10 +519,6 @@ impl ShardWithProofAPI for ShardWithProofV1 {
     fn round(&self) -> Round {
         self.block_ref.round
     }
-
-    fn block_ref(&self) -> BlockRef {
-        self.block_ref
-    }
 }
 
 impl ShardWithProofAPI for ShardWithProofV2 {
@@ -541,14 +536,6 @@ impl ShardWithProofAPI for ShardWithProofV2 {
 
     fn round(&self) -> Round {
         self.transaction_ref.round
-    }
-
-    fn block_ref(&self) -> BlockRef {
-        BlockRef {
-            round: self.transaction_ref.round,
-            author: self.transaction_ref.author,
-            digest: self.transaction_ref.block_digest,
-        }
     }
 }
 
@@ -1034,6 +1021,14 @@ impl VerifiedTransactions {
 
     pub fn transactions_commitment(&self) -> TransactionsCommitment {
         self.transaction_ref.transactions_commitment
+    }
+
+    pub fn round(&self) -> Round {
+        self.transaction_ref.round
+    }
+
+    pub fn author(&self) -> AuthorityIndex {
+        self.transaction_ref.author
     }
 
     pub fn block_ref(&self) -> BlockRef {

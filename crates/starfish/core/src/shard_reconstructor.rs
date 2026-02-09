@@ -98,7 +98,7 @@ impl TransactionMessage {
         // Shard messages
         for shard_with_proof in shards {
             let shard_msg = ShardMessage {
-                block_ref: shard_with_proof.block_ref(),
+                block_ref: block.reference(),
                 transactions_commitment: shard_with_proof.transaction_commitment(),
                 shard: shard_with_proof.shard().clone(),
                 shard_index,
@@ -556,7 +556,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             let highest_accepted_round = self.dag_state.read().highest_accepted_round();
             for transaction in &transactions {
                 let difference =
-                    highest_accepted_round.saturating_sub(transaction.block_ref().round);
+                    highest_accepted_round.saturating_sub(transaction.round());
                 self.context
                     .metrics
                     .node_metrics
@@ -1161,7 +1161,7 @@ mod tests {
         // Check all reconstructed transactions correspond to the missing authority
         for vt in &fetched {
             assert_eq!(
-                vt.block_ref().author.value(),
+                vt.author().value(),
                 blocked_authority as usize,
                 "Reconstructed block must belong to the blocked authority"
             );

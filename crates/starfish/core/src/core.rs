@@ -2541,8 +2541,8 @@ mod test {
                 // Transactions from all authors except authority_to_skip should also have a
                 // corresponding block_ref being traversed in the committed sub_dag
                 // Same after num_rounds_with_skip_ancestors
-                if transaction.block_ref().author != authority_to_skip
-                    || transaction.block_ref().round >= num_rounds_with_skip_ancestors
+                if transaction.author() != authority_to_skip
+                    || transaction.round() >= num_rounds_with_skip_ancestors
                 {
                     assert!(
                         existing_headers.contains(&transaction.block_ref()),

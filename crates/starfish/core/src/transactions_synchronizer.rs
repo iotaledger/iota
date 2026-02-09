@@ -1121,7 +1121,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         for transactions in &transactions {
             let block_hostname = &context
                 .committee
-                .authority(transactions.block_ref().author)
+                .authority(transactions.author())
                 .hostname;
             metrics
                 .transactions_synchronizer_fetched_transactions_by_authority
