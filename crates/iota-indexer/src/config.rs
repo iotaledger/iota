@@ -292,6 +292,8 @@ pub struct PruningOptions {
     /// Path to TOML file containing configuration for retention policies.
     #[arg(long)]
     pub pruning_config_path: Option<PathBuf>,
+    /// DEPRECATED: This parameter is no longer used. Optimistic transactions
+    /// are now pruned by the unified pruner with the same batching strategy.
     #[arg(long, env = "OPTIMISTIC_PRUNER_BATCH_SIZE")]
     pub optimistic_pruner_batch_size: Option<u64>,
 }

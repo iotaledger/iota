@@ -95,6 +95,7 @@ pub enum PrunableTable {
 
     Checkpoints,
     PrunerCpWatermark,
+    OptimisticTransactions,
 }
 
 /// Represents how a table is pruned
@@ -106,6 +107,8 @@ pub enum PruningStrategy {
     ByCheckpoint,
     /// Delete rows by transaction sequence number
     ByTransaction,
+    /// Delete rows by global sequence number
+    ByGlobalSeq,
 }
 
 /// Represents a specific chunk of data to be pruned
@@ -117,6 +120,8 @@ enum PruningChunk {
     Checkpoint(u64),
     /// Prune a range of transactions [start..=end] inclusive
     TransactionRange(u64, u64),
+    /// Prune by global_sequence_number range [start..=end] inclusive
+    GlobalSeqRange(u64, u64),
 }
 
 impl PruningChunk {
@@ -127,6 +132,7 @@ impl PruningChunk {
             PruningChunk::Epoch(epoch) => epoch + 1,
             PruningChunk::Checkpoint(checkpoint) => checkpoint + 1,
             PruningChunk::TransactionRange(_, end) => end + 1,
+            PruningChunk::GlobalSeqRange(_, end) => end + 1,
         }
     }
 }
@@ -166,6 +172,9 @@ impl PrunableTable {
             | PrunableTable::TxRecipients
             | PrunableTable::TxSenders
             | PrunableTable::TxWrappedOrDeletedObjects => PruningStrategy::ByTransaction,
+
+            // Optimistic transactions table - pruned by global sequence number
+            PrunableTable::OptimisticTransactions => PruningStrategy::ByGlobalSeq,
         }
     }
 }
@@ -333,6 +342,21 @@ impl<'a> TablePruner<'a> {
                         }),
                 )
             }
+            PruningStrategy::ByGlobalSeq => {
+                let range_end = min_available_tx;
+                info!(
+                    "pruning table {} by global_sequence_number in range: [{lowest_unpruned_key}..{range_end})",
+                    self.table.as_ref()
+                );
+                Box::new(
+                    (lowest_unpruned_key..range_end)
+                        .step_by(MAX_TRANSACTIONS_PER_PRUNE_BATCH as usize)
+                        .map(move |start| {
+                            let end = (start + MAX_TRANSACTIONS_PER_PRUNE_BATCH).min(range_end);
+                            PruningChunk::GlobalSeqRange(start, end - 1)
+                        }),
+                )
+            }
         }
     }
 
@@ -421,8 +445,48 @@ impl<'a> TablePruner<'a> {
                     self.table.as_ref(),
                 );
             }
-        }
 
+            PruningChunk::GlobalSeqRange(start, end) => {
+                self.prune_by_global_seq_with_limit(start, end).await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Prune table by global_sequence_number range with LIMIT
+    /// Keeps deleting batches until no more rows are returned in the range
+    async fn prune_by_global_seq_with_limit(
+        &self,
+        start: u64,
+        end: u64,
+    ) -> Result<(), IndexerError> {
+        loop {
+            let deleted = self
+                .store
+                .prune_table_by_global_seq_with_limit(
+                    &self.table,
+                    start,
+                    end,
+                    MAX_TRANSACTIONS_PER_PRUNE_BATCH as i64,
+                )
+                .await?;
+
+            if deleted < MAX_TRANSACTIONS_PER_PRUNE_BATCH as usize {
+                info!(
+                    "finished pruning table {} for global_seq range [{start}..={end}]",
+                    self.table.as_ref(),
+                );
+                break;
+            }
+
+            info!(
+                "pruned {deleted} rows from table {} (global_seq range [{start}..={end}])",
+                self.table.as_ref(),
+            );
+
+            // Brief pause between batches
+            tokio::time::sleep(DELAY_BETWEEN_PRUNING_CHUNKS).await;
+        }
         Ok(())
     }
 }
@@ -532,6 +596,7 @@ async fn update_watermarks_lower_bounds(
             lower_bound_updates.push((prunable_table, new_min_available_epoch));
         };
     }
+
     if !lower_bound_updates.is_empty() {
         store
             .update_watermarks_lower_bound(lower_bound_updates)
