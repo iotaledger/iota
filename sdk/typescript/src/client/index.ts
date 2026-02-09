@@ -31,4 +31,3 @@ export {
     IotaClient,
 } from './client.js';
 export { IotaHTTPStatusError, IotaHTTPTransportError, JsonRpcError } from './errors.js';
-export * from './apps-backend.js';

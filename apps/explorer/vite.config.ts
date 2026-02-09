@@ -53,5 +53,6 @@ export default defineConfig({
     },
     define: {
         EXPLORER_REV: JSON.stringify(EXPLORER_REV),
+        'process.env.APPS_BACKEND': JSON.stringify(process.env.APPS_BACKEND ?? ''),
     },
 });
