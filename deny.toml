@@ -59,8 +59,6 @@ ignore = [
   "RUSTSEC-2025-0056",
   # bincode is unmaintained
   "RUSTSEC-2025-0141",
-  # rustls-pemfile is unmaintained
-  "RUSTSEC-2025-0134",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
@@ -221,7 +219,6 @@ allow-git = [
   "https://github.com/zhiburt/tabled.git",
   "https://github.com/iotaledger/iota-rust-sdk.git",
   "https://github.com/bmwill/openapiv3.git",
-  "https://github.com/bmwill/axum-server.git",
   "https://github.com/iotaledger/iota-bigtable.git",
   "https://github.com/iotaledger/flamegraph-svg.git",
 ]

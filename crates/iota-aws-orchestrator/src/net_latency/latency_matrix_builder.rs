@@ -41,7 +41,7 @@ pub struct LatencyMatrixBuilder {
     matrix: Vec<Vec<u16>>,
 }
 
-use rand::{Rng, rng};
+use rand::{Rng, thread_rng};
 
 pub fn generate_block_matrix(n: usize, k: usize) -> Vec<Vec<bool>> {
     let k = k / 2;
@@ -103,11 +103,11 @@ impl LatencyMatrixBuilder {
     }
 
     fn fill_geographical(&mut self) {
-        let mut rng = rng();
+        let mut rng = thread_rng();
         let n = self.matrix.len();
 
         let positions: Vec<(f64, f64)> = (0..n)
-            .map(|_| (rng.random::<f64>(), rng.random::<f64>()))
+            .map(|_| (rng.gen::<f64>(), rng.gen::<f64>()))
             .collect();
 
         for i in 0..n {
