@@ -1769,8 +1769,8 @@ importers:
         version: link:../typescript
     devDependencies:
       '@types/node':
-        specifier: ^20.14.10
-        version: 20.16.9
+        specifier: ^24.0.0
+        version: 24.10.12
       tsx:
         specifier: ^3.12.7
         version: 3.14.0
