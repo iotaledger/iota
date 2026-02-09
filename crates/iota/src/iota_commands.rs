@@ -819,12 +819,14 @@ async fn start(
                 iota_names_config,
                 enable_grpc_api,
                 grpc_api_config,
+                db_path,
                 ..
             } = PersistedConfig::read(&fullnode_config_path).map_err(|err| {
                 err.context(format!(
                     "Cannot open fullnode config file at {fullnode_config_path:?}"
                 ))
             })?;
+            swarm_builder = swarm_builder.with_fullnode_db_path(db_path);
 
             if let Some(iota_names_config) = iota_names_config {
                 swarm_builder = swarm_builder
