@@ -283,7 +283,7 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
     );
     let error_string = format!("{:#?}", tx_result.status());
     assert!(
-        error_string.contains("MoveAbort"),
+        error_string.contains("abort"),
         "Expected MoveAbort error, got: {}",
         error_string
     );

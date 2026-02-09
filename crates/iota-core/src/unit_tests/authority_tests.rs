@@ -5931,7 +5931,7 @@ async fn test_function_not_found() {
     assert_eq!(
         effects.status(),
         &IotaExecutionStatus::Failure {
-            error: "FunctionNotFound in command 0".to_string(),
+            error: "Function Not Found. in command 0".to_string(),
         }
     );
 
@@ -5987,7 +5987,7 @@ async fn test_arity_mismatch() {
     assert_eq!(
         effects.status(),
         &IotaExecutionStatus::Failure {
-            error: "ArityMismatch in command 0".to_string(),
+            error: "Arity mismatch for Move function. The number of arguments does not match the number of parameters in command 0".to_string(),
         }
     );
 
