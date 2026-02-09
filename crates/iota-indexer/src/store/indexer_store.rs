@@ -155,10 +155,11 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
 
     async fn persist_tx_indices(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError>;
 
-    async fn prune_table_by_checkpoint(
+    async fn prune_table_by_checkpoint_range(
         &self,
         table: &PrunableTable,
-        checkpoint: u64,
+        min_checkpoint: u64,
+        max_checkpoint: u64,
     ) -> Result<(), IndexerError>;
 
     async fn prune_table_by_tx_range(

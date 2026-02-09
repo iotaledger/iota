@@ -34,6 +34,10 @@ const PRUNING_DELAY_MS: u64 = 2 * 60 * 60 * 1000; // 2 hours for production
 /// strategy
 const MAX_TRANSACTIONS_PER_PRUNE_BATCH: u64 = 1000;
 
+/// Maximum number of checkpoints to prune in a single batch for ByCheckpoint
+/// strategy
+const MAX_CHECKPOINTS_PER_PRUNE_BATCH: u64 = 100;
+
 /// Interval for running the pruning task
 const PRUNING_TASK_INTERVAL: Duration = Duration::from_secs(5);
 
@@ -117,8 +121,8 @@ pub enum PruningStrategy {
 enum PruningChunk {
     /// Prune an entire epoch partition
     Epoch(u64),
-    /// Prune a specific checkpoint
-    Checkpoint(u64),
+    /// Prune a range of checkpoints [start..=end] inclusive
+    CheckpointRange(u64, u64),
     /// Prune a range of transactions [start..=end] inclusive
     TransactionRange(u64, u64),
     /// Prune by global_sequence_number range [start..=end] inclusive
@@ -131,7 +135,7 @@ impl PruningChunk {
     fn next_chunk_start(&self) -> u64 {
         match self {
             PruningChunk::Epoch(epoch) => epoch + 1,
-            PruningChunk::Checkpoint(checkpoint) => checkpoint + 1,
+            PruningChunk::CheckpointRange(_, end) => end + 1,
             PruningChunk::TransactionRange(_, end) => end + 1,
             PruningChunk::GlobalSeqRange(_, end) => end + 1,
         }
@@ -327,7 +331,14 @@ impl<'a> TablePruner<'a> {
                     "pruning table {} in checkpoint range: [{lowest_unpruned_key}..{range_end})",
                     self.table.as_ref()
                 );
-                Box::new((lowest_unpruned_key..range_end).map(PruningChunk::Checkpoint))
+                Box::new(
+                    (lowest_unpruned_key..range_end)
+                        .step_by(MAX_CHECKPOINTS_PER_PRUNE_BATCH as usize)
+                        .map(move |start| {
+                            let end = (start + MAX_CHECKPOINTS_PER_PRUNE_BATCH).min(range_end);
+                            PruningChunk::CheckpointRange(start, end - 1)
+                        }),
+                )
             }
             PruningStrategy::ByTransaction => {
                 let range_end = min_available_tx;
@@ -412,20 +423,20 @@ impl<'a> TablePruner<'a> {
                 );
             }
 
-            PruningChunk::Checkpoint(checkpoint) => {
-                // Prune by checkpoint
+            PruningChunk::CheckpointRange(start, end) => {
+                // Prune by checkpoint range
                 if let Err(e) = self
                     .store
-                    .prune_table_by_checkpoint(&self.table, checkpoint)
+                    .prune_table_by_checkpoint_range(&self.table, start, end)
                     .await
                 {
                     error!(
-                        "failed to prune table {} for checkpoint {checkpoint}: {e}",
+                        "failed to prune table {} for checkpoint range [{start}..={end}]: {e}",
                         self.table.as_ref(),
                     );
                 }
                 info!(
-                    "pruned table {} for checkpoint {checkpoint}",
+                    "pruned table {} for checkpoint range [{start}..={end}]",
                     self.table.as_ref(),
                 );
             }
