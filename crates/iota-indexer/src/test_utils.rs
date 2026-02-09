@@ -66,7 +66,6 @@ pub enum IndexerTypeConfig {
     Writer {
         snapshot_config: SnapshotLagConfig,
         retention_config: Option<RetentionConfig>,
-        optimistic_pruner_batch_size: Option<u64>,
     },
     AnalyticalWorker,
 }
@@ -89,8 +88,6 @@ impl IndexerTypeConfig {
                     .epochs_to_keep
                     .map(RetentionConfig::new_with_default_retention_only_for_testing)
             }),
-            optimistic_pruner_batch_size: pruning_options
-                .and_then(|pruning_options| pruning_options.optimistic_pruner_batch_size),
         }
     }
 }
@@ -163,7 +160,6 @@ pub async fn start_test_indexer_impl(
         IndexerTypeConfig::Writer {
             snapshot_config,
             retention_config,
-            optimistic_pruner_batch_size,
         } => {
             let store_clone = store.clone();
             let mut ingestion_config = IngestionConfig::default();
@@ -180,7 +176,6 @@ pub async fn start_test_indexer_impl(
                     indexer_metrics,
                     snapshot_config,
                     retention_config,
-                    optimistic_pruner_batch_size,
                     cancel,
                 )
                 .await
