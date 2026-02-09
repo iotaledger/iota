@@ -3,10 +3,6 @@
 
 import { BrowserClient, BrowserConfig, EnrichmentPlugin, Event } from '@amplitude/analytics-types';
 
-const IS_DEVELOPMENT = process.env.NEXT_PUBLIC_BUILD_ENV !== 'production';
-
-const DEV_EVENT_PREFIX = 'dev_';
-
 /**
  * Amplitude Environment Plugin
  *
@@ -21,6 +17,9 @@ export function attachEnvironmentPlugin(): EnrichmentPlugin<BrowserClient, Brows
         setup: async () => {},
         execute: async (context: Event) => {
             // Prefix event name for development
+            const IS_DEVELOPMENT = process.env.NEXT_PUBLIC_BUILD_ENV !== 'production';
+            const DEV_EVENT_PREFIX = 'dev_';
+
             if (
                 IS_DEVELOPMENT &&
                 context.event_type &&
