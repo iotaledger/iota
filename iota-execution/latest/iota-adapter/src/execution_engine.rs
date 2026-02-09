@@ -1822,7 +1822,7 @@ mod checked {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let res = builder.move_call(
-                ObjectID::FRAMEWORK_PACKAGE,
+                ObjectID::FRAMEWORK,
                 CLOCK_MODULE_NAME.to_owned(),
                 CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME.to_owned(),
                 vec![],
@@ -1857,7 +1857,7 @@ mod checked {
     ) -> ProgrammableTransactionBuilder {
         builder
             .move_call(
-                ObjectID::FRAMEWORK_PACKAGE,
+                ObjectID::FRAMEWORK,
                 AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
                 AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME.to_owned(),
                 vec![],
@@ -1886,7 +1886,7 @@ mod checked {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let res = builder.move_call(
-                ObjectID::FRAMEWORK_PACKAGE,
+                ObjectID::FRAMEWORK,
                 AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
                 AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME.to_owned(),
                 vec![],
@@ -1927,7 +1927,7 @@ mod checked {
     ) -> ProgrammableTransactionBuilder {
         builder
             .move_call(
-                ObjectID::FRAMEWORK_PACKAGE,
+                ObjectID::FRAMEWORK,
                 AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
                 AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME.to_owned(),
                 vec![],
@@ -1962,7 +1962,7 @@ mod checked {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let res = builder.move_call(
-                ObjectID::FRAMEWORK_PACKAGE,
+                ObjectID::FRAMEWORK,
                 RANDOMNESS_MODULE_NAME.to_owned(),
                 RANDOMNESS_STATE_UPDATE_FUNCTION_NAME.to_owned(),
                 vec![],

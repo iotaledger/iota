@@ -1585,7 +1585,7 @@ pub fn generate_genesis_system_object(
         arguments.append(&mut call_arg_arguments);
         arguments.push(system_admin_cap);
         builder.programmable_move_call(
-            ObjectID::SYSTEM_PACKAGE,
+            ObjectID::SYSTEM,
             Identifier::from_static("genesis"),
             Identifier::from_static("create"),
             vec![],

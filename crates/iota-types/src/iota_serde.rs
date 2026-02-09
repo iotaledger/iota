@@ -171,8 +171,8 @@ const IOTA_ADDRESSES: [IotaAddress; 7] = [
     IotaAddress::FRAMEWORK,
     IotaAddress::SYSTEM,
     IotaAddress::STARDUST,
-    IotaAddress::SYSTEM_STATE_OBJECT,
-    IotaAddress::CLOCK_OBJECT,
+    IotaAddress::SYSTEM_STATE,
+    IotaAddress::CLOCK,
 ];
 /// Serialize StructTag as a string, retaining the leading zeros in the address.
 pub fn to_iota_struct_tag_string(value: &StructTag) -> Result<String, fmt::Error> {
