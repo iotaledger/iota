@@ -15,17 +15,16 @@ use std::{
 
 use iota_config::WritebackCacheConfig;
 use iota_framework::BuiltInFramework;
+use iota_sdk_types::{Identifier as SdkIdentifier, StructTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, random_object_ref},
     crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair_from_rng},
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     event::Event,
-    iota_sdk_types_conversions::struct_tag_core_to_sdk,
     object::{MoveObject, OBJECT_START_VERSION, Owner},
     storage::ChildObjectResolver,
 };
-use move_core_types::account_address::AccountAddress;
 use prometheus::default_registry;
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use tokio::sync::RwLock;
@@ -53,18 +52,17 @@ impl AssertInserted for bool {
 }
 
 fn random_event() -> Event {
-    use iota_sdk_types::Identifier as SdkIdentifier;
     Event {
         package_id: ObjectID::random(),
         module: SdkIdentifier::new("test").unwrap(),
-        sender: IotaAddress::new(AccountAddress::random().into_bytes()),
-        type_: struct_tag_core_to_sdk(move_core_types::language_storage::StructTag {
-            address: AccountAddress::random(),
-            module: move_core_types::identifier::Identifier::new("test").unwrap(),
-            name: move_core_types::identifier::Identifier::new("test").unwrap(),
-            type_params: vec![],
-        })
-        .unwrap(),
+        sender: IotaAddress::random(),
+        type_: StructTag::new(
+            IotaAddress::random(),
+            SdkIdentifier::new("test").unwrap(),
+            SdkIdentifier::new("test").unwrap(),
+            vec![],
+        ),
+
         contents: vec![],
     }
 }
