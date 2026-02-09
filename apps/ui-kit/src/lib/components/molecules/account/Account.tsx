@@ -89,8 +89,6 @@ export function Account({
     badgeText,
     avatarContent,
     onOptionsClick,
-    onLockAccountClick,
-    onUnlockAccountClick,
     onCopy,
     copyText,
     onOpen,

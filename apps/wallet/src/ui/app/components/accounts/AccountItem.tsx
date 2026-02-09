@@ -15,18 +15,9 @@ interface AccountItemProps {
     icon?: ReactNode;
     hideExplorerLink?: boolean;
     hideCopy?: boolean;
-    onLockAccountClick?: () => void;
-    onUnlockAccountClick?: () => void;
 }
 
-export function AccountItem({
-    icon,
-    accountID,
-    onLockAccountClick,
-    onUnlockAccountClick,
-    hideExplorerLink,
-    hideCopy,
-}: AccountItemProps) {
+export function AccountItem({ icon, accountID, hideExplorerLink, hideCopy }: AccountItemProps) {
     const { data: accounts } = useAccounts();
     const account = accounts?.find((account) => account.id === accountID);
     const { data: iotaName } = useGetDefaultIotaName(account?.address);
@@ -54,8 +45,6 @@ export function AccountItem({
             onCopy={copyAddress}
             isCopyable={!hideCopy}
             isExternal={!hideExplorerLink}
-            onLockAccountClick={onLockAccountClick}
-            onUnlockAccountClick={onUnlockAccountClick}
         />
     );
 }
