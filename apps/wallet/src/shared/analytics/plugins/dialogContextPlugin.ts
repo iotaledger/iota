@@ -5,31 +5,18 @@ import type { BrowserClient, EnrichmentPlugin, Event } from '@amplitude/analytic
 import type { ContextSnapshot } from './contextSnapshotCache';
 import { contextSnapshotCache } from './contextSnapshotCache';
 
-/** Extract the title of the currently open dialog from the DOM. */
+const DIALOG_CONTAINER_SELECTOR = 'div#overlay-portal-container';
+const DIALOG_CONTAINER_INNER_DIV = `${DIALOG_CONTAINER_SELECTOR} > div`;
+const DIALOG_TITLE_SELECTOR = "span[data-testid='overlay-title']";
+
 /** Extract the title of the currently open dialog from the DOM. */
 function extractDialogTitle(): string | null {
-    const dialog = document.querySelector('div[role="dialog"]');
-    if (!dialog) {
+    const dialogContent = document.querySelector(DIALOG_CONTAINER_SELECTOR);
+    if (!dialogContent) {
         return null;
     }
 
-    // Try multiple strategies to find dialog title
-    const title =
-        // headers within the dialog
-        dialog.querySelector('.header-bg-color span.text-title-lg')?.textContent?.trim() ||
-        dialog
-            .querySelector('.dialog-content-bg .header-bg-color span.text-title-lg')
-            ?.textContent?.trim() ||
-        // dialogs without header might have a title element directly inside
-        dialog.querySelector('.text-headline-sm')?.textContent?.trim() ||
-        // elements with title-like class names
-        dialog.querySelector('[class*="title"], [class*="heading"]')?.textContent?.trim() ||
-        // ARIA attributes for accessibility
-        dialog.getAttribute('aria-label') ||
-        dialog.getAttribute('aria-labelledby') ||
-        // fallback to dialog ID or data attribute if no title found
-        dialog.id ||
-        dialog.getAttribute('data-dialog-name');
+    const title = dialogContent.querySelector(DIALOG_TITLE_SELECTOR)?.textContent?.trim();
 
     return title || null;
 }
@@ -60,9 +47,9 @@ function setupDialogTracking(client: BrowserClient): () => void {
             mutation.addedNodes.forEach((node) => {
                 if (node instanceof HTMLElement) {
                     // Check if the added node is a dialog or contains a dialog
-                    const dialog = node.matches?.('div[role="dialog"]')
+                    const dialog = node.matches?.(DIALOG_CONTAINER_INNER_DIV)
                         ? node
-                        : node.querySelector?.('div[role="dialog"]');
+                        : node.querySelector?.(DIALOG_CONTAINER_INNER_DIV);
 
                     if (dialog) {
                         // Wait a tick for dialog content to render
@@ -71,7 +58,6 @@ function setupDialogTracking(client: BrowserClient): () => void {
                             const eventName = dialogTitle
                                 ? `${dialogTitle} Dialog Opened`
                                 : 'Dialog Opened';
-
                             client.track(eventName, {
                                 dialog_title: dialogTitle || 'Untitled',
                             });
