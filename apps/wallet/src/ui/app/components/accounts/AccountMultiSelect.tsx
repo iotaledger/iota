@@ -32,7 +32,6 @@ function AccountMultiSelect({
                         <AccountItemApproveConnection
                             account={account}
                             selected={selectedAccountIDs.includes(account.id)}
-                            onLock={onLock}
                         />
                     </div>
                 </ToggleGroup.Item>

@@ -13,12 +13,13 @@ interface OverlayProps {
     children: ReactNode;
     showModal: boolean;
     closeOverlay?: () => void;
-    hideCloseIcon?: boolean;
+    closeIcon?: ReactNode | null;
     setShowModal?: (showModal: boolean) => void;
     background?: 'bg-iota-neutral-100 dark:bg-iota-neutral-6';
     titleCentered?: boolean;
     showBackButton?: boolean;
     onBack?: () => void;
+    hideCloseIcon?: boolean;
     headerAction?: ReactNode;
 }
 
