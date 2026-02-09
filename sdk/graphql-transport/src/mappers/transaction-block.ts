@@ -222,7 +222,7 @@ function mapTransactionInput(input: typeof bcs.CallArg.$inferType): IotaCallArg 
     if (input.Pure) {
         return {
             type: 'pure',
-            value: bcs.vector(bcs.u8()).parse(fromBase64(input.Pure.bytes)),
+            value: Array.from(fromBase64(input.Pure.bytes)),
         };
     }
 
