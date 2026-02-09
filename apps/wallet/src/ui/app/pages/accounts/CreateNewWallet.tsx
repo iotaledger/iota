@@ -59,8 +59,7 @@ export function CreateNewWallet() {
                 break;
             case AccountsFormType.Passkey:
                 ampli.clickedCreatePasskey({ sourceFlow });
-                const flowType = actionType === AccountsFormType.Passkey ? 'create' : 'import';
-                const url = `/accounts/passkey-account?flowType=${flowType}`;
+                const url = '/accounts/passkey-account';
                 if (isPopupOrSidePanel) {
                     openInNewTab(url);
                     window.close();
@@ -79,7 +78,7 @@ export function CreateNewWallet() {
             isTitleCentered
             onClose={() => navigate('/')}
             showBackButton
-            onBack={() => navigate(-1)}
+            onBack={() => navigate('/accounts/add-account')}
         >
             <div className="flex h-full w-full flex-col">
                 <div className="flex w-full flex-1 flex-col justify-center py-md--rs text-center">

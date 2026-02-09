@@ -16,5 +16,5 @@ task 2, lines 19-21:
 //# programmable --sender A --dev-inspect
 //> 0: test::m::return_u64();
 //> 1: test::m::entry_take_u64(Result(0));
-Error: Transaction Effects Status: CommandArgumentError { arg_idx: 0, kind: InvalidArgumentToPrivateEntryFunction } in command 1
-Execution Error: CommandArgumentError { arg_idx: 0, kind: InvalidArgumentToPrivateEntryFunction } in command 1
+Error: Transaction Effects Status: Invalid command argument at 0. Invalid argument to private entry function. These functions cannot take arguments from other Move functions in command 1
+Execution Error: Invalid command argument at 0. Invalid argument to private entry function. These functions cannot take arguments from other Move functions in command 1

@@ -59,7 +59,8 @@ import { StakingPage } from './staking/home';
 import { StorageMigrationPage } from './pages/StorageMigrationPage';
 import { AccountsFinderPage } from './pages/accounts/manage/accounts-finder/AccountsFinderPage';
 import { AccountsFinderIntroPage } from './pages/accounts/manage/accounts-finder/AccountsFinderIntroPage';
-import { PasskeyAccountPage } from './pages/accounts/PasskeyAccountPage';
+import { CreateNewPasskey } from './pages/accounts/CreateNewPasskey';
+import { ImportPasskeyPage } from './pages/accounts/ImportPasskeyPage';
 import { ImportKeystone } from './pages/accounts/ImportKeystone';
 import { Feature, useFeatureEnabledByNetwork } from '@iota/core';
 import { CreateNewWallet } from './pages/accounts/CreateNewWallet';
@@ -192,7 +193,10 @@ export function App() {
                 <Route path="import-private-key" element={<ImportPrivateKeyPage />} />
                 <Route path="import-seed" element={<ImportSeedPage />} />
                 {isPasskeysEnabled && (
-                    <Route path="passkey-account" element={<PasskeyAccountPage />} />
+                    <>
+                        <Route path="passkey-account" element={<CreateNewPasskey />} />
+                        <Route path="import-passkey" element={<ImportPasskeyPage />} />
+                    </>
                 )}
                 <Route path="import-keystone" element={<ImportKeystone />} />
                 <Route path="manage" element={<ManageAccountsPage />} />
