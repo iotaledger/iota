@@ -41,10 +41,6 @@ impl Balance {
         Self { value }
     }
 
-    pub fn type_tag(inner_type_param: TypeTag) -> TypeTag {
-        StructTag::new_balance(inner_type_param).into()
-    }
-
     pub fn withdraw(&mut self, amount: u64) -> Result<(), ExecutionError> {
         fp_ensure!(
             self.value >= amount,

@@ -397,7 +397,7 @@ impl TryFrom<&IotaObjectData> for GasCoin {
             .ok_or_else(|| anyhow!("Expect object content to not be empty"))?
         {
             IotaParsedData::MoveObject(o) => {
-                if StructTag::new_gas_coin() == o.type_ {
+                if o.type_.is_gas_coin() {
                     return GasCoin::try_from(&o.fields);
                 }
             }

@@ -466,7 +466,7 @@ fn move_object_type_consistency() {
     assert_eq!(ty, MoveObjectType::timelocked_iota_balance());
     assert!(ty.is_timelock());
     assert!(ty.is_timelocked_balance());
-    let ty = assert_consistent(&StructTag::new_time_lock(StructTag::new_gas_coin()));
+    let ty = assert_consistent(&StructTag::new_time_lock(StructTag::new_iota_coin_type()));
     assert!(ty.is_timelock());
     assert!(!ty.is_timelocked_balance());
     let ty = assert_consistent(&StructTag::new_timelocked_staked_iota());

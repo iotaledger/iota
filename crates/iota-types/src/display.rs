@@ -35,15 +35,10 @@ pub struct DisplayVersionUpdatedEvent {
 }
 
 impl DisplayVersionUpdatedEvent {
-    // Checks if the provided `StructTag` is a DisplayVersionUpdatedEvent<T>
-    pub fn is_display_updated_event(inner: &StructTag) -> bool {
-        inner.is_display_version_updated()
-    }
-
     // Checks if the provided `StructTag` is a DisplayVersionUpdatedEvent<T> and
     // returns a reference to the inner type T if so.
     pub fn inner_type(inner: &StructTag) -> Option<&StructTag> {
-        if !Self::is_display_updated_event(inner) {
+        if !inner.is_display_version_updated() {
             return None;
         }
 

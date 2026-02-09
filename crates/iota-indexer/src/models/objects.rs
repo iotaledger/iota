@@ -635,9 +635,7 @@ mod tests {
     #[test]
     fn test_vec_of_coin_iota_conversion() {
         // 0xe7::vec_coin::VecCoin<vector<0x2::coin::Coin<0x2::iota::IOTA>>>
-        let vec_coins_type = TypeTag::Vector(Box::new(
-            StructTag::new_coin(TypeTag::Struct(Box::new(StructTag::new_gas_coin()))).into(),
-        ));
+        let vec_coins_type = TypeTag::Vector(Box::new(StructTag::new_gas_coin().into()));
         let object_type = StructTag::new(
             IotaAddress::from_short_hex("0xe7").unwrap(),
             Identifier::from_static("vec_coin"),

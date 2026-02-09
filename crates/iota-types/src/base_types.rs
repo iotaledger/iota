@@ -109,7 +109,7 @@ pub struct MoveObjectType(MoveObjectType_);
 #[derive(Eq, PartialEq, PartialOrd, Ord, Debug, Clone, Deserialize, Serialize, Hash)]
 pub enum MoveObjectType_ {
     /// A type that is not `0x2::coin::Coin<T>`
-    Other(StructTag),
+    Other(Box<StructTag>),
     /// An IOTA coin (i.e., `0x2::coin::Coin<0x2::iota::IOTA>`)
     GasCoin,
     /// A record of a staked IOTA coin (i.e., `0x3::staking_pool::StakedIota`)
@@ -140,19 +140,19 @@ impl MoveObjectType {
     }
 
     pub fn timelocked_iota_balance() -> Self {
-        Self(MoveObjectType_::Other(StructTag::new_time_lock(
+        Self(MoveObjectType_::Other(Box::new(StructTag::new_time_lock(
             StructTag::new_balance(StructTag::new_iota_coin_type()),
-        )))
+        ))))
     }
 
     pub fn timelocked_staked_iota() -> Self {
-        Self(MoveObjectType_::Other(
+        Self(MoveObjectType_::Other(Box::new(
             StructTag::new_timelocked_staked_iota(),
-        ))
+        )))
     }
 
     pub fn stardust_nft() -> Self {
-        Self(MoveObjectType_::Other(Nft::tag()))
+        Self(MoveObjectType_::Other(Box::new(Nft::tag())))
     }
 
     pub fn address(&self) -> IotaAddress {
@@ -395,7 +395,7 @@ impl MoveObjectType {
             MoveObjectType_::GasCoin => s.is_gas_coin(),
             MoveObjectType_::StakedIota => s.is_staked_iota(),
             MoveObjectType_::Coin(inner) => s.is_coin() && inner == &s.type_params()[0],
-            MoveObjectType_::Other(o) => s == o,
+            MoveObjectType_::Other(o) => s == o.as_ref(),
         }
     }
 
@@ -424,7 +424,7 @@ impl From<&StructTag> for MoveObjectType {
         } else if s.is_staked_iota() {
             MoveObjectType_::StakedIota
         } else {
-            MoveObjectType_::Other(s.clone())
+            MoveObjectType_::Other(Box::new(s.clone()))
         })
     }
 }
@@ -439,7 +439,7 @@ impl From<StructTag> for MoveObjectType {
         } else if s.is_staked_iota() {
             MoveObjectType_::StakedIota
         } else {
-            MoveObjectType_::Other(s)
+            MoveObjectType_::Other(Box::new(s))
         })
     }
 }
@@ -450,7 +450,7 @@ impl From<MoveObjectType> for StructTag {
             MoveObjectType_::GasCoin => StructTag::new_gas_coin(),
             MoveObjectType_::StakedIota => StructTag::new_staked_iota(),
             MoveObjectType_::Coin(inner) => StructTag::new_coin(inner),
-            MoveObjectType_::Other(s) => s,
+            MoveObjectType_::Other(s) => *s,
         }
     }
 }

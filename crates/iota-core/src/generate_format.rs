@@ -109,7 +109,7 @@ fn get_registry() -> Result<Registry> {
 
     // Also trace sample MoveObjectType_ values to capture all variants properly
     // These contain the SDK's StructTag and TypeTag types
-    let move_obj_type_other = MoveObjectType_::Other(struct_tag.clone());
+    let move_obj_type_other = MoveObjectType_::Other(Box::new(struct_tag.clone()));
     tracer
         .trace_value(&mut samples, &move_obj_type_other)
         .unwrap();

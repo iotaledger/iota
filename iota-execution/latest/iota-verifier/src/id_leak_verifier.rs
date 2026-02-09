@@ -36,6 +36,7 @@ use move_core_types::{
 };
 
 use crate::{check_for_verifier_timeout, to_verification_timeout_error, verification_failure};
+
 pub(crate) const JOIN_BASE_COST: u128 = 10;
 pub(crate) const JOIN_PER_LOCAL_COST: u128 = 5;
 pub(crate) const STEP_BASE_COST: u128 = 15;

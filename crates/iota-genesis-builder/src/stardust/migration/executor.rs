@@ -306,7 +306,9 @@ impl Executor {
                 written
                     .into_iter()
                     // We ignore the [`UpgradeCap`] objects.
-                    .filter(|(_, object)| object.struct_tag() != Some(StructTag::new_upgrade_cap()))
+                    .filter(|(_, object)| {
+                        object.struct_tag().is_none_or(|tag| !tag.is_upgrade_cap())
+                    })
                     .collect(),
             );
             res.push((header.output_id(), created_objects));
