@@ -356,8 +356,7 @@ describe('GraphQL IotaClient compatibility', () => {
                 showEffects: true,
                 showRawEffects: true,
                 showEvents: true,
-                // TODO inputs missing valueType
-                showInput: false,
+                showInput: true,
                 showObjectChanges: true,
                 showRawInput: true,
             },
@@ -373,8 +372,7 @@ describe('GraphQL IotaClient compatibility', () => {
                     showEffects: true,
                     showRawEffects: true,
                     showEvents: true,
-                    // TODO inputs missing valueType
-                    showInput: false,
+                    showInput: true,
                     showObjectChanges: true,
                     showRawInput: true,
                 },
@@ -396,8 +394,7 @@ describe('GraphQL IotaClient compatibility', () => {
                 showBalanceChanges: true,
                 showEffects: true,
                 showEvents: true,
-                // TODO inputs missing valueType
-                showInput: false,
+                showInput: true,
                 showObjectChanges: true,
                 showRawInput: true,
             },
@@ -408,8 +405,7 @@ describe('GraphQL IotaClient compatibility', () => {
                 showBalanceChanges: true,
                 showEffects: true,
                 showEvents: true,
-                // TODO inputs missing valueType
-                showInput: false,
+                showInput: true,
                 showObjectChanges: true,
                 showRawInput: true,
             },
@@ -425,8 +421,7 @@ describe('GraphQL IotaClient compatibility', () => {
                 showEffects: true,
                 showEvents: true,
                 showRawEffects: true,
-                // TODO inputs missing valueType
-                showInput: false,
+                showInput: true,
                 showObjectChanges: true,
                 showRawInput: true,
             },
@@ -438,8 +433,7 @@ describe('GraphQL IotaClient compatibility', () => {
                 showEffects: true,
                 showRawEffects: true,
                 showEvents: true,
-                // TODO inputs missing valueType
-                showInput: false,
+                showInput: true,
                 showObjectChanges: true,
                 showRawInput: true,
             },
