@@ -177,7 +177,7 @@ impl Merge<iota_sdk_types::UserSignature> for UserSignature {
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::BCS_FIELD.name) {
-            self.bcs = BcsData::serialize(&source).ok();
+            self.bcs = Some(BcsData::serialize(&source)?);
         }
 
         Ok(())
@@ -291,7 +291,7 @@ impl Merge<&iota_sdk_types::Event> for Event {
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::BCS_FIELD.name) {
-            self.bcs = BcsData::serialize(&source).ok();
+            self.bcs = Some(BcsData::serialize(&source)?);
         }
 
         if mask.contains(Self::PACKAGE_ID_FIELD.name) {
@@ -358,7 +358,7 @@ impl Merge<&iota_sdk_types::object::Object> for Object {
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::BCS_FIELD.name) {
-            self.bcs = BcsData::serialize(source).ok();
+            self.bcs = Some(BcsData::serialize(source)?);
         }
 
         if mask.contains(Self::REFERENCE_FIELD.name) {
@@ -461,7 +461,7 @@ impl Merge<iota_sdk_types::CheckpointSummary> for CheckpointSummary {
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::BCS_FIELD.name) {
-            self.bcs = BcsData::serialize(&source).ok();
+            self.bcs = Some(BcsData::serialize(&source)?);
         }
 
         if mask.contains(Self::DIGEST_FIELD.name) {
@@ -500,7 +500,7 @@ impl Merge<iota_sdk_types::CheckpointContents> for CheckpointContents {
     ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::BCS_FIELD.name) {
             // TODO: add version
-            self.bcs = BcsData::serialize(&source).ok();
+            self.bcs = Some(BcsData::serialize(&source)?);
         }
 
         if mask.contains(Self::DIGEST_FIELD.name) {
@@ -646,7 +646,7 @@ impl Merge<&iota_sdk_types::TransactionEffects> for TransactionEffects {
 
         // Set BCS if requested
         if mask.contains(Self::BCS_FIELD.name) {
-            self.bcs = BcsData::serialize(source).ok();
+            self.bcs = Some(BcsData::serialize(source)?);
         }
 
         Ok(())

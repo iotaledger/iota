@@ -139,11 +139,13 @@ pub(crate) fn get_checkpoint_data(
             service
                 .reader
                 .get_checkpoint_sequence_number_by_digest(&digest)
+                .map_err(|e| Status::internal(format!("failed to get checkpoint by digest: {e}")))?
                 .ok_or(Status::not_found("checkpoint not found"))?
         }
         Some(grpc_ledger_service::get_checkpoint_data_request::CheckpointId::Latest(_)) => service
             .reader
             .get_latest_checkpoint_sequence_number()
+            .map_err(|e| Status::internal(format!("failed to get latest checkpoint: {e}")))?
             .ok_or(Status::not_found("latest checkpoint not found"))?,
         None => {
             return Err(Status::invalid_argument("checkpoint_id must be provided").into());

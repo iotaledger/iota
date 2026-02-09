@@ -68,7 +68,11 @@ pub fn get_epoch(
         message.epoch = Some(epoch);
     }
 
-    if let Some(epoch_info) = service.reader.get_epoch_info(epoch) {
+    if let Some(epoch_info) = service
+        .reader
+        .get_epoch_info(epoch)
+        .map_err(|e| Status::internal(format!("Failed to get epoch info: {e}")))?
+    {
         if read_mask.contains(Epoch::FIRST_CHECKPOINT_FIELD.name) {
             message.first_checkpoint = Some(epoch_info.start_checkpoint);
         }
@@ -108,9 +112,10 @@ pub fn get_epoch(
 
     if let Some(system_state) = system_state {
         if read_mask.contains(Epoch::BCS_SYSTEM_STATE_FIELD.name) {
-            if let Ok(bcs_data) = BcsData::serialize(&system_state) {
-                message.bcs_system_state = Some(bcs_data);
-            }
+            message.bcs_system_state =
+                Some(BcsData::serialize(&system_state).map_err(|e| {
+                    Status::internal(format!("Failed to serialize system state: {e}"))
+                })?);
         }
     }
 

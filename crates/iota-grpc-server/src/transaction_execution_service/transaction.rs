@@ -115,7 +115,7 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::Transaction {
 
         // Set BCS if requested
         if mask.contains(Self::BCS_FIELD.name) {
-            self.bcs = grpc_bcs::BcsData::serialize(transaction).ok();
+            self.bcs = Some(grpc_bcs::BcsData::serialize(transaction)?);
         }
 
         Ok(())
