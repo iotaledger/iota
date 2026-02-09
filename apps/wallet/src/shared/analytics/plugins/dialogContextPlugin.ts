@@ -16,7 +16,9 @@ function extractDialogTitle(): string | null {
         return null;
     }
 
-    const title = dialogContent.querySelector(DIALOG_TITLE_SELECTOR)?.textContent?.trim();
+    const title =
+        dialogContent.querySelector(DIALOG_TITLE_SELECTOR)?.textContent?.trim() ||
+        dialogContent.querySelector('.text-headline-sm')?.textContent?.trim();
 
     return title || null;
 }
