@@ -42,16 +42,12 @@ export const Default: Story = {
     args: {
         title: 'Account',
         subtitle: '0x0d7...3f37',
-        isLocked: true,
         avatarContent: Avatar,
     },
     argTypes: {
         badgeType: {
             control: 'select',
             options: Object.values(BadgeType),
-        },
-        isLocked: {
-            control: 'boolean',
         },
         onOptionsClick: {
             action: 'onOptionsClick',
