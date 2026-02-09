@@ -56,12 +56,12 @@ typed-store.workspace = true
 [dev-dependencies]
 # external dependencies
 anyhow.workspace = true
-iota-sdk-types.workspace = true
 once_cell.workspace = true
 tempfile.workspace = true
 
 # internal dependencies
 iota-macros.workspace = true
+iota-sdk-types.workspace = true
 iota-test-transaction-builder.workspace = true
 
 [target.'cfg(msim)'.dependencies]
