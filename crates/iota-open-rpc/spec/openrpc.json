@@ -11172,14 +11172,22 @@
         }
       },
       "ObjectReference": {
-        "anyOf": [
+        "type": "array",
+        "items": [
           {
-            "$ref": "#/components/schemas/StructObjectReference"
+            "$ref": "#/components/schemas/ObjectId"
           },
           {
-            "$ref": "#/components/schemas/TupleObjectReference"
+            "description": "Radix-10 encoded 64-bit unsigned integer",
+            "type": "string",
+            "format": "u64"
+          },
+          {
+            "$ref": "#/components/schemas/Digest"
           }
-        ]
+        ],
+        "maxItems": 3,
+        "minItems": 3
       },
       "ObjectResponseError": {
         "oneOf": [
@@ -12081,27 +12089,6 @@
                 "$ref": "#/components/schemas/ObjectId"
               }
             ]
-          }
-        }
-      },
-      "StructObjectReference": {
-        "type": "object",
-        "required": [
-          "digest",
-          "objectId",
-          "version"
-        ],
-        "properties": {
-          "digest": {
-            "$ref": "#/components/schemas/Digest"
-          },
-          "objectId": {
-            "$ref": "#/components/schemas/ObjectId"
-          },
-          "version": {
-            "description": "Radix-10 encoded 64-bit unsigned integer",
-            "type": "string",
-            "format": "u64"
           }
         }
       },
@@ -13177,24 +13164,6 @@
             "$ref": "#/components/schemas/Address"
           }
         }
-      },
-      "TupleObjectReference": {
-        "type": "array",
-        "items": [
-          {
-            "$ref": "#/components/schemas/ObjectId"
-          },
-          {
-            "description": "Radix-10 encoded 64-bit unsigned integer",
-            "type": "string",
-            "format": "u64"
-          },
-          {
-            "$ref": "#/components/schemas/Digest"
-          }
-        ],
-        "maxItems": 3,
-        "minItems": 3
       },
       "TypeOrigin": {
         "description": "Store the origin of a data type where it first appeared in the version chain.\n\nA data type is identified by the name of the module and the name of the struct/enum in combination.\n\n# Undefined behavior\n\nDirectly modifying any field is undefined behavior. The fields are only public for read-only access.",

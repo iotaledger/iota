@@ -154,7 +154,7 @@ export interface DevInspectArgs {
     /** The gas budget for the transaction. */
     gasBudget?: string | null;
     /** The gas objects used to pay for the transaction. */
-    gasObjects?: ObjectReference[] | null;
+    gasObjects?: [string, string, string][] | null;
     /** The sponsor of the gas for the transaction, might be different from the sender. */
     gasSponsor?: string | null;
     /** Whether to return the raw transaction data and effects. */
@@ -1370,7 +1370,6 @@ export interface IotaObjectRef {
     /** Object version. */
     version: string;
 }
-export type ObjectReference = StructObjectReference | [string, string, string];
 export type ObjectResponseError =
     | {
           code: 'notExists';
@@ -1633,12 +1632,6 @@ export type StakeObject =
           stakedIotaId: string;
           status: 'Unstaked';
       };
-export interface StructObjectReference {
-    digest: string;
-    objectId: string;
-    /** Radix-10 encoded 64-bit unsigned integer */
-    version: string;
-}
 export interface CoinSupply {
     value: string;
 }
