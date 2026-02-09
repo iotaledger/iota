@@ -1242,16 +1242,21 @@ impl PgIndexerStore {
         Ok(())
     }
 
-    fn prune_checkpoints_table(&self, cp: u64) -> Result<(), IndexerError> {
+    fn prune_checkpoints_table_by_range(
+        &self,
+        min_cp: u64,
+        max_cp: u64,
+    ) -> Result<(), IndexerError> {
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
                 diesel::delete(
-                    checkpoints::table.filter(checkpoints::sequence_number.eq(cp as i64)),
+                    checkpoints::table
+                        .filter(checkpoints::sequence_number.between(min_cp as i64, max_cp as i64)),
                 )
                 .execute(conn)
                 .map_err(IndexerError::from)
-                .context("Failed to prune checkpoints table")?;
+                .context("Failed to prune checkpoints table by range")?;
 
                 Ok::<(), IndexerError>(())
             },
@@ -1508,33 +1513,40 @@ impl PgIndexerStore {
         )
     }
 
-    fn prune_cp_tx_table(&self, cp: u64) -> Result<(), IndexerError> {
+    fn prune_cp_tx_table_by_range(&self, min_cp: u64, max_cp: u64) -> Result<(), IndexerError> {
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
                 diesel::delete(
-                    pruner_cp_watermark::table
-                        .filter(pruner_cp_watermark::checkpoint_sequence_number.eq(cp as i64)),
+                    pruner_cp_watermark::table.filter(
+                        pruner_cp_watermark::checkpoint_sequence_number
+                            .between(min_cp as i64, max_cp as i64),
+                    ),
                 )
                 .execute(conn)
                 .map_err(IndexerError::from)
-                .context("Failed to prune pruner_cp_watermark table")?;
+                .context("Failed to prune pruner_cp_watermark table by range")?;
                 Ok::<(), IndexerError>(())
             },
             PG_DB_COMMIT_SLEEP_DURATION
         )
     }
 
-    fn prune_table_by_checkpoint(
+    fn prune_table_by_checkpoint_range(
         &self,
         table: &crate::pruning::pruner::PrunableTable,
-        checkpoint: u64,
+        min_checkpoint: u64,
+        max_checkpoint: u64,
     ) -> Result<(), IndexerError> {
         use crate::pruning::pruner::PrunableTable;
 
         match table {
-            PrunableTable::Checkpoints => self.prune_checkpoints_table(checkpoint),
-            PrunableTable::PrunerCpWatermark => self.prune_cp_tx_table(checkpoint),
+            PrunableTable::Checkpoints => {
+                self.prune_checkpoints_table_by_range(min_checkpoint, max_checkpoint)
+            }
+            PrunableTable::PrunerCpWatermark => {
+                self.prune_cp_tx_table_by_range(min_checkpoint, max_checkpoint)
+            }
             _ => Err(IndexerError::InvalidArgument(format!(
                 "table {} is not pruned by checkpoint",
                 table.as_ref()
@@ -2453,14 +2465,15 @@ impl IndexerStore for PgIndexerStore {
             .await
     }
 
-    async fn prune_table_by_checkpoint(
+    async fn prune_table_by_checkpoint_range(
         &self,
         table: &crate::pruning::pruner::PrunableTable,
-        checkpoint: u64,
+        min_checkpoint: u64,
+        max_checkpoint: u64,
     ) -> Result<(), IndexerError> {
         let table_clone = *table;
         self.execute_in_blocking_worker(move |this| {
-            this.prune_table_by_checkpoint(&table_clone, checkpoint)
+            this.prune_table_by_checkpoint_range(&table_clone, min_checkpoint, max_checkpoint)
         })
         .await
     }
