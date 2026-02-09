@@ -13,10 +13,12 @@ use crate::proto::TryFromProtoError;
 
 impl GetServiceInfoResponse {
     /// Get the chain identifier (digest of genesis checkpoint).
-    pub fn chain_identifier(&self) -> Result<&str, TryFromProtoError> {
+    pub fn chain_identifier(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
         self.chain_id
-            .as_deref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::CHAIN_ID_FIELD.name))
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::CHAIN_ID_FIELD.name))?
+            .try_into()
+            .map_err(|e: TryFromProtoError| e.nested(Self::CHAIN_ID_FIELD.name))
     }
 
     /// Get the human-readable chain name (e.g., "mainnet", "testnet").

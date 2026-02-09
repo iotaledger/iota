@@ -227,7 +227,10 @@ mod _accessor_impls {
     }
     impl super::GetServiceInfoResponse {
         /// Sets `chain_id` with the provided value.
-        pub fn with_chain_id<T: Into<String>>(mut self, field: T) -> Self {
+        pub fn with_chain_id<T: Into<super::super::types::Digest>>(
+            mut self,
+            field: T,
+        ) -> Self {
             self.chain_id = Some(field.into().into());
             self
         }

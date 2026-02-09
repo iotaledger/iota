@@ -18,8 +18,8 @@ pub struct GetServiceInfoResponse {
     ///
     /// The chain identifier is the digest of the genesis checkpoint, the
     /// checkpoint with sequence number 0.
-    #[prost(string, optional, tag = "1")]
-    pub chain_id: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(message, optional, tag = "1")]
+    pub chain_id: ::core::option::Option<super::types::Digest>,
     /// Human-readable name of the chain that this node is on.
     ///
     /// This is intended to be a human-readable name like `mainnet`, `testnet`, and so on.

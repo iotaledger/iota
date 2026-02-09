@@ -49,7 +49,7 @@ message GetServiceInfoResponse {
   //
   // The chain identifier is the digest of the genesis checkpoint, the
   // checkpoint with sequence number 0.
-  optional string chain_id = 1;
+  optional iota.grpc.v0.types.Digest chain_id = 1;
 
   // Human-readable name of the chain that this node is on.
   //
