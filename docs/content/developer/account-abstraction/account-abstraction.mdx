@@ -23,3 +23,9 @@ Always include cryptographic verification of transaction data in your authentica
 Be cautious when using shared objects as inputs to authenticator functions. Attackers may be able to swap shared objects to bypass authentication checks.
 
 **See:** [Authenticator Shared Object Inputs How-To](how-tos/authenticator-shared-object-inputs.mdx)
+
+### ⚠️ Authenticator Inputs Protection
+
+When authenticators accept additional input parameters (shared objects, raw values, etc.), all inputs must be cryptographically protected. Without binding all inputs to the signature, attackers can tamper with input parameters after authentication.
+
+**See:** [Cryptographic Protection for Authenticator Inputs How-To](how-tos/authenticator-inputs-cryptographic-protection.mdx)

@@ -81,6 +81,10 @@ name = "get-balance"
 path = "exchange/get-balance.rs"
 
 [[example]]
+name = "authenticator-inputs-cryptographic-protection"
+path = "abstract_account/authenticator-inputs-cryptographic-protection.rs"
+
+[[example]]
 name = "authenticator-shared-object-swap"
 path = "abstract_account/authenticator-shared-object-swap.rs"
 
