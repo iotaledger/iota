@@ -284,8 +284,14 @@ pub mod setup_postgres {
 
     /// Execute all unapplied migrations.
     pub fn run_migrations(conn: &mut PoolConnection) -> Result<(), anyhow::Error> {
-        conn.run_pending_migrations(MIGRATIONS)
-            .map_err(|e| anyhow!("failed to run migrations {e}"))?;
+        let pending_migrations = conn
+            .pending_migrations(MIGRATIONS)
+            .map_err(|e| anyhow!("failed to identify pending migrations {e}"))?;
+        for migration in pending_migrations {
+            info!("Applying migration {}", migration.name());
+            conn.run_migration(&migration)
+                .map_err(|e| anyhow!("failed to run migration {e}"))?;
+        }
         Ok(())
     }
 

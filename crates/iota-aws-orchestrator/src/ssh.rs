@@ -12,8 +12,7 @@ use std::{
 
 use async_trait::async_trait;
 use futures::future::try_join_all;
-use russh::{Channel, client, client::Msg};
-use russh_keys::key;
+use russh::{Channel, client, client::Msg, keys::PrivateKeyWithHashAlg};
 use tokio::{task::JoinHandle, time::sleep};
 
 use crate::{
@@ -351,11 +350,12 @@ struct Session {}
 impl client::Handler for Session {
     type Error = russh::Error;
 
-    async fn check_server_key(
+    #[allow(clippy::manual_async_fn)]
+    fn check_server_key(
         &mut self,
-        _server_public_key: &key::PublicKey,
-    ) -> Result<bool, Self::Error> {
-        Ok(true)
+        _server_public_key: &russh::keys::PublicKey,
+    ) -> impl std::future::Future<Output = Result<bool, Self::Error>> + Send {
+        async { Ok(true) }
     }
 }
 
@@ -381,8 +381,15 @@ impl SshConnection {
         inactivity_timeout: Option<Duration>,
         retries: Option<usize>,
     ) -> SshResult<Self> {
-        let key = russh_keys::load_secret_key(private_key_file, None)
-            .map_err(|error| SshError::PrivateKeyError { address, error })?;
+        let key_bytes = std::fs::read(private_key_file).map_err(|e| SshError::PrivateKeyError {
+            address,
+            error: russh::keys::Error::IO(e),
+        })?;
+        let key = russh::keys::decode_secret_key(&String::from_utf8_lossy(&key_bytes), None)
+            .map_err(|_e| SshError::PrivateKeyError {
+                address,
+                error: russh::keys::Error::CouldNotReadKey,
+            })?;
 
         let config = client::Config {
             inactivity_timeout: inactivity_timeout.or(Some(Self::DEFAULT_TIMEOUT)),
@@ -393,8 +400,9 @@ impl SshConnection {
             .await
             .map_err(|error| SshError::ConnectionError { address, error })?;
 
+        let key_with_hash = PrivateKeyWithHashAlg::new(Arc::new(key), None);
         let _auth_res = session
-            .authenticate_publickey(username, Arc::new(key))
+            .authenticate_publickey(username, key_with_hash)
             .await
             .map_err(|error| SshError::SessionError { address, error })?;
 

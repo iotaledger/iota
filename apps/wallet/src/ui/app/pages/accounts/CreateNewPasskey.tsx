@@ -1,16 +1,13 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 import { AccountsFormType, PageTemplate, useAccountsFormContext } from '_components';
 import {
     Button,
     ButtonHtmlType,
     ButtonType,
-    InfoBox,
-    InfoBoxStyle,
-    InfoBoxType,
     Input,
     InputType,
     RadioButton,
@@ -19,24 +16,17 @@ import { useZodForm } from '@iota/core';
 import { z } from 'zod';
 import { Form } from '../../shared/forms/Form';
 import React, { useState } from 'react';
-import { Exclamation } from '@iota/apps-ui-icons';
 
 const formSchema = z.object({
     username: z.string().min(1, 'Username is required').max(50, 'Username is too long'),
 });
 type ImportPasskeyFormValues = z.infer<typeof formSchema>;
 
-const PIN_PROMPT_MESSAGE =
-    'To import your passkey profile, you will be prompted to authenticate twice, this is expected as part of the import process.';
-
-export function PasskeyAccountPage() {
+export function CreateNewPasskey() {
     const navigate = useNavigate();
     const [authenticatorAttachment, setAuthenticatorAttachment] =
         useState<AuthenticatorAttachment>('cross-platform');
     const [, setAccountsFormValues] = useAccountsFormContext();
-    const [searchParams] = useSearchParams();
-    const flowType = searchParams.get('flowType');
-    const isCreateFlow = flowType === 'create';
 
     const form = useZodForm({
         mode: 'onChange',
@@ -54,9 +44,8 @@ export function PasskeyAccountPage() {
     const handleSubmit = async (values: ImportPasskeyFormValues) => {
         setAccountsFormValues({
             type: AccountsFormType.Passkey,
-            authenticatorAttachment: isCreateFlow ? authenticatorAttachment : undefined,
+            authenticatorAttachment,
             username: values.username,
-            isRestoreAccount: !isCreateFlow,
         });
         navigate(
             `/accounts/protect-account?${new URLSearchParams({
@@ -85,10 +74,10 @@ export function PasskeyAccountPage() {
 
     return (
         <PageTemplate
-            title={`${isCreateFlow ? 'Create' : 'Import'} Passkey Account`}
+            title="Create Passkey Account"
             isTitleCentered
             showBackButton
-            onBack={() => navigate(-1)}
+            onBack={() => navigate('/accounts/import-existing')}
         >
             <Form
                 className="flex h-full flex-col justify-between"
@@ -107,26 +96,17 @@ export function PasskeyAccountPage() {
                         data-testid="username-input"
                     />
 
-                    {isCreateFlow ? (
-                        <div className="flex flex-col gap-md text-start">
-                            <p className="pt-xxs text-label-md text-iota-neutral-30 dark:text-iota-neutral-80">
-                                How would you like to store your passkey?
-                            </p>
+                    <div className="flex flex-col gap-md text-start">
+                        <p className="pt-xxs text-label-md text-iota-neutral-30 dark:text-iota-neutral-80">
+                            How would you like to store your passkey?
+                        </p>
 
-                            {RADIO_BUTTONS.map((radio) => (
-                                <div key={radio.label} data-testid={`passkey-radio-${radio.name}`}>
-                                    <RadioButton {...radio} />
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <InfoBox
-                            type={InfoBoxType.Default}
-                            supportingText={PIN_PROMPT_MESSAGE}
-                            icon={<Exclamation />}
-                            style={InfoBoxStyle.Elevated}
-                        />
-                    )}
+                        {RADIO_BUTTONS.map((radio) => (
+                            <div key={radio.label} data-testid={`passkey-radio-${radio.name}`}>
+                                <RadioButton {...radio} />
+                            </div>
+                        ))}
+                    </div>
                 </div>
 
                 <div className="flex flex-col gap-4 pt-xxxs">
@@ -140,7 +120,7 @@ export function PasskeyAccountPage() {
                         <Button
                             type={ButtonType.Primary}
                             disabled={isSubmitting || !isValid}
-                            text={isCreateFlow ? 'Continue' : 'Restore'}
+                            text="Continue"
                             fullWidth
                             htmlType={ButtonHtmlType.Submit}
                         />
