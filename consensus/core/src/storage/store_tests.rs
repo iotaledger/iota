@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use consensus_config::AuthorityIndex;
+use iota_common::scoring_metrics::VersionedStorageScoringMetrics;
 use rstest::rstest;
 use tempfile::TempDir;
 
@@ -304,8 +305,6 @@ async fn read_and_scan_commits(
 async fn scan_scoring_metrics(
     #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
 ) {
-    use iota_common::scoring_metrics::VersionedStorageScoringMetrics;
-
     let store = test_store.store();
     let metrics_updates = [
         VersionedStorageScoringMetrics::new_v1_for_test(

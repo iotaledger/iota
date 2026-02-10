@@ -6,7 +6,9 @@ use std::{ops::Bound::Included, time::Duration};
 
 use bytes::Bytes;
 use consensus_config::AuthorityIndex;
-use iota_common::scoring_metrics::VersionedStorageScoringMetrics;
+use iota_common::{
+    misbehavior_counts::MisbehaviorsV1, scoring_metrics::VersionedStorageScoringMetrics,
+};
 use iota_macros::fail_point;
 use typed_store::{
     Map as _,
@@ -20,6 +22,7 @@ use crate::{
     block::{BlockAPI as _, BlockDigest, BlockRef, Round, SignedBlock, VerifiedBlock},
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
+    storage::StorageScoringMetrics,
 };
 
 /// Persistent storage with RocksDB.
@@ -35,8 +38,10 @@ pub(crate) struct RocksDBStore {
     commit_votes: DBMap<(CommitIndex, CommitDigest, BlockRef), ()>,
     /// Stores info related to Commit that helps recovery.
     commit_info: DBMap<(CommitIndex, CommitDigest), CommitInfo>,
-    /// Stores scoring metrics for each authority.
-    scoring_metrics: DBMap<AuthorityIndex, VersionedStorageScoringMetrics>,
+    /// Legacy scoring metrics (read-only).
+    scoring_metrics: DBMap<AuthorityIndex, StorageScoringMetrics>,
+    /// Stores versioned scoring metrics for each authority.
+    scoring_metrics_v2: DBMap<AuthorityIndex, VersionedStorageScoringMetrics>,
 }
 
 impl RocksDBStore {
@@ -46,6 +51,7 @@ impl RocksDBStore {
     const COMMIT_VOTES_CF: &'static str = "commit_votes";
     const COMMIT_INFO_CF: &'static str = "commit_info";
     const SCORING_METRICS_CF: &'static str = "scoring_metrics";
+    const SCORING_METRICS_V2_CF: &'static str = "scoring_metrics_v2";
 
     /// Creates a new instance of RocksDB storage.
     pub(crate) fn new(path: &str) -> Self {
@@ -69,6 +75,7 @@ impl RocksDBStore {
             (Self::COMMIT_VOTES_CF, cf_options.clone()),
             (Self::COMMIT_INFO_CF, cf_options.clone()),
             (Self::SCORING_METRICS_CF, cf_options.clone()),
+            (Self::SCORING_METRICS_V2_CF, cf_options.clone()),
         ];
         let rocksdb = open_cf_opts(
             path,
@@ -78,13 +85,22 @@ impl RocksDBStore {
         )
         .expect("Cannot open database");
 
-        let (blocks, digests_by_authorities, commits, commit_votes, commit_info, scoring_metrics) = reopen!(&rocksdb,
+        let (
+            blocks,
+            digests_by_authorities,
+            commits,
+            commit_votes,
+            commit_info,
+            scoring_metrics,
+            scoring_metrics_v2,
+        ) = reopen!(&rocksdb,
             Self::BLOCKS_CF;<(Round, AuthorityIndex, BlockDigest), bytes::Bytes>,
             Self::DIGESTS_BY_AUTHORITIES_CF;<(AuthorityIndex, Round, BlockDigest), ()>,
             Self::COMMITS_CF;<(CommitIndex, CommitDigest), Bytes>,
             Self::COMMIT_VOTES_CF;<(CommitIndex, CommitDigest, BlockRef), ()>,
             Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>,
-            Self::SCORING_METRICS_CF;<AuthorityIndex, VersionedStorageScoringMetrics>
+            Self::SCORING_METRICS_CF;<AuthorityIndex, StorageScoringMetrics>,
+            Self::SCORING_METRICS_V2_CF;<AuthorityIndex, VersionedStorageScoringMetrics>
         );
 
         Self {
@@ -94,6 +110,7 @@ impl RocksDBStore {
             commit_votes,
             commit_info,
             scoring_metrics,
+            scoring_metrics_v2,
         }
     }
 }
@@ -149,7 +166,7 @@ impl Store for RocksDBStore {
         }
         for (authority, metrics) in write_batch.scoring_metrics {
             batch
-                .insert_batch(&self.scoring_metrics, [(authority, metrics)])
+                .insert_batch(&self.scoring_metrics_v2, [(authority, metrics)])
                 .map_err(ConsensusError::RocksDBFailure)?;
         }
         batch.write()?;
@@ -224,13 +241,51 @@ impl Store for RocksDBStore {
         Ok(blocks)
     }
 
+    // This method is currently not only a scan, but it also performs migration from
+    // the legacy `StorageScoringMetrics` type to the new
+    // `VersionedStorageScoringMetrics`. This migration logic should be deleted
+    // after `StorageScoringMetrics` is removed. The writes in this method are
+    // only triggered once (for a one-time migration).
     fn scan_scoring_metrics(
         &self,
     ) -> ConsensusResult<Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>> {
+        // Check the new scoring metrics field first. If it is not empty, it means the
+        // migration has been done and we can ignore the legacy field entirely. If
+        // the new scoring metrics field is empty, then we read from the legacy field,
+        // convert the data to the new format, and write them to the new field for
+        // future reads.
         let mut metrics_by_author = vec![];
-        for kv in self.scoring_metrics.safe_iter() {
+        for kv in self.scoring_metrics_v2.safe_iter() {
             metrics_by_author.push(kv?);
         }
+
+        if metrics_by_author.is_empty() {
+            for kv in self.scoring_metrics.safe_iter() {
+                let (authority, old) = kv?;
+                let converted = VersionedStorageScoringMetrics::V1(MisbehaviorsV1::new(
+                    old.faulty_blocks_provable,
+                    old.faulty_blocks_unprovable,
+                    old.missing_proposals,
+                    old.equivocations,
+                ));
+                metrics_by_author.push((authority, converted));
+            }
+
+            if !metrics_by_author.is_empty() {
+                tracing::info!(
+                    "Migrating {} legacy scoring metrics entries to new type",
+                    metrics_by_author.len()
+                );
+                let mut batch = self.scoring_metrics_v2.batch();
+                for (authority, metrics) in &metrics_by_author {
+                    batch
+                        .insert_batch(&self.scoring_metrics_v2, [(*authority, metrics.clone())])
+                        .map_err(ConsensusError::RocksDBFailure)?;
+                }
+                batch.write()?;
+            }
+        }
+
         Ok(metrics_by_author)
     }
 
@@ -324,4 +379,123 @@ impl Store for RocksDBStore {
         let (key, commit_info) = result.map_err(ConsensusError::RocksDBFailure)?;
         Ok(Some((CommitRef::new(key.0, key.1), commit_info)))
     }
+}
+
+// The following method is only used for testing and simulates the existence of
+// legacy-format scoring metrics in the old `StorageScoringMetrics` field. It
+// should be removed after the migration is done and the legacy field is
+// deleted.
+#[cfg(test)]
+impl RocksDBStore {
+    /// Writes legacy-format scoring metrics directly to the old CF, simulating
+    /// data written by a pre-upgrade node.
+    pub(crate) fn write_legacy_scoring_metrics(
+        &self,
+        entries: Vec<(AuthorityIndex, [u64; 4])>,
+    ) -> ConsensusResult<()> {
+        let mut batch = self.scoring_metrics.batch();
+        for (authority, [fbp, fbu, equiv, missing]) in entries {
+            let legacy = StorageScoringMetrics {
+                faulty_blocks_provable: fbp,
+                faulty_blocks_unprovable: fbu,
+                equivocations: equiv,
+                missing_proposals: missing,
+            };
+            batch
+                .insert_batch(&self.scoring_metrics, [(authority, legacy)])
+                .map_err(ConsensusError::RocksDBFailure)?;
+        }
+        batch.write()?;
+        Ok(())
+    }
+}
+
+/// Verifies that legacy `StorageScoringMetrics` written to store are correctly
+/// read, converted, and ported to the new `VersionedStorageScoringMetrics`
+/// field by `scan_scoring_metrics()`.
+#[tokio::test]
+async fn scan_scoring_metrics_legacy_migration() {
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let store = RocksDBStore::new(temp_dir.path().to_str().unwrap());
+
+    let authorities = [
+        AuthorityIndex::new_for_test(0),
+        AuthorityIndex::new_for_test(1),
+    ];
+
+    // Write legacy-format data: [faulty_blocks_provable, faulty_blocks_unprovable,
+    // equivocations, missing_proposals] — note the old struct has equivocations
+    // before missing_proposals.
+    store
+        .write_legacy_scoring_metrics(vec![
+            (authorities[0], [10, 20, 40, 30]),
+            (authorities[1], [0, 0, 0, 0]),
+        ])
+        .unwrap();
+
+    let expected = vec![
+        (
+            authorities[0],
+            VersionedStorageScoringMetrics::V1(MisbehaviorsV1::new(10, 20, 30, 40)),
+        ),
+        (
+            authorities[1],
+            VersionedStorageScoringMetrics::V1(MisbehaviorsV1::new(0, 0, 0, 0)),
+        ),
+    ];
+
+    // First scan: new CF is empty, falls back to legacy and ports data.
+    let scanned = store
+        .scan_scoring_metrics()
+        .expect("scan_scoring_metrics should not fail");
+    assert_eq!(scanned, expected);
+
+    // Update legacy-format data: [faulty_blocks_provable, faulty_blocks_unprovable,
+    // equivocations, missing_proposals].
+    store
+        .write_legacy_scoring_metrics(vec![
+            (authorities[0], [40, 50, 60, 70]),
+            (authorities[1], [0, 0, 0, 0]),
+        ])
+        .unwrap();
+
+    // Second scan: data was ported to the new CF by the first scan, so this
+    // reads from the new CF directly (the legacy fallback path is not taken
+    // because the new CF is no longer empty). The legacy updates should not affect
+    // the scanned data, which should be the same as after the first scan.
+    let scanned = store
+        .scan_scoring_metrics()
+        .expect("scan_scoring_metrics should not fail");
+    assert_eq!(scanned, expected);
+
+    // Directly read from the legacy field to verify that the data there is indeed
+    // updated, but it did not affect the scan results.
+    let mut scanned_from_legacy = vec![];
+    for kv in store.scoring_metrics.safe_iter() {
+        scanned_from_legacy.push(kv.unwrap());
+    }
+
+    let expected_from_legacy = vec![
+        (
+            authorities[0],
+            StorageScoringMetrics {
+                faulty_blocks_provable: 40,
+                faulty_blocks_unprovable: 50,
+                equivocations: 60,
+                missing_proposals: 70,
+            },
+        ),
+        (
+            authorities[1],
+            StorageScoringMetrics {
+                faulty_blocks_provable: 0,
+                faulty_blocks_unprovable: 0,
+                equivocations: 0,
+                missing_proposals: 0,
+            },
+        ),
+    ];
+    assert_eq!(scanned_from_legacy, expected_from_legacy);
 }

@@ -125,3 +125,15 @@ impl WriteBatch {
         self
     }
 }
+
+// This struct is used in storage. It holds the same data as
+// `UncachedScoringMetrics`, but uses `u64` instead of `AtomicU64`.
+// NOTE: This type is deprecated and should be removed once the metrics are
+// migrated to VersionedStorageScoringMetrics type.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+pub(crate) struct StorageScoringMetrics {
+    pub(crate) faulty_blocks_provable: u64,
+    pub(crate) faulty_blocks_unprovable: u64,
+    pub(crate) equivocations: u64,
+    pub(crate) missing_proposals: u64,
+}
