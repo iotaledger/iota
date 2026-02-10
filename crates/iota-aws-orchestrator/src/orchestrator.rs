@@ -362,6 +362,10 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         use_internal_ip_address: bool,
         timestamp: &str,
     ) -> TestbedResult<()> {
+        if self.skip_monitoring {
+            display::warn("Monitoring is skipped, not starting Prometheus, Tempo and Grafana");
+            return Ok(());
+        }
         if let Some(instance) = &self.metrics_instance {
             display::action("Configuring monitoring instance");
 

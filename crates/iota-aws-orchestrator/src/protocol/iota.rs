@@ -432,8 +432,8 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
 
                     IotaBenchmarkType::AbstractAccountBench => {
                         stress_args.push("abstract-account-bench".to_string());
-                        stress_args.push(format!("--authenticator {}", parameters.aa_authenticator.as_cli_str()));
-                        stress_args.push(format!("--tx-type {}", parameters.tx_type.as_cli_str()));
+                        stress_args.push(format!("--authenticator {}", parameters.aa_authenticator.cli_str()));
+                        stress_args.push(format!("--tx-payload-obj-type {}", parameters.tx_payload_obj_type.cli_str()));
                         stress_args.push(format!("--target-qps {load_share}"));
                         stress_args.push(format!("--num-workers {}", parameters.aa_num_workers));
                         stress_args.push(format!("--in-flight-ratio {}", parameters.aa_in_flight_ratio));

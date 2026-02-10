@@ -18,7 +18,7 @@ use ssh::SshConnectionManager;
 use testbed::Testbed;
 
 use crate::{
-    benchmark::{AbstractAccountAuthenticator, RunInterval, TxType},
+    benchmark::{AbstractAccountAuthenticator, RunInterval, TxPayloadObjType},
     net_latency::TopologyLayout,
 };
 
@@ -93,7 +93,7 @@ pub enum Operation {
 
         /// Type of object transaction uses - owned or shared.
         #[arg(long, default_value = "owned-object", global = true)]
-        tx_type: TxType,
+        tx_payload_obj_type: TxPayloadObjType,
 
         /// AA workload: number of worker tasks inside `stress` for AA.
         /// Higher -> more concurrency; too high can reduce throughput due to
@@ -484,7 +484,7 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             use_current_timestamp_for_genesis,
             max_pipeline_delay,
             aa_authenticator,
-            tx_type,
+            tx_payload_obj_type,
             aa_num_workers,
             aa_split_amount,
             aa_in_flight_ratio,
@@ -580,7 +580,7 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             .with_current_timestamp_for_genesis(use_current_timestamp_for_genesis)
             .with_faults(fault_type)
             .with_aa_authenticator(aa_authenticator)
-            .with_tx_type(tx_type)
+            .with_tx_payload_obj_type(tx_payload_obj_type)
             .with_aa_num_workers(aa_num_workers)
             .with_aa_split_amount(aa_split_amount)
             .with_aa_in_flight_ratio(aa_in_flight_ratio)

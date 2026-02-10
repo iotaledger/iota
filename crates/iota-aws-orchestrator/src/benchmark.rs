@@ -74,7 +74,7 @@ impl Default for AbstractAccountAuthenticator {
 }
 
 impl AbstractAccountAuthenticator {
-    pub fn as_cli_str(&self) -> &'static str {
+    pub fn cli_str(&self) -> &'static str {
         match self {
             Self::Ed25519 => "ed25519",
             Self::Ed25519Heavy => "ed25519heavy",
@@ -104,19 +104,19 @@ impl Default for OtelConfig {
 }
 
 #[derive(ValueEnum, Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum TxType {
+pub enum TxPayloadObjType {
     OwnedObject,
     SharedObject,
 }
 
-impl Default for TxType {
+impl Default for TxPayloadObjType {
     fn default() -> Self {
         Self::OwnedObject
     }
 }
 
-impl TxType {
-    pub fn as_cli_str(&self) -> &'static str {
+impl TxPayloadObjType {
+    pub fn cli_str(&self) -> &'static str {
         match self {
             Self::OwnedObject => "owned-object",
             Self::SharedObject => "shared-object",
@@ -169,7 +169,7 @@ pub struct BenchmarkParameters<T> {
     /// AA workload: which authenticator kind to use.
     pub aa_authenticator: AbstractAccountAuthenticator,
     /// AA workload: which authenticator kind to use.
-    pub tx_type: TxType,
+    pub tx_payload_obj_type: TxPayloadObjType,
     /// AA workload: number of worker tasks inside stress.
     pub aa_num_workers: u64,
     /// AA workload: in-flight ratio inside stress.
@@ -224,7 +224,7 @@ impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
             load: 500,
             run_interval: RunInterval::Time(Duration::from_secs(60)),
             aa_authenticator: AbstractAccountAuthenticator::default(),
-            tx_type: TxType::default(),
+            tx_payload_obj_type: TxPayloadObjType::default(),
             aa_split_amount: 1_000,
             aa_num_workers: 2,
             aa_in_flight_ratio: 10,
@@ -285,7 +285,7 @@ impl<T> BenchmarkParameters<T> {
         load: usize,
         run_interval: RunInterval,
         aa_authenticator: AbstractAccountAuthenticator,
-        tx_type: TxType,
+        tx_payload_obj_type: TxPayloadObjType,
         aa_num_workers: u64,
         aa_split_amount: u64,
         aa_in_flight_ratio: u64,
@@ -312,7 +312,7 @@ impl<T> BenchmarkParameters<T> {
             load,
             run_interval,
             aa_authenticator,
-            tx_type,
+            tx_payload_obj_type,
             aa_split_amount,
             aa_num_workers,
             aa_in_flight_ratio,
@@ -383,7 +383,7 @@ pub struct BenchmarkParametersGenerator<T> {
     aa_authenticator: AbstractAccountAuthenticator,
 
     /// Type of object transaction uses - owned or shared.
-    tx_type: TxType,
+    tx_payload_obj_type: TxPayloadObjType,
 
     /// AA tuning.
     aa_num_workers: u64,
@@ -444,7 +444,7 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
                 load,
                 self.run_interval,
                 self.aa_authenticator.clone(),
-                self.tx_type.clone(),
+                self.tx_payload_obj_type.clone(),
                 self.aa_num_workers,
                 self.aa_split_amount,
                 self.aa_in_flight_ratio,
@@ -510,7 +510,7 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
             shared_counter_hotness_factor: None,
             num_shared_counters: None,
             aa_authenticator: AbstractAccountAuthenticator::default(),
-            tx_type: TxType::default(),
+            tx_payload_obj_type: TxPayloadObjType::default(),
             aa_num_workers: 2,
             aa_in_flight_ratio: 5,
             aa_split_amount: 1_000,
@@ -524,8 +524,8 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
         self
     }
 
-    pub fn with_tx_type(mut self, tx_type: TxType) -> Self {
-        self.tx_type = tx_type;
+    pub fn with_tx_payload_obj_type(mut self, tx_payload_obj_type: TxPayloadObjType) -> Self {
+        self.tx_payload_obj_type = tx_payload_obj_type;
         self
     }
 
