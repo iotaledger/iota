@@ -352,14 +352,12 @@ mod checked {
                 }
 
                 let original_address = context.set_link_context(package)?;
-                let storage_id = ModuleId::new(
-                    AccountAddress::new(package.into_bytes()),
-                    move_core_types::identifier::Identifier::new(module.as_str()).unwrap(),
-                );
-                let runtime_id = ModuleId::new(
-                    original_address,
-                    move_core_types::identifier::Identifier::new(module.as_str()).unwrap(),
-                );
+                let storage_id = ModuleId::new(AccountAddress::new(package.into_bytes()), unsafe {
+                    move_core_types::identifier::Identifier::new_unchecked(module.as_str())
+                });
+                let runtime_id = ModuleId::new(original_address, unsafe {
+                    move_core_types::identifier::Identifier::new_unchecked(module.as_str())
+                });
                 let return_values = execute_move_call::<Mode>(
                     context,
                     &mut argument_updates,
