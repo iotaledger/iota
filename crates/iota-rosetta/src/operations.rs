@@ -480,13 +480,13 @@ impl Operations {
     }
 
     fn is_stake_call(tx: &IotaProgrammableMoveCall) -> bool {
-        tx.package == ObjectID::FRAMEWORK
+        tx.package == ObjectID::SYSTEM
             && tx.module == Identifier::IOTA_SYSTEM_MODULE.as_str()
             && tx.function == ADD_STAKE_FUN_NAME.as_str()
     }
 
     fn is_unstake_call(tx: &IotaProgrammableMoveCall) -> bool {
-        tx.package == ObjectID::FRAMEWORK
+        tx.package == ObjectID::SYSTEM
             && tx.module == Identifier::IOTA_SYSTEM_MODULE.as_str()
             && tx.function == WITHDRAW_STAKE_FUN_NAME.as_str()
     }

@@ -449,7 +449,7 @@ fn test_timelocked_unstaking() {
 
             let _ = builder.programmable_move_call(
                 ObjectID::FRAMEWORK,
-                Identifier::from_static("timelocked_staking"),
+                Identifier::TIMELOCKED_STAKING_MODULE,
                 Identifier::from_static("request_withdraw_stake"),
                 vec![],
                 vec![state, timelocked_stake_id_argument],

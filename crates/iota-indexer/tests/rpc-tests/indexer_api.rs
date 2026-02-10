@@ -1362,7 +1362,7 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
             let mut builder = ProgrammableTransactionBuilder::new();
             let bag = builder.programmable_move_call(
                 ObjectID::FRAMEWORK,
-                Identifier::from_static("object_bag"),
+                Identifier::OBJECT_BAG_MODULE,
                 Identifier::from_static("new"),
                 vec![],
                 vec![],
@@ -1375,7 +1375,7 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
 
             let _ = builder.programmable_move_call(
                 ObjectID::FRAMEWORK,
-                Identifier::from_static("object_bag"),
+                Identifier::OBJECT_BAG_MODULE,
                 Identifier::from_static("add"),
                 vec![
                     TypeTag::U64,

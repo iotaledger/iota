@@ -22,7 +22,7 @@ fn enforce_order_test() {
 fn parse_move_function_name() {
     let name = "0x03::wat::call";
     let parsed: MoveFunctionName = name.parse().unwrap();
-    assert_eq!(parsed.package, ObjectID::FRAMEWORK);
+    assert_eq!(parsed.package, ObjectID::SYSTEM);
     assert_eq!(parsed.module.as_str(), "wat");
     assert_eq!(parsed.function.as_str(), "call");
 }

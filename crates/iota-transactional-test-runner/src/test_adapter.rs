@@ -115,7 +115,7 @@ const DEFAULT_GAS_PRICE: u64 = 1_000;
 const WELL_KNOWN_OBJECTS: &[ObjectID] = &[
     ObjectID::STD,
     ObjectID::FRAMEWORK,
-    ObjectID::FRAMEWORK,
+    ObjectID::SYSTEM,
     ObjectID::STARDUST,
     ObjectID::SYSTEM_STATE,
     ObjectID::CLOCK,
