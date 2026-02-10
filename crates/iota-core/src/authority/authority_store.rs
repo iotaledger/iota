@@ -333,12 +333,23 @@ impl AuthorityStore {
                         .effects
                         .insert(&effects.digest(), effects)
                         .expect("cannot insert migration effects");
-                    let events = events
+                    let events_iter = events
                         .data
                         .iter()
                         .enumerate()
                         .map(|(i, e)| ((events.digest(), i), e));
-                    store.perpetual_tables.events.multi_insert(events).unwrap();
+                    store
+                        .perpetual_tables
+                        .events
+                        .multi_insert(events_iter)
+                        .unwrap();
+
+                    // Insert to events_2 table
+                    store
+                        .perpetual_tables
+                        .events_2
+                        .insert(transaction.digest(), events)
+                        .unwrap();
                 }
             }
         }
