@@ -321,37 +321,11 @@ export const PasskeyAuthenticator = bcs.struct('PasskeyAuthenticator', {
 });
 
 /**
- * Input type for MoveAuthenticator call arguments.
- * Only immutable/owned and shared objects are allowed, no receiving objects.
- */
-export const MoveAuthenticatorInput = bcs.enum('MoveAuthenticatorInput', {
-    ImmutableOrOwned: IotaObjectRef,
-    Shared: bcs.struct('SharedInput', {
-        objectId: Address,
-        initialSharedVersion: bcs.u64(),
-        mutable: bcs.bool(),
-    }),
-    Pure: bcs.vector(bcs.u8()),
-});
-
-/**
- * Account type for MoveAuthenticator.
- * The account must be either immutable or shared.
- */
-export const MoveAuthenticatorAccount = bcs.enum('MoveAuthenticatorAccount', {
-    Immutable: IotaObjectRef,
-    Shared: bcs.struct('SharedAccount', {
-        objectId: Address,
-        initialSharedVersion: bcs.u64(),
-    }),
-});
-
-/**
  * MoveAuthenticator allows authenticating transactions via a Move function call
  * as part of Account Abstraction.
  */
 export const MoveAuthenticator = bcs.struct('MoveAuthenticator', {
-    callArgs: bcs.vector(MoveAuthenticatorInput),
+    callArgs: bcs.vector(CallArg),
     typeArgs: bcs.vector(TypeTag),
-    account: MoveAuthenticatorAccount,
+    objectToAuthenticate: CallArg,
 });

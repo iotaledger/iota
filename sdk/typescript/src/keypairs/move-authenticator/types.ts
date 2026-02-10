@@ -11,7 +11,7 @@ export interface ObjectRef {
 }
 
 /**
- * Input kind for specifying how to provide call arguments.
+ * Input kind for specifying how to provide call arguments before resolution.
  */
 export type InputKind =
     | { ImmutableOrOwned: string } // Object ID
@@ -24,48 +24,46 @@ export type InputKind =
     | { Pure: Uint8Array };
 
 /**
- * Resolved input for MoveAuthenticator call arguments.
+ * A resolved CallArg matching the Rust CallArg enum:
+ *   Pure(Vec<u8>)
+ *   Object(ObjectArg)
+ *
+ * Where ObjectArg is:
+ *   ImmOrOwnedObject(ObjectRef)
+ *   SharedObject { id, initial_shared_version, mutable }
+ *   Receiving(ObjectRef)
  */
-export type MoveAuthenticatorInput =
+export type ResolvedCallArg =
     | {
-          $kind: 'ImmutableOrOwned';
-          ImmutableOrOwned: ObjectRef;
+          Pure: {
+              bytes: Uint8Array | string;
+          };
       }
     | {
-          $kind: 'Shared';
-          Shared: {
+          Object: ResolvedObjectArg;
+      };
+
+export type ResolvedObjectArg =
+    | {
+          ImmOrOwnedObject: ObjectRef;
+      }
+    | {
+          SharedObject: {
               objectId: string;
               initialSharedVersion: string | number;
               mutable: boolean;
           };
       }
     | {
-          $kind: 'Pure';
-          Pure: number[];
-      };
-
-/**
- * Account reference for MoveAuthenticator.
- * The account must be either immutable or shared.
- */
-export type MoveAuthenticatorAccount =
-    | {
-          $kind: 'Immutable';
-          Immutable: ObjectRef;
-      }
-    | {
-          $kind: 'Shared';
-          Shared: {
-              objectId: string;
-              initialSharedVersion: string | number;
-          };
+          Receiving: ObjectRef;
       };
 
 /**
  * The resolved MoveAuthenticator data structure.
+ * Fields match the Rust MoveAuthenticator struct.
  */
 export interface MoveAuthenticatorData {
-    callArgs: MoveAuthenticatorInput[];
+    callArgs: ResolvedCallArg[];
     typeArgs: string[];
-    objectToAuthenticate: MoveAuthenticatorAccount;
+    objectToAuthenticate: ResolvedCallArg;
 }

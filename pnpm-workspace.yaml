@@ -29,4 +29,5 @@ packages:
   - "!sdk/signers/ledger"
   - "!sdk/signers/webcrypto"
   - "!sdk/typescript/test/**/**"
+  - "!sdk/examples/src/**/build"
 minimumReleaseAge: 1440

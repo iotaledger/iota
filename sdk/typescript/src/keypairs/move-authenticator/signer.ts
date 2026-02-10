@@ -12,6 +12,23 @@ import { MoveAuthenticatorPublicKey } from './publickey.js';
 import type { MoveAuthenticatorData } from './types.js';
 
 /**
+ * Extract the object ID from a resolved CallArg that represents the object to authenticate.
+ */
+function getObjectIdFromCallArg(callArg: MoveAuthenticatorData['objectToAuthenticate']): string {
+    if ('Object' in callArg) {
+        const obj = callArg.Object;
+        if ('ImmOrOwnedObject' in obj) {
+            return obj.ImmOrOwnedObject.objectId;
+        } else if ('SharedObject' in obj) {
+            return obj.SharedObject.objectId;
+        } else if ('Receiving' in obj) {
+            return obj.Receiving.objectId;
+        }
+    }
+    throw new Error('objectToAuthenticate must be an Object CallArg, not Pure');
+}
+
+/**
  * A Move Authenticator signer for account abstraction.
  * This allows transactions to be authorized via Move functions rather than traditional cryptographic signatures.
  */
@@ -41,67 +58,22 @@ export class MoveSigner extends Signer {
      * based on the object ID.
      */
     getPublicKey(): PublicKey {
-        const authenticatedObjectId =
-            this.data.objectToAuthenticate.$kind === 'Immutable'
-                ? this.data.objectToAuthenticate.Immutable.objectId
-                : this.data.objectToAuthenticate.Shared.objectId;
-        return new MoveAuthenticatorPublicKey(authenticatedObjectId);
+        const objectId = getObjectIdFromCallArg(this.data.objectToAuthenticate);
+        return new MoveAuthenticatorPublicKey(objectId);
     }
 
     /**
      * Serialize the MoveAuthenticator data to bytes (without the signature scheme flag).
-     * The bytes parameter is ignored for MoveAuthenticator as we don't perform traditional signing.
+     * The data is already in the correct CallArg BCS format.
      *
      * @param _bytes - Ignored for MoveAuthenticator
      * @returns The BCS-serialized MoveAuthenticator bytes
      */
     async sign(_bytes: Uint8Array): Promise<Uint8Array> {
-        // Convert the data to BCS format
-        const bcsCallArgs = this.data.callArgs.map((arg) => {
-            if (arg.$kind === 'ImmutableOrOwned') {
-                return {
-                    ImmutableOrOwned: {
-                        objectId: arg.ImmutableOrOwned.objectId,
-                        version: arg.ImmutableOrOwned.version,
-                        digest: arg.ImmutableOrOwned.digest,
-                    },
-                };
-            } else if (arg.$kind === 'Shared') {
-                return {
-                    Shared: {
-                        objectId: arg.Shared.objectId,
-                        initialSharedVersion: arg.Shared.initialSharedVersion,
-                        mutable: arg.Shared.mutable,
-                    },
-                };
-            } else {
-                return {
-                    Pure: arg.Pure,
-                };
-            }
-        });
-
-        const bcsAccount =
-            this.data.objectToAuthenticate.$kind === 'Immutable'
-                ? {
-                      Immutable: {
-                          objectId: this.data.objectToAuthenticate.Immutable.objectId,
-                          version: this.data.objectToAuthenticate.Immutable.version,
-                          digest: this.data.objectToAuthenticate.Immutable.digest,
-                      },
-                  }
-                : {
-                      Shared: {
-                          objectId: this.data.objectToAuthenticate.Shared.objectId,
-                          initialSharedVersion:
-                              this.data.objectToAuthenticate.Shared.initialSharedVersion,
-                      },
-                  };
-
         return bcs.MoveAuthenticator.serialize({
-            callArgs: bcsCallArgs,
+            callArgs: this.data.callArgs,
             typeArgs: this.data.typeArgs,
-            account: bcsAccount,
+            objectToAuthenticate: this.data.objectToAuthenticate,
         }).toBytes();
     }
 

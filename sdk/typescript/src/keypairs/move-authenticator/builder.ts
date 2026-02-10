@@ -4,9 +4,8 @@
 import type { IotaClient } from '../../client/index.js';
 import type {
     InputKind,
-    MoveAuthenticatorAccount,
     MoveAuthenticatorData,
-    MoveAuthenticatorInput,
+    ResolvedCallArg,
 } from './types.js';
 
 /**
@@ -155,7 +154,7 @@ export class MoveAuthenticatorBuilder {
         const objectToAuthenticateOwner = objectToAuthenticateData.owner;
 
         // Resolve call arguments
-        const resolvedCallArgs: MoveAuthenticatorInput[] = [];
+        const resolvedCallArgs: ResolvedCallArg[] = [];
 
         for (const input of this.callArgs) {
             if ('ImmutableOrOwned' in input) {
@@ -178,11 +177,12 @@ export class MoveAuthenticatorBuilder {
                 }
 
                 resolvedCallArgs.push({
-                    $kind: 'ImmutableOrOwned',
-                    ImmutableOrOwned: {
-                        objectId: objData.objectId,
-                        version: objData.version!,
-                        digest: objData.digest!,
+                    Object: {
+                        ImmOrOwnedObject: {
+                            objectId: objData.objectId,
+                            version: objData.version!,
+                            digest: objData.digest!,
+                        },
                     },
                 });
             } else if ('Shared' in input) {
@@ -207,31 +207,34 @@ export class MoveAuthenticatorBuilder {
                 }
 
                 resolvedCallArgs.push({
-                    $kind: 'Shared',
-                    Shared: {
-                        objectId,
-                        initialSharedVersion: owner.Shared.initial_shared_version,
-                        mutable,
+                    Object: {
+                        SharedObject: {
+                            objectId,
+                            initialSharedVersion: owner.Shared.initial_shared_version,
+                            mutable,
+                        },
                     },
                 });
             } else if ('Pure' in input) {
                 resolvedCallArgs.push({
-                    $kind: 'Pure',
-                    Pure: Array.from(input.Pure),
+                    Pure: {
+                        bytes: input.Pure,
+                    },
                 });
             }
         }
 
         // Resolve objectToAuthenticate
-        let objectToAuthenticate: MoveAuthenticatorAccount;
+        let objectToAuthenticate: ResolvedCallArg;
 
         if (objectToAuthenticateOwner === 'Immutable') {
             objectToAuthenticate = {
-                $kind: 'Immutable',
-                Immutable: {
-                    objectId: objectToAuthenticateData.objectId,
-                    version: objectToAuthenticateData.version!,
-                    digest: objectToAuthenticateData.digest!,
+                Object: {
+                    ImmOrOwnedObject: {
+                        objectId: objectToAuthenticateData.objectId,
+                        version: objectToAuthenticateData.version!,
+                        digest: objectToAuthenticateData.digest!,
+                    },
                 },
             };
         } else if (
@@ -240,10 +243,12 @@ export class MoveAuthenticatorBuilder {
             'Shared' in objectToAuthenticateOwner
         ) {
             objectToAuthenticate = {
-                $kind: 'Shared',
-                Shared: {
-                    objectId: objectToAuthenticateData.objectId,
-                    initialSharedVersion: objectToAuthenticateOwner.Shared.initial_shared_version,
+                Object: {
+                    SharedObject: {
+                        objectId: objectToAuthenticateData.objectId,
+                        initialSharedVersion: objectToAuthenticateOwner.Shared.initial_shared_version,
+                        mutable: false,
+                    },
                 },
             };
         } else {

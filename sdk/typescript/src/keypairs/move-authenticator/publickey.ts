@@ -1,8 +1,11 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { fromHex } from '@iota/bcs';
 import { PublicKey } from '../../cryptography/publickey.js';
 import { SIGNATURE_SCHEME_TO_FLAG } from '../../cryptography/signature-scheme.js';
+import { normalizeIotaAddress } from '../../utils/iota-types.js';
+import { bytesToHex } from '@noble/hashes/utils';
 
 /**
  * A MoveAuthenticator public key. Since MoveAuthenticator uses account abstraction,
@@ -19,13 +22,7 @@ export class MoveAuthenticatorPublicKey extends PublicKey {
     constructor(authenticatedObjectId: Uint8Array | string) {
         super();
         if (typeof authenticatedObjectId === 'string') {
-            // Convert hex string to bytes (remove 0x prefix if present)
-            const hex = authenticatedObjectId.startsWith('0x')
-                ? authenticatedObjectId.slice(2)
-                : authenticatedObjectId;
-            this.authenticatedObjectId = new Uint8Array(
-                hex.match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) || [],
-            );
+            this.authenticatedObjectId = fromHex(authenticatedObjectId)
         } else {
             this.authenticatedObjectId = authenticatedObjectId;
         }
@@ -43,6 +40,16 @@ export class MoveAuthenticatorPublicKey extends PublicKey {
      */
     flag(): number {
         return SIGNATURE_SCHEME_TO_FLAG.MoveAuthenticator;
+    }
+
+    /**
+     * Return the IOTA address for this MoveAuthenticator.
+     * Unlike other key types, the address IS the object ID directly,
+     * not a hash of (flag || publicKey). This matches the Rust implementation:
+     * `IotaAddress::from(object_id)`.
+     */
+    override toIotaAddress(): string {
+        return normalizeIotaAddress(bytesToHex(this.authenticatedObjectId));
     }
 
     /**
