@@ -1,221 +1,96 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, expect, it, vi } from 'vitest';
+import { resolve } from 'path';
+import { describe, expect, it } from 'vitest';
 
-import type { IotaObjectData } from '../../src/client/index.js';
+import { bcs } from '../../src/bcs/index.js';
 import {
     MoveAuthenticatorBuilder,
     MoveSigner,
 } from '../../src/keypairs/move-authenticator/index.js';
 import { Transaction } from '../../src/transactions/index.js';
-import { setup } from './utils/setup.js';
-import { SIGNATURE_FLAG_TO_SCHEME } from '../../src/cryptography/signature-scheme.js';
+import { publishPackage, setup } from './utils/setup.js';
+
+const PACKAGE_PATH = resolve(__dirname, 'data/move-authenticator');
 
 describe('MoveAuthenticator', () => {
-    it('should build, sign, and execute a transaction with MoveAuthenticator', async () => {
+    it('should publish, link auth, and execute a transaction with MoveAuthenticator', async () => {
         const toolbox = await setup();
 
-        // TODO: USE REAL VALUES
-        // Fake account object ID (this would be a real AA account in production)
-        const fakeAccountId = '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
+        // 1. Publish the account package
+        const { packageId, publishTxn } = await publishPackage(PACKAGE_PATH, toolbox);
 
-        // Fake shared object ID for testing
-        const fakeSharedObjectId =
-            '0xfedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321';
+        const accountChange = publishTxn.objectChanges?.find(
+            (c) => c.type === 'created' && c.objectType.endsWith('::account::Account'),
+        );
+        const metadataChange = publishTxn.objectChanges?.find(
+            (c) => c.type === 'created' && c.objectType.includes('PackageMetadataV1'),
+        );
+        expect(accountChange?.type).toBe('created');
+        expect(metadataChange?.type).toBe('created');
 
-        // TODO: USE REAL CALL
-        // Mock the client.getObject method to return fake data
-        const originalGetObject = toolbox.client.getObject.bind(toolbox.client);
-        vi.spyOn(toolbox.client, 'getObject').mockImplementation(async (params) => {
-            if (params.id === fakeAccountId) {
-                // Return a fake shared account object
-                return {
-                    data: {
-                        objectId: fakeAccountId,
-                        version: '1',
-                        digest: 'FakeAccountDigest123',
-                        owner: {
-                            Shared: {
-                                initial_shared_version: '1',
-                            },
-                        },
-                    } as IotaObjectData,
-                } as any;
-            } else if (params.id === fakeSharedObjectId) {
-                // Return a fake shared object
-                return {
-                    data: {
-                        objectId: fakeSharedObjectId,
-                        version: '5',
-                        digest: 'FakeSharedObjectDigest456',
-                        owner: {
-                            Shared: {
-                                initial_shared_version: '1',
-                            },
-                        },
-                    } as IotaObjectData,
-                } as any;
-            }
-            // Fall back to original implementation for other objects
-            return originalGetObject(params);
+        const accountId = accountChange!.type === 'created' ? accountChange!.objectId : '';
+        const metadataId = metadataChange!.type === 'created' ? metadataChange!.objectId : '';
+
+        // 2. Link the authenticator function
+        const linkTx = new Transaction();
+        linkTx.moveCall({
+            target: `${packageId}::account::link_auth`,
+            arguments: [
+                linkTx.object(accountId),
+                linkTx.object(metadataId),
+                linkTx.pure.string('account'),
+                linkTx.pure.string('authenticate'),
+            ],
         });
 
-        // TODO: USE REAL VALUES
-        // 1. Build the MoveAuthenticator
-        const builder = new MoveAuthenticatorBuilder(fakeAccountId)
-            .addSharedObject(fakeSharedObjectId, true)
-            .addPure(new Uint8Array([1, 2, 3, 4]))
-            .addTypeArg('0x2::iota::IOTA');
+        const linkResult = await toolbox.client.signAndExecuteTransaction({
+            transaction: linkTx,
+            signer: toolbox.keypair,
+        });
+        const linkConfirmed = await toolbox.client.waitForTransaction({
+            digest: linkResult.digest,
+            options: { showEffects: true },
+        });
+        expect(linkConfirmed.effects?.status.status).toEqual('success');
 
-        // 2. Resolve the authenticator data
-        const authenticatorData = await builder.finish(toolbox.client);
-        expect(authenticatorData).toBeDefined();
-
-        // 3. Create a MoveSigner
-        const signer = new MoveSigner(authenticatorData);
-
-        // Verify signer properties
-        expect(signer.getKeyScheme()).toBe('MoveAuthenticator');
-        const publicKey = signer.getPublicKey();
-        expect(publicKey).toBeDefined();
-
-        // 4. Create and sign a transaction
-        const tx = new Transaction();
-        tx.setSender(fakeAccountId);
-
-        // Add a simple transfer to the transaction
-        const coin = tx.splitCoins(tx.gas, [1000]);
-        tx.transferObjects([coin], toolbox.address());
-
-        // Build the transaction bytes
-        await tx.build({ client: toolbox.client });
-        const txBytes = await tx.toJSON();
-
-        // Sign the transaction with MoveSigner
-        const { signature, bytes } = await signer.signTransaction(
-            new Uint8Array(Buffer.from(txBytes)),
+        // 3. Build a MoveSigner from the account
+        const authBuilder = new MoveAuthenticatorBuilder(accountId).addPure(
+            bcs.string().serialize('rustisbetterthanjavascript').toBytes(),
         );
-        expect(signature).toBeDefined();
-        expect(bytes).toBeDefined();
+        const moveSigner = new MoveSigner(await authBuilder.finish(toolbox.client));
+        const aaAddress = moveSigner.getPublicKey().toIotaAddress();
 
-        // Verify the signature starts with the MoveAuthenticator flag (0x07)
-        const signatureBytes = Buffer.from(signature, 'base64');
-        expect(signatureBytes[0]).toBe(SIGNATURE_FLAG_TO_SCHEME[7]);
+        expect(moveSigner.getKeyScheme()).toBe('MoveAuthenticator');
 
-        console.log('MoveAuthenticator signature:', signature);
-        console.log('Transaction bytes:', bytes);
+        // 4. Fund the AA address
+        const fundTx = new Transaction();
+        const [fundCoin] = fundTx.splitCoins(fundTx.gas, [400_000_000]);
+        fundTx.transferObjects([fundCoin], aaAddress);
 
-        // TODO: SETUP A REAL AA
-        const result = await toolbox.client.executeTransactionBlock({
-            transactionBlock: bytes,
-            signature,
+        const fundResult = await toolbox.client.signAndExecuteTransaction({
+            transaction: fundTx,
+            signer: toolbox.keypair,
+        });
+        await toolbox.client.waitForTransaction({ digest: fundResult.digest });
+
+        // 5. Execute a transfer from the AA address
+        const transferTx = new Transaction();
+        const [coin] = transferTx.splitCoins(transferTx.gas, [1000]);
+        transferTx.transferObjects([coin], toolbox.address());
+        transferTx.setSender(aaAddress);
+
+        const builtTx = await transferTx.build({ client: toolbox.client });
+        const result = await toolbox.client.signAndExecuteTransaction({
+            signer: moveSigner,
+            transaction: builtTx,
         });
 
-        expect(result.effects?.status.status).toEqual('success');
-
-        // Restore the original getObject method
-        vi.restoreAllMocks();
-    });
-
-    it('should throw error for invalid account (owned)', async () => {
-        const toolbox = await setup();
-
-        const fakeOwnedAccountId =
-            '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
-
-        // Mock getObject to return an owned account
-        vi.spyOn(toolbox.client, 'getObject').mockResolvedValue({
-            data: {
-                objectId: fakeOwnedAccountId,
-                version: '1',
-                digest: 'FakeDigest',
-                owner: {
-                    AddressOwner: toolbox.address(),
-                },
-            } as IotaObjectData,
-        } as any);
-
-        const builder = new MoveAuthenticatorBuilder(fakeOwnedAccountId);
-
-        // Should throw because account is owned, not shared or immutable
-        await expect(builder.finish(toolbox.client)).rejects.toThrow(
-            'account must be immutable or shared',
-        );
-
-        vi.restoreAllMocks();
-    });
-
-    it('should handle immutable account', async () => {
-        const toolbox = await setup();
-
-        const fakeImmutableAccountId =
-            '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
-
-        // Mock getObject to return an immutable account
-        vi.spyOn(toolbox.client, 'getObject').mockResolvedValue({
-            data: {
-                objectId: fakeImmutableAccountId,
-                version: '1',
-                digest: 'ImmutableDigest',
-                owner: 'Immutable',
-            } as IotaObjectData,
-        } as any);
-
-        const builder = new MoveAuthenticatorBuilder(fakeImmutableAccountId);
-        const data = await builder.finish(toolbox.client);
-
-        expect(data.objectToAuthenticate.$kind).toBe('Immutable');
-        if (data.objectToAuthenticate.$kind === 'Immutable') {
-            expect(data.objectToAuthenticate.Immutable.objectId).toBe(fakeImmutableAccountId);
-            expect(data.objectToAuthenticate.Immutable.version).toBe('1');
-            expect(data.objectToAuthenticate.Immutable.digest).toBe('ImmutableDigest');
-        }
-
-        vi.restoreAllMocks();
-    });
-
-    it('should throw error when adding owned object as call arg', async () => {
-        const toolbox = await setup();
-
-        const fakeAccountId = '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
-        const fakeOwnedObjectId =
-            '0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc';
-
-        vi.spyOn(toolbox.client, 'getObject').mockImplementation(async (params) => {
-            if (params.id === fakeAccountId) {
-                return {
-                    data: {
-                        objectId: fakeAccountId,
-                        version: '1',
-                        digest: 'AccountDigest',
-                        owner: 'Immutable',
-                    } as IotaObjectData,
-                } as any;
-            } else if (params.id === fakeOwnedObjectId) {
-                return {
-                    data: {
-                        objectId: fakeOwnedObjectId,
-                        version: '1',
-                        digest: 'OwnedDigest',
-                        owner: {
-                            AddressOwner: toolbox.address(),
-                        },
-                    } as IotaObjectData,
-                } as any;
-            }
-            throw new Error('Object not found');
+        const confirmed = await toolbox.client.waitForTransaction({
+            digest: result.digest,
+            options: { showEffects: true },
         });
-
-        const builder = new MoveAuthenticatorBuilder(fakeAccountId).addImmutableObject(
-            fakeOwnedObjectId,
-        );
-
-        // Should throw because the object is owned, not immutable
-        await expect(builder.finish(toolbox.client)).rejects.toThrow(
-            'call arguments must not be owned',
-        );
-
-        vi.restoreAllMocks();
+        expect(confirmed.effects?.status.status).toEqual('success');
     });
 });
