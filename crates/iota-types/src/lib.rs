@@ -105,7 +105,7 @@ pub mod utils;
 macro_rules! built_in_ids {
     ($($addr:ident / $id:ident = $init:expr);* $(;)?) => {
         $(
-            pub const $addr: IotaAddress = builtin_address($init);
+            pub const $addr: AccountAddress = builtin_address($init);
             pub const $id: ObjectID = ObjectID::new($addr.into_bytes());
         )*
     }
@@ -114,7 +114,7 @@ macro_rules! built_in_ids {
 macro_rules! built_in_pkgs {
     ($($addr:ident / $id:ident = $init:expr);* $(;)?) => {
         built_in_ids! { $($addr / $id = $init;)* }
-        pub const SYSTEM_PACKAGE_ADDRESSES: &[IotaAddress] = &[$($addr),*];
+        pub const SYSTEM_PACKAGE_ADDRESSES: &[AccountAddress] = &[$($addr),*];
     }
 }
 
@@ -139,8 +139,12 @@ pub const IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION: SequenceNumber = OBJECT_START
 pub const IOTA_CLOCK_OBJECT_SHARED_VERSION: SequenceNumber = OBJECT_START_VERSION;
 pub const IOTA_AUTHENTICATOR_STATE_OBJECT_SHARED_VERSION: SequenceNumber = OBJECT_START_VERSION;
 
-const fn builtin_address(suffix: u16) -> IotaAddress {
-    IotaAddress::from_u16(suffix)
+const fn builtin_address(suffix: u16) -> AccountAddress {
+    let mut addr = [0u8; AccountAddress::LENGTH];
+    let [hi, lo] = suffix.to_be_bytes();
+    addr[AccountAddress::LENGTH - 2] = hi;
+    addr[AccountAddress::LENGTH - 1] = lo;
+    AccountAddress::new(addr)
 }
 
 pub fn iota_framework_address_concat_string(suffix: &str) -> String {
