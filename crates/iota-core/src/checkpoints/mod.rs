@@ -1098,6 +1098,7 @@ impl CheckpointBuilder {
         &self,
         pendings: Vec<PendingCheckpoint>,
     ) -> anyhow::Result<CheckpointSequenceNumber> {
+        let _scope = monitored_scope("CheckpointBuilder::make_checkpoint");
         let last_details = pendings.last().unwrap().details().clone();
 
         // Keeps track of the effects that are already included in the current
@@ -1136,6 +1137,8 @@ impl CheckpointBuilder {
         roots: Vec<TransactionKey>,
         effects_in_current_checkpoint: &mut BTreeSet<TransactionDigest>,
     ) -> IotaResult<Vec<TransactionEffects>> {
+        let _scope = monitored_scope("CheckpointBuilder::resolve_checkpoint_transactions");
+
         self.metrics
             .checkpoint_roots_count
             .inc_by(roots.len() as u64);
@@ -1150,8 +1153,6 @@ impl CheckpointBuilder {
             .try_notify_read_executed_effects(&root_digests)
             .in_monitored_scope("CheckpointNotifyRead")
             .await?;
-
-        let _scope = monitored_scope("CheckpointBuilder");
 
         let consensus_commit_prologue = {
             // If the roots contains consensus commit prologue transaction, we want to
