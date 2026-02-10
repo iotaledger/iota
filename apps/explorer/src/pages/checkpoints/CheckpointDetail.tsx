@@ -43,7 +43,6 @@ type CheckpointFeeDetails = {
     computationCostBurned?: string;
     storageCost?: string;
     storageRebate?: string;
-    nonRefundableStorageFee?: string;
 };
 
 function calculateDifference(a?: string, b?: string): string {
@@ -64,10 +63,6 @@ function getCheckpointFeesFromRolling(
         ),
         storageCost: calculateDifference(current.storageCost, prev?.storageCost),
         storageRebate: calculateDifference(current.storageRebate, prev?.storageRebate),
-        nonRefundableStorageFee: calculateDifference(
-            current.nonRefundableStorageFee,
-            prev?.nonRefundableStorageFee,
-        ),
     };
 }
 
