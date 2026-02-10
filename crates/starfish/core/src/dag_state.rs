@@ -751,7 +751,8 @@ impl DagState {
     }
 
     /// Finds genesis block matching the generic transaction reference.
-    /// For BlockRef: direct lookup. For TransactionRef: range query with transactions_commitment verification.
+    /// For BlockRef: direct lookup. For TransactionRef: range query with
+    /// transactions_commitment verification.
     fn get_genesis_block(&self, tx_ref: GenericTransactionRef) -> Option<&VerifiedBlock> {
         match tx_ref {
             GenericTransactionRef::BlockRef(block_ref) => self.genesis.get(&block_ref),

@@ -33,8 +33,12 @@ impl Ord for TransactionRef {
         self.round
             .cmp(&other.round)
             .then(self.author.cmp(&other.author))
-            .then(self.transactions_commitment.cmp(&other.transactions_commitment))
-        // block_digest intentionally excluded - not part of transaction identity
+            .then(
+                self.transactions_commitment
+                    .cmp(&other.transactions_commitment),
+            )
+        // block_digest intentionally excluded - not part of transaction
+        // identity
     }
 }
 
@@ -130,14 +134,6 @@ impl GenericTransactionRefAPI for TransactionRef {
 }
 
 impl GenericTransactionRef {
-    /// Convert this GenericTransactionRef to a BlockRef
-    pub(crate) fn to_block_ref(self) -> BlockRef {
-        match self {
-            GenericTransactionRef::BlockRef(block_ref) => block_ref,
-            GenericTransactionRef::TransactionRef(tx_ref) => BlockRef::from(tx_ref),
-        }
-    }
-
     /// Extract TransactionRef, returning error if this is a BlockRef variant.
     /// This should only be called when consensus_transaction_ref flag is true.
     pub(crate) fn expect_transaction_ref(self) -> ConsensusResult<TransactionRef> {
