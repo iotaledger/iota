@@ -35,6 +35,8 @@ pub struct KvStoreConfig {
     instance_id: String,
     column_family: String,
     timeout_secs: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    emulator_host: Option<String>,
 }
 
 /// Provides read access to data ingested by the `iota-data-ingestion`
@@ -58,15 +60,20 @@ impl KvStoreClient {
     ///
     /// Internally it instantiates a BigTableDB client.
     pub async fn new(config: KvStoreConfig) -> Result<Self> {
-        let bigtable_client = BigTableClient::new_remote(
-            config.instance_id,
-            true,
-            Some(Duration::from_secs(config.timeout_secs as u64)),
-            "rest".to_string(),
-            config.column_family,
-            None,
-        )
-        .await?;
+        let bigtable_client = if let Some(emulator_host) = config.emulator_host {
+            std::env::set_var("BIGTABLE_EMULATOR_HOST", &emulator_host);
+            BigTableClient::new_local(config.instance_id, config.column_family).await?
+        } else {
+            BigTableClient::new_remote(
+                config.instance_id,
+                true,
+                Some(Duration::from_secs(config.timeout_secs as u64)),
+                "rest".to_string(),
+                config.column_family,
+                None,
+            )
+            .await?
+        };
 
         Ok(Self {
             bigtable_client,
