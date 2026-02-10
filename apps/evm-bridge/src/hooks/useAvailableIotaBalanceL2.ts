@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useAccount, useBalance } from 'wagmi';
 import { useGasEstimateL2 } from './useGasEstimateL2';
 import { MINIMUM_SEND_AMOUNT } from '../lib/constants';

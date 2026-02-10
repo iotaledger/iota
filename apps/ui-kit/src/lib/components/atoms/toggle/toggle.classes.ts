@@ -17,15 +17,15 @@ export const TOGGLE_SIZE = {
     [ToggleSize.Default]: 'h-6 w-12',
 };
 
-export const TOGGLE_THUMB = 'absolute rounded-full transition-all duration-200 ease-in';
+export const TOGGLE_THUMB = 'absolute rounded-full transition-all duration-200 ease-in-out';
 export const TOGGLE_THUMB_POSITION = {
     [ToggleSize.Small]: {
         unchecked: 'left-1',
-        checked: 'left-8 -translate-x-full',
+        checked: 'left-[34px] -translate-x-full',
     },
     [ToggleSize.Default]: {
         unchecked: 'left-1',
-        checked: 'left-10 -translate-x-full',
+        checked: 'left-[42px] -translate-x-full',
     },
 };
 export const TOGGLE_THUMB_COLOR = {

@@ -190,6 +190,11 @@ public fun advance_epoch_with_reward_amounts_return_rebate_and_max_committee_mem
         |i| i,
     );
 
+    let scores = vector::tabulate!(
+        system_state.committee_validator_addresses().length(),
+        |_| 65536u64,    
+    );
+
     let storage_rebate = system_state.advance_epoch_for_testing(
         new_epoch,
         1,
@@ -203,6 +208,8 @@ public fun advance_epoch_with_reward_amounts_return_rebate_and_max_committee_mem
         0,
         max_committee_members_count,
         eligible_active_validators,
+        scores,
+        true,
         ctx,
     );
     test_scenario::return_shared(system_state);
@@ -285,6 +292,11 @@ public fun advance_epoch_with_reward_amounts_and_slashing_rates(
         |i| i,
     );
 
+    let scores = vector::tabulate!(
+        system_state.committee_validator_addresses().length(),
+        |_| 65536u64,    
+    );
+
     // Use the same value as the default value of max_active_validators.
     let max_committee_members_count = 150;
 
@@ -301,6 +313,50 @@ public fun advance_epoch_with_reward_amounts_and_slashing_rates(
         0,
         max_committee_members_count,
         eligible_active_validators,
+        scores,
+        true,
+        ctx,
+    );
+    test_utils::destroy(storage_rebate);
+    test_scenario::return_shared(system_state);
+    scenario.next_epoch(@0x0);
+}
+
+public fun advance_epoch_with_subsidy_and_scores(
+    validator_subsidy: u64,
+    scores: vector<u64>,
+    adjust_rewards_by_score: bool,
+    scenario: &mut Scenario,
+) {
+    scenario.next_tx(@0x0);
+    let new_epoch = scenario.ctx().epoch() + 1;
+    let mut system_state = scenario.take_shared<IotaSystemState>();
+
+    let ctx = scenario.ctx();
+
+    let eligible_active_validators = vector::tabulate!(
+        system_state.validators().active_validators_inner().length(),
+        |i| i,
+    );
+
+    // Use the same value as the default value of max_active_validators.
+    let max_committee_members_count = 150;
+
+    let storage_rebate = system_state.advance_epoch_for_testing(
+        new_epoch,
+        1,
+        validator_subsidy * NANOS_PER_IOTA,
+        0,
+        0,
+        0,
+        0,
+        0,
+        10000, // 100% slashing
+        0,
+        max_committee_members_count,
+        eligible_active_validators,
+        scores,
+        adjust_rewards_by_score,
         ctx,
     );
     test_utils::destroy(storage_rebate);

@@ -2,11 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { LONG_TIMEOUT } from './constants/timeout.constants';
-import { expect, test } from './fixtures';
+import { expect, test } from './utils/fixtures';
 import { receiverAddressMnemonic } from './mocks';
-import { addVirtualAuthenticator, createPasskeyWallet, restorePasskeyAccount } from './utils/auth';
-import { generateKeypairFromMnemonic } from './utils/localnet';
+import { generateKeypairFromMnemonic } from './utils/utils';
 import { setPresence, setVerified } from './utils/passkeySigner';
+import {
+    addVirtualAuthenticator,
+    createPasskeyWallet,
+    restorePasskeyAccount,
+} from './utils/wallet';
 
 const username = 'IOTAPasskey';
 
@@ -90,7 +94,10 @@ test('Creates a passkey account, resets the wallet and logs back in', async ({
 
     await expect(page.getByText('IOTA Wallet')).toBeVisible();
 
-    await restorePasskeyAccount(page, username);
+    await restorePasskeyAccount(page);
+
+    await page.getByTestId('username-input').fill(username);
+    await page.getByRole('button', { name: /Continue/ }).click();
 
     await expect(page.getByText(username)).toBeVisible();
     await page.getByTestId('receive-coin-button').click();
@@ -137,7 +144,7 @@ test('Fails when a different authenticator tries to log in', async ({ page, exte
         automaticPresenceSimulation: true,
     });
 
-    await restorePasskeyAccount(page, username);
+    await restorePasskeyAccount(page);
 
     const errorLocator = page.getByText(
         'Passkey operation failed: The operation either timed out or was not allowed.',

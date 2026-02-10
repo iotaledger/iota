@@ -483,7 +483,8 @@ h4 {
 .navbar__item.navbar-icon-developer,
 .navbar__item.navbar-icon-operator,
 .navbar__item.navbar-icon-references,
-.navbar__item.navbar-icon-users {
+.navbar__item.navbar-icon-users,
+.navbar__item.navbar-icon-workshops {
   position: relative;
   padding-left: 2.5rem !important;
 }
@@ -493,7 +494,8 @@ h4 {
 .navbar__item.navbar-icon-developer::before,
 .navbar__item.navbar-icon-operator::before,
 .navbar__item.navbar-icon-references::before,
-.navbar__item.navbar-icon-users::before {
+.navbar__item.navbar-icon-users::before,
+.navbar__item.navbar-icon-workshops::before {
   font-family: 'Font Awesome 6 Free';
   font-weight: 900;
   position: absolute;
@@ -522,6 +524,10 @@ h4 {
   content: "\f0c0";
 }
 
+.navbar__item.navbar-icon-workshops::before {
+  content: "\f19c";
+}
+
 #skcm-cookie-disclaimer__buttons {
   display: flex;
   gap: 1rem;
@@ -533,7 +539,8 @@ h4 {
 .navbar__item.navbar-icon-developer::before,
 .navbar__item.navbar-icon-operator::before,
 .navbar__item.navbar-icon-references::before,
-.navbar__item.navbar-icon-users::before {
+.navbar__item.navbar-icon-users::before,
+.navbar__item.navbar-icon-workshops::before {
   font-family: 'Font Awesome 6 Free';
   font-weight: 900;
   position: absolute;

@@ -32,13 +32,23 @@ export interface SignatureWithBytes {
  */
 export abstract class Signer {
     abstract sign(bytes: Uint8Array): Promise<Uint8Array>;
+
+    /**
+     * Sign messages with a specific intent. By combining the message bytes with the intent before hashing.
+     * Returns the digest.
+     */
+    static signingDigest(bytes: Uint8Array, intent: IntentScope): Uint8Array {
+        const intentMessage = messageWithIntent(intent, bytes);
+        const digest = blake2b(intentMessage, { dkLen: 32 });
+        return digest;
+    }
+
     /**
      * Sign messages with a specific intent. By combining the message bytes with the intent before hashing and signing,
      * it ensures that a signed message is tied to a specific purpose and domain separator is provided
      */
     async signWithIntent(bytes: Uint8Array, intent: IntentScope): Promise<SignatureWithBytes> {
-        const intentMessage = messageWithIntent(intent, bytes);
-        const digest = blake2b(intentMessage, { dkLen: 32 });
+        const digest = Signer.signingDigest(bytes, intent);
 
         const signature = toSerializedSignature({
             signature: await this.sign(digest),

@@ -27,7 +27,7 @@ use crate::{
     },
     context::Context,
     core_thread::CoreThreadDispatcher,
-    dag_state::{DagState, TransactionSource},
+    dag_state::{DagState, DataSource},
     decoder::{ShardsDecoder, create_decoder},
     encoder::{ShardEncoder, create_encoder},
     error::{ConsensusError, ConsensusResult},
@@ -474,6 +474,11 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             .node_metrics
             .reconstruction_queue
             .set(self.reconstruction_queue.len() as i64);
+        self.context
+            .metrics
+            .node_metrics
+            .shard_reconstructor_processed_transactions
+            .set(self.processed_transactions.len() as i64);
 
         let transaction_gc_round = self.dag_state.read().gc_round_for_last_solid_commit();
 
@@ -561,7 +566,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
 
             // Add the transactions to the core
             self.core_dispatcher
-                .add_transactions(transactions, TransactionSource::ShardReconstructor)
+                .add_transactions(transactions, DataSource::ShardReconstructor)
                 .await
                 .map_err(|_| ConsensusError::Shutdown)?;
         }
@@ -657,7 +662,7 @@ mod tests {
         context::Context,
         core::ReasonToCreateBlock,
         core_thread::{CoreError, CoreThreadDispatcher},
-        dag_state::{DagState, TransactionSource},
+        dag_state::{DagState, DataSource},
         encoder::create_encoder,
         shard_reconstructor::{
             FullTransactionMessage, ShardMessage, ShardReconstructor, TransactionMessage,
@@ -686,7 +691,7 @@ mod tests {
         async fn add_transactions(
             &self,
             txs: Vec<VerifiedTransactions>,
-            _source: TransactionSource,
+            _source: DataSource,
         ) -> Result<(), CoreError> {
             let mut guard = self.transactions.lock().await;
             guard.extend(txs);
@@ -695,6 +700,7 @@ mod tests {
         async fn add_blocks(
             &self,
             _blocks: Vec<VerifiedBlock>,
+            _source: DataSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
@@ -708,6 +714,7 @@ mod tests {
         async fn add_block_headers(
             &self,
             _blocks: Vec<VerifiedBlockHeader>,
+            _source: DataSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,

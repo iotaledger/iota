@@ -584,6 +584,12 @@ impl DataFetcher for RemoteFetcher {
                             .await?
                             .base_gas_price(),
                     ),
+                    EndOfEpochTransactionKind::ChangeEpochV4(change) => (
+                        change.epoch_start_timestamp_ms,
+                        self.get_protocol_config(protocol_version)
+                            .await?
+                            .base_gas_price(),
+                    ),
                     EndOfEpochTransactionKind::AuthenticatorStateCreate
                     | EndOfEpochTransactionKind::AuthenticatorStateExpire(_) => continue,
                 };

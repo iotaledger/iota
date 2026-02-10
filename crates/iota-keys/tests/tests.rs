@@ -10,7 +10,7 @@ use std::{
 use fastcrypto::{hash::HashFunction, traits::EncodeDecodeBase64};
 use iota_keys::{
     key_derive::generate_new_key,
-    keystore::{AccountKeystore, Alias, FileBasedKeystore, InMemKeystore, Keystore},
+    keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, LegacyAlias},
 };
 use iota_types::{
     base_types::{IOTA_ADDRESS_LENGTH, IotaAddress},
@@ -301,7 +301,7 @@ fn test_migrate_v1_to_v2_with_aliases() {
     fs::write(&keystore_path, keystore_data).unwrap();
 
     // Create an aliases file with a single alias
-    let aliases = vec![Alias {
+    let aliases = vec![LegacyAlias {
         alias: "test_alias".to_string(),
         public_key_base64: keypair.public().encode_base64(),
     }];

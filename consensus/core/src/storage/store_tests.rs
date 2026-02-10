@@ -298,3 +298,67 @@ async fn read_and_scan_commits(
         assert_eq!(scanned_commits, written_commits,);
     }
 }
+
+#[rstest]
+#[tokio::test]
+async fn scan_scoring_metrics(
+    #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
+) {
+    use crate::storage::StorageScoringMetrics;
+
+    let store = test_store.store();
+    let metrics_updates = [
+        StorageScoringMetrics {
+            faulty_blocks_provable: 1,
+            faulty_blocks_unprovable: 2,
+            equivocations: 3,
+            missing_proposals: 4,
+        },
+        StorageScoringMetrics {
+            faulty_blocks_provable: 0,
+            faulty_blocks_unprovable: 0,
+            equivocations: 0,
+            missing_proposals: 0,
+        },
+    ];
+    let authories = [
+        AuthorityIndex::new_for_test(0),
+        AuthorityIndex::new_for_test(1),
+        AuthorityIndex::new_for_test(2),
+    ];
+
+    let metrics_to_write = vec![
+        (authories[0], metrics_updates[0].clone()),
+        (authories[1], metrics_updates[1].clone()),
+    ];
+
+    store
+        .write(WriteBatch::default().scoring_metrics(metrics_to_write.clone()))
+        .unwrap();
+
+    {
+        let scanned_metrics = store
+            .scan_scoring_metrics()
+            .expect("Scan scoring_metrics should not fail");
+        assert_eq!(&scanned_metrics, &metrics_to_write);
+    }
+
+    let metrics_to_write = vec![(authories[0], metrics_updates[1].clone())];
+
+    store
+        .write(WriteBatch::default().scoring_metrics(metrics_to_write.clone()))
+        .unwrap();
+
+    {
+        let scanned_metrics = store
+            .scan_scoring_metrics()
+            .expect("Scan scoring_metrics should not fail");
+        assert_eq!(
+            &scanned_metrics,
+            &vec![
+                (authories[0], metrics_updates[1].clone()),
+                (authories[1], metrics_updates[1].clone())
+            ]
+        );
+    }
+}

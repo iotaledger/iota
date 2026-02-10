@@ -1,0 +1,61 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 7 tasks
+
+init:
+A: object(0,0)
+
+task 1, line 8:
+//# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move
+Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move':
+created: object(2,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9971200,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 10-24:
+//# publish --sender A --dependencies simple_abstract_account
+created: object(3,0), object(3,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9918000,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 26:
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_hello_world" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
+events: Event { package_id: simple_abstract_account, transaction_module: Identifier("abstract_account"), sender: A, type_: StructTag { address: iota, module: Identifier("account"), name: Identifier("MutableAccountCreated"), type_params: [Struct(StructTag { address: simple_abstract_account, module: Identifier("abstract_account"), name: Identifier("AbstractAccount"), type_params: [] })] }, contents: [118, 148, 168, 179, 49, 8, 198, 92, 21, 125, 6, 180, 227, 97, 246, 20, 241, 88, 51, 186, 200, 202, 42, 84, 230, 84, 167, 107, 231, 146, 174, 230, 57, 11, 82, 234, 228, 162, 3, 155, 237, 197, 142, 43, 85, 213, 106, 74, 73, 1, 24, 171, 0, 12, 137, 124, 25, 149, 48, 40, 186, 221, 194, 209, 12, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 101, 24, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 101, 95, 104, 101, 108, 108, 111, 95, 119, 111, 114, 108, 100] }
+created: object(4,0), object(4,1), object(4,2)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6938800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 4, line 28:
+//# view-object 4,2
+Owner: Shared( 3 )
+Version: 3
+Contents: simple_abstract_account::abstract_account::AbstractAccount {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(4,2),
+        },
+    },
+}
+
+task 5, lines 30-32:
+//# abstract --account immshared(4,2) --auth-inputs "HelloWorld" --ptb-inputs 100 @A
+created: object(6,0)
+mutated: object(4,0)
+unchanged_shared: object(4,2)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 6, line 34:
+//# view-object 6,0
+Owner: Account Address ( A )
+Version: 4
+Contents: iota::coin::Coin<iota::iota::IOTA> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(6,0),
+        },
+    },
+    balance: iota::balance::Balance<iota::iota::IOTA> {
+        value: 100u64,
+    },
+}

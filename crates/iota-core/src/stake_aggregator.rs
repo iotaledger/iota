@@ -13,11 +13,12 @@ use iota_types::{
     base_types::{AuthorityName, ConciseableName},
     committee::{Committee, CommitteeTrait, StakeUnit},
     crypto::{AuthorityQuorumSignInfo, AuthoritySignInfo, AuthoritySignInfoTrait},
-    error::IotaError,
+    error::{IotaError, IotaResult},
     message_envelope::{Envelope, Message},
 };
 use serde::Serialize;
 use tracing::warn;
+use typed_store::TypedStoreError;
 
 /// StakeAggregator allows us to keep track of the total stake of a set of
 /// validators. STRENGTH indicates whether we want a strong quorum (2f+1) or a
@@ -44,15 +45,16 @@ impl<S: Clone + Eq, const STRENGTH: bool> StakeAggregator<S, STRENGTH> {
         }
     }
 
-    pub fn from_iter<I: Iterator<Item = (AuthorityName, S)>>(
+    pub fn from_iter<I: Iterator<Item = Result<(AuthorityName, S), TypedStoreError>>>(
         committee: Arc<Committee>,
         data: I,
-    ) -> Self {
+    ) -> IotaResult<Self> {
         let mut this = Self::new(committee);
-        for (authority, s) in data {
+        for item in data {
+            let (authority, s) = item?;
             this.insert_generic(authority, s);
         }
-        this
+        Ok(this)
     }
 
     /// A generic version of inserting arbitrary type of V (e.g. void type).

@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { DarkMode, LightMode } from '@iota/apps-ui-icons';
 import { Theme, ThemePreference } from '../../lib/enums';
 import { useTheme } from '../../hooks/useTheme';
