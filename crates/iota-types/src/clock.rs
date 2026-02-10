@@ -8,10 +8,10 @@ use move_bytecode_utils::resolve_struct;
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 use serde::{Deserialize, Serialize};
 
-use crate::{base_types::IotaAddress, id::UID};
+use crate::{IOTA_FRAMEWORK_ADDRESS, id::UID};
 
 pub const RESOLVED_IOTA_CLOCK: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &AccountAddress::new(IotaAddress::FRAMEWORK.into_bytes()),
+    &IOTA_FRAMEWORK_ADDRESS,
     ident_str!("clock"),
     ident_str!("Clock"),
 );

@@ -7,7 +7,8 @@ use move_bytecode_utils::resolve_struct;
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 
 use crate::{
-    base_types::{Identifier, IotaAddress, ObjectID, SequenceNumber},
+    IOTA_FRAMEWORK_ADDRESS,
+    base_types::{Identifier, ObjectID, SequenceNumber},
     error::{IotaError, IotaResult},
     object::Owner,
     storage::ObjectStore,
@@ -17,7 +18,7 @@ pub const RANDOMNESS_STATE_UPDATE_FUNCTION_NAME: Identifier =
     Identifier::from_static("update_randomness_state");
 pub const RANDOMNESS_STATE_CREATE_FUNCTION_NAME: Identifier = Identifier::from_static("create");
 pub const RESOLVED_IOTA_RANDOMNESS_STATE: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &AccountAddress::new(IotaAddress::FRAMEWORK.into_bytes()),
+    &IOTA_FRAMEWORK_ADDRESS,
     ident_str!("random"),
     ident_str!("Random"),
 );

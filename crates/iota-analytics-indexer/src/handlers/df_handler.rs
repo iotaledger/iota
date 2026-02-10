@@ -11,8 +11,7 @@ use iota_indexer::{errors::IndexerError, types::owner_to_owner_info};
 use iota_json_rpc_types::IotaMoveValue;
 use iota_package_resolver::Resolver;
 use iota_types::{
-    SYSTEM_PACKAGE_ADDRESSES,
-    base_types::{ObjectID, TypeTag},
+    base_types::{IotaAddress, ObjectID, TypeTag},
     dynamic_field::{DynamicFieldName, DynamicFieldType, visitor as DFV},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_sdk_types_conversions::type_tag_core_to_sdk,
@@ -67,10 +66,13 @@ impl Worker for DynamicFieldHandler {
             )
             .await?;
             if checkpoint_summary.end_of_epoch_data.is_some() {
-                state
-                    .resolver
-                    .package_store()
-                    .evict(SYSTEM_PACKAGE_ADDRESSES.iter().copied());
+                state.resolver.package_store().evict([
+                    IotaAddress::STD,
+                    IotaAddress::FRAMEWORK,
+                    IotaAddress::SYSTEM,
+                    IotaAddress::GENESIS_BRIDGE,
+                    IotaAddress::STARDUST,
+                ]);
             }
         }
         Ok(())

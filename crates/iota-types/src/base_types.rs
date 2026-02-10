@@ -26,6 +26,7 @@ use serde::{
 };
 
 use crate::{
+    MOVE_STDLIB_ADDRESS,
     account_abstraction::authenticator_function::AuthenticatorFunctionRefV1,
     coin::{Coin, CoinMetadata},
     coin_manager::CoinManager,
@@ -785,19 +786,19 @@ impl VerifiedExecutionData {
 }
 
 pub const RESOLVED_STD_OPTION: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &AccountAddress::new(IotaAddress::STD.into_bytes()),
+    &MOVE_STDLIB_ADDRESS,
     ident_str!("option"),
     ident_str!("Option"),
 );
 
 pub const RESOLVED_ASCII_STR: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &AccountAddress::new(IotaAddress::STD.into_bytes()),
+    &MOVE_STDLIB_ADDRESS,
     ident_str!("ascii"),
     ident_str!("String"),
 );
 
 pub const RESOLVED_UTF8_STR: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &AccountAddress::new(IotaAddress::STD.into_bytes()),
+    &MOVE_STDLIB_ADDRESS,
     ident_str!("string"),
     ident_str!("String"),
 );

@@ -15,13 +15,12 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    MoveTypeTagTrait,
-    base_types::{IotaAddress, ObjectID},
+    IOTA_FRAMEWORK_ADDRESS, MoveTypeTagTrait, base_types::ObjectID,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
 };
 
 pub const RESOLVED_IOTA_ID: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &AccountAddress::new(IotaAddress::FRAMEWORK.into_bytes()),
+    &IOTA_FRAMEWORK_ADDRESS,
     ident_str!("object"),
     ident_str!("ID"),
 );

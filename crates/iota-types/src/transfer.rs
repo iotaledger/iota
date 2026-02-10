@@ -9,12 +9,13 @@ use move_core_types::{account_address::AccountAddress, ident_str, identifier::Id
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    IOTA_FRAMEWORK_ADDRESS,
+    base_types::{ObjectID, SequenceNumber},
     id::ID,
 };
 
 pub const RESOLVED_RECEIVING_STRUCT: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &AccountAddress::new(IotaAddress::FRAMEWORK.into_bytes()),
+    &IOTA_FRAMEWORK_ADDRESS,
     ident_str!("transfer"),
     ident_str!("Receiving"),
 );

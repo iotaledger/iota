@@ -7,7 +7,8 @@ use move_core_types::{account_address::AccountAddress, ident_str, identifier::Id
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{Identifier, IotaAddress, ObjectID, SequenceNumber},
+    IOTA_FRAMEWORK_ADDRESS,
+    base_types::{Identifier, ObjectID, SequenceNumber},
     dynamic_field::get_dynamic_field_from_store,
     error::{IotaError, IotaResult},
     id::UID,
@@ -21,7 +22,7 @@ pub const AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME: Identifier = Identifier::fro
 pub const AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME: Identifier =
     Identifier::from_static("expire_jwks");
 pub const RESOLVED_IOTA_AUTHENTICATOR_STATE: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &AccountAddress::new(IotaAddress::FRAMEWORK.into_bytes()),
+    &IOTA_FRAMEWORK_ADDRESS,
     ident_str!("authenticator_state"),
     ident_str!("AuthenticatorState"),
 );

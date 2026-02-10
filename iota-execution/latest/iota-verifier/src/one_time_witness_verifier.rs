@@ -21,6 +21,7 @@
 //!   initializer
 //! - it is never instantiated anywhere in its defining module
 use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS,
     base_types::{Identifier, IotaAddress},
     error::ExecutionError,
     move_package::{FnInfoMap, is_test_fun},
@@ -29,7 +30,7 @@ use move_binary_format::file_format::{
     Ability, AbilitySet, Bytecode, CompiledModule, DatatypeHandle, FunctionDefinition,
     FunctionHandle, SignatureToken, StructDefinition,
 };
-use move_core_types::{account_address::AccountAddress, ident_str, language_storage::ModuleId};
+use move_core_types::{ident_str, language_storage::ModuleId};
 
 use crate::{INIT_FN_NAME, verification_failure};
 
@@ -48,11 +49,7 @@ pub fn verify_module(
     // that this is framework code and thus deemed correct.
     let self_id = module.self_id();
 
-    if ModuleId::new(
-        AccountAddress::new(IotaAddress::FRAMEWORK.into_bytes()),
-        ident_str!("iota").to_owned(),
-    ) == self_id
-    {
+    if ModuleId::new(IOTA_FRAMEWORK_ADDRESS, ident_str!("iota").to_owned()) == self_id {
         return Ok(());
     }
 

@@ -10,8 +10,11 @@ use iota_data_ingestion_core::Worker;
 use iota_json_rpc_types::type_and_fields_from_move_event_data;
 use iota_package_resolver::Resolver;
 use iota_types::{
-    SYSTEM_PACKAGE_ADDRESSES, base_types::TypeTag, digests::TransactionDigest,
-    effects::TransactionEvents, event::Event, full_checkpoint_content::CheckpointData,
+    base_types::{IotaAddress, TypeTag},
+    digests::TransactionDigest,
+    effects::TransactionEvents,
+    event::Event,
+    full_checkpoint_content::CheckpointData,
 };
 use move_core_types::annotated_value::MoveValue;
 use tokio::sync::Mutex;
@@ -64,10 +67,13 @@ impl Worker for EventHandler {
                 .await?;
             }
             if checkpoint_summary.end_of_epoch_data.is_some() {
-                state
-                    .resolver
-                    .package_store()
-                    .evict(SYSTEM_PACKAGE_ADDRESSES.iter().copied());
+                state.resolver.package_store().evict([
+                    IotaAddress::STD,
+                    IotaAddress::FRAMEWORK,
+                    IotaAddress::SYSTEM,
+                    IotaAddress::GENESIS_BRIDGE,
+                    IotaAddress::STARDUST,
+                ]);
             }
         }
         Ok(())

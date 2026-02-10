@@ -7,11 +7,8 @@ use iota_json_rpc_api::ReadApiClient;
 use iota_json_rpc_types::IotaObjectResponse;
 use iota_macros::sim_test;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
-    digests::TransactionDigest,
-    object::Object,
+    IOTA_SYSTEM_ADDRESS, base_types::ObjectID, digests::TransactionDigest, object::Object,
 };
-use move_core_types::account_address::AccountAddress;
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]
@@ -51,8 +48,7 @@ async fn test_package_override() {
         // Create an empty module that is pretending to be part of the iota framework.
         let mut test_module = move_binary_format::file_format::empty_module();
         let address_idx = test_module.self_handle().address.0 as usize;
-        test_module.address_identifiers[address_idx] =
-            AccountAddress::new(IotaAddress::SYSTEM.into_bytes());
+        test_module.address_identifiers[address_idx] = IOTA_SYSTEM_ADDRESS;
 
         // Add the dummy module to the rest of the iota-frameworks.  We can't replace
         // the framework entirely because we will call into it for genesis.

@@ -8,7 +8,7 @@ use anyhow::Result;
 use iota_data_ingestion_core::Worker;
 use iota_package_resolver::Resolver;
 use iota_types::{
-    SYSTEM_PACKAGE_ADDRESSES,
+    base_types::IotaAddress,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     object::Object,
 };
@@ -59,10 +59,13 @@ impl Worker for WrappedObjectHandler {
             )
             .await?;
             if checkpoint_summary.end_of_epoch_data.is_some() {
-                state
-                    .resolver
-                    .package_store()
-                    .evict(SYSTEM_PACKAGE_ADDRESSES.iter().copied());
+                state.resolver.package_store().evict([
+                    IotaAddress::STD,
+                    IotaAddress::FRAMEWORK,
+                    IotaAddress::SYSTEM,
+                    IotaAddress::GENESIS_BRIDGE,
+                    IotaAddress::STARDUST,
+                ]);
             }
         }
         Ok(())
