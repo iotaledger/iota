@@ -23,7 +23,6 @@ import { AccountTooManyAttemptsError } from '_src/shared/accounts';
 import UnlockWallet from '_assets/images/unlock_wallet.png';
 import UnlockWalletDarkmode from '_assets/images/unlock_wallet_darkmode.png';
 import clsx from 'clsx';
-import { AppType, getFromLocationSearch } from '../../redux/slices/app/appType';
 
 const formSchema = z.object({
     password: z.string().nonempty('Required'),
@@ -131,18 +130,9 @@ export function PasswordModalDialog({
     const isConfirmDisabled =
         !!countdownError || isSubmitting || !isValid || !!form.formState.errors.password?.message;
 
-    const appType = getFromLocationSearch();
-
-    // Determine dialog height classes based on appType and showForgotPassword
-    const isPopup = appType === AppType.Popup;
-    const minHeightClass = isPopup
-        ? showForgotPassword
-            ? 'min-h-[90vh]'
-            : 'min-h-[80vh]'
-        : showForgotPassword
-          ? 'min-h-[600px]'
-          : 'min-h-[calc(600px-4rem)]';
-    const maxHeightClass = showForgotPassword ? 'max-h-[calc(100dvh-2rem)]' : '';
+    const heightClasses = showForgotPassword
+        ? 'min-h-[min(600px,90dvh)] max-h-[calc(100dvh-2rem)]'
+        : 'min-h-[min(calc(600px-4rem),80vh)] max-h-[calc(100dvh-4rem)]';
 
     return (
         <Dialog open={open}>
@@ -151,8 +141,7 @@ export function PasswordModalDialog({
                 <DialogBody
                     className={clsx(
                         'dialog-body-color flex flex-col overflow-y-auto p-md--rs text-body-sm',
-                        minHeightClass,
-                        maxHeightClass,
+                        heightClasses,
                     )}
                 >
                     <div
