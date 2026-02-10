@@ -50,16 +50,16 @@ const aboutIota = [
         items: [
             {
                 type: 'link',
-                label: 'IOTA Grants',
-                href: 'https://iotalabs.io/grants',
-                description: 'IOTA Grants by the IOTA Builders Program',
-            },
-            {
-                type: 'link',
                 label: 'Business Innovation Program',
                 href: 'https://blog.iota.org/iota-business-innovation-program',
                 description:
-                    'A funding initiative to accelerate real-world adoption of IOTA',
+                    'Technical and financial support for real-world impact',
+            },
+            {
+                type: 'link',
+                label: 'IOTA Grants',
+                href: 'https://iotalabs.io/grants',
+                description: 'Apply for a grant from iotalabs and turn your wildest dApp dreams into reality',
             },
             {
                 type: 'doc',
