@@ -650,12 +650,7 @@ fn test_iota_call_arg_option_type() {
     }));
 
     let option_layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
-        type_: struct_tag_sdk_to_core(&StructTag::new(
-            IotaAddress::STD,
-            Identifier::OPTION_MODULE,
-            Identifier::OPTION,
-            vec![],
-        )),
+        type_: struct_tag_sdk_to_core(&StructTag::new_option(StructTag::new_ascii_string())),
         fields: vec![MoveFieldLayout {
             name: ident_str!("vec").into(),
             layout: MoveTypeLayout::Vector(Box::new(string_layout.clone())),

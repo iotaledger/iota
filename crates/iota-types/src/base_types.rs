@@ -417,8 +417,10 @@ impl From<&StructTag> for MoveObjectType {
         Self(if s.is_gas_coin() {
             MoveObjectType_::GasCoin
         } else if s.is_coin() {
-            // unwrap safe because a coin has exactly one type parameter
-            MoveObjectType_::Coin(s.type_params()[0].clone())
+            let [type_param] = s.type_params() else {
+                unreachable!("a coin has exactly one type parameter");
+            };
+            MoveObjectType_::Coin(type_param.clone())
         } else if s.is_staked_iota() {
             MoveObjectType_::StakedIota
         } else {
@@ -432,8 +434,10 @@ impl From<StructTag> for MoveObjectType {
         Self(if s.is_gas_coin() {
             MoveObjectType_::GasCoin
         } else if s.is_coin() {
-            // unwrap safe because a coin has exactly one type parameter
-            MoveObjectType_::Coin(s.type_params()[0].clone())
+            let Some(type_param) = s.into_parts().3.into_iter().next() else {
+                unreachable!("a coin has exactly one type parameter");
+            };
+            MoveObjectType_::Coin(type_param)
         } else if s.is_staked_iota() {
             MoveObjectType_::StakedIota
         } else {
