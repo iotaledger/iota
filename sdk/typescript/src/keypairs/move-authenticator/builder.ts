@@ -2,11 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { IotaClient } from '../../client/index.js';
-import type {
-    InputKind,
-    MoveAuthenticatorData,
-    ResolvedCallArg,
-} from './types.js';
+import type { InputKind, MoveAuthenticatorData, ResolvedCallArg } from './types.js';
 
 /**
  * Error thrown when an invalid argument is provided to MoveAuthenticator.
@@ -246,7 +242,8 @@ export class MoveAuthenticatorBuilder {
                 Object: {
                     SharedObject: {
                         objectId: objectToAuthenticateData.objectId,
-                        initialSharedVersion: objectToAuthenticateOwner.Shared.initial_shared_version,
+                        initialSharedVersion:
+                            objectToAuthenticateOwner.Shared.initial_shared_version,
                         mutable: false,
                     },
                 },

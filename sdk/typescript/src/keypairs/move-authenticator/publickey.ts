@@ -22,7 +22,7 @@ export class MoveAuthenticatorPublicKey extends PublicKey {
     constructor(authenticatedObjectId: Uint8Array | string) {
         super();
         if (typeof authenticatedObjectId === 'string') {
-            this.authenticatedObjectId = fromHex(authenticatedObjectId)
+            this.authenticatedObjectId = fromHex(authenticatedObjectId);
         } else {
             this.authenticatedObjectId = authenticatedObjectId;
         }

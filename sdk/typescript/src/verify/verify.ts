@@ -92,11 +92,15 @@ function parseSignature(signature: string) {
 
     if (parsedSignature.signatureScheme === 'MoveAuthenticator') {
         const authenticatedObjectId =
-            parsedSignature.moveAuthenticator.objectToAuthenticate.Object?.$kind === 'ImmOrOwnedObject'
-                ? parsedSignature.moveAuthenticator.objectToAuthenticate.Object.ImmOrOwnedObject.objectId
-                : parsedSignature.moveAuthenticator.objectToAuthenticate.Object?.$kind === 'Receiving'
-                ? parsedSignature.moveAuthenticator.objectToAuthenticate.Object.Receiving.objectId
-                : parsedSignature.moveAuthenticator.objectToAuthenticate.Object?.SharedObject?.objectId;
+            parsedSignature.moveAuthenticator.objectToAuthenticate.Object?.$kind ===
+            'ImmOrOwnedObject'
+                ? parsedSignature.moveAuthenticator.objectToAuthenticate.Object.ImmOrOwnedObject
+                      .objectId
+                : parsedSignature.moveAuthenticator.objectToAuthenticate.Object?.$kind ===
+                    'Receiving'
+                  ? parsedSignature.moveAuthenticator.objectToAuthenticate.Object.Receiving.objectId
+                  : parsedSignature.moveAuthenticator.objectToAuthenticate.Object?.SharedObject
+                        ?.objectId;
         return {
             ...parsedSignature,
             publicKey: new MoveAuthenticatorPublicKey(authenticatedObjectId!),
