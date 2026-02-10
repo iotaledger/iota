@@ -4,7 +4,7 @@
 import { useRef } from 'react';
 import { Button, ButtonSize, ButtonType } from '@iota/apps-ui-kit';
 import { type AccountType } from '_src/background/accounts/account';
-import { useInitializedGuard, useAccountGroups, useActiveAccount } from '_hooks';
+import { useInitializedGuard, useAccountGroups } from '_hooks';
 import { useNavigate } from 'react-router-dom';
 import { Overlay, useUnlockAccounts } from '_components';
 import { AccountGroup } from './AccountGroup';
@@ -13,8 +13,7 @@ import { LockLocked } from '@iota/apps-ui-icons';
 export function ManageAccountsPage() {
     const navigate = useNavigate();
     const groupedAccounts = useAccountGroups();
-    const { unlockAccounts, lockAccounts } = useUnlockAccounts();
-    const activeAccount = useActiveAccount();
+    const { lockAccounts } = useUnlockAccounts();
     const outerRef = useRef<HTMLDivElement>(null);
     useInitializedGuard(true);
 
@@ -23,11 +22,7 @@ export function ManageAccountsPage() {
     }
 
     function handleLock() {
-        if (activeAccount?.isLocked) {
-            unlockAccounts();
-        } else {
-            lockAccounts();
-        }
+        lockAccounts();
     }
 
     return (
