@@ -797,17 +797,23 @@ async fn start(
                 "Cannot open IOTA network config file at {network_config_path:?}"
             ))
         })?;
-        let genesis_path = config_path.join(IOTA_GENESIS_FILENAME);
-        let genesis = iota_config::genesis::Genesis::load(genesis_path)?;
-        let network_config = NetworkConfig {
-            validator_configs,
-            account_keys,
-            genesis,
-        };
-
-        swarm_builder = swarm_builder
-            .dir(config_path.clone())
-            .with_network_config(network_config);
+        let first_validator_config = validator_configs.first().ok_or(anyhow!(
+            "IOTA network config file must contain at least one validator config"
+        ))?;
+        let genesis = first_validator_config.genesis.clone();
+        let migration_tx_data_path = first_validator_config.migration_tx_data_path.clone();
+        ensure!(
+            validator_configs
+                .iter()
+                .all(|config| genesis.eq(&config.genesis)),
+            "All validators in IOTA network config must use the same genesis blob"
+        );
+        ensure!(
+            validator_configs
+                .iter()
+                .all(|config| migration_tx_data_path.eq(&config.migration_tx_data_path)),
+            "All validators in IOTA network config must use the same migration blob"
+        );
 
         let fullnode_config_path = config_path.join(IOTA_FULLNODE_CONFIG);
         if fullnode_config_path.exists() {
@@ -820,18 +826,26 @@ async fn start(
                 enable_grpc_api,
                 grpc_api_config,
                 db_path,
+                genesis: fullnode_genesis,
+                migration_tx_data_path: fullnode_migration_tx_data_path,
                 ..
             } = PersistedConfig::read(&fullnode_config_path).map_err(|err| {
                 err.context(format!(
                     "Cannot open fullnode config file at {fullnode_config_path:?}"
                 ))
             })?;
+            ensure!(
+                genesis.eq(&fullnode_genesis),
+                "Fullnode must use the same genesis blob as validators in IOTA network config"
+            );
+            ensure!(
+                migration_tx_data_path.eq(&fullnode_migration_tx_data_path),
+                "Fullnode must use the same migration blob as validators in IOTA network config"
+            );
             swarm_builder = swarm_builder.with_fullnode_db_path(db_path);
 
             if let Some(iota_names_config) = iota_names_config {
-                swarm_builder = swarm_builder
-                    .dir(config_path.clone())
-                    .with_iota_names_config(iota_names_config);
+                swarm_builder = swarm_builder.with_iota_names_config(iota_names_config);
             }
 
             swarm_builder = swarm_builder.with_fullnode_enable_grpc_api(enable_grpc_api);
@@ -847,6 +861,16 @@ async fn start(
                 }
             }
         }
+
+        let network_config = NetworkConfig {
+            validator_configs,
+            account_keys,
+            genesis: genesis.genesis()?.clone(),
+        };
+
+        swarm_builder = swarm_builder
+            .dir(config_path.clone())
+            .with_network_config(network_config);
     }
 
     // the indexer requires to set the fullnode's data ingestion directory
