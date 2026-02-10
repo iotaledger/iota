@@ -300,14 +300,24 @@ impl CheckpointReaderActor {
                     .pipe(futures::stream::iter)
                     .buffered(batch_size);
 
-                while let Some(checkpoint_result) = checkpoint_stream.next().await {
+                while let Some(checkpoint_result) = self
+                    .token
+                    .run_until_cancelled(checkpoint_stream.next())
+                    .await
+                    .flatten()
+                {
                     let (checkpoint, size) = checkpoint_result?;
                     self.send_remote_checkpoint_with_capacity_check(checkpoint, size)
                         .await?;
                 }
             }
             RemoteStore::HybridHistoricalStore { historical, live } => {
-                if let Err(err) = self.fetch_historical(historical).await {
+                if let Some(Err(err)) = self
+                    .token
+                    .clone()
+                    .run_until_cancelled(self.fetch_historical(historical))
+                    .await
+                {
                     if matches!(err, IngestionError::CheckpointNotAvailableYet) {
                         let live = live.as_ref().ok_or(err)?;
                         let mut checkpoint_stream = (self.current_checkpoint_number..u64::MAX)
@@ -317,7 +327,12 @@ impl CheckpointReaderActor {
                             .pipe(futures::stream::iter)
                             .buffered(batch_size);
 
-                        while let Some(checkpoint_result) = checkpoint_stream.next().await {
+                        while let Some(checkpoint_result) = self
+                            .token
+                            .run_until_cancelled(checkpoint_stream.next())
+                            .await
+                            .flatten()
+                        {
                             let (checkpoint, size) = checkpoint_result?;
                             self.send_remote_checkpoint_with_capacity_check(checkpoint, size)
                                 .await?;
@@ -356,7 +371,14 @@ impl CheckpointReaderActor {
                                 duration.as_millis(),
                             );
                         }
-                        tokio::time::sleep(duration).await
+                        if self
+                            .token
+                            .run_until_cancelled(tokio::time::sleep(duration))
+                            .await
+                            .is_none()
+                        {
+                            break;
+                        }
                     }
                     None => {
                         break error!("remote reader transient error {err:?}");
@@ -378,9 +400,7 @@ impl CheckpointReaderActor {
         checkpoint: Arc<CheckpointData>,
         size: usize,
     ) -> IngestionResult<()> {
-        if self.exceeds_capacity(checkpoint.checkpoint_summary.sequence_number)
-            || self.token.is_cancelled()
-        {
+        if self.exceeds_capacity(checkpoint.checkpoint_summary.sequence_number) {
             return Err(IngestionError::MaxCheckpointsCapacityReached);
         }
         self.data_limiter.add(&checkpoint, size);
