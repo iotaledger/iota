@@ -16,20 +16,13 @@ mod tests {
     };
 
     use crate::{
-        authority::{
-            authority_per_epoch_store::AuthorityPerEpochStore,
-            authority_tests::init_state_with_objects_and_object_basics,
-        },
+        authority::authority_tests::init_state_with_objects_and_object_basics,
         consensus_handler::VerifiedSequencedConsensusTransaction,
-        test_utils::make_transfer_object_transaction,
-        white_flag,
+        test_utils::make_transfer_object_transaction, white_flag,
     };
 
     /// Helper to create a UserTransactionV1 consensus transaction
-    fn make_user_transaction_v1(
-        tx: VerifiedTransaction,
-        epoch_store: &AuthorityPerEpochStore,
-    ) -> VerifiedSequencedConsensusTransaction {
+    fn make_user_transaction_v1(tx: VerifiedTransaction) -> VerifiedSequencedConsensusTransaction {
         let consensus_tx = ConsensusTransaction {
             kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.into())),
             tracking_id: Default::default(),
@@ -95,8 +88,8 @@ mod tests {
 
         // Create consensus transactions in order: tx1, tx2
         let mut consensus_txs = vec![
-            make_user_transaction_v1(verified_tx1.clone(), &epoch_store),
-            make_user_transaction_v1(verified_tx2.clone(), &epoch_store),
+            make_user_transaction_v1(verified_tx1.clone()),
+            make_user_transaction_v1(verified_tx2.clone()),
         ];
 
         // Run white flag conflict resolution
@@ -184,8 +177,8 @@ mod tests {
 
         // Create consensus transactions
         let mut consensus_txs = vec![
-            make_user_transaction_v1(verified_tx1.clone(), &epoch_store),
-            make_user_transaction_v1(verified_tx2.clone(), &epoch_store),
+            make_user_transaction_v1(verified_tx1.clone()),
+            make_user_transaction_v1(verified_tx2.clone()),
         ];
 
         // Run white flag conflict resolution
@@ -294,9 +287,9 @@ mod tests {
 
         // Create consensus transactions in order: tx1, tx2, tx3
         let mut consensus_txs = vec![
-            make_user_transaction_v1(verified_tx1.clone(), &epoch_store),
-            make_user_transaction_v1(verified_tx2.clone(), &epoch_store),
-            make_user_transaction_v1(verified_tx3.clone(), &epoch_store),
+            make_user_transaction_v1(verified_tx1.clone()),
+            make_user_transaction_v1(verified_tx2.clone()),
+            make_user_transaction_v1(verified_tx3.clone()),
         ];
 
         // Run white flag conflict resolution
@@ -412,10 +405,10 @@ mod tests {
         let verified_tx4 = epoch_store.verify_transaction(tx4).unwrap();
 
         let mut consensus_txs = vec![
-            make_user_transaction_v1(verified_tx1.clone(), &epoch_store),
-            make_user_transaction_v1(verified_tx2.clone(), &epoch_store),
-            make_user_transaction_v1(verified_tx3.clone(), &epoch_store),
-            make_user_transaction_v1(verified_tx4.clone(), &epoch_store),
+            make_user_transaction_v1(verified_tx1.clone()),
+            make_user_transaction_v1(verified_tx2.clone()),
+            make_user_transaction_v1(verified_tx3.clone()),
+            make_user_transaction_v1(verified_tx4.clone()),
         ];
 
         // Run white flag conflict resolution
@@ -494,8 +487,8 @@ mod tests {
         let verified_tx2 = epoch_store.verify_transaction(tx2).unwrap();
 
         let mut consensus_txs = vec![
-            make_user_transaction_v1(verified_tx1.clone(), &epoch_store),
-            make_user_transaction_v1(verified_tx2.clone(), &epoch_store),
+            make_user_transaction_v1(verified_tx1.clone()),
+            make_user_transaction_v1(verified_tx2.clone()),
         ];
 
         // Run white flag conflict resolution
@@ -609,9 +602,9 @@ mod tests {
         let verified_tx3 = epoch_store.verify_transaction(tx3).unwrap();
 
         let mut consensus_txs = vec![
-            make_user_transaction_v1(verified_tx1.clone(), &epoch_store),
-            make_user_transaction_v1(verified_tx2.clone(), &epoch_store),
-            make_user_transaction_v1(verified_tx3.clone(), &epoch_store),
+            make_user_transaction_v1(verified_tx1.clone()),
+            make_user_transaction_v1(verified_tx2.clone()),
+            make_user_transaction_v1(verified_tx3.clone()),
         ];
 
         // Run white flag conflict resolution
@@ -725,10 +718,10 @@ mod tests {
         let verified_tx4 = epoch_store.verify_transaction(tx4).unwrap();
 
         let mut consensus_txs = vec![
-            make_user_transaction_v1(verified_tx1.clone(), &epoch_store),
-            make_user_transaction_v1(verified_tx2.clone(), &epoch_store),
-            make_user_transaction_v1(verified_tx3.clone(), &epoch_store),
-            make_user_transaction_v1(verified_tx4.clone(), &epoch_store),
+            make_user_transaction_v1(verified_tx1.clone()),
+            make_user_transaction_v1(verified_tx2.clone()),
+            make_user_transaction_v1(verified_tx3.clone()),
+            make_user_transaction_v1(verified_tx4.clone()),
         ];
 
         // Run white flag conflict resolution

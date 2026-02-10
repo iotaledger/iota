@@ -897,10 +897,11 @@ mod tests {
         BlockAPI, CommitDigest, CommitRef, CommittedSubDag, TestBlock, Transaction, VerifiedBlock,
     };
     use futures::pin_mut;
-    use iota_protocol_config::{Chain, ConsensusTransactionOrdering};
+    use iota_protocol_config::{Chain, ConsensusTransactionOrdering, ProtocolConfig};
     use iota_types::{
-        base_types::{AuthorityName, IotaAddress, random_object_ref},
+        base_types::{AuthorityName, IotaAddress, ObjectID, random_object_ref},
         committee::Committee,
+        crypto::{AccountKeyPair, get_key_pair},
         messages_consensus::{
             AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
         },
@@ -909,8 +910,10 @@ mod tests {
             SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
         },
         transaction::{
-            CertifiedTransaction, SenderSignedData, TransactionData, TransactionDataAPI,
+            CertifiedTransaction, SenderSignedData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            TransactionData, TransactionDataAPI,
         },
+        utils::to_sender_signed_transaction,
     };
     use prometheus::Registry;
 
@@ -1045,6 +1048,143 @@ mod tests {
                 .await;
             let last_consensus_stats_2 = consensus_handler.last_consensus_stats.clone();
             assert_eq!(last_consensus_stats_1, last_consensus_stats_2);
+        }
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_consensus_handler_user_transaction_v1() {
+        // GIVEN
+        // Enable the white flag flow so UserTransactionV1 transactions are accepted
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_white_flag_flow_for_testing(true);
+            config
+        });
+
+        let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+        let num_txns: usize = 3;
+
+        // Create owned objects and gas objects for the UserTransactionV1 transactions
+        let owned_objects: Vec<Object> = (0..num_txns)
+            .map(|_| Object::with_id_owner_for_testing(ObjectID::random(), sender))
+            .collect();
+        let gas_objects: Vec<Object> = (0..num_txns)
+            .map(|_| Object::with_id_owner_for_testing(ObjectID::random(), sender))
+            .collect();
+
+        let mut objects = owned_objects.clone();
+        objects.extend(gas_objects.clone());
+
+        let network_config =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+                .with_objects(objects.clone())
+                .build();
+
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network_config, 0)
+            .build()
+            .await;
+
+        let epoch_store = state.epoch_store_for_testing().clone();
+        let new_epoch_start_state = epoch_store.epoch_start_state();
+        let consensus_committee = new_epoch_start_state.get_consensus_committee();
+        let rgp = epoch_store.reference_gas_price();
+
+        let metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
+        let backpressure_manager = BackpressureManager::new_for_tests();
+
+        let mut consensus_handler = ConsensusHandler::new(
+            epoch_store.clone(),
+            Arc::new(CheckpointServiceNoop {}),
+            state.transaction_manager().clone(),
+            state.get_object_cache_reader().clone(),
+            state.get_transaction_cache_reader().clone(),
+            Arc::new(ArcSwap::default()),
+            consensus_committee.clone(),
+            metrics,
+            backpressure_manager.subscribe(),
+        );
+
+        // AND build one block per UserTransactionV1 transaction
+        let (recipient, _): (IotaAddress, AccountKeyPair) = get_key_pair();
+        let mut blocks = Vec::new();
+
+        for (i, (owned_obj, gas_obj)) in owned_objects.iter().zip(gas_objects.iter()).enumerate() {
+            let owned_ref = state
+                .get_object(&owned_obj.id())
+                .await
+                .unwrap()
+                .compute_object_reference();
+            let gas_ref = state
+                .get_object(&gas_obj.id())
+                .await
+                .unwrap()
+                .compute_object_reference();
+
+            let tx_data = TransactionData::new_transfer(
+                recipient,
+                owned_ref,
+                sender,
+                gas_ref,
+                rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+                rgp,
+            );
+            let tx = to_sender_signed_transaction(tx_data, &sender_key);
+            let verified_tx = epoch_store.verify_transaction(tx).unwrap();
+
+            let consensus_tx = ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx.into())),
+                tracking_id: Default::default(),
+            };
+
+            let transaction_bytes = bcs::to_bytes(&consensus_tx).unwrap();
+            let block = VerifiedBlock::new_for_test(
+                TestBlock::new(100 + i as u32, (i % consensus_committee.size()) as u32)
+                    .set_transactions(vec![Transaction::new(transaction_bytes)])
+                    .build(),
+            );
+            blocks.push(block);
+        }
+
+        // AND create the consensus output
+        let leader_block = blocks[0].clone();
+        let committed_sub_dag = CommittedSubDag::new(
+            leader_block.reference(),
+            blocks.clone(),
+            leader_block.timestamp_ms(),
+            CommitRef::new(10, CommitDigest::MIN),
+            vec![],
+        );
+
+        // WHEN processing the consensus output
+        consensus_handler
+            .handle_consensus_output(committed_sub_dag.clone())
+            .await;
+
+        // THEN the stats reflect the UserTransactionV1 transactions
+        let num_blocks = blocks.len();
+        let last_consensus_stats = consensus_handler.last_consensus_stats.clone();
+        assert_eq!(
+            last_consensus_stats.index.transaction_index,
+            num_txns as u64
+        );
+        assert_eq!(last_consensus_stats.index.sub_dag_index, 10_u64);
+        assert_eq!(last_consensus_stats.index.last_committed_round, 100_u64);
+        assert_eq!(
+            last_consensus_stats.stats.get_num_messages(0),
+            num_blocks as u64
+        );
+        assert_eq!(
+            last_consensus_stats.stats.get_num_user_transactions(0),
+            num_txns as u64
+        );
+
+        // AND processing the same output multiple times does not update the stats
+        for _ in 0..2 {
+            consensus_handler
+                .handle_consensus_output(committed_sub_dag.clone())
+                .await;
+            let last_consensus_stats_2 = consensus_handler.last_consensus_stats.clone();
+            assert_eq!(last_consensus_stats, last_consensus_stats_2);
         }
     }
 
