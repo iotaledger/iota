@@ -441,7 +441,7 @@ impl NameCommand {
                 args.extend_from_slice(&[
                     format!(
                         "--move-call {}::payments::handle_base_payment <{}> @{} register_intent coins.0",
-                        iota_names_config.payments_package_address, StructTag::new_iota_coin_type(), iota_names_config.object_id
+                        iota_names_config.payments_package_address, StructTag::new_gas(), iota_names_config.object_id
                     ),
                     "--assign receipt".to_string(),
                     format!(
@@ -550,7 +550,7 @@ impl NameCommand {
                 args.extend_from_slice(&[
                     format!(
                         "--move-call {}::payments::handle_base_payment <{}> @{} renew_intent coins.0",
-                        iota_names_config.payments_package_address, StructTag::new_iota_coin_type(), iota_names_config.object_id
+                        iota_names_config.payments_package_address, StructTag::new_gas(), iota_names_config.object_id
                     ),
                     "--assign receipt".to_string(),
                     format!(

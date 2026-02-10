@@ -163,7 +163,7 @@ fn object_migration_with_object_owner(
             ObjectID::FRAMEWORK,
             Identifier::COIN_MODULE,
             Identifier::from_static("from_balance"),
-            vec![StructTag::new_iota_coin_type().into()],
+            vec![StructTag::new_gas().into()],
             vec![balance_arg],
         );
 

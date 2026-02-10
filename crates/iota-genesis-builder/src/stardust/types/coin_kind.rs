@@ -33,8 +33,7 @@ pub fn is_gas_coin_kind(object: &Object) -> bool {
     struct_tag == AliasOutput::tag(GAS::type_tag())
         || struct_tag == BasicOutput::tag(GAS::type_tag())
         || struct_tag == NftOutput::tag(GAS::type_tag())
-        || struct_tag
-            == StructTag::new_time_lock(StructTag::new_balance(StructTag::new_iota_coin_type()))
+        || struct_tag == StructTag::new_time_lock(StructTag::new_balance(StructTag::new_gas()))
         || object.is_gas_coin()
 }
 

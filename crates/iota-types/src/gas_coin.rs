@@ -42,12 +42,12 @@ mod checked {
     pub struct GAS {}
     impl GAS {
         pub fn type_tag() -> TypeTag {
-            StructTag::new_iota_coin_type().into()
+            StructTag::new_gas().into()
         }
 
         pub fn is_gas_type(other: &TypeTag) -> bool {
             match other {
-                TypeTag::Struct(s) => s.is_iota_coin_type(),
+                TypeTag::Struct(s) => s.is_gas(),
                 _ => false,
             }
         }
@@ -85,7 +85,7 @@ mod checked {
         }
 
         pub fn layout() -> MoveStructLayout {
-            Coin::layout(TypeTag::Struct(Box::new(StructTag::new_iota_coin_type())))
+            Coin::layout(TypeTag::Struct(Box::new(StructTag::new_gas())))
         }
 
         pub fn new_for_testing(value: u64) -> Self {

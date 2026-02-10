@@ -49,7 +49,7 @@ pub fn parse_to_struct_tag(coin_type: &str) -> Result<StructTag, IotaRpcInputErr
 pub fn parse_to_type_tag(coin_type: Option<String>) -> Result<TypeTag, IotaRpcInputError> {
     Ok(TypeTag::Struct(Box::new(match coin_type {
         Some(c) => parse_to_struct_tag(&c)?,
-        None => StructTag::new_iota_coin_type(),
+        None => StructTag::new_gas(),
     })))
 }
 
@@ -377,7 +377,7 @@ async fn gas_total_supply<I>(internal: &I, tag: &StructTag) -> Result<Option<Sup
 where
     I: CoinReadInternal + Send + Sync + ?Sized,
 {
-    if !tag.is_iota_coin_type() {
+    if !tag.is_gas() {
         return Ok(None);
     }
 
@@ -680,12 +680,7 @@ mod tests {
 
     fn get_test_coin(id_hex_literal: Option<&str>, coin_type: CoinType) -> Coin {
         let (arr, coin_type_string, balance, default_hex) = match coin_type {
-            CoinType::Gas => (
-                [0; 32],
-                StructTag::new_iota_coin_type().to_string(),
-                42,
-                "0xA",
-            ),
+            CoinType::Gas => ([0; 32], StructTag::new_gas().to_string(), 42, "0xA"),
             CoinType::Usdc => (
                 [1; 32],
                 "0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC".to_string(),
@@ -745,7 +740,7 @@ mod tests {
                 .expect_get_owned_coins()
                 .with(
                     predicate::eq(owner),
-                    predicate::eq((StructTag::new_iota_coin_type().to_string(), ObjectID::ZERO)),
+                    predicate::eq((StructTag::new_gas().to_string(), ObjectID::ZERO)),
                     predicate::eq(51),
                     predicate::eq(true),
                 )
@@ -780,10 +775,7 @@ mod tests {
                 .expect_get_owned_coins()
                 .with(
                     predicate::eq(owner),
-                    predicate::eq((
-                        StructTag::new_iota_coin_type().to_string(),
-                        coins[0].coin_object_id,
-                    )),
+                    predicate::eq((StructTag::new_gas().to_string(), coins[0].coin_object_id)),
                     predicate::eq(limit + 1),
                     predicate::eq(true),
                 )

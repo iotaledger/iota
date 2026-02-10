@@ -146,7 +146,7 @@ impl CoinReadApiServer for CoinReadApi {
 
     async fn get_total_supply(&self, coin_type: String) -> RpcResult<Supply> {
         let coin_struct = parse_to_struct_tag(&coin_type)?;
-        if coin_struct.is_iota_coin_type() {
+        if coin_struct.is_gas() {
             Ok(Supply {
                 value: self
                     .inner

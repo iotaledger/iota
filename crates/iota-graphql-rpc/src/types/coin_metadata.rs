@@ -406,7 +406,7 @@ impl CoinMetadata {
             return Ok(None);
         };
 
-        Ok(Some(if coin_struct.is_iota_coin_type() {
+        Ok(Some(if coin_struct.is_gas() {
             let pg_manager = ctx.data_unchecked::<PgManager>();
 
             let state = pg_manager.fetch_iota_system_state(None).await?;

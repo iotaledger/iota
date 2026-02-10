@@ -79,7 +79,7 @@ impl TestCaseImpl for CoinIndexTest {
             coin_type,
             ..
         } = client.coin_read_api().get_balance(account, None).await?;
-        assert_eq!(coin_type, StructTag::new_iota_coin_type().to_string());
+        assert_eq!(coin_type, StructTag::new_gas().to_string());
 
         assert_eq!(coin_object_count, old_coin_object_count);
         assert_eq!(

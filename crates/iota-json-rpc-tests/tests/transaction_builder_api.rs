@@ -659,7 +659,7 @@ async fn test_batch_transaction_with_result() -> Result<(), anyhow::Error> {
                     package_object_id: ObjectID::FRAMEWORK,
                     module: "coin".to_string(),
                     function: "split".to_string(),
-                    type_arguments: type_args![StructTag::new_iota_coin_type()]?,
+                    type_arguments: type_args![StructTag::new_gas()]?,
                     arguments: call_args!(coin_to_split.coin_object_id, amount_to_split)?
                         .into_iter()
                         .map(PtbInput::CallArg)

@@ -139,7 +139,7 @@ impl MoveObjectType {
 
     pub fn timelocked_iota_balance() -> Self {
         Self(MoveObjectType_::Other(Box::new(StructTag::new_time_lock(
-            StructTag::new_balance(StructTag::new_iota_coin_type()),
+            StructTag::new_balance(StructTag::new_gas()),
         ))))
     }
 
