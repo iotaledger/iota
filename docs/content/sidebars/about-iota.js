@@ -75,6 +75,11 @@ const aboutIota = [
                 description:
                     'A funding initiative to accelerate real-world adoption of IOTA',
             },
+            {
+                type: 'doc',
+                id: 'about-iota/programs-funding/bounty-program',
+                label: 'IOTA Bounty Program',
+            }
         ],
     },
     'about-iota/FAQ',
