@@ -20,12 +20,28 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
 };
 
-#[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct TransactionRef {
     pub round: Round,
     pub author: AuthorityIndex,
     pub transactions_commitment: TransactionsCommitment,
     pub block_digest: BlockHeaderDigest,
+}
+
+impl Ord for TransactionRef {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.round
+            .cmp(&other.round)
+            .then(self.author.cmp(&other.author))
+            .then(self.transactions_commitment.cmp(&other.transactions_commitment))
+        // block_digest intentionally excluded - not part of transaction identity
+    }
+}
+
+impl PartialOrd for TransactionRef {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl fmt::Display for TransactionRef {
