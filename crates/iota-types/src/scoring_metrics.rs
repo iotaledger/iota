@@ -260,7 +260,7 @@ impl VersionedScoringMetrics {
     }
 }
 
-// Misbehavior counts using u64, used for storage. Given an authrity, each field
+// Misbehavior counts using u64, used for storage. Given an authority, each field
 // of this type is a u64 with the metric value for that specific authority.
 type StorageScoringMetricsV1 = MisbehaviorsV1<u64>;
 
