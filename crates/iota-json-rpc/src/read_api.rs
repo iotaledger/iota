@@ -7,7 +7,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use backoff::{ExponentialBackoff, future::retry};
-use futures::future::join_all;
+use futures::{StreamExt, TryStreamExt, future::join_all, stream};
 use indexmap::map::IndexMap;
 use iota_core::authority::AuthorityState;
 use iota_json_rpc_api::{
@@ -18,11 +18,15 @@ use iota_json_rpc_types::{
     BalanceChange, Checkpoint, CheckpointId, CheckpointPage, DisplayFieldsResponse, EventFilter,
     IotaEvent, IotaGetPastObjectRequest, IotaMoveStruct, IotaMoveValue, IotaMoveVariant,
     IotaObjectData, IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
-    IotaTransactionBlock, IotaTransactionBlockEvents, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, ObjectChange, ProtocolConfigResponse,
+    IotaTransactionBlock, IotaTransactionBlockEffects, IotaTransactionBlockEvents,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
+    ProtocolConfigResponse,
 };
 use iota_metrics::{add_server_timing, spawn_monitored_task};
 use iota_open_rpc::Module;
+use iota_package_resolver::{
+    Package, PackageStore, Resolver, error::Error as PackageResolverError,
+};
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
@@ -43,6 +47,7 @@ use itertools::Itertools;
 use jsonrpsee::{RpcModule, core::RpcResult};
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{
+    account_address::AccountAddress,
     annotated_value::{MoveStruct, MoveStructLayout, MoveValue},
     language_storage::StructTag,
 };
@@ -58,6 +63,8 @@ use crate::{
 };
 
 const MAX_DISPLAY_NESTED_LEVEL: usize = 10;
+/// Size of buffer of concurrent tasks
+const FUTURES_BUFFERED_SIZE: usize = 10;
 
 // An implementation of the read portion of the JSON-RPC interface intended for
 // use in Fullnodes.
@@ -210,11 +217,11 @@ impl ReadApi {
         let opts = opts.unwrap_or_default();
 
         // use LinkedHashMap to dedup and can iterate in insertion order.
-        let mut temp_response: IndexMap<&TransactionDigest, IntermediateTransactionResponse> =
+        let mut temp_response: IndexMap<TransactionDigest, IntermediateTransactionResponse> =
             IndexMap::from_iter(
                 digests
                     .iter()
-                    .map(|k| (k, IntermediateTransactionResponse::new(*k))),
+                    .map(|k| (*k, IntermediateTransactionResponse::new(*k))),
             );
         if temp_response.len() < num_digests {
             Err(IotaRpcInputError::ContainsDuplicates)?
@@ -457,11 +464,20 @@ impl ReadApi {
         }
 
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
+        let resolver = Resolver::new(self.clone());
 
-        let converted_tx_block_resps = temp_response
-            .into_iter()
-            .map(|c| convert_to_response(c.1, &opts, epoch_store.module_cache()))
-            .collect::<Result<Vec<_>, _>>()?;
+        let converted_tx_block_resps: Vec<_> = stream::iter(temp_response.into_iter())
+            .map(|(_, interim_response)| {
+                convert_to_response(
+                    interim_response,
+                    &opts,
+                    epoch_store.module_cache(),
+                    &resolver,
+                )
+            })
+            .buffered(FUTURES_BUFFERED_SIZE)
+            .try_collect()
+            .await?;
 
         self.metrics
             .get_tx_blocks_result_size
@@ -908,8 +924,8 @@ impl ReadApiServer for ReadApi {
                 }
             }
             let epoch_store = self.state.load_epoch_store_one_call_per_task();
-
-            convert_to_response(temp_response, &opts, epoch_store.module_cache())
+            let resolver = Resolver::new(self.clone());
+            convert_to_response(temp_response, &opts, epoch_store.module_cache(), &resolver).await
         }
         .trace()
         .await
@@ -923,13 +939,9 @@ impl ReadApiServer for ReadApi {
     ) -> RpcResult<Vec<IotaTransactionBlockResponse>> {
         async move {
             let cloned_self = self.clone();
-            spawn_monitored_task!(async move {
-                cloned_self
-                    .multi_get_transaction_blocks_internal(digests, opts)
-                    .await
-            })
-            .await
-            .map_err(Error::from)?
+            spawn_monitored_task!(cloned_self.multi_get_transaction_blocks_internal(digests, opts))
+                .await
+                .map_err(Error::from)?
         }
         .trace()
         .await
@@ -1349,10 +1361,11 @@ fn get_value_from_move_struct(
     }
 }
 
-fn convert_to_response(
+async fn convert_to_response<S: PackageStore>(
     cache: IntermediateTransactionResponse,
     opts: &IotaTransactionBlockResponseOptions,
     module_cache: &impl GetModule,
+    resolver: &Resolver<S>,
 ) -> RpcInterimResult<IotaTransactionBlockResponse> {
     let mut response = IotaTransactionBlockResponse::new(cache.digest);
     response.errors = cache.errors;
@@ -1385,12 +1398,12 @@ fn convert_to_response(
     }
 
     if opts.show_effects && cache.effects.is_some() {
-        let effects = cache.effects.unwrap().try_into().map_err(|e| {
-            anyhow!(
-                // TODO: is this a client or server error?
-                "Failed to convert transaction block effects with error: {e}"
-            )
-        })?;
+        let native_effects = cache
+            .effects
+            .expect("show_effects should have populated effects");
+        let effects =
+            IotaTransactionBlockEffects::from_native_with_clever_error(native_effects, resolver)
+                .await;
         response.effects = Some(effects);
     }
 
@@ -1448,6 +1461,21 @@ fn calculate_checkpoint_numbers(
         (start_index..=end_index).rev().collect()
     } else {
         (start_index..=end_index).collect()
+    }
+}
+
+#[async_trait]
+impl PackageStore for ReadApi {
+    async fn fetch(&self, id: AccountAddress) -> Result<Arc<Package>, PackageResolverError> {
+        let backing_store = self.state.get_backing_package_store();
+        match backing_store.get_package_object(&(id.into())) {
+            Ok(Some(pkg)) => Ok(Arc::new(Package::read_from_package(pkg.move_package())?)),
+            Ok(None) => Err(PackageResolverError::PackageNotFound(id)),
+            Err(e) => Err(PackageResolverError::Store {
+                store: "Node",
+                source: Arc::new(e),
+            }),
+        }
     }
 }
 
