@@ -750,6 +750,48 @@ impl DagState {
         }
     }
 
+    /// Finds genesis block matching the generic transaction reference.
+    /// For BlockRef: direct lookup. For TransactionRef: range query with transactions_commitment verification.
+    fn get_genesis_block(&self, tx_ref: GenericTransactionRef) -> Option<&VerifiedBlock> {
+        match tx_ref {
+            GenericTransactionRef::BlockRef(block_ref) => self.genesis.get(&block_ref),
+            GenericTransactionRef::TransactionRef(tx_ref) => {
+                let author = tx_ref.author();
+                let min_ref = BlockRef {
+                    round: GENESIS_ROUND,
+                    author,
+                    digest: BlockHeaderDigest::MIN,
+                };
+                let max_ref = BlockRef {
+                    round: GENESIS_ROUND,
+                    author,
+                    digest: BlockHeaderDigest::MAX,
+                };
+
+                let matching: Vec<_> = self
+                    .genesis
+                    .range(min_ref..=max_ref)
+                    .filter(|(_, block)| {
+                        block.verified_transactions.transactions_commitment()
+                            == tx_ref.transactions_commitment
+                    })
+                    .collect();
+
+                match matching.len() {
+                    1 => Some(matching[0].1),
+                    0 => None,
+                    n => {
+                        error!(
+                            "Found {} genesis blocks matching author {} and transactions_commitment, expected 1",
+                            n, author
+                        );
+                        None
+                    }
+                }
+            }
+        }
+    }
+
     /// Accepts block headers into DagState and keeps it in memory.
     pub(crate) fn accept_block_headers(
         &mut self,
@@ -780,9 +822,7 @@ impl DagState {
 
         for (index, transactions_ref) in transactions_refs.iter().enumerate() {
             if transactions_ref.round() == GENESIS_ROUND {
-                // Extract the BlockRef from GenericTransactionRef
-                let genesis_key = transactions_ref.to_block_ref();
-                if let Some(genesis_block) = self.genesis.get(&genesis_key) {
+                if let Some(genesis_block) = self.get_genesis_block(*transactions_ref) {
                     transactions[index] = Some(genesis_block.verified_transactions.clone());
                 }
                 continue;
@@ -856,11 +896,8 @@ impl DagState {
 
         for (index, transactions_ref) in transactions_refs.iter().enumerate() {
             if transactions_ref.round() == GENESIS_ROUND {
-                // Extract the BlockRef from GenericTransactionRef
-                let genesis_ref = transactions_ref.to_block_ref();
                 if let Some(transaction) = self
-                    .genesis
-                    .get(&genesis_ref)
+                    .get_genesis_block(*transactions_ref)
                     .map(|block| block.verified_transactions.clone())
                 {
                     transactions[index] = Some(transaction.serialized().clone());
@@ -1565,9 +1602,7 @@ impl DagState {
 
         for (index, tx_ref) in transaction_refs.into_iter().enumerate() {
             if tx_ref.round() == GENESIS_ROUND {
-                // Check if the genesis block exists
-                let genesis_ref = tx_ref.to_block_ref();
-                exist[index] = self.genesis.contains_key(&genesis_ref);
+                exist[index] = self.get_genesis_block(tx_ref).is_some();
                 continue;
             }
             if self.recent_transactions_by_authority[tx_ref.author()].contains_key(&tx_ref) {
