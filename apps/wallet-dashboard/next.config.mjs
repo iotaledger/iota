@@ -3,13 +3,24 @@
 
 import { SENTRY_ORG_NAME, SENTRY_PROJECT_NAME } from './sentry.common.config.mjs';
 import { withSentryConfig } from '@sentry/nextjs';
+import dotenv from 'dotenv';
 import { execSync } from 'child_process';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const SDK_ROOT = resolve(__dirname, '..', '..', 'sdk');
+
+dotenv.config({
+    path: [resolve(SDK_ROOT, '.env'), resolve(SDK_ROOT, '.env.defaults')],
+});
+
 const NEXT_PUBLIC_DASHBOARD_REV = execSync('git rev-parse HEAD').toString().trim().toString();
 const NEXT_PUBLIC_BUILD_ENV = process.env.BUILD_ENV;
-const APPS_BACKEND = process.env.APPS_BACKEND;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+    transpilePackages: ['@iota/core'],
     async redirects() {
         return [
             {
@@ -26,7 +37,7 @@ const nextConfig = {
     env: {
         NEXT_PUBLIC_DASHBOARD_REV,
         NEXT_PUBLIC_BUILD_ENV,
-        APPS_BACKEND,
+        APPS_BACKEND: process.env.APPS_BACKEND,
     },
     webpack(config) {
         const fileLoaderRule = config.module.rules.find((rule) => rule.test?.test?.('.svg'));
