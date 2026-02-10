@@ -60,7 +60,6 @@ export type ResolvedObjectArg =
 
 /**
  * The resolved MoveAuthenticator data structure.
- * Fields match the Rust MoveAuthenticator struct.
  */
 export interface MoveAuthenticatorData {
     callArgs: ResolvedCallArg[];
