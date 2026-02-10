@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use iota_protocol_config::ProtocolConfig;
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 
 use crate::{messages_consensus::VersionedMisbehaviorReport, misbehavior_counts::MisbehaviorsV1};
 
@@ -213,7 +214,9 @@ impl VersionedScoringMetrics {
     // not.
     pub fn update_from_report(&self, report: &VersionedMisbehaviorReport) {
         if !self.has_compatible_version(report) {
-            panic!("Incompatible scorer version");
+            warn!(
+                "Metrics counts being updated according to a report with incompatible version, but report versions were already checked before this point!"
+            );
         }
         for (current_value, new_value) in self
             .iterate_over_metrics()
