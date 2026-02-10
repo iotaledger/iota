@@ -31,7 +31,7 @@ async fn test_package_override() {
     let framework_ref = {
         let default_cluster = TestClusterBuilder::new().build().await;
         let client = default_cluster.rpc_client();
-        let obj = client.get_object(ObjectID::FRAMEWORK, None).await.unwrap();
+        let obj = client.get_object(ObjectID::SYSTEM, None).await.unwrap();
 
         if let Some(obj) = obj.data {
             obj.object_ref()
