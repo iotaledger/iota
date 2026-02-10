@@ -600,7 +600,7 @@ async fn construct_unsigned_0x5_txn(
     let gas_obj_ref = get_gas_obj_ref(sender, &iota_client, gas_budget).await?;
     TransactionData::new_move_call(
         sender,
-        ObjectID::FRAMEWORK,
+        ObjectID::SYSTEM,
         Identifier::IOTA_SYSTEM_MODULE,
         Identifier::from_static(function),
         vec![],

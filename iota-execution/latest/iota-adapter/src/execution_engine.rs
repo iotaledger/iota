@@ -1370,7 +1370,7 @@ mod checked {
         info!("Call arguments to advance_epoch transaction: {:?}", params);
 
         let storage_rebates = builder.programmable_move_call(
-            ObjectID::FRAMEWORK,
+            ObjectID::SYSTEM,
             Identifier::IOTA_SYSTEM_MODULE,
             ADVANCE_EPOCH_FUNCTION_NAME,
             vec![],

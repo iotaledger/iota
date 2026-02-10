@@ -915,7 +915,7 @@ impl InternalOperation {
                 let arguments = vec![system_state, coin, validator];
 
                 builder.command(Command::move_call(
-                    ObjectID::FRAMEWORK,
+                    ObjectID::SYSTEM,
                     Identifier::IOTA_SYSTEM_MODULE,
                     ADD_STAKE_FUN_NAME,
                     vec![],
@@ -943,7 +943,7 @@ impl InternalOperation {
 
                     let arguments = vec![system_state, id];
                     builder.command(Command::move_call(
-                        ObjectID::FRAMEWORK,
+                        ObjectID::SYSTEM,
                         Identifier::IOTA_SYSTEM_MODULE,
                         WITHDRAW_STAKE_FUN_NAME,
                         vec![],

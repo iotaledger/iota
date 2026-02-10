@@ -282,8 +282,8 @@ fn test_timelocked_staking() {
             let state = builder.input(CallArg::IOTA_SYSTEM_MUT).unwrap();
 
             let _ = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
-                Identifier::from_static("timelocked_staking"),
+                ObjectID::SYSTEM,
+                Identifier::TIMELOCKED_STAKING_MODULE,
                 Identifier::from_static("request_add_stake"),
                 vec![],
                 vec![state, timelocked_iota_balance, validator],
@@ -396,8 +396,8 @@ fn test_timelocked_unstaking() {
             let state = builder.input(CallArg::IOTA_SYSTEM_MUT).unwrap();
 
             let _ = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
-                Identifier::from_static("timelocked_staking"),
+                ObjectID::SYSTEM,
+                Identifier::TIMELOCKED_STAKING_MODULE,
                 Identifier::from_static("request_add_stake"),
                 vec![],
                 vec![state, timelocked_iota_balance, validator],
@@ -448,7 +448,7 @@ fn test_timelocked_unstaking() {
             let state = builder.input(CallArg::IOTA_SYSTEM_MUT).unwrap();
 
             let _ = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
+                ObjectID::SYSTEM,
                 Identifier::TIMELOCKED_STAKING_MODULE,
                 Identifier::from_static("request_withdraw_stake"),
                 vec![],

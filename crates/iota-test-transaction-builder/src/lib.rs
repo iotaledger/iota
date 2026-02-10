@@ -174,7 +174,7 @@ impl TestTransactionBuilder {
 
     pub fn call_staking(self, stake_coin: ObjectRef, validator: IotaAddress) -> Self {
         self.move_call(
-            ObjectID::FRAMEWORK,
+            ObjectID::SYSTEM,
             Identifier::IOTA_SYSTEM_MODULE.as_str(),
             "request_add_stake",
             vec![
@@ -204,7 +204,7 @@ impl TestTransactionBuilder {
 
     pub fn call_request_add_validator(self) -> Self {
         self.move_call(
-            ObjectID::FRAMEWORK,
+            ObjectID::SYSTEM,
             Identifier::IOTA_SYSTEM_MODULE.as_str(),
             "request_add_validator",
             vec![CallArg::IOTA_SYSTEM_MUT],
@@ -216,7 +216,7 @@ impl TestTransactionBuilder {
         validator: &GenesisValidatorMetadata,
     ) -> Self {
         self.move_call(
-            ObjectID::FRAMEWORK,
+            ObjectID::SYSTEM,
             Identifier::IOTA_SYSTEM_MODULE.as_str(),
             "request_add_validator_candidate",
             vec![
@@ -240,7 +240,7 @@ impl TestTransactionBuilder {
 
     pub fn call_request_remove_validator(self) -> Self {
         self.move_call(
-            ObjectID::FRAMEWORK,
+            ObjectID::SYSTEM,
             Identifier::IOTA_SYSTEM_MODULE.as_str(),
             "request_remove_validator",
             vec![CallArg::IOTA_SYSTEM_MUT],

@@ -299,7 +299,7 @@ async fn update_metadata_on_chain(
     args.extend(call_args);
     let tx_data = TransactionData::new_move_call(
         iota_address,
-        ObjectID::FRAMEWORK,
+        ObjectID::SYSTEM,
         Identifier::IOTA_SYSTEM_MODULE,
         Identifier::from_static(function),
         vec![],

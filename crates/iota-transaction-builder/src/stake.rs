@@ -68,7 +68,7 @@ impl TransactionBuilder {
                     .unwrap(),
             ];
             builder.command(Command::move_call(
-                ObjectID::FRAMEWORK,
+                ObjectID::SYSTEM,
                 Identifier::IOTA_SYSTEM_MODULE,
                 ADD_STAKE_MUL_COIN_FUN_NAME,
                 vec![],
@@ -100,7 +100,7 @@ impl TransactionBuilder {
             .await?;
         TransactionData::new_move_call(
             signer,
-            ObjectID::FRAMEWORK,
+            ObjectID::SYSTEM,
             Identifier::IOTA_SYSTEM_MODULE,
             WITHDRAW_STAKE_FUN_NAME,
             vec![],
@@ -146,7 +146,7 @@ impl TransactionBuilder {
                 builder.input(CallArg::Pure(bcs::to_bytes(&validator)?))?,
             ];
             builder.command(Command::move_call(
-                ObjectID::FRAMEWORK,
+                ObjectID::SYSTEM,
                 Identifier::TIMELOCKED_STAKING_MODULE,
                 ADD_TIMELOCKED_STAKE_FUN_NAME,
                 vec![],
@@ -178,7 +178,7 @@ impl TransactionBuilder {
             .await?;
         TransactionData::new_move_call(
             signer,
-            ObjectID::FRAMEWORK,
+            ObjectID::SYSTEM,
             Identifier::TIMELOCKED_STAKING_MODULE,
             WITHDRAW_TIMELOCKED_STAKE_FUN_NAME,
             vec![],
