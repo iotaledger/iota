@@ -10,6 +10,7 @@ const APPS_BACKEND = process.env.APPS_BACKEND;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+    transpilePackages: ['@iota/core'],
     async redirects() {
         return [
             {
