@@ -1527,7 +1527,7 @@ mod tests {
             let expected = expect!["-32602"];
             expected.assert_eq(&error_result.code().to_string());
             let expected = expect![
-                "Cannot find object [0x2::coin::TreasuryCap<0xf::test_coin::TEST_COIN>] or [0x2::coin_manager::CoinManager<0xf::test_coin::TEST_COIN>] from [000000000000000000000000000000000000000000000000000000000000000f] package event."
+                "Cannot find object [0x2::coin::TreasuryCap<0xf::test_coin::TEST_COIN>] or [0x2::coin_manager::CoinManager<0xf::test_coin::TEST_COIN>] from [0x000000000000000000000000000000000000000000000000000000000000000f] package event."
             ];
             expected.assert_eq(error_result.message());
         }
