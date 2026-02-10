@@ -24,7 +24,6 @@ use iota_sdk::{
     },
 };
 use iota_sdk_types::crypto::Intent;
-use iota_types::base_types::{Identifier, IotaAddress, ObjectID};
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
@@ -129,7 +128,7 @@ async fn main() -> Result<(), anyhow::Error> {
             let arguments = vec![extracted_base_token];
             let type_arguments = vec![GAS::type_tag()];
             let iota_coin = builder.programmable_move_call(
-                IotaAddress::FRAMEWORK,
+                ObjectID::FRAMEWORK,
                 Identifier::COIN_MODULE,
                 Identifier::from_static("from_balance"),
                 type_arguments,
@@ -162,7 +161,7 @@ async fn main() -> Result<(), anyhow::Error> {
             // Cleanup bag.
             let arguments = vec![extracted_native_tokens_bag];
             builder.programmable_move_call(
-                IotaAddress::FRAMEWORK,
+                ObjectID::FRAMEWORK,
                 Identifier::BAG_MODULE,
                 Identifier::from_static("destroy_empty"),
                 vec![],

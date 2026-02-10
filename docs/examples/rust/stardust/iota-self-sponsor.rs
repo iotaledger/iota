@@ -24,7 +24,6 @@ use iota_sdk::{
     },
 };
 use iota_sdk_types::crypto::Intent;
-use iota_types::base_types::{Identifier, IotaAddress, ObjectID};
 
 pub const IOTA_COIN_TYPE: u32 = 4218;
 
@@ -107,7 +106,7 @@ async fn main() -> Result<(), anyhow::Error> {
             ////// Command #2: delete the empty native tokens bag
             let arguments = vec![extracted_native_tokens_bag];
             builder.programmable_move_call(
-                IotaAddress::FRAMEWORK,
+                ObjectID::FRAMEWORK,
                 Identifier::BAG_MODULE,
                 Identifier::from_static("destroy_empty"),
                 vec![],
@@ -119,7 +118,7 @@ async fn main() -> Result<(), anyhow::Error> {
             let type_arguments = vec![GAS::type_tag()];
             let arguments = vec![extracted_base_token];
             let new_iota_coin = builder.programmable_move_call(
-                IotaAddress::FRAMEWORK,
+                ObjectID::FRAMEWORK,
                 Identifier::COIN_MODULE,
                 Identifier::from_static("from_balance"),
                 type_arguments,

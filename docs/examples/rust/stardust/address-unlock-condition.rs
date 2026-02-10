@@ -29,7 +29,6 @@ use iota_sdk::{
     },
 };
 use iota_sdk_types::crypto::Intent;
-use iota_types::base_types::{Identifier, IotaAddress, ObjectID};
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/alias_ownership.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "few hood high omit camp keep burger give happy iron evolve draft few dawn pulp jazz box dash load snake gown bag draft car";
@@ -152,7 +151,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
             // Extract the IOTA balance.
             let iota_coin = builder.programmable_move_call(
-                IotaAddress::FRAMEWORK,
+                ObjectID::FRAMEWORK,
                 Identifier::COIN_MODULE,
                 Identifier::from_static("from_balance"),
                 type_arguments,
@@ -165,7 +164,7 @@ async fn main() -> Result<(), anyhow::Error> {
             // Cleanup the bag.
             let arguments = vec![extracted_native_tokens_bag];
             builder.programmable_move_call(
-                IotaAddress::FRAMEWORK,
+                ObjectID::FRAMEWORK,
                 Identifier::BAG_MODULE,
                 Identifier::from_static("destroy_empty"),
                 vec![],
@@ -213,7 +212,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
                 // Extract the IOTA balance.
                 let iota_coin = builder.programmable_move_call(
-                    IotaAddress::FRAMEWORK,
+                    ObjectID::FRAMEWORK,
                     Identifier::COIN_MODULE,
                     Identifier::from_static("from_balance"),
                     type_arguments,
@@ -226,7 +225,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 // Cleanup the bag because it is empty.
                 let arguments = vec![extracted_native_tokens_bag];
                 builder.programmable_move_call(
-                    IotaAddress::FRAMEWORK,
+                    ObjectID::FRAMEWORK,
                     Identifier::BAG_MODULE,
                     Identifier::from_static("destroy_empty"),
                     vec![],
