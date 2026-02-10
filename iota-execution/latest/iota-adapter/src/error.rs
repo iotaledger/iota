@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_types::{base_types::ObjectID,
+use iota_types::{
+    base_types::ObjectID,
     error::{ExecutionError, IotaError},
     execution_status::{ExecutionFailureStatus, MoveLocation, MoveLocationOpt},
 };
