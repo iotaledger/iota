@@ -10,7 +10,6 @@ use iota_data_ingestion_core::Worker;
 use iota_json_rpc_types::IotaMoveStruct;
 use iota_package_resolver::Resolver;
 use iota_types::{
-    base_types::IotaAddress,
     effects::TransactionEffects,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     object::Object,
@@ -20,8 +19,8 @@ use tokio::sync::Mutex;
 use crate::{
     FileType,
     handlers::{
-        AnalyticsHandler, ObjectStatusTracker, get_move_struct, get_owner_address, get_owner_type,
-        initial_shared_version,
+        AnalyticsHandler, ObjectStatusTracker, SYSTEM_PACKAGE_ADDRESSES, get_move_struct,
+        get_owner_address, get_owner_type, initial_shared_version,
     },
     package_store::{LocalDBPackageStore, PackageCache},
     tables::{ObjectEntry, ObjectStatus},
@@ -66,13 +65,10 @@ impl Worker for ObjectHandler {
             )
             .await?;
             if checkpoint_summary.end_of_epoch_data.is_some() {
-                state.resolver.package_store().evict([
-                    IotaAddress::STD,
-                    IotaAddress::FRAMEWORK,
-                    IotaAddress::SYSTEM,
-                    IotaAddress::GENESIS_BRIDGE,
-                    IotaAddress::STARDUST,
-                ]);
+                state
+                    .resolver
+                    .package_store()
+                    .evict(SYSTEM_PACKAGE_ADDRESSES);
             }
         }
         Ok(())
