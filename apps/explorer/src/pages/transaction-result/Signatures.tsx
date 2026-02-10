@@ -104,12 +104,16 @@ export function Signatures({ transaction }: SignaturesProps) {
             }
 
             if (parsed.signatureScheme === 'MoveAuthenticator') {
-                 const authenticatedObjectId =
-                    parsed.moveAuthenticator.objectToAuthenticate.Object?.$kind === 'ImmOrOwnedObject'
-                        ? parsed.moveAuthenticator.objectToAuthenticate.Object.ImmOrOwnedObject.objectId
-                        : parsed.moveAuthenticator.objectToAuthenticate.Object?.$kind === 'Receiving'
-                        ? parsed.moveAuthenticator.objectToAuthenticate.Object.Receiving.objectId
-                        : parsed.moveAuthenticator.objectToAuthenticate.Object?.SharedObject?.objectId;
+                const authenticatedObjectId =
+                    parsed.moveAuthenticator.objectToAuthenticate.Object?.$kind ===
+                    'ImmOrOwnedObject'
+                        ? parsed.moveAuthenticator.objectToAuthenticate.Object.ImmOrOwnedObject
+                              .objectId
+                        : parsed.moveAuthenticator.objectToAuthenticate.Object?.$kind ===
+                            'Receiving'
+                          ? parsed.moveAuthenticator.objectToAuthenticate.Object.Receiving.objectId
+                          : parsed.moveAuthenticator.objectToAuthenticate.Object?.SharedObject
+                                ?.objectId;
                 return {
                     ...parsed,
                     publicKey: new MoveAuthenticatorPublicKey(authenticatedObjectId!),
