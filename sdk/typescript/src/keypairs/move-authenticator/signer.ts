@@ -5,7 +5,11 @@ import { toBase64 } from '@iota/bcs';
 
 import { bcs } from '../../bcs/index.js';
 import type { IntentScope, SignatureWithBytes } from '../../cryptography/index.js';
-import { SIGNATURE_SCHEME_TO_FLAG, Signer } from '../../cryptography/index.js';
+import {
+    SIGNATURE_SCHEME_TO_FLAG,
+    Signer,
+    toSerializedSignature,
+} from '../../cryptography/index.js';
 import type { PublicKey } from '../../cryptography/publickey.js';
 import type { SignatureScheme } from '../../cryptography/signature-scheme.js';
 import { MoveAuthenticatorPublicKey } from './publickey.js';
@@ -95,5 +99,16 @@ export class MoveSigner extends Signer {
             signature: toBase64(result),
             bytes: toBase64(bytes),
         };
+    }
+
+    /**
+     * Generates the Move Authenticator signature.
+     */
+    async getSignature(): Promise<string> {
+        return toSerializedSignature({
+            signature: await this.sign(),
+            signatureScheme: this.getKeyScheme(),
+            publicKey: this.getPublicKey(),
+        });
     }
 }
