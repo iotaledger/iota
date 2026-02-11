@@ -152,11 +152,11 @@ pub struct IotaEnvConfig {
     /// Sets the file storing the state of our user accounts (an empty one will
     /// be created if missing)
     #[clap(long = "client.config")]
-    config: Option<PathBuf>,
+    pub config: Option<PathBuf>,
     /// The IOTA environment to use. This must be present in the current config
     /// file.
     #[clap(long = "client.env")]
-    env: Option<String>,
+    pub env: Option<String>,
 }
 
 #[derive(Parser)]
@@ -652,7 +652,9 @@ impl IotaCommand {
                         .bold()
                         .yellow()
                 );
-                let config_path = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
+                let config_path = config
+                    .config
+                    .unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
                 prompt_if_no_config(&config_path, false, true, true)?;
                 let mut context = WalletContext::new(&config_path)?;
                 cmd.execute(&mut context).await?.print(!json);
