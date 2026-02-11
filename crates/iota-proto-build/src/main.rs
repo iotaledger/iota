@@ -16,8 +16,6 @@ mod generate_fields;
 mod ident;
 mod message_graph;
 
-const GENERATE_ACCESSORS: bool = false;
-
 fn main() {
     let root_dir = PathBuf::from(std::env!("CARGO_MANIFEST_DIR"));
 
@@ -142,19 +140,19 @@ fn main() {
     }
 
     // Setup for extended codegen
-    if GENERATE_ACCESSORS {
-        let extern_paths = context::extern_paths::ExternPaths::new(&[], true).unwrap();
-        let files = fds
-            .file
-            .clone()
-            .into_iter()
-            // Filter files, there should only be accessors for google.rpc package
-            .filter(|file| file.package().starts_with("google.rpc"))
-            .collect::<Vec<_>>();
-        let graph = DescriptorGraph::new(files.iter());
-        let context = context::Context::new(extern_paths, graph);
-        codegen::accessors::generate_accessors(&context, &out_dir, &boxed_types_accessor);
-    }
+    // Parse proto files to extract accessor annotations
+    let accessor_map = codegen::accessor_config::parse_proto_accessors(&proto_dir);
+
+    let extern_paths = context::extern_paths::ExternPaths::new(&[], true).unwrap();
+    let files = fds.file.clone().into_iter().collect::<Vec<_>>();
+    let graph = DescriptorGraph::new(files.iter());
+    let context = context::Context::new(extern_paths, graph);
+    codegen::accessors::generate_accessors(
+        &context,
+        &out_dir,
+        &boxed_types_accessor,
+        &accessor_map,
+    );
 
     // Group files by package for field info generation
     let mut packages: HashMap<String, FileDescriptorWithPackageVersion> = HashMap::new();
@@ -192,7 +190,10 @@ fn main() {
         .arg(out_dir)
         .status();
     match status {
-        Ok(status) if !status.success() => panic!("You should commit the protobuf files"),
+        Ok(status) if !status.success() => {
+            eprintln!("Generated protobuf files have uncommitted changes. Please commit them.");
+            std::process::exit(2); // Custom exit code for uncommitted changes
+        }
         Err(error) => panic!("failed to run `git diff`: {error}"),
         Ok(_) => {}
     }
