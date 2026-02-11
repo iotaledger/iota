@@ -9,7 +9,6 @@ import { getAllNetworks, getDefaultNetwork, getNetwork } from '@iota/iota-sdk/cl
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import React, { useState } from 'react';
-import { CookieManagerProvider } from '@boxfish-studio/react-cookie-manager';
 import {
     KioskClientProvider,
     StardustIndexerClientProvider,
@@ -48,13 +47,14 @@ export function AppProviders({ children }: React.PropsWithChildren) {
     );
     const allNetworks = getAllNetworks();
     const defaultNetworkId = getDefaultNetwork();
-    const [persistedNetworkId] = useLocalStorage<string>(
+    const [persistedNetworkId, setPersistedNetworkId] = useLocalStorage<string>(
         'network_iota-dashboard',
         defaultNetworkId,
     );
     const persistedNetwork = getNetwork(persistedNetworkId);
 
-    function handleNetworkChange() {
+    function handleNetworkChange(newNetwork: string) {
+        setPersistedNetworkId(newNetwork);
         queryClient.resetQueries();
         queryClient.clear();
     }
@@ -86,35 +86,31 @@ export function AppProviders({ children }: React.PropsWithChildren) {
                                     >
                                         <ClipboardPasteSafetyWrapper>
                                             <ThemeProvider appId="iota-dashboard">
-                                                <CookieManagerProvider>
-                                                    {children}
-                                                    <Toaster containerClassName="!right-8" />
-                                                    <Disclaimer onClose={setCookieAccepted}>
-                                                        <div>
-                                                            By using this website, you agree with
-                                                            our{' '}
-                                                            {LEGAL_LINKS.map(
-                                                                ({ title, href }, index) => (
-                                                                    <React.Fragment key={href}>
-                                                                        <Link
-                                                                            key={href}
-                                                                            href={href}
-                                                                            target="_blank"
-                                                                            rel="noopener noreferrer"
-                                                                            className="text-iota-primary-30 hover:text-iota-primary-50 dark:text-iota-primary-80 dark:hover:text-iota-primary-60"
-                                                                        >
-                                                                            {title}
-                                                                        </Link>
-                                                                        {index <
-                                                                        LEGAL_LINKS.length - 1
-                                                                            ? ', '
-                                                                            : ''}
-                                                                    </React.Fragment>
-                                                                ),
-                                                            )}
-                                                        </div>
-                                                    </Disclaimer>
-                                                </CookieManagerProvider>
+                                                {children}
+                                                <Toaster containerClassName="!right-8" />
+                                                <Disclaimer onClose={setCookieAccepted}>
+                                                    <div>
+                                                        By using this website, you agree with our{' '}
+                                                        {LEGAL_LINKS.map(
+                                                            ({ title, href }, index) => (
+                                                                <React.Fragment key={href}>
+                                                                    <Link
+                                                                        key={href}
+                                                                        href={href}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="text-iota-primary-30 hover:text-iota-primary-50 dark:text-iota-primary-80 dark:hover:text-iota-primary-60"
+                                                                    >
+                                                                        {title}
+                                                                    </Link>
+                                                                    {index < LEGAL_LINKS.length - 1
+                                                                        ? ', '
+                                                                        : ''}
+                                                                </React.Fragment>
+                                                            ),
+                                                        )}
+                                                    </div>
+                                                </Disclaimer>
                                             </ThemeProvider>
                                         </ClipboardPasteSafetyWrapper>
                                     </WalletProvider>

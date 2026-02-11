@@ -77,6 +77,10 @@ pub struct TransactionDenyConfig {
     /// A list of disabled OAuth providers for zkLogin
     #[serde(default)]
     zklogin_disabled_providers: HashSet<String>,
+
+    /// Whether `MoveAuthenticator` is disabled
+    #[serde(default)]
+    move_authenticator_disabled: bool,
     // TODO: We could consider add a deny list for types that we want to disable public transfer.
     // TODO: We could also consider disable more types of commands, such as transfer, split and
     // etc.
@@ -124,6 +128,10 @@ impl TransactionDenyConfig {
 
     pub fn zklogin_disabled_providers(&self) -> &HashSet<String> {
         &self.zklogin_disabled_providers
+    }
+
+    pub fn move_authenticator_disabled(&self) -> bool {
+        self.move_authenticator_disabled
     }
 }
 
@@ -188,6 +196,11 @@ impl TransactionDenyConfigBuilder {
 
     pub fn add_zklogin_disabled_provider(mut self, provider: String) -> Self {
         self.config.zklogin_disabled_providers.insert(provider);
+        self
+    }
+
+    pub fn disable_move_authenticator(mut self) -> Self {
+        self.config.move_authenticator_disabled = true;
         self
     }
 }

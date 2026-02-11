@@ -28,6 +28,7 @@ export type WalletActions = {
         updatedWallets: WalletWithRequiredFeatures[],
         unregisteredWallet: Wallet,
     ) => void;
+    setChain: (chain: ChainType | undefined) => void;
 };
 
 export type WalletStore = ReturnType<typeof createWalletStore>;
@@ -142,6 +143,9 @@ export function createWalletStore({
                                 )) ||
                             accounts[0],
                     }));
+                },
+                setChain(chain) {
+                    set(() => ({ chain }));
                 },
             }),
             {

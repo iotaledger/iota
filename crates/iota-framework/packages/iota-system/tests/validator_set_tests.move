@@ -975,6 +975,11 @@ fun advance_epoch_with_dummy_rewards(
         |i| i,
     );
 
+   let scores = vector::tabulate!(
+        validator_set.committee_validator_addresses().length(),
+        |_| 65536u64,    
+    );
+
     validator_set.advance_epoch(
         &mut dummy_computation_charge,
         &mut vec_map::empty(),
@@ -984,6 +989,8 @@ fun advance_epoch_with_dummy_rewards(
         0, // low_stake_grace_period
         committee_size,
         eligible_validators,
+        scores,
+        true,
         scenario.ctx(),
     );
 
@@ -999,6 +1006,13 @@ fun advance_epoch_with_eligible_validators(
     scenario.next_epoch(@0x0);
     let mut dummy_computation_charge = balance::zero();
 
+
+
+    let scores = vector::tabulate!(
+        validator_set.committee_validator_addresses().length(),
+        |_| 65536u64,    
+    );
+
     validator_set.advance_epoch(
         &mut dummy_computation_charge,
         &mut vec_map::empty(),
@@ -1008,6 +1022,8 @@ fun advance_epoch_with_eligible_validators(
         0, // low_stake_grace_period
         committee_size,
         eligible_validators,
+        scores,
+        true,
         scenario.ctx(),
     );
 
@@ -1031,6 +1047,11 @@ fun advance_epoch_with_low_stake_params(
         |i| i,
     );
 
+   let scores = vector::tabulate!(
+        validator_set.committee_validator_addresses().length(),
+        |_| 65536u64,    
+    );
+
     validator_set.advance_epoch(
         &mut dummy_computation_charge,
         &mut vec_map::empty(),
@@ -1040,6 +1061,8 @@ fun advance_epoch_with_low_stake_params(
         low_stake_grace_period,
         committee_size,
         eligible_validators,
+        scores,
+        true,
         scenario.ctx(),
     );
 

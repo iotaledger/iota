@@ -9,6 +9,7 @@ publish = false
 [dependencies]
 # external dependencies
 async-trait.workspace = true
+backoff.workspace = true
 futures.workspace = true
 prometheus.workspace = true
 serde.workspace = true

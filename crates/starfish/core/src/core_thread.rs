@@ -29,7 +29,7 @@ use crate::{
     context::Context,
     core::{Core, ReasonToCreateBlock},
     core_thread::CoreError::Shutdown,
-    dag_state::{DagState, TransactionSource},
+    dag_state::{DagState, DataSource},
     error::{ConsensusError, ConsensusResult},
 };
 
@@ -39,6 +39,7 @@ enum CoreThreadCommand {
     /// Add blocks to be processed and accepted
     AddBlocks(
         Vec<VerifiedBlock>,
+        DataSource,
         oneshot::Sender<(
             BTreeSet<BlockRef>,
             BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
@@ -47,6 +48,7 @@ enum CoreThreadCommand {
     /// Add block headers to be processed and accepted
     AddBlockHeaders(
         Vec<VerifiedBlockHeader>,
+        DataSource,
         oneshot::Sender<(
             BTreeSet<BlockRef>,
             BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
@@ -74,11 +76,7 @@ enum CoreThreadCommand {
     /// that have these blocks.
     GetMissingBlocks(oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>),
     /// Add transactions to be processed and accepted
-    AddTransactions(
-        Vec<VerifiedTransactions>,
-        oneshot::Sender<()>,
-        TransactionSource,
-    ),
+    AddTransactions(Vec<VerifiedTransactions>, oneshot::Sender<()>, DataSource),
     /// Add shards to the dag_state
     AddShards(Vec<VerifiedOwnShard>, oneshot::Sender<()>),
     /// Get missing transaction data that need to be synced
@@ -98,6 +96,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     async fn add_blocks(
         &self,
         blocks: Vec<VerifiedBlock>,
+        source: DataSource,
     ) -> Result<
         (
             BTreeSet<BlockRef>,
@@ -109,6 +108,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     async fn add_block_headers(
         &self,
         blocks: Vec<VerifiedBlockHeader>,
+        source: DataSource,
     ) -> Result<
         (
             BTreeSet<BlockRef>,
@@ -120,7 +120,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     async fn add_transactions(
         &self,
         transactions: Vec<VerifiedTransactions>,
-        source: TransactionSource,
+        source: DataSource,
     ) -> Result<(), CoreError>;
 
     async fn add_shards(&self, shards: Vec<VerifiedOwnShard>) -> Result<(), CoreError>;
@@ -196,14 +196,15 @@ impl CoreThread {
                     };
                     self.context.metrics.node_metrics.core_lock_dequeued.inc();
                     match command {
-                        CoreThreadCommand::AddBlocks(blocks, sender) => {
+                        CoreThreadCommand::AddBlocks(blocks, source, sender) => {
                             let _scope = monitored_scope("CoreThread::loop::add_blocks");
-                            let (missing_block_refs, missing_committed_txns) = self.core.add_blocks(blocks)?;
+                            let (missing_block_refs, missing_committed_txns) = self.core.add_blocks(blocks, source)?;
                             sender.send((missing_block_refs, missing_committed_txns)).ok();
                         }
-                        CoreThreadCommand::AddBlockHeaders(block_headers, sender) => {
+                        CoreThreadCommand::AddBlockHeaders(block_headers, source, sender) => {
                             let _scope = monitored_scope("CoreThread::loop::add_block_headers");
-                            let (missing_block_refs, missing_committed_txns) = self.core.add_block_headers(block_headers)?;
+                            let (missing_block_refs, missing_committed_txns) =
+                                self.core.add_block_headers(block_headers, source)?;
                             sender.send((missing_block_refs, missing_committed_txns)).ok();
                         }
                         CoreThreadCommand::AddCertifiedCommits(commits, sender) => {
@@ -351,6 +352,7 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
     async fn add_blocks(
         &self,
         blocks: Vec<VerifiedBlock>,
+        source: DataSource,
     ) -> Result<
         (
             BTreeSet<BlockRef>,
@@ -362,7 +364,7 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
             self.highest_received_rounds[block.author()].fetch_max(block.round(), Ordering::AcqRel);
         }
         let (sender, receiver) = oneshot::channel();
-        self.send(CoreThreadCommand::AddBlocks(blocks, sender))
+        self.send(CoreThreadCommand::AddBlocks(blocks, source, sender))
             .await;
         Ok(receiver.await.map_err(|e| Shutdown(e.to_string()))?)
     }
@@ -370,6 +372,7 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
     async fn add_block_headers(
         &self,
         block_headers: Vec<VerifiedBlockHeader>,
+        source: DataSource,
     ) -> Result<
         (
             BTreeSet<BlockRef>,
@@ -378,15 +381,19 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         CoreError,
     > {
         let (sender, receiver) = oneshot::channel();
-        self.send(CoreThreadCommand::AddBlockHeaders(block_headers, sender))
-            .await;
+        self.send(CoreThreadCommand::AddBlockHeaders(
+            block_headers,
+            source,
+            sender,
+        ))
+        .await;
         Ok(receiver.await.map_err(|e| Shutdown(e.to_string()))?)
     }
 
     async fn add_transactions(
         &self,
         transactions: Vec<VerifiedTransactions>,
-        source: TransactionSource,
+        source: DataSource,
     ) -> Result<(), CoreError> {
         let (sender, receiver) = oneshot::channel();
         self.send(CoreThreadCommand::AddTransactions(
@@ -550,6 +557,7 @@ pub(crate) mod tests {
         async fn add_blocks(
             &self,
             blocks: Vec<VerifiedBlock>,
+            _source: DataSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
@@ -557,14 +565,14 @@ pub(crate) mod tests {
             ),
             CoreError,
         > {
-            let block_refs = blocks.iter().map(|b| b.reference()).collect();
             self.blocks.lock().extend(blocks);
-            Ok((block_refs, BTreeMap::new()))
+            Ok((BTreeSet::default(), BTreeMap::new()))
         }
 
         async fn add_block_headers(
             &self,
             block_headers: Vec<VerifiedBlockHeader>,
+            _source: DataSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
@@ -572,22 +580,20 @@ pub(crate) mod tests {
             ),
             CoreError,
         > {
-            let block_refs = block_headers
-                .iter()
-                .map(|b| b.reference())
-                .collect::<BTreeSet<_>>();
-            self.block_headers.lock().extend(block_headers);
             let mut missing_block_headers = self.missing_block_headers.lock();
-            for block_ref in &block_refs {
-                missing_block_headers.remove(block_ref);
+            for header in &block_headers {
+                missing_block_headers.remove(&header.reference());
             }
-            Ok((block_refs, BTreeMap::new()))
+
+            self.block_headers.lock().extend(block_headers);
+
+            Ok((BTreeSet::default(), BTreeMap::new()))
         }
 
         async fn add_transactions(
             &self,
             _transactions: Vec<VerifiedTransactions>,
-            _source: TransactionSource,
+            _source: DataSource,
         ) -> Result<(), CoreError> {
             unimplemented!()
         }
@@ -698,19 +704,59 @@ pub(crate) mod tests {
         let dispatcher_2 = core_dispatcher.clone();
 
         // Try to send some commands
-        assert!(dispatcher_1.add_blocks(vec![]).await.is_ok());
-        assert!(dispatcher_2.add_blocks(vec![]).await.is_ok());
+        assert!(
+            dispatcher_1
+                .add_blocks(vec![], DataSource::Test)
+                .await
+                .is_ok()
+        );
+        assert!(
+            dispatcher_2
+                .add_blocks(vec![], DataSource::Test)
+                .await
+                .is_ok()
+        );
 
-        assert!(dispatcher_1.add_block_headers(vec![]).await.is_ok());
-        assert!(dispatcher_2.add_block_headers(vec![]).await.is_ok());
+        assert!(
+            dispatcher_1
+                .add_block_headers(vec![], DataSource::Test)
+                .await
+                .is_ok()
+        );
+        assert!(
+            dispatcher_2
+                .add_block_headers(vec![], DataSource::Test)
+                .await
+                .is_ok()
+        );
 
         // Now shutdown the dispatcher
         handle.stop().await;
 
         // Try to send some commands
-        assert!(dispatcher_1.add_blocks(vec![]).await.is_err());
-        assert!(dispatcher_2.add_blocks(vec![]).await.is_err());
-        assert!(dispatcher_1.add_block_headers(vec![]).await.is_err());
-        assert!(dispatcher_2.add_block_headers(vec![]).await.is_err());
+        assert!(
+            dispatcher_1
+                .add_blocks(vec![], DataSource::Test)
+                .await
+                .is_err()
+        );
+        assert!(
+            dispatcher_2
+                .add_blocks(vec![], DataSource::Test)
+                .await
+                .is_err()
+        );
+        assert!(
+            dispatcher_1
+                .add_block_headers(vec![], DataSource::Test)
+                .await
+                .is_err()
+        );
+        assert!(
+            dispatcher_2
+                .add_block_headers(vec![], DataSource::Test)
+                .await
+                .is_err()
+        );
     }
 }
