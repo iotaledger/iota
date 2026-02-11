@@ -14,8 +14,8 @@ import { getIdentityType, getLegacyMetadata, MetadataBuilder } from '../headerMe
 // import { ControllerAndServiceView } from './ControllerAndServiceView';
 // import { ControllerView } from './ControllerView';
 // import { ServiceView } from './ServiceView';
-// import { DidDocumentView } from './DidDocumentView';
 import { DidSummaryView } from './DidSummaryView';
+import { DidDocumentJsonView } from './DidDocumentJsonView';
 // import { TransactionsView } from './TransactionsView';
 
 interface DidContentProps {
@@ -110,7 +110,7 @@ export function DidContent({ did }: DidContentProps) {
                     {/*     controllerView={<ControllerView objectData={didObject} />} */}
                     {/*     serviceView={<ServiceView didDocument={didDocument} />} */}
                     {/* /> */}
-                    {/* <DidDocumentView didDocument={didDocument} /> */}
+                    <DidDocumentJsonView didDocument={didDocument} />
                     {/* <TransactionsView objectId={did.tag()} /> */}
                 </div>
             }
