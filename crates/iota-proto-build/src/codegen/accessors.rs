@@ -133,11 +133,8 @@ fn message_needs_default_instance(message: &Message, accessor_map: &AccessorMap)
 
             // Check if GETTER is set AND will actually generate a getter method
             if accessor_types.contains(AccessorTypes::GETTER) {
-                // Maps and repeated fields always generate getters (except enum repeated)
-                if field.is_map() {
-                    return true;
-                }
-                if field.is_repeated() && !field.is_enum() {
+                // Maps and repeated fields always generate getters
+                if field.is_map() || field.is_repeated() {
                     return true;
                 }
                 // Optional fields only generate getters for message types (non-well-known)
@@ -360,16 +357,20 @@ fn generate_selective_accessors_for_field(
 
         accessors
     } else if field.is_repeated() {
-        if field.is_enum() {
-            return TokenStream::new();
-        }
-
         let mut accessors = TokenStream::new();
+
+        // For repeated enum fields, prost stores them as Vec<i32>
+        let is_enum = field.is_enum();
+        let storage_type = if is_enum {
+            TokenStream::from_str("i32").unwrap()
+        } else {
+            field_type_path.clone()
+        };
 
         if accessor_types.contains(AccessorTypes::GETTER) {
             accessors.extend(quote! {
                 #( #[doc = #name_comments] )*
-                pub fn #name(&self) -> &[#field_type_path] {
+                pub fn #name(&self) -> &[#storage_type] {
                     &self.#name
                 }
             });
@@ -378,7 +379,7 @@ fn generate_selective_accessors_for_field(
         if accessor_types.contains(AccessorTypes::MUT) {
             accessors.extend(quote! {
                 #( #[doc = #name_mut_comments] )*
-                pub fn #name_mut(&mut self) -> &mut Vec<#field_type_path> {
+                pub fn #name_mut(&mut self) -> &mut Vec<#storage_type> {
                     &mut self.#name
                 }
             });
@@ -387,7 +388,7 @@ fn generate_selective_accessors_for_field(
         if accessor_types.contains(AccessorTypes::SET) {
             accessors.extend(quote! {
                 #( #[doc = #set_name_comments] )*
-                pub fn #set_name(&mut self, field: Vec<#field_type_path>) {
+                pub fn #set_name(&mut self, field: Vec<#storage_type>) {
                     self.#name = field;
                 }
             });
@@ -398,7 +399,7 @@ fn generate_selective_accessors_for_field(
             if accessor_types.contains(AccessorTypes::SET) {
                 accessors.extend(quote! {
                     #( #[doc = #set_name_comments] )*
-                    pub fn #with_name(mut self, field: Vec<#field_type_path>) -> Self {
+                    pub fn #with_name(mut self, field: Vec<#storage_type>) -> Self {
                         self.#set_name(field);
                         self
                     }
@@ -406,7 +407,7 @@ fn generate_selective_accessors_for_field(
             } else {
                 accessors.extend(quote! {
                     #( #[doc = #set_name_comments] )*
-                    pub fn #with_name(mut self, field: Vec<#field_type_path>) -> Self {
+                    pub fn #with_name(mut self, field: Vec<#storage_type>) -> Self {
                         self.#name = field;
                         self
                     }
@@ -510,11 +511,20 @@ fn generate_selective_accessors_for_field(
         {
             let setters = if use_into_for_setter(field) {
                 let mut s = TokenStream::new();
+
+                // For boxed types in accessors, we accept Box<T> but need to unbox when storing
+                // because the oneof variant stores the unboxed type
+                let into_conversion = if is_boxed {
+                    quote! { *field.into() }
+                } else {
+                    quote! { field.into().into() }
+                };
+
                 if accessor_types.contains(AccessorTypes::SET) {
                     s.extend(quote! {
                         #( #[doc = #set_name_comments] )*
                         pub fn #set_name<T: Into<#field_type_path>>(&mut self, field: T) {
-                            self.#oneof_field = Some(#oneof_type_path::#variant(field.into().into()));
+                            self.#oneof_field = Some(#oneof_type_path::#variant(#into_conversion));
                         }
                     });
                 }
@@ -532,7 +542,7 @@ fn generate_selective_accessors_for_field(
                         s.extend(quote! {
                             #( #[doc = #set_name_comments] )*
                             pub fn #with_name<T: Into<#field_type_path>>(mut self, field: T) -> Self {
-                                self.#oneof_field = Some(#oneof_type_path::#variant(field.into().into()));
+                                self.#oneof_field = Some(#oneof_type_path::#variant(#into_conversion));
                                 self
                             }
                         });

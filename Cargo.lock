@@ -7326,6 +7326,7 @@ dependencies = [
  "prettyplease",
  "proc-macro2",
  "prost 0.14.1",
+ "prost-reflect",
  "prost-types 0.14.1",
  "protox",
  "quote",

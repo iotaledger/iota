@@ -17,6 +17,7 @@ petgraph.workspace = true
 prettyplease = "0.2"
 proc-macro2.workspace = true
 prost.workspace = true
+prost-reflect = "0.16"
 prost-types.workspace = true
 protox = "0.9"
 quote.workspace = true

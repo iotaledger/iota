@@ -50,13 +50,16 @@ fn main() {
         .collect::<Result<Vec<_>, walkdir::Error>>()
         .unwrap();
 
-    let mut fds = protox::Compiler::new(std::slice::from_ref(&proto_dir))
-        .unwrap()
+    let mut compiler_init = protox::Compiler::new(std::slice::from_ref(&proto_dir)).unwrap();
+    let compiler = compiler_init
         .include_source_info(true)
         .include_imports(true)
         .open_files(&proto_files)
-        .unwrap()
-        .file_descriptor_set();
+        .unwrap();
+
+    let descriptor_pool = compiler.descriptor_pool();
+    let mut fds = compiler.file_descriptor_set();
+
     // Sort files by name to have deterministic codegen output
     fds.file.sort_by(|a, b| a.name.cmp(&b.name));
 
@@ -75,12 +78,7 @@ fn main() {
     ];
 
     // for accessor generation
-    let mut boxed_types_accessor = vec![
-        ".iota.grpc.v0.filter.EventFilter.negation".to_string(),
-        ".iota.grpc.v0.filter.TransactionFilter.negation".to_string(),
-        ".iota.grpc.v0.ledger_service.TransactionResult.transaction".to_string(),
-        ".iota.grpc.v0.types.TypeTag.vector_tag".to_string(),
-    ];
+    let mut boxed_types_accessor = vec![];
     boxed_types_accessor.extend(boxed_types_prost.clone());
 
     let mut tonic_prost_builder = tonic_prost_build::configure()
@@ -141,7 +139,7 @@ fn main() {
 
     // Setup for extended codegen
     // Parse proto files to extract accessor annotations
-    let accessor_map = codegen::accessor_config::parse_proto_accessors(&proto_dir);
+    let accessor_map = codegen::accessor_config::parse_proto_accessors_from_pool(&descriptor_pool);
 
     let extern_paths = context::extern_paths::ExternPaths::new(&[], true).unwrap();
     let files = fds.file.clone().into_iter().collect::<Vec<_>>();

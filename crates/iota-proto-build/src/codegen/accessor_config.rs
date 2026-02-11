@@ -1,6 +1,6 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use std::{collections::HashMap, path::Path};
+use std::collections::HashMap;
 
 use bitflags::bitflags;
 use prost_types::FieldDescriptorProto;
@@ -141,87 +141,44 @@ impl AccessorTypes {
 /// Key is "message_name.field_name", value is the accessor types
 pub type AccessorMap = HashMap<String, AccessorTypes>;
 
-/// Parse proto files to extract generate_accessors annotations
-/// Returns a map of "MessageName.field_name" -> AccessorTypes
-pub fn parse_proto_accessors(proto_dir: &Path) -> AccessorMap {
+/// Parse proto files to extract generate_accessors annotations from the
+/// descriptor pool Returns a map of "MessageName.field_name" -> AccessorTypes
+pub fn parse_proto_accessors_from_pool(pool: &prost_reflect::DescriptorPool) -> AccessorMap {
     let mut map = HashMap::new();
 
-    // Walk through all .proto files
-    for entry in walkdir::WalkDir::new(proto_dir) {
-        let entry = match entry {
-            Ok(e) => e,
-            Err(_) => continue,
-        };
-
-        if !entry.file_type().is_file() {
-            continue;
+    // Get the extension descriptor for iota.grpc.generate_accessors
+    let ext = match pool.get_extension_by_name("iota.grpc.generate_accessors") {
+        Some(ext) => ext,
+        None => {
+            panic!("Extension iota.grpc.generate_accessors not found in descriptor pool");
         }
+    };
 
-        let path = entry.path();
-        if path.extension().and_then(|s| s.to_str()) != Some("proto") {
-            continue;
-        }
+    // Iterate all messages (including nested ones)
+    for message in pool.all_messages() {
+        let message_name = message.name();
 
-        // Read and parse the proto file
-        if let Ok(content) = std::fs::read_to_string(path) {
-            parse_proto_content(&content, &mut map);
+        // Iterate all fields in this message
+        for field in message.fields() {
+            let field_name = field.name();
+
+            // Get field options
+            let options = field.options();
+
+            // Check if the extension is set
+            if options.has_extension(&ext) {
+                if let Some(accessor_str) = options.get_extension(&ext).as_str() {
+                    let key = format!("{}.{}", message_name, field_name);
+
+                    if let Some(accessor_types) = AccessorTypes::parse(accessor_str) {
+                        map.insert(key, accessor_types);
+                    }
+                }
+            }
         }
     }
 
     map
-}
-
-/// Parse a proto file content to extract accessor annotations
-///
-/// Remark: We parse the file manually using regex to avoid adding a full proto
-/// parser dependency like proto-reflect, For our use case this is simpler and
-/// sufficient.
-fn parse_proto_content(content: &str, map: &mut AccessorMap) {
-    // First, find all message definitions and their fields with annotations
-    let message_re = regex::Regex::new(r#"(?m)^message\s+(\w+)\s*\{"#).unwrap();
-    let field_re = regex::Regex::new(
-        r#"(?m)^\s*(?:optional|required|repeated)?\s+\w+(?:\.\w+)*\s+(\w+)\s*=\s*\d+\s*\[\(iota\.grpc\.generate_accessors\)\s*=\s*"([^"]*)"\]"#
-    ).unwrap();
-
-    // Track the current message name
-    let mut current_message = String::new();
-    let mut last_message_pos = 0;
-
-    for message_cap in message_re.captures_iter(content) {
-        let message_name = message_cap.get(1).unwrap().as_str();
-        let message_start = message_cap.get(0).unwrap().start();
-
-        // Process fields from the previous message
-        if !current_message.is_empty() {
-            let message_content = &content[last_message_pos..message_start];
-            for field_cap in field_re.captures_iter(message_content) {
-                let field_name = field_cap.get(1).unwrap().as_str();
-                let accessor_str = field_cap.get(2).unwrap().as_str();
-                let key = format!("{}.{}", current_message, field_name);
-
-                if let Some(accessor_types) = AccessorTypes::parse(accessor_str) {
-                    map.insert(key, accessor_types);
-                }
-            }
-        }
-
-        current_message = message_name.to_string();
-        last_message_pos = message_start;
-    }
-
-    // Process fields from the last message
-    if !current_message.is_empty() {
-        let message_content = &content[last_message_pos..];
-        for field_cap in field_re.captures_iter(message_content) {
-            let field_name = field_cap.get(1).unwrap().as_str();
-            let accessor_str = field_cap.get(2).unwrap().as_str();
-            let key = format!("{}.{}", current_message, field_name);
-
-            if let Some(accessor_types) = AccessorTypes::parse(accessor_str) {
-                map.insert(key, accessor_types);
-            }
-        }
-    }
 }
 
 #[cfg(test)]
