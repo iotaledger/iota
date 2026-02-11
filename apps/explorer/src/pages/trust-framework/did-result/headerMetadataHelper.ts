@@ -40,13 +40,22 @@ export class MetadataBuilder {
     }
 }
 
-export function getIdentityType(objectData: IotaObjectData | null, pkgId: string): MetaItem | null {
-    if (objectData == null || objectData.type == null) {
+/**
+ * Determines the identity type of an IOTA DID object based on its type.
+ *
+ * @param didObject - The IOTA object data to analyze.
+ * @param pkgId - The package ID to compare against for official identity package.
+ * @returns A MetaItem object containing identity type information, or null if
+ *          the objectData is null or has no type.
+ */
+export function getIdentityType(didObject: IotaObjectData | null, pkgId: string): MetaItem | null {
+    if (didObject == null || didObject.type == null) {
         return null;
     }
 
-    const [_package, _module, _method] = objectData.type.split('::');
+    const [_package, _module, _method] = didObject.type.split('::');
     if (_method === IDENTITY_METHOD && _module === IDENTITY_MODULE && _package === pkgId) {
+        // Official Identity package for the current network
         return {
             label: metadata.type.label,
             value: metadata.type.badge,
@@ -56,11 +65,17 @@ export function getIdentityType(objectData: IotaObjectData | null, pkgId: string
 
     return {
         label: metadata.type.label,
-        value: objectData.type,
+        value: didObject.type,
         visible: true,
     } as MetaItem;
 }
 
+/**
+ * Extracts legacy metadata from an IOTA DID object if available.
+ *
+ * @param didObject - The IOTA DID object data containing potential legacy ID information.
+ * @returns A MetaItem containing the legacy ID if found, otherwise null.
+ */
 export function getLegacyMetadata(didObject: IotaObjectData | null): MetaItem | null {
     if (didObject == null) {
         return null;
