@@ -3062,7 +3062,7 @@ impl AuthorityState {
             rx_ready_certificates,
             rx_execution_shutdown,
         ));
-        spawn_monitored_task!(authority_store_migrations::migrate_events(store));
+        authority_store_migrations::migrate_events(store).await;
 
         // TODO: This doesn't belong to the constructor of AuthorityState.
         state

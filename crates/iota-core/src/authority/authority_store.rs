@@ -399,18 +399,11 @@ impl AuthorityStore {
         &self,
         digest: &TransactionDigest,
     ) -> Result<Option<TransactionEvents>, TypedStoreError> {
-        // For now, during this transition period, if we don't find events for a
-        // particular Transaction we need to fallback to try and read from the
-        // older table. Once the migration has finished and we've removed the
-        // older events table we can stop doing the fallback
         if let Some(events) = self.perpetual_tables.events_2.get(digest)? {
             return Ok(Some(events));
         }
 
-        self.get_executed_effects(digest)?
-            .and_then(|effects| effects.events_digest().copied())
-            .and_then(|events_digest| self.get_events_by_events_digest(&events_digest).transpose())
-            .transpose()
+        Ok(None)
     }
 
     pub fn get_events_by_events_digest(
