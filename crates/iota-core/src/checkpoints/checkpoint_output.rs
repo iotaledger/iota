@@ -129,16 +129,29 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
         // choose to send the ones that include only unprovable counts at this
         // point, due to periodicity reasons and to ensure a (approximate)
         // synchronization with the score updates.
-        if epoch_store.protocol_config().calculate_validator_scores() {
+        // Reports are rate-limited: only sent when metrics have changed (different
+        // summaries) and at least 1000 checkpoints have passed since the last report.
+        if epoch_store.protocol_config().calculate_validator_scores()
+            && checkpoint_seq - epoch_store.scorer.last_report_checkpoint_seq() >= 1000
+        {
             let misbehavior_report = epoch_store.scorer.current_local_metrics_count.to_report();
-            let transaction = ConsensusTransaction::new_misbehavior_report(
-                epoch_store.name,
-                &misbehavior_report,
-                checkpoint_seq,
-            );
-            info!(?transaction, "submitting misbehavior report to consensus");
-            self.sender
-                .submit_to_consensus(&[transaction], epoch_store)?;
+            let new_report_summary = misbehavior_report.summary();
+            if new_report_summary != epoch_store.scorer.last_report_summary() {
+                let transaction = ConsensusTransaction::new_misbehavior_report(
+                    epoch_store.name,
+                    &misbehavior_report,
+                    checkpoint_seq,
+                );
+                info!(?transaction, "submitting misbehavior report to consensus");
+                self.sender
+                    .submit_to_consensus(&[transaction], epoch_store)?;
+                epoch_store
+                    .scorer
+                    .store_last_report_summary(new_report_summary);
+                epoch_store
+                    .scorer
+                    .store_last_report_checkpoint_seq(checkpoint_seq);
+            }
         }
 
         if checkpoint_timestamp >= self.next_reconfiguration_timestamp_ms {
