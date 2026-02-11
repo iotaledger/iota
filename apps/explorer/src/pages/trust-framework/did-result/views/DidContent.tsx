@@ -11,11 +11,11 @@ import { useIdentityPkgId } from '~/contexts';
 import { useMemo } from 'react';
 import { Warning } from '@iota/apps-ui-icons';
 import { getIdentityType, getLegacyMetadata, MetadataBuilder } from '../headerMetadataHelper';
-// import { ControllerAndServiceView } from './ControllerAndServiceView';
-// import { ControllerView } from './ControllerView';
+import { ControllerView } from './ControllerView';
 // import { ServiceView } from './ServiceView';
 import { DidSummaryView } from './DidSummaryView';
 import { DidDocumentJsonView } from './DidDocumentJsonView';
+import { SideBySidePanelsView } from './SideBySidePanelsView';
 // import { TransactionsView } from './TransactionsView';
 
 interface DidContentProps {
@@ -106,10 +106,10 @@ export function DidContent({ did }: DidContentProps) {
                             .build()}
                     />
                     <DidSummaryView objectData={didObject} didDocument={didDocument} />
-                    {/* <ControllerAndServiceView */}
-                    {/*     controllerView={<ControllerView objectData={didObject} />} */}
-                    {/*     serviceView={<ServiceView didDocument={didDocument} />} */}
-                    {/* /> */}
+                    <SideBySidePanelsView
+                        firstPanelView={<ControllerView objectData={didObject} />}
+                        secondPanelView={'Service' /* <ServiceView didDocument={didDocument} /> */}
+                    />
                     <DidDocumentJsonView didDocument={didDocument} />
                     {/* <TransactionsView objectId={did.tag()} /> */}
                 </div>
