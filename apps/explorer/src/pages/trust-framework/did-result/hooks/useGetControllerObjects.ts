@@ -7,7 +7,7 @@ import type { IotaObjectData } from '@iota/iota-sdk/src/client';
 import { useQueries } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import type { IdentityController } from '../types';
-import { extractControllerCaps, getOnwerAddress, getOwnerType } from '../helper';
+import { extractControllerCaps, getOwnerAddress, getOwnerType } from '../helper';
 
 /**
  * This hook:
@@ -57,7 +57,7 @@ export function useGetControllerObjects(objectData: IotaObjectData) {
                 return {
                     ...controllerCap,
                     objectType: objectData?.type,
-                    owner: getOnwerAddress(objectData?.owner, objectData?.objectId),
+                    owner: getOwnerAddress(objectData?.owner, objectData?.objectId),
                     ownerType: getOwnerType(objectData?.owner),
                     isError: false,
                 };

@@ -46,7 +46,7 @@ function getField<T>(fieldObject: FieldObject, field: string): T {
  * @param objectId The object ID, required for 'Shared' owner type.
  * @returns The owner address, or null if not found.
  */
-export function getOnwerAddress(owner?: ObjectOwner | null, objectId?: string): string | null {
+export function getOwnerAddress(owner?: ObjectOwner | null, objectId?: string): string | null {
     if (owner == null) {
         return null;
     }
