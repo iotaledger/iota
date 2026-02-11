@@ -833,8 +833,8 @@ fn test_repeatedly_update_display() {
 
         let bear_type_tag = TypeTag::Struct(Box::new(StructTag::new(
             package_id,
-            Identifier::from_static("DemoBear"),
             Identifier::from_static("demo_bear"),
+            Identifier::from_static("DemoBear"),
             Vec::new(),
         )));
 
@@ -852,6 +852,7 @@ fn test_repeatedly_update_display() {
             )
             .await
             .unwrap();
+            println!("{:?}", res.effects.as_ref().unwrap().status());
             assert_eq!(res.status_ok(), Some(true));
 
             let res = bump_display_object_version(
