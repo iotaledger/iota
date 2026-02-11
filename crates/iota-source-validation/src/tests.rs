@@ -510,7 +510,8 @@ async fn module_bytecode_mismatch() -> anyhow::Result<()> {
         panic!("Expected verification to fail");
     };
 
-    let expected = expect!["Local dependency did not match its on-chain version at 0x<a_addr>::a::a"];
+    let expected =
+        expect!["Local dependency did not match its on-chain version at 0x<a_addr>::a::a"];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     Ok(())
