@@ -85,12 +85,10 @@ impl Client {
             vec![]
         };
 
-        let request = SimulateTransactionRequest {
-            transaction: Some(proto_transaction),
-            tx_checks,
-            estimate_gas_budget: None,
-            read_mask: Some(field_mask_with_default(read_mask, EXECUTION_READ_MASK)),
-        };
+        let request = SimulateTransactionRequest::default()
+            .with_transaction(proto_transaction)
+            .with_tx_checks(tx_checks)
+            .with_read_mask(field_mask_with_default(read_mask, EXECUTION_READ_MASK));
 
         let response = self
             .execution_service_client()

@@ -61,9 +61,8 @@ impl Client {
         &self,
         read_mask: Option<&str>,
     ) -> Result<GetServiceInfoResponse> {
-        let request = GetServiceInfoRequest {
-            read_mask: Some(field_mask_with_default(read_mask, SERVICE_INFO_READ_MASK)),
-        };
+        let request = GetServiceInfoRequest::default()
+            .with_read_mask(field_mask_with_default(read_mask, SERVICE_INFO_READ_MASK));
 
         let mut client = self.ledger_service_client();
         let response = client.get_service_info(request).await?.into_inner();

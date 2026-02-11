@@ -64,24 +64,27 @@ impl Client {
             return Ok(vec![]);
         }
 
-        let requests = ObjectRequests {
-            requests: refs
-                .iter()
-                .map(|(id, version)| ObjectRequest {
-                    object_ref: Some(ObjectReference {
-                        object_id: Some(id.to_string()),
-                        version: *version,
-                        digest: None,
-                    }),
+        let requests = ObjectRequests::default().with_requests(
+            refs.iter()
+                .map(|(id, version)| {
+                    let mut object_ref = ObjectReference::default().with_object_id(id.to_string());
+
+                    if let Some(v) = version {
+                        object_ref = object_ref.with_version(*v);
+                    }
+
+                    ObjectRequest::default().with_object_ref(object_ref)
                 })
                 .collect(),
-        };
+        );
 
-        let request = GetObjectsRequest {
-            requests: Some(requests),
-            read_mask: Some(field_mask_with_default(read_mask, OBJECTS_READ_MASK)),
-            max_message_size_bytes: self.max_decoding_message_size().map(|s| s as u32),
-        };
+        let mut request = GetObjectsRequest::default()
+            .with_requests(requests)
+            .with_read_mask(field_mask_with_default(read_mask, OBJECTS_READ_MASK));
+
+        if let Some(max_size) = self.max_decoding_message_size() {
+            request = request.with_max_message_size_bytes(max_size as u32);
+        }
 
         let mut client = self.ledger_service_client();
 

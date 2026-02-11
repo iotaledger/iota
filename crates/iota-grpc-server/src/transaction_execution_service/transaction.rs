@@ -348,9 +348,7 @@ impl Merge<&CommandOutputReadSource<'_>> for CommandOutput {
         }
 
         if mask.contains(Self::BCS_FIELD.name) {
-            self.bcs = Some(BcsData {
-                data: source.bcs_bytes.to_vec().into(),
-            });
+            self.bcs = Some(BcsData::default().with_data(source.bcs_bytes.to_vec()));
         }
 
         if mask.contains(Self::JSON_FIELD.name) {

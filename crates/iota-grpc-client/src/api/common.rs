@@ -166,8 +166,9 @@ pub fn build_proto_transaction<T: Serialize>(data: &T, digest: Digest) -> Result
     let bcs = BcsData::serialize(data)
         .map_err(|e| Error::from(TryFromProtoError::invalid("transaction", e)))?;
 
-    Ok(ProtoTransaction {
-        digest: Some(digest.into()),
-        bcs: Some(bcs),
-    })
+    let proto_transaction = ProtoTransaction::default()
+        .with_digest(digest)
+        .with_bcs(bcs);
+
+    Ok(proto_transaction)
 }

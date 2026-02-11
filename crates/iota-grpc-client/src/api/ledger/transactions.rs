@@ -78,20 +78,20 @@ impl Client {
             return Ok(vec![]);
         }
 
-        let requests = TransactionRequests {
-            requests: digests
+        let requests = TransactionRequests::default().with_requests(
+            digests
                 .iter()
-                .map(|d| TransactionRequest {
-                    digest: Some((*d).into()),
-                })
+                .map(|d| TransactionRequest::default().with_digest(*d))
                 .collect(),
-        };
+        );
 
-        let request = GetTransactionsRequest {
-            requests: Some(requests),
-            read_mask: Some(field_mask_with_default(read_mask, TRANSACTIONS_READ_MASK)),
-            max_message_size_bytes: self.max_decoding_message_size().map(|s| s as u32),
-        };
+        let mut request = GetTransactionsRequest::default()
+            .with_requests(requests)
+            .with_read_mask(field_mask_with_default(read_mask, TRANSACTIONS_READ_MASK));
+
+        if let Some(max_size) = self.max_decoding_message_size() {
+            request = request.with_max_message_size_bytes(max_size as u32);
+        }
 
         let mut client = self.ledger_service_client();
 

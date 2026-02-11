@@ -65,7 +65,7 @@ pub fn get_epoch(
         };
 
     if read_mask.contains(Epoch::EPOCH_FIELD.name) {
-        message.epoch = Some(epoch);
+        message = message.with_epoch(epoch);
     }
 
     if let Some(epoch_info) = service
@@ -74,27 +74,31 @@ pub fn get_epoch(
         .map_err(|e| Status::internal(format!("Failed to get epoch info: {e}")))?
     {
         if read_mask.contains(Epoch::FIRST_CHECKPOINT_FIELD.name) {
-            message.first_checkpoint = Some(epoch_info.start_checkpoint);
+            message = message.with_first_checkpoint(epoch_info.start_checkpoint);
         }
 
         if read_mask.contains(Epoch::LAST_CHECKPOINT_FIELD.name) {
-            message.last_checkpoint = epoch_info.end_checkpoint;
+            if let Some(end_checkpoint) = epoch_info.end_checkpoint {
+                message = message.with_last_checkpoint(end_checkpoint);
+            }
         }
 
         if read_mask.contains(Epoch::START_FIELD.name) {
-            message.start = Some(timestamp_ms_to_proto(epoch_info.start_timestamp_ms));
+            message = message.with_start(timestamp_ms_to_proto(epoch_info.start_timestamp_ms));
         }
 
         if read_mask.contains(Epoch::END_FIELD.name) {
-            message.end = epoch_info.end_timestamp_ms.map(timestamp_ms_to_proto);
+            if let Some(end_timestamp_ms) = epoch_info.end_timestamp_ms {
+                message = message.with_end(timestamp_ms_to_proto(end_timestamp_ms));
+            }
         }
 
         if read_mask.contains(Epoch::REFERENCE_GAS_PRICE_FIELD.name) {
-            message.reference_gas_price = Some(epoch_info.reference_gas_price);
+            message = message.with_reference_gas_price(epoch_info.reference_gas_price);
         }
 
         if let Some(submask) = read_mask.subtree(Epoch::PROTOCOL_CONFIG_FIELD.name) {
-            message.protocol_config = Some(
+            message = message.with_protocol_config(
                 ProtocolConfig::merge_from(
                     get_protocol_config(epoch_info.protocol_version, service.chain)?,
                     &submask,
@@ -112,8 +116,8 @@ pub fn get_epoch(
 
     if let Some(system_state) = system_state {
         if read_mask.contains(Epoch::BCS_SYSTEM_STATE_FIELD.name) {
-            message.bcs_system_state =
-                Some(BcsData::serialize(&system_state).map_err(|e| {
+            message =
+                message.with_bcs_system_state(BcsData::serialize(&system_state).map_err(|e| {
                     Status::internal(format!("Failed to serialize system state: {e}"))
                 })?);
         }
@@ -126,12 +130,10 @@ pub fn get_epoch(
             .map_err(|e| Status::internal(format!("Failed to get committee: {e}")))?
             .ok_or_else(|| CommitteeNotFoundError::new(epoch))?;
         let sdk_committee: iota_sdk_types::ValidatorCommittee = committee.as_ref().clone().into();
-        message.committee = Some(sdk_committee.into());
+        message = message.with_committee(sdk_committee);
     }
 
-    Ok(GetEpochResponse {
-        epoch: Some(message),
-    })
+    Ok(GetEpochResponse::default().with_epoch(message))
 }
 
 #[derive(Debug)]
@@ -210,12 +212,13 @@ pub fn protocol_config_to_proto(config: IotaProtocolConfig) -> ProtocolConfig {
             })
         })
         .collect();
-    let feature_flags = config.feature_map().into_iter().collect();
-    ProtocolConfig {
-        protocol_version: Some(protocol_version),
-        feature_flags: Some(iota_grpc_types::v0::epoch::ProtocolFeatureFlags {
-            flags: feature_flags,
-        }),
-        attributes: Some(iota_grpc_types::v0::epoch::ProtocolAttributes { attributes }),
-    }
+    ProtocolConfig::default()
+        .with_protocol_version(protocol_version)
+        .with_feature_flags(
+            iota_grpc_types::v0::epoch::ProtocolFeatureFlags::default()
+                .with_flags(config.feature_map().into_iter().collect()),
+        )
+        .with_attributes(
+            iota_grpc_types::v0::epoch::ProtocolAttributes::default().with_attributes(attributes),
+        )
 }

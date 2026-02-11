@@ -148,31 +148,21 @@ async fn test_event_filtering() {
         .expect("Should have created basics package");
 
     // Define event filters for later use
-    let sender_filter = grpc_filter::EventFilter {
-        filter: Some(grpc_filter::event_filter::Filter::Sender(
-            grpc_filter::AddressFilter {
-                address: Some(grpc_types::Address {
-                    address: sender_1.to_vec().into(),
-                }),
-            },
-        )),
-    };
+    let sender_filter = grpc_filter::EventFilter::default().with_sender(
+        grpc_filter::AddressFilter::default()
+            .with_address(grpc_types::Address::default().with_address(sender_1.to_vec())),
+    );
 
-    let nft_filter = grpc_filter::EventFilter {
-        filter: Some(grpc_filter::event_filter::Filter::MoveEventType(
-            grpc_filter::MoveEventTypeFilter {
-                struct_tag: format!("{nft_package_id}::{NFT_MODULE}::{NFT_MINTED_EVENT}"),
-            },
+    let nft_filter = grpc_filter::EventFilter::default().with_move_event_type(
+        grpc_filter::MoveEventTypeFilter::default().with_struct_tag(format!(
+            "{nft_package_id}::{NFT_MODULE}::{NFT_MINTED_EVENT}"
         )),
-    };
+    );
 
-    let any_filter = grpc_filter::EventFilter {
-        filter: Some(grpc_filter::event_filter::Filter::Any(
-            grpc_filter::AnyEventFilter {
-                filters: vec![sender_filter.clone(), nft_filter.clone()],
-            },
-        )),
-    };
+    let any_filter = grpc_filter::EventFilter::default().with_any(
+        grpc_filter::AnyEventFilter::default()
+            .with_filters(vec![sender_filter.clone(), nft_filter.clone()]),
+    );
 
     // Generate all events first before streaming
     // Generate 2 NFT events from sender_1

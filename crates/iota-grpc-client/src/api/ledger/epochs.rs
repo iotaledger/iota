@@ -55,10 +55,12 @@ impl Client {
     /// # }
     /// ```
     pub async fn get_epoch(&self, epoch: Option<u64>, read_mask: Option<&str>) -> Result<Epoch> {
-        let request = GetEpochRequest {
-            epoch,
-            read_mask: Some(field_mask_with_default(read_mask, EPOCH_READ_MASK)),
-        };
+        let mut request = GetEpochRequest::default()
+            .with_read_mask(field_mask_with_default(read_mask, EPOCH_READ_MASK));
+
+        if let Some(epoch) = epoch {
+            request = request.with_epoch(epoch);
+        }
 
         let mut client = self.ledger_service_client();
         let response = client.get_epoch(request).await?.into_inner();
@@ -92,12 +94,10 @@ impl Client {
         field: &str,
         extractor: impl FnOnce(Epoch) -> Option<T>,
     ) -> Result<T> {
-        let request = GetEpochRequest {
-            epoch: None, // Current epoch
-            read_mask: Some(FieldMask {
-                paths: vec![field.to_string()],
-            }),
-        };
+        // Current epoch (no epoch field set)
+        let request = GetEpochRequest::default().with_read_mask(FieldMask {
+            paths: vec![field.to_string()],
+        });
 
         let mut client = self.ledger_service_client();
         let response = client.get_epoch(request).await?.into_inner();
