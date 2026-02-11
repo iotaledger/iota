@@ -16,7 +16,7 @@ import { ServiceView } from './ServiceView';
 import { DidSummaryView } from './DidSummaryView';
 import { DidDocumentJsonView } from './DidDocumentJsonView';
 import { SideBySidePanelsView } from './SideBySidePanelsView';
-// import { TransactionsView } from './TransactionsView';
+import { TransactionsView } from './TransactionsView';
 
 interface DidContentProps {
     did: IotaDID;
@@ -111,7 +111,7 @@ export function DidContent({ did }: DidContentProps) {
                         secondPanelView={<ServiceView didDocument={didDocument} />}
                     />
                     <DidDocumentJsonView didDocument={didDocument} />
-                    {/* <TransactionsView objectId={did.tag()} /> */}
+                    <TransactionsView objectId={did.tag()} />
                 </div>
             }
         />
