@@ -1,0 +1,216 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.v0.ledger_service;
+
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/timestamp.proto";
+import "google/rpc/status.proto";
+
+import "iota/grpc/v0/checkpoint.proto";
+import "iota/grpc/v0/epoch.proto";
+import "iota/grpc/v0/event.proto";
+import "iota/grpc/v0/filter.proto";
+import "iota/grpc/v0/object.proto";
+import "iota/grpc/v0/transaction.proto";
+import "iota/grpc/v0/types.proto";
+
+service LedgerService {
+  // Query the service for general information about its current state.
+  rpc GetServiceInfo(GetServiceInfoRequest) returns (GetServiceInfoResponse);
+
+  rpc GetObjects(GetObjectsRequest) returns (stream GetObjectsResponse);
+
+  rpc GetTransactions(GetTransactionsRequest) returns (stream GetTransactionsResponse);
+
+  // Checkpoint operations
+  rpc GetCheckpointData (GetCheckpointDataRequest) returns (stream CheckpointData);
+  rpc StreamCheckpointData (CheckpointDataStreamRequest) returns (stream CheckpointData);
+
+  rpc GetEpoch(GetEpochRequest) returns (GetEpochResponse);
+}
+
+message GetServiceInfoRequest {
+  // Mask specifying which ServiceInfo fields to read.
+  // If no mask is specified, defaults to `chain_id,epoch,checkpoint_height`.
+  optional google.protobuf.FieldMask read_mask = 1;
+}
+
+message GetServiceInfoResponse {
+  // The chain identifier of the chain that this node is on.
+  //
+  // The chain identifier is the digest of the genesis checkpoint, the
+  // checkpoint with sequence number 0.
+  optional string chain_id = 1;
+
+  // Human-readable name of the chain that this node is on.
+  //
+  // This is intended to be a human-readable name like `mainnet`, `testnet`, and so on.
+  optional string chain = 2;
+
+  // Current epoch of the node based on its highest executed checkpoint.
+  optional uint64 epoch = 3;
+
+  // Checkpoint height of the most recently executed checkpoint.
+  optional uint64 executed_checkpoint_height = 4;
+
+  // Unix timestamp of the most recently executed checkpoint.
+  optional google.protobuf.Timestamp executed_checkpoint_timestamp = 5;
+
+  // The lowest checkpoint for which checkpoints and transaction data are available.
+  optional uint64 lowest_available_checkpoint = 6;
+
+  // The lowest checkpoint for which object data is available.
+  optional uint64 lowest_available_checkpoint_objects = 7;
+
+  // Software version of the service. Similar to the `server` http header.
+  optional string server = 8;
+}
+
+message ObjectRequest {
+  // Required. The `ObjectId` of the requested object.
+  // If no version is specified, and the object is live, then the latest
+  // version of the object is returned.
+  optional iota.grpc.v0.types.ObjectReference object_ref = 1;
+}
+
+message ObjectRequests {
+  repeated ObjectRequest requests = 1;
+}
+
+message GetObjectsRequest {
+  optional ObjectRequests requests = 1;
+
+  // Mask specifying which fields to read.
+  // If no mask is specified, defaults to `object_id,version,digest`.
+  optional google.protobuf.FieldMask read_mask = 2;
+
+  // Optional maximum message size the client can receive (1MB - 128MB)
+  // If not specified, server uses default chunking threshold (4MB)
+  optional uint32 max_message_size_bytes = 3;
+}
+
+message ObjectResult {
+  oneof result {
+    iota.grpc.v0.object.Object object = 1;
+    google.rpc.Status error = 2;
+  }
+}
+
+message GetObjectsResponse {
+  repeated ObjectResult objects = 1;
+  bool has_next = 2;
+}
+
+message TransactionRequest {
+  // Required. The digest of the requested transaction.
+  optional iota.grpc.v0.types.Digest digest = 1;
+}
+
+message TransactionRequests {
+  repeated TransactionRequest requests = 1;
+}
+
+message GetTransactionsRequest {
+  optional TransactionRequests requests = 1;
+
+  // Mask specifying which fields to read.
+  // If no mask is specified, defaults to `transaction.digest`.
+  optional google.protobuf.FieldMask read_mask = 2;
+
+  // Optional maximum message size the client can receive (1MB - 128MB)
+  // If not specified, server uses default chunking threshold (4MB)
+  optional uint32 max_message_size_bytes = 3;
+}
+
+message TransactionResult {
+  oneof result {
+    iota.grpc.v0.transaction.ExecutedTransaction transaction = 1;
+    google.rpc.Status error = 2;
+  }
+}
+
+message GetTransactionsResponse {
+  repeated TransactionResult transactions = 1;
+  bool has_next = 2;
+}
+
+message GetCheckpointDataRequest {
+  oneof checkpoint_id {
+    // If set to true, the latest checkpoint is requested.
+    bool latest = 1;
+
+    // The sequence number of the requested checkpoint.
+    uint64 sequence_number = 2;
+    
+    // The digest of the requested checkpoint.
+    iota.grpc.v0.types.Digest digest = 3;
+  }
+
+  // Mask specifying which fields to read.
+  // If no mask is specified, defaults to `summary`.
+  optional google.protobuf.FieldMask read_mask = 4;
+
+  // if no filter is passed, all transactions are included (if mentioned in the read_mask)
+  optional iota.grpc.v0.filter.TransactionFilter transactions_filter = 5;
+
+  // if no filter is passed, all events are included (if mentioned in the read_mask)
+  optional iota.grpc.v0.filter.EventFilter events_filter = 6;
+
+  // Optional maximum message size the client can receive (1MB - 128MB)
+  // If not specified, server uses default chunking threshold (4MB)
+  optional uint32 max_message_size_bytes = 7;
+}
+
+message CheckpointDataStreamRequest {
+  // if no start sequence number is provided, streaming starts from the latest checkpoint
+  optional uint64 start_sequence_number = 1;
+
+  // if no end sequence number is provided, streaming continues forever
+  optional uint64 end_sequence_number = 2;
+
+  // Mask specifying which fields to read.
+  // If no mask is specified, defaults to `summary`.
+  optional google.protobuf.FieldMask read_mask = 3;
+
+  // if no filter is passed, all transactions are included (if mentioned in the read_mask)
+  optional iota.grpc.v0.filter.TransactionFilter transactions_filter = 4;
+
+  // if no filter is passed, all events are included (if mentioned in the read_mask)
+  optional iota.grpc.v0.filter.EventFilter events_filter = 5;
+  
+  // Optional maximum message size the client can receive (1MB - 128MB)
+  // If not specified, server uses default chunking threshold (4MB)
+  optional uint32 max_message_size_bytes = 6;
+}
+
+message CheckpointData {
+  message EndMarker {
+    // The height of this checkpoint.
+    optional uint64 sequence_number = 1;
+  }
+
+  oneof payload {
+    iota.grpc.v0.checkpoint.Checkpoint checkpoint = 1;
+    iota.grpc.v0.transaction.ExecutedTransactions transactions = 2;
+    iota.grpc.v0.event.Events events = 3;
+    EndMarker end_marker = 4;
+  }
+}
+
+message GetEpochRequest {
+  // The requested epoch.
+  // If no epoch is provided the current epoch will be returned.
+  optional uint64 epoch = 1;
+
+  // Mask specifying which fields to read.
+  // If no mask is specified, defaults to `epoch`.
+  optional google.protobuf.FieldMask read_mask = 2;
+}
+
+message GetEpochResponse {
+  optional iota.grpc.v0.epoch.Epoch epoch = 1;
+}

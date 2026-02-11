@@ -213,6 +213,26 @@ impl TransactionEffects {
             .collect()
     }
 
+    /// Returns all affected objects in this transaction effects.
+    /// Affected objects include created, mutated, unwrapped, deleted,
+    /// unwrapped_then_deleted, wrapped and input shared objects.
+    pub fn all_affected_objects(&self) -> Vec<ObjectRef> {
+        self.created()
+            .into_iter()
+            .map(|(r, _)| r)
+            .chain(self.mutated().into_iter().map(|(r, _)| r))
+            .chain(self.unwrapped().into_iter().map(|(r, _)| r))
+            .chain(
+                self.input_shared_objects()
+                    .into_iter()
+                    .map(|r| r.object_ref()),
+            )
+            .chain(self.deleted())
+            .chain(self.unwrapped_then_deleted())
+            .chain(self.wrapped())
+            .collect()
+    }
+
     pub fn summary_for_debug(&self) -> TransactionEffectsDebugSummary {
         TransactionEffectsDebugSummary {
             bcs_size: bcs::serialized_size(self).unwrap(),

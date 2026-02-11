@@ -16,7 +16,7 @@ use tokio::{
     sync::{Mutex, mpsc::error::TrySendError},
     task::JoinError,
 };
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::{
     BlockHeaderAPI, BlockRef, Round, VerifiedBlockHeader,
@@ -369,6 +369,7 @@ impl CordialKnowledge {
                         self.append_eviction_msgs_if_changed(
                             &mut vec_connection_knowledge_msgs_batch,
                         );
+                        self.report_sizes();
                         processed_since_eviction = 0;
                     }
 
@@ -399,6 +400,11 @@ impl CordialKnowledge {
         }
         let evicted_rounds = self.eviction_rounds_receiver.borrow_and_update().clone();
         if evicted_rounds.len() != self.context.committee.size() {
+            warn!(
+                "Eviction rounds length {} does not match committee size {}; skipping eviction",
+                evicted_rounds.len(),
+                self.context.committee.size()
+            );
             return;
         }
         if let Some(vec_connection_knowledge_msgs) = self.handle_evict_below(evicted_rounds) {
@@ -537,6 +543,33 @@ impl CordialKnowledge {
             vec_msgs.push(vec![msg]);
         }
         Some(vec_msgs)
+    }
+
+    /// Report current sizes of cordial knowledge data structures.
+    fn report_sizes(&self) {
+        let metrics = &self.context.metrics.node_metrics;
+
+        let global_entries: usize = self
+            .cordial_knowledge
+            .iter()
+            .map(|m| m.values().map(|v| v.len()).sum::<usize>())
+            .sum();
+        metrics.cordial_knowledge_entries.set(global_entries as i64);
+
+        let mut total_headers_not_known: usize = 0;
+        let mut total_shards_not_known: usize = 0;
+        for ck in &self.connection_knowledges {
+            let guard = ck.read();
+            let (headers, shards) = guard.sizes();
+            total_headers_not_known += headers;
+            total_shards_not_known += shards;
+        }
+        metrics
+            .cordial_knowledge_headers_not_known
+            .set(total_headers_not_known as i64);
+        metrics
+            .cordial_knowledge_shards_not_known
+            .set(total_shards_not_known as i64);
     }
 
     /// Update cordial knowledge for exactly one new header.
@@ -1074,6 +1107,21 @@ impl ConnectionKnowledge {
             .insert(block_ref);
     }
 
+    /// Returns (total_headers_not_known, total_shards_not_known) entry counts.
+    fn sizes(&self) -> (usize, usize) {
+        let headers: usize = self
+            .headers_not_known
+            .iter()
+            .map(|m| m.values().map(|s| s.len()).sum::<usize>())
+            .sum();
+        let shards: usize = self
+            .shards_not_known
+            .iter()
+            .map(|m| m.values().map(|s| s.len()).sum::<usize>())
+            .sum();
+        (headers, shards)
+    }
+
     /// Handles removing a header that this peer now knows.
     fn handle_remove_header(&mut self, block_ref: BlockRef) {
         let authority = block_ref.author.value();
@@ -1114,7 +1162,7 @@ mod tests {
         TestBlockHeader,
         block_header::{GENESIS_ROUND, VerifiedBlock, VerifiedOwnShard},
         context::Context,
-        dag_state::{BlockHeaderSource, DagState},
+        dag_state::{DagState, DataSource},
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
         test_dag_parser::parse_dag,
@@ -1227,7 +1275,7 @@ mod tests {
                     } = block.clone();
                     dag_state
                         .write()
-                        .accept_block_header(verified_block_header, BlockHeaderSource::Test);
+                        .accept_block_header(verified_block_header, DataSource::Test);
                     let shard_for_core = VerifiedOwnShard {
                         serialized_shard: Bytes::from([0u8; 32].to_vec()), /* put some dummy
                                                                             * shard data */
@@ -1248,7 +1296,7 @@ mod tests {
                 } = block.clone();
                 dag_state
                     .write()
-                    .accept_block_header(verified_block_header, BlockHeaderSource::Test);
+                    .accept_block_header(verified_block_header, DataSource::Test);
                 let shard_for_core = VerifiedOwnShard {
                     serialized_shard: Bytes::from([0u8; 32].to_vec()), // put some dummy shard data
                     block_ref: verified_transactions.block_ref(),

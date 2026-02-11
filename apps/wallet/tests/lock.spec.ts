@@ -9,12 +9,12 @@ import { SHORT_TIMEOUT } from './constants/timeout.constants';
 test('account lock-unlock', async ({ page, extensionUrl }) => {
     await createWallet(page, extensionUrl);
     await page.getByTestId('accounts-manage').click();
-    await page.getByText('Main').hover();
+    await page.getByTestId('account-tile').hover();
     await page.getByTestId('account-lock').click();
     await page.getByTestId('account-unlock').click();
     await page.getByPlaceholder('Password').fill('iotae2etests');
     await page.getByRole('button', { name: /Unlock/ }).click();
-    await page.getByText('Main').hover();
+    await page.getByTestId('account-tile').hover();
     await expect(page.getByTestId('account-lock')).toBeVisible();
 });
 

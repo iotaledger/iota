@@ -33,6 +33,8 @@ export default {
                 15: '3.75rem',
                 'popup-height': '680px',
                 'popup-width': '360px',
+                'sidepanel-height': '850px',
+                'sidepanel-width': '400px',
                 'nav-height': '60px',
             },
             boxShadow: {

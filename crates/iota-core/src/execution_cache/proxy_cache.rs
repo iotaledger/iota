@@ -210,7 +210,7 @@ impl ObjectCacheRead for ProxyCache {
         delegate_method!(self.try_get_latest_marker(object_id, epoch_id))
     }
 
-    fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber> {
+    fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<Option<CheckpointSequenceNumber>> {
         delegate_method!(self.try_get_highest_pruned_checkpoint())
     }
 }

@@ -231,17 +231,17 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 21, lines 110-111:
 //# programmable --sender A --inputs object(2,2)@4 0 0 vector[0] --dev-inspect
 //> tto::M1::check(Input(0), Input(1), Input(2), Input(3))
-Error: Transaction Effects Status: MoveAbort(MoveLocation { module: ModuleId { address: tto, name: Identifier("M1") }, function: 4, instruction: 10, function_name: Some("check") }, 0) in command 0
-Execution Error: MoveAbort(MoveLocation { module: ModuleId { address: tto, name: Identifier("M1") }, function: 4, instruction: 10, function_name: Some("check") }, 0) in command 0
+Error: Transaction Effects Status: Move Runtime Abort. Location: tto::M1::check (function index 4) at offset 10, Abort Code: 0 in command 0
+Execution Error: Move Runtime Abort. Location: tto::M1::check (function index 4) at offset 10, Abort Code: 0 in command 0
 
 task 22, lines 113-114:
 //# programmable --sender A --inputs object(2,2)@5 1 2 vector[3] --dev-inspect
 //> tto::M1::check(Input(0), Input(1), Input(2), Input(3))
-Error: Transaction Effects Status: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("dynamic_field") }, function: 11, instruction: 0, function_name: Some("borrow_child_object") }, 1) in command 0
-Execution Error: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("dynamic_field") }, function: 11, instruction: 0, function_name: Some("borrow_child_object") }, 1) in command 0
+Error: Transaction Effects Status: Move Runtime Abort. Location: iota::dynamic_field::borrow_child_object (function index 11) at offset 0, Abort Code: 1 in command 0
+Execution Error: Move Runtime Abort. Location: iota::dynamic_field::borrow_child_object (function index 11) at offset 0, Abort Code: 1 in command 0
 
 task 23, lines 116-117:
 //# programmable --sender A --inputs object(2,2)@3 1 2 vector[] --dev-inspect
 //> tto::M1::check(Input(0), Input(1), Input(2), Input(3))
-Error: Transaction Effects Status: MoveAbort(MoveLocation { module: ModuleId { address: tto, name: Identifier("M1") }, function: 4, instruction: 10, function_name: Some("check") }, 0) in command 0
-Execution Error: MoveAbort(MoveLocation { module: ModuleId { address: tto, name: Identifier("M1") }, function: 4, instruction: 10, function_name: Some("check") }, 0) in command 0
+Error: Transaction Effects Status: Move Runtime Abort. Location: tto::M1::check (function index 4) at offset 10, Abort Code: 0 in command 0
+Execution Error: Move Runtime Abort. Location: tto::M1::check (function index 4) at offset 10, Abort Code: 0 in command 0

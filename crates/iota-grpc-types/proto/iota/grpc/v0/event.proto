@@ -1,85 +1,43 @@
-// Copyright (c) 2025 IOTA Stiftung
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 syntax = "proto3";
 
-package iota.grpc.v0.events;
+package iota.grpc.v0.event;
 
-import "common.proto";
+import "google/protobuf/struct.proto";
 
-service EventService {
-  rpc StreamEvents (EventStreamRequest) returns (stream Event);
-}
+import "iota/grpc/v0/bcs.proto";
+import "iota/grpc/v0/types.proto";
 
-message EventStreamRequest {
-  EventFilter filter = 1;
-}
-
+// An event.
 message Event {
-  EventID event_id = 1;
-  iota.grpc.v0.common.Address package_id = 2;
-  string transaction_module = 3;
-  iota.grpc.v0.common.Address sender = 4;
-  string type_name = 5;                      
-  string parsed_json = 6;                    
-  optional uint64 timestamp_ms = 7;
-  iota.grpc.v0.common.BcsData event_data = 8;  
+  // This Event serialized as BCS.
+  optional iota.grpc.v0.bcs.BcsData bcs = 1;
+
+  // Package ID of the top-level function invoked by a `MoveCall` command that triggered this
+  // event to be emitted.
+  optional iota.grpc.v0.types.Address package_id = 2;
+  
+  // Module name of the top-level function invoked by a `MoveCall` command that triggered this
+  // event to be emitted.
+  optional string module = 3;
+
+  // iota.grpc.v0.types.Address of the account that sent the transaction where this event was emitted.
+  optional iota.grpc.v0.types.Address sender = 4;
+
+  // The type of the event emitted.
+  optional string event_type = 5;
+
+  // BCS serialized bytes of the event.
+  optional iota.grpc.v0.bcs.BcsData bcs_contents = 6;
+
+  // JSON rendering of the event.
+  optional google.protobuf.Value json_contents = 7;
 }
 
-message EventID {
-  uint64 event_seq = 1;
-  iota.grpc.v0.common.TransactionDigest tx_digest = 2;
-}
-
-// Rich event filter that supports gRPC event filtering
-message EventFilter {
-  oneof filter {
-    AllFilter all = 1;
-    SenderFilter sender = 2;
-    TransactionFilter transaction = 3;
-    MoveModuleFilter move_module = 4;
-    MoveEventTypeFilter move_event_type = 5;
-    MoveEventModuleFilter move_event_module = 6;
-    TimeRangeFilter time_range = 7;
-  }
-}
-
-// Match all events (catch-all filter)
-message AllFilter {
-  // Empty - matches all events
-}
-
-// Filter by sender address
-message SenderFilter {
-  iota.grpc.v0.common.Address sender = 1;           // Sender address
-}
-
-// Filter by transaction digest
-message TransactionFilter {
-  iota.grpc.v0.common.TransactionDigest tx_digest = 1;        // Transaction digest
-}
-
-// Filter by transaction execution module (different from event definition module)
-message MoveModuleFilter {
-  iota.grpc.v0.common.Address package_id = 1;       // Package ID
-  string module = 2;                             // Module name
-}
-
-// Filter by Move event type (package::module::event_name)
-message MoveEventTypeFilter {
-  iota.grpc.v0.common.Address package_id = 1;      // Package ID
-  string module = 2;                         // Module name (e.g., "request")
-  string name = 3;                           // Event name (e.g., "RequestEvent")
-}
-
-// Filter by package and module
-message MoveEventModuleFilter {
-  iota.grpc.v0.common.Address package_id = 1;   // Package ID
-  string module = 2;                         // Module name
-}
-
-// Filter by timestamp range
-message TimeRangeFilter {
-  uint64 start_time = 1;       // Start time in milliseconds since epoch (inclusive)
-  uint64 end_time = 2;         // End time in milliseconds since epoch (exclusive)
+// A list of events.
+message Events {
+  repeated Event events = 1;
 }

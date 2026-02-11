@@ -15,6 +15,7 @@ use consensus_core::{
     ConsensusAuthority, TransactionClient, network::tonic_network::to_socket_addr,
     transaction::NoopTransactionVerifier,
 };
+use iota_common::scoring_metrics::VersionedScoringMetrics;
 use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
 use iota_protocol_config::{ConsensusNetwork, ProtocolConfig};
 use parking_lot::Mutex;
@@ -274,6 +275,10 @@ pub(crate) async fn make_authority(
 
     let (commit_sender, commit_receiver) = unbounded_channel("consensus_output");
 
+    let current_local_metrics_count = Arc::new(VersionedScoringMetrics::new(
+        committee.size(),
+        &protocol_config,
+    ));
     let commit_consumer = CommitConsumer::new(commit_sender, 0);
     let commit_consumer_monitor = commit_consumer.monitor();
 
@@ -290,6 +295,7 @@ pub(crate) async fn make_authority(
         Arc::new(txn_verifier),
         commit_consumer,
         registry,
+        current_local_metrics_count,
         boot_counter,
     )
     .await;

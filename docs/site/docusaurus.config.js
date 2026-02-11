@@ -366,6 +366,12 @@ const config = {
             className: 'navbar-icon-users',
           },
           {
+            label: "Workshops",
+            to: "developer/workshops",
+            className: 'navbar-icon-workshops',
+            position: 'right',
+          },
+          {
             type: 'custom-WalletConnectButton',
             position: 'right',
           },

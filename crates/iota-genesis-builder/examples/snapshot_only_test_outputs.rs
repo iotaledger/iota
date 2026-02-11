@@ -11,7 +11,7 @@ use iota_genesis_builder::stardust::{
     parse::HornetSnapshotParser,
     test_outputs::{add_snapshot_test_outputs, to_nanos},
 };
-use iota_sdk::types::block::address::Ed25519Address;
+use iota_stardust_types::block::address::Ed25519Address;
 use iota_types::{
     base_types::IotaAddress, gas_coin::STARDUST_TOTAL_SUPPLY_IOTA, stardust::coin_type::CoinType,
 };
@@ -60,8 +60,7 @@ fn parse_snapshot<const VERIFY: bool>(
     Ok(())
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let (current_path, delegator, coin_type) = match cli.snapshot {
         Snapshot::Iota {
@@ -95,8 +94,7 @@ async fn main() -> anyhow::Result<()> {
         randomness_seed,
         Ed25519Address::from(delegator_address.to_inner()),
         WITH_SAMPLING,
-    )
-    .await?;
+    )?;
 
     parse_snapshot::<false>(&new_path, coin_type)?;
 

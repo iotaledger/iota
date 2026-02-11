@@ -453,7 +453,7 @@ mod tests {
         CommitIndex, TestBlockHeader,
         commit::{CommitDigest, WAVE_LENGTH},
         context::Context,
-        dag_state::BlockHeaderSource,
+        dag_state::DataSource,
         leader_schedule::{LeaderSchedule, LeaderSwapTable},
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
@@ -645,7 +645,7 @@ mod tests {
         );
         dag_state
             .write()
-            .accept_block_headers(block_headers_wave_1.clone(), BlockHeaderSource::Test);
+            .accept_block_headers(block_headers_wave_1.clone(), DataSource::Test);
 
         let first_leader = dag_builder
             .leader_block(leader_round_wave_1)
@@ -682,7 +682,7 @@ mod tests {
         // Write them in dag state
         dag_state
             .write()
-            .accept_block_headers(block_headers_wave_2.clone(), BlockHeaderSource::Test);
+            .accept_block_headers(block_headers_wave_2.clone(), DataSource::Test);
 
         let mut block_refs_wave_2: Vec<_> = block_headers_wave_2
             .into_iter()
@@ -995,7 +995,7 @@ mod tests {
         {
             let mut dag_state_guard = dag_state.write();
             for block in &ancestors {
-                dag_state_guard.accept_block_header(block.clone(), BlockHeaderSource::Test);
+                dag_state_guard.accept_block_header(block.clone(), DataSource::Test);
             }
         }
         let last_commit_timestamp_ms = 0;

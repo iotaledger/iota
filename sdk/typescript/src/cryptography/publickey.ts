@@ -96,6 +96,13 @@ export abstract class PublicKey {
     }
 
     /**
+     * Verifies that the public key is associated with the provided address
+     */
+    verifyAddress(address: string): boolean {
+        return this.toIotaAddress() === address;
+    }
+
+    /**
      * Returns the bytes representation of the public key
      * prefixed with the signature scheme flag
      */

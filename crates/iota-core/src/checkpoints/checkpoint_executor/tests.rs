@@ -467,7 +467,8 @@ async fn sync_end_of_epoch_checkpoint(
             &authority_state.epoch_store_for_testing().clone(),
             &GasCostSummary::new(0, 0, 0, 0, 0),
             *checkpoint.sequence_number(),
-            0, // epoch_start_timestamp_ms
+            0,      // epoch_start_timestamp_ms
+            vec![], // scores
         )
         .await
         .expect("Failed to create and execute advance epoch tx");

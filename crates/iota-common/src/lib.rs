@@ -9,3 +9,5 @@ pub mod metrics;
 pub mod stream_ext;
 pub mod sync;
 pub mod try_iterator_ext;
+
+pub use iota_types::scoring_metrics;

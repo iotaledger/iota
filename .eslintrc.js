@@ -3,7 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module.exports = {
-    plugins: ['@tanstack/query', 'unused-imports', 'prettier', 'header', 'require-extensions'],
+    plugins: [
+        '@tanstack/query',
+        'unused-imports',
+        'prettier',
+        'header',
+        'require-extensions',
+        'license-check',
+    ],
     extends: [
         'eslint:recommended',
         'plugin:@tanstack/eslint-plugin-query/recommended',
@@ -26,7 +33,6 @@ module.exports = {
     root: true,
     ignorePatterns: [
         'coverage',
-        'apps/icons/src',
         'next-env.d.ts',
         'doc/book',
         'external-crates',
@@ -39,6 +45,8 @@ module.exports = {
         'sdk/build-scripts/src/build-package.ts',
         'sdk/build-scripts/src/build-dapp-kit.ts',
         'sdk/create-dapp/bin/index.js',
+        'docs',
+        'examples',
         '**/build',
         '**/dist/',
         '**/.next/',
@@ -80,6 +88,7 @@ module.exports = {
                 ignoreRestSiblings: true,
             },
         ],
+        'license-check/license-check': 'error',
     },
     overrides: [
         {
@@ -292,6 +301,7 @@ module.exports = {
             rules: {
                 'header/header': 'off',
                 'require-extensions/require-extensions': 'off',
+                'license-check/license-check': 'off',
             },
         },
         {
