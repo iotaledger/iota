@@ -54,7 +54,7 @@ impl IndexerStorePackageResolver {
         })?
         else {
             return Err(IndexerError::PostgresRead(format!(
-                "Package not found in DB: {id:?}"
+                "Package not found in DB: {id}"
             )));
         };
         let object = bcs::from_bytes::<Object>(&bcs)?;
