@@ -66,10 +66,9 @@ export class MoveSigner extends Signer {
      * Serialize the MoveAuthenticator data to bytes (without the signature scheme flag).
      * The data is already in the correct CallArg BCS format.
      *
-     * @param _bytes - Ignored for MoveAuthenticator
      * @returns The BCS-serialized MoveAuthenticator bytes
      */
-    async sign(_bytes: Uint8Array): Promise<Uint8Array> {
+    async sign(): Promise<Uint8Array> {
         return bcs.MoveAuthenticator.serialize({
             callArgs: this.data.callArgs,
             typeArgs: this.data.typeArgs,
@@ -85,7 +84,7 @@ export class MoveSigner extends Signer {
     async signWithIntent(bytes: Uint8Array, _intent: IntentScope): Promise<SignatureWithBytes> {
         // For MoveAuthenticator, we serialize the authenticator data
         // The transaction bytes and intent are not directly used in the serialization
-        const serialized = await this.sign(bytes);
+        const serialized = await this.sign();
 
         // Prepend the MoveAuthenticator flag
         const result = new Uint8Array(1 + serialized.length);
