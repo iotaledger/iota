@@ -345,6 +345,11 @@ impl Client {
                         // Empty payload - skip
                         continue;
                     }
+
+                    Some(_) => {
+                        // Unknown payload type - skip
+                        continue;
+                    }
                 }
             }
 

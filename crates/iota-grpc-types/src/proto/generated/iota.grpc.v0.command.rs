@@ -35,6 +35,7 @@ pub mod argument {
         #[prost(uint32, optional, tag = "2")]
         pub nested_result_index: ::core::option::Option<u32>,
     }
+    #[non_exhaustive]
     #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Oneof)]
     pub enum Kind {
         #[prost(message, tag = "1")]

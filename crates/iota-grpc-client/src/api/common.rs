@@ -143,6 +143,7 @@ impl ProtoResult for ObjectResult {
             Some(object_result::Result::Object(obj)) => Ok(obj),
             Some(object_result::Result::Error(e)) => Err(Error::Server(e.message)),
             None => Err(TryFromProtoError::missing("result").into()),
+            Some(_) => Err(Error::server("Unknown object result type")),
         }
     }
 }
@@ -155,6 +156,7 @@ impl ProtoResult for TransactionResult {
             Some(transaction_result::Result::Transaction(tx)) => Ok(tx),
             Some(transaction_result::Result::Error(e)) => Err(Error::Server(e.message)),
             None => Err(TryFromProtoError::missing("result").into()),
+            Some(_) => Err(Error::server("Unknown transaction result type")),
         }
     }
 }

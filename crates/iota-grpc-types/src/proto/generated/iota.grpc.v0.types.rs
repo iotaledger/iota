@@ -45,6 +45,7 @@ pub struct TypeTag {
 }
 /// Nested message and enum types in `TypeTag`.
 pub mod type_tag {
+    #[non_exhaustive]
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum TypeTag {
         #[prost(bool, tag = "1")]

@@ -75,6 +75,7 @@ pub struct ObjectResult {
 }
 /// Nested message and enum types in `ObjectResult`.
 pub mod object_result {
+    #[non_exhaustive]
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Result {
         #[prost(message, tag = "1")]
@@ -121,6 +122,7 @@ pub struct TransactionResult {
 }
 /// Nested message and enum types in `TransactionResult`.
 pub mod transaction_result {
+    #[non_exhaustive]
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Result {
         #[prost(message, tag = "1")]
@@ -157,6 +159,7 @@ pub struct GetCheckpointDataRequest {
 }
 /// Nested message and enum types in `GetCheckpointDataRequest`.
 pub mod get_checkpoint_data_request {
+    #[non_exhaustive]
     #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
     pub enum CheckpointId {
         /// If set to true, the latest checkpoint is requested.
@@ -206,6 +209,7 @@ pub mod checkpoint_data {
         #[prost(uint64, optional, tag = "1")]
         pub sequence_number: ::core::option::Option<u64>,
     }
+    #[non_exhaustive]
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Payload {
         #[prost(message, tag = "1")]

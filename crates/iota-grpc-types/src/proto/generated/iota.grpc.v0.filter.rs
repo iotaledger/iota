@@ -51,6 +51,7 @@ pub struct EventFilter {
 }
 /// Nested message and enum types in `EventFilter`.
 pub mod event_filter {
+    #[non_exhaustive]
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Filter {
         /// Logical AND of several filters.
@@ -132,6 +133,7 @@ pub struct TransactionFilter {
 }
 /// Nested message and enum types in `TransactionFilter`.
 pub mod transaction_filter {
+    #[non_exhaustive]
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Filter {
         /// Logical AND of several filters.
@@ -164,6 +166,7 @@ pub mod transaction_filter {
         Event(super::EventFilter),
     }
 }
+#[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum TransactionKind {

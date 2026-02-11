@@ -44,6 +44,7 @@ pub struct SimulateTransactionRequest {
 /// Nested message and enum types in `SimulateTransactionRequest`.
 pub mod simulate_transaction_request {
     /// Individual check modes that can be enabled/disabled
+    #[non_exhaustive]
     #[derive(
         Clone,
         Copy,
