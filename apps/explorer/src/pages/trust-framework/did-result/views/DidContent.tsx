@@ -11,11 +11,11 @@ import { useIdentityPkgId } from '~/contexts';
 import { useMemo } from 'react';
 import { Warning } from '@iota/apps-ui-icons';
 import { getIdentityType, getLegacyMetadata, MetadataBuilder } from '../headerMetadataHelper';
-// import { DidView } from './DidView';
 // import { ControllerAndServiceView } from './ControllerAndServiceView';
 // import { ControllerView } from './ControllerView';
 // import { ServiceView } from './ServiceView';
 // import { DidDocumentView } from './DidDocumentView';
+import { DidSummaryView } from './DidSummaryView';
 // import { TransactionsView } from './TransactionsView';
 
 interface DidContentProps {
@@ -105,7 +105,7 @@ export function DidContent({ did }: DidContentProps) {
                             .addItem(getLegacyMetadata(didObject))
                             .build()}
                     />
-                    {/* <DidView objectData={didObject} didDocument={didDocument} /> */}
+                    <DidSummaryView objectData={didObject} didDocument={didDocument} />
                     {/* <ControllerAndServiceView */}
                     {/*     controllerView={<ControllerView objectData={didObject} />} */}
                     {/*     serviceView={<ServiceView didDocument={didDocument} />} */}
