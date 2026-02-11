@@ -123,16 +123,22 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
                 .set(checkpoint_seq as i64);
         }
 
-        // If scoring is enabled in protocol config, we also send misbehavior reports to
-        // consensus at this point. Misbehavior reports containing proofs of
-        // misbehaviour can be send whenever the misbehavior is detected, but we
-        // choose to send the ones that include only unprovable counts at this
-        // point, due to periodicity reasons and to ensure a (approximate)
+        // If `calculate_validator_scores` is enabled in protocol config, we also send
+        // misbehavior reports to consensus at this point. Misbehavior reports
+        // containing proofs of misbehaviour can be sent whenever the misbehavior is
+        // detected, but we choose to send the ones that include only unprovable counts
+        // at this point, due to periodicity reasons and to ensure a (approximate)
         // synchronization with the score updates.
+        //
         // Reports are rate-limited: only sent when metrics have changed (different
         // summaries) and at least 1000 checkpoints have passed since the last report.
+        //
+        // Additionally, we require that the checkpoint for which we want to send the
+        // report is at most 100 checkpoints behind the highest verified checkpoint, to
+        // avoid sending reports during resync.
         if epoch_store.protocol_config().calculate_validator_scores()
             && checkpoint_seq - epoch_store.scorer.last_report_checkpoint_seq() >= 1000
+            && Some(checkpoint_seq + 100) >= highest_verified_checkpoint
         {
             let misbehavior_report = epoch_store.scorer.current_local_metrics_count.to_report();
             let new_report_summary = misbehavior_report.summary();
