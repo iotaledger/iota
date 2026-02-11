@@ -102,7 +102,7 @@ export function DidContent({ did }: DidContentProps) {
                         showCopyButton={false}
                         metaItems={MetadataBuilder.create()
                             .addItem(getIdentityType(didObject, iotaIdentityPackage))
-                            .addItem(getLegacyMetadata(didDocument))
+                            .addItem(getLegacyMetadata(didObject))
                             .build()}
                     />
                     {/* <DidView objectData={didObject} didDocument={didDocument} /> */}

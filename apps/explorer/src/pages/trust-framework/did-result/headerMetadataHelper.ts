@@ -3,7 +3,6 @@
 
 import type { IotaObjectData } from '@iota/iota-sdk/src/client';
 import { type MetaItem } from '~/components/ui/PageHeaderMeta';
-import { type IotaDocument } from '@iota/identity-wasm/web';
 
 const IDENTITY_MODULE = 'identity';
 const IDENTITY_METHOD = 'Identity';
@@ -62,8 +61,20 @@ export function getIdentityType(objectData: IotaObjectData | null, pkgId: string
     } as MetaItem;
 }
 
-export function getLegacyMetadata(didDocument: IotaDocument | null): MetaItem | null {
-    const legacyId = didDocument?.toCoreDocument().properties().get('alsoKnownAs');
+export function getLegacyMetadata(didObject: IotaObjectData | null): MetaItem | null {
+    if (didObject == null) {
+        return null;
+    }
+
+    if (didObject.content?.dataType !== 'moveObject') {
+        return null;
+    }
+
+    if (!('legacy_id' in didObject.content.fields)) {
+        return null;
+    }
+
+    const legacyId = didObject.content.fields.legacy_id;
     if (legacyId == null) {
         return null;
     }
