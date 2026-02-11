@@ -3193,14 +3193,30 @@ impl AuthorityState {
                 )),
                 Owner::ObjectOwner(object_id) => {
                     let id = o.id();
-                    let Some(info) = self.try_create_dynamic_field_info(
+                    let info = match self.try_create_dynamic_field_info(
                         o,
                         &BTreeMap::new(),
                         layout_resolver.as_mut(),
-                        true,
-                    )?
-                    else {
-                        continue;
+                    ) {
+                        Ok(Some(info)) => info,
+                        Ok(None) => continue,
+                        Err(IotaError::UserInput {
+                            error:
+                                UserInputError::ObjectNotFound {
+                                    object_id: not_found_id,
+                                    version,
+                                },
+                        }) => {
+                            warn!(
+                                ?not_found_id,
+                                ?version,
+                                object_owner=?object_id,
+                                field=?id,
+                                "Skipping dynamic field: referenced genesis object not found"
+                            );
+                            continue;
+                        }
+                        Err(e) => return Err(e),
                     };
                     new_dynamic_fields.push(((ObjectID::from(object_id), id), info));
                 }
