@@ -383,7 +383,6 @@ export interface UnstakedIotaProperties {
     validatorAddress?: string;
 }
 
-
 export class AccountRenamed implements BaseEvent {
     event_type = 'account renamed';
 }
