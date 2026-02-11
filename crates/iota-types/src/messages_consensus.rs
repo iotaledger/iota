@@ -18,6 +18,7 @@ use iota_sdk_types::crypto::IntentScope;
 use once_cell::sync::OnceCell;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 
 use crate::{
     base_types::{
@@ -326,6 +327,20 @@ impl VersionedMisbehaviorReport {
                 digest.get_or_init(|| MisbehaviorReportDigest::new(default_hash(self)))
             }
         }
+    }
+    /// Returns the summary of the misbehavior report, defined as the sum of all
+    /// metrics for all authorities.
+    pub fn summary(&self) -> u64 {
+        let summary = match self {
+            VersionedMisbehaviorReport::V1(report, _) => report
+                .iter()
+                .flatten()
+                .fold(0u64, |acc, metric| acc.saturating_add(*metric)),
+        };
+        if summary == u64::MAX {
+            warn!("MisbehaviorReport summary reached its maximum value.");
+        }
+        summary
     }
 }
 

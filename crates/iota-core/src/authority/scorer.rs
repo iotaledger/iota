@@ -38,6 +38,14 @@ pub struct Scorer {
     invalid_reports_count: Vec<AtomicU64>,
     // The voting power of each authority in the committee.
     voting_power: Vec<u64>,
+    // A summary of the last MisbehaviorReport sent by the authority in the checkpoint creation.
+    // Since this particular report is meant to include misbehavior counts (instead of proofs), and
+    // those counts are always non-decreasing, the summary can be created by adding all metrics for
+    // all validators. This is used as part of the MisbehaviorReport rate limiting mechanism.
+    last_report_summary: AtomicU64,
+    // Indicates the sequence number of the last checkpoint for which the authority sent a report.
+    // This is used as part of the MisbehaviorReport rate limiting mechanism.
+    last_report_checkpoint_seq: AtomicU64,
     // The version of the scorer being used with its parameters.
     version: ScorerVersion,
 }
@@ -130,6 +138,8 @@ impl Scorer {
                     current_scores,
                     invalid_reports_count,
                     voting_power,
+                    last_report_summary: AtomicU64::new(0),
+                    last_report_checkpoint_seq: AtomicU64::new(0),
                     version: ScorerVersion::V1(parameters),
                 }
             }
@@ -164,6 +174,24 @@ impl Scorer {
         // metrics from them. Then, update the scores accordingly.
         self.received_metrics[authority as usize].update_from_report(report);
         self.has_not_sent_report[authority as usize].store(false, Ordering::Relaxed);
+    }
+
+    pub(crate) fn last_report_checkpoint_seq(&self) -> u64 {
+        self.last_report_checkpoint_seq.load(Ordering::Relaxed)
+    }
+
+    pub(crate) fn store_last_report_checkpoint_seq(&self, checkpoint_seq: u64) {
+        self.last_report_checkpoint_seq
+            .store(checkpoint_seq, Ordering::Relaxed)
+    }
+
+    pub(crate) fn last_report_summary(&self) -> u64 {
+        self.last_report_summary.load(Ordering::Relaxed)
+    }
+
+    pub(crate) fn store_last_report_summary(&self, summary: u64) {
+        self.last_report_checkpoint_seq
+            .store(summary, Ordering::Relaxed)
     }
 }
 
