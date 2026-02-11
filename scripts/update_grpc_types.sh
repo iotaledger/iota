@@ -3,8 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Update gRPC protobuf types.
-set -e
-
 SCRIPT_PATH=$(realpath "$0")
 SCRIPT_DIR=$(dirname "$SCRIPT_PATH")
 ROOT="$SCRIPT_DIR/.."
