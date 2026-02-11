@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ExplorerLinkType, Loading, UnlockAccountButton } from '_components';
+import { ExplorerLinkType, Loading } from '_components';
 import {
     useActiveAccount,
     useActiveAddress,
@@ -167,7 +167,7 @@ export function TokenDetails() {
     const isFirstTimeLoading = isPending && !isFetched;
 
     const onSendClick = () => {
-        if (activeAccount && !activeAccount?.isLocked) {
+        if (activeAccount) {
             const destination = coinBalance?.coinType
                 ? `/send?${new URLSearchParams({ type: coinBalance?.coinType }).toString()}`
                 : '/send';
@@ -260,65 +260,59 @@ export function TokenDetails() {
                                 onClick={onSendClick}
                                 icon={<Send />}
                                 size={ButtonSize.Small}
-                                disabled={activeAccount?.isLocked || !coinBalances?.length}
+                                disabled={!coinBalances?.length}
                                 testId="send-coin-button"
                             />
                         </div>
                     </div>
-                    {activeAccount.isLocked ? (
-                        <UnlockAccountButton account={activeAccount} />
-                    ) : (
-                        <div className="flex w-full flex-grow flex-col gap-md">
-                            <div
-                                className={`flex w-full flex-col items-center gap-xs rounded-2xl ${!accountHasIota ? 'flex-grow justify-between' : ''}`}
-                            >
-                                <div className="flex w-full flex-col items-center gap-xs">
-                                    {accountHasIota || delegatedStake?.length ? (
-                                        <TokenStakingOverview
-                                            accountAddress={activeAccountAddress}
-                                        />
-                                    ) : null}
-                                    {hasSupplyIncreaseVestingObjects || needsMigration ? (
-                                        <div className="flex w-full flex-row gap-x-xs">
-                                            {needsMigration ? (
-                                                <OverviewHint
-                                                    onClick={() => setDialogMigrationOpen(true)}
-                                                    title="Migration"
-                                                    icon={Migration}
-                                                />
-                                            ) : null}
-                                            {hasSupplyIncreaseVestingObjects ? (
-                                                <OverviewHint
-                                                    onClick={() => setDialogVestingOpen(true)}
-                                                    title="Vesting"
-                                                    icon={Vesting}
-                                                />
-                                            ) : null}
-                                        </div>
-                                    ) : null}
-                                </div>
-                                {!accountHasIota ? (
-                                    <div className="flex flex-col gap-md">
-                                        <div className="flex flex-col flex-nowrap items-center justify-center px-sm text-center">
-                                            <span className="text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
-                                                {isMainnet
-                                                    ? 'Start by buying IOTA'
-                                                    : 'Need to send transactions on the IOTA network? You’ll need IOTA in your wallet'}
-                                            </span>
-                                        </div>
-                                        {!isMainnet && <FaucetRequestButton />}
+                    <div className="flex w-full flex-grow flex-col gap-md">
+                        <div
+                            className={`flex w-full flex-col items-center gap-xs rounded-2xl ${!accountHasIota ? 'flex-grow justify-between' : ''}`}
+                        >
+                            <div className="flex w-full flex-col items-center gap-xs">
+                                {accountHasIota || delegatedStake?.length ? (
+                                    <TokenStakingOverview accountAddress={activeAccountAddress} />
+                                ) : null}
+                                {hasSupplyIncreaseVestingObjects || needsMigration ? (
+                                    <div className="flex w-full flex-row gap-x-xs">
+                                        {needsMigration ? (
+                                            <OverviewHint
+                                                onClick={() => setDialogMigrationOpen(true)}
+                                                title="Migration"
+                                                icon={Migration}
+                                            />
+                                        ) : null}
+                                        {hasSupplyIncreaseVestingObjects ? (
+                                            <OverviewHint
+                                                onClick={() => setDialogVestingOpen(true)}
+                                                title="Vesting"
+                                                icon={Vesting}
+                                            />
+                                        ) : null}
                                     </div>
                                 ) : null}
                             </div>
-                            {coinBalances?.length ? (
-                                <MyTokens
-                                    coinBalances={coinBalances ?? []}
-                                    isLoading={isLoading}
-                                    isFetched={isFetched}
-                                />
+                            {!accountHasIota ? (
+                                <div className="flex flex-col gap-md">
+                                    <div className="flex flex-col flex-nowrap items-center justify-center px-sm text-center">
+                                        <span className="text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
+                                            {isMainnet
+                                                ? 'Start by buying IOTA'
+                                                : 'Need to send transactions on the IOTA network? You’ll need IOTA in your wallet'}
+                                        </span>
+                                    </div>
+                                    {!isMainnet && <FaucetRequestButton />}
+                                </div>
                             ) : null}
                         </div>
-                    )}
+                        {coinBalances?.length ? (
+                            <MyTokens
+                                coinBalances={coinBalances ?? []}
+                                isLoading={isLoading}
+                                isFetched={isFetched}
+                            />
+                        ) : null}
+                    </div>
                 </div>
                 <ReceiveTokensDialog
                     address={activeAccountAddress}
