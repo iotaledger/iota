@@ -318,9 +318,7 @@ async fn package_not_found() -> anyhow::Result<()> {
         panic!("Expected verification to fail");
     };
 
-    let expected = expect![[
-        r#"Dependency object does not exist or was deleted: NotExists { object_id: ObjectId("0x<id>") }"#
-    ]];
+    let expected = expect![[r#"Dependency object does not exist or was deleted: NotExists { object_id: ObjectId("<id>") }"#]];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     let package_root = IotaAddress::random();
@@ -334,9 +332,7 @@ async fn package_not_found() -> anyhow::Result<()> {
 
     // <id> below may refer to either the package_root or dependent package `b`
     // (the check reports the first missing object nondeterministically)
-    let expected = expect![[
-        r#"Dependency object does not exist or was deleted: NotExists { object_id: ObjectId("0x<id>") }"#
-    ]];
+    let expected = expect![[r#"Dependency object does not exist or was deleted: NotExists { object_id: ObjectId("<id>") }"#]];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     let package_root = IotaAddress::random();
@@ -348,9 +344,7 @@ async fn package_not_found() -> anyhow::Result<()> {
         panic!("Expected verification to fail");
     };
 
-    let expected = expect![[
-        r#"Dependency object does not exist or was deleted: NotExists { object_id: ObjectId("0x<id>") }"#
-    ]];
+    let expected = expect![[r#"Dependency object does not exist or was deleted: NotExists { object_id: ObjectId("<id>") }"#]];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     Ok(())
@@ -447,7 +441,7 @@ async fn module_not_found_locally() -> anyhow::Result<()> {
         panic!("Expected verification to fail");
     };
 
-    let expected = expect!["Local version of dependency 0xb_id::d was not found."];
+    let expected = expect!["Local version of dependency b_id::d was not found."];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     Ok(())
@@ -500,7 +494,7 @@ async fn module_bytecode_mismatch() -> anyhow::Result<()> {
         panic!("Expected verification to fail");
     };
 
-    let expected = expect!["Local dependency did not match its on-chain version at 0x<b_id>::b::c"];
+    let expected = expect!["Local dependency did not match its on-chain version at <b_id>::b::c"];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     let Err(err) = verifier
@@ -511,7 +505,7 @@ async fn module_bytecode_mismatch() -> anyhow::Result<()> {
     };
 
     let expected =
-        expect!["Local dependency did not match its on-chain version at 0x<a_addr>::a::a"];
+        expect!["Local dependency did not match its on-chain version at <a_addr>::a::a"];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     Ok(())
@@ -577,8 +571,8 @@ async fn linkage_differs() -> anyhow::Result<()> {
     let expected = expect![[r#"
         Multiple source verification errors found:
 
-        - Source package depends on 0x<b3> which is not in the linkage table.
-        - On-chain package depends on 0x<b2> which is not a source dependency."#]];
+        - Source package depends on <b3> which is not in the linkage table.
+        - On-chain package depends on <b2> which is not a source dependency."#]];
     expected.assert_eq(&sanitize_id(error, &stable_ids));
 
     Ok(())
@@ -634,7 +628,7 @@ async fn multiple_failures() -> anyhow::Result<()> {
         Multiple source verification errors found:
 
         - On-chain version of dependency b::c was not found.
-        - Local version of dependency 0x<c_id>::d was not found."#]];
+        - Local version of dependency <c_id>::d was not found."#]];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     Ok(())
@@ -731,7 +725,7 @@ fn compile_package(package: impl AsRef<Path>) -> CompiledPackage {
 
 fn sanitize_id(mut message: String, m: &HashMap<IotaAddress, &str>) -> String {
     for (addr, label) in m {
-        message = message.replace(format!("{addr}").strip_prefix("0x").unwrap(), label);
+        message = message.replace(&addr.to_string(), label);
     }
     message
 }
