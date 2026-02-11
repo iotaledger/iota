@@ -1520,7 +1520,7 @@ impl CheckpointBuilder {
                 let scores: Vec<u64> = if self
                     .epoch_store
                     .protocol_config()
-                    .calculate_validator_scores()
+                    .pass_calculated_validator_scores_to_advance_epoch()
                 {
                     self.epoch_store
                         .scorer

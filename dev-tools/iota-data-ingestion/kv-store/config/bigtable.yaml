@@ -54,3 +54,4 @@ tasks:
       instance-id: "iota"
       column-family: "iota"
       timeout-secs: 60
+      # emulator-host: "localhost:8086"
