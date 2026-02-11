@@ -7,10 +7,10 @@ import type { IotaDID } from '@iota/identity-wasm/web';
 import { PageHeader, PageLayout } from '~/components';
 import { useResolveDid } from '~/hooks/useResolveDid';
 import { onCopySuccess } from '~/lib';
-// import { useIdentityPkgId } from '~/contexts';
+import { useIdentityPkgId } from '~/contexts';
 import { useMemo } from 'react';
 import { Warning } from '@iota/apps-ui-icons';
-// import { getIdentityType, getLegacyMetadata, MetadataBuilder } from '../helper';
+import { getIdentityType, MetadataBuilder } from '../headerMetadataHelper';
 // import { DidView } from './DidView';
 // import { ControllerAndServiceView } from './ControllerAndServiceView';
 // import { ControllerView } from './ControllerView';
@@ -28,7 +28,7 @@ export function DidContent({ did }: DidContentProps) {
     const didObject = useMemo(() => objectResult?.data || null, [objectResult?.data]);
 
     const copyToClipboard = useCopyToClipboard(onCopySuccess);
-    // const iotaIdentityPackage = useIdentityPkgId();
+    const iotaIdentityPackage = useIdentityPkgId();
 
     const isPending = useMemo(
         () => isDidDocumentPending || isObjectPending,
@@ -70,22 +70,22 @@ export function DidContent({ did }: DidContentProps) {
         );
     }
 
-    // if (iotaIdentityPackage == null) {
-    //     // This should never happen or would mean an error on Identity SDK
-    //     return (
-    //         <PageLayout
-    //             content={
-    //                 <InfoBox
-    //                     title="Error loading official Identity package"
-    //                     supportingText="Could not load package ID from Identity client."
-    //                     icon={<Warning />}
-    //                     type={InfoBoxType.Error}
-    //                     style={InfoBoxStyle.Elevated}
-    //                 />
-    //             }
-    //         />
-    //     );
-    // }
+    if (iotaIdentityPackage == null) {
+        // The activation of this branch is a symptom of Identity WASM Web module not loaded.
+        return (
+            <PageLayout
+                content={
+                    <InfoBox
+                        title="Error loading official Identity package"
+                        supportingText="Could not load package ID from Identity client."
+                        icon={<Warning />}
+                        type={InfoBoxType.Error}
+                        style={InfoBoxStyle.Elevated}
+                    />
+                }
+            />
+        );
+    }
 
     return (
         <PageLayout
@@ -100,10 +100,10 @@ export function DidContent({ did }: DidContentProps) {
                             />
                         }
                         showCopyButton={false}
-                        // metaItems={MetadataBuilder.create()
-                        //     .addItem(getLegacyMetadata(didDocument))
-                        //     .addItem(getIdentityType(didObject, iotaIdentityPackage))
-                        //     .build()}
+                        metaItems={MetadataBuilder.create()
+                            .addItem(getIdentityType(didObject, iotaIdentityPackage))
+                            //     .addItem(getLegacyMetadata(didDocument))
+                            .build()}
                     />
                     {/* <DidView objectData={didObject} didDocument={didDocument} /> */}
                     {/* <ControllerAndServiceView */}

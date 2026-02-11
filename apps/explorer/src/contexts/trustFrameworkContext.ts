@@ -27,3 +27,7 @@ export function useTrustFramework(): TrustFrameworkProviderContext {
 export function useIdentityClient(): IdentityClientReadOnly | null {
     return useTrustFramework().identityClient;
 }
+
+export function useIdentityPkgId(): string | null {
+    return useIdentityClient()?.packageId() || null;
+}
