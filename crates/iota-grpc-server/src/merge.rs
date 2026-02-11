@@ -49,6 +49,7 @@ impl Merge<&Epoch> for Epoch {
             end,
             reference_gas_price,
             protocol_config,
+            ..
         } = source;
 
         if mask.contains(Self::EPOCH_FIELD.name) {
@@ -104,6 +105,7 @@ impl Merge<&ProtocolConfig> for ProtocolConfig {
             protocol_version,
             feature_flags,
             attributes,
+            ..
         } = source;
 
         if mask.contains(Self::PROTOCOL_VERSION_FIELD.name) {
@@ -132,6 +134,7 @@ impl Merge<ProtocolConfig> for ProtocolConfig {
             protocol_version,
             feature_flags,
             attributes,
+            ..
         } = source;
 
         if mask.contains(Self::PROTOCOL_VERSION_FIELD.name) {
@@ -190,7 +193,7 @@ impl Merge<&UserSignature> for UserSignature {
         source: &UserSignature,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let UserSignature { bcs } = source;
+        let UserSignature { bcs, .. } = source;
 
         if mask.contains(Self::BCS_FIELD.name) {
             self.bcs = bcs.clone();
@@ -478,7 +481,7 @@ impl Merge<&CheckpointSummary> for CheckpointSummary {
         source: &CheckpointSummary,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let CheckpointSummary { bcs, digest } = source;
+        let CheckpointSummary { bcs, digest, .. } = source;
 
         if mask.contains(Self::DIGEST_FIELD.name) {
             self.digest = digest.clone();
@@ -517,7 +520,7 @@ impl Merge<&CheckpointContents> for CheckpointContents {
         source: &CheckpointContents,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let CheckpointContents { bcs, digest } = source;
+        let CheckpointContents { bcs, digest, .. } = source;
 
         if mask.contains(Self::BCS_FIELD.name) {
             self.bcs = bcs.clone();
@@ -584,6 +587,7 @@ impl Merge<&Checkpoint> for Checkpoint {
             summary,
             signature,
             contents,
+            ..
         } = source;
 
         if mask.contains(Self::SEQUENCE_NUMBER_FIELD.name) {
@@ -743,6 +747,7 @@ impl Merge<&ExecutedTransaction> for ExecutedTransaction {
             timestamp,
             input_objects,
             output_objects,
+            ..
         } = source;
 
         if let Some(submask) = mask.subtree(Self::TRANSACTION_FIELD.name) {
@@ -838,7 +843,7 @@ impl Merge<&Transaction> for Transaction {
         source: &Transaction,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let Transaction { bcs, digest } = source;
+        let Transaction { bcs, digest, .. } = source;
 
         if mask.contains(Self::DIGEST_FIELD.name) {
             self.digest = digest.clone();

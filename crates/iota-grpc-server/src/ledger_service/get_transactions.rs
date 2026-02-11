@@ -77,6 +77,7 @@ pub(crate) fn get_transactions(
         requests,
         read_mask,
         max_message_size_bytes,
+        ..
     }: GetTransactionsRequest,
 ) -> Result<impl Stream<Item = TransactionsStreamResult> + Send, RpcError> {
     let requests = requests
