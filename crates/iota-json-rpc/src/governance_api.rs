@@ -467,10 +467,10 @@ pub fn calculate_apys(exchange_rate_table: Vec<ValidatorExchangeRates>) -> Vec<V
     for rates in exchange_rate_table.into_iter().filter(|r| r.active) {
         let exchange_rates = rates.rates.iter().map(|(_, rate)| rate);
 
-        let median_apy = median_apy_from_exchange_rates(exchange_rates);
+        let mean_apy = mean_apy_from_exchange_rates(exchange_rates);
         apys.push(ValidatorApy {
             address: rates.address,
-            apy: median_apy,
+            apy: mean_apy,
         });
     }
     apys
@@ -479,28 +479,41 @@ pub fn calculate_apys(exchange_rate_table: Vec<ValidatorExchangeRates>) -> Vec<V
 /// Calculate the APY for a validator based on the exchange rates of the staking
 /// pool.
 ///
-/// The calculation uses the median value of the sample, to filter out
-/// outliers introduced by large staking/unstaking events.
-pub fn median_apy_from_exchange_rates<'er>(
+/// The calculation uses the mean value of the latest 7 samples. If outliers are
+/// detected, the median value will be used instead. Outliers are defined as APY
+/// larger than MAX_VALID_APY, which are likely caused by large
+/// staking/unstaking events.
+pub fn mean_apy_from_exchange_rates<'er>(
     exchange_rates: impl DoubleEndedIterator<Item = &'er PoolTokenExchangeRate> + Clone,
 ) -> f64 {
-    // rates are sorted by epoch in descending order.
+    // We set this value after observing the APY of validators in mainnet.
+    const MAX_VALID_APY: f64 = 1.00;
+    const SAMPLES: usize = 7;
+
     let rates = exchange_rates.clone().dropping(1);
     let rates_next = exchange_rates.dropping_back(1);
+
     let apys = rates
         .zip(rates_next)
+        .take(SAMPLES)
         .filter_map(|(er, er_next)| {
             let apy = calculate_apy(er, er_next);
             (apy > 0.0).then_some(apy)
         })
-        .take(90)
         .collect::<Vec<_>>();
 
     if apys.is_empty() {
-        // not enough data points
-        0.0
-    } else {
+        return 0.0;
+    }
+    // If any single epoch has outliers (that is APY > MAX_VALID_APY), we switch to
+    // Median. Otherwise, we use the standard Mean.
+    let has_outlier = apys.iter().any(|&apy| apy > MAX_VALID_APY);
+
+    if has_outlier {
         Data::new(apys).median()
+    } else {
+        let sum: f64 = apys.iter().sum();
+        sum / SAMPLES as f64
     }
 }
 
@@ -867,7 +880,8 @@ mod tests {
     #[test]
     fn calculate_apys_with_outliers() {
         let file =
-            std::fs::File::open("src/unit_tests/data/validator_exchange_rate/rates.json").unwrap();
+            std::fs::File::open("src/unit_tests/data/validator_exchange_rate/rates-test.json")
+                .unwrap();
         let rates: BTreeMap<String, Vec<(u64, PoolTokenExchangeRate)>> =
             serde_json::from_reader(file).unwrap();
 
@@ -875,14 +889,14 @@ mod tests {
 
         let exchange_rates = rates
             .into_iter()
-            .map(|(validator, rates)| {
+            .map(|(validator, rates_vec)| {
                 let address = IotaAddress::random_for_testing_only();
                 address_map.insert(address, validator);
                 ValidatorExchangeRates {
                     address,
                     pool_id: ObjectID::random(),
                     active: true,
-                    rates,
+                    rates: backfill_rates(rates_vec),
                 }
             })
             .collect();
@@ -891,7 +905,39 @@ mod tests {
 
         for apy in &apys {
             println!("{}: {}", address_map[&apy.address], apy.apy);
-            assert!(apy.apy < 0.25)
+            assert!(apy.apy < 0.15)
+        }
+    }
+
+    #[test]
+    fn calculate_apys_without_outliers() {
+        let file =
+            std::fs::File::open("src/unit_tests/data/validator_exchange_rate/rates-feb26.json")
+                .unwrap();
+        let rates: BTreeMap<String, Vec<(u64, PoolTokenExchangeRate)>> =
+            serde_json::from_reader(file).unwrap();
+
+        let mut address_map = BTreeMap::new();
+
+        let exchange_rates = rates
+            .into_iter()
+            .map(|(validator, rates_vec)| {
+                let address = IotaAddress::random_for_testing_only();
+                address_map.insert(address, validator);
+                ValidatorExchangeRates {
+                    address,
+                    pool_id: ObjectID::random(),
+                    active: true,
+                    rates: backfill_rates(rates_vec),
+                }
+            })
+            .collect();
+
+        let apys = calculate_apys(exchange_rates);
+
+        for apy in &apys {
+            println!("{}: {}", address_map[&apy.address], apy.apy);
+            assert!(apy.apy < 0.15)
         }
     }
 
