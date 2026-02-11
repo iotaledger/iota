@@ -447,7 +447,7 @@ async fn module_not_found_locally() -> anyhow::Result<()> {
         panic!("Expected verification to fail");
     };
 
-    let expected = expect!["Local version of dependency b_id::d was not found."];
+    let expected = expect!["Local version of dependency 0xb_id::d was not found."];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     Ok(())
@@ -500,7 +500,7 @@ async fn module_bytecode_mismatch() -> anyhow::Result<()> {
         panic!("Expected verification to fail");
     };
 
-    let expected = expect!["Local dependency did not match its on-chain version at <b_id>::b::c"];
+    let expected = expect!["Local dependency did not match its on-chain version at 0x<b_id>::b::c"];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     let Err(err) = verifier
@@ -510,7 +510,7 @@ async fn module_bytecode_mismatch() -> anyhow::Result<()> {
         panic!("Expected verification to fail");
     };
 
-    let expected = expect!["Local dependency did not match its on-chain version at <a_addr>::a::a"];
+    let expected = expect!["Local dependency did not match its on-chain version at 0x<a_addr>::a::a"];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     Ok(())
@@ -576,8 +576,8 @@ async fn linkage_differs() -> anyhow::Result<()> {
     let expected = expect![[r#"
         Multiple source verification errors found:
 
-        - Source package depends on <b3> which is not in the linkage table.
-        - On-chain package depends on <b2> which is not a source dependency."#]];
+        - Source package depends on 0x<b3> which is not in the linkage table.
+        - On-chain package depends on 0x<b2> which is not a source dependency."#]];
     expected.assert_eq(&sanitize_id(error, &stable_ids));
 
     Ok(())
@@ -633,7 +633,7 @@ async fn multiple_failures() -> anyhow::Result<()> {
         Multiple source verification errors found:
 
         - On-chain version of dependency b::c was not found.
-        - Local version of dependency <c_id>::d was not found."#]];
+        - Local version of dependency 0x<c_id>::d was not found."#]];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     Ok(())
