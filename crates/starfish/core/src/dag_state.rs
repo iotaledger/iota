@@ -531,10 +531,11 @@ impl DagState {
         source: DataSource,
     ) {
         let transaction_ref = transactions.transaction_ref();
+        let block_ref = transactions.block_ref();
         let generic_ref = if self.context.protocol_config.consensus_transaction_ref() {
             GenericTransactionRef::from(transaction_ref)
         } else {
-            GenericTransactionRef::from(BlockRef::from(transaction_ref))
+            GenericTransactionRef::from(block_ref)
         };
         if self.recent_transactions_by_authority[transaction_ref.author].contains_key(&generic_ref)
         {
