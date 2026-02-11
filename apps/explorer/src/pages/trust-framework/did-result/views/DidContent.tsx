@@ -10,7 +10,7 @@ import { onCopySuccess } from '~/lib';
 import { useIdentityPkgId } from '~/contexts';
 import { useMemo } from 'react';
 import { Warning } from '@iota/apps-ui-icons';
-import { getIdentityType, MetadataBuilder } from '../headerMetadataHelper';
+import { getIdentityType, getLegacyMetadata, MetadataBuilder } from '../headerMetadataHelper';
 // import { DidView } from './DidView';
 // import { ControllerAndServiceView } from './ControllerAndServiceView';
 // import { ControllerView } from './ControllerView';
@@ -102,7 +102,7 @@ export function DidContent({ did }: DidContentProps) {
                         showCopyButton={false}
                         metaItems={MetadataBuilder.create()
                             .addItem(getIdentityType(didObject, iotaIdentityPackage))
-                            //     .addItem(getLegacyMetadata(didDocument))
+                            .addItem(getLegacyMetadata(didDocument))
                             .build()}
                     />
                     {/* <DidView objectData={didObject} didDocument={didDocument} /> */}
