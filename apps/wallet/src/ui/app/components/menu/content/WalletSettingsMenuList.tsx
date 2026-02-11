@@ -3,13 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useNextMenuUrl, Overlay } from '_components';
-import {
-    useAppSelector,
-    formatAutoLock,
-    useAutoLockMinutes,
-    useActiveAccount,
-    useLogoutMutation,
-} from '_hooks';
+import { useAppSelector, formatAutoLock, useAutoLockMinutes, useLogoutMutation } from '_hooks';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
@@ -21,7 +15,6 @@ import {
     Globe,
     Info,
     LockLocked,
-    LockUnlocked,
     Logout,
     Expand,
     Discord,
@@ -49,7 +42,6 @@ import { openInNewTab } from '_src/shared/utils';
 export function MenuList() {
     const { themePreference } = useTheme();
     const navigate = useNavigate();
-    const activeAccount = useActiveAccount();
     const networkUrl = useNextMenuUrl(true, '/network');
     const autoLockUrl = useNextMenuUrl(true, '/auto-lock');
     const themeUrl = useNextMenuUrl(true, '/theme');
@@ -117,7 +109,7 @@ export function MenuList() {
         {
             title: 'Auto Lock Profile',
             subtitle: autoLockSubtitle,
-            icon: activeAccount?.isLocked ? <LockLocked /> : <LockUnlocked />,
+            icon: <LockLocked />,
             onClick: onAutoLockClick,
         },
         {
