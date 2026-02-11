@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package iota.grpc;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FieldOptions {
+  // Comma-separated list of accessor types to generate.
+  // Valid values: getter, getter_opt, set, with, mut, mut_opt
+  // Example: "set,with" generates set_field() and with_field()
+  optional string generate_accessors = 50000;
+}
