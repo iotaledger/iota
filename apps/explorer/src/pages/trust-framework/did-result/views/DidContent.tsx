@@ -12,7 +12,7 @@ import { useMemo } from 'react';
 import { Warning } from '@iota/apps-ui-icons';
 import { getIdentityType, getLegacyMetadata, MetadataBuilder } from '../headerMetadataHelper';
 import { ControllerView } from './ControllerView';
-// import { ServiceView } from './ServiceView';
+import { ServiceView } from './ServiceView';
 import { DidSummaryView } from './DidSummaryView';
 import { DidDocumentJsonView } from './DidDocumentJsonView';
 import { SideBySidePanelsView } from './SideBySidePanelsView';
@@ -108,7 +108,7 @@ export function DidContent({ did }: DidContentProps) {
                     <DidSummaryView objectData={didObject} didDocument={didDocument} />
                     <SideBySidePanelsView
                         firstPanelView={<ControllerView objectData={didObject} />}
-                        secondPanelView={'Service' /* <ServiceView didDocument={didDocument} /> */}
+                        secondPanelView={<ServiceView didDocument={didDocument} />}
                     />
                     <DidDocumentJsonView didDocument={didDocument} />
                     {/* <TransactionsView objectId={did.tag()} /> */}
