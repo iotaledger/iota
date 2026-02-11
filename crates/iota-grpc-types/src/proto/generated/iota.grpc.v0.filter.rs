@@ -117,7 +117,7 @@ pub struct NotTransactionFilter {
 #[non_exhaustive]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TransactionKindsFilter {
-    #[prost(enumeration = "TransactionKind", repeated, tag = "1")]
+    #[prost(enumeration = "TransactionKind", repeated, packed = "false", tag = "1")]
     pub kinds: ::prost::alloc::vec::Vec<i32>,
 }
 /// Filter by input object ID.

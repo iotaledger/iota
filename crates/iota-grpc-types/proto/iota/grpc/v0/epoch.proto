@@ -8,63 +8,64 @@ package iota.grpc.v0.epoch;
 
 import "google/protobuf/timestamp.proto";
 
+import "iota/grpc/options.proto";
 import "iota/grpc/v0/bcs.proto";
 
 // A member of a validator committee.
 message ValidatorCommitteeMember {
   // The 96-byte Bls12381 public key for this validator.
-  optional bytes public_key = 1;
+  optional bytes public_key = 1 [(iota.grpc.generate_accessors) = "with"];
 
   // voting weight this validator possesses.
-  optional uint64 weight = 2;
+  optional uint64 weight = 2 [(iota.grpc.generate_accessors) = "with"];
 }
 
 message ValidatorCommitteeMembers {
-  repeated ValidatorCommitteeMember members = 1;
+  repeated ValidatorCommitteeMember members = 1 [(iota.grpc.generate_accessors) = "with"];
 }
 
 // The validator set for a particular epoch.
 message ValidatorCommittee {
   // The epoch where this committee governs.
-  optional uint64 epoch = 1;
+  optional uint64 epoch = 1 [(iota.grpc.generate_accessors) = "with"];
 
   // The committee members.
-  optional ValidatorCommitteeMembers members = 2;
+  optional ValidatorCommitteeMembers members = 2 [(iota.grpc.generate_accessors) = "with"];
 }
 
 message ProtocolFeatureFlags {
-  map<string, bool> flags = 1;
+  map<string, bool> flags = 1 [(iota.grpc.generate_accessors) = "with"];
 }
 
 message ProtocolAttributes {
-  map<string, string> attributes = 1;
+  map<string, string> attributes = 1 [(iota.grpc.generate_accessors) = "with"];
 }
 
 message ProtocolConfig {
-  optional uint64 protocol_version = 1;
-  optional ProtocolFeatureFlags feature_flags = 2;
-  optional ProtocolAttributes attributes = 3;
+  optional uint64 protocol_version = 1 [(iota.grpc.generate_accessors) = "with"];
+  optional ProtocolFeatureFlags feature_flags = 2 [(iota.grpc.generate_accessors) = "with"];
+  optional ProtocolAttributes attributes = 3 [(iota.grpc.generate_accessors) = "with"];
 }
 
 message Epoch {
-  optional uint64 epoch = 1;
+  optional uint64 epoch = 1 [(iota.grpc.generate_accessors) = "with"];
 
   // The committee governing this epoch.
-  optional ValidatorCommittee committee = 2;
+  optional ValidatorCommittee committee = 2 [(iota.grpc.generate_accessors) = "with"];
 
   // Snapshot of IOTA's SystemState (`0x3::iota_system::SystemState`) at the
   // beginning of the epoch, for past epochs, or the current state for the
   // current epoch.
-  optional iota.grpc.v0.bcs.BcsData bcs_system_state = 3;
+  optional iota.grpc.v0.bcs.BcsData bcs_system_state = 3 [(iota.grpc.generate_accessors) = "with"];
 
-  optional uint64 first_checkpoint = 4;
-  optional uint64 last_checkpoint = 5;
+  optional uint64 first_checkpoint = 4 [(iota.grpc.generate_accessors) = "with"];
+  optional uint64 last_checkpoint = 5 [(iota.grpc.generate_accessors) = "with"];
 
-  optional google.protobuf.Timestamp start = 6;
-  optional google.protobuf.Timestamp end = 7;
+  optional google.protobuf.Timestamp start = 6 [(iota.grpc.generate_accessors) = "with"];
+  optional google.protobuf.Timestamp end = 7 [(iota.grpc.generate_accessors) = "with"];
 
   // Reference gas price denominated in NANOS
-  optional uint64 reference_gas_price = 8;
+  optional uint64 reference_gas_price = 8 [(iota.grpc.generate_accessors) = "with"];
 
-  optional ProtocolConfig protocol_config = 9;
+  optional ProtocolConfig protocol_config = 9 [(iota.grpc.generate_accessors) = "with"];
 }

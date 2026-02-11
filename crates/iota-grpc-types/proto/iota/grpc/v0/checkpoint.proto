@@ -6,6 +6,7 @@ syntax = "proto3";
 
 package iota.grpc.v0.checkpoint;
 
+import "iota/grpc/options.proto";
 import "iota/grpc/v0/bcs.proto";
 import "iota/grpc/v0/signatures.proto";
 import "iota/grpc/v0/types.proto";
@@ -31,31 +32,31 @@ import "iota/grpc/v0/types.proto";
 // the validator committee in a given epoch to allow verification of the chain's state.
 message CheckpointSummary {
   // The digest of this CheckpointSummary.
-  optional iota.grpc.v0.types.Digest digest = 1;
+  optional iota.grpc.v0.types.Digest digest = 1 [(iota.grpc.generate_accessors) = "with"];
   
   // This CheckpointSummary serialized as BCS.
-  optional iota.grpc.v0.bcs.BcsData bcs = 2;
+  optional iota.grpc.v0.bcs.BcsData bcs = 2 [(iota.grpc.generate_accessors) = "with"];
 }
 
 // The committed to contents of a checkpoint.
 message CheckpointContents {
   // The digest of this CheckpointContents.
-  optional iota.grpc.v0.types.Digest digest = 1;
+  optional iota.grpc.v0.types.Digest digest = 1 [(iota.grpc.generate_accessors) = "with"];
   // This CheckpointContents serialized as BCS.
-  optional iota.grpc.v0.bcs.BcsData bcs = 2;
+  optional iota.grpc.v0.bcs.BcsData bcs = 2 [(iota.grpc.generate_accessors) = "with"];
 }
 
 message Checkpoint {
   // The height of this checkpoint.
-  optional uint64 sequence_number = 1;
+  optional uint64 sequence_number = 1 [(iota.grpc.generate_accessors) = "with"];
 
   // The `CheckpointSummary` for this checkpoint.
-  optional CheckpointSummary summary = 2;
+  optional CheckpointSummary summary = 2 [(iota.grpc.generate_accessors) = "with"];
 
   // The `CheckpointContents` for this checkpoint.
-  optional CheckpointContents contents = 3;
+  optional CheckpointContents contents = 3 [(iota.grpc.generate_accessors) = "with"];
 
   // An aggregated quorum signature from the validator committee that
   // certified this checkpoint.
-  optional iota.grpc.v0.signatures.ValidatorAggregatedSignature signature = 4;
+  optional iota.grpc.v0.signatures.ValidatorAggregatedSignature signature = 4 [(iota.grpc.generate_accessors) = "with"];
 }

@@ -4,6 +4,7 @@
 
 include!("../../../generated/iota.grpc.v0.epoch.rs");
 include!("../../../generated/iota.grpc.v0.epoch.field_info.rs");
+include!("../../../generated/iota.grpc.v0.epoch.accessors.rs");
 
 use tap::Pipe;
 

@@ -9,6 +9,7 @@ package iota.grpc.v0.transaction_execution_service;
 import "google/protobuf/field_mask.proto";
 import "google/protobuf/struct.proto";
 
+import "iota/grpc/options.proto";
 import "iota/grpc/v0/command.proto";
 import "iota/grpc/v0/signatures.proto";
 import "iota/grpc/v0/transaction.proto";
@@ -20,15 +21,15 @@ service TransactionExecutionService {
 
 message ExecuteTransactionRequest {
   // The transaction to execute.
-  optional iota.grpc.v0.transaction.Transaction transaction = 1;
+  optional iota.grpc.v0.transaction.Transaction transaction = 1 [(iota.grpc.generate_accessors) = "with"];
 
   // Set of `iota.grpc.v0.signatures.UserSignature`s authorizing the execution of the provided
   // transaction.
-  optional iota.grpc.v0.signatures.UserSignatures signatures = 2;
+  optional iota.grpc.v0.signatures.UserSignatures signatures = 2 [(iota.grpc.generate_accessors) = "with"];
 
   // Mask specifying which fields to read.
   // If no mask is specified, defaults to `effects.status,checkpoint`.
-  optional google.protobuf.FieldMask read_mask = 3;
+  optional google.protobuf.FieldMask read_mask = 3 [(iota.grpc.generate_accessors) = "with"];
 }
 
 // Response message for `NodeService.ExecuteTransaction`.
@@ -37,7 +38,7 @@ message ExecuteTransactionResponse {
 }
 
 message SimulateTransactionRequest {
-  optional iota.grpc.v0.transaction.Transaction transaction = 1;
+  optional iota.grpc.v0.transaction.Transaction transaction = 1 [(iota.grpc.generate_accessors) = "with"];
 
   // Individual check modes that can be enabled/disabled
   enum TransactionCheckModes {
@@ -48,13 +49,13 @@ message SimulateTransactionRequest {
   }
 
   // List of checks to disable. If empty, all checks are enabled (default).
-  repeated TransactionCheckModes tx_checks = 2;
+  repeated TransactionCheckModes tx_checks = 2 [(iota.grpc.generate_accessors) = "with"];
 
   // Perform gas budget estimation and include the budget in the response.
-  optional bool estimate_gas_budget = 3;
+  optional bool estimate_gas_budget = 3 [(iota.grpc.generate_accessors) = "with"];
 
   // Mask specifying which fields to read.
-  optional google.protobuf.FieldMask read_mask = 4;
+  optional google.protobuf.FieldMask read_mask = 4 [(iota.grpc.generate_accessors) = "with"];
 }
 
 message SimulateTransactionResponse {
