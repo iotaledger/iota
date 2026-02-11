@@ -188,6 +188,85 @@ async fn test_archive_resumes() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+/// Verifies that the archive writer shuts down promptly when an explicit
+/// kill signal is sent via `kill.send(())`.
+#[tokio::test]
+async fn test_archive_shutdown_on_send() -> Result<(), anyhow::Error> {
+    let test_store = SharedInMemoryStore::default();
+    let test_state = setup_test_state(temp_dir()).await?;
+    let kill = test_state.archive_writer.start(test_store.clone()).await?;
+
+    // Let the writer run briefly
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    // Send explicit shutdown signal and verify it completes within timeout
+    kill.send(())?;
+    let shutdown_result = tokio::time::timeout(Duration::from_secs(5), async {
+        // The writer tasks should stop; verify by checking the sender has
+        // no more active receivers (all tasks exited).
+        loop {
+            if kill.receiver_count() == 0 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await;
+
+    assert!(
+        shutdown_result.is_ok(),
+        "Archive writer did not shut down within 5 seconds after send()"
+    );
+    Ok(())
+}
+
+/// Verifies that the archive writer shuts down promptly when the kill sender
+/// is dropped (simulating the SIGTERM path where IotaNode is dropped without
+/// calling send).
+#[tokio::test]
+async fn test_archive_shutdown_on_drop() -> Result<(), anyhow::Error> {
+    let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let test_store = SharedInMemoryStore::default();
+            let test_state = setup_test_state(temp_dir()).await.unwrap();
+            let kill = test_state
+                .archive_writer
+                .start(test_store.clone())
+                .await
+                .unwrap();
+
+            // Let the writer run briefly
+            tokio::time::sleep(Duration::from_millis(100)).await;
+
+            assert!(
+                kill.receiver_count() > 0,
+                "Expected active receivers before drop"
+            );
+
+            // Drop the sender (simulates IotaNode being dropped on SIGTERM)
+            drop(kill);
+        });
+        // Wait for blocking tasks to finish. With the correct implementation
+        // (tokio::spawn), there's nothing to wait for since async tasks are
+        // cancelled when the runtime shuts down above.
+        rt.shutdown_timeout(Duration::from_secs(10));
+        let _ = tx.send(());
+    });
+
+    let shutdown_result = tokio::time::timeout(Duration::from_secs(5), rx).await;
+    assert!(
+        matches!(shutdown_result, Ok(Ok(()))),
+        "Archive writer did not shut down within 5 seconds after drop()"
+    );
+    Ok(())
+}
+
 #[tokio::test]
 async fn test_manifest_serde() -> Result<()> {
     let original_manifest = Manifest::new(0, 100);

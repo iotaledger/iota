@@ -11,7 +11,6 @@ use std::{
     ops::Range,
     path::{Path, PathBuf},
     sync::Arc,
-    thread::sleep,
     time::Duration,
 };
 
@@ -412,14 +411,12 @@ impl ArchiveWriter {
         ));
 
         // Tails checkpoints from the store and writes them to the CheckpointWriter.
-        tokio::task::spawn_blocking(move || {
-            Self::start_tailing_checkpoints(
-                start_checkpoint_sequence_number,
-                checkpoint_writer,
-                store,
-                kill_receiver,
-            )
-        });
+        tokio::spawn(Self::start_tailing_checkpoints(
+            start_checkpoint_sequence_number,
+            checkpoint_writer,
+            store,
+            kill_receiver,
+        ));
         Ok(kill_sender)
     }
 
@@ -427,7 +424,7 @@ impl ArchiveWriter {
     /// to read from store, if not, sleeps for some time (3 secs) and retries.
     /// If the checkpoint is available, writes the checkpoint contents and
     /// summary to the CheckpointWriter.
-    fn start_tailing_checkpoints<S>(
+    async fn start_tailing_checkpoints<S>(
         start_checkpoint_sequence_number: CheckpointSequenceNumber,
         mut checkpoint_writer: CheckpointWriter,
         store: S,
@@ -439,7 +436,7 @@ impl ArchiveWriter {
         let mut checkpoint_sequence_number = start_checkpoint_sequence_number;
         info!("Starting checkpoint tailing from sequence number: {checkpoint_sequence_number}");
 
-        while kill.try_recv().is_err() {
+        loop {
             if let Some(checkpoint_summary) = store
                 .try_get_checkpoint_by_sequence_number(checkpoint_sequence_number)
                 .map_err(|_| anyhow!("Failed to read checkpoint summary from store"))?
@@ -459,7 +456,10 @@ impl ArchiveWriter {
             }
             // Checkpoint with `checkpoint_sequence_number` is not available to read from
             // store yet, sleep for sometime and then retry
-            sleep(Duration::from_secs(3));
+            tokio::select! {
+                _ = kill.recv() => break,
+                _ = tokio::time::sleep(Duration::from_secs(3)) => {}
+            }
         }
         Ok(())
     }
