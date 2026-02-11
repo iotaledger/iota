@@ -16,7 +16,10 @@ use starfish_config::AuthorityIndex;
 
 use crate::{
     CommitIndex,
-    block_header::{BlockRef, Round, VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions},
+    block_header::{
+        BlockHeaderDigest, BlockRef, Round, VerifiedBlock, VerifiedBlockHeader,
+        VerifiedTransactions,
+    },
     commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
     context::Context,
     error::ConsensusResult,
@@ -62,6 +65,14 @@ pub(crate) trait Store: Send + Sync {
 
     /// Checks if block headers exist in the store.
     fn contains_block_headers(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>>;
+
+    /// Looks up block digests by transaction refs in batch.
+    /// Returns None for transaction refs that don't have a corresponding block
+    /// digest in storage.
+    fn lookup_block_digests_by_tx_refs(
+        &self,
+        tx_refs: &[TransactionRef],
+    ) -> ConsensusResult<Vec<Option<BlockHeaderDigest>>>;
 
     /// Checks whether there is any block at the given slot
     #[allow(dead_code)]

@@ -62,6 +62,9 @@ pub(crate) struct RocksDBStore {
 
     fast_commit_sync_flag: DBMap<(), ()>,
 
+    /// Maps transaction ref components to block digest for quick lookups.
+    tx_ref_to_block_digest:
+        DBMap<(AuthorityIndex, Round, TransactionsCommitment), BlockHeaderDigest>,
     /// Context to access protocol configuration
     #[cfg_attr(not(test), allow(dead_code))]
     context: Arc<Context>,
@@ -79,6 +82,7 @@ impl RocksDBStore {
     const COMMIT_INFO_CF: &'static str = "commit_info";
     const VOTING_BLOCK_HEADERS_CF: &'static str = "voting_block_headers";
     const FAST_COMMIT_SYNC_FLAG_CF: &'static str = "fast_commit_sync_flag";
+    const TX_REF_TO_BLOCK_DIGEST_CF: &'static str = "tx_ref_to_block_digest";
 
     /// Creates a new instance of RocksDB storage.
     pub(crate) fn new(path: &str, context: Arc<Context>) -> Self {
@@ -125,6 +129,7 @@ impl RocksDBStore {
             // so using standard options is sufficient.
             (Self::VOTING_BLOCK_HEADERS_CF, cf_options.clone()),
             (Self::FAST_COMMIT_SYNC_FLAG_CF, cf_options.clone()),
+            (Self::TX_REF_TO_BLOCK_DIGEST_CF, cf_options.clone()),
         ];
         let rocksdb = open_cf_opts(
             path,
@@ -145,6 +150,7 @@ impl RocksDBStore {
             commit_info,
             voting_block_headers,
             fast_commit_sync_flag,
+            tx_ref_to_block_digest,
         ) = reopen!(&rocksdb,
             Self::BLOCK_HEADERS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
             Self::TRANSACTIONS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
@@ -156,6 +162,8 @@ impl RocksDBStore {
             Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>,
             Self::VOTING_BLOCK_HEADERS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
             Self::FAST_COMMIT_SYNC_FLAG_CF;<(), ()>
+            Self::VOTING_BLOCK_HEADERS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
+            Self::TX_REF_TO_BLOCK_DIGEST_CF;<(AuthorityIndex, Round, TransactionsCommitment), BlockHeaderDigest>
         );
 
         Self {
@@ -169,6 +177,7 @@ impl RocksDBStore {
             commit_info,
             voting_block_headers,
             fast_commit_sync_flag,
+            tx_ref_to_block_digest,
             context,
         }
     }
@@ -199,6 +208,20 @@ impl Store for RocksDBStore {
                 .insert_batch(
                     &self.digests_by_authorities,
                     [((block_ref.author, block_ref.round, block_ref.digest), ())],
+                )
+                .map_err(ConsensusError::RocksDBFailure)?;
+            // Store tx_ref -> block_digest mapping for fast lookups
+            batch
+                .insert_batch(
+                    &self.tx_ref_to_block_digest,
+                    [(
+                        (
+                            block_ref.author,
+                            block_ref.round,
+                            block_header.transactions_commitment(),
+                        ),
+                        block_ref.digest,
+                    )],
                 )
                 .map_err(ConsensusError::RocksDBFailure)?;
             // Store commit votes from this block header using the BlockHeaderAPI trait
@@ -564,6 +587,19 @@ impl Store for RocksDBStore {
             .collect::<Vec<_>>();
         let exist = self.block_headers.multi_contains_keys(refs)?;
         Ok(exist)
+    }
+
+    fn lookup_block_digests_by_tx_refs(
+        &self,
+        tx_refs: &[TransactionRef],
+    ) -> ConsensusResult<Vec<Option<BlockHeaderDigest>>> {
+        let keys: Vec<_> = tx_refs
+            .iter()
+            .map(|tx| (tx.author, tx.round, tx.transactions_commitment))
+            .collect();
+        self.tx_ref_to_block_digest
+            .multi_get(keys)
+            .map_err(ConsensusError::RocksDBFailure)
     }
 
     fn contains_block_at_slot(&self, slot: crate::block_header::Slot) -> ConsensusResult<bool> {

@@ -750,6 +750,49 @@ impl DagState {
         }
     }
 
+    /// Helper to find an item matching a TransactionRef in a BTreeMap keyed by
+    /// BlockRef. Uses range query on (round, author) with
+    /// transactions_commitment filtering.
+    fn find_by_transaction_ref<'a, T, F>(
+        &self,
+        tx_ref: &TransactionRef,
+        data: &'a BTreeMap<BlockRef, T>,
+        get_commitment: F,
+    ) -> Option<&'a T>
+    where
+        F: Fn(&T) -> TransactionsCommitment,
+    {
+        let author = tx_ref.author();
+        let round = tx_ref.round;
+        let min_ref = BlockRef {
+            round,
+            author,
+            digest: BlockHeaderDigest::MIN,
+        };
+        let max_ref = BlockRef {
+            round,
+            author,
+            digest: BlockHeaderDigest::MAX,
+        };
+
+        let matching: Vec<_> = data
+            .range(min_ref..=max_ref)
+            .filter(|(_, item)| get_commitment(item) == tx_ref.transactions_commitment)
+            .collect();
+
+        match matching.len() {
+            1 => Some(matching[0].1),
+            0 => None,
+            n => {
+                error!(
+                    "Found {} items matching slot ({}, {}) and transactions_commitment, expected 1",
+                    n, round, author
+                );
+                None
+            }
+        }
+    }
+
     /// Finds genesis block matching the generic transaction reference.
     /// For BlockRef: direct lookup. For TransactionRef: range query with
     /// transactions_commitment verification.
@@ -757,38 +800,9 @@ impl DagState {
         match tx_ref {
             GenericTransactionRef::BlockRef(block_ref) => self.genesis.get(&block_ref),
             GenericTransactionRef::TransactionRef(tx_ref) => {
-                let author = tx_ref.author();
-                let min_ref = BlockRef {
-                    round: GENESIS_ROUND,
-                    author,
-                    digest: BlockHeaderDigest::MIN,
-                };
-                let max_ref = BlockRef {
-                    round: GENESIS_ROUND,
-                    author,
-                    digest: BlockHeaderDigest::MAX,
-                };
-
-                let matching: Vec<_> = self
-                    .genesis
-                    .range(min_ref..=max_ref)
-                    .filter(|(_, block)| {
-                        block.verified_transactions.transactions_commitment()
-                            == tx_ref.transactions_commitment
-                    })
-                    .collect();
-
-                match matching.len() {
-                    1 => Some(matching[0].1),
-                    0 => None,
-                    n => {
-                        error!(
-                            "Found {} genesis blocks matching author {} and transactions_commitment, expected 1",
-                            n, author
-                        );
-                        None
-                    }
-                }
+                self.find_by_transaction_ref(&tx_ref, &self.genesis, |block| {
+                    block.transactions_commitment()
+                })
             }
         }
     }
@@ -950,6 +964,93 @@ impl DagState {
         self.get_verified_block_headers(&[*reference])
             .pop()
             .expect("Exactly one element should be returned")
+    }
+
+    /// Checks if verified block headers exist for the given transaction refs.
+    /// Checks in-memory data (genesis and recent_block_headers) first, then
+    /// falls back to storage for blocks not found in memory.
+    pub(crate) fn contains_verified_block_headers_for_transaction_refs(
+        &self,
+        tx_refs: &[TransactionRef],
+    ) -> Vec<bool> {
+        let mut results = vec![false; tx_refs.len()];
+
+        for (index, tx_ref) in tx_refs.iter().enumerate() {
+            let round = tx_ref.round;
+
+            // Check genesis blocks
+            if round == GENESIS_ROUND {
+                results[index] = self
+                    .find_by_transaction_ref(tx_ref, &self.genesis, |block| {
+                        block.transactions_commitment()
+                    })
+                    .is_some();
+                continue;
+            }
+
+            // Check recent block headers
+            results[index] = self
+                .find_by_transaction_ref(tx_ref, &self.recent_block_headers, |header| {
+                    header.transactions_commitment()
+                })
+                .is_some();
+        }
+
+        // Collect refs that weren't found in memory
+        let missing: Vec<(usize, TransactionRef)> = tx_refs
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| !results[*i])
+            .map(|(i, tx)| (i, *tx))
+            .collect();
+
+        if !missing.is_empty() {
+            let missing_refs: Vec<_> = missing.iter().map(|(_, tx)| *tx).collect();
+
+            // Batch 1: Look up block digests
+            let digests = self
+                .store
+                .lookup_block_digests_by_tx_refs(&missing_refs)
+                .unwrap_or_else(|e| {
+                    warn!("Failed to lookup block digests: {e:?}");
+                    vec![None; missing_refs.len()]
+                });
+
+            // Build BlockRefs for found digests
+            let refs_with_indices: Vec<_> = missing
+                .iter()
+                .zip(digests.iter())
+                .filter_map(
+                    |((idx, tx), digest_opt): (
+                        &(usize, TransactionRef),
+                        &Option<BlockHeaderDigest>,
+                    )| {
+                        digest_opt.map(|d| (*idx, BlockRef::new(tx.round, tx.author, d)))
+                    },
+                )
+                .collect();
+
+            if !refs_with_indices.is_empty() {
+                // Batch 2: Check block headers exist
+                let block_refs: Vec<_> = refs_with_indices.iter().map(|(_, br)| *br).collect();
+                let headers_exist = self
+                    .store
+                    .contains_block_headers(&block_refs)
+                    .unwrap_or_else(|e| {
+                        warn!("Failed to check block headers: {e:?}");
+                        vec![false; block_refs.len()]
+                    });
+
+                // Update results
+                for ((idx, _), exists) in refs_with_indices.iter().zip(headers_exist.iter()) {
+                    if *exists {
+                        results[*idx] = true;
+                    }
+                }
+            }
+        }
+
+        results
     }
 
     /// Gets verified block headers by checking genesis, cached recent block

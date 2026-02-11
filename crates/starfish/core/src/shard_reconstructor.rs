@@ -530,26 +530,17 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             #[cfg(not(test))]
             {
                 let mut to_stay_transactions = BTreeMap::new();
-                let block_headers_opt = {
-                    let block_refs: Vec<BlockRef> = transactions_map
-                        .keys()
-                        .map(|tx_ref| BlockRef::from(*tx_ref))
-                        .collect();
+                let block_headers_exist = {
+                    let tx_refs: Vec<TransactionRef> = transactions_map.keys().copied().collect();
                     self.dag_state
                         .read()
-                        .get_verified_block_headers(&block_refs)
+                        .contains_verified_block_headers_for_transaction_refs(&tx_refs)
                 };
-                for (block_header_opt, (tx_ref, transactions)) in block_headers_opt
+                for (exists, (tx_ref, transactions)) in block_headers_exist
                     .into_iter()
                     .zip(transactions_map.into_iter())
                 {
-                    if let Some(block_header) = block_header_opt {
-                        // Check the correctness of the transactions commitment
-                        assert_eq!(
-                            block_header.transactions_commitment(),
-                            transactions.transactions_commitment(),
-                            "The network has at least f+1 Byzantine validators"
-                        );
+                    if exists {
                         ready_to_be_sent_transactions.push(transactions);
                     } else {
                         to_stay_transactions.insert(tx_ref, transactions);
