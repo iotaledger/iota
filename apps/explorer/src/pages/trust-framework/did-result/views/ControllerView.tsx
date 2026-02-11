@@ -17,6 +17,7 @@ import { type IotaObjectData } from '@iota/iota-sdk/src/client';
 import { ObjectDetail } from '~/components/object/ObjectDetail';
 import { Warning } from '@iota/apps-ui-icons';
 import { useGetControllerObjects } from '../hooks/useGetControllerObjects';
+import { extractThreshold } from '../helper';
 
 interface ControllerViewProps {
     objectData: IotaObjectData;
@@ -24,6 +25,7 @@ interface ControllerViewProps {
 
 export function ControllerView({ objectData }: ControllerViewProps) {
     const { controllers, isPending, isError } = useGetControllerObjects(objectData);
+    const threshold = extractThreshold(objectData);
 
     return (
         <div className="flex w-full flex-col gap-sm">
@@ -64,6 +66,7 @@ export function ControllerView({ objectData }: ControllerViewProps) {
                                     // NOTE: How to test a shared owner?
                                     <ControllerCardFooter
                                         weight={controller.weight}
+                                        threshold={threshold}
                                         ownerType={controller.ownerType!}
                                         ownerAddress={controller.owner!}
                                     />
@@ -94,6 +97,7 @@ export function ControllerView({ objectData }: ControllerViewProps) {
 
 interface ControllerCardFooterProps {
     weight: number;
+    threshold: string | null;
     ownerType: string;
     ownerAddress: string;
 }
@@ -101,13 +105,18 @@ interface ControllerCardFooterProps {
 // NOTE: This is a copy of ObjectChangeEntriesCardFooter
 export function ControllerCardFooter({
     weight,
+    threshold,
     ownerType,
     ownerAddress,
 }: ControllerCardFooterProps): JSX.Element {
     return (
         <>
             <div className="flex flex-wrap px-md--rs py-sm--rs">
-                <KeyValueInfo keyText="Weight" value={weight} fullwidth />
+                <KeyValueInfo
+                    keyText="Weight"
+                    value={[`${weight}`, threshold && ` of ${threshold}`]}
+                    fullwidth
+                />
             </div>
             <div className="flex flex-wrap justify-between px-md--rs py-sm--rs">
                 <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">

@@ -24,6 +24,21 @@ export function extractControllerCaps(objectData: IotaObjectData): ControllerCap
     return objectControllers;
 }
 
+/**
+ * Extracts the threshold from IOTA object data.
+ * @param objectData The IOTA object data.
+ * @returns The threshold value as a string, or null if not found.
+ */
+export function extractThreshold(objectData: IotaObjectData): string | null {
+    if (objectData.content == null) {
+        return null;
+    }
+
+    const did_doc = getField<FieldObject>(objectData.content as FieldObject, 'did_doc');
+    const threshold = getField<string | undefined>(did_doc, 'threshold');
+    return threshold || null;
+}
+
 interface FieldObject {
     fields: { [k: string]: unknown };
     type: string;
