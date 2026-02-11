@@ -147,6 +147,19 @@ impl IndexerFeatureArgs {
 }
 
 #[derive(Parser)]
+#[clap(rename_all = "kebab-case")]
+pub struct IotaEnvConfig {
+    /// Sets the file storing the state of our user accounts (an empty one will
+    /// be created if missing)
+    #[clap(long = "client.config")]
+    config: Option<PathBuf>,
+    /// The IOTA environment to use. This must be present in the current config
+    /// file.
+    #[clap(long = "client.env")]
+    env: Option<String>,
+}
+
+#[derive(Parser)]
 pub enum IotaCommand {
     /// Start a local network in two modes: saving state between re-runs and not
     /// saving state between re-runs. Please use (--help) to see the full
@@ -326,10 +339,8 @@ pub enum IotaCommand {
     },
     /// Client for interacting with the IOTA network.
     Client {
-        /// Sets the file storing the state of our user accounts (an empty one
-        /// will be created if missing)
-        #[arg(long = "client.config")]
-        config: Option<PathBuf>,
+        #[clap(flatten)]
+        config: IotaEnvConfig,
         #[command(subcommand)]
         cmd: Option<IotaClientCommands>,
         /// Return command outputs in json format.
@@ -357,11 +368,8 @@ pub enum IotaCommand {
         /// Path to a package which the command should be run with respect to.
         #[arg(long = "path", short = 'p', global = true)]
         package_path: Option<PathBuf>,
-        /// Sets the file storing the state of our user accounts (an empty one
-        /// will be created if missing) Only used when the
-        /// `--dump-bytecode-as-base64` is set.
-        #[arg(long = "client.config")]
-        config: Option<PathBuf>,
+        #[clap(flatten)]
+        config: IotaEnvConfig,
         /// Package build options
         #[command(flatten)]
         build_config: BuildConfig,
@@ -374,9 +382,8 @@ pub enum IotaCommand {
     /// By using this service, you agree to the Terms & Conditions:
     /// iotanames.com/terms-of-service."
     Name {
-        /// The file storing the state of the user accounts
-        #[arg(long = "client.config")]
-        config: Option<PathBuf>,
+        #[clap(flatten)]
+        config: IotaEnvConfig,
         /// Return command outputs in json format.
         #[arg(long, global = true)]
         json: bool,
@@ -492,7 +499,9 @@ impl IotaCommand {
                 json,
                 accept_defaults,
             } => {
-                let config_path = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
+                let config_path = config
+                    .config
+                    .unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
                 prompt_if_no_config(
                     &config_path,
                     accept_defaults,
@@ -500,7 +509,10 @@ impl IotaCommand {
                     !matches!(cmd, Some(IotaClientCommands::NewAddress { .. })),
                 )?;
                 if let Some(cmd) = cmd {
-                    let mut context = WalletContext::new(&config_path, None, None)?;
+                    let mut context = WalletContext::new(&config_path)?;
+                    if let Some(env_override) = config.env {
+                        context = context.with_env_override(env_override);
+                    }
                     cmd.execute(&mut context).await?.print(!json);
                 } else {
                     // Print help
@@ -518,7 +530,7 @@ impl IotaCommand {
             } => {
                 let config_path = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
                 prompt_if_no_config(&config_path, accept_defaults, true, true)?;
-                let mut context = WalletContext::new(&config_path, None, None)?;
+                let mut context = WalletContext::new(&config_path)?;
                 if let Some(cmd) = cmd {
                     cmd.execute(&mut context, json).await?.print(!json);
                 } else {
@@ -544,10 +556,15 @@ impl IotaCommand {
                         // management. In addition, tree shaking also
                         // requires a network as it needs to fetch
                         // on-chain linkage table of package dependencies.
-                        let config =
-                            client_config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
+                        let config = client_config
+                            .config
+                            .unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
                         prompt_if_no_config(&config, false, true, true)?;
-                        let context = WalletContext::new(&config, None, None)?;
+                        let mut context = WalletContext::new(&config)?;
+
+                        if let Some(env_override) = client_config.env {
+                            context = context.with_env_override(env_override);
+                        }
 
                         let Ok(client) = context.get_client().await else {
                             bail!(
@@ -637,7 +654,7 @@ impl IotaCommand {
                 );
                 let config_path = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
                 prompt_if_no_config(&config_path, false, true, true)?;
-                let mut context = WalletContext::new(&config_path, None, None)?;
+                let mut context = WalletContext::new(&config_path)?;
                 cmd.execute(&mut context).await?.print(!json);
                 Ok(())
             }
