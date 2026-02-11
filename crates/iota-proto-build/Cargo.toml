@@ -10,6 +10,7 @@ publish = false
 workspace = true
 
 [dependencies]
+bitflags.workspace = true
 heck = { version = ">=0.4, <=0.5" }
 itertools.workspace = true
 petgraph.workspace = true
