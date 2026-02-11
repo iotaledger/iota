@@ -4,7 +4,7 @@
 import { useIotaClient } from '@iota/dapp-kit';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
-import { IotaObjectResponse } from '@iota/iota-sdk/client';
+import { IotaClient, IotaObjectResponse } from '@iota/iota-sdk/client';
 
 const DEFAULT_GET_OBJECT_OPTIONS = {
     showType: true,
@@ -19,12 +19,9 @@ interface UseGetObjectOrPastObject extends IotaObjectResponse {
     isViewingPastVersion: boolean;
 }
 
-export function useGetObjectOrPastObject(
-    objectId?: string | null,
-): UseQueryResult<UseGetObjectOrPastObject> {
+export const getObjectOrPastObjectQuery = (client: IotaClient, objectId?: string | null) => {
     const normalizedObjId = objectId && normalizeIotaAddress(objectId);
-    const client = useIotaClient();
-    return useQuery({
+    return {
         queryKey: ['object-or-past-object', normalizedObjId],
         async queryFn() {
             if (!normalizedObjId) {
@@ -117,5 +114,12 @@ export function useGetObjectOrPastObject(
             };
         },
         enabled: !!normalizedObjId,
-    });
+    };
+};
+
+export function useGetObjectOrPastObject(
+    objectId?: string | null,
+): UseQueryResult<UseGetObjectOrPastObject> {
+    const client = useIotaClient();
+    return useQuery(getObjectOrPastObjectQuery(client, objectId));
 }
