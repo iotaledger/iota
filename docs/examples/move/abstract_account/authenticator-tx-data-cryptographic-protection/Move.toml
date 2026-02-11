@@ -1,9 +1,9 @@
 [package]
-name = "authenticator_missed_cryptographic_protection"
+name = "authenticator_tx_data_cryptographic_protection"
 edition = "2024"
 
 [dependencies]
 Iota = { local = "../../../../../crates/iota-framework/packages/iota-framework" }
 
 [addresses]
-authenticator_missed_cryptographic_protection = "0x0"
+authenticator_tx_data_cryptographic_protection = "0x0"

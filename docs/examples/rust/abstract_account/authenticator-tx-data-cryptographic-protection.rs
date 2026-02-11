@@ -1,8 +1,8 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Example demonstrating the vulnerability if cryptographic protection is
-//! missed in an abstract account authenticator implementation.
+//! Example demonstrating the vulnerability if transaction data cryptographic
+//! protection is missed in an abstract account authenticator implementation.
 
 use std::str::FromStr;
 
@@ -31,7 +31,7 @@ const MAIN_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash po
 
 /// Account example relative path.
 const AA_PACKAGE_PATH: &str =
-    "../move/abstract_account/authenticator-missed-cryptographic-protection";
+    "../move/abstract_account/authenticator-tx-data-cryptographic-protection";
 
 /// Account module name.
 const AA_MODULE_NAME: &str = "account";

@@ -1,6 +1,6 @@
 ---
 title: Authenticator Shared Object Inputs
-tags: [move-sc, account-abstraction, security]
+tags: [move-sc, account-abstraction, how-to]
 teams:
   - iotaledger/vm-language
 description: Understand the risks of using shared objects as inputs to authenticator functions and how to mitigate them.
@@ -140,19 +140,17 @@ public fun authenticate(account: &Account, _: &AuthContext, _: &TxContext) {
 }
 ```
 
-## Best Practices
+## Key Takeaways
 
-1. **Verify object identity**: If shared objects are necessary, always verify the object ID matches an expected value stored in the account
+✅ **Verify object identity**: If shared objects are necessary, always verify the object ID matches an expected value stored in the account
 
-2. **Make sure that a shared object managed correctly**: There is no need to check the ID of a shared object if only one instance of that type can be created
+✅ **Make sure that a shared object managed correctly**: There is no need to check the ID of a shared object if only one instance of that type can be created
 
-3. **Avoid shared objects in authenticators**: Whenever possible, store authentication data directly in the account using dynamic fields
+✅ **Avoid shared objects in authenticators**: Whenever possible, store authentication data directly in the account using dynamic fields
 
-5. **Document security assumptions**: Clearly document what objects are trusted and how they're verified
+✅ **Document security assumptions**: Clearly document what objects are trusted and how they're verified
 
-6. **Test object swapping**: Create tests that attempt to swap shared objects to verify your implementation is secure
-
-## Common Pitfalls
+✅ **Test object swapping**: Create tests that attempt to swap shared objects to verify your implementation is secure
 
 ❌ **Don't assume type safety is enough**: Just because an object has the right type doesn't mean it's the right object
 

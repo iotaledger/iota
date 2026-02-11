@@ -1,12 +1,12 @@
 ---
-title: Cryptographic Protection in Authenticators
-tags: [move-sc, account-abstraction, security]
+title: Transaction Data Cryptographic Protection in Authenticators
+tags: [move-sc, account-abstraction, how-to]
 teams:
   - iotaledger/vm-language
-description: Learn how to properly implement cryptographic protection in authenticator functions to prevent transaction tampering attacks.
+description: Learn how to properly implement transaction data cryptographic protection in authenticator functions to prevent transaction tampering attacks.
 ---
 
-This guide explains the importance of cryptographic protection in authenticator functions and demonstrates a critical vulnerability that can occur when it's missing.
+This guide explains the importance of cryptographic protection for the transaction data when building authenticator functions and demonstrates a critical vulnerability that can occur when it's missing.
 
 ## The Vulnerability
 
@@ -23,9 +23,9 @@ Consider a time-locked account that only allows transactions after a specific un
 
 ## Vulnerable Implementation
 
-Here's an example of a **vulnerable** authenticator that lacks cryptographic protection:
+Here's an example of a **vulnerable** authenticator that lacks transaction data cryptographic protection:
 
-```move file=<rootDir>/docs/examples/move/abstract_account/authenticator-missed-cryptographic-protection/sources/account.move
+```move file=<rootDir>/docs/examples/move/abstract_account/authenticator-tx-data-cryptographic-protection/sources/account.move
 ```
 
 **Problem**: The authenticator only checks the time condition. It doesn't verify that the transaction data hasn't been tampered with.
@@ -34,12 +34,12 @@ Here's an example of a **vulnerable** authenticator that lacks cryptographic pro
 
 An attacker can exploit this vulnerability:
 
-```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-missed-cryptographic-protection.rs#L102-L115
+```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-tx-data-cryptographic-protection.rs#L102-L115
 ```
 
 The `swap_recipient_in_transaction` function modifies the programmable transaction block inputs:
 
-```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-missed-cryptographic-protection.rs#L229-L244
+```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-tx-data-cryptographic-protection.rs#L229-L244
 ```
 
 ## Secure Implementation
@@ -71,10 +71,10 @@ public fun authenticate(
 
 ## Key Takeaways
 
-1. **Always verify transaction data**: Every authenticator must cryptographically bind the authentication to the specific transaction being executed
+✅ **Always verify transaction data**: Every authenticator must cryptographically bind the authentication to the specific transaction being executed
 
-2. **Use transaction digest**: The `ctx.digest()` function provides a cryptographic hash of the entire transaction that should be used in signature verification
+✅ **Use transaction digest**: The `ctx.digest()` function provides a cryptographic hash of the entire transaction that should be used in signature verification
 
-3. **Never rely on application logic alone**: Time checks, balance checks, or other business logic must be combined with cryptographic verification
+✅ **Test for tampering**: When developing authenticators, create tests that attempt to modify transaction data after authentication to verify your implementation is secure
 
-4. **Test for tampering**: When developing authenticators, create tests that attempt to modify transaction data after authentication to verify your implementation is secure
+❌ **Never rely on application logic alone**: Time checks, balance checks, or other business logic must be combined with cryptographic verification

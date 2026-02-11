@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module authenticator_missed_cryptographic_protection::account;
+module authenticator_tx_data_cryptographic_protection::account;
 
 use iota::account;
 use iota::authenticator_function::AuthenticatorFunctionRefV1;

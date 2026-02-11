@@ -1,6 +1,6 @@
 ---
 title: Cryptographic Protection for Authenticator Inputs
-tags: [move-sc, account-abstraction, security]
+tags: [move-sc, account-abstraction, how-to]
 teams:
   - iotaledger/vm-language
 description: Learn how to properly protect authenticator input parameters with cryptographic verification to prevent input tampering attacks.
@@ -36,7 +36,7 @@ Here's an example of a **secure** authenticator that properly protects its input
 
 The signature verification cryptographically binds all these inputs together:
 
-```move file=<rootDir>/docs/examples/move/abstract_account/authenticator-inputs-cryptographic-protection/sources/account.move#L89-L88
+```move file=<rootDir>/docs/examples/move/abstract_account/authenticator-inputs-cryptographic-protection/sources/account.move#L79-L88
 ```
 
 ## Exploitation Example (Why Protection is Necessary)
@@ -130,38 +130,22 @@ let signature = keystore.sign_hashed(&signer, &message_hash)?;
 
 ## Key Takeaways
 
-1. **Protect all inputs**: Every authenticator parameter that could be tampered with must be included in the cryptographic signature
+✅ **Protect all inputs**: Every authenticator parameter that could be tampered with must be included in the cryptographic signature
 
-2. **Use deterministic encoding**: When combining inputs into a message, use deterministic encoding (like BCS) to ensure consistent hashing
+✅ **Include object identities**: For shared objects, include their object IDs in the signed message to prevent swapping
 
-3. **Include object identities**: For shared objects, include their object IDs in the signed message to prevent swapping
+✅ **Include raw values**: For primitive parameters (u64, bool, etc.), include their values in the signed message
 
-4. **Include raw values**: For primitive parameters (u64, bool, etc.), include their values in the signed message
+✅ **Include transaction digest**: Including a transaction digest in the cryptographic signature allows to protect the transaction data and the authenticator inputs with one signature
 
-5. **Hash the combined message**: Use a cryptographic hash function (SHA-256) to create the final message digest
+✅ **Use deterministic encoding**: When combining inputs into a message, use deterministic encoding (like BCS) to ensure consistent hashing
 
-6. **Client-side consistency**: Ensure client-side signature creation uses the exact same message construction as the on-chain authenticator
+✅ **Hash the combined message**: Use a cryptographic hash function (SHA-256) to create the final message digest
 
-## Best Practices
-
-✅ **Always include transaction digest**: Start with `ctx.digest()` as the base of your message
-
-✅ **Include object IDs for shared objects**: Use `object::id(obj).id_to_bytes()` to bind specific object instances
-
-✅ **Include all raw parameters**: Use `bcs::to_bytes()` for primitive values to ensure deterministic encoding
-
-✅ **Use cryptographic hashing**: Hash the combined message with SHA-256 before signature verification
+✅ **Client-side consistency**: Ensure client-side signature creation uses the exact same message construction as the on-chain authenticator
 
 ✅ **Document the message format**: Clearly document what's included in the signed message for client developers
 
-## Common Pitfalls
-
 ❌ **Don't rely on type safety alone**: Having the right type doesn't mean it's the right instance
-
-❌ **Don't forget raw parameters**: Even simple u64 values can be tampered with
-
-❌ **Don't skip hashing**: Always hash the combined message before signature verification
-
-❌ **Don't use variable-length encoding**: Use BCS or another deterministic encoding to prevent ambiguity
 
 ❌ **Don't assume inputs are immutable**: Any input not cryptographically protected can be swapped

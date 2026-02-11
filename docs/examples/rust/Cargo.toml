@@ -89,5 +89,5 @@ name = "authenticator-shared-object-swap"
 path = "abstract_account/authenticator-shared-object-swap.rs"
 
 [[example]]
-name = "authenticator-missed-cryptographic-protection"
-path = "abstract_account/authenticator-missed-cryptographic-protection.rs"
+name = "authenticator-tx-data-cryptographic-protection"
+path = "abstract_account/authenticator-tx-data-cryptographic-protection.rs"
