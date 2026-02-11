@@ -852,7 +852,6 @@ fn test_repeatedly_update_display() {
             )
             .await
             .unwrap();
-            println!("{:?}", res.effects.as_ref().unwrap().status());
             assert_eq!(res.status_ok(), Some(true));
 
             let res = bump_display_object_version(

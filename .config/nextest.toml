@@ -53,7 +53,7 @@ or (package(iota-rosetta) and (test(test_withdraw_stake) or test(test_pay_iota_m
 status-level = "skip"
 # In CI we only want to know if everything passes, as fast as possible
 # To get all the tests that fail, run scripts/ci_tests/rust_tests.sh locally.
-fail-fast = true
+fail-fast = false
 
 # Custom profiles are layered on top of the default profile.
 [profile.simtestnightly]
