@@ -164,6 +164,7 @@ const EInvalidStakeAmount: u64 = 15;
 const EInvalidEligibleValidatorIndex: u64 = 16;
 const EInvalidRewardAdjustmentData: u64 = 17;
 const EInvalidScoresData: u64 = 18;
+const EIncompatibleVotingPowerDenominator: u64 = 19;
 
 const EInvalidCap: u64 = 101;
 
@@ -1389,13 +1390,24 @@ fun distribute_reward(
     // non-empty committee_members implies non-empty validators, but not vice versa
     assert!(!committee_members.is_empty(), EValidatorSetEmpty);
 
+    // For IIP-8 we will be calculating an effective commission rate for each validator.
+    // This assumes that both the commission rate and voting power are represented in basis points
+    // with a common denominator.
+    assert!(
+        BASIS_POINT_DENOMINATOR == voting_power::total_voting_power() as u128,
+        EIncompatibleVotingPowerDenominator,
+    );
+
     validators.take_do_with_ix_mut!(committee_members, |i, _, validator| {
         let staking_reward_amount = adjusted_staking_reward_amounts[i];
         let mut staker_reward = staking_rewards.split(staking_reward_amount);
 
+        // Enforce the effective minimum commission for the epoch according to IIP-8.
+        let effective_commission_rate = validator.commission_rate().max(validator.voting_power());
+
         // Validator takes a cut of the rewards as commission.
         let validator_commission_amount =
-            (staking_reward_amount as u128) * (validator.commission_rate() as u128) / BASIS_POINT_DENOMINATOR;
+            (staking_reward_amount as u128) * (effective_commission_rate as u128) / BASIS_POINT_DENOMINATOR;
 
         // The validator reward = commission.
         let validator_reward = staker_reward.split(validator_commission_amount as u64);
@@ -1439,8 +1451,9 @@ fun emit_validator_epoch_events(
             vector[]
         };
         let mut committee_member_index = committee_members.find_index!(|c| c == i);
-        let tallying_rule_global_score = if (slashed_validators.contains(&validator_address) || committee_member_index.is_none()) 0
-        else scores[committee_member_index.extract()];
+        let tallying_rule_global_score = if (
+            slashed_validators.contains(&validator_address) || committee_member_index.is_none()
+        ) 0 else scores[committee_member_index.extract()];
         let pool_staking_reward = if (committee_member_index.is_some()) {
             // prepare event for a committee validator
             pool_staking_reward_amounts[committee_member_index.extract()]

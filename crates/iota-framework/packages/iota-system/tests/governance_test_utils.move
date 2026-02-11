@@ -22,6 +22,7 @@ const NANOS_PER_IOTA: u64 = 1_000_000_000;
 public fun create_validator_for_testing(
     addr: address,
     init_stake_amount_in_iota: u64,
+    commission_rate: u64,
     ctx: &mut TxContext,
 ): ValidatorV1 {
     let validator = validator::new_for_testing(
@@ -39,24 +40,31 @@ public fun create_validator_for_testing(
         b"/ip4/127.0.0.1/udp/80",
         option::some(balance::create_for_testing<IOTA>(init_stake_amount_in_iota * NANOS_PER_IOTA)),
         1,
-        0,
+        commission_rate,
         true,
         ctx,
     );
     validator
 }
 
-/// Create a validator set with the given stake amounts
-public fun create_validators_with_stakes(
+/// Create a validator set with the given stake amounts and commission rates.
+public fun create_validators_with_stakes_and_commission_rates(
     stakes: vector<u64>,
+    commission_rates: vector<u64>,
     ctx: &mut TxContext,
 ): (vector<u64>, vector<ValidatorV1>) {
+    assert_eq(stakes.length(), commission_rates.length());
     let mut i = 0;
     let mut validators = vector[];
     let mut committee_members = vector[];
 
     while (i < stakes.length()) {
-        let validator = create_validator_for_testing(address::from_u256(i as u256), stakes[i], ctx);
+        let validator = create_validator_for_testing(
+            address::from_u256((i+1) as u256),
+            stakes[i],
+            commission_rates[i],
+            ctx,
+        );
         validators.push_back(validator);
         committee_members.push_back(i);
         i = i + 1
@@ -116,7 +124,7 @@ public fun set_up_iota_system_state(mut addrs: vector<address>) {
 
     while (!addrs.is_empty()) {
         validators.push_back(
-            create_validator_for_testing(addrs.pop_back(), 100, ctx),
+            create_validator_for_testing(addrs.pop_back(), 100, 0, ctx),
         );
     };
 
@@ -192,7 +200,7 @@ public fun advance_epoch_with_reward_amounts_return_rebate_and_max_committee_mem
 
     let scores = vector::tabulate!(
         system_state.committee_validator_addresses().length(),
-        |_| 65536u64,    
+        |_| 65536u64,
     );
 
     let storage_rebate = system_state.advance_epoch_for_testing(
@@ -294,7 +302,7 @@ public fun advance_epoch_with_reward_amounts_and_slashing_rates(
 
     let scores = vector::tabulate!(
         system_state.committee_validator_addresses().length(),
-        |_| 65536u64,    
+        |_| 65536u64,
     );
 
     // Use the same value as the default value of max_active_validators.
@@ -618,6 +626,11 @@ public fun remove_validator(validator: address, scenario: &mut Scenario) {
     test_scenario::return_shared(system_state);
 }
 
+public fun assert_equal_approx(a: u64, b: u64, epsilon: u64) {
+    let diff = if (a > b) { a - b } else { b - a };
+    assert!(diff <= epsilon, 0);
+}
+
 public fun assert_validator_self_stake_amounts(
     validator_addrs: vector<address>,
     stake_amounts: vector<u64>,
@@ -634,7 +647,7 @@ public fun assert_validator_self_stake_amounts(
             &mut system_state,
             scenario,
         );
-        assert_eq(stake_plus_rewards, amount);
+        assert_equal_approx(stake_plus_rewards, amount, 1); // we use an epsilon of 1 NANO to account for small differences in rewards due to rounding
         test_scenario::return_shared(system_state);
         i = i + 1;
     };
@@ -671,7 +684,7 @@ public fun assert_validator_non_self_stake_amounts(
         let mut system_state = scenario.take_shared<IotaSystemState>();
         let non_self_stake_amount =
             system_state.validator_stake_amount(validator_addr) - stake_plus_current_rewards_for_validator(validator_addr, &mut system_state, scenario);
-        assert_eq(non_self_stake_amount, amount);
+        assert_equal_approx(non_self_stake_amount, amount, 1); // epsilon of 1 NANO for rounding
         test_scenario::return_shared(system_state);
         i = i + 1;
     };
