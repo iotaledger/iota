@@ -335,24 +335,13 @@ fn generate_selective_accessors_for_field(
         }
 
         if accessor_types.contains(AccessorTypes::WITH) {
-            // If SET is also present, use the setter method; otherwise inline the logic
-            if accessor_types.contains(AccessorTypes::SET) {
-                accessors.extend(quote! {
-                    #( #[doc = #set_name_comments] )*
-                    pub fn #with_name(mut self, field: ::std::collections::BTreeMap<#key_type, #value_type>) -> Self {
-                        self.#set_name(field);
-                        self
-                    }
-                });
-            } else {
-                accessors.extend(quote! {
-                    #( #[doc = #set_name_comments] )*
-                    pub fn #with_name(mut self, field: ::std::collections::BTreeMap<#key_type, #value_type>) -> Self {
-                        self.#name = field;
-                        self
-                    }
-                });
-            }
+            accessors.extend(quote! {
+                #( #[doc = #set_name_comments] )*
+                pub fn #with_name(mut self, field: ::std::collections::BTreeMap<#key_type, #value_type>) -> Self {
+                    self.#name = field;
+                    self
+                }
+            });
         }
 
         accessors
@@ -395,24 +384,13 @@ fn generate_selective_accessors_for_field(
         }
 
         if accessor_types.contains(AccessorTypes::WITH) {
-            // If SET is also present, use the setter method; otherwise inline the logic
-            if accessor_types.contains(AccessorTypes::SET) {
-                accessors.extend(quote! {
-                    #( #[doc = #set_name_comments] )*
-                    pub fn #with_name(mut self, field: Vec<#storage_type>) -> Self {
-                        self.#set_name(field);
-                        self
-                    }
-                });
-            } else {
-                accessors.extend(quote! {
-                    #( #[doc = #set_name_comments] )*
-                    pub fn #with_name(mut self, field: Vec<#storage_type>) -> Self {
-                        self.#name = field;
-                        self
-                    }
-                });
-            }
+            accessors.extend(quote! {
+                #( #[doc = #set_name_comments] )*
+                pub fn #with_name(mut self, field: Vec<#storage_type>) -> Self {
+                    self.#name = field;
+                    self
+                }
+            });
         }
 
         accessors
@@ -486,20 +464,32 @@ fn generate_selective_accessors_for_field(
                 quote! {
                     #( #[doc = #name_mut_comments] )*
                     pub fn #name_mut(&mut self) -> &mut #field_type_path {
-                        if self.#name_opt_mut().is_none() {
+                        if let Some(#oneof_type_path::#variant(field)) = &mut self.#oneof_field {
+                            field as _
+                        } else {
                             self.#oneof_field = Some(#oneof_type_path::#variant(::prost::alloc::boxed::Box::default()));
+                            if let Some(#oneof_type_path::#variant(field)) = &mut self.#oneof_field {
+                                field as _
+                            } else {
+                                unreachable!()
+                            }
                         }
-                        self.#name_opt_mut().unwrap()
                     }
                 }
             } else {
                 quote! {
                     #( #[doc = #name_mut_comments] )*
                     pub fn #name_mut(&mut self) -> &mut #field_type_path {
-                        if self.#name_opt_mut().is_none() {
+                        if let Some(#oneof_type_path::#variant(field)) = &mut self.#oneof_field {
+                            field
+                        } else {
                             self.#oneof_field = Some(#oneof_type_path::#variant(#field_type_path::default()));
+                            if let Some(#oneof_type_path::#variant(field)) = &mut self.#oneof_field {
+                                field
+                            } else {
+                                unreachable!()
+                            }
                         }
-                        self.#name_opt_mut().unwrap()
                     }
                 }
             };
@@ -529,24 +519,13 @@ fn generate_selective_accessors_for_field(
                     });
                 }
                 if accessor_types.contains(AccessorTypes::WITH) {
-                    // If SET is also present, use the setter method; otherwise inline the logic
-                    if accessor_types.contains(AccessorTypes::SET) {
-                        s.extend(quote! {
-                            #( #[doc = #set_name_comments] )*
-                            pub fn #with_name<T: Into<#field_type_path>>(mut self, field: T) -> Self {
-                                self.#set_name(field.into());
-                                self
-                            }
-                        });
-                    } else {
-                        s.extend(quote! {
-                            #( #[doc = #set_name_comments] )*
-                            pub fn #with_name<T: Into<#field_type_path>>(mut self, field: T) -> Self {
-                                self.#oneof_field = Some(#oneof_type_path::#variant(#into_conversion));
-                                self
-                            }
-                        });
-                    }
+                    s.extend(quote! {
+                        #( #[doc = #set_name_comments] )*
+                        pub fn #with_name<T: Into<#field_type_path>>(mut self, field: T) -> Self {
+                            self.#oneof_field = Some(#oneof_type_path::#variant(#into_conversion));
+                            self
+                        }
+                    });
                 }
                 s
             } else {
@@ -560,24 +539,13 @@ fn generate_selective_accessors_for_field(
                     });
                 }
                 if accessor_types.contains(AccessorTypes::WITH) {
-                    // If SET is also present, use the setter method; otherwise inline the logic
-                    if accessor_types.contains(AccessorTypes::SET) {
-                        s.extend(quote! {
-                            #( #[doc = #set_name_comments] )*
-                            pub fn #with_name(mut self, field: #field_type_path) -> Self {
-                                self.#set_name(field);
-                                self
-                            }
-                        });
-                    } else {
-                        s.extend(quote! {
-                            #( #[doc = #set_name_comments] )*
-                            pub fn #with_name(mut self, field: #field_type_path) -> Self {
-                                self.#oneof_field = Some(#oneof_type_path::#variant(field));
-                                self
-                            }
-                        });
-                    }
+                    s.extend(quote! {
+                        #( #[doc = #set_name_comments] )*
+                        pub fn #with_name(mut self, field: #field_type_path) -> Self {
+                            self.#oneof_field = Some(#oneof_type_path::#variant(field));
+                            self
+                        }
+                    });
                 }
                 s
             };
@@ -690,26 +658,13 @@ fn generate_selective_accessors_for_field(
             }
 
             if accessor_types.contains(AccessorTypes::WITH) {
-                // If SET is also present, use the setter method; otherwise inline the logic
-                if accessor_types.contains(AccessorTypes::SET)
-                    && !matches!(field.inner.r#type(), Type::Enum)
-                {
-                    accessors.extend(quote! {
-                        #( #[doc = #set_name_comments] )*
-                        pub fn #with_name(mut self, field: #field_type_path) -> Self {
-                            self.#set_name(field);
-                            self
-                        }
-                    });
-                } else {
-                    accessors.extend(quote! {
-                        #( #[doc = #set_name_comments] )*
-                        pub fn #with_name(mut self, field: #field_type_path) -> Self {
-                            self.#name = Some(field);
-                            self
-                        }
-                    });
-                }
+                accessors.extend(quote! {
+                    #( #[doc = #set_name_comments] )*
+                    pub fn #with_name(mut self, field: #field_type_path) -> Self {
+                        self.#name = Some(field);
+                        self
+                    }
+                });
             }
         }
 
@@ -739,24 +694,13 @@ fn generate_selective_accessors_for_field(
             }
 
             if accessor_types.contains(AccessorTypes::WITH) {
-                // If SET is also present, use the setter method; otherwise inline the logic
-                if accessor_types.contains(AccessorTypes::SET) {
-                    accessors.extend(quote! {
-                        #( #[doc = #set_name_comments] )*
-                        pub fn #with_name<T: Into<#field_type_path>>(mut self, field: T) -> Self {
-                            self.#set_name(field.into());
-                            self
-                        }
-                    });
-                } else {
-                    accessors.extend(quote! {
-                        #( #[doc = #set_name_comments] )*
-                        pub fn #with_name<T: Into<#field_type_path>>(mut self, field: T) -> Self {
-                            self.#name = field.into().into();
-                            self
-                        }
-                    });
-                }
+                accessors.extend(quote! {
+                    #( #[doc = #set_name_comments] )*
+                    pub fn #with_name<T: Into<#field_type_path>>(mut self, field: T) -> Self {
+                        self.#name = field.into().into();
+                        self
+                    }
+                });
             }
         } else {
             if accessor_types.contains(AccessorTypes::SET) {
@@ -769,24 +713,13 @@ fn generate_selective_accessors_for_field(
             }
 
             if accessor_types.contains(AccessorTypes::WITH) {
-                // If SET is also present, use the setter method; otherwise inline the logic
-                if accessor_types.contains(AccessorTypes::SET) {
-                    accessors.extend(quote! {
-                        #( #[doc = #set_name_comments] )*
-                        pub fn #with_name(mut self, field: #field_type_path) -> Self {
-                            self.#set_name(field);
-                            self
-                        }
-                    });
-                } else {
-                    accessors.extend(quote! {
-                        #( #[doc = #set_name_comments] )*
-                        pub fn #with_name(mut self, field: #field_type_path) -> Self {
-                            self.#name = field;
-                            self
-                        }
-                    });
-                }
+                accessors.extend(quote! {
+                    #( #[doc = #set_name_comments] )*
+                    pub fn #with_name(mut self, field: #field_type_path) -> Self {
+                        self.#name = field;
+                        self
+                    }
+                });
             }
         }
 
