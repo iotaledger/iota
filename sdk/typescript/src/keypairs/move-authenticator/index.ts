@@ -8,9 +8,4 @@ export {
 } from './builder.js';
 export { MoveSigner } from './signer.js';
 export { MoveAuthenticatorPublicKey } from './publickey.js';
-export type {
-    ResolvedCallArg,
-    ResolvedObjectArg,
-    MoveAuthenticatorData,
-    InputKind,
-} from './types.js';
+export type { MoveAuthenticatorData, MoveAuthenticatorCallArg } from './types.js';

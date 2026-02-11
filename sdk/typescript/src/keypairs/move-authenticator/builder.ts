@@ -1,8 +1,9 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { CallArg, ObjectArg } from '../../bcs/types.js';
 import type { IotaClient } from '../../client/index.js';
-import type { InputKind, MoveAuthenticatorData, ResolvedCallArg } from './types.js';
+import type { MoveAuthenticatorCallArg, MoveAuthenticatorData } from './types.js';
 
 /**
  * Error thrown when an invalid argument is provided to MoveAuthenticator.
@@ -30,7 +31,7 @@ export class InvalidMoveAuthAccountError extends Error {
  * a transaction with Account Abstraction.
  */
 export class MoveAuthenticatorBuilder {
-    private callArgs: InputKind[] = [];
+    private callArgs: MoveAuthenticatorCallArg[] = [];
     private typeArgs: string[] = [];
     private objectToAuthenticate: string;
 
@@ -51,7 +52,7 @@ export class MoveAuthenticatorBuilder {
      * @param args - Array of input kinds specifying the call arguments
      * @returns this builder for chaining
      */
-    setCallArgs(args: InputKind[]): this {
+    setCallArgs(args: MoveAuthenticatorCallArg[]): this {
         this.callArgs = args;
         return this;
     }
@@ -62,7 +63,7 @@ export class MoveAuthenticatorBuilder {
      * @param arg - The input kind to add
      * @returns this builder for chaining
      */
-    addCallArg(arg: InputKind): this {
+    addCallArg(arg: MoveAuthenticatorCallArg): this {
         this.callArgs.push(arg);
         return this;
     }
@@ -150,7 +151,7 @@ export class MoveAuthenticatorBuilder {
         const objectToAuthenticateOwner = objectToAuthenticateData.owner;
 
         // Resolve call arguments
-        const resolvedCallArgs: ResolvedCallArg[] = [];
+        const resolvedCallArgs: CallArg[] = [];
 
         for (const input of this.callArgs) {
             if ('ImmutableOrOwned' in input) {
@@ -221,16 +222,14 @@ export class MoveAuthenticatorBuilder {
         }
 
         // Resolve objectToAuthenticate
-        let objectToAuthenticate: ResolvedCallArg;
+        let objectToAuthenticate: ObjectArg;
 
         if (objectToAuthenticateOwner === 'Immutable') {
             objectToAuthenticate = {
-                Object: {
-                    ImmOrOwnedObject: {
-                        objectId: objectToAuthenticateData.objectId,
-                        version: objectToAuthenticateData.version!,
-                        digest: objectToAuthenticateData.digest!,
-                    },
+                ImmOrOwnedObject: {
+                    objectId: objectToAuthenticateData.objectId,
+                    version: objectToAuthenticateData.version!,
+                    digest: objectToAuthenticateData.digest!,
                 },
             };
         } else if (
@@ -239,13 +238,10 @@ export class MoveAuthenticatorBuilder {
             'Shared' in objectToAuthenticateOwner
         ) {
             objectToAuthenticate = {
-                Object: {
-                    SharedObject: {
-                        objectId: objectToAuthenticateData.objectId,
-                        initialSharedVersion:
-                            objectToAuthenticateOwner.Shared.initial_shared_version,
-                        mutable: false,
-                    },
+                SharedObject: {
+                    objectId: objectToAuthenticateData.objectId,
+                    initialSharedVersion: objectToAuthenticateOwner.Shared.initial_shared_version,
+                    mutable: false,
                 },
             };
         } else {

@@ -14,22 +14,19 @@ import type { PublicKey } from '../../cryptography/publickey.js';
 import type { SignatureScheme } from '../../cryptography/signature-scheme.js';
 import { MoveAuthenticatorPublicKey } from './publickey.js';
 import type { MoveAuthenticatorData } from './types.js';
+import { ObjectArg } from '../../bcs/types.js';
 
 /**
  * Extract the object ID from a resolved CallArg that represents the object to authenticate.
  */
-function getObjectIdFromCallArg(callArg: MoveAuthenticatorData['objectToAuthenticate']): string {
-    if ('Object' in callArg) {
-        const obj = callArg.Object;
-        if ('ImmOrOwnedObject' in obj) {
-            return obj.ImmOrOwnedObject.objectId;
-        } else if ('SharedObject' in obj) {
-            return obj.SharedObject.objectId;
-        } else if ('Receiving' in obj) {
-            return obj.Receiving.objectId;
-        }
+function getObjectIdFromCallArg(callArg: ObjectArg): string {
+    if ('ImmOrOwnedObject' in callArg) {
+        return callArg.ImmOrOwnedObject.objectId;
+    } else if ('SharedObject' in callArg) {
+        return callArg.SharedObject.objectId;
+    } else {
+        return callArg.Receiving.objectId;
     }
-    throw new Error('objectToAuthenticate must be an Object CallArg, not Pure');
 }
 
 /**
@@ -76,7 +73,9 @@ export class MoveSigner extends Signer {
         return bcs.MoveAuthenticator.serialize({
             callArgs: this.data.callArgs,
             typeArgs: this.data.typeArgs,
-            objectToAuthenticate: this.data.objectToAuthenticate,
+            objectToAuthenticate: {
+                Object: this.data.objectToAuthenticate,
+            },
         }).toBytes();
     }
 
