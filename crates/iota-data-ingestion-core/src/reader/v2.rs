@@ -21,13 +21,11 @@ use object_store::ObjectStore;
 use serde::{Deserialize, Serialize};
 use tap::Pipe;
 use tokio::{
-    sync::{
-        mpsc::{self},
-        oneshot,
-    },
+    sync::mpsc::{self},
     task::JoinHandle,
     time::timeout,
 };
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
 
 #[cfg(not(target_os = "macos"))]
@@ -182,8 +180,8 @@ struct CheckpointReaderActor {
     gc_signal_rx: mpsc::Receiver<CheckpointSequenceNumber>,
     /// Remote checkpoint reader for fetching checkpoints from the network.
     remote_store: Option<Arc<RemoteStore>>,
-    /// Signal when the reader should exit.
-    shutdown_rx: oneshot::Receiver<()>,
+    /// Shutdown signal for the actor.
+    token: CancellationToken,
     /// Configures the behavior of the checkpoint reader.
     reader_options: ReaderOptions,
     /// Limit the amount of downloaded checkpoints held in memory to avoid OOM.
@@ -302,14 +300,24 @@ impl CheckpointReaderActor {
                     .pipe(futures::stream::iter)
                     .buffered(batch_size);
 
-                while let Some(checkpoint_result) = checkpoint_stream.next().await {
+                while let Some(checkpoint_result) = self
+                    .token
+                    .run_until_cancelled(checkpoint_stream.next())
+                    .await
+                    .flatten()
+                {
                     let (checkpoint, size) = checkpoint_result?;
                     self.send_remote_checkpoint_with_capacity_check(checkpoint, size)
                         .await?;
                 }
             }
             RemoteStore::HybridHistoricalStore { historical, live } => {
-                if let Err(err) = self.fetch_historical(historical).await {
+                if let Some(Err(err)) = self
+                    .token
+                    .clone()
+                    .run_until_cancelled(self.fetch_historical(historical))
+                    .await
+                {
                     if matches!(err, IngestionError::CheckpointNotAvailableYet) {
                         let live = live.as_ref().ok_or(err)?;
                         let mut checkpoint_stream = (self.current_checkpoint_number..u64::MAX)
@@ -319,7 +327,12 @@ impl CheckpointReaderActor {
                             .pipe(futures::stream::iter)
                             .buffered(batch_size);
 
-                        while let Some(checkpoint_result) = checkpoint_stream.next().await {
+                        while let Some(checkpoint_result) = self
+                            .token
+                            .run_until_cancelled(checkpoint_stream.next())
+                            .await
+                            .flatten()
+                        {
                             let (checkpoint, size) = checkpoint_result?;
                             self.send_remote_checkpoint_with_capacity_check(checkpoint, size)
                                 .await?;
@@ -358,7 +371,14 @@ impl CheckpointReaderActor {
                                 duration.as_millis(),
                             );
                         }
-                        tokio::time::sleep(duration).await
+                        if self
+                            .token
+                            .run_until_cancelled(tokio::time::sleep(duration))
+                            .await
+                            .is_none()
+                        {
+                            break;
+                        }
                     }
                     None => {
                         break error!("remote reader transient error {err:?}");
@@ -465,7 +485,7 @@ impl CheckpointReaderActor {
 
         loop {
             tokio::select! {
-                _ = &mut self.shutdown_rx => break,
+                _ = self.token.cancelled() => break,
                 Some(watermark) = self.gc_signal_rx.recv() => {
                     self.data_limiter.gc(watermark);
                     self.gc_processed_files(watermark).expect("failed to clean the directory");
@@ -486,9 +506,9 @@ impl CheckpointReaderActor {
 /// the actual checkpoint fetching and streaming logic.
 pub(crate) struct CheckpointReader {
     handle: JoinHandle<()>,
-    shutdown_tx: oneshot::Sender<()>,
     gc_signal_tx: mpsc::Sender<CheckpointSequenceNumber>,
     checkpoint_rx: mpsc::Receiver<Arc<CheckpointData>>,
+    token: CancellationToken,
 }
 
 impl CheckpointReader {
@@ -498,7 +518,6 @@ impl CheckpointReader {
     ) -> IngestionResult<Self> {
         let (checkpoint_tx, checkpoint_rx) = mpsc::channel(MAX_CHECKPOINTS_IN_PROGRESS);
         let (gc_signal_tx, gc_signal_rx) = mpsc::channel(MAX_CHECKPOINTS_IN_PROGRESS);
-        let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
         let remote_store = if let Some(url) = config.remote_store_url {
             Some(Arc::new(
@@ -517,7 +536,7 @@ impl CheckpointReader {
             Some(p) => p,
             None => tempfile::tempdir()?.keep(),
         };
-
+        let token = CancellationToken::new();
         let reader = CheckpointReaderActor {
             path,
             current_checkpoint_number: starting_checkpoint_number,
@@ -525,7 +544,7 @@ impl CheckpointReader {
             checkpoint_tx,
             gc_signal_rx,
             remote_store,
-            shutdown_rx,
+            token: token.clone(),
             data_limiter: DataLimiter::new(config.reader_options.data_limit),
             reader_options: config.reader_options,
         };
@@ -535,8 +554,8 @@ impl CheckpointReader {
         Ok(Self {
             handle,
             gc_signal_tx,
-            shutdown_tx,
             checkpoint_rx,
+            token,
         })
     }
 
@@ -568,7 +587,7 @@ impl CheckpointReader {
     /// awaits its completion. Any in-progress checkpoint reading or streaming
     /// operations will be stopped as part of the shutdown process.
     pub(crate) async fn shutdown(self) -> IngestionResult<()> {
-        _ = self.shutdown_tx.send(());
+        self.token.cancel();
         self.handle.await.map_err(|err| IngestionError::Shutdown {
             component: "checkpoint reader".into(),
             msg: err.to_string(),
