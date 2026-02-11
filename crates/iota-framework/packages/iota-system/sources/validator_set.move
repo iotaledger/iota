@@ -506,6 +506,8 @@ public(package) fun advance_epoch(
 
     process_pending_stakes_and_withdraws(&mut self.active_validators, ctx);
 
+    record_scores(scores, &mut self.active_validators, &self.committee_members, ctx);
+
     // Emit events after we have processed all the rewards distribution and pending stakes.
     emit_validator_epoch_events(
         new_epoch,
@@ -572,6 +574,24 @@ public(package) fun advance_epoch(
     // At this point, self.active_validators and the self.committee_members are updated for next epoch.
     // Now we process the staged validator metadata.
     effectuate_staged_metadata(self);
+}
+
+// Record the scores for all committee validators for this epoch in the system state.
+fun record_scores(
+    scores: vector<u64>,
+    active_validators: &mut vector<ValidatorV1>,
+    committee_members: &vector<u64>,
+    ctx: &mut TxContext,
+) {
+    let num_committee_members = committee_members.length();
+    assert!(scores.length() == num_committee_members, EInvalidScoresData);
+    let mut i = 0;
+    while (i < num_committee_members) {
+        let validator_index = committee_members[i];
+        let committee_validator = &mut active_validators[validator_index];
+        committee_validator.record_score(scores[i], ctx);
+        i = i + 1;
+    }
 }
 
 fun update_and_process_low_stake_departures(
