@@ -56,12 +56,12 @@ impl Client {
     /// let result = client.simulate_transaction(tx, false, false, None).await?;
     ///
     /// // Lazy conversion - only deserialize what you need
-    /// let effects = result.effects()?;
+    /// let executed_tx = result.executed_transaction()?;
+    /// let effects = executed_tx.effects()?;
     /// println!("Simulation status: {:?}", effects.status());
     ///
-    /// if let Some(output_objs) = result.output_objects()? {
-    ///     println!("Would create {} objects", output_objs.len());
-    /// }
+    /// let output_objs = executed_tx.output_objects()?;
+    /// println!("Would create {} objects", output_objs.len());
     /// # Ok(())
     /// # }
     /// ```
