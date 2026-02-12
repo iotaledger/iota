@@ -473,7 +473,9 @@ export const RPC_METHODS: {
                           ? inputFilter.AddressOwner
                           : undefined,
             };
-            const unsupportedFilters: string[] = [];
+
+            // GraphQL's ObjectFilter doesn't support complex filter composition or version filtering.
+            const unsupportedFilters = ['MatchAll', 'MatchAny', 'MatchNone', 'Version'];
 
             for (const unsupportedFilter of unsupportedFilters) {
                 if (unsupportedFilter in inputFilter) {
