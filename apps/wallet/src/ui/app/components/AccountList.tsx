@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+    LoadingIndicator,
     Table,
     TableBody,
     TableCellBase,
@@ -53,6 +54,17 @@ export function AccountList<A extends { address: string }>({
         }
         return set;
     }, new Set<number>());
+
+    function LedgerViewLoading() {
+        return (
+            <div className="flex h-full w-full flex-row items-center justify-center gap-x-sm">
+                <LoadingIndicator />
+                <span className="text-title-lg text-iota-neutral-10 dark:text-iota-neutral-92">
+                    Looking for Accounts...
+                </span>
+            </div>
+        );
+    }
 
     return (
         <Table selectedRowIndexes={selectedRowIndexes} rowIndexes={rowsData.map((_, i) => i)}>
