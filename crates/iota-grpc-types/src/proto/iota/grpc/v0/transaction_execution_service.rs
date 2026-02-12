@@ -142,11 +142,8 @@ impl SimulateTransactionResponse {
             .ok_or_else(|| TryFromProtoError::missing(Self::TRANSACTION_FIELD.name))
     }
 
-    pub fn command_results(
-        &self,
-    ) -> Result<&super::command::CommandResults, TryFromProtoError> {
-        Ok(&self
-            .command_results
+    pub fn command_results(&self) -> Result<&super::command::CommandResults, TryFromProtoError> {
+        self.command_results
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(Self::COMMAND_RESULTS_FIELD.name))
     }
