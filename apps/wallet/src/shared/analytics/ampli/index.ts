@@ -68,10 +68,6 @@ export type LoadOptions =
     | LoadOptionsWithApiKey
     | LoadOptionsWithClientInstance;
 
-export interface IdentifyProperties {
-    network?: string;
-}
-
 export interface AccountDeletedProperties {
     /**
      * | Rule | Value |
