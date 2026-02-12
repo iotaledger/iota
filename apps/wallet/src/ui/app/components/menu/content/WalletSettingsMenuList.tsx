@@ -101,8 +101,14 @@ export function MenuList() {
     }
 
     function onSidePanelClick() {
-        sidePanelMutation.mutateAsync(!sidePanel.data).then(() => {
-            if (!sidePanel.data) {
+        if (sidePanel.data === undefined) return;
+
+        const sidePanelData = !sidePanel.data;
+
+        ampli.sidePanelChanged({ enabled: sidePanelData });
+
+        sidePanelMutation.mutateAsync(sidePanelData).then(() => {
+            if (sidePanelData) {
                 window.close();
             }
         });

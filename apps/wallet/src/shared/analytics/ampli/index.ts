@@ -335,6 +335,10 @@ export interface SentCollectibleProperties {
     objectId?: string;
 }
 
+export interface SidePanelChangedProperties {
+    enabled: boolean;
+}
+
 export interface StakedIotaProperties {
     /**
      * | Rule | Value |
@@ -579,6 +583,14 @@ export class SentCollectible implements BaseEvent {
     event_type = 'sent collectible';
 
     constructor(public event_properties?: SentCollectibleProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class SidePanelChanged implements BaseEvent {
+    event_type = 'side panel changed';
+
+    constructor(public event_properties: SidePanelChangedProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -1153,6 +1165,22 @@ export class Ampli {
     return this.track(new SentCollectible(properties), options);
   }
 
+  /**
+   * side panel changed
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/side%20panel%20changed)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. enabled)
+   * @param options Amplitude event options.
+   */
+  sidePanelChanged(
+    properties: SidePanelChangedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new SidePanelChanged(properties), options);
+  }
   /**
    * staked IOTA
    *
