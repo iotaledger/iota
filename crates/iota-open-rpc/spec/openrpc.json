@@ -10575,13 +10575,15 @@
                 "type": "array",
                 "items": [
                   {
-                    "$ref": "#/components/schemas/ObjectID"
+                    "$ref": "#/components/schemas/ObjectId"
                   },
                   {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "type": "integer",
+                    "format": "uint64",
+                    "minimum": 0.0
                   },
                   {
-                    "$ref": "#/components/schemas/ObjectDigest"
+                    "$ref": "#/components/schemas/Digest"
                   }
                 ],
                 "maxItems": 3,
@@ -10605,10 +10607,12 @@
                 ],
                 "properties": {
                   "id": {
-                    "$ref": "#/components/schemas/ObjectID"
+                    "$ref": "#/components/schemas/ObjectId"
                   },
                   "initial_shared_version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "type": "integer",
+                    "format": "uint64",
+                    "minimum": 0.0
                   },
                   "mutable": {
                     "type": "boolean"
@@ -10628,13 +10632,15 @@
                 "type": "array",
                 "items": [
                   {
-                    "$ref": "#/components/schemas/ObjectID"
+                    "$ref": "#/components/schemas/ObjectId"
                   },
                   {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "type": "integer",
+                    "format": "uint64",
+                    "minimum": 0.0
                   },
                   {
-                    "$ref": "#/components/schemas/ObjectDigest"
+                    "$ref": "#/components/schemas/Digest"
                   }
                 ],
                 "maxItems": 3,
@@ -13177,7 +13183,7 @@
             "description": "`Storage ID` of the package, where the given type first appeared.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             ]
           }
@@ -13203,7 +13209,7 @@
             ]
           },
           "upgraded_version": {
-            "description": "Version of the upgraded package",
+            "description": "The version of the package at `upgraded_id`.",
             "type": "integer",
             "format": "uint64",
             "minimum": 0.0

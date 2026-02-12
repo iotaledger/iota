@@ -135,11 +135,11 @@ ChangeEpochV4:
     - system_packages:
         SEQ:
           TUPLE:
-            - TYPENAME: SequenceNumber
+            - U64
             - SEQ:
                 SEQ: U8
             - SEQ:
-                TYPENAME: ObjectID
+                TYPENAME: ObjectId
     - eligible_active_validators:
         SEQ: U64
     - scores:
