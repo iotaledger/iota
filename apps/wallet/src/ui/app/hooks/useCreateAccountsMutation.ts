@@ -216,7 +216,7 @@ export function useCreateAccountsMutation() {
                     password,
                 });
             }
-            ampli.addedAccounts({
+            ampli.accountsAdded({
                 accountType: CREATE_TYPE_TO_AMPLI_ACCOUNT[type],
                 numberOfAccounts: createdAccounts.length,
             });

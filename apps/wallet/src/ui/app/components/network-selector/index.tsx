@@ -49,7 +49,7 @@ export function NetworkSelector() {
                     }),
                 ).unwrap();
                 setNetworkGroup(network.id, null);
-                ampli.switchedNetwork({
+                ampli.networkSwitched({
                     toNetwork: network.name,
                 });
             } catch (e) {
