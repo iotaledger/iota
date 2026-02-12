@@ -476,13 +476,13 @@ pub fn calculate_apys(exchange_rate_table: Vec<ValidatorExchangeRates>) -> Vec<V
     apys
 }
 
-/// Calculate the APY for a validator based on the exchange rates of the staking
-/// pool.
+/// Calculate the APY using a 7-epoch moving average.
 ///
-/// The calculation uses the mean value of the latest 7 samples. If outliers are
-/// detected, the median value will be used instead. Outliers are defined as APY
-/// larger than MAX_VALID_APY, which are likely caused by large
-/// staking/unstaking events.
+/// Returns the Mean by default, but falls back to the Median if outliers are
+/// detected. Outliers are defined as any APY > `MAX_VALID_APY` (100%) or if the
+/// trailing 8th epoch exchange rate is missing. This fallback protects against
+/// skewed results caused by large staking events or the spikes seen after
+/// missing exchange rates.
 pub fn mean_apy_from_exchange_rates<'er>(
     exchange_rates: impl DoubleEndedIterator<Item = &'er PoolTokenExchangeRate> + Clone,
 ) -> f64 {
@@ -493,21 +493,23 @@ pub fn mean_apy_from_exchange_rates<'er>(
     let rates = exchange_rates.clone().dropping(1);
     let rates_next = exchange_rates.dropping_back(1);
 
-    let apys = rates
+    let mut apys = rates
         .zip(rates_next)
-        .take(SAMPLES)
-        .filter_map(|(er, er_next)| {
-            let apy = calculate_apy(er, er_next);
-            (apy > 0.0).then_some(apy)
-        })
+        .take(SAMPLES + 1)
+        .filter_map(|(er, er_next)| Some(calculate_apy(er, er_next)))
         .collect::<Vec<_>>();
 
-    if apys.is_empty() {
+    // Return 0.0 if there is no data OR if any APY is negative
+    if apys.is_empty() || apys.iter().any(|&apy| apy < 0.0) {
         return 0.0;
     }
-    // If any single epoch has outliers (that is APY > MAX_VALID_APY), we switch to
-    // Median. Otherwise, we use the standard Mean.
-    let has_outlier = apys.iter().any(|&apy| apy > MAX_VALID_APY);
+    // If any single epoch has outliers (that is APY > MAX_VALID_APY or exchange
+    // rate for epoch e-8 is missing), we switch to Median. Otherwise, we use
+    // the standard Mean.
+    let has_outlier = apys.get(SAMPLES).map_or(false, |&apy| apy <= 0.0)
+        || apys.iter().any(|&apy| apy > MAX_VALID_APY);
+
+    apys.truncate(SAMPLES);
 
     if has_outlier {
         Data::new(apys).median()
