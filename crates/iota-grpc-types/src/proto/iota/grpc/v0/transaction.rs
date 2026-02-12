@@ -230,6 +230,7 @@ impl ExecutedTransaction {
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(Self::INPUT_OBJECTS_FIELD.name))?
             .objects()
+            .map_err(|e| e.nested(Self::INPUT_OBJECTS_FIELD.name))
     }
 
     /// Deserialize output objects.
@@ -238,6 +239,7 @@ impl ExecutedTransaction {
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(Self::OUTPUT_OBJECTS_FIELD.name))?
             .objects()
+            .map_err(|e| e.nested(Self::OUTPUT_OBJECTS_FIELD.name))
     }
 }
 

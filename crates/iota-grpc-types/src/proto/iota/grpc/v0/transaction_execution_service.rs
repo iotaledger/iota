@@ -49,8 +49,6 @@ impl ExecuteTransactionResponse {
     }
 
     /// Deserialize the transaction events.
-    ///
-    /// Returns `Ok(None)` if events were not included in the response.
     pub fn events(&self) -> Result<iota_sdk_types::TransactionEvents, TryFromProtoError> {
         self.transaction
             .as_ref()
@@ -60,8 +58,6 @@ impl ExecuteTransactionResponse {
     }
 
     /// Get the events digest directly.
-    ///
-    /// Returns `Ok(None)` if events were not included in the response.
     pub fn events_digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
         self.transaction
             .as_ref()
@@ -148,12 +144,11 @@ impl SimulateTransactionResponse {
 
     pub fn command_results(
         &self,
-    ) -> Result<&Vec<super::command::CommandResult>, TryFromProtoError> {
+    ) -> Result<&super::command::CommandResults, TryFromProtoError> {
         Ok(&self
             .command_results
             .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::COMMAND_RESULTS_FIELD.name))?
-            .results)
+            .ok_or_else(|| TryFromProtoError::missing(Self::COMMAND_RESULTS_FIELD.name))
     }
 
     /// Get all mutated-by-reference arguments from command results.
