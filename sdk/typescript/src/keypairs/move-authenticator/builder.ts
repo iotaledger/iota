@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CallArg, ObjectArg } from '../../bcs/types.js';
+import type { CallArg, ObjectArg } from '../../bcs/types.js';
 import type { IotaClient } from '../../client/index.js';
 import type { MoveAuthenticatorCallArg, MoveAuthenticatorData } from './types.js';
 

@@ -14,7 +14,7 @@ import type { PublicKey } from '../../cryptography/publickey.js';
 import type { SignatureScheme } from '../../cryptography/signature-scheme.js';
 import { MoveAuthenticatorPublicKey } from './publickey.js';
 import type { MoveAuthenticatorData } from './types.js';
-import { ObjectArg } from '../../bcs/types.js';
+import type { ObjectArg } from '../../bcs/types.js';
 
 /**
  * Extract the object ID from a resolved CallArg that represents the object to authenticate.
