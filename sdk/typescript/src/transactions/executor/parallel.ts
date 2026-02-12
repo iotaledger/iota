@@ -112,6 +112,7 @@ export class ParallelTransactionExecutor {
     async executeTransaction(
         transaction: Transaction,
         options?: IotaTransactionBlockResponseOptions,
+        additionalSignatures: string[] = [],
     ) {
         const { promise, resolve, reject } = promiseWithResolvers<{
             digest: string;
@@ -122,8 +123,12 @@ export class ParallelTransactionExecutor {
 
         const execute = () => {
             this.#executeQueue.runTask(() => {
-                const promise = this.#execute(transaction, usedObjects, options);
-
+                const promise = this.#execute(
+                    transaction,
+                    usedObjects,
+                    options,
+                    additionalSignatures,
+                );
                 return promise.then(resolve, reject);
             });
         };
@@ -187,6 +192,7 @@ export class ParallelTransactionExecutor {
         transaction: Transaction,
         usedObjects: Set<string>,
         options?: IotaTransactionBlockResponseOptions,
+        additionalSignatures: string[] = [],
     ) {
         let gasCoin!: CoinWithBalance;
         try {
@@ -222,7 +228,7 @@ export class ParallelTransactionExecutor {
 
             const results = await this.#cache.executeTransaction({
                 transaction: bytes,
-                signature,
+                signature: [signature, ...additionalSignatures],
                 options: {
                     ...options,
                     showEffects: true,
