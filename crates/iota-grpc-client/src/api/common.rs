@@ -143,6 +143,7 @@ impl ProtoResult for ObjectResult {
             Some(object_result::Result::Object(obj)) => Ok(obj),
             Some(object_result::Result::Error(e)) => Err(Error::Server(e.message)),
             None => Err(TryFromProtoError::missing("result").into()),
+            Some(_) => Err(Error::server("Unknown object result type")),
         }
     }
 }
@@ -155,6 +156,7 @@ impl ProtoResult for TransactionResult {
             Some(transaction_result::Result::Transaction(tx)) => Ok(tx),
             Some(transaction_result::Result::Error(e)) => Err(Error::Server(e.message)),
             None => Err(TryFromProtoError::missing("result").into()),
+            Some(_) => Err(Error::server("Unknown transaction result type")),
         }
     }
 }
@@ -164,8 +166,9 @@ pub fn build_proto_transaction<T: Serialize>(data: &T, digest: Digest) -> Result
     let bcs = BcsData::serialize(data)
         .map_err(|e| Error::from(TryFromProtoError::invalid("transaction", e)))?;
 
-    Ok(ProtoTransaction {
-        digest: Some(digest.into()),
-        bcs: Some(bcs),
-    })
+    let proto_transaction = ProtoTransaction::default()
+        .with_digest(digest)
+        .with_bcs(bcs);
+
+    Ok(proto_transaction)
 }

@@ -49,6 +49,7 @@ impl Merge<&Epoch> for Epoch {
             end,
             reference_gas_price,
             protocol_config,
+            ..
         } = source;
 
         if mask.contains(Self::EPOCH_FIELD.name) {
@@ -104,6 +105,7 @@ impl Merge<&ProtocolConfig> for ProtocolConfig {
             protocol_version,
             feature_flags,
             attributes,
+            ..
         } = source;
 
         if mask.contains(Self::PROTOCOL_VERSION_FIELD.name) {
@@ -132,6 +134,7 @@ impl Merge<ProtocolConfig> for ProtocolConfig {
             protocol_version,
             feature_flags,
             attributes,
+            ..
         } = source;
 
         if mask.contains(Self::PROTOCOL_VERSION_FIELD.name) {
@@ -190,7 +193,7 @@ impl Merge<&UserSignature> for UserSignature {
         source: &UserSignature,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let UserSignature { bcs } = source;
+        let UserSignature { bcs, .. } = source;
 
         if mask.contains(Self::BCS_FIELD.name) {
             self.bcs = bcs.clone();
@@ -295,9 +298,8 @@ impl Merge<&iota_sdk_types::Event> for Event {
         }
 
         if mask.contains(Self::PACKAGE_ID_FIELD.name) {
-            self.package_id = Some(Address {
-                address: source.package_id.as_bytes().to_vec().into(),
-            });
+            self.package_id =
+                Some(Address::default().with_address(source.package_id.as_bytes().to_vec()));
         }
 
         if mask.contains(Self::MODULE_FIELD.name) {
@@ -305,9 +307,7 @@ impl Merge<&iota_sdk_types::Event> for Event {
         }
 
         if mask.contains(Self::SENDER_FIELD.name) {
-            self.sender = Some(Address {
-                address: source.sender.as_bytes().to_vec().into(),
-            });
+            self.sender = Some(Address::default().with_address(source.sender.as_bytes().to_vec()));
         }
 
         if mask.contains(Self::EVENT_TYPE_FIELD.name) {
@@ -315,9 +315,7 @@ impl Merge<&iota_sdk_types::Event> for Event {
         }
 
         if mask.contains(Self::BCS_CONTENTS_FIELD.name) {
-            self.bcs_contents = Some(BcsData {
-                data: source.contents.clone().into(),
-            });
+            self.bcs_contents = Some(BcsData::default().with_data(source.contents.clone()));
         }
 
         Ok(())
@@ -362,27 +360,30 @@ impl Merge<&iota_sdk_types::object::Object> for Object {
         }
 
         if mask.contains(Self::REFERENCE_FIELD.name) {
-            let mut reference = ObjectReference::default();
+            let reference = if let Some(reference_mask) = mask.subtree(Self::REFERENCE_FIELD.name) {
+                // Check for nested fields within reference
+                let mut ref_builder = ObjectReference::default();
 
-            // Check for nested fields within reference
-            if let Some(reference_mask) = mask.subtree(Self::REFERENCE_FIELD.name) {
                 if reference_mask.contains(ObjectReference::OBJECT_ID_FIELD.name) {
-                    reference.object_id = Some(source.object_id().to_string());
+                    ref_builder = ref_builder.with_object_id(source.object_id().to_string());
                 }
 
                 if reference_mask.contains(ObjectReference::VERSION_FIELD.name) {
-                    reference.version = Some(source.version());
+                    ref_builder = ref_builder.with_version(source.version());
                 }
 
                 if reference_mask.contains(ObjectReference::DIGEST_FIELD.name) {
-                    reference.digest = Some(source.digest().into());
+                    ref_builder = ref_builder.with_digest(source.digest());
                 }
+
+                ref_builder
             } else {
                 // If no subtree, include all reference fields
-                reference.object_id = Some(source.object_id().to_string());
-                reference.version = Some(source.version());
-                reference.digest = Some(source.digest().into());
-            }
+                ObjectReference::default()
+                    .with_object_id(source.object_id().to_string())
+                    .with_version(source.version())
+                    .with_digest(source.digest())
+            };
 
             self.reference = Some(reference);
         }
@@ -478,7 +479,7 @@ impl Merge<&CheckpointSummary> for CheckpointSummary {
         source: &CheckpointSummary,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let CheckpointSummary { bcs, digest } = source;
+        let CheckpointSummary { bcs, digest, .. } = source;
 
         if mask.contains(Self::DIGEST_FIELD.name) {
             self.digest = digest.clone();
@@ -517,7 +518,7 @@ impl Merge<&CheckpointContents> for CheckpointContents {
         source: &CheckpointContents,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let CheckpointContents { bcs, digest } = source;
+        let CheckpointContents { bcs, digest, .. } = source;
 
         if mask.contains(Self::BCS_FIELD.name) {
             self.bcs = bcs.clone();
@@ -584,6 +585,7 @@ impl Merge<&Checkpoint> for Checkpoint {
             summary,
             signature,
             contents,
+            ..
         } = source;
 
         if mask.contains(Self::SEQUENCE_NUMBER_FIELD.name) {
@@ -743,6 +745,7 @@ impl Merge<&ExecutedTransaction> for ExecutedTransaction {
             timestamp,
             input_objects,
             output_objects,
+            ..
         } = source;
 
         if let Some(submask) = mask.subtree(Self::TRANSACTION_FIELD.name) {
@@ -838,7 +841,7 @@ impl Merge<&Transaction> for Transaction {
         source: &Transaction,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let Transaction { bcs, digest } = source;
+        let Transaction { bcs, digest, .. } = source;
 
         if mask.contains(Self::DIGEST_FIELD.name) {
             self.digest = digest.clone();

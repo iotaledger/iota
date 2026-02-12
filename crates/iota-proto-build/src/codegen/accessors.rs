@@ -227,7 +227,7 @@ fn generate_accessors_functions_for_field(
         .next()
         .unwrap_or(&message.type_name);
 
-    // Check if this field has the generate_accessors custom option
+    // Check if this field has the accessors custom option
     let accessor_types = match AccessorTypes::from_field(&field.inner, accessor_map, message_name) {
         Some(types) => types,
         None => return TokenStream::new(), // No option, skip this field
@@ -612,13 +612,21 @@ fn generate_selective_accessors_for_field(
         }
 
         if use_into_for_setter(field) {
+            // For boxed types in accessors, we accept Box<T> but need to unbox when storing
+            // because the oneof variant stores the unboxed type
+            let into_conversion = if is_boxed {
+                quote! { *field.into() }
+            } else {
+                quote! { field.into().into() }
+            };
+
             if !matches!(field.inner.r#type(), Type::Enum)
                 && accessor_types.contains(AccessorTypes::SET)
             {
                 accessors.extend(quote! {
                     #( #[doc = #set_name_comments] )*
                     pub fn #set_name<T: Into<#field_type_path>>(&mut self, field: T) {
-                        self.#name = Some(field.into().into());
+                        self.#name = Some(#into_conversion);
                     }
                 });
             }
@@ -639,7 +647,7 @@ fn generate_selective_accessors_for_field(
                     accessors.extend(quote! {
                         #( #[doc = #set_name_comments] )*
                         pub fn #with_name<T: Into<#field_type_path>>(mut self, field: T) -> Self {
-                            self.#name = Some(field.into().into());
+                            self.#name = Some(#into_conversion);
                             self
                         }
                     });

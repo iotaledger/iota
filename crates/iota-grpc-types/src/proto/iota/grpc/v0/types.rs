@@ -4,6 +4,7 @@
 
 include!("../../../generated/iota.grpc.v0.types.rs");
 include!("../../../generated/iota.grpc.v0.types.field_info.rs");
+include!("../../../generated/iota.grpc.v0.types.accessors.rs");
 
 use crate::proto::TryFromProtoError;
 

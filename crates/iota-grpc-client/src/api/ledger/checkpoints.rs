@@ -158,13 +158,31 @@ impl Client {
         transactions_filter: Option<grpc_filter::TransactionFilter>,
         events_filter: Option<grpc_filter::EventFilter>,
     ) -> Result<CheckpointResponse> {
-        let request = GetCheckpointDataRequest {
-            checkpoint_id: Some(checkpoint_id),
-            read_mask: Some(field_mask_with_default(read_mask, CHECKPOINT_READ_MASK)),
-            transactions_filter,
-            events_filter,
-            max_message_size_bytes: self.max_decoding_message_size().map(|s| s as u32),
-        };
+        let mut request = match checkpoint_id {
+            get_checkpoint_data_request::CheckpointId::Latest(val) => {
+                GetCheckpointDataRequest::default().with_latest(val)
+            }
+            get_checkpoint_data_request::CheckpointId::SequenceNumber(val) => {
+                GetCheckpointDataRequest::default().with_sequence_number(val)
+            }
+            get_checkpoint_data_request::CheckpointId::Digest(val) => {
+                GetCheckpointDataRequest::default().with_digest(val)
+            }
+            _ => {
+                return Err(Error::server("Invalid checkpoint ID type"));
+            }
+        }
+        .with_read_mask(field_mask_with_default(read_mask, CHECKPOINT_READ_MASK));
+
+        if let Some(tf) = transactions_filter {
+            request = request.with_transactions_filter(tf);
+        }
+        if let Some(ef) = events_filter {
+            request = request.with_events_filter(ef);
+        }
+        if let Some(max_size) = self.max_decoding_message_size().map(|s| s as u32) {
+            request = request.with_max_message_size_bytes(max_size);
+        }
 
         let mut client = self.ledger_service_client();
         let stream = client.get_checkpoint_data(request).await?.into_inner();
@@ -221,14 +239,24 @@ impl Client {
         transactions_filter: Option<grpc_filter::TransactionFilter>,
         events_filter: Option<grpc_filter::EventFilter>,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<CheckpointResponse>> + Send>>> {
-        let request = CheckpointDataStreamRequest {
-            start_sequence_number,
-            end_sequence_number,
-            read_mask: Some(field_mask_with_default(read_mask, CHECKPOINT_READ_MASK)),
-            transactions_filter,
-            events_filter,
-            max_message_size_bytes: self.max_decoding_message_size().map(|s| s as u32),
-        };
+        let mut request = CheckpointDataStreamRequest::default()
+            .with_read_mask(field_mask_with_default(read_mask, CHECKPOINT_READ_MASK));
+
+        if let Some(start) = start_sequence_number {
+            request = request.with_start_sequence_number(start);
+        }
+        if let Some(end) = end_sequence_number {
+            request = request.with_end_sequence_number(end);
+        }
+        if let Some(tf) = transactions_filter {
+            request = request.with_transactions_filter(tf);
+        }
+        if let Some(ef) = events_filter {
+            request = request.with_events_filter(ef);
+        }
+        if let Some(max_size) = self.max_decoding_message_size().map(|s| s as u32) {
+            request = request.with_max_message_size_bytes(max_size);
+        }
 
         let mut client = self.ledger_service_client();
         let stream = client.stream_checkpoint_data(request).await?.into_inner();
@@ -343,6 +371,11 @@ impl Client {
 
                     None => {
                         // Empty payload - skip
+                        continue;
+                    }
+
+                    Some(_) => {
+                        // Unknown payload type - skip
                         continue;
                     }
                 }

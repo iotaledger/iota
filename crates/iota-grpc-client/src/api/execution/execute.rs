@@ -77,21 +77,20 @@ impl Client {
             build_proto_transaction(&signed_transaction.transaction, tx_digest)?;
 
         // Convert signatures to proto format
-        let proto_signatures = UserSignatures {
-            signatures: signed_transaction
+        let proto_signatures = UserSignatures::default().with_signatures(
+            signed_transaction
                 .signatures
                 .into_iter()
                 .map(|sig| {
                     ProtoUserSignature::try_from(sig).map_err(|e| Error::Signature(e.to_string()))
                 })
                 .collect::<Result<Vec<_>>>()?,
-        };
+        );
 
-        let request = ExecuteTransactionRequest {
-            transaction: Some(proto_transaction),
-            signatures: Some(proto_signatures),
-            read_mask: Some(field_mask_with_default(read_mask, EXECUTION_READ_MASK)),
-        };
+        let request = ExecuteTransactionRequest::default()
+            .with_transaction(proto_transaction)
+            .with_signatures(proto_signatures)
+            .with_read_mask(field_mask_with_default(read_mask, EXECUTION_READ_MASK));
 
         let response = self
             .execution_service_client()

@@ -92,8 +92,8 @@ fn main() {
     }
 
     tonic_prost_builder
-        .message_attribute(".iota.rpc", "#[non_exhaustive]")
-        .enum_attribute(".iota.rpc", "#[non_exhaustive]")
+        .message_attribute(".iota.grpc", "#[non_exhaustive]")
+        .enum_attribute(".iota.grpc", "#[non_exhaustive]")
         .btree_map(".")
         .out_dir(&out_dir)
         .compile_protos(&proto_files, std::slice::from_ref(&proto_dir))

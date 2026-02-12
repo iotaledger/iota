@@ -9,9 +9,7 @@ use iota_grpc_types::{
     google::rpc::bad_request::FieldViolation,
     v0::{
         error_reason::ErrorReason,
-        ledger_service::{
-            GetTransactionsRequest, GetTransactionsResponse, TransactionResult, transaction_result,
-        },
+        ledger_service::{GetTransactionsRequest, GetTransactionsResponse, TransactionResult},
         transaction::ExecutedTransaction,
     },
 };
@@ -77,6 +75,7 @@ pub(crate) fn get_transactions(
         requests,
         read_mask,
         max_message_size_bytes,
+        ..
     }: GetTransactionsRequest,
 ) -> Result<impl Stream<Item = TransactionsStreamResult> + Send, RpcError> {
     let requests = requests
@@ -94,12 +93,8 @@ pub(crate) fn get_transactions(
         digest,
         {
             let tx_result = match get_transaction_impl(&reader, &config, digest, &read_mask) {
-                Ok(tx) => TransactionResult {
-                    result: Some(transaction_result::Result::Transaction(tx)),
-                },
-                Err(error) => TransactionResult {
-                    result: Some(transaction_result::Result::Error(error.into_status_proto())),
-                },
+                Ok(tx) => TransactionResult::default().with_transaction(tx),
+                Err(error) => TransactionResult::default().with_error(error.into_status_proto()),
             };
 
             let tx_size = tx_result.encoded_len();

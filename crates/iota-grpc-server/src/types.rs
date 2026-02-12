@@ -9,7 +9,8 @@ use iota_grpc_types::{
     field::FieldMaskTree,
     proto::timestamp_ms_to_proto,
     v0::{
-        checkpoint as grpc_checkpoint, event as grpc_event, ledger_service as grpc_ledger_service,
+        checkpoint as grpc_checkpoint, event as grpc_event,
+        ledger_service::{self as grpc_ledger_service},
         transaction as grpc_transaction,
     },
 };
@@ -559,7 +560,7 @@ impl GrpcReader {
     where
         S: futures::Stream<Item = anyhow::Result<IotaTypesCheckpointTransaction>> + Send,
     {
-        use grpc_ledger_service::checkpoint_data::{EndMarker, Payload};
+        use grpc_ledger_service::checkpoint_data::EndMarker;
 
         // Clone values needed across the async boundary
         let checkpoint_mask = checkpoint_mask.clone();
@@ -571,10 +572,8 @@ impl GrpcReader {
             // Build the Checkpoint proto message using Merge
 
             // We need the sequence number to reassemble the checkpoint on client side.
-            let mut checkpoint_proto = grpc_checkpoint::Checkpoint {
-                sequence_number: Some(sequence_number),
-                ..Default::default()
-            };
+            let mut checkpoint_proto = grpc_checkpoint::Checkpoint::default()
+                .with_sequence_number(sequence_number);
 
             // Convert to iota_sdk_types for Merge compatibility
             let sdk_summary: iota_sdk_types::CheckpointSummary = checkpoint_summary
@@ -598,10 +597,7 @@ impl GrpcReader {
             Merge::merge(&mut checkpoint_proto, sdk_signature, &checkpoint_mask)
                 .map_err(|e| Status::internal(format!("merge error for signature: {e}")))?;
 
-            let checkpoint_message = grpc_ledger_service::CheckpointData {
-                payload: Some(Payload::Checkpoint(checkpoint_proto)),
-            };
-            yield Ok(checkpoint_message);
+            yield Ok(grpc_ledger_service::CheckpointData::default().with_checkpoint(checkpoint_proto));
 
             // 2. Stream transactions and events if requested (interleaved)
             if transactions_mask.is_some() || events_mask.is_some() {
@@ -647,12 +643,8 @@ impl GrpcReader {
                                         // Check if adding this event would exceed limit
                                         if events_batch_size + event_size > max_message_size_bytes && !events_batch.is_empty() {
                                             // Yield current event batch
-                                            let events_message = grpc_ledger_service::CheckpointData {
-                                                payload: Some(Payload::Events(grpc_event::Events {
-                                                    events: events_batch,
-                                                })),
-                                            };
-                                            yield Ok(events_message);
+                                            yield Ok(grpc_ledger_service::CheckpointData::default()
+                                                .with_events(grpc_event::Events::default().with_events(events_batch)));
 
                                             // Reset event batch
                                             events_batch = vec![grpc_event];
@@ -689,12 +681,8 @@ impl GrpcReader {
                                 // Check if adding this tx would exceed limit
                                 if current_batch_size + tx_size > max_message_size_bytes && !current_batch.is_empty() {
                                     // Yield current transaction batch
-                                    let transactions_message = grpc_ledger_service::CheckpointData {
-                                        payload: Some(Payload::Transactions(grpc_transaction::ExecutedTransactions {
-                                            transactions: current_batch,
-                                        })),
-                                    };
-                                    yield Ok(transactions_message);
+                                    yield Ok(grpc_ledger_service::CheckpointData::default()
+                                        .with_transactions(grpc_transaction::ExecutedTransactions::default().with_transactions(current_batch)));
 
                                     // Reset transaction batch
                                     current_batch = vec![executed_tx];
@@ -714,32 +702,20 @@ impl GrpcReader {
 
                 // Send final batch of transactions if any
                 if transactions_mask.is_some() && !current_batch.is_empty() {
-                    let transactions_message = grpc_ledger_service::CheckpointData {
-                        payload: Some(Payload::Transactions(grpc_transaction::ExecutedTransactions {
-                            transactions: current_batch,
-                        })),
-                    };
-                    yield Ok(transactions_message);
+                    yield Ok(grpc_ledger_service::CheckpointData::default()
+                        .with_transactions(grpc_transaction::ExecutedTransactions::default().with_transactions(current_batch)));
                 }
 
                 // Send final batch of events if any
                 if should_collect_events && !events_batch.is_empty() {
-                    let events_message = grpc_ledger_service::CheckpointData {
-                        payload: Some(Payload::Events(grpc_event::Events {
-                            events: events_batch,
-                        })),
-                    };
-                    yield Ok(events_message);
+                    yield Ok(grpc_ledger_service::CheckpointData::default()
+                        .with_events(grpc_event::Events::default().with_events(events_batch)));
                 }
             }
 
             // 3. Always send EndMarker at the end
-            let end_marker_message = grpc_ledger_service::CheckpointData {
-                payload: Some(Payload::EndMarker(EndMarker {
-                    sequence_number: Some(sequence_number),
-                })),
-            };
-            yield Ok(end_marker_message);
+            let end_marker = EndMarker::default().with_sequence_number(sequence_number);
+            yield Ok(grpc_ledger_service::CheckpointData::default().with_end_marker(end_marker));
         }
     }
 

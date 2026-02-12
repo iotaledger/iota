@@ -10,6 +10,7 @@ import "google/protobuf/field_mask.proto";
 import "google/protobuf/timestamp.proto";
 import "google/rpc/status.proto";
 
+import "iota/grpc/options.proto";
 import "iota/grpc/v0/checkpoint.proto";
 import "iota/grpc/v0/epoch.proto";
 import "iota/grpc/v0/event.proto";
@@ -34,12 +35,16 @@ service LedgerService {
 }
 
 message GetServiceInfoRequest {
+  option (iota.grpc.message_accessors) = "with";
+
   // Mask specifying which ServiceInfo fields to read.
   // If no mask is specified, defaults to `chain_id,epoch,checkpoint_height`.
   optional google.protobuf.FieldMask read_mask = 1;
 }
 
 message GetServiceInfoResponse {
+  option (iota.grpc.message_accessors) = "with";
+
   // The chain identifier of the chain that this node is on.
   //
   // The chain identifier is the digest of the genesis checkpoint, the
@@ -71,6 +76,8 @@ message GetServiceInfoResponse {
 }
 
 message ObjectRequest {
+  option (iota.grpc.message_accessors) = "with";
+
   // Required. The `ObjectId` of the requested object.
   // If no version is specified, and the object is live, then the latest
   // version of the object is returned.
@@ -78,10 +85,14 @@ message ObjectRequest {
 }
 
 message ObjectRequests {
+  option (iota.grpc.message_accessors) = "with";
+
   repeated ObjectRequest requests = 1;
 }
 
 message GetObjectsRequest {
+  option (iota.grpc.message_accessors) = "with";
+
   optional ObjectRequests requests = 1;
 
   // Mask specifying which fields to read.
@@ -94,6 +105,8 @@ message GetObjectsRequest {
 }
 
 message ObjectResult {
+  option (iota.grpc.message_accessors) = "with";
+
   oneof result {
     iota.grpc.v0.object.Object object = 1;
     google.rpc.Status error = 2;
@@ -101,20 +114,28 @@ message ObjectResult {
 }
 
 message GetObjectsResponse {
+  option (iota.grpc.message_accessors) = "with";
+
   repeated ObjectResult objects = 1;
   bool has_next = 2;
 }
 
 message TransactionRequest {
+  option (iota.grpc.message_accessors) = "with";
+
   // Required. The digest of the requested transaction.
   optional iota.grpc.v0.types.Digest digest = 1;
 }
 
 message TransactionRequests {
+  option (iota.grpc.message_accessors) = "with";
+
   repeated TransactionRequest requests = 1;
 }
 
 message GetTransactionsRequest {
+  option (iota.grpc.message_accessors) = "with";
+
   optional TransactionRequests requests = 1;
 
   // Mask specifying which fields to read.
@@ -127,6 +148,8 @@ message GetTransactionsRequest {
 }
 
 message TransactionResult {
+  option (iota.grpc.message_accessors) = "with";
+
   oneof result {
     iota.grpc.v0.transaction.ExecutedTransaction transaction = 1;
     google.rpc.Status error = 2;
@@ -134,18 +157,22 @@ message TransactionResult {
 }
 
 message GetTransactionsResponse {
+  option (iota.grpc.message_accessors) = "with";
+
   repeated TransactionResult transactions = 1;
   bool has_next = 2;
 }
 
 message GetCheckpointDataRequest {
+  option (iota.grpc.message_accessors) = "with";
+
   oneof checkpoint_id {
     // If set to true, the latest checkpoint is requested.
     bool latest = 1;
 
     // The sequence number of the requested checkpoint.
     uint64 sequence_number = 2;
-    
+
     // The digest of the requested checkpoint.
     iota.grpc.v0.types.Digest digest = 3;
   }
@@ -166,6 +193,8 @@ message GetCheckpointDataRequest {
 }
 
 message CheckpointDataStreamRequest {
+  option (iota.grpc.message_accessors) = "with";
+
   // if no start sequence number is provided, streaming starts from the latest checkpoint
   optional uint64 start_sequence_number = 1;
 
@@ -181,7 +210,7 @@ message CheckpointDataStreamRequest {
 
   // if no filter is passed, all events are included (if mentioned in the read_mask)
   optional iota.grpc.v0.filter.EventFilter events_filter = 5;
-  
+
   // Optional maximum message size the client can receive (1MB - 128MB)
   // If not specified, server uses default chunking threshold (4MB)
   optional uint32 max_message_size_bytes = 6;
@@ -189,9 +218,13 @@ message CheckpointDataStreamRequest {
 
 message CheckpointData {
   message EndMarker {
+    option (iota.grpc.message_accessors) = "with";
+
     // The height of this checkpoint.
     optional uint64 sequence_number = 1;
   }
+
+  option (iota.grpc.message_accessors) = "with";
 
   oneof payload {
     iota.grpc.v0.checkpoint.Checkpoint checkpoint = 1;
@@ -202,6 +235,8 @@ message CheckpointData {
 }
 
 message GetEpochRequest {
+  option (iota.grpc.message_accessors) = "with";
+
   // The requested epoch.
   // If no epoch is provided the current epoch will be returned.
   optional uint64 epoch = 1;
@@ -212,5 +247,7 @@ message GetEpochRequest {
 }
 
 message GetEpochResponse {
+  option (iota.grpc.message_accessors) = "with";
+
   optional iota.grpc.v0.epoch.Epoch epoch = 1;
 }

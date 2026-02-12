@@ -4,6 +4,7 @@
 
 include!("../../../generated/iota.grpc.v0.ledger_service.rs");
 include!("../../../generated/iota.grpc.v0.ledger_service.field_info.rs");
+include!("../../../generated/iota.grpc.v0.ledger_service.accessors.rs");
 
 use crate::proto::TryFromProtoError;
 

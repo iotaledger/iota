@@ -150,6 +150,9 @@ pub(crate) fn get_checkpoint_data(
         None => {
             return Err(Status::invalid_argument("checkpoint_id must be provided").into());
         }
+        Some(_) => {
+            return Err(Status::invalid_argument("unknown checkpoint_id type").into());
+        }
     };
 
     let client_max_message_size_bytes = req.max_message_size_bytes;
