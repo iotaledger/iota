@@ -115,7 +115,7 @@ export function useCreateAccountsMutation() {
 
                 await backgroundClient.unlockAccountSource({
                     id: accountSource.id,
-                    password,
+                    password: password!,
                 });
 
                 createdAccounts = await backgroundClient.createAccounts({
@@ -192,7 +192,7 @@ export function useCreateAccountsMutation() {
                 }
 
                 await backgroundClient.unlockAccountSource({
-                    password,
+                    password: password!,
                     id: sourceID,
                 });
                 createdAccounts = await backgroundClient.createAccounts({

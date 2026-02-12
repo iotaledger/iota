@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { toast } from '@iota/core';
-import { useBackgroundClient } from '_hooks';
+import { useUnlockMutation } from '_hooks';
 import { PasswordModalDialog } from './PasswordModalDialog';
 import { useState } from 'react';
 import { ForgotPasswordDialog } from './ForgotPasswordDialog';
@@ -16,7 +16,7 @@ interface UnlockAccountModalProps {
 
 export function UnlockAccountModal({ onClose, onSuccess, open }: UnlockAccountModalProps) {
     const [isForgotPasswordOpen, setForgotPasswordOpen] = useState(false);
-    const backgroundService = useBackgroundClient();
+    const unlockAllAccountsMutation = useUnlockMutation();
 
     return (
         <>
@@ -31,7 +31,7 @@ export function UnlockAccountModal({ onClose, onSuccess, open }: UnlockAccountMo
                     setForgotPasswordOpen(true);
                 }}
                 onSubmit={async (password: string) => {
-                    await backgroundService.unlockAllAccountsAndSources({
+                    await unlockAllAccountsMutation.mutateAsync({
                         password,
                     });
                     toast('Wallet unlocked');

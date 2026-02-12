@@ -177,7 +177,7 @@ export async function lockAllAccountsAndSources() {
     accountsEvents.emit('accountsChanged');
 }
 
-export async function unlockAllAccountsAndSources(password?: string) {
+export async function unlockAllAccountsAndSources(password: string) {
     const sources = await getAccountSources();
     for (const source of sources) {
         if (password) {

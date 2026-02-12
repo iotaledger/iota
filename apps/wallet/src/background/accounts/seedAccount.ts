@@ -123,13 +123,12 @@ export class SeedAccount
     }
 
     async signData(data: Uint8Array): Promise<string> {
-        const { derivationPath } = await this.getStoredData();
         const seedSource = await this.#getSeedSource();
-        const keyPair = await seedSource.deriveKeyPair(derivationPath);
-
-        if (!keyPair) {
-            throw new Error(`Account is locked`);
+        if (await seedSource.isLocked()) {
+            throw new Error('Account is locked');
         }
+        const { derivationPath } = await this.getStoredData();
+        const keyPair = await seedSource.deriveKeyPair(derivationPath);
         return this.generateSignature(data, keyPair);
     }
 
