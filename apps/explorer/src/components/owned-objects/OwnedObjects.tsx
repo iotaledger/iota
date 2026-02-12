@@ -7,6 +7,8 @@ import {
     useGetOwnedObjects,
     useLocalStorage,
     useCursorPagination,
+    useIotaNamesClient,
+    hasDisplayData,
 } from '@iota/core';
 import {
     Button,
@@ -34,6 +36,8 @@ import { ListView, NoObjectsOwnedMessage, SmallThumbnailsView, ThumbnailsView } 
 import { ObjectViewMode } from '~/lib/enums';
 import { Pagination } from '~/components/ui';
 import { PAGE_SIZES_RANGE_10_50 } from '~/lib/constants';
+import { getNameRegistrationType, getSubnameRegistrationType } from '@iota/iota-names-sdk';
+import type { IotaObjectResponse } from '@iota/iota-sdk/src/client';
 
 const SHOW_PAGINATION_MAX_ITEMS = 9;
 const OWNED_OBJECTS_LOCAL_STORAGE_VIEW_MODE = 'owned-objects/viewMode';
@@ -45,8 +49,10 @@ interface ItemsRangeFromCurrentPage {
 }
 
 enum FilterValue {
-    All = 'all',
+    Unknown = 'unknown',
     Kiosks = 'kiosks',
+    Names = 'names',
+    Nfts = 'nfts',
 }
 
 enum OwnedObjectsContainerHeight {
@@ -55,8 +61,10 @@ enum OwnedObjectsContainerHeight {
 }
 
 const FILTER_OPTIONS = [
-    { label: 'NFTS', value: FilterValue.All },
+    { label: 'NFTS', value: FilterValue.Nfts },
     { label: 'KIOSKS', value: FilterValue.Kiosks },
+    { label: 'NAMES', value: FilterValue.Names },
+    { label: 'UNKNOWN', value: FilterValue.Unknown },
 ];
 
 const VIEW_MODES = [
@@ -105,6 +113,7 @@ const MIN_OBJECT_COUNT_TO_HEIGHT_MAP: Record<number, OwnedObjectsContainerHeight
 interface OwnedObjectsProps {
     id: string;
 }
+
 export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
     const [limit, setLimit] = useState(50);
     const [filter, setFilter] = useLocalStorage<string | undefined>(
@@ -131,22 +140,90 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
 
     const { data, isError, isFetching, pagination } = useCursorPagination(ownedObjects);
 
-    const isPending = filter === FilterValue.All ? isFetching : kioskDataFetching;
+    const { iotaNamesClient } = useIotaNamesClient();
+
+    const packageId = iotaNamesClient?.getPackage('packageId', 'v1');
+
+    const nameTypes = packageId
+        ? [getNameRegistrationType(packageId), getSubnameRegistrationType(packageId)]
+        : [];
+
+    const categorizedObjects = useMemo(() => {
+        const kiosks = kioskData?.list ?? [];
+        const names: IotaObjectResponse[] = [];
+        const nfts: IotaObjectResponse[] = [];
+        const unknown: IotaObjectResponse[] = [];
+
+        for (const obj of data?.data ?? []) {
+            const isIotaName = !!obj.data?.type && nameTypes.includes(obj.data.type);
+
+            if (isIotaName) {
+                names.push(obj);
+                continue;
+            }
+
+            if (hasDisplayData(obj)) {
+                nfts.push(obj);
+                continue;
+            }
+
+            unknown.push(obj);
+        }
+
+        return { kiosks, names, nfts, unknown };
+    }, [data?.data, kioskData?.list, nameTypes]);
+
+    const availableFilters = useMemo(() => {
+        const options: FilterValue[] = [];
+
+        if (categorizedObjects.nfts.length) {
+            options.push(FilterValue.Nfts);
+        }
+        if (categorizedObjects.kiosks.length) {
+            options.push(FilterValue.Kiosks);
+        }
+        if (categorizedObjects.names.length) {
+            options.push(FilterValue.Names);
+        }
+        if (categorizedObjects.unknown.length) {
+            options.push(FilterValue.Unknown);
+        }
+
+        return options;
+    }, [
+        categorizedObjects.kiosks.length,
+        categorizedObjects.names.length,
+        categorizedObjects.unknown.length,
+        categorizedObjects.nfts.length,
+    ]);
+
+    const isPending = filter === FilterValue.Kiosks ? kioskDataFetching : isFetching;
 
     useEffect(() => {
-        if (!isPending) {
-            setFilter(
-                kioskData?.list?.length && filter === FilterValue.Kiosks
-                    ? FilterValue.Kiosks
-                    : FilterValue.All,
-            );
+        if (!isPending && availableFilters.length) {
+            if (!filter || !availableFilters.includes(filter as FilterValue)) {
+                setFilter(availableFilters[0]);
+                return;
+            }
         }
-    }, [filter, isPending, kioskData?.list?.length, setFilter]);
+    }, [filter, availableFilters, isPending, setFilter]);
 
-    const filteredData = useMemo(
-        () => (filter === FilterValue.All ? data?.data : kioskData?.list),
-        [filter, data, kioskData],
-    );
+    const filteredData = useMemo(() => {
+        if (!data?.data && filter !== FilterValue.Kiosks) return [];
+
+        switch (filter) {
+            case FilterValue.Kiosks:
+                return categorizedObjects.kiosks;
+            case FilterValue.Names:
+                return categorizedObjects.names;
+            case FilterValue.Nfts:
+                return categorizedObjects.nfts;
+            case FilterValue.Unknown:
+                return categorizedObjects.unknown;
+            default:
+                return [];
+        }
+    }, [filter, data?.data, categorizedObjects]);
 
     const { start, end } = useMemo(
         () => getItemsRangeFromCurrentPage(pagination.currentPage, limit, filteredData?.length),
@@ -178,7 +255,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
         filter,
         filteredData?.length || 0,
         pagination.currentPage,
-        isFetching,
+        isPending,
     );
 
     const hasVisualAssets = sortedDataByDisplayImages.length > 0;
@@ -187,14 +264,18 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
 
     useEffect(() => {
         const ownedObjectsCount = sortedDataByDisplayImages.length;
+        let nextHeight = OwnedObjectsContainerHeight.Small;
+
         Object.keys(MIN_OBJECT_COUNT_TO_HEIGHT_MAP).forEach((minObjectCount) => {
             if (ownedObjectsCount >= Number(minObjectCount)) {
-                setOwnedObjectsContainerHeight(
-                    MIN_OBJECT_COUNT_TO_HEIGHT_MAP[Number(minObjectCount)],
-                );
+                nextHeight = MIN_OBJECT_COUNT_TO_HEIGHT_MAP[Number(minObjectCount)];
             }
         });
-    }, [sortedDataByDisplayImages, setOwnedObjectsContainerHeight]);
+
+        if (nextHeight !== ownedObjectsContainerHeight) {
+            setOwnedObjectsContainerHeight(nextHeight);
+        }
+    }, [sortedDataByDisplayImages.length, ownedObjectsContainerHeight]);
 
     if (isError) {
         return (
@@ -218,10 +299,10 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                         'gap-4': hasVisualAssets,
                     })}
                 >
-                    <div className="flex w-full flex-row flex-wrap items-center justify-between sm:min-h-[72px]">
+                    <div className="flex w-full flex-col flex-wrap items-start justify-between sm:min-h-[72px] sm:flex-row sm:items-center">
                         <Title size={TitleSize.Medium} title="Assets" />
-                        {hasVisualAssets && (
-                            <div className="flex justify-between px-md--rs sm:flex-row">
+                        {hasVisualAssets && availableFilters.length > 0 && (
+                            <div className="flex flex-col gap-sm px-md--rs sm:flex-row sm:gap-0">
                                 <div className="flex items-center gap-sm">
                                     {VIEW_MODES.map((mode) => {
                                         const selected = mode.value === viewMode;
@@ -249,7 +330,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                                         );
                                     })}
                                 </div>
-                                <div className="pl-md pr-md">
+                                <div className="hidden pl-md pr-md sm:flex">
                                     <Divider type={DividerType.Vertical} />
                                 </div>
 
@@ -257,20 +338,22 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                                     type={SegmentedButtonType.Outlined}
                                     shape={ButtonSegmentType.Rounded}
                                 >
-                                    {FILTER_OPTIONS.map((f) => (
-                                        <ButtonSegment
-                                            key={f.value}
-                                            type={ButtonSegmentType.Rounded}
-                                            selected={f.value === filter}
-                                            label={f.label}
-                                            disabled={
-                                                (f.value === FilterValue.Kiosks &&
-                                                    !kioskData?.list?.length) ||
-                                                isPending
-                                            }
-                                            onClick={() => setFilter(f.value)}
-                                        />
-                                    ))}
+                                    {availableFilters.map((value) => {
+                                        const option = FILTER_OPTIONS.find(
+                                            (opt) => opt.value === value,
+                                        );
+
+                                        return (
+                                            <ButtonSegment
+                                                key={value}
+                                                type={ButtonSegmentType.Rounded}
+                                                selected={value === filter}
+                                                label={option?.label ?? value.toUpperCase()}
+                                                disabled={isPending}
+                                                onClick={() => setFilter(value)}
+                                            />
+                                        );
+                                    })}
                                 </SegmentedButton>
                             </div>
                         )}
