@@ -36,10 +36,19 @@ Make sure to provide instructions for the maintainer as well as any relevant con
 
 #### Breaking Changes Rollout
 
-If you introduce breaking changes to one or several crates, list each crate as a sub-heading using the template below. Replace XYZ with the crate's name (e.g., iota-data-ingestion-core). For each box you select, include information about the rollout plan and any actions users must take to keep their applications up to date on the respective public network.
+If your PR introduces breaking changes, list all of the affected crates. Provide detailed information about when those changes are expected to land on a particular public network and what actions users need to take to keep their applications running. See the comment below for an example.
 
-##### XYZ
+<!-- EXAMPLE
 
-- [ ] devnet:
-- [ ] testnet:
-- [ ] mainnet:
+Affected Crates:
+
+- iota-data-ingestion-core
+- iota-data-ingestion
+
+Required User Actions:
+
+- devnet: <action-needed-by> E.g. Users of these libraries should update their application immediately.
+- testnet: Update dependent applications by v1.20
+- mainnet: ...
+
+-->

@@ -52,6 +52,30 @@ RE_BREAKING_NOTE = re.compile(
     re.MULTILINE | re.IGNORECASE,
 ) 
 
+RE_HTML_COMMENT = re.compile(
+    r"<!--.*?-->",
+    re.DOTALL,
+)
+
+RE_ROLLOUT_AFFECTED = re.compile(
+    r"^\s*Affected Crates\s*:?\s*$",
+    re.IGNORECASE,
+)
+
+RE_ROLLOUT_ACTIONS = re.compile(
+    r"^\s*Required User Actions\s*:?\s*$",
+    re.IGNORECASE,
+)
+
+RE_ROLLOUT_CRATE_LINE = re.compile(
+    r"^\s*[-*]\s*(.+)$",
+)
+
+RE_ROLLOUT_ACTION_LINE = re.compile(
+    r"^\s*(?:[-*]\s*)?(devnet|testnet|mainnet)\s*:\s*(.*)$",
+    re.IGNORECASE,
+)
+
 ROLLOUT_NETWORKS = ("devnet", "testnet", "mainnet")
 
 # Only commits that affect changes in these directories will be
@@ -88,6 +112,13 @@ NOTE_ORDER = [
 class Note(NamedTuple):
     checked: bool
     note: str
+
+
+def strip_html_comments(text):
+    """Remove HTML comments to avoid parsing template hints as content."""
+    if not text:
+        return ""
+    return RE_HTML_COMMENT.sub("", text)
 
 
 def collect_crate_names(root):
@@ -244,6 +275,8 @@ def extract_rollout(notes, crate_names):
     if not notes:
         return {}
 
+    notes = strip_html_comments(notes)
+
     match = RE_BREAKING.search(notes)
     if not match:
         return {}
@@ -253,6 +286,99 @@ def extract_rollout(notes, crate_names):
     if next_heading:
         section = section[: next_heading.start()]
 
+    rollout = parse_modern_rollout(section, crate_names)
+    if rollout is not None:
+        return rollout
+
+    return parse_legacy_rollout(section, crate_names)
+
+
+def parse_modern_rollout(section, crate_names):
+    """Parse rollout information using the new Affected Crates / Required User Actions format."""
+    crates = []
+    actions = {}
+    in_crates = False
+    in_actions = False
+    saw_crates_header = False
+
+    for line in section.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        if RE_ROLLOUT_AFFECTED.match(stripped):
+            in_crates = True
+            in_actions = False
+            saw_crates_header = True
+            continue
+
+        if RE_ROLLOUT_ACTIONS.match(stripped):
+            in_actions = True
+            in_crates = False
+            continue
+
+        if in_crates:
+            match = RE_ROLLOUT_CRATE_LINE.match(stripped)
+            if match:
+                crate = match.group(1).strip()
+                if crate:
+                    crates.append(crate)
+            continue
+
+        if in_actions:
+            match = RE_ROLLOUT_ACTION_LINE.match(stripped)
+            if match:
+                network = match.group(1).lower()
+                actions[network] = match.group(2).strip()
+            continue
+
+    if not saw_crates_header and not actions:
+        return None
+
+    if actions and not crates:
+        raise ValueError(
+            "Breaking Changes Rollout must list affected crates before user actions."
+        )
+
+    if not actions:
+        return {}
+
+    rollout = {}
+    has_any_content = False
+    seen_crates = set()
+
+    for crate in crates:
+        crate = crate.strip()
+        if not crate:
+            continue
+
+        if crate in seen_crates:
+            raise ValueError(
+                f"Crate '{crate}' appears multiple times in Breaking Changes Rollout."
+            )
+        seen_crates.add(crate)
+
+        if crate not in crate_names:
+            raise ValueError(
+                f"Crate '{crate}' referenced in Breaking Changes Rollout does not exist in this repository."
+            )
+
+        rollout[crate] = {}
+        for network, note_text in actions.items():
+            has_any_content = True
+            rollout[crate][network] = Note(
+                checked=True,
+                note=note_text,
+            )
+
+    if not has_any_content:
+        return {}
+
+    return rollout
+
+
+def parse_legacy_rollout(section, crate_names):
+    """Parse rollout information using the legacy checkbox-based format."""
     crate_matches = list(RE_BREAKING_CRATE.finditer(section))
     if not crate_matches:
         if RE_BREAKING_NOTE.search(section):
@@ -332,6 +458,7 @@ def extract_notes(commit_or_pr, seen, is_pr, crate_names, is_dry_run):
         else:
             pr, notes = extract_notes_from_commit(commit_or_pr)
 
+    notes = strip_html_comments(notes)
     result = {}
     rollout = extract_rollout(notes, crate_names)
 
@@ -554,18 +681,19 @@ def do_generate(from_, to, is_dry_run):
             print()
 
     if rollout_entries:
-        print(f"## 🚨 Breaking Changes Rollout\n")
-        for crate, networks in rollout_entries.items():
-            print(f"### {crate}\n")
-            for network in ROLLOUT_NETWORKS:
+        print(f"## 🚨 Breaking Changes Rollout")
+        for network in ROLLOUT_NETWORKS:
+            has_entries = False
+            for crate, networks in rollout_entries.items():
                 entries = networks.get(network, [])
                 if not entries:
                     continue
-                print(f"#### {network}\n")
+                if not has_entries:
+                    print(f"\n### {network}\n")
+                    has_entries = True
                 for pr, commit, note in reversed(entries):
-                    print("- ", end="")
+                    print(f"- {crate}: ", end="")
                     print_changelog(pr, note, commit, is_dry_run=is_dry_run)
-                print()
 
 
 args = parse_args()
