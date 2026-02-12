@@ -11,19 +11,25 @@ import "iota/grpc/v0/bcs.proto";
 
 // A signature from a user.
 message UserSignature {
+  option (iota.grpc.message_accessors) = "with";
+
   // This signature serialized as as BCS.
   //
   // When provided as input this will support both the form that is length
   // prefixed as well as not length prefixed.
-  optional iota.grpc.v0.bcs.BcsData bcs = 1 [(iota.grpc.generate_accessors) = "with"];
+  optional iota.grpc.v0.bcs.BcsData bcs = 1;
 }
 
 // A list of user signatures.
 message UserSignatures {
-  repeated UserSignature signatures = 1 [(iota.grpc.generate_accessors) = "with"];
+  option (iota.grpc.message_accessors) = "with";
+
+  repeated UserSignature signatures = 1;
 }
 
 /// An aggregated signature from multiple validators.
 message ValidatorAggregatedSignature {
-  optional iota.grpc.v0.bcs.BcsData bcs = 1 [(iota.grpc.generate_accessors) = "with"];
+  option (iota.grpc.message_accessors) = "with";
+
+  optional iota.grpc.v0.bcs.BcsData bcs = 1;
 }

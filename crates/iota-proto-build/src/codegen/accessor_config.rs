@@ -122,8 +122,8 @@ impl AccessorTypes {
         }
     }
 
-    /// Extract accessor types from a protobuf field's custom options
-    /// Returns None if the field doesn't have the generate_accessors option
+    /// Extract accessor types from a protobuf field's name.
+    /// Returns None if the field can't be found in the accessor_map.
     pub fn from_field(
         field: &FieldDescriptorProto,
         accessor_map: &AccessorMap,
@@ -141,39 +141,60 @@ impl AccessorTypes {
 /// Key is "message_name.field_name", value is the accessor types
 pub type AccessorMap = HashMap<String, AccessorTypes>;
 
-/// Parse proto files to extract generate_accessors annotations from the
-/// descriptor pool Returns a map of "MessageName.field_name" -> AccessorTypes
+/// Parse proto files to extract message_accessors and field_accessors
+/// annotations from the descriptor pool Returns a map of
+/// "MessageName.field_name" -> AccessorTypes
 pub fn parse_proto_accessors_from_pool(pool: &prost_reflect::DescriptorPool) -> AccessorMap {
     let mut map = HashMap::new();
 
-    // Get the extension descriptor for iota.grpc.generate_accessors
-    let ext = match pool.get_extension_by_name("iota.grpc.generate_accessors") {
-        Some(ext) => ext,
-        None => {
-            panic!("Extension iota.grpc.generate_accessors not found in descriptor pool");
-        }
-    };
+    // Find the message-level and field-level extensions
+    let message_ext = pool.get_extension_by_name("iota.grpc.message_accessors");
+    let field_ext = pool.get_extension_by_name("iota.grpc.field_accessors");
 
     // Iterate all messages (including nested ones)
     for message in pool.all_messages() {
         let message_name = message.name();
 
+        // Check for message-level accessor annotation
+        let message_accessors = if let Some(msg_ext) = &message_ext {
+            let msg_options = message.options();
+            if msg_options.has_extension(msg_ext) {
+                msg_options
+                    .get_extension(msg_ext)
+                    .as_str()
+                    .and_then(AccessorTypes::parse)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         // Iterate all fields in this message
         for field in message.fields() {
             let field_name = field.name();
 
-            // Get field options
-            let options = field.options();
-
-            // Check if the extension is set
-            if options.has_extension(&ext) {
-                if let Some(accessor_str) = options.get_extension(&ext).as_str() {
-                    let key = format!("{}.{}", message_name, field_name);
-
-                    if let Some(accessor_types) = AccessorTypes::parse(accessor_str) {
-                        map.insert(key, accessor_types);
-                    }
+            // Check field-level option first, then fall back to message-level default
+            let accessor_types = if let Some(fld_ext) = &field_ext {
+                let field_options = field.options();
+                if field_options.has_extension(fld_ext) {
+                    // Field has explicit annotation - use it
+                    field_options
+                        .get_extension(fld_ext)
+                        .as_str()
+                        .and_then(AccessorTypes::parse)
+                } else {
+                    // No field annotation - use message-level default
+                    message_accessors
                 }
+            } else {
+                // No field extension available - use message-level default
+                message_accessors
+            };
+
+            if let Some(accessor_types) = accessor_types {
+                let key = format!("{}.{}", message_name, field_name);
+                map.insert(key, accessor_types);
             }
         }
     }

@@ -17,42 +17,50 @@ import "iota/grpc/v0/types.proto";
 
 // A transaction.
 message Transaction {
+  option (iota.grpc.message_accessors) = "with";
+
   // The digest of this Transaction.
-  optional iota.grpc.v0.types.Digest digest = 1 [(iota.grpc.generate_accessors) = "with"];
+  optional iota.grpc.v0.types.Digest digest = 1;
 
   // This Transaction serialized as BCS.
-  optional iota.grpc.v0.bcs.BcsData bcs = 2 [(iota.grpc.generate_accessors) = "with"];
+  optional iota.grpc.v0.bcs.BcsData bcs = 2;
 }
 
 // The effects of executing a transaction.
 message TransactionEffects {
+  option (iota.grpc.message_accessors) = "with";
+
   // The digest of this TransactionEffects.
-  optional iota.grpc.v0.types.Digest digest = 1 [(iota.grpc.generate_accessors) = "with"];
+  optional iota.grpc.v0.types.Digest digest = 1;
 
   // This TransactionEffects serialized as BCS.
-  optional iota.grpc.v0.bcs.BcsData bcs = 2 [(iota.grpc.generate_accessors) = "with"];
+  optional iota.grpc.v0.bcs.BcsData bcs = 2;
 }
 
 // iota.grpc.v0.event.Events emitted during the successful execution of a transaction.
 message TransactionEvents {
+  option (iota.grpc.message_accessors) = "with";
+
   // The digest of this TransactionEvents.
-  optional iota.grpc.v0.types.Digest digest = 1 [(iota.grpc.generate_accessors) = "with"];
+  optional iota.grpc.v0.types.Digest digest = 1;
 
   // List of events emitted by a transaction.
-  optional iota.grpc.v0.event.Events events = 2 [(iota.grpc.generate_accessors) = "with"];
+  optional iota.grpc.v0.event.Events events = 2;
 }
 
 // A transaction that has been executed, along with its signatures, effects, events and objects.
 message ExecutedTransaction {
+  option (iota.grpc.message_accessors) = "with";
+
   // The transaction itself.
-  optional Transaction transaction = 1 [(iota.grpc.generate_accessors) = "with"];
+  optional Transaction transaction = 1;
 
   // List of user signatures that are used to authorize the
   // execution of this transaction.
-  optional iota.grpc.v0.signatures.UserSignatures signatures = 2 [(iota.grpc.generate_accessors) = "with"];
+  optional iota.grpc.v0.signatures.UserSignatures signatures = 2;
 
   // The `TransactionEffects` for this transaction.
-  optional TransactionEffects effects = 3 [(iota.grpc.generate_accessors) = "with"];
+  optional TransactionEffects effects = 3;
 
   // The `TransactionEvents` for this transaction.
   //
@@ -60,21 +68,23 @@ message ExecutedTransaction {
   // transaction didn't produce any events.
   // `iota.types.TransactionEffects.events_digest` is populated if the
   // transaction produced any events.
-  optional TransactionEvents events = 4 [(iota.grpc.generate_accessors) = "with"];
+  optional TransactionEvents events = 4;
 
   // The sequence number for the checkpoint that includes this transaction.
-  optional uint64 checkpoint = 5 [(iota.grpc.generate_accessors) = "with"];
+  optional uint64 checkpoint = 5;
 
   // The Unix timestamp of the checkpoint that includes this transaction.
-  optional google.protobuf.Timestamp timestamp = 6 [(iota.grpc.generate_accessors) = "with"];
+  optional google.protobuf.Timestamp timestamp = 6;
 
   // Set of input objects used by this transaction.
-  optional iota.grpc.v0.object.Objects input_objects = 7 [(iota.grpc.generate_accessors) = "with"];
+  optional iota.grpc.v0.object.Objects input_objects = 7;
 
   // Set of output objects produced by this transaction.
-  optional iota.grpc.v0.object.Objects output_objects = 8 [(iota.grpc.generate_accessors) = "with"];
+  optional iota.grpc.v0.object.Objects output_objects = 8;
 }
 
 message ExecutedTransactions {
-  repeated ExecutedTransaction transactions = 1 [(iota.grpc.generate_accessors) = "with"];
+  option (iota.grpc.message_accessors) = "with";
+
+  repeated ExecutedTransaction transactions = 1;
 }

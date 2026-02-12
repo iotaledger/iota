@@ -9,22 +9,28 @@ import "iota/grpc/options.proto";
 
 // 32-byte address type for IOTA addresses, object IDs, package IDs, etc.
 message Address {
-  bytes address = 1 [(iota.grpc.generate_accessors) = "with"];
+  option (iota.grpc.message_accessors) = "with";
+
+  bytes address = 1;
 }
 
 // Generic 32-byte digest (used for transactions, objects, etc.)
 message Digest {
-  bytes digest = 1 [(iota.grpc.generate_accessors) = "with"];
+  option (iota.grpc.message_accessors) = "with";
+
+  bytes digest = 1;
 }
 
 // Reference to an object.
 message ObjectReference {
+  option (iota.grpc.message_accessors) = "with";
+
   // The object id of this object.
-  optional string object_id = 1 [(iota.grpc.generate_accessors) = "with"];
+  optional string object_id = 1;
   // The version of this object.
-  optional uint64 version = 2 [(iota.grpc.generate_accessors) = "with"];
+  optional uint64 version = 2;
   // The digest of this object.
-  optional Digest digest = 3 [(iota.grpc.generate_accessors) = "with"];
+  optional Digest digest = 3;
 }
 
 message TypeTagVector {

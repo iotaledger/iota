@@ -298,25 +298,24 @@ impl Merge<&iota_sdk_types::Event> for Event {
         }
 
         if mask.contains(Self::PACKAGE_ID_FIELD.name) {
-            self.set_package_id(
-                Address::default().with_address(source.package_id.as_bytes().to_vec()),
-            );
+            self.package_id =
+                Some(Address::default().with_address(source.package_id.as_bytes().to_vec()));
         }
 
         if mask.contains(Self::MODULE_FIELD.name) {
-            self.set_module(source.module.to_string());
+            self.module = Some(source.module.to_string());
         }
 
         if mask.contains(Self::SENDER_FIELD.name) {
-            self.set_sender(Address::default().with_address(source.sender.as_bytes().to_vec()));
+            self.sender = Some(Address::default().with_address(source.sender.as_bytes().to_vec()));
         }
 
         if mask.contains(Self::EVENT_TYPE_FIELD.name) {
-            self.set_event_type(source.type_.to_string());
+            self.event_type = Some(source.type_.to_string());
         }
 
         if mask.contains(Self::BCS_CONTENTS_FIELD.name) {
-            self.set_bcs(BcsData::default().with_data(source.contents.clone()));
+            self.bcs_contents = Some(BcsData::default().with_data(source.contents.clone()));
         }
 
         Ok(())

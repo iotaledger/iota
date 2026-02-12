@@ -34,7 +34,6 @@ pub struct SimulateTransactionRequest {
     #[prost(
         enumeration = "simulate_transaction_request::TransactionCheckModes",
         repeated,
-        packed = "false",
         tag = "2"
     )]
     pub tx_checks: ::prost::alloc::vec::Vec<i32>,

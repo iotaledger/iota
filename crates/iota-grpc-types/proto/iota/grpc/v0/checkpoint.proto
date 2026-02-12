@@ -31,32 +31,38 @@ import "iota/grpc/v0/types.proto";
 // hashes included in the summary. `CheckpointSummary`s are signed and certified by a quorum of
 // the validator committee in a given epoch to allow verification of the chain's state.
 message CheckpointSummary {
+  option (iota.grpc.message_accessors) = "with";
+
   // The digest of this CheckpointSummary.
-  optional iota.grpc.v0.types.Digest digest = 1 [(iota.grpc.generate_accessors) = "with"];
-  
+  optional iota.grpc.v0.types.Digest digest = 1;
+
   // This CheckpointSummary serialized as BCS.
-  optional iota.grpc.v0.bcs.BcsData bcs = 2 [(iota.grpc.generate_accessors) = "with"];
+  optional iota.grpc.v0.bcs.BcsData bcs = 2;
 }
 
 // The committed to contents of a checkpoint.
 message CheckpointContents {
+  option (iota.grpc.message_accessors) = "with";
+
   // The digest of this CheckpointContents.
-  optional iota.grpc.v0.types.Digest digest = 1 [(iota.grpc.generate_accessors) = "with"];
+  optional iota.grpc.v0.types.Digest digest = 1;
   // This CheckpointContents serialized as BCS.
-  optional iota.grpc.v0.bcs.BcsData bcs = 2 [(iota.grpc.generate_accessors) = "with"];
+  optional iota.grpc.v0.bcs.BcsData bcs = 2;
 }
 
 message Checkpoint {
+  option (iota.grpc.message_accessors) = "with";
+
   // The height of this checkpoint.
-  optional uint64 sequence_number = 1 [(iota.grpc.generate_accessors) = "with"];
+  optional uint64 sequence_number = 1;
 
   // The `CheckpointSummary` for this checkpoint.
-  optional CheckpointSummary summary = 2 [(iota.grpc.generate_accessors) = "with"];
+  optional CheckpointSummary summary = 2;
 
   // The `CheckpointContents` for this checkpoint.
-  optional CheckpointContents contents = 3 [(iota.grpc.generate_accessors) = "with"];
+  optional CheckpointContents contents = 3;
 
   // An aggregated quorum signature from the validator committee that
   // certified this checkpoint.
-  optional iota.grpc.v0.signatures.ValidatorAggregatedSignature signature = 4 [(iota.grpc.generate_accessors) = "with"];
+  optional iota.grpc.v0.signatures.ValidatorAggregatedSignature signature = 4;
 }

@@ -14,31 +14,35 @@ import "iota/grpc/v0/types.proto";
 
 // An event.
 message Event {
+  option (iota.grpc.message_accessors) = "with";
+
   // This Event serialized as BCS.
-  optional iota.grpc.v0.bcs.BcsData bcs = 1 [(iota.grpc.generate_accessors) = "set,with"];
+  optional iota.grpc.v0.bcs.BcsData bcs = 1;
 
   // Package ID of the top-level function invoked by a `MoveCall` command that triggered this
   // event to be emitted.
-  optional iota.grpc.v0.types.Address package_id = 2 [(iota.grpc.generate_accessors) = "set,with"];
-  
+  optional iota.grpc.v0.types.Address package_id = 2;
+
   // Module name of the top-level function invoked by a `MoveCall` command that triggered this
   // event to be emitted.
-  optional string module = 3 [(iota.grpc.generate_accessors) = "set,with"];
+  optional string module = 3;
 
   // iota.grpc.v0.types.Address of the account that sent the transaction where this event was emitted.
-  optional iota.grpc.v0.types.Address sender = 4 [(iota.grpc.generate_accessors) = "set,with"];
+  optional iota.grpc.v0.types.Address sender = 4;
 
   // The type of the event emitted.
-  optional string event_type = 5 [(iota.grpc.generate_accessors) = "set,with"];
+  optional string event_type = 5;
 
   // BCS serialized bytes of the event.
-  optional iota.grpc.v0.bcs.BcsData bcs_contents = 6 [(iota.grpc.generate_accessors) = "set,with"];
+  optional iota.grpc.v0.bcs.BcsData bcs_contents = 6;
 
   // JSON rendering of the event.
-  optional google.protobuf.Value json_contents = 7 [(iota.grpc.generate_accessors) = "set,with"];
+  optional google.protobuf.Value json_contents = 7;
 }
 
 // A list of events.
 message Events {
-  repeated Event events = 1 [(iota.grpc.generate_accessors) = "with"];
+  option (iota.grpc.message_accessors) = "with";
+
+  repeated Event events = 1;
 }

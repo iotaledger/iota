@@ -11,80 +11,100 @@ import "iota/grpc/v0/types.proto";
 
 // Logical AND of several filters.
 message AllEventFilter {
-  repeated EventFilter filters = 1 [(iota.grpc.generate_accessors) = "with"];
+  option (iota.grpc.message_accessors) = "with";
+
+  repeated EventFilter filters = 1;
 }
 
 // Logical OR of several filters.
 message AnyEventFilter {
-  repeated EventFilter filters = 1 [(iota.grpc.generate_accessors) = "with"];
+  option (iota.grpc.message_accessors) = "with";
+
+  repeated EventFilter filters = 1;
 }
 
 // Logical NOT of a filter.
 message NotEventFilter {
-  EventFilter filter = 1 [(iota.grpc.generate_accessors) = "with"];
+  option (iota.grpc.message_accessors) = "with";
+
+  EventFilter filter = 1;
 }
 
 // Filter by address.
 message AddressFilter {
-  iota.grpc.v0.types.Address address = 1 [(iota.grpc.generate_accessors) = "with"];
+  option (iota.grpc.message_accessors) = "with";
+
+  iota.grpc.v0.types.Address address = 1;
 }
 
 // Filter by Move package + module (optional).
 message MovePackageAndModuleFilter {
-  iota.grpc.v0.types.Address package_id = 1 [(iota.grpc.generate_accessors) = "with"];
-  optional string module = 2 [(iota.grpc.generate_accessors) = "with"];
+  option (iota.grpc.message_accessors) = "with";
+
+  iota.grpc.v0.types.Address package_id = 1;
+  optional string module = 2;
 }
 
 // Filter by the given Move event struct name (struct tag).
 // For example, if the event is defined in `0xabcd::MyModule`, and named
 // `Foo`, then the struct tag is `0xabcd::MyModule::Foo`.
 message MoveEventTypeFilter {
-  string struct_tag = 1 [(iota.grpc.generate_accessors) = "with"];
+  option (iota.grpc.message_accessors) = "with";
+
+  string struct_tag = 1;
 }
 
 // Filter for events.
 message EventFilter {
+  option (iota.grpc.message_accessors) = "with";
+
   oneof filter {
     // Logical AND of several filters.
-    AllEventFilter all = 1 [(iota.grpc.generate_accessors) = "with"];
+    AllEventFilter all = 1;
     // Logical OR of several filters.
-    AnyEventFilter any = 2 [(iota.grpc.generate_accessors) = "with"];
+    AnyEventFilter any = 2;
     // Logical NOT of a filter.
-    NotEventFilter negation = 3 [(iota.grpc.generate_accessors) = "with"];
+    NotEventFilter negation = 3;
 
     // Filter by sender address.
-    AddressFilter sender = 4 [(iota.grpc.generate_accessors) = "with"];
+    AddressFilter sender = 4;
 
     // Return events emitted in a specified Move package + module (optional).
     // If the event is defined in PackageA::ModuleA but emitted in a tx with PackageB::ModuleB,
     // filtering `MovePackageAndModule` by PackageB::ModuleB returns the event.
     // Filtering `MoveEventPackageAndModule` by PackageA::ModuleA returns the event too.
-    MovePackageAndModuleFilter move_package_and_module = 5 [(iota.grpc.generate_accessors) = "with"];
+    MovePackageAndModuleFilter move_package_and_module = 5;
     // Return events with the given Move package + module (optional) where the event struct is
     // defined. If the event is defined in PackageA::ModuleA but emitted in a tx
     // with PackageB::ModuleB, filtering `MoveEventPackageAndModule` by PackageA::ModuleA returns the
     // event. Filtering `MovePackageAndModule` by PackageB::ModuleB returns the event too.
-    MovePackageAndModuleFilter move_event_package_and_module = 6 [(iota.grpc.generate_accessors) = "with"];
+    MovePackageAndModuleFilter move_event_package_and_module = 6;
     // Return events with the given Move event struct name (struct tag).
     // For example, if the event is defined in `0xabcd::MyModule`, and named
     // `Foo`, then the struct tag is `0xabcd::MyModule::Foo`.
-    MoveEventTypeFilter move_event_type = 7 [(iota.grpc.generate_accessors) = "with"];
+    MoveEventTypeFilter move_event_type = 7;
   }
 }
 
 // Logical AND of several filters.
 message AllTransactionFilter {
-  repeated TransactionFilter filters = 1 [(iota.grpc.generate_accessors) = "with"];
+  option (iota.grpc.message_accessors) = "with";
+
+  repeated TransactionFilter filters = 1;
 }
 
 // Logical OR of several filters.
 message AnyTransactionFilter {
-  repeated TransactionFilter filters = 1 [(iota.grpc.generate_accessors) = "with"];
+  option (iota.grpc.message_accessors) = "with";
+
+  repeated TransactionFilter filters = 1;
 }
 
 // Logical NOT of a filter.
 message NotTransactionFilter {
-  TransactionFilter filter = 1 [(iota.grpc.generate_accessors) = "with"];
+  option (iota.grpc.message_accessors) = "with";
+
+  TransactionFilter filter = 1;
 }
 
 enum TransactionKind {
@@ -100,47 +120,55 @@ enum TransactionKind {
 
 // Filter by transaction kinds (any of the specified kinds).
 message TransactionKindsFilter {
-  repeated TransactionKind kinds = 1 [(iota.grpc.generate_accessors) = "with"];
+  option (iota.grpc.message_accessors) = "with";
+
+  repeated TransactionKind kinds = 1;
 }
 
 // Filter by input object ID.
 message ObjectIdFilter {
-  iota.grpc.v0.types.ObjectReference object_ref = 1 [(iota.grpc.generate_accessors) = "with"];
+  option (iota.grpc.message_accessors) = "with";
+
+  iota.grpc.v0.types.ObjectReference object_ref = 1;
 }
 
 // Filter by move package, module (optional) and function (optional).
 message MoveCallFilter {
-  iota.grpc.v0.types.Address package_id = 1 [(iota.grpc.generate_accessors) = "with"];
-  optional string module = 2 [(iota.grpc.generate_accessors) = "with"];
-  optional string function = 3 [(iota.grpc.generate_accessors) = "with"];
+  option (iota.grpc.message_accessors) = "with";
+
+  iota.grpc.v0.types.Address package_id = 1;
+  optional string module = 2;
+  optional string function = 3;
 }
 
 // Filter for transactions.
 message TransactionFilter {
+  option (iota.grpc.message_accessors) = "with";
+
   oneof filter {
     // Logical AND of several filters.
-    AllTransactionFilter all = 1 [(iota.grpc.generate_accessors) = "with"];
+    AllTransactionFilter all = 1;
     // Logical OR of several filters.
-    AnyTransactionFilter any = 2 [(iota.grpc.generate_accessors) = "with"];
+    AnyTransactionFilter any = 2;
     // Logical NOT of a filter.
-    NotTransactionFilter negation = 3 [(iota.grpc.generate_accessors) = "with"];
+    NotTransactionFilter negation = 3;
 
     // Filter transactions of any given kind in the filter.
-    TransactionKindsFilter transaction_kinds = 4 [(iota.grpc.generate_accessors) = "with"];
+    TransactionKindsFilter transaction_kinds = 4;
 
     // Filter by sender address.
-    AddressFilter sender = 5 [(iota.grpc.generate_accessors) = "with"];
+    AddressFilter sender = 5;
     // Filter by recipient address. The recipient is determined by
     // checking the owners of mutated and unwrapped objects.
-    AddressFilter receiver = 6 [(iota.grpc.generate_accessors) = "with"];
+    AddressFilter receiver = 6;
 
     // Filter for transactions that touch this object.
-    ObjectIdFilter affected_object = 7 [(iota.grpc.generate_accessors) = "with"];
+    ObjectIdFilter affected_object = 7;
 
     // Filter by move package, module (optional) and function (optional).
-    MoveCallFilter move_call = 8 [(iota.grpc.generate_accessors) = "with"];
+    MoveCallFilter move_call = 8;
 
     // Filter transactions that contain events matching the given event filter.
-    EventFilter event = 9 [(iota.grpc.generate_accessors) = "with"];
+    EventFilter event = 9;
   }
 }

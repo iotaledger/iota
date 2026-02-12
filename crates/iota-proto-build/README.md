@@ -42,19 +42,30 @@ Source proto files: `crates/iota-grpc-types/proto/iota/grpc/v0/`
 
 ## Selective Accessor Generation
 
-iota-protoc-build supports selective accessor generation via custom proto field options.
+iota-protoc-build supports selective accessor generation via custom proto options at both the message and field level.
 
-Fields that need accessors are annotated in the `.proto` files using a custom option:
+You can annotate individual fields using the `field_accessors` option:
 
 ```protobuf
 import "iota/grpc/options.proto";
 
 message ObjectRequest {
-  optional ObjectReference object_ref = 1 [(iota.grpc.generate_accessors) = "set,with"];
+  optional ObjectReference object_ref = 1 [(iota.grpc.field_accessors) = "set,with"];
 }
 ```
 
-The `generate_accessors` option accepts a comma-separated list of accessor types:
+Or set default accessors for all fields in a message using the `message_accessors` option:
+
+```protobuf
+message Transaction {
+  option (iota.grpc.message_accessors) = "with";
+
+  optional Digest digest = 1;  // Gets with_digest() from message default
+  optional BcsData bcs = 2 [(iota.grpc.field_accessors) = "with,set"];  // Overrides: gets both with_bcs() and set_bcs()
+}
+```
+
+Both options accept a comma-separated list of accessor types:
 
 **Individual Accessor Types:**
 

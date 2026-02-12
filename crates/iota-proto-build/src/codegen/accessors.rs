@@ -227,7 +227,7 @@ fn generate_accessors_functions_for_field(
         .next()
         .unwrap_or(&message.type_name);
 
-    // Check if this field has the generate_accessors custom option
+    // Check if this field has the accessors custom option
     let accessor_types = match AccessorTypes::from_field(&field.inner, accessor_map, message_name) {
         Some(types) => types,
         None => return TokenStream::new(), // No option, skip this field
