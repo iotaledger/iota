@@ -234,7 +234,7 @@ VecMap(bcs.string(), bcs.string())
 
 ## Transforms
 
-If you the format you use in your code is different from the format expected for BCS serialization,
+If the format you use in your code is different from the format expected for BCS serialization,
 you can use the `transform` API to map between the types you use in your application, and the types
 needed for serialization.
 

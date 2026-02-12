@@ -41,6 +41,12 @@ import { TransactionEffects } from './effects.js';
 
 export type { TypeTag } from './types.js';
 
+export {
+    pureBcsSchemaFromTypeName,
+    type ShapeFromPureTypeName,
+    type PureTypeName,
+} from './pure.js';
+
 export { TypeTagSerializer } from './type-tag-serializer.js';
 export { BcsType, type BcsTypeOptions } from '@iota/bcs';
 
