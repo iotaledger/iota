@@ -270,18 +270,18 @@ task 11, lines 200-203:
 //# programmable --sender A --inputs object(2,8)@3 vector[0] --dev-inspect
 //> test::m::check(Input(0), Input(1))
 // Should fail since the field has been deleted.
-Error: Transaction Effects Status: MoveAbort(MoveLocation { module: ModuleId { address: test, name: Identifier("m") }, function: 14, instruction: 18, function_name: Some("check_") }, 0) in command 0
-Execution Error: MoveAbort(MoveLocation { module: ModuleId { address: test, name: Identifier("m") }, function: 14, instruction: 18, function_name: Some("check_") }, 0) in command 0
+Error: Transaction Effects Status: Move Runtime Abort. Location: test::m::check_ (function index 14) at offset 18, Abort Code: 0 in command 0
+Execution Error: Move Runtime Abort. Location: test::m::check_ (function index 14) at offset 18, Abort Code: 0 in command 0
 
 task 12, lines 204-207:
 //# programmable --sender A --inputs object(2,8)@4 vector[112] --dev-inspect
 //> test::m::check(Input(0), Input(1))
 // Should fail since at the version of the object we're passing in the field exists still
-Error: Transaction Effects Status: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("dynamic_field") }, function: 11, instruction: 0, function_name: Some("borrow_child_object") }, 1) in command 0
-Execution Error: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("dynamic_field") }, function: 11, instruction: 0, function_name: Some("borrow_child_object") }, 1) in command 0
+Error: Transaction Effects Status: Move Runtime Abort. Location: iota::dynamic_field::borrow_child_object (function index 11) at offset 0, Abort Code: 1 in command 0
+Execution Error: Move Runtime Abort. Location: iota::dynamic_field::borrow_child_object (function index 11) at offset 0, Abort Code: 1 in command 0
 
 task 13, lines 208-209:
 //# programmable --sender A --inputs object(2,8)@2 vector[] --dev-inspect
 //> test::m::check(Input(0), Input(1))
-Error: Transaction Effects Status: MoveAbort(MoveLocation { module: ModuleId { address: test, name: Identifier("m") }, function: 14, instruction: 26, function_name: Some("check_") }, 0) in command 0
-Execution Error: MoveAbort(MoveLocation { module: ModuleId { address: test, name: Identifier("m") }, function: 14, instruction: 26, function_name: Some("check_") }, 0) in command 0
+Error: Transaction Effects Status: Move Runtime Abort. Location: test::m::check_ (function index 14) at offset 26, Abort Code: 0 in command 0
+Execution Error: Move Runtime Abort. Location: test::m::check_ (function index 14) at offset 26, Abort Code: 0 in command 0

@@ -222,10 +222,10 @@ const commonConfig: () => Promise<Configuration> = async () => {
                                       }
                                     : undefined),
                                 icons: {
-                                    16: `manifest/icons/iota-icon-16${IS_RC ? '-rc' : ''}.png`,
-                                    32: `manifest/icons/iota-icon-32${IS_RC ? '-rc' : ''}.png`,
-                                    48: `manifest/icons/iota-icon-48${IS_RC ? '-rc' : ''}.png`,
-                                    128: `manifest/icons/iota-icon-128${IS_RC ? '-rc' : ''}.png`,
+                                    16: `manifest/icons/iota-icon-16${IS_RC ? '-rc' : IS_DEV ? '-dev' : ''}.png`,
+                                    32: `manifest/icons/iota-icon-32${IS_RC ? '-rc' : IS_DEV ? '-dev' : ''}.png`,
+                                    48: `manifest/icons/iota-icon-48${IS_RC ? '-rc' : IS_DEV ? '-dev' : ''}.png`,
+                                    128: `manifest/icons/iota-icon-128${IS_RC ? '-rc' : IS_DEV ? '-dev' : ''}.png`,
                                 },
                             };
                             return JSON.stringify(manifestJson, null, 4);

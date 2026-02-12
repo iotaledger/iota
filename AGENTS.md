@@ -28,7 +28,7 @@ sdk/
 
 ### Tools
 
-- package manager: pnpm (workspace; requires pnpm >= 9)
+- package manager: pnpm (workspace; requires pnpm >= 9.6.0 <= 9.15.9)
 - monorepo tooling: Turborepo (turbo)
 - Husky for git hooks; Changesets for releases
 
