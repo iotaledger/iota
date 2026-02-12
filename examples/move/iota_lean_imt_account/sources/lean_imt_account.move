@@ -20,7 +20,7 @@ const EEd25519VerificationFailed: vector<u8> = b"Ed25519 authenticator verificat
 // === Structs ===
 
 /// This struct represents an abstract IOTA account.
-/// This account stores a root of a Merkle tree used to store elegible users.
+/// This account stores a root of a Merkle tree used to store eligible users.
 ///
 /// It holds all the related data as dynamic fields to simplify updates, migrations and extensions.
 /// Arbitrary dynamic fields may be added and removed as necessary.

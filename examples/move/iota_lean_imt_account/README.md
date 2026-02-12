@@ -9,8 +9,7 @@ Two authentication modes are supported:
 - **Secret mode** -- the caller proves membership without revealing their public key.
 - **Public key mode** -- the caller's public key is disclosed on-chain and the leaf is derived from it.
 
-> [!WARNING]  
+> [!WARNING]\
 > This is a PoC, as a properly secure design would involve at least some salt mechanism for the hash and additional proving mechanism; in here, if a public key being part of the IMT is disclosed, then it would be trivial to obtain an unwanted access to the account.
 
-Check https://github.com/miker83z/iota-lean-imt-account for the instructions and code on how to generate a new tree and proofs. 
-
+Check https://github.com/miker83z/iota-lean-imt-account for the instructions and code on how to generate a new tree and proofs.
