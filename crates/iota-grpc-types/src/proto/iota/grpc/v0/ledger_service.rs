@@ -6,7 +6,7 @@ include!("../../../generated/iota.grpc.v0.ledger_service.rs");
 include!("../../../generated/iota.grpc.v0.ledger_service.field_info.rs");
 include!("../../../generated/iota.grpc.v0.ledger_service.accessors.rs");
 
-use crate::proto::TryFromProtoError;
+use crate::proto::{TryFromProtoError, get_inner_field};
 
 // GetServiceInfoResponse
 //
@@ -14,11 +14,7 @@ use crate::proto::TryFromProtoError;
 impl GetServiceInfoResponse {
     /// Get the chain identifier (digest of genesis checkpoint).
     pub fn chain_identifier(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
-        self.chain_id
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::CHAIN_ID_FIELD.name))?
-            .try_into()
-            .map_err(|e: TryFromProtoError| e.nested(Self::CHAIN_ID_FIELD.name))
+        get_inner_field!(self.chain_id, Self::CHAIN_ID_FIELD, try_into)
     }
 
     /// Get the human-readable chain name (e.g., "mainnet", "testnet").
@@ -287,29 +283,21 @@ impl checkpoint_data::EndMarker {
 impl GetEpochResponse {
     /// Get the epoch number.
     pub fn epoch_number(&self) -> Result<u64, TryFromProtoError> {
-        self.epoch
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))?
-            .epoch_number()
-            .map_err(|e| e.nested(Self::EPOCH_FIELD.name))
+        get_inner_field!(self.epoch, Self::EPOCH_FIELD, epoch_number)
     }
 
     /// Get the validator committee.
     pub fn committee(&self) -> Result<iota_sdk_types::ValidatorCommittee, TryFromProtoError> {
-        self.epoch
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))?
-            .committee()
-            .map_err(|e| e.nested(Self::EPOCH_FIELD.name))
+        get_inner_field!(self.epoch, Self::EPOCH_FIELD, committee)
     }
 
     /// Get the first checkpoint sequence number in this epoch.
     pub fn first_checkpoint(&self) -> Result<u64, TryFromProtoError> {
-        self.epoch
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))?
-            .first_checkpoint_sequence_number()
-            .map_err(|e| e.nested(Self::EPOCH_FIELD.name))
+        get_inner_field!(
+            self.epoch,
+            Self::EPOCH_FIELD,
+            first_checkpoint_sequence_number
+        )
     }
 
     /// Get the last checkpoint sequence number in this epoch.
@@ -317,20 +305,16 @@ impl GetEpochResponse {
     /// Returns `Ok(None)` for the current in-progress epoch (field not yet
     /// set).
     pub fn last_checkpoint(&self) -> Result<Option<u64>, TryFromProtoError> {
-        self.epoch
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))?
-            .last_checkpoint_sequence_number()
-            .map_err(|e| e.nested(Self::EPOCH_FIELD.name))
+        get_inner_field!(
+            self.epoch,
+            Self::EPOCH_FIELD,
+            last_checkpoint_sequence_number
+        )
     }
 
     /// Get the epoch start time in milliseconds.
     pub fn start_ms(&self) -> Result<u64, TryFromProtoError> {
-        self.epoch
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))?
-            .start_ms()
-            .map_err(|e| e.nested(Self::EPOCH_FIELD.name))
+        get_inner_field!(self.epoch, Self::EPOCH_FIELD, start_ms)
     }
 
     /// Get the epoch end time in milliseconds.
@@ -338,28 +322,16 @@ impl GetEpochResponse {
     /// Returns `Ok(None)` for the current in-progress epoch (field not yet
     /// set).
     pub fn end_ms(&self) -> Result<Option<u64>, TryFromProtoError> {
-        self.epoch
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))?
-            .end_ms()
-            .map_err(|e| e.nested(Self::EPOCH_FIELD.name))
+        get_inner_field!(self.epoch, Self::EPOCH_FIELD, end_ms)
     }
 
     /// Get the reference gas price in NANOS.
     pub fn gas_price(&self) -> Result<u64, TryFromProtoError> {
-        self.epoch
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))?
-            .gas_price()
-            .map_err(|e| e.nested(Self::EPOCH_FIELD.name))
+        get_inner_field!(self.epoch, Self::EPOCH_FIELD, gas_price)
     }
 
     /// Get the protocol version.
     pub fn protocol_version(&self) -> Result<u64, TryFromProtoError> {
-        self.epoch
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))?
-            .protocol_version()
-            .map_err(|e| e.nested(Self::EPOCH_FIELD.name))
+        get_inner_field!(self.epoch, Self::EPOCH_FIELD, protocol_version)
     }
 }

@@ -6,7 +6,10 @@ include!("../../../generated/iota.grpc.v0.checkpoint.rs");
 include!("../../../generated/iota.grpc.v0.checkpoint.field_info.rs");
 include!("../../../generated/iota.grpc.v0.checkpoint.accessors.rs");
 
-use crate::{proto::TryFromProtoError, v0::bcs::BcsData};
+use crate::{
+    proto::{TryFromProtoError, get_inner_field},
+    v0::bcs::BcsData,
+};
 
 // CheckpointSummary
 //
@@ -41,11 +44,7 @@ impl CheckpointSummary {
 
     /// Get the digest of this checkpoint summary.
     pub fn summary_digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
-        self.digest
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::DIGEST_FIELD.name))?
-            .try_into()
-            .map_err(|e: TryFromProtoError| e.nested(Self::DIGEST_FIELD.name))
+        get_inner_field!(self.digest, Self::DIGEST_FIELD, try_into)
     }
 }
 
@@ -82,11 +81,7 @@ impl CheckpointContents {
 
     /// Get the digest of this checkpoint contents.
     pub fn contents_digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
-        self.digest
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::DIGEST_FIELD.name))?
-            .try_into()
-            .map_err(|e: TryFromProtoError| e.nested(Self::DIGEST_FIELD.name))
+        get_inner_field!(self.digest, Self::DIGEST_FIELD, try_into)
     }
 }
 
@@ -102,38 +97,22 @@ impl Checkpoint {
 
     /// Get the raw BCS bytes of the checkpoint summary.
     pub fn summary_bcs(&self) -> Result<&[u8], TryFromProtoError> {
-        self.summary
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::SUMMARY_FIELD.name))?
-            .summary_bcs()
-            .map_err(|e| e.nested(Self::SUMMARY_FIELD.name))
+        get_inner_field!(self.summary, Self::SUMMARY_FIELD, summary_bcs)
     }
 
     /// Get the raw BCS bytes of the checkpoint contents.
     pub fn contents_bcs(&self) -> Result<&[u8], TryFromProtoError> {
-        self.contents
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::CONTENTS_FIELD.name))?
-            .contents_bcs()
-            .map_err(|e| e.nested(Self::CONTENTS_FIELD.name))
+        get_inner_field!(self.contents, Self::CONTENTS_FIELD, contents_bcs)
     }
 
     /// Deserialize checkpoint summary.
     pub fn summary(&self) -> Result<iota_sdk_types::CheckpointSummary, TryFromProtoError> {
-        self.summary
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::SUMMARY_FIELD.name))?
-            .summary()
-            .map_err(|e| e.nested(Self::SUMMARY_FIELD.name))
+        get_inner_field!(self.summary, Self::SUMMARY_FIELD, summary)
     }
 
     /// Deserialize checkpoint contents.
     pub fn contents(&self) -> Result<iota_sdk_types::CheckpointContents, TryFromProtoError> {
-        self.contents
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::CONTENTS_FIELD.name))?
-            .contents()
-            .map_err(|e| e.nested(Self::CONTENTS_FIELD.name))
+        get_inner_field!(self.contents, Self::CONTENTS_FIELD, contents)
     }
 
     /// Deserialize validator signature.
@@ -166,19 +145,11 @@ impl Checkpoint {
 
     /// Get the summary digest directly from the nested summary.
     pub fn summary_digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
-        self.summary
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::SUMMARY_FIELD.name))?
-            .summary_digest()
-            .map_err(|e| e.nested(Self::SUMMARY_FIELD.name))
+        get_inner_field!(self.summary, Self::SUMMARY_FIELD, summary_digest)
     }
 
     /// Get the contents digest directly from the nested contents.
     pub fn contents_digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
-        self.contents
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::CONTENTS_FIELD.name))?
-            .contents_digest()
-            .map_err(|e| e.nested(Self::CONTENTS_FIELD.name))
+        get_inner_field!(self.contents, Self::CONTENTS_FIELD, contents_digest)
     }
 }

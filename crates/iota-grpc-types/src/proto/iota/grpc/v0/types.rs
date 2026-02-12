@@ -6,7 +6,7 @@ include!("../../../generated/iota.grpc.v0.types.rs");
 include!("../../../generated/iota.grpc.v0.types.field_info.rs");
 include!("../../../generated/iota.grpc.v0.types.accessors.rs");
 
-use crate::proto::TryFromProtoError;
+use crate::proto::{TryFromProtoError, get_inner_field};
 
 impl From<iota_sdk_types::Digest> for Digest {
     fn from(value: iota_sdk_types::Digest) -> Self {
@@ -142,11 +142,7 @@ impl ObjectReference {
 
     /// Get the object digest.
     pub fn object_digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
-        self.digest
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::DIGEST_FIELD.name))?
-            .digest()
-            .map_err(|e| e.nested(Self::DIGEST_FIELD.name))
+        get_inner_field!(self.digest, Self::DIGEST_FIELD, digest)
     }
 }
 
