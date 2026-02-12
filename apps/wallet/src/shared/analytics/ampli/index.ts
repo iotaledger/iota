@@ -83,6 +83,16 @@ export interface AddedAccountsProperties {
     numberOfAccounts?: number;
 }
 
+export interface AutoLockUpdatedProperties {
+    autoLock: boolean;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    lockTimeSeconds: number;
+}
+
 export interface ClickedAppsBannerCtaProperties {
     /**
      * | Rule | Value |
@@ -387,6 +397,14 @@ export class AddedAccounts implements BaseEvent {
     event_type = 'added accounts';
 
     constructor(public event_properties?: AddedAccountsProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class AutoLockUpdated implements BaseEvent {
+    event_type = 'auto lock updated';
+
+    constructor(public event_properties: AutoLockUpdatedProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -743,6 +761,23 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new AddedAccounts(properties), options);
+  }
+
+  /**
+   * auto lock updated
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/auto%20lock%20updated)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. autolock)
+   * @param options Amplitude event options.
+   */
+  autoLockUpdated(
+    properties: AutoLockUpdatedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new AutoLockUpdated(properties), options);
   }
 
   /**
