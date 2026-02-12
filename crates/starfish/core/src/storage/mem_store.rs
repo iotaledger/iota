@@ -51,6 +51,8 @@ struct Inner {
     commit_info: BTreeMap<(CommitIndex, CommitDigest), CommitInfo>,
     /// Stores voting block headers separately from regular block headers.
     voting_block_headers: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedBlockHeader>,
+    /// Flag indicating fast commit sync is ongoing.
+    fast_sync_ongoing: bool,
 }
 
 impl MemStore {
@@ -66,6 +68,7 @@ impl MemStore {
                 commit_votes: BTreeSet::new(),
                 commit_info: BTreeMap::new(),
                 voting_block_headers: BTreeMap::new(),
+                fast_sync_ongoing: false,
             }),
             context,
         }
@@ -147,6 +150,8 @@ impl Store for MemStore {
             }
             inner.voting_block_headers.insert(key, header);
         }
+
+        inner.fast_sync_ongoing = write_batch.fast_commit_sync_flag;
 
         Ok(())
     }
@@ -521,5 +526,9 @@ impl Store for MemStore {
             })
             .collect();
         Ok(headers)
+    }
+
+    fn read_fast_sync_ongoing(&self) -> bool {
+        self.inner.read().fast_sync_ongoing
     }
 }
