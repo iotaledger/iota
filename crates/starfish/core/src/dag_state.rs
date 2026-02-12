@@ -203,6 +203,9 @@ pub(crate) struct DagState {
     /// commits.
     voting_block_headers_to_write: Vec<VerifiedBlockHeader>,
 
+    /// Fast sync ongoing flag to be flushed to storage.
+    fast_sync_ongoing_flag_to_write: bool,
+
     /// Buffer the reputation scores & last_committed_rounds to be flushed with
     /// the next dag state flush. This is okay because we can recover
     /// reputation scores & last_committed_rounds from the commits as
@@ -257,33 +260,40 @@ impl DagState {
                 (vec![0; num_authorities], GENESIS_COMMIT_INDEX + 1)
             };
 
+        // Read fast sync flag from storage
+        let fast_sync_ongoing = store.read_fast_sync_ongoing();
+
         let mut unscored_committed_subdags = Vec::new();
         let mut scoring_subdag = ScoringSubdag::new(context.clone());
 
-        if let Some(last_commit) = last_commit.as_ref() {
-            store
-                .scan_commits((commit_recovery_start_index..=last_commit.index()).into())
-                .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
-                .iter()
-                .for_each(|commit| {
-                    for block_ref in commit.block_headers() {
-                        last_committed_rounds[block_ref.author] =
-                            max(last_committed_rounds[block_ref.author], block_ref.round);
-                    }
+        // Skip subdag recovery if fast sync is ongoing - block data may not be
+        // available and this will be reinitialized by fast commit syncer anyway
+        if !fast_sync_ongoing {
+            if let Some(last_commit) = last_commit.as_ref() {
+                store
+                    .scan_commits((commit_recovery_start_index..=last_commit.index()).into())
+                    .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
+                    .iter()
+                    .for_each(|commit| {
+                        for block_ref in commit.block_headers() {
+                            last_committed_rounds[block_ref.author] =
+                                max(last_committed_rounds[block_ref.author], block_ref.round);
+                        }
 
-                    let committed_subdag =
-                        load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![]); // We don't need to recover reputation scores for unscored_committed_subdags
-                    unscored_committed_subdags.push(committed_subdag.base);
-                });
+                        let committed_subdag =
+                            load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![]);
+                        unscored_committed_subdags.push(committed_subdag.base);
+                    });
+            }
+
+            scoring_subdag.add_subdags(mem::take(&mut unscored_committed_subdags));
         }
 
         info!(
-            "DagState was initialized with the following state: \
-            {last_commit:?}; {last_committed_rounds:?}; {} unscored committed subdags;",
+            "DagState initialized: {last_commit:?}; {last_committed_rounds:?}; \
+            {} unscored committed subdags; fast_sync_ongoing={fast_sync_ongoing}",
             unscored_committed_subdags.len()
         );
-
-        scoring_subdag.add_subdags(mem::take(&mut unscored_committed_subdags));
 
         let mut state = Self {
             context: context.clone(),
@@ -304,6 +314,7 @@ impl DagState {
             block_headers_to_write: vec![],
             commits_to_write: vec![],
             voting_block_headers_to_write: vec![],
+            fast_sync_ongoing_flag_to_write: fast_sync_ongoing,
             commit_info_to_write: vec![],
             pending_acknowledgments: BTreeSet::new(),
             scoring_subdag,
@@ -568,6 +579,14 @@ impl DagState {
     /// certify commits.
     pub(crate) fn add_voting_block_headers(&mut self, headers: Vec<VerifiedBlockHeader>) {
         self.voting_block_headers_to_write.extend(headers);
+    }
+
+    pub(crate) fn set_fast_sync_ongoing_flag(&mut self, flag: bool) {
+        self.fast_sync_ongoing_flag_to_write = flag;
+    }
+
+    pub(crate) fn fast_sync_ongoing(&self) -> bool {
+        self.store.read_fast_sync_ongoing()
     }
 
     /// Returns the leader round of the last solid commit (backward
@@ -1972,6 +1991,7 @@ impl DagState {
         let commits = std::mem::take(&mut self.commits_to_write);
         let commit_info = std::mem::take(&mut self.commit_info_to_write);
         let voting_block_headers = std::mem::take(&mut self.voting_block_headers_to_write);
+        let fast_commit_sync_flag = self.fast_sync_ongoing_flag_to_write;
 
         // Early return if there's nothing to flush
         if transactions.is_empty()
@@ -1984,7 +2004,7 @@ impl DagState {
         }
 
         debug!(
-            "Flushing {} block headers ({}), {} transactions ({}), {} commits ({}) and {} commit info ({}) to storage.",
+            "Flushing {} block headers ({}), {} transactions ({}), {} commits ({}) and {} commit info ({}) and fast commit sync flag ({}) to storage.",
             block_headers.len(),
             block_headers
                 .iter()
@@ -2002,6 +2022,7 @@ impl DagState {
                 .iter()
                 .map(|(commit_ref, _)| commit_ref.to_string())
                 .join(","),
+            fast_commit_sync_flag
         );
 
         // Write all buffered data to storage
@@ -2013,6 +2034,7 @@ impl DagState {
                     commits,
                     commit_info,
                     voting_block_headers,
+                    fast_commit_sync_flag,
                 ),
                 self.context.clone(),
             )

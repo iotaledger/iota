@@ -204,17 +204,18 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                     }
                 }
 
-                // Reset state regardless of success - we've done what we can,
-                // and regular syncer should take over now
+                // Reset state - regular syncer takes over for now.
+                // Keep the loop running so we can re-activate if the node
+                // falls behind significantly again.
                 self.close_to_quorum_mode = false;
                 self.has_fetched_data = false;
+                self.highest_scheduled_index = None;
+                self.synced_commit_index = self.inner.dag_state.read().last_solid_commit_index();
 
-                // Exit the loop - fast sync is complete
                 info!(
-                    "[{}] Fast sync complete, exiting schedule loop",
+                    "[{}] Fast sync complete, staying active for potential reactivation",
                     self.inner.sync_type.as_str()
                 );
-                return;
             }
         }
     }

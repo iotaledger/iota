@@ -172,6 +172,10 @@ pub(crate) trait Store: Send + Sync {
         &self,
         refs: &[BlockRef],
     ) -> ConsensusResult<Vec<Option<VerifiedBlockHeader>>>;
+
+    /// Returns true if fast commit sync was ongoing when the node last shut
+    /// down.
+    fn read_fast_sync_ongoing(&self) -> bool;
 }
 
 /// Represents data to be written to the store together atomically.
@@ -182,6 +186,7 @@ pub(crate) struct WriteBatch {
     pub(crate) commits: Vec<TrustedCommit>,
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
     pub(crate) voting_block_headers: Vec<VerifiedBlockHeader>,
+    pub(crate) fast_commit_sync_flag: bool,
 }
 
 impl WriteBatch {
@@ -191,6 +196,7 @@ impl WriteBatch {
         commits: Vec<TrustedCommit>,
         commit_info: Vec<(CommitRef, CommitInfo)>,
         voting_block_headers: Vec<VerifiedBlockHeader>,
+        fast_commit_sync_flag: bool,
     ) -> Self {
         WriteBatch {
             transactions,
@@ -198,6 +204,7 @@ impl WriteBatch {
             commits,
             commit_info,
             voting_block_headers,
+            fast_commit_sync_flag,
         }
     }
 
