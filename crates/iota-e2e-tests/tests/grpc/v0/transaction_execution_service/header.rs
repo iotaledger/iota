@@ -92,7 +92,8 @@ async fn test_response_headers() {
 
         let request = SimulateTransactionRequest::default()
             .with_transaction(transaction)
-            .with_tx_checks(vec![]);
+            .with_tx_checks(vec![])
+            .with_estimate_gas_budget(true);
 
         // Simulate the transaction
         let response = exec_client.simulate_transaction(request).await.unwrap();

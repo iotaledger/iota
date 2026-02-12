@@ -74,6 +74,7 @@ impl Client {
         &self,
         transaction: Transaction,
         dev_inspect: bool,
+        estimate_gas_budget: bool,
         read_mask: Option<&str>,
     ) -> Result<ExecutedTransaction> {
         // Build proto transaction directly from SDK types
@@ -88,6 +89,7 @@ impl Client {
         let request = SimulateTransactionRequest::default()
             .with_transaction(proto_transaction)
             .with_tx_checks(tx_checks)
+            .with_estimate_gas_budget(estimate_gas_budget)
             .with_read_mask(field_mask_with_default(read_mask, EXECUTION_READ_MASK));
 
         let response = self
