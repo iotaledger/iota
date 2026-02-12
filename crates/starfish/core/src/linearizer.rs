@@ -622,13 +622,13 @@ mod tests {
 
         // Create some commits
         let commits = linearizer.get_pending_sub_dags(leaders.clone());
-
-        // Write them in DagState
-        dag_state
-            .write()
-            .add_scoring_subdags(commits.iter().map(|d| d.base.clone()).collect());
-        // Now update the leader schedule
-        leader_schedule.update_leader_schedule(&dag_state);
+        {
+            // Write them in DagState
+            let mut write = dag_state.write();
+            write.add_scoring_subdags(commits.iter().map(|d| d.base.clone()).collect());
+            // Now update the leader schedule
+            leader_schedule.update_leader_schedule(&mut write);
+        }
         assert!(
             leader_schedule.leader_schedule_updated(&dag_state),
             "Leader schedule should have been updated"
