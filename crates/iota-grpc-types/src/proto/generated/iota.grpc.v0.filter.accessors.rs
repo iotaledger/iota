@@ -10,7 +10,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.address = Some(field.into().into());
+            self.address = Some(field.into());
             self
         }
     }
@@ -46,30 +46,28 @@ mod _accessor_impls {
         /// Sets `all` with the provided value.
         /// If any other oneof field in the same oneof is set, it will be cleared.
         pub fn with_all<T: Into<super::AllEventFilter>>(mut self, field: T) -> Self {
-            self.filter = Some(super::event_filter::Filter::All(field.into().into()));
+            self.filter = Some(super::event_filter::Filter::All(field.into()));
             self
         }
         /// Sets `any` with the provided value.
         /// If any other oneof field in the same oneof is set, it will be cleared.
         pub fn with_any<T: Into<super::AnyEventFilter>>(mut self, field: T) -> Self {
-            self.filter = Some(super::event_filter::Filter::Any(field.into().into()));
+            self.filter = Some(super::event_filter::Filter::Any(field.into()));
             self
         }
         /// Sets `negation` with the provided value.
         /// If any other oneof field in the same oneof is set, it will be cleared.
-        pub fn with_negation<T: Into<super::NotEventFilter>>(
+        pub fn with_negation<T: Into<::prost::alloc::boxed::Box<super::NotEventFilter>>>(
             mut self,
             field: T,
         ) -> Self {
-            self.filter = Some(
-                super::event_filter::Filter::Negation(field.into().into()),
-            );
+            self.filter = Some(super::event_filter::Filter::Negation(field.into()));
             self
         }
         /// Sets `sender` with the provided value.
         /// If any other oneof field in the same oneof is set, it will be cleared.
         pub fn with_sender<T: Into<super::AddressFilter>>(mut self, field: T) -> Self {
-            self.filter = Some(super::event_filter::Filter::Sender(field.into().into()));
+            self.filter = Some(super::event_filter::Filter::Sender(field.into()));
             self
         }
         /// Sets `move_package_and_module` with the provided value.
@@ -79,7 +77,7 @@ mod _accessor_impls {
             field: T,
         ) -> Self {
             self.filter = Some(
-                super::event_filter::Filter::MovePackageAndModule(field.into().into()),
+                super::event_filter::Filter::MovePackageAndModule(field.into()),
             );
             self
         }
@@ -89,9 +87,7 @@ mod _accessor_impls {
             T: Into<super::MovePackageAndModuleFilter>,
         >(mut self, field: T) -> Self {
             self.filter = Some(
-                super::event_filter::Filter::MoveEventPackageAndModule(
-                    field.into().into(),
-                ),
+                super::event_filter::Filter::MoveEventPackageAndModule(field.into()),
             );
             self
         }
@@ -101,9 +97,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.filter = Some(
-                super::event_filter::Filter::MoveEventType(field.into().into()),
-            );
+            self.filter = Some(super::event_filter::Filter::MoveEventType(field.into()));
             self
         }
     }
@@ -113,24 +107,24 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.package_id = Some(field.into().into());
+            self.package_id = Some(field.into());
             self
         }
         /// Sets `module` with the provided value.
         pub fn with_module<T: Into<String>>(mut self, field: T) -> Self {
-            self.module = Some(field.into().into());
+            self.module = Some(field.into());
             self
         }
         /// Sets `function` with the provided value.
         pub fn with_function<T: Into<String>>(mut self, field: T) -> Self {
-            self.function = Some(field.into().into());
+            self.function = Some(field.into());
             self
         }
     }
     impl super::MoveEventTypeFilter {
         /// Sets `struct_tag` with the provided value.
         pub fn with_struct_tag<T: Into<String>>(mut self, field: T) -> Self {
-            self.struct_tag = field.into().into();
+            self.struct_tag = field.into();
             self
         }
     }
@@ -140,29 +134,31 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.package_id = Some(field.into().into());
+            self.package_id = Some(field.into());
             self
         }
         /// Sets `module` with the provided value.
         pub fn with_module<T: Into<String>>(mut self, field: T) -> Self {
-            self.module = Some(field.into().into());
+            self.module = Some(field.into());
             self
         }
     }
     impl super::NotEventFilter {
         /// Sets `filter` with the provided value.
-        pub fn with_filter<T: Into<super::EventFilter>>(mut self, field: T) -> Self {
-            self.filter = Some(field.into().into());
+        pub fn with_filter<T: Into<::prost::alloc::boxed::Box<super::EventFilter>>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.filter = Some(field.into());
             self
         }
     }
     impl super::NotTransactionFilter {
         /// Sets `filter` with the provided value.
-        pub fn with_filter<T: Into<super::TransactionFilter>>(
-            mut self,
-            field: T,
-        ) -> Self {
-            self.filter = Some(field.into().into());
+        pub fn with_filter<
+            T: Into<::prost::alloc::boxed::Box<super::TransactionFilter>>,
+        >(mut self, field: T) -> Self {
+            self.filter = Some(field.into());
             self
         }
     }
@@ -172,7 +168,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.object_ref = Some(field.into().into());
+            self.object_ref = Some(field.into());
             self
         }
     }
@@ -183,9 +179,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.filter = Some(
-                super::transaction_filter::Filter::All(field.into().into()),
-            );
+            self.filter = Some(super::transaction_filter::Filter::All(field.into()));
             self
         }
         /// Sets `any` with the provided value.
@@ -194,19 +188,16 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.filter = Some(
-                super::transaction_filter::Filter::Any(field.into().into()),
-            );
+            self.filter = Some(super::transaction_filter::Filter::Any(field.into()));
             self
         }
         /// Sets `negation` with the provided value.
         /// If any other oneof field in the same oneof is set, it will be cleared.
-        pub fn with_negation<T: Into<super::NotTransactionFilter>>(
-            mut self,
-            field: T,
-        ) -> Self {
+        pub fn with_negation<
+            T: Into<::prost::alloc::boxed::Box<super::NotTransactionFilter>>,
+        >(mut self, field: T) -> Self {
             self.filter = Some(
-                super::transaction_filter::Filter::Negation(field.into().into()),
+                super::transaction_filter::Filter::Negation(field.into()),
             );
             self
         }
@@ -217,23 +208,21 @@ mod _accessor_impls {
             field: T,
         ) -> Self {
             self.filter = Some(
-                super::transaction_filter::Filter::TransactionKinds(field.into().into()),
+                super::transaction_filter::Filter::TransactionKinds(field.into()),
             );
             self
         }
         /// Sets `sender` with the provided value.
         /// If any other oneof field in the same oneof is set, it will be cleared.
         pub fn with_sender<T: Into<super::AddressFilter>>(mut self, field: T) -> Self {
-            self.filter = Some(
-                super::transaction_filter::Filter::Sender(field.into().into()),
-            );
+            self.filter = Some(super::transaction_filter::Filter::Sender(field.into()));
             self
         }
         /// Sets `receiver` with the provided value.
         /// If any other oneof field in the same oneof is set, it will be cleared.
         pub fn with_receiver<T: Into<super::AddressFilter>>(mut self, field: T) -> Self {
             self.filter = Some(
-                super::transaction_filter::Filter::Receiver(field.into().into()),
+                super::transaction_filter::Filter::Receiver(field.into()),
             );
             self
         }
@@ -244,7 +233,7 @@ mod _accessor_impls {
             field: T,
         ) -> Self {
             self.filter = Some(
-                super::transaction_filter::Filter::AffectedObject(field.into().into()),
+                super::transaction_filter::Filter::AffectedObject(field.into()),
             );
             self
         }
@@ -255,16 +244,14 @@ mod _accessor_impls {
             field: T,
         ) -> Self {
             self.filter = Some(
-                super::transaction_filter::Filter::MoveCall(field.into().into()),
+                super::transaction_filter::Filter::MoveCall(field.into()),
             );
             self
         }
         /// Sets `event` with the provided value.
         /// If any other oneof field in the same oneof is set, it will be cleared.
         pub fn with_event<T: Into<super::EventFilter>>(mut self, field: T) -> Self {
-            self.filter = Some(
-                super::transaction_filter::Filter::Event(field.into().into()),
-            );
+            self.filter = Some(super::transaction_filter::Filter::Event(field.into()));
             self
         }
     }

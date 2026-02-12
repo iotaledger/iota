@@ -10,7 +10,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.transaction = Some(field.into().into());
+            self.transaction = Some(field.into());
             self
         }
         /// Sets `signatures` with the provided value.
@@ -18,7 +18,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.signatures = Some(field.into().into());
+            self.signatures = Some(field.into());
             self
         }
         /// Sets `effects` with the provided value.
@@ -26,7 +26,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.effects = Some(field.into().into());
+            self.effects = Some(field.into());
             self
         }
         /// Sets `events` with the provided value.
@@ -34,7 +34,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.events = Some(field.into().into());
+            self.events = Some(field.into());
             self
         }
         /// Sets `checkpoint` with the provided value.
@@ -47,7 +47,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.timestamp = Some(field.into().into());
+            self.timestamp = Some(field.into());
             self
         }
         /// Sets `input_objects` with the provided value.
@@ -55,7 +55,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.input_objects = Some(field.into().into());
+            self.input_objects = Some(field.into());
             self
         }
         /// Sets `output_objects` with the provided value.
@@ -63,7 +63,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.output_objects = Some(field.into().into());
+            self.output_objects = Some(field.into());
             self
         }
     }
@@ -83,7 +83,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.digest = Some(field.into().into());
+            self.digest = Some(field.into());
             self
         }
         /// Sets `bcs` with the provided value.
@@ -91,7 +91,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.bcs = Some(field.into().into());
+            self.bcs = Some(field.into());
             self
         }
     }
@@ -101,7 +101,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.digest = Some(field.into().into());
+            self.digest = Some(field.into());
             self
         }
         /// Sets `bcs` with the provided value.
@@ -109,7 +109,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.bcs = Some(field.into().into());
+            self.bcs = Some(field.into());
             self
         }
     }
@@ -119,7 +119,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.digest = Some(field.into().into());
+            self.digest = Some(field.into());
             self
         }
         /// Sets `events` with the provided value.
@@ -127,7 +127,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.events = Some(field.into().into());
+            self.events = Some(field.into());
             self
         }
     }

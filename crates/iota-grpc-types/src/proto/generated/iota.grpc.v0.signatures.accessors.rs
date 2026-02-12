@@ -10,7 +10,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.bcs = Some(field.into().into());
+            self.bcs = Some(field.into());
             self
         }
     }
@@ -27,7 +27,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.bcs = Some(field.into().into());
+            self.bcs = Some(field.into());
             self
         }
     }

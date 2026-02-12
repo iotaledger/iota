@@ -7,7 +7,7 @@ mod _accessor_impls {
     impl super::BcsData {
         /// Sets `data` with the provided value.
         pub fn with_data<T: Into<::prost::bytes::Bytes>>(mut self, field: T) -> Self {
-            self.data = field.into().into();
+            self.data = field.into();
             self
         }
     }

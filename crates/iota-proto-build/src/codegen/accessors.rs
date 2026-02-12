@@ -17,7 +17,8 @@ use crate::{
 pub(crate) fn generate_accessors(
     context: &Context,
     out_dir: &Path,
-    boxed_types: &[String],
+    boxed_types_prost: &[String],
+    boxed_types_accessor: &[String],
     accessor_map: &AccessorMap,
 ) {
     for package in context.graph().packages.iter() {
@@ -33,7 +34,8 @@ pub(crate) fn generate_accessors(
             stream.extend(generate_accessors_for_message(
                 context,
                 message,
-                boxed_types,
+                boxed_types_prost,
+                boxed_types_accessor,
                 accessor_map,
             ));
         }
@@ -67,7 +69,8 @@ pub(crate) fn generate_accessors(
 fn generate_accessors_for_message(
     context: &Context,
     message: &Message,
-    boxed_types: &[String],
+    boxed_types_prost: &[String],
+    boxed_types_accessor: &[String],
     accessor_map: &AccessorMap,
 ) -> TokenStream {
     let package = format!("{}.__accessors", message.package);
@@ -93,7 +96,8 @@ fn generate_accessors_for_message(
     functions.extend(generate_accessors_functions(
         context,
         message,
-        boxed_types,
+        boxed_types_prost,
+        boxed_types_accessor,
         accessor_map,
     ));
 
@@ -170,7 +174,8 @@ fn message_needs_default_instance(message: &Message, accessor_map: &AccessorMap)
 fn generate_accessors_functions(
     context: &Context,
     message: &Message,
-    boxed_types: &[String],
+    boxed_types_prost: &[String],
+    boxed_types_accessor: &[String],
     accessor_map: &AccessorMap,
 ) -> TokenStream {
     let mut accessors = TokenStream::new();
@@ -181,7 +186,8 @@ fn generate_accessors_functions(
             message,
             field,
             None,
-            boxed_types,
+            boxed_types_prost,
+            boxed_types_accessor,
             accessor_map,
         ));
     }
@@ -193,7 +199,8 @@ fn generate_accessors_functions(
                 message,
                 field,
                 Some(oneof_field),
-                boxed_types,
+                boxed_types_prost,
+                boxed_types_accessor,
                 accessor_map,
             ));
         }
@@ -216,7 +223,8 @@ fn generate_accessors_functions_for_field(
     message: &Message,
     field: &Field,
     oneof: Option<&OneofField>,
-    boxed_types: &[String],
+    boxed_types_prost: &[String],
+    boxed_types_accessor: &[String],
     accessor_map: &AccessorMap,
 ) -> TokenStream {
     // Extract the simple message name from the fully qualified type name
@@ -239,7 +247,8 @@ fn generate_accessors_functions_for_field(
         message,
         field,
         oneof,
-        boxed_types,
+        boxed_types_prost,
+        boxed_types_accessor,
         accessor_types,
     )
 }
@@ -249,7 +258,8 @@ fn generate_selective_accessors_for_field(
     message: &Message,
     field: &Field,
     oneof: Option<&OneofField>,
-    boxed_types: &[String],
+    boxed_types_prost: &[String],
+    boxed_types_accessor: &[String],
     accessor_types: AccessorTypes,
 ) -> TokenStream {
     let package = format!("{}.__accessors", message.package);
@@ -277,9 +287,10 @@ fn generate_selective_accessors_for_field(
         " If `{name}` is set, returns [`Some`] with a mutable reference to the value; otherwise returns [`None`]."
     )];
 
-    let is_boxed = is_field_boxed_from_config(message, field, boxed_types);
+    let is_boxed_in_accessor = is_field_boxed_from_config(message, field, boxed_types_accessor);
+    let is_boxed_in_prost = is_field_boxed_from_config(message, field, boxed_types_prost);
     let base_field_type_path = field.resolve_rust_type_path(context, &package);
-    let field_type_path = if is_boxed {
+    let field_type_path = if is_boxed_in_accessor {
         TokenStream::from_str(&format!(
             "::prost::alloc::boxed::Box<{}>",
             base_field_type_path
@@ -287,6 +298,38 @@ fn generate_selective_accessors_for_field(
         .unwrap()
     } else {
         TokenStream::from_str(&base_field_type_path).unwrap()
+    };
+
+    // Conversion logic based on boxing configuration:
+    // - If both accessor and proto are boxed: field.into() (Box -> Box)
+    // - If accessor is boxed but proto is not: *field.into() (Box -> T by unboxing)
+    // - If accessor is not boxed: field.into() (T -> T with Into conversions)
+    let into_conversion = if is_boxed_in_accessor {
+        if is_boxed_in_prost {
+            quote! { field.into() }
+        } else {
+            quote! { *field.into() }
+        }
+    } else {
+        quote! { field.into() }
+    };
+
+    let setter_assignment_value = if use_into_for_setter(field) {
+        quote! { #into_conversion }
+    } else {
+        quote! { field }
+    };
+
+    let set_param_type = if use_into_for_setter(field) {
+        quote! { <T: Into<#field_type_path>>(&mut self, field: T) }
+    } else {
+        quote! { (&mut self, field: #field_type_path) }
+    };
+
+    let with_param_type = if use_into_for_setter(field) {
+        quote! { <T: Into<#field_type_path>>(mut self, field: T) }
+    } else {
+        quote! { (mut self, field: #field_type_path) }
     };
 
     let default_instance = TokenStream::from_str(&type_default(field, context, &package)).unwrap();
@@ -460,96 +503,49 @@ fn generate_selective_accessors_for_field(
         }
 
         if accessor_types.contains(AccessorTypes::MUT) {
-            let name_mut_impl = if is_boxed {
-                quote! {
-                    #( #[doc = #name_mut_comments] )*
-                    pub fn #name_mut(&mut self) -> &mut #field_type_path {
-                        if let Some(#oneof_type_path::#variant(field)) = &mut self.#oneof_field {
-                            field as _
-                        } else {
-                            self.#oneof_field = Some(#oneof_type_path::#variant(::prost::alloc::boxed::Box::default()));
-                            if let Some(#oneof_type_path::#variant(field)) = &mut self.#oneof_field {
-                                field as _
-                            } else {
-                                unreachable!()
-                            }
-                        }
-                    }
-                }
+            let (field_access, default_value) = if is_boxed_in_accessor {
+                (
+                    quote! { field as _ },
+                    quote! { ::prost::alloc::boxed::Box::default() },
+                )
             } else {
-                quote! {
-                    #( #[doc = #name_mut_comments] )*
-                    pub fn #name_mut(&mut self) -> &mut #field_type_path {
+                (quote! { field }, quote! { #field_type_path::default() })
+            };
+
+            accessors.extend(quote! {
+                #( #[doc = #name_mut_comments] )*
+                pub fn #name_mut(&mut self) -> &mut #field_type_path {
+                    if let Some(#oneof_type_path::#variant(field)) = &mut self.#oneof_field {
+                        #field_access
+                    } else {
+                        self.#oneof_field = Some(#oneof_type_path::#variant(#default_value));
                         if let Some(#oneof_type_path::#variant(field)) = &mut self.#oneof_field {
-                            field
+                            #field_access
                         } else {
-                            self.#oneof_field = Some(#oneof_type_path::#variant(#field_type_path::default()));
-                            if let Some(#oneof_type_path::#variant(field)) = &mut self.#oneof_field {
-                                field
-                            } else {
-                                unreachable!()
-                            }
+                            unreachable!()
                         }
                     }
                 }
-            };
-            accessors.extend(name_mut_impl);
+            });
         }
 
-        if accessor_types.contains(AccessorTypes::SET)
-            || accessor_types.contains(AccessorTypes::WITH)
-        {
-            let setters = if use_into_for_setter(field) {
-                let mut s = TokenStream::new();
+        if accessor_types.contains(AccessorTypes::SET) {
+            accessors.extend(quote! {
+                #( #[doc = #set_name_comments] )*
+                pub fn #set_name #set_param_type {
+                    self.#oneof_field = Some(#oneof_type_path::#variant(#setter_assignment_value));
+                }
+            });
+        }
 
-                // For boxed types in accessors, we accept Box<T> but need to unbox when storing
-                // because the oneof variant stores the unboxed type
-                let into_conversion = if is_boxed {
-                    quote! { *field.into() }
-                } else {
-                    quote! { field.into().into() }
-                };
-
-                if accessor_types.contains(AccessorTypes::SET) {
-                    s.extend(quote! {
-                        #( #[doc = #set_name_comments] )*
-                        pub fn #set_name<T: Into<#field_type_path>>(&mut self, field: T) {
-                            self.#oneof_field = Some(#oneof_type_path::#variant(#into_conversion));
-                        }
-                    });
+        if accessor_types.contains(AccessorTypes::WITH) {
+            accessors.extend(quote! {
+                #( #[doc = #set_name_comments] )*
+                pub fn #with_name #with_param_type -> Self {
+                    self.#oneof_field = Some(#oneof_type_path::#variant(#setter_assignment_value));
+                    self
                 }
-                if accessor_types.contains(AccessorTypes::WITH) {
-                    s.extend(quote! {
-                        #( #[doc = #set_name_comments] )*
-                        pub fn #with_name<T: Into<#field_type_path>>(mut self, field: T) -> Self {
-                            self.#oneof_field = Some(#oneof_type_path::#variant(#into_conversion));
-                            self
-                        }
-                    });
-                }
-                s
-            } else {
-                let mut s = TokenStream::new();
-                if accessor_types.contains(AccessorTypes::SET) {
-                    s.extend(quote! {
-                        #( #[doc = #set_name_comments] )*
-                        pub fn #set_name(&mut self, field: #field_type_path) {
-                            self.#oneof_field = Some(#oneof_type_path::#variant(field));
-                        }
-                    });
-                }
-                if accessor_types.contains(AccessorTypes::WITH) {
-                    s.extend(quote! {
-                        #( #[doc = #set_name_comments] )*
-                        pub fn #with_name(mut self, field: #field_type_path) -> Self {
-                            self.#oneof_field = Some(#oneof_type_path::#variant(field));
-                            self
-                        }
-                    });
-                }
-                s
-            };
-            accessors.extend(setters);
+            });
         }
 
         accessors
@@ -611,69 +607,25 @@ fn generate_selective_accessors_for_field(
             });
         }
 
-        if use_into_for_setter(field) {
-            // For boxed types in accessors, we accept Box<T> but need to unbox when storing
-            // because the oneof variant stores the unboxed type
-            let into_conversion = if is_boxed {
-                quote! { *field.into() }
-            } else {
-                quote! { field.into().into() }
-            };
-
-            if !matches!(field.inner.r#type(), Type::Enum)
-                && accessor_types.contains(AccessorTypes::SET)
-            {
-                accessors.extend(quote! {
-                    #( #[doc = #set_name_comments] )*
-                    pub fn #set_name<T: Into<#field_type_path>>(&mut self, field: T) {
-                        self.#name = Some(#into_conversion);
-                    }
-                });
-            }
-
-            if accessor_types.contains(AccessorTypes::WITH) {
-                // If SET is also present, use the setter method; otherwise inline the logic
-                if accessor_types.contains(AccessorTypes::SET)
-                    && !matches!(field.inner.r#type(), Type::Enum)
-                {
-                    accessors.extend(quote! {
-                        #( #[doc = #set_name_comments] )*
-                        pub fn #with_name<T: Into<#field_type_path>>(mut self, field: T) -> Self {
-                            self.#set_name(field.into());
-                            self
-                        }
-                    });
-                } else {
-                    accessors.extend(quote! {
-                        #( #[doc = #set_name_comments] )*
-                        pub fn #with_name<T: Into<#field_type_path>>(mut self, field: T) -> Self {
-                            self.#name = Some(#into_conversion);
-                            self
-                        }
-                    });
+        if !matches!(field.inner.r#type(), Type::Enum)
+            && accessor_types.contains(AccessorTypes::SET)
+        {
+            accessors.extend(quote! {
+                #( #[doc = #set_name_comments] )*
+                pub fn #set_name #set_param_type {
+                    self.#name = Some(#setter_assignment_value);
                 }
-            }
-        } else {
-            if !matches!(field.inner.r#type(), Type::Enum)
-                && accessor_types.contains(AccessorTypes::SET)
-            {
-                accessors.extend(quote! {
-                    #( #[doc = #set_name_comments] )*
-                    pub fn #set_name(&mut self, field: #field_type_path) {
-                        self.#name = Some(field);
-                    }
-                });
-            }
+            });
+        }
 
-            if accessor_types.contains(AccessorTypes::WITH) {
-                accessors.extend(quote! {
-                    #( #[doc = #set_name_comments] )*
-                    pub fn #with_name(mut self, field: #field_type_path) -> Self {
-                        self.#name = Some(field);
-                        self
-                    }
-                });
-            }
+        if accessor_types.contains(AccessorTypes::WITH) {
+            accessors.extend(quote! {
+                #( #[doc = #set_name_comments] )*
+                pub fn #with_name #with_param_type -> Self {
+                    self.#name = Some(#setter_assignment_value);
+                    self
+                }
+            });
         }
 
         accessors
@@ -691,44 +643,23 @@ fn generate_selective_accessors_for_field(
             });
         }
 
-        if use_into_for_setter(field) {
-            if accessor_types.contains(AccessorTypes::SET) {
-                accessors.extend(quote! {
-                    #( #[doc = #set_name_comments] )*
-                    pub fn #set_name<T: Into<#field_type_path>>(&mut self, field: T) {
-                        self.#name = field.into().into();
-                    }
-                });
-            }
+        if accessor_types.contains(AccessorTypes::SET) {
+            accessors.extend(quote! {
+                #( #[doc = #set_name_comments] )*
+                pub fn #set_name #set_param_type {
+                    self.#name = #setter_assignment_value;
+                }
+            });
+        }
 
-            if accessor_types.contains(AccessorTypes::WITH) {
-                accessors.extend(quote! {
-                    #( #[doc = #set_name_comments] )*
-                    pub fn #with_name<T: Into<#field_type_path>>(mut self, field: T) -> Self {
-                        self.#name = field.into().into();
-                        self
-                    }
-                });
-            }
-        } else {
-            if accessor_types.contains(AccessorTypes::SET) {
-                accessors.extend(quote! {
-                    #( #[doc = #set_name_comments] )*
-                    pub fn #set_name(&mut self, field: #field_type_path) {
-                        self.#name = field;
-                    }
-                });
-            }
-
-            if accessor_types.contains(AccessorTypes::WITH) {
-                accessors.extend(quote! {
-                    #( #[doc = #set_name_comments] )*
-                    pub fn #with_name(mut self, field: #field_type_path) -> Self {
-                        self.#name = field;
-                        self
-                    }
-                });
-            }
+        if accessor_types.contains(AccessorTypes::WITH) {
+            accessors.extend(quote! {
+                #( #[doc = #set_name_comments] )*
+                pub fn #with_name #with_param_type -> Self {
+                    self.#name = #setter_assignment_value;
+                    self
+                }
+            });
         }
 
         accessors

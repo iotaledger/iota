@@ -10,7 +10,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.bcs = Some(field.into().into());
+            self.bcs = Some(field.into());
             self
         }
         /// Sets `package_id` with the provided value.
@@ -18,12 +18,12 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.package_id = Some(field.into().into());
+            self.package_id = Some(field.into());
             self
         }
         /// Sets `module` with the provided value.
         pub fn with_module<T: Into<String>>(mut self, field: T) -> Self {
-            self.module = Some(field.into().into());
+            self.module = Some(field.into());
             self
         }
         /// Sets `sender` with the provided value.
@@ -31,12 +31,12 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.sender = Some(field.into().into());
+            self.sender = Some(field.into());
             self
         }
         /// Sets `event_type` with the provided value.
         pub fn with_event_type<T: Into<String>>(mut self, field: T) -> Self {
-            self.event_type = Some(field.into().into());
+            self.event_type = Some(field.into());
             self
         }
         /// Sets `bcs_contents` with the provided value.
@@ -44,7 +44,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.bcs_contents = Some(field.into().into());
+            self.bcs_contents = Some(field.into());
             self
         }
         /// Sets `json_contents` with the provided value.
@@ -52,7 +52,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.json_contents = Some(field.into().into());
+            self.json_contents = Some(field.into());
             self
         }
     }

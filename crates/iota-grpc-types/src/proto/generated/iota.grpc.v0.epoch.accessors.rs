@@ -15,7 +15,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.committee = Some(field.into().into());
+            self.committee = Some(field.into());
             self
         }
         /// Sets `bcs_system_state` with the provided value.
@@ -23,7 +23,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.bcs_system_state = Some(field.into().into());
+            self.bcs_system_state = Some(field.into());
             self
         }
         /// Sets `first_checkpoint` with the provided value.
@@ -41,12 +41,12 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.start = Some(field.into().into());
+            self.start = Some(field.into());
             self
         }
         /// Sets `end` with the provided value.
         pub fn with_end<T: Into<::prost_types::Timestamp>>(mut self, field: T) -> Self {
-            self.end = Some(field.into().into());
+            self.end = Some(field.into());
             self
         }
         /// Sets `reference_gas_price` with the provided value.
@@ -59,7 +59,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.protocol_config = Some(field.into().into());
+            self.protocol_config = Some(field.into());
             self
         }
     }
@@ -84,7 +84,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.feature_flags = Some(field.into().into());
+            self.feature_flags = Some(field.into());
             self
         }
         /// Sets `attributes` with the provided value.
@@ -92,7 +92,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.attributes = Some(field.into().into());
+            self.attributes = Some(field.into());
             self
         }
     }
@@ -117,7 +117,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.members = Some(field.into().into());
+            self.members = Some(field.into());
             self
         }
     }
@@ -127,7 +127,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.public_key = Some(field.into().into());
+            self.public_key = Some(field.into());
             self
         }
         /// Sets `weight` with the provided value.
