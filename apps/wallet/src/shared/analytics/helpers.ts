@@ -5,7 +5,6 @@ import { AccountType } from '_src/background/accounts/account';
 import { AccountsFormType } from '_components/accounts';
 
 enum AmpliAccountType {
-    Derived = 'Derived',
     PrivateKey = 'Private Key',
     Passkey = 'Passkey',
     Ledger = 'Ledger',
@@ -18,11 +17,11 @@ export const ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE: Record<
     AccountsFormType,
     AddedAccountsProperties['accountType']
 > = {
-    [AccountsFormType.NewMnemonic]: AmpliAccountType.Derived,
-    [AccountsFormType.ImportMnemonic]: AmpliAccountType.Derived,
-    [AccountsFormType.ImportSeed]: AmpliAccountType.Derived,
-    [AccountsFormType.MnemonicSource]: AmpliAccountType.Derived,
-    [AccountsFormType.SeedSource]: AmpliAccountType.Derived,
+    [AccountsFormType.NewMnemonic]: AmpliAccountType.Mnemonic,
+    [AccountsFormType.ImportMnemonic]: AmpliAccountType.Mnemonic,
+    [AccountsFormType.ImportSeed]: AmpliAccountType.Seed,
+    [AccountsFormType.MnemonicSource]: AmpliAccountType.Mnemonic,
+    [AccountsFormType.SeedSource]: AmpliAccountType.Seed,
     [AccountsFormType.ImportPrivateKey]: AmpliAccountType.PrivateKey,
     [AccountsFormType.Passkey]: AmpliAccountType.Passkey,
     [AccountsFormType.ImportPasskey]: AmpliAccountType.Passkey,
