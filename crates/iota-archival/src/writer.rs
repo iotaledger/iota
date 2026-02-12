@@ -439,9 +439,7 @@ impl ArchiveWriter {
         let mut checkpoint_sequence_number = start_checkpoint_sequence_number;
         info!("Starting checkpoint tailing from sequence number: {checkpoint_sequence_number}");
 
-        while kill.try_recv()
-            == Err(tokio::sync::broadcast::error::TryRecvError::Empty)
-        {
+        while kill.try_recv() == Err(tokio::sync::broadcast::error::TryRecvError::Empty) {
             if let Some(checkpoint_summary) = store
                 .try_get_checkpoint_by_sequence_number(checkpoint_sequence_number)
                 .map_err(|_| anyhow!("Failed to read checkpoint summary from store"))?
