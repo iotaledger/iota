@@ -59,6 +59,9 @@ pub(crate) struct RocksDBStore {
     /// These are block headers that contain commit votes used to certify
     /// commits.
     voting_block_headers: DBMap<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
+
+    fast_commit_sync_flag: DBMap<(), ()>,
+
     /// Context to access protocol configuration
     #[cfg_attr(not(test), allow(dead_code))]
     context: Arc<Context>,
@@ -75,6 +78,7 @@ impl RocksDBStore {
     const COMMIT_VOTES_CF: &'static str = "commit_votes";
     const COMMIT_INFO_CF: &'static str = "commit_info";
     const VOTING_BLOCK_HEADERS_CF: &'static str = "voting_block_headers";
+    const FAST_COMMIT_SYNC_FLAG_CF: &'static str = "fast_commit_sync_flag";
 
     /// Creates a new instance of RocksDB storage.
     pub(crate) fn new(path: &str, context: Arc<Context>) -> Self {
@@ -120,6 +124,7 @@ impl RocksDBStore {
             // Voting block headers are much fewer than regular block headers,
             // so using standard options is sufficient.
             (Self::VOTING_BLOCK_HEADERS_CF, cf_options.clone()),
+            (Self::FAST_COMMIT_SYNC_FLAG_CF, cf_options.clone()),
         ];
         let rocksdb = open_cf_opts(
             path,
@@ -139,6 +144,7 @@ impl RocksDBStore {
             commit_votes,
             commit_info,
             voting_block_headers,
+            fast_commit_sync_flag,
         ) = reopen!(&rocksdb,
             Self::BLOCK_HEADERS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
             Self::TRANSACTIONS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
@@ -148,7 +154,8 @@ impl RocksDBStore {
             Self::COMMITS_CF;<(CommitIndex, CommitDigest), Bytes>,
             Self::COMMIT_VOTES_CF;<(CommitIndex, CommitDigest, BlockRef), ()>,
             Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>,
-            Self::VOTING_BLOCK_HEADERS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>
+            Self::VOTING_BLOCK_HEADERS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
+            Self::FAST_COMMIT_SYNC_FLAG_CF;<(), ()>
         );
 
         Self {
@@ -161,6 +168,7 @@ impl RocksDBStore {
             commit_votes,
             commit_info,
             voting_block_headers,
+            fast_commit_sync_flag,
             context,
         }
     }
@@ -294,6 +302,16 @@ impl Store for RocksDBStore {
                     )
                     .map_err(ConsensusError::RocksDBFailure)?;
             }
+        }
+
+        if write_batch.fast_commit_sync_flag {
+            batch
+                .insert_batch(&self.fast_commit_sync_flag, [((), ())])
+                .map_err(ConsensusError::RocksDBFailure)?;
+        } else {
+            batch
+                .delete_batch(&self.fast_commit_sync_flag, [()])
+                .map_err(ConsensusError::RocksDBFailure)?;
         }
 
         batch.write()?;
@@ -775,6 +793,12 @@ impl Store for RocksDBStore {
             .into_iter()
             .map(|r| r.map(VerifiedBlockHeader::new_from_bytes).transpose())
             .collect()
+    }
+
+    fn read_fast_sync_ongoing(&self) -> bool {
+        self.fast_commit_sync_flag
+            .contains_key(&())
+            .unwrap_or(false)
     }
 }
 

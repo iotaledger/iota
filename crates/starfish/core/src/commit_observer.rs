@@ -269,6 +269,12 @@ impl CommitObserver {
         );
 
         // Phase 2: Recover linearizer and solidifier state
+        // Skip if fast sync is ongoing - block data may not be available and
+        // this will be reinitialized by fast commit syncer anyway
+        if self.store.read_fast_sync_ongoing() {
+            info!("Skipping linearizer/solidifier recovery - fast sync ongoing");
+            return;
+        }
         self.recover_linearizer_and_solidifier_state(last_commit_index, source);
     }
 

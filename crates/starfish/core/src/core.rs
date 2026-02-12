@@ -585,6 +585,7 @@ impl Core {
 
             // Store voting block headers for later use when serving fetch_commits requests
             dag_state.add_voting_block_headers(voting_block_headers);
+            dag_state.set_fast_sync_ongoing_flag(true);
         }
 
         // Flush commits to storage so they're available for
@@ -621,6 +622,9 @@ impl Core {
 
             // 1. Store block headers on disk
             dag_state.accept_block_headers(block_headers, DataSource::FastCommitSyncer);
+
+            // 1.5. Clear fast sync flag (will be persisted with the flush)
+            dag_state.set_fast_sync_ongoing_flag(false);
 
             // 2. Flush everything to storage
             dag_state.flush();
