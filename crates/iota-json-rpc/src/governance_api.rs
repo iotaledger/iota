@@ -496,7 +496,7 @@ pub fn mean_apy_from_exchange_rates<'er>(
     let mut apys = rates
         .zip(rates_next)
         .take(SAMPLES + 1)
-        .filter_map(|(er, er_next)| Some(calculate_apy(er, er_next)))
+        .map(|(er, er_next)| calculate_apy(er, er_next))
         .collect::<Vec<_>>();
 
     // Return 0.0 if there is no data OR if any APY is negative
@@ -506,7 +506,7 @@ pub fn mean_apy_from_exchange_rates<'er>(
     // If any single epoch has outliers (that is APY > MAX_VALID_APY or exchange
     // rate for epoch e-8 is missing), we switch to Median. Otherwise, we use
     // the standard Mean.
-    let has_outlier = apys.get(SAMPLES).map_or(false, |&apy| apy <= 0.0)
+    let has_outlier = apys.get(SAMPLES).is_some_and(|&apy| apy <= 0.0)
         || apys.iter().any(|&apy| apy > MAX_VALID_APY);
 
     apys.truncate(SAMPLES);
