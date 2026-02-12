@@ -286,15 +286,20 @@ def extract_rollout(notes, crate_names):
     if next_heading:
         section = section[: next_heading.start()]
 
-    rollout = parse_modern_rollout(section, crate_names)
+    rollout = parse_rollout(section, crate_names)
     if rollout is not None:
         return rollout
 
-    return parse_legacy_rollout(section, crate_names)
+    if RE_BREAKING_CRATE.search(section) or RE_BREAKING_NOTE.search(section):
+        raise ValueError(
+            "Breaking Changes Rollout must use the Affected Crates / Required User Actions format."
+        )
+
+    return {}
 
 
-def parse_modern_rollout(section, crate_names):
-    """Parse rollout information using the new Affected Crates / Required User Actions format."""
+def parse_rollout(section, crate_names):
+    """Parse rollout information using the Affected Crates / Required User Actions format."""
     crates = []
     actions = {}
     in_crates = False
@@ -369,58 +374,6 @@ def parse_modern_rollout(section, crate_names):
             rollout[crate][network] = Note(
                 checked=True,
                 note=note_text,
-            )
-
-    if not has_any_content:
-        return {}
-
-    return rollout
-
-
-def parse_legacy_rollout(section, crate_names):
-    """Parse rollout information using the legacy checkbox-based format."""
-    crate_matches = list(RE_BREAKING_CRATE.finditer(section))
-    if not crate_matches:
-        if RE_BREAKING_NOTE.search(section):
-            raise ValueError(
-                "Breaking Changes Rollout entries must be placed under a crate heading."
-            )
-        return {}
-
-    rollout = {}
-    has_any_content = False
-    for i, crate_match in enumerate(crate_matches):
-        crate = crate_match.group(1).strip()
-        start = crate_match.end()
-        end = (
-            crate_matches[i + 1].start()
-            if i + 1 < len(crate_matches)
-            else len(section)
-        )
-        crate_body = section[start:end]
-
-        if crate in rollout:
-            raise ValueError(
-                f"Crate '{crate}' appears multiple times in Breaking Changes Rollout."
-            )
-
-        rollout[crate] = {}
-        for note_match in RE_BREAKING_NOTE.finditer(crate_body):
-            checked = note_match.group(1)
-            network = note_match.group(2).lower()
-            note_text = note_match.group(3).strip()
-            has_any_content |= bool(checked and checked.strip()) or bool(note_text)
-            rollout[crate][network] = Note(
-                checked=checked in "xX",
-                note=note_text,
-            )
-
-        crate_has_content = any(
-            entry.checked or entry.note for entry in rollout[crate].values()
-        )
-        if crate_has_content and crate not in crate_names:
-            raise ValueError(
-                f"Crate '{crate}' referenced in Breaking Changes Rollout does not exist in this repository."
             )
 
     if not has_any_content:
