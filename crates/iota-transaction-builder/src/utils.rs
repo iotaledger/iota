@@ -473,12 +473,14 @@ fn get_function_parameters<'a>(
     module: &'a CompiledModule,
     function: &Identifier,
 ) -> Result<&'a [SignatureToken], anyhow::Error> {
-    let function_str = function.as_ident_str();
+    let function_str = function.as_str();
     let function_def = module
         .function_defs
         .iter()
         .find(|function_def| {
-            module.identifier_at(module.function_handle_at(function_def.function).name)
+            module
+                .identifier_at(module.function_handle_at(function_def.function).name)
+                .as_str()
                 == function_str
         })
         .ok_or_else(|| {

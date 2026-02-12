@@ -43,14 +43,14 @@ pub const TRANSFER_IMPL_FUNCTIONS: [Identifier; 4] = [
     Identifier::from_static("receive_impl"),
 ];
 
-pub const PUBLIC_ACCOUNT_FUNCTIONS: &[&IdentStr] = &[
-    ident_str!("borrow_auth_function_ref_v1"),
-    ident_str!("has_auth_function_ref_v1"),
+pub const PUBLIC_ACCOUNT_FUNCTIONS: [Identifier; 2] = [
+    Identifier::from_static("borrow_auth_function_ref_v1"),
+    Identifier::from_static("has_auth_function_ref_v1"),
 ];
-pub const PRIVATE_ACCOUNT_FUNCTIONS: &[&IdentStr] = &[
-    ident_str!("create_account_v1"),
-    ident_str!("create_immutable_account_v1"),
-    ident_str!("rotate_auth_function_ref_v1"),
+pub const PRIVATE_ACCOUNT_FUNCTIONS: [Identifier; 3] = [
+    Identifier::from_static("create_account_v1"),
+    Identifier::from_static("create_immutable_account_v1"),
+    Identifier::from_static("rotate_auth_function_ref_v1"),
 ];
 
 /// All transfer functions (the functions in `iota::transfer`) are "private" in
@@ -165,7 +165,7 @@ fn verify_private_account_module_functions(
     if addr_module(view, self_handle) == (IotaAddress::FRAMEWORK, ACCOUNT_MODULE) {
         return Ok(());
     }
-    let fident = view.identifier_at(fhandle.name);
+    let fident = Identifier::new_unchecked(view.identifier_at(fhandle.name).as_str());
     // public account functions have no additional rules
     if PUBLIC_ACCOUNT_FUNCTIONS.contains(&fident) {
         return Ok(());
@@ -186,7 +186,7 @@ fn verify_private_account_module_functions(
         return Err(format!(
             "Invalid call to '{iota}::{account}::{f}' on an object of type '{t}'. \
             The account object's type must be defined in the current module.",
-            iota = IOTA_FRAMEWORK_ADDRESS,
+            iota = IotaAddress::FRAMEWORK,
             account = ACCOUNT_MODULE,
             f = fident,
             t = format_signature_token(view, type_arg),

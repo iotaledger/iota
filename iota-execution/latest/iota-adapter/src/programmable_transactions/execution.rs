@@ -1019,7 +1019,7 @@ mod checked {
                 if let Some(type_tag) =
                     normalized::Type::new(pool, module, ref_param).to_type_tag(pool)
                 {
-                    Ok(type_tag)
+                    Ok(type_tag_core_to_sdk(&type_tag))
                 } else {
                     Err(ExecutionError::from_kind(
                         ExecutionErrorKind::VMVerificationOrDeserializationError,
@@ -1485,7 +1485,7 @@ mod checked {
             ));
         }
 
-        if module_ident == (&IOTA_FRAMEWORK_ADDRESS, ACCOUNT_MODULE)
+        if module_ident == (IotaAddress::FRAMEWORK, ACCOUNT_MODULE)
             && PRIVATE_ACCOUNT_FUNCTIONS.contains(&function)
         {
             let msg = format!("Cannot directly call iota::{ACCOUNT_MODULE}::{function}.");

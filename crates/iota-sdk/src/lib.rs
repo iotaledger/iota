@@ -108,7 +108,7 @@ use iota_json_rpc_types::{
 };
 use iota_transaction_builder::{DataReader, TransactionBuilder};
 pub use iota_types as types;
-use iota_types::base_types::{IotaAddress, ObjectID, ObjectInfo, StructTag};
+use iota_types::base_types::{IotaAddress, ObjectID, StructTag};
 use jsonrpsee::{
     core::client::ClientT,
     http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder},

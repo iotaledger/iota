@@ -15,7 +15,7 @@ use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponse, IotaTypeTag, PtbInput, RPCTransactionRequestParams,
 };
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, ObjectInfo, StructTag},
+    base_types::{Identifier, IotaAddress, ObjectID, StructTag},
     coin,
     error::UserInputError,
     fp_ensure,

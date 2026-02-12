@@ -5,7 +5,6 @@
 //! package.
 
 use anyhow::Result;
-use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;

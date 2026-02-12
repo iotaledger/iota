@@ -17,15 +17,17 @@ use move_binary_format::file_format;
 
 use super::*;
 use crate::{
+    base_types::{MoveObjectType, TypeTag},
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
-        IotaSignature, Signature,
+        IotaSignature, Signature, SignatureScheme,
         bcs_signable_test::{Bar, Foo},
         get_key_pair, get_key_pair_from_bytes,
     },
-    digests::Digest,
+    digests::{Digest, TransactionDigest},
+    dynamic_field::DynamicFieldInfo,
     gas_coin::GasCoin,
-    object::Object,
+    object::{Object, Owner},
 };
 
 #[test]

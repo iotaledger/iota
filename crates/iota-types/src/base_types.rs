@@ -28,8 +28,6 @@ use serde::{
 use crate::{
     MOVE_STDLIB_ADDRESS,
     account_abstraction::authenticator_function::AuthenticatorFunctionRefV1,
-    coin::{Coin, CoinMetadata},
-    coin_manager::CoinManager,
     crypto::{
         AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, IotaSignature, PublicKey,
         SignatureScheme,
@@ -361,7 +359,9 @@ impl MoveObjectType {
                 false
             }
             MoveObjectType_::Other(s) => {
-                AuthenticatorFunctionRefV1::is_authenticator_function_ref_v1(s)
+                AuthenticatorFunctionRefV1::is_authenticator_function_ref_v1(
+                    &struct_tag_sdk_to_core(s),
+                )
             }
         }
     }

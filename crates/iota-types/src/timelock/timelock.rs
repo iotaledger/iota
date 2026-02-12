@@ -1,13 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{StructTag, TypeTag};
-use iota_stardust_sdk::types::block::output::{BasicOutput, OutputId};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    balance::Balance,
     base_types::ObjectID,
     error::IotaError,
     gas_coin::GasCoin,

@@ -13,7 +13,7 @@ use iota_grpc_types::{
         event as grpc_event, object as grpc_obj, signatures as grpc_sig, transaction as grpc_tx,
     },
 };
-use iota_types::{execution::ExecutionResult, iota_sdk_types_conversions::type_tag_core_to_sdk};
+use iota_types::{base_types::TypeTag, execution::ExecutionResult};
 
 use crate::{GrpcReader, merge::Merge, utils::render_json};
 
@@ -166,7 +166,7 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::TransactionEvents {
                         message.json_contents = crate::utils::render_json(
                             source.reader.clone(),
                             source.config.max_json_move_value_size,
-                            &iota_types::TypeTag::Struct(Box::new(event.type_.clone())),
+                            &TypeTag::Struct(Box::new(event.type_.clone())),
                             &event.contents,
                         );
                     }
@@ -235,12 +235,8 @@ impl Merge<&CommandResultsReadSource<'_>> for CommandResults {
 struct CommandResultReadSource<'a> {
     reader: &'a Arc<GrpcReader>,
     config: &'a iota_config::node::GrpcApiConfig,
-    mutable_reference_outputs: &'a [(
-        iota_types::transaction::Argument,
-        Vec<u8>,
-        iota_types::TypeTag,
-    )],
-    return_values: &'a [(Vec<u8>, iota_types::TypeTag)],
+    mutable_reference_outputs: &'a [(iota_types::transaction::Argument, Vec<u8>, TypeTag)],
+    return_values: &'a [(Vec<u8>, TypeTag)],
 }
 
 impl Merge<&CommandResultReadSource<'_>> for CommandResult {
@@ -288,7 +284,7 @@ struct CommandOutputsReadSource<'a> {
     outputs: Vec<(
         Option<iota_types::transaction::Argument>,
         &'a [u8],
-        &'a iota_types::TypeTag,
+        &'a TypeTag,
     )>,
 }
 
@@ -324,7 +320,7 @@ struct CommandOutputReadSource<'a> {
     config: &'a iota_config::node::GrpcApiConfig,
     arg: Option<iota_types::transaction::Argument>,
     bcs_bytes: &'a [u8],
-    ty: &'a iota_types::TypeTag,
+    ty: &'a TypeTag,
 }
 
 impl Merge<&CommandOutputReadSource<'_>> for CommandOutput {
@@ -344,11 +340,7 @@ impl Merge<&CommandOutputReadSource<'_>> for CommandOutput {
         }
 
         if mask.contains(Self::TYPE_TAG_FIELD.name) {
-            self.type_tag = Some({
-                let sdk_type_tag = type_tag_core_to_sdk(source.ty.clone())
-                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
-                (&sdk_type_tag).into()
-            });
+            self.type_tag = Some(source.ty.into());
         }
 
         if mask.contains(Self::BCS_FIELD.name) {

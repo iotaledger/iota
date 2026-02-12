@@ -16,7 +16,7 @@ use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Identifier, TypeTag,
+    Identifier, ObjectId, TypeTag,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use itertools::Either;
@@ -558,7 +558,7 @@ impl EndOfEpochTransactionKind {
             }
             Self::ChangeEpochV4(_) => {
                 vec![InputObjectKind::SharedMoveObject {
-                    id: IOTA_SYSTEM_STATE_OBJECT_ID,
+                    id: ObjectId::SYSTEM_STATE,
                     initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
                     mutable: true,
                 }]
@@ -2802,7 +2802,7 @@ impl SenderSignedData {
     pub fn uses_randomness(&self) -> bool {
         self.shared_input_objects()
             .iter()
-            .any(|obj| obj.id() == IOTA_RANDOMNESS_STATE_OBJECT_ID)
+            .any(|obj| obj.id() == ObjectId::RANDOMNESS_STATE)
     }
 
     fn move_authenticators_validity_check(&self, config: &ProtocolConfig) -> IotaResult {

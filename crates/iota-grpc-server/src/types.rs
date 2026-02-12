@@ -14,7 +14,7 @@ use iota_grpc_types::{
     },
 };
 use iota_types::{
-    base_types::{ObjectID, VersionNumber},
+    base_types::{ObjectID, TypeTag, VersionNumber},
     digests::{TransactionDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     full_checkpoint_content::{
@@ -172,7 +172,7 @@ pub trait GrpcStateReader: Send + Sync + 'static {
     /// Get the Move type layout for a given TypeTag
     fn get_type_layout(
         &self,
-        type_tag: &iota_types::TypeTag,
+        type_tag: &TypeTag,
     ) -> Result<Option<move_core_types::annotated_value::MoveTypeLayout>>;
 
     /// Get a transaction by its digest
@@ -305,7 +305,7 @@ impl GrpcStateReader for RestStateReaderAdapter {
 
     fn get_type_layout(
         &self,
-        type_tag: &iota_types::TypeTag,
+        type_tag: &TypeTag,
     ) -> Result<Option<move_core_types::annotated_value::MoveTypeLayout>> {
         Ok(self.inner.get_type_layout(type_tag)?)
     }
@@ -705,7 +705,7 @@ impl GrpcReader {
 
     pub fn get_type_layout(
         &self,
-        type_tag: &iota_types::TypeTag,
+        type_tag: &TypeTag,
     ) -> Result<Option<move_core_types::annotated_value::MoveTypeLayout>> {
         self.state_reader.get_type_layout(type_tag)
     }

@@ -5,7 +5,6 @@
 use std::str::FromStr;
 
 use anyhow::ensure;
-use iota_sdk_types::{Identifier, StructTag};
 use move_core_types::annotated_value::{MoveDatatypeLayout, MoveValue};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -13,7 +12,7 @@ use serde_json::Value;
 use serde_with::{Bytes, serde_as};
 
 use crate::{
-    base_types::{IotaAddress, ObjectID, TransactionDigest},
+    base_types::{Identifier, IotaAddress, ObjectID, StructTag, TransactionDigest},
     error::{IotaError, IotaResult},
     iota_serde::{BigInt, Readable},
     object::bounded_visitor::BoundedVisitor,

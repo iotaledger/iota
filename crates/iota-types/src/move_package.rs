@@ -54,7 +54,7 @@ use serde_with::{Bytes, serde_as};
 
 use crate::{
     IotaAddress,
-    base_types::{ObjectID, SequenceNumber},
+    base_types::{ObjectID, SequenceNumber, StructTag},
     collection_types::{Entry, VecMap},
     crypto::DefaultHash,
     derived_object,
@@ -656,13 +656,17 @@ pub fn is_test_fun(name: &Identifier, module: &CompiledModule, fn_info_map: &FnI
 }
 
 pub fn get_authenticator_version_from_fun(
-    name: &IdentStr,
+    name: &Identifier,
     module: &CompiledModule,
     fn_info_map: &FnInfoMap,
 ) -> Option<u8> {
     let fn_name = name.to_string();
     let mod_handle = module.self_handle();
-    let mod_addr = *module.address_identifier_at(mod_handle.address);
+    let mod_addr = IotaAddress::from(
+        module
+            .address_identifier_at(mod_handle.address)
+            .into_bytes(),
+    );
     let mod_name = module.name().to_string();
     let fn_info_key = FnInfoKey {
         fn_name,
@@ -1059,12 +1063,12 @@ pub struct PackageMetadataKey {
 
 impl PackageMetadataKey {
     pub fn tag() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: PACKAGE_METADATA_MODULE_NAME.to_owned(),
-            name: PACKAGE_METADATA_KEY_STRUCT_NAME.to_owned(),
-            type_params: Vec::new(),
-        }
+        StructTag::new(
+            IotaAddress::FRAMEWORK,
+            PACKAGE_METADATA_MODULE_NAME,
+            PACKAGE_METADATA_KEY_STRUCT_NAME,
+            Vec::new(),
+        )
     }
 
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
@@ -1138,12 +1142,12 @@ impl PackageMetadataV1 {
     }
 
     pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: PACKAGE_METADATA_MODULE_NAME.to_owned(),
-            name: PACKAGE_METADATA_V1_STRUCT_NAME.to_owned(),
-            type_params: vec![],
-        }
+        StructTag::new(
+            IotaAddress::FRAMEWORK,
+            PACKAGE_METADATA_MODULE_NAME,
+            PACKAGE_METADATA_V1_STRUCT_NAME,
+            vec![],
+        )
     }
 
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
