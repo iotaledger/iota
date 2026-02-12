@@ -247,6 +247,9 @@ importers:
       '@noble/hashes':
         specifier: ^1.4.0
         version: 1.5.0
+      '@scure/base':
+        specifier: ^1.2.4
+        version: 1.2.6
       '@sentry/react':
         specifier: ^7.120.3
         version: 7.120.3(react@18.3.1)
@@ -256,9 +259,6 @@ importers:
       '@tanstack/react-virtual':
         specifier: ^3.5.0
         version: 3.10.8(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      bech32:
-        specifier: ^2.0.0
-        version: 2.0.0
       bignumber.js:
         specifier: ^9.1.1
         version: 9.1.2
@@ -10593,9 +10593,6 @@ packages:
 
   batch@0.6.1:
     resolution: {integrity: sha512-x+VAiMRL6UPkx+kudNvxTl6hB2XNNCG2r+7wixVfIYwu/2HKRXimwQyaumLjMveWvT2Hkd/cAJw+QBMfJ/EKVw==}
-
-  bech32@2.0.0:
-    resolution: {integrity: sha512-LcknSilhIGatDAsY1ak2I8VtGaHNhgMSYVxFrGLXv+xLHytaKZKcaUJJUE7qmBr7h33o5YQwP55pMI0xmkpJwg==}
 
   better-opn@3.0.2:
     resolution: {integrity: sha512-aVNobHnJqLiUelTaHat9DZ1qM2w0C0Eym4LPI/3JxOnSokGVdsl1T1kN7TFvsEAD8G47A6VKQ0TVHqbBnYMJlQ==}
@@ -33894,8 +33891,6 @@ snapshots:
   base64-js@1.5.1: {}
 
   batch@0.6.1: {}
-
-  bech32@2.0.0: {}
 
   better-opn@3.0.2:
     dependencies:
