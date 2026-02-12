@@ -42,14 +42,6 @@ pub mod testbed;
 type Protocol = IotaProtocol;
 type BenchmarkType = IotaBenchmarkType;
 
-#[derive(ValueEnum, Clone, Debug)]
-pub enum WorkloadKind {
-    /// Current "bench" workload (shared-counter / transfer-object mix)
-    Bench,
-    /// New AA workload (abstract-account-bench)
-    AbstractAccountBench,
-}
-
 #[derive(Parser)]
 #[command(author, version, about = "Testbed orchestrator", long_about = None)]
 pub struct Opts {

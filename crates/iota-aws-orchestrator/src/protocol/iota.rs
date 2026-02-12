@@ -421,8 +421,8 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                         let hotness_factor = parameters.shared_counter_hotness_factor.unwrap_or(50);
                         stress_args.push("bench".to_string());
                         stress_args.push(format!("--target-qps {load_share}"));
-                        stress_args.push("--num-workers 24".to_string());
-                        stress_args.push("--in-flight-ratio 30".to_string());
+                        stress_args.push(format!("--num-workers {}", parameters.aa_num_workers));
+                        stress_args.push(format!("--in-flight-ratio {}", parameters.aa_in_flight_ratio));
                         stress_args.push(format!("--shared-counter {shared_objects_ratio} --transfer-object {transfer_objects}"));
                         stress_args.push(format!("--shared-counter-hotness-factor {hotness_factor}"));
                         if let Some(num_counters) = parameters.num_shared_counters {
