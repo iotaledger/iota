@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { CallArg, ObjectArg } from '../../bcs/types';
+import type { CallArg, ObjectArg } from '../../bcs/types.js';
 
 /**
  * Call arg for specifying how to provide call arguments before resolution.
