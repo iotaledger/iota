@@ -32,7 +32,7 @@
     "dependencies": {
         "@iota/graphql-transport": "workspace:*",
         "@iota/iota-sdk": "workspace:*",
-        "@noble/curves": "^1.4.0"
+        "@noble/curves": "^1.4.2"
     },
     "devDependencies": {
         "@types/node": "^20.14.10",

@@ -1768,7 +1768,7 @@ importers:
         specifier: workspace:*
         version: link:../typescript
       '@noble/curves':
-        specifier: ^1.4.0
+        specifier: ^1.4.2
         version: 1.9.2
     devDependencies:
       '@types/node':
