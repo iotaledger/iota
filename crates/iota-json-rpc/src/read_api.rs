@@ -30,7 +30,7 @@ use iota_package_resolver::{
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, StructTag, TransactionDigest},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TransactionDigest},
     collection_types::VecMap,
     crypto::AggregateAuthoritySignature,
     display::DisplayVersionUpdatedEvent,
@@ -1462,7 +1462,7 @@ fn calculate_checkpoint_numbers(
 
 #[async_trait]
 impl PackageStore for ReadApi {
-    async fn fetch(&self, id: AccountAddress) -> Result<Arc<Package>, PackageResolverError> {
+    async fn fetch(&self, id: IotaAddress) -> Result<Arc<Package>, PackageResolverError> {
         let backing_store = self.state.get_backing_package_store();
         match backing_store.get_package_object(&ObjectID::new(id.into_bytes())) {
             Ok(Some(pkg)) => Ok(Arc::new(Package::read_from_package(pkg.move_package())?)),

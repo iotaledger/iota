@@ -242,8 +242,7 @@ async fn test_event_filtering() {
                         assert!(!event.contents.is_empty(), "BCS data must be valid");
                         // Verify sender filter logic: only events from sender_1
                         assert_eq!(
-                            event.sender,
-                            sender_1.into(),
+                            event.sender, sender_1,
                             "SenderFilter should only match sender_1 events"
                         );
 
@@ -287,8 +286,7 @@ async fn test_event_filtering() {
 
                         // Verify NFT filter logic: only NFT events
                         assert_eq!(
-                            event.package_id,
-                            nft_package_id.into(),
+                            event.package_id, nft_package_id,
                             "MoveEventTypeFilter should only match NFT package events"
                         );
 
@@ -332,8 +330,7 @@ async fn test_event_filtering() {
 
                         // Verify AnyEventFilter logic: events from sender_1 and NFT events
                         assert!(
-                            event.sender == sender_1.into()
-                                || event.package_id == nft_package_id.into(),
+                            event.sender == sender_1 || event.package_id == nft_package_id,
                             "AnyEventFilter should receive events from both events: {}",
                             event.package_id
                         );

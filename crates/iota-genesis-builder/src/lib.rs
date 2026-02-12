@@ -28,7 +28,6 @@ use iota_execution::{self, Executor};
 use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_config};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk::Url;
 use iota_sdk_types::{
     StructTag,
     crypto::{Intent, IntentMessage, IntentScope},

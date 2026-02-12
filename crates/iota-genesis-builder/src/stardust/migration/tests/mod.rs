@@ -4,7 +4,6 @@
 use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{anyhow, bail, ensure};
-use iota_sdk_types::StructTag;
 use iota_stardust_types::block::{
     address::AliasAddress,
     output::{

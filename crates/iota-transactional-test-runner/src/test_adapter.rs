@@ -79,9 +79,8 @@ use move_compiler::{
 };
 use move_core_types::{
     account_address::AccountAddress,
-    ident_str,
-    identifier::{IdentStr, Identifier},
-    language_storage::{ModuleId, TypeTag},
+    identifier::IdentStr,
+    language_storage::ModuleId,
     metadata::Metadata,
     parsing::{address::ParsedAddress, values::ParsedValue},
 };
@@ -2264,9 +2263,9 @@ impl IotaTestAdapter {
                 object
                     .struct_tag()
                     .filter(|tag| {
-                        tag.address == package_addr
-                            && tag.module.as_str() == module_name
-                            && tag.name.as_str() == account_type
+                        tag.address() == IotaAddress::from(*package_addr)
+                            && tag.module().as_str() == module_name
+                            && tag.name().as_str() == account_type
                     })
                     .map(|_| *id)
             })

@@ -260,7 +260,6 @@ impl EventFilter {
 
 #[cfg(test)]
 mod tests {
-    use move_core_types::account_address::AccountAddress;
 
     use super::*;
 
@@ -280,7 +279,7 @@ mod tests {
                     module: Some(Identifier::from_static("MyModule")),
                 },
                 EventFilter::Not(Box::new(EventFilter::MoveEventType(StructTag::new(
-                    AccountAddress::new(ObjectID::random().into_bytes()),
+                    IotaAddress::random(),
                     Identifier::from_static("MyModule"),
                     Identifier::from_static("MyEvent"),
                     vec![],

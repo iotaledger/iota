@@ -10,7 +10,7 @@ use std::{
 };
 
 use iota_types::{
-    base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, StructTag},
     committee::EpochId,
     digests::TransactionDigest,
     dynamic_field::visitor as DFV,

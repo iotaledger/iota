@@ -65,10 +65,6 @@ use crate::{
     type_input::TypeName,
 };
 
-#[cfg(test)]
-#[path = "unit_tests/base_types_tests.rs"]
-mod base_types_tests;
-
 pub const PACKAGE_METADATA_MODULE_NAME: Identifier = Identifier::from_static("package_metadata");
 pub const PACKAGE_METADATA_V1_STRUCT_NAME: Identifier =
     Identifier::from_static("PackageMetadataV1");

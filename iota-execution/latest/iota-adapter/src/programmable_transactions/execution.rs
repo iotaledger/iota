@@ -1486,7 +1486,7 @@ mod checked {
         }
 
         if module_ident == (IotaAddress::FRAMEWORK, ACCOUNT_MODULE)
-            && PRIVATE_ACCOUNT_FUNCTIONS.contains(&function)
+            && PRIVATE_ACCOUNT_FUNCTIONS.contains(function)
         {
             let msg = format!("Cannot directly call iota::{ACCOUNT_MODULE}::{function}.");
             return Err(ExecutionError::new_with_source(

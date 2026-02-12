@@ -17,8 +17,7 @@
 use std::mem::size_of;
 
 use iota_sdk_types::StructTag;
-
-use crate::{
+use iota_types::{
     balance::Balance,
     gas_coin::GAS,
     object::{ID_END_INDEX, Object},

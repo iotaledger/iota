@@ -616,7 +616,7 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                         .map(|(version, modules, dependencies)| SystemPackage {
                             version,
                             modules,
-                            dependencies: dependencies.into_iter().collect(),
+                            dependencies,
                         })
                         .collect(),
                 })
@@ -637,7 +637,7 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                         .map(|(version, modules, dependencies)| SystemPackage {
                             version,
                             modules,
-                            dependencies: dependencies.into_iter().collect(),
+                            dependencies,
                         })
                         .collect(),
                 })
@@ -658,7 +658,7 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                         .map(|(version, modules, dependencies)| SystemPackage {
                             version,
                             modules,
-                            dependencies: dependencies.into_iter().collect(),
+                            dependencies,
                         })
                         .collect(),
                     eligible_active_validators: change_epoch_v3.eligible_active_validators,
@@ -681,7 +681,7 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                         .map(|(version, modules, dependencies)| SystemPackage {
                             version,
                             modules,
-                            dependencies: dependencies.into_iter().map(Into::into).collect(),
+                            dependencies,
                         })
                         .collect(),
                     eligible_active_validators: change_epoch_v4.eligible_active_validators,
@@ -718,13 +718,7 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                     system_packages: change_epoch
                         .system_packages
                         .into_iter()
-                        .map(|package| {
-                            (
-                                package.version,
-                                package.modules,
-                                package.dependencies.into_iter().collect(),
-                            )
-                        })
+                        .map(|package| (package.version, package.modules, package.dependencies))
                         .collect(),
                 })
             }
@@ -741,13 +735,7 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                     system_packages: change_epoch_v2
                         .system_packages
                         .into_iter()
-                        .map(|package| {
-                            (
-                                package.version,
-                                package.modules,
-                                package.dependencies.into_iter().collect(),
-                            )
-                        })
+                        .map(|package| (package.version, package.modules, package.dependencies))
                         .collect(),
                 })
             }
@@ -764,13 +752,7 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                     system_packages: change_epoch_v3
                         .system_packages
                         .into_iter()
-                        .map(|package| {
-                            (
-                                package.version,
-                                package.modules,
-                                package.dependencies.into_iter().collect(),
-                            )
-                        })
+                        .map(|package| (package.version, package.modules, package.dependencies))
                         .collect(),
                     eligible_active_validators: change_epoch_v3.eligible_active_validators,
                 })
@@ -788,13 +770,7 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                     system_packages: change_epoch_v4
                         .system_packages
                         .into_iter()
-                        .map(|package| {
-                            (
-                                package.version.into(),
-                                package.modules,
-                                package.dependencies.into_iter().map(Into::into).collect(),
-                            )
-                        })
+                        .map(|package| (package.version, package.modules, package.dependencies))
                         .collect(),
                     eligible_active_validators: change_epoch_v4.eligible_active_validators,
                     scores: change_epoch_v4.scores,
@@ -891,7 +867,7 @@ impl TryFrom<crate::effects::TransactionEffects> for TransactionEffects {
                     gas_object_index: effects.gas_object_index,
                     transaction_digest: effects.transaction_digest,
                     events_digest: effects.events_digest,
-                    dependencies: effects.dependencies.into_iter().collect(),
+                    dependencies: effects.dependencies,
                     lamport_version: effects.lamport_version,
                     changed_objects: effects
                         .changed_objects
@@ -1816,7 +1792,7 @@ impl TryFrom<crate::transaction::Command> for Command {
             }),
             InternalCmd::Publish(modules, dependencies) => Self::Publish(Publish {
                 modules,
-                dependencies: dependencies.into_iter().collect(),
+                dependencies,
             }),
             InternalCmd::MakeMoveVec(type_tag, elements) => Self::MakeMoveVector(MakeMoveVector {
                 type_: type_tag
@@ -1827,7 +1803,7 @@ impl TryFrom<crate::transaction::Command> for Command {
             InternalCmd::Upgrade(modules, dependencies, package, ticket) => {
                 Self::Upgrade(Upgrade {
                     modules,
-                    dependencies: dependencies.into_iter().collect(),
+                    dependencies,
                     package,
                     ticket: ticket.into(),
                 })

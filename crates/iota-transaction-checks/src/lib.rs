@@ -16,7 +16,7 @@ mod checked {
     use iota_config::verifier_signing_config::VerifierSigningConfig;
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
-        IOTA_CLOCK_OBJECT_SHARED_VERSION,
+        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
         base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
         error::{IotaError, IotaResult, UserInputError, UserInputResult},
         executable_transaction::VerifiedExecutableTransaction,
