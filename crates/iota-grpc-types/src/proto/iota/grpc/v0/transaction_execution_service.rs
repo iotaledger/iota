@@ -138,14 +138,19 @@ impl ExecuteTransactionResponse {
 //
 
 impl SimulateTransactionResponse {
-    pub fn executed_transaction(&self) -> Result<&super::transaction::ExecutedTransaction, TryFromProtoError> {
+    pub fn executed_transaction(
+        &self,
+    ) -> Result<&super::transaction::ExecutedTransaction, TryFromProtoError> {
         self.transaction
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(Self::TRANSACTION_FIELD.name))
     }
 
-    pub fn command_results(&self) -> Result<&Vec<super::command::CommandResult>, TryFromProtoError> {
-        Ok(&self.command_results
+    pub fn command_results(
+        &self,
+    ) -> Result<&Vec<super::command::CommandResult>, TryFromProtoError> {
+        Ok(&self
+            .command_results
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(Self::COMMAND_RESULTS_FIELD.name))?
             .results)

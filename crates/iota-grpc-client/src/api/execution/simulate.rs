@@ -53,7 +53,7 @@ impl Client {
     /// let tx: Transaction = todo!();
     ///
     /// // Simulate transaction - returns proto type
-    /// let result = client.simulate_transaction(tx, false, None).await?;
+    /// let result = client.simulate_transaction(tx, false, false, None).await?;
     ///
     /// // Lazy conversion - only deserialize what you need
     /// let effects = result.effects()?;
