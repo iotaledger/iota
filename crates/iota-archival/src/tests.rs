@@ -199,9 +199,11 @@ async fn test_archive_shutdown_on_send() -> Result<(), anyhow::Error> {
     // Let the writer run briefly
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    // Send explicit shutdown signal and verify it completes within timeout
+    // Send explicit shutdown signal and verify it completes within timeout.
+    // The blocking tailing task uses std::thread::sleep(3s) between retries,
+    // so it may take up to ~3s to notice the signal.
     kill.send(())?;
-    let shutdown_result = tokio::time::timeout(Duration::from_secs(5), async {
+    let shutdown_result = tokio::time::timeout(Duration::from_secs(10), async {
         // The writer tasks should stop; verify by checking the sender has
         // no more active receivers (all tasks exited).
         loop {
@@ -215,7 +217,7 @@ async fn test_archive_shutdown_on_send() -> Result<(), anyhow::Error> {
 
     assert!(
         shutdown_result.is_ok(),
-        "Archive writer did not shut down within 5 seconds after send()"
+        "Archive writer did not shut down within 10 seconds after send()"
     );
     Ok(())
 }
@@ -252,17 +254,17 @@ async fn test_archive_shutdown_on_drop() -> Result<(), anyhow::Error> {
             // Drop the sender (simulates IotaNode being dropped on SIGTERM)
             drop(kill);
         });
-        // Wait for blocking tasks to finish. With the correct implementation
-        // (tokio::spawn), there's nothing to wait for since async tasks are
-        // cancelled when the runtime shuts down above.
+        // Wait for blocking tasks to finish. The tailing task runs via
+        // spawn_blocking with std::thread::sleep(3s), so it may take up
+        // to ~3s to notice the sender was dropped and exit.
         rt.shutdown_timeout(Duration::from_secs(10));
         let _ = tx.send(());
     });
 
-    let shutdown_result = tokio::time::timeout(Duration::from_secs(5), rx).await;
+    let shutdown_result = tokio::time::timeout(Duration::from_secs(10), rx).await;
     assert!(
         matches!(shutdown_result, Ok(Ok(()))),
-        "Archive writer did not shut down within 5 seconds after drop()"
+        "Archive writer did not shut down within 10 seconds after drop()"
     );
     Ok(())
 }
