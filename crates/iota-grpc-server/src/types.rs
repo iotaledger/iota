@@ -528,27 +528,27 @@ impl GrpcReader {
                                             }
                                         }
 
-                                            let grpc_event = grpc_event::Event::merge_from(raw_event, &events_submask)
-                                                .map_err(|e| Status::internal(format!("event merge error: {e}")))?;
-                                            let event_size = grpc_event.encoded_len();
+                                        let grpc_event = grpc_event::Event::merge_from(raw_event, &events_submask)
+                                             .map_err(|e| Status::internal(format!("event merge error: {e}")))?;
+                                        let event_size = grpc_event.encoded_len();
 
-                                            // Check if adding this event would exceed limit
-                                            if events_batch_size + event_size > max_message_size_bytes && !events_batch.is_empty() {
-                                                // Yield current event batch
-                                                let events_message = grpc_ledger_service::CheckpointData {
-                                                    payload: Some(Payload::Events(grpc_event::Events {
-                                                        events: events_batch,
-                                                    })),
-                                                };
-                                                yield Ok(events_message);
+                                        // Check if adding this event would exceed limit
+                                        if events_batch_size + event_size > max_message_size_bytes && !events_batch.is_empty() {
+                                            // Yield current event batch
+                                            let events_message = grpc_ledger_service::CheckpointData {
+                                                payload: Some(Payload::Events(grpc_event::Events {
+                                                    events: events_batch,
+                                                })),
+                                            };
+                                            yield Ok(events_message);
 
-                                                // Reset event batch
-                                                events_batch = vec![grpc_event];
-                                                events_batch_size = event_size;
-                                            } else {
-                                                events_batch.push(grpc_event);
-                                                events_batch_size += event_size;
-                                            }
+                                            // Reset event batch
+                                            events_batch = vec![grpc_event];
+                                            events_batch_size = event_size;
+                                        } else {
+                                            events_batch.push(grpc_event);
+                                            events_batch_size += event_size;
+                                        }
                                     }
                                 }
                             }
