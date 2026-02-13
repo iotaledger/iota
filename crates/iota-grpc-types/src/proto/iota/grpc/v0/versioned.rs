@@ -19,7 +19,7 @@ impl VersionedObject {
         }
     }
 
-    pub fn try_into_v1(self) -> Result<iota_sdk_types::Object, Box<Self>> {
+    pub fn try_into_v1(self) -> Result<iota_sdk_types::Object, Self> {
         match self {
             Self::V1(inner) => Ok(inner),
         }
@@ -40,7 +40,7 @@ impl VersionedEvent {
         }
     }
 
-    pub fn try_into_v1(self) -> Result<iota_sdk_types::Event, Box<Self>> {
+    pub fn try_into_v1(self) -> Result<iota_sdk_types::Event, Self> {
         match self {
             Self::V1(inner) => Ok(inner),
         }
@@ -83,7 +83,7 @@ impl VersionedValidatorAggregatedSignature {
         }
     }
 
-    pub fn try_into_v1(self) -> Result<iota_sdk_types::ValidatorAggregatedSignature, Box<Self>> {
+    pub fn try_into_v1(self) -> Result<iota_sdk_types::ValidatorAggregatedSignature, Self> {
         match self {
             Self::V1(inner) => Ok(inner),
         }
