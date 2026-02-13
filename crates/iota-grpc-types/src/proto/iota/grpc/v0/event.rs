@@ -23,8 +23,11 @@ impl TryFrom<&Event> for iota_sdk_types::Event {
             .ok_or_else(|| TryFromProtoError::missing(Event::BCS_FIELD.name))?;
 
         bcs.deserialize::<VersionedEvent>()
-            .map(VersionedEvent::into_inner)
-            .map_err(|e| TryFromProtoError::invalid(Event::BCS_FIELD.name, e))
+            .map_err(|e| TryFromProtoError::invalid(Event::BCS_FIELD.name, e))?
+            .try_into_v1()
+            .map_err(|_| {
+                TryFromProtoError::invalid(Event::BCS_FIELD.name, "unsupported Event version")
+            })
     }
 }
 

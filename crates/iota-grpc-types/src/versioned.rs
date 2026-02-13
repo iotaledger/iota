@@ -13,9 +13,15 @@ pub enum VersionedObject {
 }
 
 impl VersionedObject {
-    pub fn into_inner(self) -> iota_sdk_types::Object {
+    pub fn try_v1(&self) -> Option<&iota_sdk_types::Object> {
         match self {
-            Self::V1(inner) => inner,
+            Self::V1(inner) => Some(inner),
+        }
+    }
+
+    pub fn try_into_v1(self) -> Result<iota_sdk_types::Object, Box<Self>> {
+        match self {
+            Self::V1(inner) => Ok(inner),
         }
     }
 }
@@ -28,9 +34,15 @@ pub enum VersionedEvent {
 }
 
 impl VersionedEvent {
-    pub fn into_inner(self) -> iota_sdk_types::Event {
+    pub fn try_v1(&self) -> Option<&iota_sdk_types::Event> {
         match self {
-            Self::V1(inner) => inner,
+            Self::V1(inner) => Some(inner),
+        }
+    }
+
+    pub fn try_into_v1(self) -> Result<iota_sdk_types::Event, Box<Self>> {
+        match self {
+            Self::V1(inner) => Ok(inner),
         }
     }
 }
@@ -43,9 +55,15 @@ pub enum VersionedCheckpointSummary {
 }
 
 impl VersionedCheckpointSummary {
-    pub fn into_inner(self) -> iota_sdk_types::CheckpointSummary {
+    pub fn try_v1(&self) -> Option<&iota_sdk_types::CheckpointSummary> {
         match self {
-            Self::V1(inner) => inner,
+            Self::V1(inner) => Some(inner),
+        }
+    }
+
+    pub fn try_into_v1(self) -> Result<iota_sdk_types::CheckpointSummary, Box<Self>> {
+        match self {
+            Self::V1(inner) => Ok(inner),
         }
     }
 }
@@ -59,9 +77,15 @@ pub enum VersionedValidatorAggregatedSignature {
 }
 
 impl VersionedValidatorAggregatedSignature {
-    pub fn into_inner(self) -> iota_sdk_types::ValidatorAggregatedSignature {
+    pub fn try_v1(&self) -> Option<&iota_sdk_types::ValidatorAggregatedSignature> {
         match self {
-            Self::V1(inner) => inner,
+            Self::V1(inner) => Some(inner),
+        }
+    }
+
+    pub fn try_into_v1(self) -> Result<iota_sdk_types::ValidatorAggregatedSignature, Box<Self>> {
+        match self {
+            Self::V1(inner) => Ok(inner),
         }
     }
 }

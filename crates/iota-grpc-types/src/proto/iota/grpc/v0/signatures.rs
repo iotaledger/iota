@@ -31,8 +31,14 @@ impl TryFrom<&ValidatorAggregatedSignature> for iota_sdk_types::ValidatorAggrega
             TryFromProtoError::missing(ValidatorAggregatedSignature::BCS_FIELD.name)
         })?;
         bcs.deserialize::<VersionedValidatorAggregatedSignature>()
-            .map(VersionedValidatorAggregatedSignature::into_inner)
-            .map_err(|e| TryFromProtoError::invalid(ValidatorAggregatedSignature::BCS_FIELD, e))
+            .map_err(|e| TryFromProtoError::invalid(ValidatorAggregatedSignature::BCS_FIELD, e))?
+            .try_into_v1()
+            .map_err(|_| {
+                TryFromProtoError::invalid(
+                    ValidatorAggregatedSignature::BCS_FIELD,
+                    "unsupported ValidatorAggregatedSignature version",
+                )
+            })
     }
 }
 

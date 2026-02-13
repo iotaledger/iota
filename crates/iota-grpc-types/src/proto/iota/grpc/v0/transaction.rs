@@ -82,9 +82,13 @@ impl TryFrom<&TransactionEvents> for iota_sdk_types::TransactionEvents {
                         .nested_at(TransactionEvents::EVENTS_FIELD.name, i)
                 })?;
                 bcs.deserialize::<VersionedEvent>()
-                    .map(VersionedEvent::into_inner)
                     .map_err(|err| {
                         TryFromProtoError::invalid("event.bcs", err)
+                            .nested_at(TransactionEvents::EVENTS_FIELD.name, i)
+                    })?
+                    .try_into_v1()
+                    .map_err(|_| {
+                        TryFromProtoError::invalid("event.bcs", "unsupported Event version")
                             .nested_at(TransactionEvents::EVENTS_FIELD.name, i)
                     })
             })

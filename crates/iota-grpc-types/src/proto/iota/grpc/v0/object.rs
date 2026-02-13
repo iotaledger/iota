@@ -22,8 +22,11 @@ impl TryFrom<&Object> for iota_sdk_types::Object {
             .ok_or_else(|| TryFromProtoError::missing(Object::BCS_FIELD.name))?;
 
         bcs.deserialize::<VersionedObject>()
-            .map(VersionedObject::into_inner)
-            .map_err(|e| TryFromProtoError::invalid(Object::BCS_FIELD.name, e))
+            .map_err(|e| TryFromProtoError::invalid(Object::BCS_FIELD.name, e))?
+            .try_into_v1()
+            .map_err(|_| {
+                TryFromProtoError::invalid(Object::BCS_FIELD.name, "unsupported Object version")
+            })
     }
 }
 

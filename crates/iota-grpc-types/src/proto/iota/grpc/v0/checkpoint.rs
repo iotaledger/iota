@@ -25,8 +25,14 @@ impl TryFrom<&CheckpointSummary> for iota_sdk_types::CheckpointSummary {
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(CheckpointSummary::BCS_FIELD.name))?;
         bcs.deserialize::<VersionedCheckpointSummary>()
-            .map(VersionedCheckpointSummary::into_inner)
-            .map_err(|e| TryFromProtoError::invalid(CheckpointSummary::BCS_FIELD, e))
+            .map_err(|e| TryFromProtoError::invalid(CheckpointSummary::BCS_FIELD, e))?
+            .try_into_v1()
+            .map_err(|_| {
+                TryFromProtoError::invalid(
+                    CheckpointSummary::BCS_FIELD,
+                    "unsupported CheckpointSummary version",
+                )
+            })
     }
 }
 
