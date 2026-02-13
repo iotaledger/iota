@@ -49,10 +49,10 @@ interface ItemsRangeFromCurrentPage {
 }
 
 enum FilterValue {
-    Unknown = 'unknown',
-    Kiosks = 'kiosks',
-    Names = 'names',
-    Nfts = 'nfts',
+    Nft = 'nft',
+    Name = 'name',
+    Kiosk = 'kiosk',
+    Other = 'other',
 }
 
 enum OwnedObjectsContainerHeight {
@@ -61,10 +61,10 @@ enum OwnedObjectsContainerHeight {
 }
 
 const FILTER_OPTIONS = [
-    { label: 'NFTS', value: FilterValue.Nfts },
-    { label: 'KIOSKS', value: FilterValue.Kiosks },
-    { label: 'NAMES', value: FilterValue.Names },
-    { label: 'UNKNOWN', value: FilterValue.Unknown },
+    { label: 'NFT', value: FilterValue.Nft },
+    { label: 'NAME', value: FilterValue.Name },
+    { label: 'KIOSK', value: FilterValue.Kiosk },
+    { label: 'OTHER', value: FilterValue.Other },
 ];
 
 const VIEW_MODES = [
@@ -94,7 +94,7 @@ function getShowPagination(
     currentPage: number,
     isFetching: boolean,
 ): boolean {
-    if (filter === FilterValue.Kiosks) {
+    if (filter === FilterValue.Kiosk) {
         return false;
     }
 
@@ -149,55 +149,39 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
         : [];
 
     const categorizedObjects = useMemo(() => {
-        const kiosks = kioskData?.list ?? [];
-        const names: IotaObjectResponse[] = [];
-        const nfts: IotaObjectResponse[] = [];
-        const unknown: IotaObjectResponse[] = [];
+        const kiosk = kioskData?.list ?? [];
+        const name: IotaObjectResponse[] = [];
+        const nft: IotaObjectResponse[] = [];
+        const other: IotaObjectResponse[] = [];
 
         for (const obj of data?.data ?? []) {
             const isIotaName = !!obj.data?.type && nameTypes.includes(obj.data.type);
 
             if (isIotaName) {
-                names.push(obj);
+                name.push(obj);
                 continue;
             }
 
             if (hasDisplayData(obj)) {
-                nfts.push(obj);
+                nft.push(obj);
                 continue;
             }
 
-            unknown.push(obj);
+            other.push(obj);
         }
 
-        return { kiosks, names, nfts, unknown };
+        return { nft, name, kiosk, other };
     }, [data?.data, kioskData?.list, nameTypes]);
 
-    const availableFilters = useMemo(() => {
-        const options: FilterValue[] = [];
+    const availableFilters = useMemo(
+        () =>
+            (Object.keys(categorizedObjects) as FilterValue[]).filter(
+                (key) => categorizedObjects[key].length > 0,
+            ),
+        [categorizedObjects],
+    );
 
-        if (categorizedObjects.nfts.length) {
-            options.push(FilterValue.Nfts);
-        }
-        if (categorizedObjects.kiosks.length) {
-            options.push(FilterValue.Kiosks);
-        }
-        if (categorizedObjects.names.length) {
-            options.push(FilterValue.Names);
-        }
-        if (categorizedObjects.unknown.length) {
-            options.push(FilterValue.Unknown);
-        }
-
-        return options;
-    }, [
-        categorizedObjects.kiosks.length,
-        categorizedObjects.names.length,
-        categorizedObjects.unknown.length,
-        categorizedObjects.nfts.length,
-    ]);
-
-    const isPending = filter === FilterValue.Kiosks ? kioskDataFetching : isFetching;
+    const isPending = filter === FilterValue.Kiosk ? kioskDataFetching : isFetching;
 
     useEffect(() => {
         if (!isPending && availableFilters.length) {
@@ -208,18 +192,34 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
         }
     }, [filter, availableFilters, isPending, setFilter]);
 
+    useEffect(() => {
+        if (filter === FilterValue.Other && viewMode !== ObjectViewMode.List) {
+            setViewMode(ObjectViewMode.List);
+        }
+    }, [filter, viewMode, setViewMode]);
+
+    const effectiveViewMode = filter === FilterValue.Other ? ObjectViewMode.List : viewMode;
+
+    const availableViewModes = useMemo(
+        () =>
+            filter === FilterValue.Other
+                ? VIEW_MODES.filter((mode) => mode.value === ObjectViewMode.List)
+                : VIEW_MODES,
+        [filter],
+    );
+
     const filteredData = useMemo(() => {
-        if (!data?.data && filter !== FilterValue.Kiosks) return [];
+        if (!data?.data && filter !== FilterValue.Kiosk) return [];
 
         switch (filter) {
-            case FilterValue.Kiosks:
-                return categorizedObjects.kiosks;
-            case FilterValue.Names:
-                return categorizedObjects.names;
-            case FilterValue.Nfts:
-                return categorizedObjects.nfts;
-            case FilterValue.Unknown:
-                return categorizedObjects.unknown;
+            case FilterValue.Kiosk:
+                return categorizedObjects.kiosk;
+            case FilterValue.Name:
+                return categorizedObjects.name;
+            case FilterValue.Nft:
+                return categorizedObjects.nft;
+            case FilterValue.Other:
+                return categorizedObjects.other;
             default:
                 return [];
         }
@@ -299,13 +299,13 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                         'gap-4': hasVisualAssets,
                     })}
                 >
-                    <div className="flex w-full flex-col flex-wrap items-start justify-between sm:min-h-[72px] sm:flex-row sm:items-center">
+                    <div className="flex w-full flex-col flex-wrap items-start justify-between gap-xs sm:min-h-[72px] sm:flex-row sm:items-center md:gap-0">
                         <Title size={TitleSize.Medium} title="Assets" />
                         {hasVisualAssets && availableFilters.length > 0 && (
                             <div className="flex flex-col gap-sm px-md--rs sm:flex-row sm:gap-0">
                                 <div className="flex items-center gap-sm">
-                                    {VIEW_MODES.map((mode) => {
-                                        const selected = mode.value === viewMode;
+                                    {availableViewModes.map((mode) => {
+                                        const selected = mode.value === effectiveViewMode;
                                         return (
                                             <div
                                                 key={mode.value}
@@ -367,17 +367,18 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                                 ownedObjectsContainerHeight,
                             )}
                         >
-                            {hasVisualAssets && viewMode === ObjectViewMode.List && (
+                            {hasVisualAssets && effectiveViewMode === ObjectViewMode.List && (
                                 <ListView loading={isPending} data={sortedDataByDisplayImages} />
                             )}
-                            {hasVisualAssets && viewMode === ObjectViewMode.SmallThumbnail && (
-                                <SmallThumbnailsView
-                                    loading={isPending}
-                                    data={sortedDataByDisplayImages}
-                                    limit={limit}
-                                />
-                            )}
-                            {hasVisualAssets && viewMode === ObjectViewMode.Thumbnail && (
+                            {hasVisualAssets &&
+                                effectiveViewMode === ObjectViewMode.SmallThumbnail && (
+                                    <SmallThumbnailsView
+                                        loading={isPending}
+                                        data={sortedDataByDisplayImages}
+                                        limit={limit}
+                                    />
+                                )}
+                            {hasVisualAssets && effectiveViewMode === ObjectViewMode.Thumbnail && (
                                 <ThumbnailsView
                                     loading={isPending}
                                     data={sortedDataByDisplayImages}
@@ -390,7 +391,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                     {showPagination && hasVisualAssets && (
                         <div className="flex flex-col items-center justify-between gap-sm px-sm--rs py-sm--rs md:flex-row">
                             <Pagination {...pagination} />
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-sm">
                                 {!isPending && (
                                     <span className="shrink-0 text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                                         Showing {start} - {end}
