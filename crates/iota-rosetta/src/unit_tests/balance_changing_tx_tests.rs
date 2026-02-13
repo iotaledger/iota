@@ -5,7 +5,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
     path::PathBuf,
-    str::FromStr,
 };
 
 use anyhow::anyhow;
@@ -24,8 +23,7 @@ use iota_sdk::{
 };
 use iota_sdk_types::crypto::Intent;
 use iota_types::{
-    TypeTag,
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag, TypeTag},
     gas_coin::GasCoin,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -37,7 +35,6 @@ use iota_types::{
         TransactionKind,
     },
 };
-use move_core_types::{identifier::Identifier, language_storage::StructTag};
 use rand::seq::{IteratorRandom, SliceRandom};
 use serde_json::json;
 use signature::rand_core::OsRng;
@@ -188,15 +185,15 @@ async fn test_publish_and_move_call() {
         .unwrap();
 
     let treasury = find_module_object(&object_changes, |type_| {
-        if type_.name.as_str() != "TreasuryCap" {
+        if type_.name().as_str() != "TreasuryCap" {
             return false;
         }
 
-        let Some(TypeTag::Struct(otw)) = type_.type_params.first() else {
+        let Some(TypeTag::Struct(otw)) = type_.type_params().first() else {
             return false;
         };
 
-        otw.name.as_str() == "MY_COIN"
+        otw.name().as_str() == "MY_COIN"
     });
 
     let treasury = treasury.clone().reference.to_object_ref();
@@ -206,8 +203,8 @@ async fn test_publish_and_move_call() {
         builder
             .move_call(
                 *package,
-                Identifier::from_str("my_coin").unwrap(),
-                Identifier::from_str("mint").unwrap(),
+                Identifier::from_static("my_coin"),
+                Identifier::from_static("mint"),
                 vec![],
                 vec![
                     CallArg::Object(ObjectArg::ImmOrOwnedObject(treasury)),

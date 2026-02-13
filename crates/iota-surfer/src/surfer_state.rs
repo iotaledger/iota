@@ -14,15 +14,14 @@ use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffec
 use iota_move_build::BuildConfig;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, Identifier,
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, StructTag},
     execution_config_utils::to_binary_config,
     object::{Object, Owner},
     storage::WriteKind,
     transaction::{CallArg, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionData},
 };
 use move_binary_format::{file_format::Visibility, normalized};
-use move_core_types::{identifier::IdentStr, language_storage::StructTag};
+use move_core_types::identifier::IdentStr;
 use rand::rngs::StdRng;
 use test_cluster::TestCluster;
 use tokio::sync::RwLock;
@@ -168,8 +167,8 @@ impl SurferState {
         let tx_data = TransactionData::new_move_call(
             self.address,
             package,
-            Identifier::new(module.as_str()).unwrap(),
-            Identifier::new(function.as_str()).unwrap(),
+            Identifier::new(&module).unwrap(),
+            Identifier::new(&function).unwrap(),
             vec![],
             self.gas_object,
             args,
@@ -414,7 +413,7 @@ fn is_type_tx_context(ty: &Type) -> bool {
     match ty {
         Type::Reference(_, inner) => match inner.as_ref() {
             Type::Datatype(dt) => {
-                dt.module.address == IOTA_FRAMEWORK_ADDRESS
+                dt.module.address.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
                     && dt.module.name.as_ident_str() == IdentStr::new("tx_context").unwrap()
                     && dt.name.as_ident_str() == IdentStr::new("TxContext").unwrap()
                     && dt.type_arguments.is_empty()

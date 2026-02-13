@@ -7,7 +7,7 @@ use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolVersion;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
+    base_types::ObjectID,
     transaction::{CallArg, ProgrammableMoveCall, ProgrammableTransaction, TransactionKind},
 };
 use jsonrpsee::{core::ClientError, types::ErrorCode};
@@ -40,7 +40,7 @@ fn build_faulty_transaction_byte_sequence() -> Base64 {
     // bytes.
     let commands = vec![iota_types::transaction::Command::MoveCall(Box::new(
         ProgrammableMoveCall {
-            package: IOTA_FRAMEWORK_PACKAGE_ID,
+            package: ObjectID::FRAMEWORK,
             module: "_".into(),
             function: "timestamp_ms".into(),
             type_arguments: vec![],

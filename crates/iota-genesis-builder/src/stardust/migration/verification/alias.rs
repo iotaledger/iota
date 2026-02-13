@@ -6,9 +6,8 @@ use std::collections::HashMap;
 use anyhow::{anyhow, bail, ensure};
 use iota_stardust_types::block::output as stardust;
 use iota_types::{
-    TypeTag,
     balance::Balance,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{IotaAddress, ObjectID, TypeTag},
     dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
     in_memory_storage::InMemoryStorage,
     object::Owner,

@@ -12,8 +12,7 @@ use std::{
 use anyhow::{Context, bail};
 use iota_json_rpc_types::{IotaTransactionBlockResponse, get_new_package_obj_from_response};
 use iota_sdk::wallet_context::WalletContext;
-use iota_types::base_types::ObjectID;
-use move_core_types::account_address::AccountAddress;
+use iota_types::base_types::{IotaAddress, ObjectID};
 use move_package::{
     lock_file::{self, LockFile, schema::ManagedPackage},
     resolution::resolution_graph::Package,
@@ -148,8 +147,8 @@ pub fn set_package_id(
     package_path: &Path,
     install_dir: Option<PathBuf>,
     chain_id: &String,
-    id: AccountAddress,
-) -> Result<Option<AccountAddress>, anyhow::Error> {
+    id: IotaAddress,
+) -> Result<Option<IotaAddress>, anyhow::Error> {
     let lock_file_path = package_path.join(SourcePackageLayout::Lock.path());
     let Ok(mut lock_file) = File::open(lock_file_path.clone()) else {
         return Ok(None);
@@ -167,7 +166,7 @@ pub fn set_package_id(
     };
     lock_file::schema::set_original_id(&mut lock_for_update, &env, &id.to_canonical_string(true))?;
     lock_for_update.commit(lock_file_path)?;
-    let id = AccountAddress::from_str(&v.original_published_id)?;
+    let id = IotaAddress::from_str(&v.original_published_id)?;
     Ok(Some(id))
 }
 

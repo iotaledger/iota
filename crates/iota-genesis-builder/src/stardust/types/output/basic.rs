@@ -44,7 +44,7 @@ pub fn create_coin(
     let coin = Coin::new(object_id, amount);
     let move_object = {
         MoveObject::new_from_execution(
-            MoveObjectType::from(Coin::type_(coin_type.to_type_tag())),
+            MoveObjectType::coin(coin_type.to_type_tag()),
             version,
             bcs::to_bytes(&coin)?,
             protocol_config,

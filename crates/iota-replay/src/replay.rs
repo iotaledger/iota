@@ -20,7 +20,7 @@ use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
-    base_types::{ObjectID, ObjectRef, SequenceNumber, VersionNumber},
+    base_types::{ObjectID, ObjectRef, SequenceNumber, StructTag, VersionNumber},
     committee::EpochId,
     digests::{ObjectDigest, TransactionDigest},
     error::{ExecutionError, IotaError, IotaResult},
@@ -28,6 +28,7 @@ use iota_types::{
     gas::IotaGasStatus,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
     message_envelope::Message,
     metrics::LimitsMetrics,
     object::{Data, Object, Owner},
@@ -37,15 +38,16 @@ use iota_types::{
     },
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
-        SenderSignedData, Transaction, TransactionDataAPI, TransactionKind,
-        TransactionKind::ProgrammableTransaction, VerifiedTransaction,
+        SenderSignedData, Transaction, TransactionDataAPI,
+        TransactionKind::{self, ProgrammableTransaction},
+        VerifiedTransaction,
     },
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{
     account_address::AccountAddress,
-    language_storage::{ModuleId, StructTag},
+    language_storage::ModuleId,
     resolver::{ModuleResolver, ResourceResolver},
 };
 use prometheus::Registry;
@@ -1974,7 +1976,7 @@ impl ResourceResolver for LocalExec {
     fn get_resource(
         &self,
         address: &AccountAddress,
-        type_: &StructTag,
+        type_: &move_core_types::language_storage::StructTag,
     ) -> IotaResult<Option<Vec<u8>>> {
         fn inner(
             self_: &LocalExec,
@@ -2006,7 +2008,7 @@ impl ResourceResolver for LocalExec {
             }
         }
 
-        let res = inner(self, address, type_);
+        let res = inner(self, address, &struct_tag_core_to_sdk(type_));
         self.exec_store_events
             .lock()
             .expect("Unable to lock events list")

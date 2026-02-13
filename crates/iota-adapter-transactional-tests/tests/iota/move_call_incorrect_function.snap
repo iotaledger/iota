@@ -11,7 +11,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 2, lines 17-19:
 //# run 0x242::M::create
-Error: Error checking transaction input objects: Dependent package not found on-chain: 0x0000000000000000000000000000000000000000000000000000000000000242
+Error: Error checking transaction input objects: Dependent package not found on-chain: ObjectId("0x0000000000000000000000000000000000000000000000000000000000000242")
 
 task 3, line 20:
 //# run Test::M::foo

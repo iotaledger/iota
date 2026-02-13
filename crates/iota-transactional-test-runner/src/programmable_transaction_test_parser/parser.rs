@@ -7,6 +7,7 @@ use std::{borrow::BorrowMut, marker::PhantomData, str::FromStr};
 use anyhow::{Context, Result, bail};
 use iota_types::{
     base_types::ObjectID,
+    iota_sdk_types_conversions::type_tag_core_to_sdk,
     transaction::{Argument, Command, ProgrammableMoveCall},
     type_input::TypeInput,
 };
@@ -347,7 +348,10 @@ impl ParsedCommand {
             ParsedCommand::MergeCoins(target, coins) => Command::MergeCoins(target, coins),
             ParsedCommand::MakeMoveVec(ty_opt, args) => Command::make_move_vec(
                 ty_opt
-                    .map(|t| t.into_type_tag(address_mapping))
+                    .map(|t| {
+                        t.into_type_tag(address_mapping)
+                            .map(|tt| type_tag_core_to_sdk(&tt))
+                    })
                     .transpose()?,
                 args,
             ),
@@ -402,7 +406,11 @@ impl ParsedMoveCall {
         };
         let type_arguments = type_arguments
             .into_iter()
-            .map(|t| t.into_type_tag(address_mapping).map(TypeInput::from))
+            .map(|t| {
+                t.into_type_tag(address_mapping)
+                    .map(|tt| type_tag_core_to_sdk(&tt))
+                    .map(TypeInput::from)
+            })
             .collect::<Result<_>>()?;
         Ok(ProgrammableMoveCall {
             package: ObjectID::new(package.into_bytes()),

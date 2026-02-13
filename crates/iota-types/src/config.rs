@@ -2,25 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{
-    account_address::AccountAddress,
-    ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
-};
+use iota_sdk_types::{StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
-use crate::{IOTA_FRAMEWORK_ADDRESS, MoveTypeTagTrait, base_types::EpochId, id::UID};
-
-pub const CONFIG_MODULE_NAME: &IdentStr = ident_str!("config");
-pub const CONFIG_STRUCT_NAME: &IdentStr = ident_str!("Config");
-pub const SETTING_STRUCT_NAME: &IdentStr = ident_str!("Setting");
-pub const SETTING_DATA_STRUCT_NAME: &IdentStr = ident_str!("SettingData");
-pub const RESOLVED_IOTA_CONFIG: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &IOTA_FRAMEWORK_ADDRESS,
-    CONFIG_MODULE_NAME,
-    CONFIG_STRUCT_NAME,
-);
+use crate::{MoveTypeTagTrait, base_types::EpochId, id::UID};
 
 /// Rust representation of the Move type 0x2::config::Config.
 #[derive(Debug, Serialize, Deserialize)]
@@ -42,29 +27,13 @@ pub struct SettingData<V> {
     pub older_value_opt: Option<V>,
 }
 
-impl Config {
-    pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: CONFIG_MODULE_NAME.to_owned(),
-            name: CONFIG_STRUCT_NAME.to_owned(),
-            type_params: vec![],
-        }
-    }
-}
-
 pub fn setting_type(value_tag: TypeTag) -> StructTag {
-    StructTag {
-        address: IOTA_FRAMEWORK_ADDRESS,
-        module: CONFIG_MODULE_NAME.to_owned(),
-        name: SETTING_STRUCT_NAME.to_owned(),
-        type_params: vec![value_tag],
-    }
+    StructTag::new_config_setting(value_tag)
 }
 
 impl MoveTypeTagTrait for Config {
     fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(Config::type_()))
+        TypeTag::Struct(Box::new(StructTag::new_config()))
     }
 }
 
@@ -72,19 +41,6 @@ impl<V: MoveTypeTagTrait> MoveTypeTagTrait for Setting<V> {
     fn get_type_tag() -> TypeTag {
         TypeTag::Struct(Box::new(setting_type(V::get_type_tag())))
     }
-}
-
-pub fn is_setting(tag: &StructTag) -> bool {
-    let StructTag {
-        address,
-        module,
-        name,
-        type_params,
-    } = tag;
-    *address == IOTA_FRAMEWORK_ADDRESS
-        && module.as_ident_str() == CONFIG_MODULE_NAME
-        && name.as_ident_str() == SETTING_STRUCT_NAME
-        && type_params.len() == 1
 }
 
 impl<V> Setting<V> {

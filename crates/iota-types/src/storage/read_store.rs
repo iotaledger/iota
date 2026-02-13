@@ -4,15 +4,13 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use move_core_types::{
-    annotated_value::MoveTypeLayout,
-    language_storage::{StructTag, TypeTag},
-};
+use move_core_types::annotated_value::MoveTypeLayout;
 use serde::{Deserialize, Serialize};
 use typed_store_error::TypedStoreError;
 
 use super::{ObjectStore, error::Result};
 use crate::{
+    StructTag, TypeTag,
     base_types::{EpochId, IotaAddress, MoveObjectType, ObjectID, ObjectType, SequenceNumber},
     committee::Committee,
     digests::{

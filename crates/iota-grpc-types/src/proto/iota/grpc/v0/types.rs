@@ -128,7 +128,8 @@ impl ObjectReference {
 
     /// Get the object version number.
     pub fn object_version(&self) -> Result<iota_sdk_types::Version, TryFromProtoError> {
-        self.version.map(Into::into)
+        self.version
+            .map(Into::into)
             .ok_or_else(|| TryFromProtoError::missing(Self::VERSION_FIELD.name))
     }
 

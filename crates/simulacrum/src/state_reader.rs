@@ -11,8 +11,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use iota_grpc_server::GrpcStateReader;
 use iota_types::{
-    TypeTag,
-    base_types::{ObjectID, VersionNumber},
+    base_types::{ObjectID, TypeTag, VersionNumber},
     committee::Committee,
     digests::{ChainIdentifier, TransactionDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},

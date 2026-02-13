@@ -5,7 +5,6 @@
 use std::{fmt::Formatter, sync::LazyLock};
 
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     base_types::{ObjectID, ObjectRef},
     digests::TransactionDigest,
     move_package::MovePackage,
@@ -124,24 +123,24 @@ impl BuiltInFramework {
         // TODO: Is it possible to derive dependencies from the bytecode instead of
         // manually specifying them?
         define_system_package_metadata!([
-            (MOVE_STDLIB_PACKAGE_ID, "MoveStdlib", "move-stdlib", []),
+            (ObjectID::STD, "MoveStdlib", "move-stdlib", []),
             (
-                IOTA_FRAMEWORK_PACKAGE_ID,
+                ObjectID::FRAMEWORK,
                 "Iota",
                 "iota-framework",
-                [MOVE_STDLIB_PACKAGE_ID]
+                [ObjectID::STD]
             ),
             (
-                IOTA_SYSTEM_PACKAGE_ID,
+                ObjectID::SYSTEM,
                 "IotaSystem",
                 "iota-system",
-                [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
+                [ObjectID::STD, ObjectID::FRAMEWORK]
             ),
             (
-                STARDUST_PACKAGE_ID,
+                ObjectID::STARDUST,
                 "Stardust",
                 "stardust",
-                [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
+                [ObjectID::STD, ObjectID::FRAMEWORK]
             ),
         ])
         .iter()

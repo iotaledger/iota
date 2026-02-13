@@ -4,7 +4,7 @@
 
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::dbg_addr,
+    base_types::{Identifier, dbg_addr},
     crypto::{AccountKeyPair, get_key_pair},
     effects::TransactionEvents,
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
@@ -13,7 +13,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     utils::to_sender_signed_transaction,
 };
-use move_core_types::{account_address::AccountAddress, ident_str};
+use move_core_types::account_address::AccountAddress;
 use once_cell::sync::Lazy;
 
 use super::{
@@ -184,8 +184,8 @@ where
             .compute_object_reference();
         gas_coin_refs.push(coin_ref);
     }
-    let module = ident_str!("move_random").to_owned();
-    let function = ident_str!(function).to_owned();
+    let module = Identifier::from_static("move_random");
+    let function = Identifier::from_static(function);
     let data = TransactionData::new_move_call_with_gas_coins(
         sender,
         package,
@@ -849,8 +849,8 @@ async fn test_move_call_gas() -> IotaResult {
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
 
-    let module = ident_str!("object_basics").to_owned();
-    let function = ident_str!("create").to_owned();
+    let module = Identifier::from_static("object_basics");
+    let function = Identifier::from_static("create");
     let args = vec![
         CallArg::Pure(16u64.to_le_bytes().to_vec()),
         CallArg::Pure(bcs::to_bytes(&AccountAddress::new(sender.into_bytes())).unwrap()),
@@ -892,7 +892,7 @@ async fn test_move_call_gas() -> IotaResult {
         sender,
         package_object_ref.0,
         module.clone(),
-        ident_str!("delete").to_owned(),
+        Identifier::from_static("delete"),
         vec![],
         gas_object.compute_object_reference(),
         vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(
