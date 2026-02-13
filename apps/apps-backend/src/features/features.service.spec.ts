@@ -4,7 +4,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { FeaturesService } from './features.service';
 import { Feature } from '@iota/core/enums/features.enums';
-import * as versionedFeaturesModule from './versioned-features';
 
 describe('FeaturesService', () => {
     let service: FeaturesService;
@@ -30,9 +29,11 @@ describe('FeaturesService', () => {
             expect(result.features[Feature.WalletPasskeys]).toBeDefined();
         });
 
-        it('should return all features when version is undefined', () => {
-            const result = service.getStagingFeatures(undefined);
-            expect(result.features[Feature.WalletPasskeys]).toBeDefined();
+        it('should not expose minVersion in the response', () => {
+            const result = service.getStagingFeatures('99.0.0');
+            for (const entry of Object.values(result.features)) {
+                expect(entry).not.toHaveProperty('minVersion');
+            }
         });
     });
 
@@ -44,8 +45,18 @@ describe('FeaturesService', () => {
             expect(result.dateUpdated).toBeDefined();
         });
 
-        it('should return all features when version is undefined', () => {
-            const result = service.getProductionFeatures(undefined);
+        it('should exclude versioned features when version is below minVersion', () => {
+            const result = service.getProductionFeatures('0.1.0');
+            expect(result.features[Feature.WalletPasskeys]).toBeUndefined();
+        });
+
+        it('should include versioned features when version meets minVersion', () => {
+            const result = service.getProductionFeatures('1.5.0');
+            expect(result.features[Feature.WalletPasskeys]).toBeDefined();
+        });
+
+        it('should include all features when no version is sent (backward compat)', () => {
+            const result = service.getProductionFeatures();
             expect(result.features[Feature.WalletPasskeys]).toBeDefined();
         });
     });
@@ -53,95 +64,48 @@ describe('FeaturesService', () => {
     describe('applyVersionFilter', () => {
         const mockFeatures = {
             'feature-a': { defaultValue: true },
-            'feature-b': { defaultValue: false },
+            'feature-b': { defaultValue: false, minVersion: '2.0.0' },
             'feature-c': { defaultValue: 'hello' },
         };
 
         it('should return all features when no version is provided', () => {
-            const result = service.applyVersionFilter(mockFeatures, 'staging');
+            const result = service.applyVersionFilter(mockFeatures);
             expect(result).toEqual(mockFeatures);
         });
 
         it('should return all features when version is an empty string', () => {
-            const result = service.applyVersionFilter(mockFeatures, 'staging', '');
+            const result = service.applyVersionFilter(mockFeatures, '');
             expect(result).toEqual(mockFeatures);
         });
 
         it('should return all features when version is invalid', () => {
-            const result = service.applyVersionFilter(mockFeatures, 'staging', 'not-a-version');
+            const result = service.applyVersionFilter(mockFeatures, 'not-a-version');
             expect(result).toEqual(mockFeatures);
         });
 
-        it('should return all features when no versioned rules are defined', () => {
-            const result = service.applyVersionFilter(mockFeatures, 'staging', '1.0.0');
-            expect(result).toEqual(mockFeatures);
+        it('should exclude features when version is below minVersion', () => {
+            const result = service.applyVersionFilter(mockFeatures, '1.9.9');
+            expect(result['feature-a']).toEqual({ defaultValue: true });
+            expect(result['feature-b']).toBeUndefined();
+            expect(result['feature-c']).toEqual({ defaultValue: 'hello' });
         });
 
-        describe('with versioned feature rules', () => {
-            const originalVersionedFeatures = { ...versionedFeaturesModule.VERSIONED_FEATURES };
+        it('should include features when version meets minVersion', () => {
+            const result = service.applyVersionFilter(mockFeatures, '2.0.0');
+            expect(result['feature-a']).toEqual({ defaultValue: true });
+            expect(result['feature-b']).toEqual({ defaultValue: false, minVersion: '2.0.0' });
+            expect(result['feature-c']).toEqual({ defaultValue: 'hello' });
+        });
 
-            beforeEach(() => {
-                // Set up a test rule: feature-b requires version >= 2.0.0
-                (versionedFeaturesModule.VERSIONED_FEATURES as any)['feature-b'] = {
-                    minVersion: '2.0.0',
-                    staging: 'staging-override',
-                    production: 'production-override',
-                };
-            });
+        it('should include features when version exceeds minVersion', () => {
+            const result = service.applyVersionFilter(mockFeatures, '3.0.0');
+            expect(result['feature-b']).toEqual({ defaultValue: false, minVersion: '2.0.0' });
+        });
 
-            afterEach(() => {
-                // Restore original state
-                for (const key of Object.keys(versionedFeaturesModule.VERSIONED_FEATURES)) {
-                    delete (versionedFeaturesModule.VERSIONED_FEATURES as any)[key];
-                }
-                Object.assign(
-                    versionedFeaturesModule.VERSIONED_FEATURES,
-                    originalVersionedFeatures,
-                );
-            });
-
-            it('should exclude features when version is below minVersion', () => {
-                const result = service.applyVersionFilter(mockFeatures, 'staging', '1.9.9');
-                expect(result['feature-a']).toEqual({ defaultValue: true });
-                expect(result['feature-b']).toBeUndefined();
-                expect(result['feature-c']).toEqual({ defaultValue: 'hello' });
-            });
-
-            it('should include features with override when version meets minVersion', () => {
-                const result = service.applyVersionFilter(mockFeatures, 'staging', '2.0.0');
-                expect(result['feature-a']).toEqual({ defaultValue: true });
-                expect(result['feature-b']).toEqual({ defaultValue: 'staging-override' });
-                expect(result['feature-c']).toEqual({ defaultValue: 'hello' });
-            });
-
-            it('should include features with override when version exceeds minVersion', () => {
-                const result = service.applyVersionFilter(mockFeatures, 'staging', '3.0.0');
-                expect(result['feature-b']).toEqual({ defaultValue: 'staging-override' });
-            });
-
-            it('should use the correct environment override', () => {
-                const stagingResult = service.applyVersionFilter(mockFeatures, 'staging', '2.0.0');
-                expect(stagingResult['feature-b']).toEqual({
-                    defaultValue: 'staging-override',
-                });
-
-                const productionResult = service.applyVersionFilter(
-                    mockFeatures,
-                    'production',
-                    '2.0.0',
-                );
-                expect(productionResult['feature-b']).toEqual({
-                    defaultValue: 'production-override',
-                });
-            });
-
-            it('should keep the original value when no environment override is defined', () => {
-                // Remove the staging override
-                delete (versionedFeaturesModule.VERSIONED_FEATURES as any)['feature-b'].staging;
-
-                const result = service.applyVersionFilter(mockFeatures, 'staging', '2.0.0');
-                expect(result['feature-b']).toEqual({ defaultValue: false });
-            });
+        it('should always include features without minVersion', () => {
+            const result = service.applyVersionFilter(mockFeatures, '0.0.1');
+            expect(result['feature-a']).toEqual({ defaultValue: true });
+            expect(result['feature-c']).toEqual({ defaultValue: 'hello' });
         });
     });
 });

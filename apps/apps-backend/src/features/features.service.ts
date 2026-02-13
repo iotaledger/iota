@@ -9,32 +9,41 @@ import {
     KNOWN_ADDRESSES_ALIASES,
     RECOGNIZED_PACKAGES,
 } from './features.constants';
-import { VERSIONED_FEATURES } from './versioned-features';
 import { isValidSemver, semverGte } from './version.utils';
 
-type FeaturesMap = Record<string, { defaultValue: unknown }>;
-type Environment = 'staging' | 'production';
+interface FeatureEntry {
+    defaultValue: unknown;
+    /**
+     * Optional minimum client version (semver) required for this feature.
+     * - If the client sends `?version=X.Y.Z` and version < minVersion, the feature is excluded.
+     * - If the client sends `?version=X.Y.Z` and version >= minVersion, the feature is included.
+     * - If the client does not send a version, all features are returned (backward compatible).
+     */
+    minVersion?: string;
+}
+
+type FeaturesMap = Record<string, FeatureEntry>;
 
 @Injectable()
 export class FeaturesService {
     getStagingFeatures(version?: string) {
         const features = this.buildStagingFeatures();
-        const filtered = this.applyVersionFilter(features, 'staging', version);
+        const filtered = this.applyVersionFilter(features, version);
 
         return {
             status: 200,
-            features: filtered,
+            features: this.stripMinVersion(filtered),
             dateUpdated: new Date().toISOString(),
         };
     }
 
     getProductionFeatures(version?: string) {
         const features = this.buildProductionFeatures();
-        const filtered = this.applyVersionFilter(features, 'production', version);
+        const filtered = this.applyVersionFilter(features, version);
 
         return {
             status: 200,
-            features: filtered,
+            features: this.stripMinVersion(filtered),
             dateUpdated: new Date().toISOString(),
         };
     }
@@ -44,46 +53,41 @@ export class FeaturesService {
      *
      * - If no version is provided (or the version is invalid), all features are returned as-is
      *   for backward compatibility.
-     * - If a version is provided and a feature has a rule in VERSIONED_FEATURES:
+     * - If a version is provided and a feature has a `minVersion`:
      *   - version < minVersion → the feature is excluded from the response.
-     *   - version >= minVersion → the feature is included. If an environment-specific override
-     *     value exists, it replaces the hardcoded defaultValue.
-     * - Features not listed in VERSIONED_FEATURES are always included.
+     *   - version >= minVersion → the feature is included.
+     * - Features without `minVersion` are always included.
      */
-    applyVersionFilter(
-        features: FeaturesMap,
-        environment: Environment,
-        version?: string,
-    ): FeaturesMap {
+    applyVersionFilter(features: FeaturesMap, version?: string): FeaturesMap {
         if (!version || !isValidSemver(version)) {
             return features;
         }
 
         const result: FeaturesMap = {};
 
-        for (const [key, value] of Object.entries(features)) {
-            const rule = VERSIONED_FEATURES[key as Feature];
-
-            if (!rule) {
-                // No version constraint — always include.
-                result[key] = value;
+        for (const [key, entry] of Object.entries(features)) {
+            if (!entry.minVersion) {
+                result[key] = entry;
                 continue;
             }
 
-            if (!semverGte(version, rule.minVersion)) {
-                // Client version is below the minimum — exclude this feature.
-                continue;
+            if (semverGte(version, entry.minVersion)) {
+                result[key] = entry;
             }
-
-            // Client version satisfies the constraint — include with optional override.
-            const override = rule[environment];
-            if (override !== undefined) {
-                result[key] = { defaultValue: override };
-            } else {
-                result[key] = value;
-            }
+            // else: version < minVersion → exclude
         }
 
+        return result;
+    }
+
+    /**
+     * Strip the `minVersion` field from the response so clients only see `{ defaultValue }`.
+     */
+    private stripMinVersion(features: FeaturesMap): Record<string, { defaultValue: unknown }> {
+        const result: Record<string, { defaultValue: unknown }> = {};
+        for (const [key, entry] of Object.entries(features)) {
+            result[key] = { defaultValue: entry.defaultValue };
+        }
         return result;
     }
 
@@ -226,14 +230,16 @@ export class FeaturesService {
                     bannerUrl: '',
                 },
             },
+            // Passkeys enabled in production only for wallet >= 1.5.0
             [Feature.WalletPasskeys]: {
                 defaultValue: {
-                    [Network.Mainnet]: false,
-                    [Network.Devnet]: false,
-                    [Network.Testnet]: false,
-                    [Network.Localnet]: false,
-                    [Network.Custom]: false,
+                    [Network.Mainnet]: true,
+                    [Network.Devnet]: true,
+                    [Network.Testnet]: true,
+                    [Network.Localnet]: true,
+                    [Network.Custom]: true,
                 },
+                minVersion: '1.5.0',
             },
             [Feature.PollingTxnTable]: {
                 defaultValue: true,
