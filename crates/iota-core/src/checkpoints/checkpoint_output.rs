@@ -140,14 +140,18 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
         // is coming to an end. Since `close_epoch` is called according to local clocks,
         // we use an analogous rule for the last reports, requiring that the checkpoint
         // is close to the next reconfiguration timestamp.
-        if (epoch_store.protocol_config().calculate_validator_scores()
-            && checkpoint_seq - epoch_store.scorer.last_report_checkpoint_seq() >= 1000
-            && Some(checkpoint_seq + 100) >= highest_verified_checkpoint)
-            || checkpoint_timestamp >= self.next_reconfiguration_timestamp_ms - 2000
+        let should_send_last_report =
+            checkpoint_timestamp >= self.next_reconfiguration_timestamp_ms - 2000;
+        if epoch_store.protocol_config().calculate_validator_scores()
+            && ((checkpoint_seq - epoch_store.scorer.last_report_checkpoint_seq() >= 1000
+                && Some(checkpoint_seq + 100) >= highest_verified_checkpoint)
+                || should_send_last_report)
         {
             let misbehavior_report = epoch_store.scorer.current_local_metrics_count.to_report();
             let new_report_summary = misbehavior_report.summary();
-            if new_report_summary != epoch_store.scorer.last_report_summary() {
+            if new_report_summary != epoch_store.scorer.last_report_summary()
+                || should_send_last_report
+            {
                 let transaction = ConsensusTransaction::new_misbehavior_report(
                     epoch_store.name,
                     &misbehavior_report,
