@@ -8,6 +8,7 @@ include!("../../../generated/iota.grpc.v0.object.field_info.rs");
 use crate::{
     proto::TryFromProtoError,
     v0::{bcs::BcsData, types::ObjectReference},
+    versioned::VersionedObject,
 };
 
 // TryFrom implementations for Object
@@ -20,7 +21,8 @@ impl TryFrom<&Object> for iota_sdk_types::Object {
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(Object::BCS_FIELD.name))?;
 
-        bcs.deserialize()
+        bcs.deserialize::<VersionedObject>()
+            .map(VersionedObject::into_inner)
             .map_err(|e| TryFromProtoError::invalid(Object::BCS_FIELD.name, e))
     }
 }

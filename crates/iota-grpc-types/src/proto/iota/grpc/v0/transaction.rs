@@ -9,6 +9,7 @@ include!("../../../generated/iota.grpc.v0.transaction.accessors.rs");
 use crate::{
     proto::{TryFromProtoError, get_inner_field},
     v0::{bcs::BcsData, object::Objects},
+    versioned::VersionedEvent,
 };
 
 // TryFrom implementations for TransactionEffects
@@ -80,10 +81,12 @@ impl TryFrom<&TransactionEvents> for iota_sdk_types::TransactionEvents {
                     TryFromProtoError::missing("event.bcs")
                         .nested_at(TransactionEvents::EVENTS_FIELD.name, i)
                 })?;
-                bcs.deserialize().map_err(|err| {
-                    TryFromProtoError::invalid("event.bcs", err)
-                        .nested_at(TransactionEvents::EVENTS_FIELD.name, i)
-                })
+                bcs.deserialize::<VersionedEvent>()
+                    .map(VersionedEvent::into_inner)
+                    .map_err(|err| {
+                        TryFromProtoError::invalid("event.bcs", err)
+                            .nested_at(TransactionEvents::EVENTS_FIELD.name, i)
+                    })
             })
             .collect::<Result<Vec<_>, _>>()?;
 

@@ -9,6 +9,7 @@ include!("../../../generated/iota.grpc.v0.event.accessors.rs");
 use crate::{
     proto::{TryFromProtoError, get_inner_field},
     v0::bcs::BcsData,
+    versioned::VersionedEvent,
 };
 
 // TryFrom implementations for Event
@@ -21,7 +22,8 @@ impl TryFrom<&Event> for iota_sdk_types::Event {
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(Event::BCS_FIELD.name))?;
 
-        bcs.deserialize()
+        bcs.deserialize::<VersionedEvent>()
+            .map(VersionedEvent::into_inner)
             .map_err(|e| TryFromProtoError::invalid(Event::BCS_FIELD.name, e))
     }
 }

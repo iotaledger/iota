@@ -10,6 +10,7 @@
 pub mod field;
 pub mod headers;
 pub mod proto;
+pub mod versioned;
 
 // Re-export google namespace
 pub mod google {

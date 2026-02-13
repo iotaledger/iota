@@ -9,6 +9,7 @@ include!("../../../generated/iota.grpc.v0.signatures.accessors.rs");
 use crate::{
     proto::{GrpcConversionError, TryFromProtoError},
     v0::bcs::BcsData,
+    versioned::VersionedValidatorAggregatedSignature,
 };
 
 // ValidatorAggregatedSignature
@@ -17,7 +18,7 @@ use crate::{
 impl From<iota_sdk_types::ValidatorAggregatedSignature> for ValidatorAggregatedSignature {
     fn from(value: iota_sdk_types::ValidatorAggregatedSignature) -> Self {
         Self {
-            bcs: BcsData::serialize(&value).ok(),
+            bcs: BcsData::serialize(&VersionedValidatorAggregatedSignature::V1(value)).ok(),
         }
     }
 }
@@ -29,7 +30,8 @@ impl TryFrom<&ValidatorAggregatedSignature> for iota_sdk_types::ValidatorAggrega
         let bcs = value.bcs.as_ref().ok_or_else(|| {
             TryFromProtoError::missing(ValidatorAggregatedSignature::BCS_FIELD.name)
         })?;
-        BcsData::deserialize(bcs)
+        bcs.deserialize::<VersionedValidatorAggregatedSignature>()
+            .map(VersionedValidatorAggregatedSignature::into_inner)
             .map_err(|e| TryFromProtoError::invalid(ValidatorAggregatedSignature::BCS_FIELD, e))
     }
 }
