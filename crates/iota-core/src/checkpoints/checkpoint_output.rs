@@ -132,13 +132,18 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
         //
         // Reports are rate-limited: only sent when metrics have changed (different
         // summaries) and at least 1000 checkpoints have passed since the last report.
+        // We also require that the checkpoint for which we want to send the report is
+        // at most 100 checkpoints behind the highest verified checkpoint, to avoid
+        // sending reports during resync.
         //
-        // Additionally, we require that the checkpoint for which we want to send the
-        // report is at most 100 checkpoints behind the highest verified checkpoint, to
-        // avoid sending reports during resync.
-        if epoch_store.protocol_config().calculate_validator_scores()
+        // Additionally to these periodic reports, we also send a report when the epoch
+        // is coming to an end. Since `close_epoch` is called according to local clocks,
+        // we use an analogous rule for the last reports, requiring that the checkpoint
+        // is close to the next reconfiguration timestamp.
+        if (epoch_store.protocol_config().calculate_validator_scores()
             && checkpoint_seq - epoch_store.scorer.last_report_checkpoint_seq() >= 1000
-            && Some(checkpoint_seq + 100) >= highest_verified_checkpoint
+            && Some(checkpoint_seq + 100) >= highest_verified_checkpoint)
+            || checkpoint_timestamp >= self.next_reconfiguration_timestamp_ms - 2000
         {
             let misbehavior_report = epoch_store.scorer.current_local_metrics_count.to_report();
             let new_report_summary = misbehavior_report.summary();

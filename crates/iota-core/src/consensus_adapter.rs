@@ -867,30 +867,6 @@ impl ConsensusAdapter {
             false
         };
         if send_end_of_publish {
-            // Submit a final misbehavior report to consensus before EndOfPublish.
-            // This ensures the latest scoring metrics are always available at epoch
-            // boundary, regardless of the regular rate-limiting interval.
-            if epoch_store.protocol_config().calculate_validator_scores() {
-                let checkpoint_seq = self
-                    .checkpoint_store
-                    .get_highest_executed_checkpoint_seq_number()
-                    .ok()
-                    .flatten()
-                    .unwrap_or(0);
-                let misbehavior_report = epoch_store.scorer.current_local_metrics_count.to_report();
-                let transaction = ConsensusTransaction::new_misbehavior_report(
-                    epoch_store.name,
-                    &misbehavior_report,
-                    checkpoint_seq,
-                );
-                info!(
-                    ?transaction,
-                    "submitting final misbehavior report before EndOfPublish"
-                );
-                if let Err(err) = self.submit(transaction, None, epoch_store) {
-                    warn!("Error when sending final misbehavior report: {:?}", err);
-                }
-            }
             // sending message outside of any locks scope
             info!(epoch=?epoch_store.epoch(), "Sending EndOfPublish message to consensus");
             if let Err(err) = self.submit(
@@ -1131,30 +1107,6 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
             // reconfig_guard lock is dropped here.
         };
         if send_end_of_publish {
-            // Submit a final misbehavior report to consensus before EndOfPublish.
-            // This ensures the latest scoring metrics are always available at epoch
-            // boundary, regardless of the regular rate-limiting interval.
-            if epoch_store.protocol_config().calculate_validator_scores() {
-                let checkpoint_seq = self
-                    .checkpoint_store
-                    .get_highest_executed_checkpoint_seq_number()
-                    .ok()
-                    .flatten()
-                    .unwrap_or(0);
-                let misbehavior_report = epoch_store.scorer.current_local_metrics_count.to_report();
-                let transaction = ConsensusTransaction::new_misbehavior_report(
-                    epoch_store.name,
-                    &misbehavior_report,
-                    checkpoint_seq,
-                );
-                info!(
-                    ?transaction,
-                    "submitting final misbehavior report before EndOfPublish"
-                );
-                if let Err(err) = self.submit(transaction, None, epoch_store) {
-                    warn!("Error when sending final misbehavior report: {:?}", err);
-                }
-            }
             info!(epoch=?epoch_store.epoch(), "Sending EndOfPublish message to consensus");
             if let Err(err) = self.submit(
                 ConsensusTransaction::new_end_of_publish(self.authority),
