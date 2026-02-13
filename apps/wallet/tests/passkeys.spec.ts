@@ -94,7 +94,10 @@ test('Creates a passkey account, resets the wallet and logs back in', async ({
 
     await expect(page.getByText('IOTA Wallet')).toBeVisible();
 
-    await restorePasskeyAccount(page, username);
+    await restorePasskeyAccount(page);
+
+    await page.getByTestId('username-input').fill(username);
+    await page.getByRole('button', { name: /Continue/ }).click();
 
     await expect(page.getByText(username)).toBeVisible();
     await page.getByTestId('receive-coin-button').click();
@@ -141,7 +144,7 @@ test('Fails when a different authenticator tries to log in', async ({ page, exte
         automaticPresenceSimulation: true,
     });
 
-    await restorePasskeyAccount(page, username);
+    await restorePasskeyAccount(page);
 
     const errorLocator = page.getByText(
         'Passkey operation failed: The operation either timed out or was not allowed.',

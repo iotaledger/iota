@@ -16,7 +16,7 @@ clap.workspace = true
 csv.workspace = true
 eyre.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
-gcp-bigquery-client = "=0.18.0"
+gcp-bigquery-client = "0.28.0"
 num_enum.workspace = true
 object_store.workspace = true
 parquet = "53.1"

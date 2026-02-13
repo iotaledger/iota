@@ -369,6 +369,7 @@ impl CordialKnowledge {
                         self.append_eviction_msgs_if_changed(
                             &mut vec_connection_knowledge_msgs_batch,
                         );
+                        self.report_sizes();
                         processed_since_eviction = 0;
                     }
 
@@ -542,6 +543,33 @@ impl CordialKnowledge {
             vec_msgs.push(vec![msg]);
         }
         Some(vec_msgs)
+    }
+
+    /// Report current sizes of cordial knowledge data structures.
+    fn report_sizes(&self) {
+        let metrics = &self.context.metrics.node_metrics;
+
+        let global_entries: usize = self
+            .cordial_knowledge
+            .iter()
+            .map(|m| m.values().map(|v| v.len()).sum::<usize>())
+            .sum();
+        metrics.cordial_knowledge_entries.set(global_entries as i64);
+
+        let mut total_headers_not_known: usize = 0;
+        let mut total_shards_not_known: usize = 0;
+        for ck in &self.connection_knowledges {
+            let guard = ck.read();
+            let (headers, shards) = guard.sizes();
+            total_headers_not_known += headers;
+            total_shards_not_known += shards;
+        }
+        metrics
+            .cordial_knowledge_headers_not_known
+            .set(total_headers_not_known as i64);
+        metrics
+            .cordial_knowledge_shards_not_known
+            .set(total_shards_not_known as i64);
     }
 
     /// Update cordial knowledge for exactly one new header.
@@ -1077,6 +1105,21 @@ impl ConnectionKnowledge {
             .entry(round)
             .or_default()
             .insert(block_ref);
+    }
+
+    /// Returns (total_headers_not_known, total_shards_not_known) entry counts.
+    fn sizes(&self) -> (usize, usize) {
+        let headers: usize = self
+            .headers_not_known
+            .iter()
+            .map(|m| m.values().map(|s| s.len()).sum::<usize>())
+            .sum();
+        let shards: usize = self
+            .shards_not_known
+            .iter()
+            .map(|m| m.values().map(|s| s.len()).sum::<usize>())
+            .sum();
+        (headers, shards)
     }
 
     /// Handles removing a header that this peer now knows.

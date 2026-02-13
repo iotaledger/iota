@@ -474,6 +474,11 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             .node_metrics
             .reconstruction_queue
             .set(self.reconstruction_queue.len() as i64);
+        self.context
+            .metrics
+            .node_metrics
+            .shard_reconstructor_processed_transactions
+            .set(self.processed_transactions.len() as i64);
 
         let transaction_gc_round = self.dag_state.read().gc_round_for_last_solid_commit();
 

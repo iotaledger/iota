@@ -25,7 +25,7 @@ move-binary-format = { path = "../../../external-crates/move/crates/move-binary-
 bcs = "0.1"
 bip32 = "0.5"
 serde_json = "1.0"
-tokio = "1.46.1"
+tokio = "1.49.0"
 
 # internal dependencies
 move-core-types = { path = "../../../external-crates/move/crates/move-core-types" }

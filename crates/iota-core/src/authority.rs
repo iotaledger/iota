@@ -2608,7 +2608,7 @@ impl AuthorityState {
                     );
 
                     let Some(df_info) = self
-                        .try_create_dynamic_field_info(new_object, written, layout_resolver.as_mut(), false)
+                        .try_create_dynamic_field_info(new_object, written, layout_resolver.as_mut())
                         .unwrap_or_else(|e| {
                             error!("try_create_dynamic_field_info should not fail, {}, new_object={:?}", e, new_object);
                             None
@@ -2637,7 +2637,6 @@ impl AuthorityState {
         o: &Object,
         written: &WrittenObjects,
         resolver: &mut dyn LayoutResolver,
-        get_latest_object_version: bool,
     ) -> IotaResult<Option<DynamicFieldInfo>> {
         // Skip if not a move object
         let Some(move_object) = o.data.try_as_move().cloned() else {
@@ -2708,34 +2707,17 @@ impl AuthorityState {
                     )
                 } else {
                     // If not found, try to find it in the database.
-                    let object = if get_latest_object_version {
-                        // Loading genesis object could meet a condition that the version of the
-                        // genesis object is behind the one in the snapshot.
-                        // In this case, the object can not be found with get_object_by_key, we need
-                        // to use get_object instead. Since get_object is a heavier operation, we
-                        // only allow to use it for genesis.
-                        // reference: https://github.com/iotaledger/iota/issues/7267
-                        self.get_object_store()
-                            .try_get_object(&object_id)?
-                            .ok_or_else(|| UserInputError::ObjectNotFound {
-                                object_id,
-                                version: Some(o.version()),
-                            })?
-                    } else {
-                        // Non-genesis object should be in the database with the given version.
-                        self.get_object_store()
-                            .try_get_object_by_key(&object_id, o.version())?
-                            .ok_or_else(|| UserInputError::ObjectNotFound {
-                                object_id,
-                                version: Some(o.version()),
-                            })?
-                    };
-
-                    (
-                        object.version(),
-                        object.digest(),
-                        object.data.type_().unwrap().clone(),
-                    )
+                    let object = self
+                        .get_object_store()
+                        .try_get_object_by_key(&object_id, o.version())?
+                        .ok_or_else(|| UserInputError::ObjectNotFound {
+                            object_id,
+                            version: Some(o.version()),
+                        })?;
+                    let version = object.version();
+                    let digest = object.digest();
+                    let object_type = object.data.type_().unwrap().clone();
+                    (version, digest, object_type)
                 };
 
                 DynamicFieldInfo {
@@ -3211,14 +3193,30 @@ impl AuthorityState {
                 )),
                 Owner::ObjectOwner(object_id) => {
                     let id = o.id();
-                    let Some(info) = self.try_create_dynamic_field_info(
+                    let info = match self.try_create_dynamic_field_info(
                         o,
                         &BTreeMap::new(),
                         layout_resolver.as_mut(),
-                        true,
-                    )?
-                    else {
-                        continue;
+                    ) {
+                        Ok(Some(info)) => info,
+                        Ok(None) => continue,
+                        Err(IotaError::UserInput {
+                            error:
+                                UserInputError::ObjectNotFound {
+                                    object_id: not_found_id,
+                                    version,
+                                },
+                        }) => {
+                            warn!(
+                                ?not_found_id,
+                                ?version,
+                                object_owner=?object_id,
+                                field=?id,
+                                "Skipping dynamic field: referenced genesis object not found"
+                            );
+                            continue;
+                        }
+                        Err(e) => return Err(e),
                     };
                     new_dynamic_fields.push(((ObjectID::from(object_id), id), info));
                 }

@@ -29,7 +29,6 @@ protobuf = { version = "3.7.2", features = ["with-bytes"] }
 rand.workspace = true
 reqwest.workspace = true
 rustls.workspace = true
-rustls-pemfile = "2.1.2"
 serde.workspace = true
 serde_with.workspace = true
 serde_yaml.workspace = true

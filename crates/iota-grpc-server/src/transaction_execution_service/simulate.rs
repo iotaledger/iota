@@ -7,7 +7,6 @@ use std::sync::Arc;
 use iota_grpc_types::{
     field::FieldMaskTree,
     google::rpc::bad_request::FieldViolation,
-    merge::Merge,
     v0::{
         command::CommandResults,
         error_reason::ErrorReason,
@@ -27,7 +26,7 @@ use iota_types::{
 };
 
 use super::{CommandResultsReadSource, TransactionReadSource};
-use crate::{error::RpcError, types::GrpcReader};
+use crate::{error::RpcError, merge::Merge, types::GrpcReader};
 
 pub const SIMULATE_TRANSACTION_READ_MASK_DEFAULT: &str = crate::field_mask!(
     "transaction.digest",

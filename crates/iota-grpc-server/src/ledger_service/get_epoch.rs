@@ -4,7 +4,6 @@
 
 use iota_grpc_types::{
     field::{FieldMaskTree, FieldMaskUtil},
-    merge::Merge,
     proto::timestamp_ms_to_proto,
     v0::{
         bcs::BcsData,
@@ -17,7 +16,7 @@ use iota_types::committee::EpochId;
 use prost_types::FieldMask;
 use tonic::Status;
 
-use crate::ledger_service::LedgerGrpcService;
+use crate::{ledger_service::LedgerGrpcService, merge::Merge};
 
 pub const READ_MASK_DEFAULT: &str = crate::field_mask!(
     "epoch",
@@ -116,15 +115,13 @@ pub fn get_epoch(
     }
 
     if read_mask.contains(Epoch::COMMITTEE_FIELD.name) {
-        message.committee = Some(
-            service
-                .reader
-                .get_committee(epoch)
-                .map_err(|e| Status::internal(format!("Failed to get committee: {e}")))?
-                .ok_or_else(|| CommitteeNotFoundError::new(epoch))?
-                .as_ref()
-                .into(),
-        );
+        let committee = service
+            .reader
+            .get_committee(epoch)
+            .map_err(|e| Status::internal(format!("Failed to get committee: {e}")))?
+            .ok_or_else(|| CommitteeNotFoundError::new(epoch))?;
+        let sdk_committee: iota_sdk_types::ValidatorCommittee = committee.as_ref().clone().into();
+        message.committee = Some(sdk_committee.into());
     }
 
     Ok(GetEpochResponse {

@@ -6,7 +6,6 @@ use std::sync::Arc;
 
 use iota_grpc_types::{
     field::FieldMaskTree,
-    merge::Merge,
     proto::timestamp_ms_to_proto,
     v0::{
         bcs::{self as grpc_bcs, BcsData},
@@ -14,9 +13,9 @@ use iota_grpc_types::{
         event as grpc_event, object as grpc_obj, signatures as grpc_sig, transaction as grpc_tx,
     },
 };
-use iota_types::execution::ExecutionResult;
+use iota_types::{execution::ExecutionResult, iota_sdk_types_conversions::type_tag_core_to_sdk};
 
-use crate::{GrpcReader, utils::render_json};
+use crate::{GrpcReader, merge::Merge, utils::render_json};
 
 /// Source for building ExecutedTransaction using the Merge trait
 pub struct TransactionReadSource<'a> {
@@ -335,11 +334,21 @@ impl Merge<&CommandOutputReadSource<'_>> for CommandOutput {
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::ARGUMENT_FIELD.name) {
-            self.argument = source.arg.map(Into::into);
+            self.argument = source
+                .arg
+                .map(|arg| -> Result<_, Box<dyn std::error::Error>> {
+                    let sdk_arg: iota_sdk_types::Argument = arg.into();
+                    sdk_arg.try_into().map_err(Into::into)
+                })
+                .transpose()?;
         }
 
         if mask.contains(Self::TYPE_TAG_FIELD.name) {
-            self.type_tag = Some(source.ty.into());
+            self.type_tag = Some({
+                let sdk_type_tag = type_tag_core_to_sdk(source.ty.clone())
+                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+                (&sdk_type_tag).into()
+            });
         }
 
         if mask.contains(Self::BCS_FIELD.name) {

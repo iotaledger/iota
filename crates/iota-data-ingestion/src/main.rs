@@ -34,6 +34,8 @@ struct BigTableTaskConfig {
     instance_id: String,
     column_family: String,
     timeout_secs: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    emulator_host: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -185,15 +187,24 @@ async fn main() -> Result<()> {
                 executor.register(worker_pool).await?;
             }
             Task::BigTableKv(kv_config) => {
-                let client = BigTableClient::new_remote(
-                    kv_config.instance_id,
-                    false,
-                    Some(Duration::from_secs(kv_config.timeout_secs as u64)),
-                    "ingestion".to_string(),
-                    kv_config.column_family.clone(),
-                    None,
-                )
-                .await?;
+                let client = if let Some(emulator_host) = kv_config.emulator_host {
+                    std::env::set_var("BIGTABLE_EMULATOR_HOST", &emulator_host);
+                    BigTableClient::new_local(
+                        kv_config.instance_id,
+                        kv_config.column_family.clone(),
+                    )
+                    .await?
+                } else {
+                    BigTableClient::new_remote(
+                        kv_config.instance_id,
+                        false,
+                        Some(Duration::from_secs(kv_config.timeout_secs as u64)),
+                        "ingestion".to_string(),
+                        kv_config.column_family.clone(),
+                        None,
+                    )
+                    .await?
+                };
                 let worker_pool = WorkerPool::new(
                     KvWorker { client },
                     task_config.name,

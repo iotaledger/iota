@@ -15,7 +15,7 @@ use bytes::Bytes;
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_storage::http_key_value_store::{Key, TaggedKey};
 use iota_types::storage::ObjectKey;
-use object_store::{DynObjectStore, path::Path};
+use object_store::{DynObjectStore, ObjectStoreExt, path::Path};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 

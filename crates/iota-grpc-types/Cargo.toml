@@ -22,5 +22,3 @@ tonic-prost.workspace = true
 
 # internal dependencies
 iota-sdk-types.workspace = true
-iota-types.workspace = true
-move-core-types.workspace = true
