@@ -51,20 +51,20 @@ pub fn append_info_headers<T>(
     }
 
     // Add lowest available checkpoint header
-    if let Ok(lowest_checkpoint) = grpc_reader.get_lowest_available_checkpoint() {
-        if let Ok(lowest_value) = lowest_checkpoint.to_string().parse() {
-            headers.insert(headers::X_IOTA_LOWEST_AVAILABLE_CHECKPOINT, lowest_value);
-        }
+    if let Ok(lowest_checkpoint) = grpc_reader.get_lowest_available_checkpoint()
+        && let Ok(lowest_value) = lowest_checkpoint.to_string().parse()
+    {
+        headers.insert(headers::X_IOTA_LOWEST_AVAILABLE_CHECKPOINT, lowest_value);
     }
 
     // Add lowest available checkpoint objects header
-    if let Ok(lowest_objects) = grpc_reader.get_lowest_available_checkpoint_objects() {
-        if let Ok(lowest_objects_value) = lowest_objects.to_string().parse() {
-            headers.insert(
-                headers::X_IOTA_LOWEST_AVAILABLE_CHECKPOINT_OBJECTS,
-                lowest_objects_value,
-            );
-        }
+    if let Ok(lowest_objects) = grpc_reader.get_lowest_available_checkpoint_objects()
+        && let Ok(lowest_objects_value) = lowest_objects.to_string().parse()
+    {
+        headers.insert(
+            headers::X_IOTA_LOWEST_AVAILABLE_CHECKPOINT_OBJECTS,
+            lowest_objects_value,
+        );
     }
 
     if let Some(server_version) = grpc_reader

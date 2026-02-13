@@ -522,12 +522,13 @@ impl DagState {
             .accepted_block_headers_round_gap
             .with_label_values(&[source.as_str()])
             .observe(clock_round_gap as f64);
-        if source != DataSource::CommitSyncer && source != DataSource::Recover {
-            if let Some((sender, _)) = &self.cordial_knowledge_senders {
-                let cordial_message = CordialKnowledgeMessage::NewHeader(block_header.clone());
-                if let Err(TrySendError::Closed(_)) = sender.try_send(cordial_message) {
-                    warn!("Failed to send cordial knowledge update: channel closed");
-                }
+        if source != DataSource::CommitSyncer
+            && source != DataSource::Recover
+            && let Some((sender, _)) = &self.cordial_knowledge_senders
+        {
+            let cordial_message = CordialKnowledgeMessage::NewHeader(block_header.clone());
+            if let Err(TrySendError::Closed(_)) = sender.try_send(cordial_message) {
+                warn!("Failed to send cordial knowledge update: channel closed");
             }
         }
     }

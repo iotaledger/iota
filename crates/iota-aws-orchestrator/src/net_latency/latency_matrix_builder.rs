@@ -107,7 +107,7 @@ impl LatencyMatrixBuilder {
         let n = self.matrix.len();
 
         let positions: Vec<(f64, f64)> = (0..n)
-            .map(|_| (rng.gen::<f64>(), rng.gen::<f64>()))
+            .map(|_| (rng.r#gen::<f64>(), rng.r#gen::<f64>()))
             .collect();
 
         for i in 0..n {

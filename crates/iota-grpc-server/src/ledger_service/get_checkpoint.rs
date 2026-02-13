@@ -122,7 +122,7 @@ fn parse_checkpoint_read_mask(
 pub(crate) fn get_checkpoint_data(
     service: &LedgerGrpcService,
     request: Request<grpc_ledger_service::GetCheckpointDataRequest>,
-) -> Result<impl Stream<Item = CheckpointStreamResult> + Send, RpcError> {
+) -> Result<impl Stream<Item = CheckpointStreamResult> + Send + use<>, RpcError> {
     let req = request.into_inner();
 
     // determine if we need to get the checkpoint based on the sequential number,
@@ -190,7 +190,7 @@ pub(crate) fn get_checkpoint_data(
 pub(crate) fn stream_checkpoint_data(
     service: &LedgerGrpcService,
     request: Request<grpc_ledger_service::CheckpointDataStreamRequest>,
-) -> Result<impl Stream<Item = CheckpointStreamResult> + Send, RpcError> {
+) -> Result<impl Stream<Item = CheckpointStreamResult> + Send + use<>, RpcError> {
     let req = request.into_inner();
     let start_sequence_number = req.start_sequence_number;
     let end_sequence_number = req.end_sequence_number;

@@ -421,14 +421,14 @@ impl Merge<Option<Vec<iota_types::object::Object>>> for Objects {
         // returns Some(wildcard), which populates the objects array.
         // When a user requests specific fields (e.g., "input_objects.objects.bcs"),
         // subtree("objects") returns the sub-mask with the requested fields.
-        if let Some(objects_mask) = mask.subtree(Self::OBJECTS_FIELD.name) {
-            if let Some(objects) = source {
-                // Merge each object in the source list with the appropriate field mask
-                self.objects = objects
-                    .into_iter()
-                    .map(|obj| Object::merge_from(obj, &objects_mask))
-                    .collect::<Result<Vec<_>, _>>()?;
-            }
+        if let Some(objects_mask) = mask.subtree(Self::OBJECTS_FIELD.name)
+            && let Some(objects) = source
+        {
+            // Merge each object in the source list with the appropriate field mask
+            self.objects = objects
+                .into_iter()
+                .map(|obj| Object::merge_from(obj, &objects_mask))
+                .collect::<Result<Vec<_>, _>>()?;
         }
 
         Ok(())
@@ -745,28 +745,28 @@ impl Merge<&ExecutedTransaction> for ExecutedTransaction {
             output_objects,
         } = source;
 
-        if let Some(submask) = mask.subtree(Self::TRANSACTION_FIELD.name) {
-            if let Some(tx) = transaction {
-                self.transaction = Some(Transaction::merge_from(tx, &submask)?);
-            }
+        if let Some(submask) = mask.subtree(Self::TRANSACTION_FIELD.name)
+            && let Some(tx) = transaction
+        {
+            self.transaction = Some(Transaction::merge_from(tx, &submask)?);
         }
 
-        if let Some(submask) = mask.subtree(Self::SIGNATURES_FIELD.name) {
-            if let Some(sigs) = signatures {
-                self.signatures = Some(UserSignatures::merge_from(sigs, &submask)?);
-            }
+        if let Some(submask) = mask.subtree(Self::SIGNATURES_FIELD.name)
+            && let Some(sigs) = signatures
+        {
+            self.signatures = Some(UserSignatures::merge_from(sigs, &submask)?);
         }
 
-        if let Some(submask) = mask.subtree(Self::EFFECTS_FIELD.name) {
-            if let Some(fx) = effects {
-                self.effects = Some(TransactionEffects::merge_from(fx, &submask)?);
-            }
+        if let Some(submask) = mask.subtree(Self::EFFECTS_FIELD.name)
+            && let Some(fx) = effects
+        {
+            self.effects = Some(TransactionEffects::merge_from(fx, &submask)?);
         }
 
-        if let Some(submask) = mask.subtree(Self::EVENTS_FIELD.name) {
-            if let Some(ev) = events {
-                self.events = Some(TransactionEvents::merge_from(ev, &submask)?);
-            }
+        if let Some(submask) = mask.subtree(Self::EVENTS_FIELD.name)
+            && let Some(ev) = events
+        {
+            self.events = Some(TransactionEvents::merge_from(ev, &submask)?);
         }
 
         if mask.contains(Self::CHECKPOINT_FIELD.name) {
@@ -777,16 +777,16 @@ impl Merge<&ExecutedTransaction> for ExecutedTransaction {
             self.timestamp = *timestamp;
         }
 
-        if let Some(submask) = mask.subtree(Self::INPUT_OBJECTS_FIELD.name) {
-            if let Some(objs) = input_objects {
-                self.input_objects = Some(Objects::merge_from(objs, &submask)?);
-            }
+        if let Some(submask) = mask.subtree(Self::INPUT_OBJECTS_FIELD.name)
+            && let Some(objs) = input_objects
+        {
+            self.input_objects = Some(Objects::merge_from(objs, &submask)?);
         }
 
-        if let Some(submask) = mask.subtree(Self::OUTPUT_OBJECTS_FIELD.name) {
-            if let Some(objs) = output_objects {
-                self.output_objects = Some(Objects::merge_from(objs, &submask)?);
-            }
+        if let Some(submask) = mask.subtree(Self::OUTPUT_OBJECTS_FIELD.name)
+            && let Some(objs) = output_objects
+        {
+            self.output_objects = Some(Objects::merge_from(objs, &submask)?);
         }
 
         Ok(())

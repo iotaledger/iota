@@ -186,13 +186,13 @@ impl Merge<&TransactionReadSource<'_>> for grpc_sig::UserSignatures {
         source: &TransactionReadSource<'_>,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(signatures_mask) = mask.subtree(Self::SIGNATURES_FIELD.name) {
-            if let Some(signatures) = source.signatures.as_ref() {
-                self.signatures = signatures
-                    .iter()
-                    .map(|sig| grpc_sig::UserSignature::merge_from(sig.clone(), &signatures_mask))
-                    .collect::<Result<Vec<_>, _>>()?;
-            }
+        if let Some(signatures_mask) = mask.subtree(Self::SIGNATURES_FIELD.name)
+            && let Some(signatures) = source.signatures.as_ref()
+        {
+            self.signatures = signatures
+                .iter()
+                .map(|sig| grpc_sig::UserSignature::merge_from(sig.clone(), &signatures_mask))
+                .collect::<Result<Vec<_>, _>>()?;
         }
 
         Ok(())

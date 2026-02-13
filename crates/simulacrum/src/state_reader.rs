@@ -237,17 +237,16 @@ impl GrpcStateReader for SimulacrumGrpcReader {
 
             // Search backwards from the highest checkpoint to find the transaction
             for seq in (0..=highest_seq).rev() {
-                if let Some(checkpoint) = store.get_checkpoint_by_sequence_number(seq) {
-                    if let Some(contents) =
+                if let Some(checkpoint) = store.get_checkpoint_by_sequence_number(seq)
+                    && let Some(contents) =
                         store.get_checkpoint_contents(&checkpoint.content_digest)
+                {
+                    // Check if this checkpoint contains the transaction
+                    if contents
+                        .iter()
+                        .any(|exec_digests| exec_digests.transaction == *digest)
                     {
-                        // Check if this checkpoint contains the transaction
-                        if contents
-                            .iter()
-                            .any(|exec_digests| exec_digests.transaction == *digest)
-                        {
-                            return Some(*checkpoint.sequence_number());
-                        }
+                        return Some(*checkpoint.sequence_number());
                     }
                 }
             }

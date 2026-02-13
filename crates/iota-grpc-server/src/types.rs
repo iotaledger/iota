@@ -410,7 +410,7 @@ impl GrpcReader {
                     checkpoint_summary,
                     checkpoint_contents,
                     transaction_stream,
-                    &checkpoint_mask,
+                    checkpoint_mask,
                     transactions_mask,
                     events_mask,
                     max_message_size_bytes as usize,
@@ -442,7 +442,7 @@ impl GrpcReader {
         checkpoint_summary: CertifiedCheckpointSummary,
         checkpoint_contents: CheckpointContents,
         transaction_stream: S,
-        checkpoint_mask: &FieldMaskTree,
+        checkpoint_mask: FieldMaskTree,
         transactions_mask: Option<FieldMaskTree>,
         events_mask: Option<FieldMaskTree>,
         max_message_size_bytes: usize,
@@ -453,9 +453,6 @@ impl GrpcReader {
         S: futures::Stream<Item = anyhow::Result<IotaTypesCheckpointTransaction>> + Send,
     {
         use grpc_ledger_service::checkpoint_data::{EndMarker, Payload};
-
-        // Clone values needed across the async boundary
-        let checkpoint_mask = checkpoint_mask.clone();
 
         async_stream::stream! {
             let sequence_number = checkpoint_summary.data().sequence_number;
@@ -517,16 +514,15 @@ impl GrpcReader {
                     match result {
                         Ok(checkpoint_transaction) => {
                             // Collect and yield events as they reach size limits
-                            if should_collect_events {
-                                if let Some(ref tx_events) = checkpoint_transaction.events {
+                            if should_collect_events
+                                && let Some(ref tx_events) = checkpoint_transaction.events {
                                     // Filter raw events before SDK conversion
                                     for raw_event in &tx_events.data {
                                         // Apply event filter if present
-                                        if let Some(ref evt_filter) = event_filter {
-                                            if !evt_filter.matches_event(state_reader.clone(), raw_event) {
+                                        if let Some(ref evt_filter) = event_filter
+                                            && !evt_filter.matches_event(state_reader.clone(), raw_event) {
                                                 continue; // Skip non-matching events
                                             }
-                                        }
 
                                         // Convert matching event to SDK type
                                         let sdk_event: Result<iota_sdk_types::Event, _> =
@@ -556,16 +552,14 @@ impl GrpcReader {
                                         }
                                     }
                                 }
-                            }
 
                             // Build transaction only if transactions_mask is requested
                             if transactions_mask.is_some() {
                                 // Apply transaction filter if present
-                                if let Some(ref tx_filter) = transaction_filter {
-                                    if !tx_filter.matches_transaction(state_reader.clone(), &checkpoint_transaction) {
+                                if let Some(ref tx_filter) = transaction_filter
+                                    && !tx_filter.matches_transaction(state_reader.clone(), &checkpoint_transaction) {
                                         continue; // Skip non-matching transactions
                                     }
-                                }
 
                                 let checkpoint_tx_ctx = CheckpointTransactionWithContext::new(
                                     checkpoint_transaction,
@@ -712,7 +706,7 @@ impl GrpcReader {
 
     /// Generic stream implementation for checkpoints
     fn create_generic_checkpoint_stream<T, S, R>(
-        &self,
+        self,
         mut rx: Receiver<Arc<T>>,
         start_sequence_number: Option<u64>,
         end_sequence_number: Option<u64>,
@@ -872,7 +866,7 @@ impl GrpcReader {
                                 checkpoint_summary,
                                 checkpoint_contents,
                                 transaction_stream,
-                                &cp_mask,
+                                cp_mask,
                                 tx_mask,
                                 ev_mask,
                                 max_message_size_bytes as usize,
@@ -910,7 +904,7 @@ impl GrpcReader {
                                 item.checkpoint_summary.clone(),
                                 item.checkpoint_contents.clone(),
                                 transaction_stream,
-                                &cp_mask,
+                                cp_mask,
                                 tx_mask,
                                 ev_mask,
                                 max_message_size_bytes as usize,
@@ -1065,14 +1059,12 @@ impl Merge<CheckpointTransactionWithContext>
             );
         }
 
-        if let Some(submask) = mask.subtree(Self::EVENTS_FIELD.name) {
-            if let Some(events) = source.transaction.events {
-                self.events = Some(
-                    iota_grpc_types::v0::transaction::TransactionEvents::merge_from(
-                        events, &submask,
-                    )?,
-                );
-            }
+        if let Some(submask) = mask.subtree(Self::EVENTS_FIELD.name)
+            && let Some(events) = source.transaction.events
+        {
+            self.events = Some(
+                iota_grpc_types::v0::transaction::TransactionEvents::merge_from(events, &submask)?,
+            );
         }
 
         // Set checkpoint sequence number if requested

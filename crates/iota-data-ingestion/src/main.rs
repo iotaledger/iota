@@ -188,7 +188,9 @@ async fn main() -> Result<()> {
             }
             Task::BigTableKv(kv_config) => {
                 let client = if let Some(emulator_host) = kv_config.emulator_host {
-                    std::env::set_var("BIGTABLE_EMULATOR_HOST", &emulator_host);
+                    unsafe {
+                        std::env::set_var("BIGTABLE_EMULATOR_HOST", &emulator_host);
+                    }
                     BigTableClient::new_local(
                         kv_config.instance_id,
                         kv_config.column_family.clone(),
