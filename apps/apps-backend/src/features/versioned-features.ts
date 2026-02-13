@@ -46,18 +46,16 @@ export interface VersionedFeatureRule {
  * ```
  */
 export const VERSIONED_FEATURES: Partial<Record<Feature, VersionedFeatureRule>> = {
-    // Add versioned feature rules here. Example:
-    //
-    // [Feature.WalletPasskeys]: {
-    //     minVersion: '1.5.0',
-    //     // Override production values when the client version satisfies >= 1.5.0.
-    //     // Staging already has all networks enabled, so no staging override is needed.
-    //     production: {
-    //         [Network.Mainnet]: true,
-    //         [Network.Devnet]: true,
-    //         [Network.Testnet]: true,
-    //         [Network.Localnet]: true,
-    //         [Network.Custom]: true,
-    //     },
-    // },
+    // Passkeys are enabled in production only for wallet >= 1.5.0.
+    // Staging already has all networks enabled, so no staging override is needed.
+    [Feature.WalletPasskeys]: {
+        minVersion: '1.5.0',
+        production: {
+            [Network.Mainnet]: true,
+            [Network.Devnet]: true,
+            [Network.Testnet]: true,
+            [Network.Localnet]: true,
+            [Network.Custom]: true,
+        },
+    },
 };
