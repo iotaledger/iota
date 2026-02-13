@@ -23,8 +23,9 @@ use iota_types::{
         HandleCertificateRequestV1, HandleCertificateResponseV1,
         HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
         HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
-        SubmitTransactionV1Response, SystemStateRequest, TransactionInfoRequest,
-        TransactionInfoResponse,
+        SubmitTransactionV1Response, SubmitTxRequest, SubmitTxResponse, SystemStateRequest,
+        TransactionInfoRequest, TransactionInfoResponse, ValidatorHealthRequest,
+        ValidatorHealthResponse, WaitForEffectsRequest, WaitForEffectsResponse,
     },
     transaction::{Transaction, VerifiedTransaction},
 };
@@ -168,6 +169,29 @@ impl AuthorityAPI for LocalAuthorityClient {
         _client_addr: Option<SocketAddr>,
     ) -> Result<SubmitTransactionV1Response, IotaError> {
         unimplemented!("submit_transaction_v1 not used in tests")
+    }
+
+    async fn submit_transaction(
+        &self,
+        _request: SubmitTxRequest,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<SubmitTxResponse, IotaError> {
+        unimplemented!("submit_transaction not used in tests")
+    }
+
+    async fn wait_for_effects(
+        &self,
+        _request: WaitForEffectsRequest,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<WaitForEffectsResponse, IotaError> {
+        unimplemented!("wait_for_effects not used in tests")
+    }
+
+    async fn validator_health(
+        &self,
+        _request: ValidatorHealthRequest,
+    ) -> Result<ValidatorHealthResponse, IotaError> {
+        Ok(ValidatorHealthResponse::default())
     }
 }
 
@@ -381,6 +405,29 @@ impl AuthorityAPI for MockAuthorityApi {
     ) -> Result<SubmitTransactionV1Response, IotaError> {
         unimplemented!("submit_transaction_v1 not used in tests")
     }
+
+    async fn submit_transaction(
+        &self,
+        _request: SubmitTxRequest,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<SubmitTxResponse, IotaError> {
+        unimplemented!("submit_transaction not used in tests")
+    }
+
+    async fn wait_for_effects(
+        &self,
+        _request: WaitForEffectsRequest,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<WaitForEffectsResponse, IotaError> {
+        unimplemented!("wait_for_effects not used in tests")
+    }
+
+    async fn validator_health(
+        &self,
+        _request: ValidatorHealthRequest,
+    ) -> Result<ValidatorHealthResponse, IotaError> {
+        Ok(ValidatorHealthResponse::default())
+    }
 }
 
 #[derive(Clone)]
@@ -465,6 +512,29 @@ impl AuthorityAPI for HandleTransactionTestAuthorityClient {
         _client_addr: Option<SocketAddr>,
     ) -> Result<SubmitTransactionV1Response, IotaError> {
         unimplemented!("submit_transaction_v1 not used in tests")
+    }
+
+    async fn submit_transaction(
+        &self,
+        _request: SubmitTxRequest,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<SubmitTxResponse, IotaError> {
+        unimplemented!("submit_transaction not used in tests")
+    }
+
+    async fn wait_for_effects(
+        &self,
+        _request: WaitForEffectsRequest,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<WaitForEffectsResponse, IotaError> {
+        unimplemented!("wait_for_effects not used in tests")
+    }
+
+    async fn validator_health(
+        &self,
+        _request: ValidatorHealthRequest,
+    ) -> Result<ValidatorHealthResponse, IotaError> {
+        Ok(ValidatorHealthResponse::default())
     }
 }
 

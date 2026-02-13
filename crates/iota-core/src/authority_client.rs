@@ -25,8 +25,9 @@ use iota_types::{
         HandleCertificateRequestV1, HandleCertificateResponseV1,
         HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
         HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
-        SubmitTransactionV1Response, SystemStateRequest, TransactionInfoRequest,
-        TransactionInfoResponse,
+        SubmitTransactionV1Response, SubmitTxRequest, SubmitTxResponse, SystemStateRequest,
+        TransactionInfoRequest, TransactionInfoResponse, ValidatorHealthRequest,
+        ValidatorHealthResponse, WaitForEffectsRequest, WaitForEffectsResponse,
     },
     multiaddr::Multiaddr,
     transaction::*,
@@ -88,12 +89,33 @@ pub trait AuthorityAPI {
         request: HandleCapabilityNotificationRequestV1,
     ) -> Result<HandleCapabilityNotificationResponseV1, IotaError>;
 
-    /// Submit a transaction via the white flag flow (no certification).
+    /// Submit a transaction via the existing white flag gRPC endpoint.
     async fn submit_transaction_v1(
         &self,
         transaction: Transaction,
         client_addr: Option<SocketAddr>,
     ) -> Result<SubmitTransactionV1Response, IotaError>;
+
+    /// Submit a transaction via the TransactionDriver protocol (wraps
+    /// submit_transaction_v1).
+    async fn submit_transaction(
+        &self,
+        request: SubmitTxRequest,
+        client_addr: Option<SocketAddr>,
+    ) -> Result<SubmitTxResponse, IotaError>;
+
+    /// Wait for a transaction's effects to be available.
+    async fn wait_for_effects(
+        &self,
+        request: WaitForEffectsRequest,
+        client_addr: Option<SocketAddr>,
+    ) -> Result<WaitForEffectsResponse, IotaError>;
+
+    /// Query validator health metrics (latency measurement / health check).
+    async fn validator_health(
+        &self,
+        request: ValidatorHealthRequest,
+    ) -> Result<ValidatorHealthResponse, IotaError>;
 }
 
 /// A client for the network authority.
@@ -277,6 +299,38 @@ impl AuthorityAPI for NetworkAuthorityClient {
             .await
             .map(tonic::Response::into_inner)
             .map_err(Into::into)
+    }
+
+    async fn submit_transaction(
+        &self,
+        _request: SubmitTxRequest,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<SubmitTxResponse, IotaError> {
+        // TODO(Phase 4): implement dedicated TransactionDriver gRPC endpoint.
+        Err(IotaError::UnsupportedFeature {
+            error: "submit_transaction TransactionDriver endpoint not yet implemented".to_string(),
+        })
+    }
+
+    async fn wait_for_effects(
+        &self,
+        _request: WaitForEffectsRequest,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<WaitForEffectsResponse, IotaError> {
+        // TODO: implement gRPC endpoint when TransactionDriver protocol is supported.
+        Err(IotaError::UnsupportedFeature {
+            error: "wait_for_effects not yet implemented".to_string(),
+        })
+    }
+
+    async fn validator_health(
+        &self,
+        _request: ValidatorHealthRequest,
+    ) -> Result<ValidatorHealthResponse, IotaError> {
+        // TODO: implement gRPC endpoint when protocol supports it.
+        // For now, return a default response so the monitor can measure round-trip
+        // latency.
+        Ok(ValidatorHealthResponse::default())
     }
 }
 

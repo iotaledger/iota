@@ -830,6 +830,7 @@ impl IotaNode {
                 end_of_epoch_receiver,
                 &config.db_path(),
                 &prometheus_registry,
+                Some(&config),
             )))
         } else {
             None

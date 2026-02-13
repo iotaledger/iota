@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// Transaction Orchestrator is a Node component that utilizes Quorum Driver to
-// submit transactions to validators for finality, and proactively executes
-// finalized transactions locally, when possible.
+// Transaction Orchestrator is a Node component that utilizes Quorum Driver (or
+// optionally TransactionDriver) to submit transactions to validators for
+// finality, and proactively executes finalized transactions locally.
 
 use std::{net::SocketAddr, ops::Deref, path::Path, sync::Arc, time::Duration};
 
@@ -13,6 +13,7 @@ use futures::{
     future::{Either, Future, select},
 };
 use iota_common::sync::notify_read::NotifyRead;
+use iota_config::NodeConfig;
 use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, add_server_timing,
     spawn_logged_monitored_task, spawn_monitored_task,
@@ -22,12 +23,17 @@ use iota_types::{
     base_types::TransactionDigest,
     error::{IotaError, IotaResult},
     iota_system_state::IotaSystemState,
+    messages_grpc::SubmitTxRequest,
     quorum_driver_types::{
-        ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
-        FinalizedEffects, IsTransactionExecutedLocally, QuorumDriverEffectsQueueResult,
-        QuorumDriverError, QuorumDriverResponse, QuorumDriverResult,
+        EffectsFinalityInfo, ExecuteTransactionRequestType, ExecuteTransactionRequestV1,
+        ExecuteTransactionResponseV1, FinalizedEffects, IsTransactionExecutedLocally,
+        QuorumDriverEffectsQueueResult, QuorumDriverError, QuorumDriverResponse,
+        QuorumDriverResult,
     },
     transaction::{TransactionData, VerifiedTransaction},
+    transaction_driver_types::{
+        EffectsFinalityInfo as TdEffectsFinalityInfo, FinalizedEffects as TdFinalizedEffects,
+    },
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
 use prometheus::{
@@ -52,6 +58,12 @@ use crate::{
         QuorumDriverHandler, QuorumDriverHandlerBuilder, QuorumDriverMetrics,
         reconfig_observer::{OnsiteReconfigObserver, ReconfigObserver},
     },
+    transaction_driver::{
+        QuorumTransactionResponse, SubmitTransactionOptions, TransactionDriver,
+        TransactionDriverError, TransactionDriverMetrics,
+        reconfig_observer::OnsiteReconfigObserver as TdOnsiteReconfigObserver,
+    },
+    validator_client_monitor::ValidatorClientMetrics,
 };
 
 // How long to wait for local execution (including parents) before a timeout
@@ -60,11 +72,14 @@ const LOCAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(10);
 
 const WAIT_FOR_FINALITY_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// Transaction Orchestrator is a Node component that utilizes Quorum Driver to
-/// submit transactions to validators for finality, and proactively executes
-/// finalized transactions locally, when possible.
+/// Transaction Orchestrator is a Node component that supports both QuorumDriver
+/// and TransactionDriver for submitting transactions to validators for
+/// finality. It adds inflight deduplication, waiting for local execution,
+/// recovery, and epoch change handling.
 pub struct TransactionOrchestrator<A: Clone> {
     quorum_driver_handler: Arc<QuorumDriverHandler<A>>,
+    /// Optional TransactionDriver for the white flag direct-to-consensus flow.
+    transaction_driver: Option<Arc<TransactionDriver<A>>>,
     validator_state: Arc<AuthorityState>,
     _local_executor_handle: JoinHandle<()>,
     pending_tx_log: Arc<WritePathPendingTransactionLog>,
@@ -79,7 +94,22 @@ impl TransactionOrchestrator<NetworkAuthorityClient> {
         reconfig_channel: Receiver<IotaSystemState>,
         parent_path: &Path,
         prometheus_registry: &Registry,
+        node_config: Option<&NodeConfig>,
     ) -> Self {
+        // TODO: this should create either QuorumDriverReconfigObserver or
+        // TransactionDriverReconfigObserver based on config, instead of always creating
+        // both and passing one as None.  config should be properly read instead
+        // of using node_config.is_some() as a proxy for whether TransactionDriver is
+        // enabled.
+        let td_reconfig_observer = node_config.map(|_| {
+            TdOnsiteReconfigObserver::new(
+                reconfig_channel.resubscribe(),
+                validator_state.get_object_cache_reader().clone(),
+                validator_state.clone_committee_store(),
+                validators.safe_client_metrics_base.clone(),
+            )
+        });
+
         let observer = OnsiteReconfigObserver::new(
             reconfig_channel,
             validator_state.get_object_cache_reader().clone(),
@@ -94,6 +124,8 @@ impl TransactionOrchestrator<NetworkAuthorityClient> {
             parent_path,
             prometheus_registry,
             observer,
+            td_reconfig_observer,
+            node_config,
         )
     }
 }
@@ -102,6 +134,7 @@ impl<A> TransactionOrchestrator<A>
 where
     A: AuthorityAPI + Send + Sync + 'static + Clone,
     OnsiteReconfigObserver: ReconfigObserver<A>,
+    TdOnsiteReconfigObserver: crate::transaction_driver::reconfig_observer::ReconfigObserver<A>,
 {
     pub fn new(
         validators: Arc<AuthorityAggregator<A>>,
@@ -109,31 +142,66 @@ where
         parent_path: &Path,
         prometheus_registry: &Registry,
         reconfig_observer: OnsiteReconfigObserver,
+        td_reconfig_observer: Option<TdOnsiteReconfigObserver>,
+        node_config: Option<&NodeConfig>,
     ) -> Self {
-        let metrics = Arc::new(QuorumDriverMetrics::new(prometheus_registry));
+        let qd_metrics = Arc::new(QuorumDriverMetrics::new(prometheus_registry));
         let notifier = Arc::new(NotifyRead::new());
         let reconfig_observer = Arc::new(reconfig_observer);
+
+        // TODO: quorum driver should not be created when TransactionDriver is enabled,
+        // but for now we create it anyway and just don't use it.
         let quorum_driver_handler = Arc::new(
-            QuorumDriverHandlerBuilder::new(validators.clone(), metrics.clone())
+            QuorumDriverHandlerBuilder::new(validators.clone(), qd_metrics.clone())
                 .with_notifier(notifier.clone())
                 .with_reconfig_observer(reconfig_observer.clone())
                 .start(),
         );
 
+        // Optionally create a TransactionDriver if configured.
+        let transaction_driver = if node_config
+            .map(|c| c.use_transaction_driver)
+            .unwrap_or(false)
+        {
+            let td_metrics = Arc::new(TransactionDriverMetrics::new(prometheus_registry));
+            let client_metrics = Arc::new(ValidatorClientMetrics::new(prometheus_registry));
+            let observer = td_reconfig_observer.unwrap_or_else(|| {
+                panic!("td_reconfig_observer must be provided when use_transaction_driver is true")
+            });
+            Some(TransactionDriver::new(
+                validators.clone(),
+                Arc::new(observer),
+                td_metrics,
+                node_config,
+                client_metrics,
+            ))
+        } else {
+            None
+        };
+
+        // TODO: I guess we don't need to subscribe here if the transaction driver is
+        // enabled.
         let effects_receiver = quorum_driver_handler.subscribe_to_effects();
         let metrics = Arc::new(TransactionOrchestratorMetrics::new(prometheus_registry));
         let pending_tx_log = Arc::new(WritePathPendingTransactionLog::new(
             parent_path.join("fullnode_pending_transactions"),
         ));
         let pending_tx_log_clone = pending_tx_log.clone();
+
+        // TODO: is this neede if effects receiver relies on QD? If TransactionDriver is
+        // enabled, we might need a different mechanism to know when to clean up pending
+        // transactions.
         let _local_executor_handle = {
             spawn_monitored_task!(async move {
                 Self::loop_pending_transaction_log(effects_receiver, pending_tx_log_clone).await;
             })
         };
+
+        // TODO: same here, adjust for TransactionDriver if needed.
         Self::schedule_txes_in_log(pending_tx_log.clone(), quorum_driver_handler.clone());
         Self {
             quorum_driver_handler,
+            transaction_driver,
             validator_state,
             _local_executor_handle,
             pending_tx_log,
@@ -162,9 +230,17 @@ where
     {
         let epoch_store = self.validator_state.load_epoch_store_one_call_per_task();
 
-        let (transaction, response) = self
-            .execute_transaction_impl(&epoch_store, request, client_addr)
-            .await?;
+        // Use TransactionDriver if configured, otherwise fall back to QuorumDriver.
+        let (transaction, response) = if let Some(td) = &self.transaction_driver {
+            self.submit_with_transaction_driver(td.clone(), &epoch_store, request, client_addr)
+                .await?
+        } else {
+            let (tx, qd_resp) = self
+                .execute_transaction_impl(&epoch_store, request, client_addr)
+                .await?;
+            let resp = quorum_driver_response_to_v1(qd_resp);
+            (tx, resp)
+        };
 
         let executed_locally = if matches!(
             request_type,
@@ -183,22 +259,6 @@ where
             false
         };
 
-        let QuorumDriverResponse {
-            effects_cert,
-            events,
-            input_objects,
-            output_objects,
-            auxiliary_data,
-        } = response;
-
-        let response = ExecuteTransactionResponseV1 {
-            effects: FinalizedEffects::new_from_effects_cert(effects_cert.into()),
-            events,
-            input_objects,
-            output_objects,
-            auxiliary_data,
-        };
-
         Ok((response, executed_locally))
     }
 
@@ -213,24 +273,80 @@ where
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
         let epoch_store = self.validator_state.load_epoch_store_one_call_per_task();
 
-        let QuorumDriverResponse {
-            effects_cert,
-            events,
-            input_objects,
-            output_objects,
-            auxiliary_data,
-        } = self
+        if let Some(td) = &self.transaction_driver {
+            let (_, response) = self
+                .submit_with_transaction_driver(td.clone(), &epoch_store, request, client_addr)
+                .await?;
+            return Ok(response);
+        }
+
+        let qd_resp = self
             .execute_transaction_impl(&epoch_store, request, client_addr)
             .await
             .map(|(_, r)| r)?;
 
-        Ok(ExecuteTransactionResponseV1 {
-            effects: FinalizedEffects::new_from_effects_cert(effects_cert.into()),
+        Ok(quorum_driver_response_to_v1(qd_resp))
+    }
+
+    /// Submit a transaction using the TransactionDriver (white flag flow).
+    #[instrument(name = "tx_orchestrator_submit_with_td", level = "trace", skip_all,
+                 fields(tx_digest = ?request.transaction.digest()))]
+    async fn submit_with_transaction_driver(
+        &self,
+        td: Arc<TransactionDriver<A>>,
+        epoch_store: &AuthorityPerEpochStore,
+        request: ExecuteTransactionRequestV1,
+        client_addr: Option<SocketAddr>,
+    ) -> Result<(VerifiedTransaction, ExecuteTransactionResponseV1), QuorumDriverError> {
+        let transaction = epoch_store
+            .verify_transaction(request.transaction.clone())
+            .map_err(QuorumDriverError::InvalidUserSignature)?;
+        let tx_digest = *transaction.digest();
+
+        let td_response = td
+            .drive_transaction(
+                SubmitTxRequest::new_transaction(request.transaction),
+                SubmitTransactionOptions {
+                    forwarded_client_addr: client_addr,
+                    ..Default::default()
+                },
+                Some(WAIT_FOR_FINALITY_TIMEOUT),
+            )
+            .await
+            .map_err(|e| map_td_error_to_qd(e))?;
+
+        debug!(?tx_digest, "TransactionDriver submission succeeded");
+
+        let QuorumTransactionResponse {
+            effects: td_effects,
             events,
             input_objects,
             output_objects,
             auxiliary_data,
-        })
+        } = td_response;
+
+        let effects = convert_td_to_qd_effects(td_effects);
+        let response = ExecuteTransactionResponseV1 {
+            effects,
+            events: if request.include_events { events } else { None },
+            input_objects: if request.include_input_objects {
+                input_objects
+            } else {
+                None
+            },
+            output_objects: if request.include_output_objects {
+                output_objects
+            } else {
+                None
+            },
+            auxiliary_data: if request.include_auxiliary_data {
+                auxiliary_data
+            } else {
+                None
+            },
+        };
+
+        Ok((transaction, response))
     }
 
     // TODO check if tx is already executed on this node.
@@ -455,6 +571,10 @@ where
         self.quorum_driver_handler.clone()
     }
 
+    pub fn transaction_driver(&self) -> Option<&Arc<TransactionDriver<A>>> {
+        self.transaction_driver.as_ref()
+    }
+
     pub fn clone_authority_aggregator(&self) -> Arc<AuthorityAggregator<A>> {
         self.quorum_driver().authority_aggregator().load_full()
     }
@@ -544,6 +664,61 @@ where
 
     pub fn load_all_pending_transactions(&self) -> IotaResult<Vec<VerifiedTransaction>> {
         self.pending_tx_log.load_all_pending_transactions()
+    }
+}
+
+/// Convert a `QuorumDriverResponse` (contains
+/// `VerifiedCertifiedTransactionEffects`) to the V1 response format that uses
+/// `FinalizedEffects`.
+fn quorum_driver_response_to_v1(response: QuorumDriverResponse) -> ExecuteTransactionResponseV1 {
+    let QuorumDriverResponse {
+        effects_cert,
+        events,
+        input_objects,
+        output_objects,
+        auxiliary_data,
+    } = response;
+    ExecuteTransactionResponseV1 {
+        effects: FinalizedEffects::new_from_effects_cert(effects_cert.into()),
+        events,
+        input_objects,
+        output_objects,
+        auxiliary_data,
+    }
+}
+
+/// Convert a `transaction_driver_types::FinalizedEffects` into a
+/// `quorum_driver_types::FinalizedEffects`.
+fn convert_td_to_qd_effects(td: TdFinalizedEffects) -> FinalizedEffects {
+    let finality_info = match td.finality_info {
+        TdEffectsFinalityInfo::Certified(sig) => EffectsFinalityInfo::Certified(sig),
+        TdEffectsFinalityInfo::Checkpointed(epoch, seq) => {
+            EffectsFinalityInfo::Checkpointed(epoch, seq)
+        }
+        TdEffectsFinalityInfo::QuorumExecuted(epoch) => EffectsFinalityInfo::QuorumExecuted(epoch),
+    };
+    FinalizedEffects {
+        effects: td.effects,
+        finality_info,
+    }
+}
+
+/// Map a `TransactionDriverError` to a `QuorumDriverError` for
+/// backward-compatible error reporting.
+fn map_td_error_to_qd(e: TransactionDriverError) -> QuorumDriverError {
+    match e {
+        TransactionDriverError::ValidationFailed { error } => {
+            QuorumDriverError::InvalidUserSignature(IotaError::InvalidSignature {
+                error: error.clone(),
+            })
+        }
+        TransactionDriverError::TimeoutWithLastRetriableError { .. } => {
+            QuorumDriverError::TimeoutBeforeFinality
+        }
+        other => {
+            warn!("TransactionDriver error mapped to QuorumDriverInternal: {other:?}");
+            QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(other.to_string()))
+        }
     }
 }
 
