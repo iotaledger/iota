@@ -57,7 +57,7 @@ fn default_multiget_max_items() -> NonZeroUsize {
 async fn main() -> Result<()> {
     rustls::crypto::ring::default_provider()
         .install_default()
-        .expect("Failed to install rustls crypto provider");
+        .expect("failed to install rustls crypto provider");
 
     let cli = Cli::parse();
 
