@@ -24,10 +24,6 @@ const environment =
     (import.meta.env.VITE_EVM_BRIDGE_DEFAULT_NETWORK as keyof typeof GROWTHBOOK_ENVIRONMENTS) ||
     'testnet';
 
-/**
- * Append the client version as a query parameter to the GrowthBook features URL.
- * This enables the backend to apply version-gated feature rules.
- */
 async function versionedFetcher(url: string) {
     const version = import.meta.env.VITE_APP_VERSION;
     if (version) {
