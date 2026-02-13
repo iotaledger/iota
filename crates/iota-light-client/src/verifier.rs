@@ -283,9 +283,8 @@ pub async fn get_verified_checkpoint(
 mod tests {
     use std::{fs, io::Read, path::PathBuf, str::FromStr};
 
-    use iota_sdk_types::StructTag;
     use iota_types::{
-        base_types::IotaAddress,
+        base_types::{Identifier, IotaAddress, StructTag},
         event::Event,
         messages_checkpoint::{CertifiedCheckpointSummary, FullCheckpointContents},
     };
@@ -293,15 +292,14 @@ mod tests {
     use super::*;
 
     fn random_event() -> Event {
-        use iota_sdk_types::Identifier as SdkIdentifier;
         Event {
             package_id: ObjectID::random(),
-            module: SdkIdentifier::new("test").unwrap(),
+            module: Identifier::from_static("test"),
             sender: IotaAddress::random(),
             type_: StructTag::new(
                 IotaAddress::random(),
-                SdkIdentifier::new("test").unwrap(),
-                SdkIdentifier::new("test").unwrap(),
+                Identifier::from_static("test"),
+                Identifier::from_static("test"),
                 vec![],
             ),
             contents: vec![],

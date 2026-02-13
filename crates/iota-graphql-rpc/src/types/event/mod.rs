@@ -16,7 +16,7 @@ use iota_indexer::{
     schema::{checkpoints, events},
 };
 use iota_types::{
-    base_types::{IotaAddress as NativeIotaAddress, ObjectID},
+    base_types::{Identifier, IotaAddress as NativeIotaAddress, ObjectID},
     event::Event as NativeEvent,
     parse_iota_struct_tag,
 };
@@ -307,8 +307,7 @@ impl Event {
             ObjectID::from_bytes(&stored.package).map_err(|e| Error::Internal(e.to_string()))?;
         let type_ = parse_iota_struct_tag(&stored.event_type)
             .map_err(|e| Error::Internal(e.to_string()))?;
-        let module = iota_sdk_types::Identifier::new(&stored.module)
-            .map_err(|e| Error::Internal(e.to_string()))?;
+        let module = Identifier::new(&stored.module).map_err(|e| Error::Internal(e.to_string()))?;
         let contents = stored.bcs.clone();
         Ok(Event {
             checkpointed_info: Some(checkpointed),

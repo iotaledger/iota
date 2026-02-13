@@ -49,9 +49,5 @@ move-core-types.workspace = true
 telemetry-subscribers.workspace = true
 
 [dev-dependencies]
-# external dependencies
 roaring.workspace = true
 tempfile.workspace = true
-
-# internal dependencies
-iota-sdk-types.workspace = true

@@ -372,7 +372,8 @@ mod simtests {
     use iota_simulator::configs::constant_latency_ms;
     use iota_storage::http_key_value_store::*;
     use iota_types::{
-        base_types::IotaAddress, event::Event, iota_sdk_types_conversions::struct_tag_core_to_sdk,
+        base_types::{Identifier, IotaAddress},
+        event::Event,
     };
     use rustls::crypto::{CryptoProvider, ring};
     use tracing::info;
@@ -424,15 +425,14 @@ mod simtests {
     }
 
     fn random_events() -> TransactionEvents {
-        use iota_sdk_types::Identifier as SdkIdentifier;
         let event = Event {
             package_id: ObjectID::random(),
-            module: SdkIdentifier::new("test").unwrap(),
+            module: Identifier::from_static("test"),
             sender: IotaAddress::random(),
             type_: StructTag::new(
                 IotaAddress::random(),
-                SdkIdentifier::new("test").unwrap(),
-                SdkIdentifier::new("test").unwrap(),
+                Identifier::from_static("test"),
+                Identifier::from_static("test"),
                 vec![],
             ),
             contents: vec![],
