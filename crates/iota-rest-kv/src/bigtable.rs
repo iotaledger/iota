@@ -235,13 +235,23 @@ impl KvStoreClient {
 
                 let keys = digests.iter().map(|tx| Some(tx.inner().to_vec())).collect();
 
-                multi_get_cell(
+                let response = multi_get_cell(
                     &mut client,
                     TRANSACTIONS_TABLE,
                     keys,
                     EVENTS_COLUMN_QUALIFIER,
                 )
-                .await
+                .await?;
+
+                Ok(response
+                    .into_iter()
+                    .map(|value| {
+                        value.map(|bytes|
+                        // we strip the first byte which represents the Option<T>, returning only
+                        // the bytes which represent the contained value in the Option<T>
+                        bytes.slice(1..))
+                    })
+                    .collect())
             }
         }
         .map_err(Into::into)
