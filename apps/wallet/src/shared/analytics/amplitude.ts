@@ -8,6 +8,7 @@ import { getCustomNetwork } from '@iota/core';
 import { getNetwork, type Network } from '@iota/iota-sdk/client';
 
 import { ampli } from './ampli';
+import { elementCopiedPrivacyPlugin } from './plugins';
 
 const IS_ENABLED = process.env.BUILD_ENV === 'production';
 
@@ -50,6 +51,8 @@ export async function initAmplitude() {
             amplitude.flush();
         }
     });
+
+    ampli.client.add(elementCopiedPrivacyPlugin());
 }
 
 export function getUrlWithDeviceId(url: URL) {
