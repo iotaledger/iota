@@ -4,8 +4,14 @@
 import { SENTRY_ORG_NAME, SENTRY_PROJECT_NAME } from './sentry.common.config.mjs';
 import { withSentryConfig } from '@sentry/nextjs';
 import { execSync } from 'child_process';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const pkg = require('./package.json');
+
 const NEXT_PUBLIC_DASHBOARD_REV = execSync('git rev-parse HEAD').toString().trim().toString();
 const NEXT_PUBLIC_BUILD_ENV = process.env.BUILD_ENV;
+const NEXT_PUBLIC_APP_VERSION = pkg.version;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -25,6 +31,7 @@ const nextConfig = {
     env: {
         NEXT_PUBLIC_DASHBOARD_REV,
         NEXT_PUBLIC_BUILD_ENV,
+        NEXT_PUBLIC_APP_VERSION,
     },
     webpack(config) {
         const fileLoaderRule = config.module.rules.find((rule) => rule.test?.test?.('.svg'));

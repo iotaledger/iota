@@ -21,7 +21,22 @@ const GROWTHBOOK_ENVIRONMENTS = {
 const environment =
     (process.env.NEXT_PUBLIC_BUILD_ENV as keyof typeof GROWTHBOOK_ENVIRONMENTS) || 'development';
 
+/**
+ * Append the client version as a query parameter to the GrowthBook features URL.
+ * This enables the backend to apply version-gated feature rules.
+ */
+async function versionedFetcher(url: string) {
+    const version = process.env.NEXT_PUBLIC_APP_VERSION;
+    if (version) {
+        const separator = url.includes('?') ? '&' : '?';
+        url = `${url}${separator}version=${version}`;
+    }
+    const response = await fetch(url);
+    return response.json();
+}
+
 export const growthbook = new GrowthBook({
     apiHost: getAppsBackend(),
     ...GROWTHBOOK_ENVIRONMENTS[environment],
+    fetcher: versionedFetcher,
 });

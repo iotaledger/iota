@@ -57,6 +57,9 @@
         "transform": {
             "^.+\\.(t|j)s$": "ts-jest"
         },
+        "moduleNameMapper": {
+            "^@iota/core/(.*)$": "<rootDir>/../../core/src/$1"
+        },
         "collectCoverageFrom": [
             "**/*.(t|j)s"
         ],

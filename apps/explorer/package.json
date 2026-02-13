@@ -1,5 +1,6 @@
 {
     "name": "iota-explorer",
+    "version": "0.1.0",
     "private": true,
     "scripts": {
         "dev": "vite --port 3000",

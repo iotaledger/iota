@@ -30,9 +30,21 @@ export const getEnvironmentKey = () => {
     return GROWTHBOOK_ENVIRONMENTS[environment].clientKey;
 };
 
+/**
+ * Append the client version as a query parameter to the GrowthBook features URL.
+ * This enables the backend to apply version-gated feature rules.
+ */
+async function versionedFetcher(url: string) {
+    const version = Browser.runtime.getManifest().version;
+    const separator = url.includes('?') ? '&' : '?';
+    const response = await fetch(`${url}${separator}version=${version}`);
+    return response.json();
+}
+
 export const growthbook = new GrowthBook({
     apiHost: getAppsBackend(),
     ...GROWTHBOOK_ENVIRONMENTS[environment],
+    fetcher: versionedFetcher,
 });
 
 export function setAttributes(network?: { network: Network; customRpc?: string | null }) {
