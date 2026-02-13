@@ -178,11 +178,12 @@ export async function lockAllAccountsAndSources() {
 }
 
 export async function unlockAllAccountsAndSources(password: string) {
+    if (!password || password.trim() === '') {
+        throw new Error('Password is required and cannot be empty');
+    }
     const sources = await getAccountSources();
     for (const source of sources) {
-        if (password) {
-            await source.unlock(password);
-        }
+        await source.unlock(password);
     }
 
     const allAccounts = await getAllAccounts();

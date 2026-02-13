@@ -5,31 +5,32 @@
 import { ampli, type AddedAccountsProperties } from '_src/shared/analytics/ampli';
 import { useMutation } from '@tanstack/react-query';
 
-import { useAccountsFormContext, AccountsFormType, type AccountsFormValues } from '_components';
+import {
+    useAccountsFormContext,
+    AccountsFormType,
+    type AccountsFormValues,
+} from '_src/ui/app/components/accounts/AccountsFormContext';
 import { useBackgroundClient } from './useBackgroundClient';
 import { AccountType } from '_src/background/accounts/account';
 
 import { useCreatePasskeyAccount } from './useCreatePasskeyAccount';
+import { createAccountValidation } from '../helpers/validation/createAccountValidation';
 
-function validateAccountFormValues<T extends AccountsFormType>(
-    createType: T,
-    values: AccountsFormValues,
+function validateAccountFormValues(
+    createType: AccountsFormType,
+    values: AccountsFormValues | null,
     password?: string,
-): values is Extract<AccountsFormValues, { type: T }> {
+): { values: Exclude<AccountsFormValues, null>; password: string | undefined } {
     if (!values) {
         throw new Error('Missing account data values');
     }
     if (values.type !== createType) {
         throw new Error('Account data values type mismatch');
     }
-    if (
-        values.type !== AccountsFormType.MnemonicSource &&
-        values.type !== AccountsFormType.SeedSource &&
-        !password
-    ) {
-        throw new Error('Missing password');
-    }
-    return true;
+
+    // Validate with Zod - ensures password is present when required
+    const validated = createAccountValidation.parse({ type: createType, password });
+    return { values, password: validated.password };
 }
 
 enum AmpliAccountType {
@@ -66,79 +67,66 @@ export function useCreateAccountsMutation() {
             let createdAccounts;
             const accountsFormValues = accountsFormValuesRef.current;
 
-            if (
-                type === AccountsFormType.MnemonicSource &&
-                validateAccountFormValues(type, accountsFormValues)
-            ) {
+            // Validate once upfront - Zod ensures password is present when required
+            const validated = validateAccountFormValues(type, accountsFormValues, password);
+            const values = validated.values;
+            const validatedPassword = validated.password;
+
+            if (values.type === AccountsFormType.MnemonicSource) {
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.MnemonicDerived,
-                    sourceID: accountsFormValues.sourceID,
+                    sourceID: values.sourceID,
                 });
-            } else if (
-                type === AccountsFormType.SeedSource &&
-                validateAccountFormValues(type, accountsFormValues)
-            ) {
+            } else if (values.type === AccountsFormType.SeedSource) {
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.SeedDerived,
-                    sourceID: accountsFormValues.sourceID,
+                    sourceID: values.sourceID,
                 });
             } else if (
-                (type === AccountsFormType.NewMnemonic ||
-                    type === AccountsFormType.ImportMnemonic) &&
-                validateAccountFormValues(type, accountsFormValues, password)
+                values.type === AccountsFormType.NewMnemonic ||
+                values.type === AccountsFormType.ImportMnemonic
             ) {
+                // Password is guaranteed by Zod validation above
                 const accountSource = await backgroundClient.createMnemonicAccountSource({
-                    // validateAccountFormValues checks the password
-                    password: password!,
-                    entropy:
-                        'entropy' in accountsFormValues ? accountsFormValues.entropy : undefined,
+                    password: validatedPassword as string,
+                    entropy: 'entropy' in values ? values.entropy : undefined,
                 });
 
                 await backgroundClient.unlockAccountSource({
                     id: accountSource.id,
-                    password: password!,
+                    password: validatedPassword as string,
                 });
 
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.MnemonicDerived,
                     sourceID: accountSource.id,
                 });
-            } else if (
-                type === AccountsFormType.ImportSeed &&
-                validateAccountFormValues(type, accountsFormValues, password)
-            ) {
+            } else if (values.type === AccountsFormType.ImportSeed) {
                 const accountSource = await backgroundClient.createSeedAccountSource({
-                    // validateAccountFormValues checks the password
-                    password: password!,
-                    seed: accountsFormValues.seed,
+                    password: validatedPassword as string,
+                    seed: values.seed,
                 });
 
                 await backgroundClient.unlockAccountSource({
                     id: accountSource.id,
-                    password: password!,
+                    password: validatedPassword as string,
                 });
 
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.SeedDerived,
                     sourceID: accountSource.id,
                 });
-            } else if (
-                type === AccountsFormType.ImportPrivateKey &&
-                validateAccountFormValues(type, accountsFormValues, password)
-            ) {
+            } else if (values.type === AccountsFormType.ImportPrivateKey) {
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.PrivateKeyDerived,
-                    keyPair: accountsFormValues.keyPair,
-                    password: password!,
+                    keyPair: values.keyPair,
+                    password: validatedPassword as string,
                 });
-            } else if (
-                type === AccountsFormType.Passkey &&
-                validateAccountFormValues(type, accountsFormValues, password)
-            ) {
+            } else if (values.type === AccountsFormType.Passkey) {
                 const { address, publicKey, providerOptions, credentialId } =
                     await createPasskeyAccount({
-                        username: accountsFormValues.username,
-                        authenticatorAttachment: accountsFormValues.authenticatorAttachment,
+                        username: values.username,
+                        authenticatorAttachment: values.authenticatorAttachment,
                     });
 
                 createdAccounts = await backgroundClient.createAccounts({
@@ -147,12 +135,9 @@ export function useCreateAccountsMutation() {
                     publicKey,
                     providerOptions,
                     credentialId,
-                    password: password!,
+                    password: validatedPassword as string,
                 });
-            } else if (
-                type === AccountsFormType.ImportPasskey &&
-                validateAccountFormValues(type, accountsFormValues, password)
-            ) {
+            } else if (values.type === AccountsFormType.ImportPasskey) {
                 const { address, publicKey, providerOptions, credentialId } =
                     await createPasskeyAccount({
                         isRestore: true,
@@ -164,40 +149,33 @@ export function useCreateAccountsMutation() {
                     publicKey,
                     providerOptions,
                     credentialId,
-                    password: password!,
+                    password: validatedPassword as string,
                 });
-            } else if (
-                type === AccountsFormType.ImportLedger &&
-                validateAccountFormValues(type, accountsFormValues, password)
-            ) {
+            } else if (values.type === AccountsFormType.ImportLedger) {
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.LedgerDerived,
-                    accounts: accountsFormValues.accounts,
-                    password: password!,
-                    mainPublicKey: accountsFormValues.mainPublicKey,
+                    accounts: values.accounts,
+                    password: validatedPassword as string,
+                    mainPublicKey: values.mainPublicKey,
                 });
-            } else if (
-                type === AccountsFormType.ImportKeystone &&
-                validateAccountFormValues(type, accountsFormValues, password)
-            ) {
-                const sourceID = `keystone-${accountsFormValues.masterFingerprint}`;
+            } else if (values.type === AccountsFormType.ImportKeystone) {
+                const sourceID = `keystone-${values.masterFingerprint}`;
                 try {
                     await backgroundClient.createKeystoneAccountSource({
-                        // validateAccountFormValues checks the password
-                        password: password!,
-                        masterFingerprint: accountsFormValues.masterFingerprint,
+                        password: validatedPassword as string,
+                        masterFingerprint: values.masterFingerprint,
                     });
                 } catch {
                     // Its fine to ignore if the account source already exists
                 }
 
                 await backgroundClient.unlockAccountSource({
-                    password: password!,
+                    password: validatedPassword as string,
                     id: sourceID,
                 });
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.KeystoneDerived,
-                    accounts: accountsFormValues.accounts,
+                    accounts: values.accounts,
                     sourceID,
                 });
             } else {
