@@ -57,10 +57,10 @@ impl Client {
     /// let result = client.execute_transaction(signed_tx, None).await?;
     ///
     /// // Lazy conversion - only deserialize what you need
-    /// let effects = result.effects()?;
+    /// let effects = result.effects()?.effects()?;
     /// println!("Status: {:?}", effects.status());
     ///
-    /// let events = result.events()?;
+    /// let events = result.events()?.events()?;
     /// if !events.0.is_empty() {
     ///     println!("Events: {}", events.0.len());
     /// }

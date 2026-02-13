@@ -20,7 +20,7 @@
 //! let digest: Digest = todo!();
 //! let txs = client.get_transactions(&[digest], None).await?;
 //! if let Some(tx) = txs.first() {
-//!     println!("Transaction digest: {:?}", tx.digest()?);
+//!     println!("Transaction digest: {:?}", tx.transaction()?.digest()?);
 //! }
 //!
 //! // Get an object (None = use default field mask)
