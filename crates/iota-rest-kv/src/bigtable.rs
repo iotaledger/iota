@@ -243,22 +243,17 @@ impl KvStoreClient {
                 )
                 .await?;
 
-                response
+                Ok(response
                     .into_iter()
                     .map(|cell| {
-                        cell.map(|bytes| {
-                            bcs::from_bytes::<Option<TransactionEvents>>(&bytes)
-                                .and_then(|opt_events| {
-                                    opt_events
-                                        .map(|e| bcs::to_bytes(&e).map(Bytes::from))
-                                        .transpose()
-                                })
-                                .map_err(anyhow::Error::from)
+                        cell.and_then(|bytes| {
+                            match bcs::from_bytes::<Option<TransactionEvents>>(&bytes) {
+                                Ok(None) | Err(_) => None,
+                                Ok(Some(events)) => bcs::to_bytes(&events).map(Bytes::from).ok(),
+                            }
                         })
-                        .transpose()
-                        .map(Option::flatten)
                     })
-                    .collect::<Result<Vec<Option<Bytes>>, _>>()
+                    .collect())
             }
         }
         .map_err(Into::into)
