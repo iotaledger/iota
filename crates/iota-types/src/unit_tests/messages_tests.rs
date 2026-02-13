@@ -12,7 +12,7 @@ use fastcrypto::{
     ed25519::Ed25519KeyPair,
     traits::{AggregateAuthenticator, KeyPair},
 };
-use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
+use iota_sdk_types::StructTag;
 use roaring::RoaringBitmap;
 
 use super::*;
@@ -846,8 +846,8 @@ fn test_sponsored_transaction_validity_check() {
         builder
             .move_call(
                 ObjectID::random(),
-                Identifier::new("random_module").unwrap(),
-                Identifier::new("random_function").unwrap(),
+                Identifier::from_static("random_module"),
+                Identifier::from_static("random_function"),
                 vec![],
                 vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(
                     random_object_ref(),
@@ -1077,7 +1077,7 @@ fn test_consensus_commit_prologue_v1_transaction() {
     assert_eq!(
         tx.shared_input_objects().into_iter().next().unwrap(),
         SharedInputObject {
-            id: IOTA_CLOCK_OBJECT_ID,
+            id: ObjectID::CLOCK,
             initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
             mutable: true,
         },
@@ -1109,12 +1109,12 @@ fn test_move_input_objects() {
 
     let gas_object_ref = random_object_ref();
     let mk_st = |package: ObjectID, type_args| {
-        TypeTag::Struct(Box::new(StructTag {
-            address: AccountAddress::new(package.into_bytes()),
-            module: Identifier::new("foo").unwrap(),
-            name: Identifier::new("bar").unwrap(),
-            type_params: type_args,
-        }))
+        TypeTag::Struct(Box::new(StructTag::new(
+            package,
+            Identifier::from_static("foo"),
+            Identifier::from_static("bar"),
+            type_args,
+        )))
     };
     let t1 = mk_st(p1, vec![]);
     let t2 = mk_st(p2, vec![mk_st(p3, vec![]), mk_st(p4, vec![])]);
@@ -1141,8 +1141,8 @@ fn test_move_input_objects() {
     ];
     builder.command(Command::move_call(
         package,
-        Identifier::new("foo").unwrap(),
-        Identifier::new("bar").unwrap(),
+        Identifier::from_static("foo"),
+        Identifier::from_static("bar"),
         type_args,
         args,
     ));
@@ -1198,12 +1198,12 @@ fn test_unique_input_objects() {
     let shared = random_object_ref();
 
     let mk_st = |package: ObjectID, type_args| {
-        TypeTag::Struct(Box::new(StructTag {
-            address: AccountAddress::new(package.into_bytes()),
-            module: Identifier::new("foo").unwrap(),
-            name: Identifier::new("bar").unwrap(),
-            type_params: type_args,
-        }))
+        TypeTag::Struct(Box::new(StructTag::new(
+            package,
+            Identifier::from_static("foo"),
+            Identifier::from_static("bar"),
+            type_args,
+        )))
     };
     let t1 = mk_st(p1, vec![]);
     let t2 = mk_st(p2, vec![mk_st(p3, vec![]), mk_st(p4, vec![])]);
@@ -1244,15 +1244,15 @@ fn test_unique_input_objects() {
 
     builder.command(Command::move_call(
         package,
-        Identifier::new("test_module").unwrap(),
-        Identifier::new("test_function").unwrap(),
+        Identifier::from_static("test_module"),
+        Identifier::from_static("test_function"),
         type_args.clone(),
         args_1,
     ));
     builder.command(Command::move_call(
         package,
-        Identifier::new("test_module").unwrap(),
-        Identifier::new("test_function").unwrap(),
+        Identifier::from_static("test_module"),
+        Identifier::from_static("test_function"),
         type_args,
         args_2,
     ));

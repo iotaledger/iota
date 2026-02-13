@@ -5,13 +5,13 @@
 use std::collections::VecDeque;
 
 use iota_types::{
-    TypeTag,
-    base_types::{MoveObjectType, ObjectID},
+    base_types::{MoveObjectType, ObjectID, StructTag},
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
-    account_address::AccountAddress, gas_algebra::InternalGas, language_storage::StructTag,
-    runtime_value as R, vm_status::StatusCode,
+    account_address::AccountAddress, gas_algebra::InternalGas, runtime_value as R,
+    vm_status::StatusCode,
 };
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
 use move_vm_types::{
@@ -74,7 +74,7 @@ pub fn read_setting_impl(
     let config_addr = pop_arg!(args, AccountAddress);
 
     let field_setting_tag: StructTag = match context.type_to_type_tag(&field_setting_ty)? {
-        TypeTag::Struct(s) => *s,
+        move_core_types::language_storage::TypeTag::Struct(s) => struct_tag_core_to_sdk(&s),
         _ => {
             return Err(
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)

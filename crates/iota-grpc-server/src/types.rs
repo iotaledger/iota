@@ -17,7 +17,7 @@ use iota_grpc_types::{
 };
 use iota_node_storage::GrpcStateReader;
 use iota_types::{
-    base_types::{ObjectID, VersionNumber},
+    base_types::{ObjectID, StructTag, TypeTag, VersionNumber},
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     full_checkpoint_content::{
@@ -679,7 +679,7 @@ impl GrpcReader {
 
     pub fn get_type_layout(
         &self,
-        type_tag: &iota_types::TypeTag,
+        type_tag: &TypeTag,
     ) -> anyhow::Result<Option<move_core_types::annotated_value::MoveTypeLayout>> {
         self.state_reader
             .get_type_layout(type_tag)
@@ -693,7 +693,7 @@ impl GrpcReader {
         &self,
         owner: iota_types::base_types::IotaAddress,
         cursor: Option<&OwnedObjectCursor>,
-        object_type: Option<move_core_types::language_storage::StructTag>,
+        object_type: Option<StructTag>,
     ) -> Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>, crate::error::RpcError> {
         let indexes = self
             .require_indexes()
@@ -722,7 +722,7 @@ impl GrpcReader {
     /// Get unified coin info.
     pub fn get_coin_info(
         &self,
-        coin_type: &move_core_types::language_storage::StructTag,
+        coin_type: &StructTag,
     ) -> Result<Option<iota_types::storage::CoinInfo>, crate::error::RpcError> {
         let indexes = self
             .require_indexes()

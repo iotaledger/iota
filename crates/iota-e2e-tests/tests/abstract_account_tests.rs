@@ -29,8 +29,8 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::crypto::Intent;
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, TypeTag,
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    IOTA_FRAMEWORK_PACKAGE_ID,
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, TypeTag},
     crypto::{PublicKey, SignatureScheme},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
@@ -49,7 +49,6 @@ use iota_types::{
     },
 };
 use move_command_line_common::error_bitset::ErrorBitset;
-use move_core_types::{ident_str, identifier::Identifier};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 const AA_PACKAGE_PATH: &str = "tests/abstract_account/abstract_account";
@@ -456,7 +455,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
         matches!(
             summary.status.unwrap_err().0,
             ExecutionFailureStatus::MoveAbort(MoveLocation { module, function_name, .. }, abort_code)
-            if module.name() == ident_str!("basic_keyed_aa")
+            if module.name().as_str() == "basic_keyed_aa"
             && function_name == Some("authenticate_ed25519".to_string())
             && ErrorBitset::from_u64(abort_code).unwrap().error_code() == Some(0)
         ),
@@ -1551,8 +1550,8 @@ impl TestEnvironment {
             // Create the delayed abstract account object.
             builder.programmable_move_call(
                 aa_package_id,
-                ident_str!(AA_DELAYED_CREATE_MODULE_NAME).to_owned(),
-                ident_str!("create").to_owned(),
+                Identifier::from_static(AA_DELAYED_CREATE_MODULE_NAME),
+                Identifier::from_static("create"),
                 vec![],
                 vec![],
             );
@@ -1616,8 +1615,8 @@ impl TestEnvironment {
             ];
             if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
                 IOTA_FRAMEWORK_PACKAGE_ID,
-                ident_str!("authenticator_function").to_owned(),
-                ident_str!("create_auth_function_ref_v1").to_owned(),
+                Identifier::from_static("authenticator_function"),
+                Identifier::from_static("create_auth_function_ref_v1"),
                 vec![delayed_abstract_account_type_tag(&aa_package_id)],
                 arguments,
             ) {
@@ -1633,8 +1632,8 @@ impl TestEnvironment {
                 ];
                 builder.programmable_move_call(
                     aa_package_id,
-                    ident_str!(AA_DELAYED_AUTHENTICATE_MODULE_NAME).to_owned(),
-                    ident_str!("create").to_owned(),
+                    Identifier::from_static(AA_DELAYED_AUTHENTICATE_MODULE_NAME),
+                    Identifier::from_static("create"),
                     vec![],
                     arguments,
                 );
@@ -1776,7 +1775,7 @@ impl TestEnvironment {
         builder.programmable_move_call(
             aa_package_id,
             Identifier::new(module_name)?,
-            ident_str!("add_field").to_owned(),
+            Identifier::from_static("add_field"),
             vec![TypeTag::U8, TypeTag::U8],
             arguments,
         );
@@ -1828,8 +1827,8 @@ impl TestEnvironment {
         ];
         if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("authenticator_function").to_owned(),
-            ident_str!("create_auth_function_ref_v1").to_owned(),
+            Identifier::from_static("authenticator_function"),
+            Identifier::from_static("create_auth_function_ref_v1"),
             vec![abstract_account_type_tag(&aa_package_id)],
             arguments,
         ) {
@@ -1845,8 +1844,8 @@ impl TestEnvironment {
             ];
             builder.programmable_move_call(
                 aa_package_id,
-                ident_str!(AA_CREATE_MODULE_NAME).to_owned(),
-                ident_str!("rotate_public_key").to_owned(),
+                Identifier::from_static(AA_CREATE_MODULE_NAME),
+                Identifier::from_static("rotate_public_key"),
                 vec![],
                 arguments,
             );
@@ -1901,9 +1900,9 @@ impl TestEnvironment {
                 builder.pure(authenticate_fn_name)?,
             ];
             if let Argument::Result(authenticator_function_ref_v1) = builder.programmable_move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
-                ident_str!("authenticator_function").to_owned(),
-                ident_str!("create_auth_function_ref_v1").to_owned(),
+                ObjectID::FRAMEWORK,
+                Identifier::from_static("authenticator_function"),
+                Identifier::from_static("create_auth_function_ref_v1"),
                 vec![abstract_account_type_tag(&aa_package_id)],
                 arguments,
             ) {
@@ -1914,8 +1913,8 @@ impl TestEnvironment {
                 ];
                 builder.programmable_move_call(
                     aa_package_id,
-                    ident_str!(AA_CREATE_MODULE_NAME).to_owned(),
-                    ident_str!("create").to_owned(),
+                    Identifier::from_static(AA_CREATE_MODULE_NAME),
+                    Identifier::from_static("create"),
                     vec![],
                     arguments,
                 );

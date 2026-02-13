@@ -17,12 +17,10 @@ use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_sdk::wallet_context::WalletContext;
 use iota_test_transaction_builder::{make_publish_transaction, make_publish_transaction_with_deps};
 use iota_types::{
-    IOTA_SYSTEM_STATE_OBJECT_ID,
     base_types::{IotaAddress, ObjectID, ObjectRef, TransactionDigest},
     move_package::UpgradePolicy,
     transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
 };
-use move_core_types::account_address::AccountAddress;
 use test_cluster::TestClusterBuilder;
 
 use crate::{BytecodeSourceVerifier, ValidationMode, toolchain::CURRENT_COMPILER_VERSION};
@@ -71,19 +69,13 @@ async fn successful_verification() -> anyhow::Result<()> {
 
     // Skip deps but verify root
     verifier
-        .verify(
-            &a_pkg,
-            ValidationMode::root_at(AccountAddress::new(a_ref.0.into_bytes())),
-        )
+        .verify(&a_pkg, ValidationMode::root_at(a_ref.0.into()))
         .await
         .unwrap();
 
     // Verify both deps and root
     verifier
-        .verify(
-            &a_pkg,
-            ValidationMode::root_and_deps_at(AccountAddress::new(a_ref.0.into_bytes())),
-        )
+        .verify(&a_pkg, ValidationMode::root_and_deps_at(a_ref.0.into()))
         .await
         .unwrap();
 
@@ -109,10 +101,7 @@ async fn successful_verification_unpublished_deps() -> anyhow::Result<()> {
 
     // Verify the root package which now includes dependency modules
     verifier
-        .verify(
-            &a_pkg,
-            ValidationMode::root_at(AccountAddress::new(a_ref.0.into_bytes())),
-        )
+        .verify(&a_pkg, ValidationMode::root_at(a_ref.0.into()))
         .await
         .unwrap();
 
@@ -221,10 +210,7 @@ async fn fail_verification_bad_address() -> anyhow::Result<()> {
     let expected = expect!["On-chain address cannot be zero"];
     expected.assert_eq(
         &BytecodeSourceVerifier::new(client.read_api())
-            .verify(
-                &a_pkg,
-                ValidationMode::root_and_deps_at(AccountAddress::ZERO),
-            )
+            .verify(&a_pkg, ValidationMode::root_and_deps_at(IotaAddress::ZERO))
             .await
             .unwrap_err()
             .to_string(),
@@ -333,12 +319,12 @@ async fn package_not_found() -> anyhow::Result<()> {
     };
 
     let expected = expect![[
-        r#"Dependency object does not exist or was deleted: NotExists { object_id: ObjectId("0x<id>") }"#
+        r#"Dependency object does not exist or was deleted: NotExists { object_id: ObjectId("<id>") }"#
     ]];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
-    let package_root = AccountAddress::random();
-    stable_addrs.insert(IotaAddress::new(package_root.into_bytes()), "<id>");
+    let package_root = IotaAddress::random();
+    stable_addrs.insert(package_root, "<id>");
     let Err(err) = verifier
         .verify(&a_pkg, ValidationMode::root_and_deps_at(package_root))
         .await
@@ -349,12 +335,12 @@ async fn package_not_found() -> anyhow::Result<()> {
     // <id> below may refer to either the package_root or dependent package `b`
     // (the check reports the first missing object nondeterministically)
     let expected = expect![[
-        r#"Dependency object does not exist or was deleted: NotExists { object_id: ObjectId("0x<id>") }"#
+        r#"Dependency object does not exist or was deleted: NotExists { object_id: ObjectId("<id>") }"#
     ]];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
-    let package_root = AccountAddress::random();
-    stable_addrs.insert(IotaAddress::new(package_root.into_bytes()), "<id>");
+    let package_root = IotaAddress::random();
+    stable_addrs.insert(package_root, "<id>");
     let Err(err) = verifier
         .verify(&a_pkg, ValidationMode::root_at(package_root))
         .await
@@ -363,7 +349,7 @@ async fn package_not_found() -> anyhow::Result<()> {
     };
 
     let expected = expect![[
-        r#"Dependency object does not exist or was deleted: NotExists { object_id: ObjectId("0x<id>") }"#
+        r#"Dependency object does not exist or was deleted: NotExists { object_id: ObjectId("<id>") }"#
     ]];
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
@@ -377,7 +363,7 @@ async fn dependency_is_an_object() -> anyhow::Result<()> {
 
     let a_pkg_fixtures = iota_common::tempdir();
     let a_pkg = {
-        let b_id = IOTA_SYSTEM_STATE_OBJECT_ID.into();
+        let b_id = ObjectID::SYSTEM_STATE.into();
         copy_published_package(&a_pkg_fixtures, "b", b_id).await?;
         let a_src = copy_published_package(&a_pkg_fixtures, "a", IotaAddress::ZERO).await?;
         compile_package(a_src)
@@ -518,10 +504,7 @@ async fn module_bytecode_mismatch() -> anyhow::Result<()> {
     expected.assert_eq(&sanitize_id(err.to_string(), &stable_addrs));
 
     let Err(err) = verifier
-        .verify(
-            &a_pkg,
-            ValidationMode::root_at(AccountAddress::new(a_addr.into_bytes())),
-        )
+        .verify(&a_pkg, ValidationMode::root_at(a_addr))
         .await
     else {
         panic!("Expected verification to fail");
@@ -726,18 +709,12 @@ async fn successful_verification_with_bytecode_dep() -> anyhow::Result<()> {
         .unwrap();
     // Skip deps but verify root
     verifier
-        .verify(
-            &a_pkg,
-            ValidationMode::root_at(AccountAddress::new(a_ref.0.into_bytes())),
-        )
+        .verify(&a_pkg, ValidationMode::root_at(a_ref.0.into()))
         .await
         .unwrap();
     // Verify both deps and root
     verifier
-        .verify(
-            &a_pkg,
-            ValidationMode::root_and_deps_at(AccountAddress::new(a_ref.0.into_bytes())),
-        )
+        .verify(&a_pkg, ValidationMode::root_and_deps_at(a_ref.0.into()))
         .await
         .unwrap();
     Ok(())
@@ -753,7 +730,7 @@ fn compile_package(package: impl AsRef<Path>) -> CompiledPackage {
 
 fn sanitize_id(mut message: String, m: &HashMap<IotaAddress, &str>) -> String {
     for (addr, label) in m {
-        message = message.replace(format!("{addr}").strip_prefix("0x").unwrap(), label);
+        message = message.replace(&addr.to_string(), label);
     }
     message
 }

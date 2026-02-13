@@ -29,6 +29,7 @@ use iota_sdk_types::{
         TypeArgumentError,
     },
     gas::GasCostSummary,
+    move_core::{Identifier, StructTag, TypeParseError, TypeTag},
     object::{
         GenesisObject, MovePackage, MoveStruct, Object, ObjectData, ObjectReference, Owner,
         TypeOrigin, UpgradeInfo,
@@ -42,7 +43,6 @@ use iota_sdk_types::{
         SignedTransaction, SplitCoins, SystemPackage, Transaction, TransactionExpiration,
         TransactionKind, TransactionV1, TransferObjects, Upgrade, VersionAssignment,
     },
-    type_tag::{Identifier, StructTag, TypeParseError, TypeTag},
     validator::{ValidatorAggregatedSignature, ValidatorCommittee, ValidatorCommitteeMember},
 };
 use move_core_types::language_storage::ModuleId;
@@ -126,42 +126,11 @@ impl TryFrom<ObjectData> for crate::object::Data {
 
     fn try_from(value: ObjectData) -> Result<Self, Self::Error> {
         match value {
-            ObjectData::Struct(move_object) => Self::Move(sdk_object_to_move(move_object)?),
+            ObjectData::Struct(move_object) => Self::Move(sdk_object_to_move(move_object)),
             ObjectData::Package(move_package) => Self::Package(sdk_package_to_move(move_package)),
         }
         .pipe(Ok)
     }
-}
-
-fn move_type_tag_to_sdk(tt: move_core_types::language_storage::TypeTag) -> TypeTag {
-    use move_core_types::language_storage::TypeTag as MoveTypeTag;
-    match tt {
-        MoveTypeTag::Bool => TypeTag::Bool,
-        MoveTypeTag::U8 => TypeTag::U8,
-        MoveTypeTag::U64 => TypeTag::U64,
-        MoveTypeTag::U128 => TypeTag::U128,
-        MoveTypeTag::Address => TypeTag::Address,
-        MoveTypeTag::Signer => TypeTag::Signer,
-        MoveTypeTag::Vector(type_tag) => TypeTag::Vector(Box::new(move_type_tag_to_sdk(*type_tag))),
-        MoveTypeTag::Struct(struct_tag) => {
-            TypeTag::Struct(Box::new(move_struct_tag_to_sdk(*struct_tag)))
-        }
-        MoveTypeTag::U16 => TypeTag::U16,
-        MoveTypeTag::U32 => TypeTag::U32,
-        MoveTypeTag::U256 => TypeTag::U256,
-    }
-}
-
-fn move_struct_tag_to_sdk(st: move_core_types::language_storage::StructTag) -> StructTag {
-    StructTag::new(
-        Address::new(st.address.into_bytes()),
-        Identifier::new(st.module.as_str()).expect("module identifier conversion failed"),
-        Identifier::new(st.name.as_str()).expect("struct name identifier conversion failed"),
-        st.type_params
-            .into_iter()
-            .map(move_type_tag_to_sdk)
-            .collect(),
-    )
 }
 
 fn move_package_to_sdk(package: crate::move_package::MovePackage) -> MovePackage {
@@ -221,42 +190,25 @@ fn move_object_to_sdk(obj: crate::object::MoveObject) -> MoveStruct {
     }
 }
 
-fn sdk_object_to_move(
-    obj: MoveStruct,
-) -> Result<crate::object::MoveObject, SdkTypeConversionError> {
+fn sdk_object_to_move(obj: MoveStruct) -> crate::object::MoveObject {
     crate::object::MoveObject {
-        type_: sdk_object_type_to_move(obj.type_)?,
+        type_: sdk_object_type_to_move(&obj.type_),
         version: obj.version,
         contents: obj.contents,
     }
-    .pipe(Ok)
 }
 
-fn move_object_type_to_sdk(type_: crate::base_types::MoveObjectType) -> StructTag {
-    move_struct_tag_to_sdk(move_core_types::language_storage::StructTag {
-        address: type_.address(),
-        module: type_.module().to_owned(),
-        name: type_.name().to_owned(),
-        type_params: type_.type_params(),
-    })
+pub fn move_object_type_to_sdk(type_: crate::base_types::MoveObjectType) -> StructTag {
+    StructTag::new(
+        type_.address(),
+        type_.module(),
+        type_.name(),
+        type_.type_params(),
+    )
 }
 
-fn sdk_object_type_to_move(
-    type_: StructTag,
-) -> Result<crate::base_types::MoveObjectType, SdkTypeConversionError> {
-    crate::base_types::MoveObjectType::from(move_core_types::language_storage::StructTag {
-        address: move_core_types::account_address::AccountAddress::new(
-            type_.address().into_bytes(),
-        ),
-        module: crate::Identifier::new(type_.module().as_str())?,
-        name: crate::Identifier::new(type_.name().as_str())?,
-        type_params: type_
-            .type_params()
-            .iter()
-            .map(type_tag_sdk_to_core)
-            .collect::<Result<_, _>>()?,
-    })
-    .pipe(Ok)
+fn sdk_object_type_to_move(type_: &StructTag) -> crate::base_types::MoveObjectType {
+    crate::base_types::MoveObjectType::from(type_)
 }
 
 fn move_type_origin_to_sdk(origin: crate::move_package::TypeOrigin) -> TypeOrigin {
@@ -431,14 +383,13 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                         .into_iter()
                         .map(|event| {
                             let module = Identifier::new(event.transaction_module.as_str());
-                            let type_ = struct_tag_core_to_sdk(event.type_);
 
-                            match (module, type_) {
-                                (Ok(module), Ok(type_)) => Ok(Event {
+                            match module {
+                                Ok(module) => Ok(Event {
                                     package_id: event.package_id,
                                     module,
                                     sender: event.sender,
-                                    type_,
+                                    type_: event.type_,
                                     contents: event.contents,
                                 }),
                                 _ => Err(SdkTypeConversionError(
@@ -537,14 +488,13 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                         .into_iter()
                         .map(|event| {
                             let transaction_module = crate::Identifier::new(event.module.as_str());
-                            let type_ = struct_tag_sdk_to_core(&event.type_);
 
-                            match (transaction_module, type_) {
-                                (Ok(transaction_module), Ok(type_)) => Ok(crate::event::Event {
+                            match transaction_module {
+                                Ok(transaction_module) => Ok(crate::event::Event {
                                     package_id: event.package_id,
                                     transaction_module,
                                     sender: event.sender,
-                                    type_,
+                                    type_: event.type_,
                                     contents: event.contents,
                                 }),
                                 _ => Err(SdkTypeConversionError(
@@ -629,7 +579,7 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                         .map(|(version, modules, dependencies)| SystemPackage {
                             version,
                             modules,
-                            dependencies: dependencies.into_iter().collect(),
+                            dependencies,
                         })
                         .collect(),
                 })
@@ -650,7 +600,7 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                         .map(|(version, modules, dependencies)| SystemPackage {
                             version,
                             modules,
-                            dependencies: dependencies.into_iter().collect(),
+                            dependencies,
                         })
                         .collect(),
                 })
@@ -671,7 +621,7 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                         .map(|(version, modules, dependencies)| SystemPackage {
                             version,
                             modules,
-                            dependencies: dependencies.into_iter().collect(),
+                            dependencies,
                         })
                         .collect(),
                     eligible_active_validators: change_epoch_v3.eligible_active_validators,
@@ -721,13 +671,7 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                     system_packages: change_epoch
                         .system_packages
                         .into_iter()
-                        .map(|package| {
-                            (
-                                package.version,
-                                package.modules,
-                                package.dependencies.into_iter().collect(),
-                            )
-                        })
+                        .map(|package| (package.version, package.modules, package.dependencies))
                         .collect(),
                 })
             }
@@ -744,13 +688,7 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                     system_packages: change_epoch_v2
                         .system_packages
                         .into_iter()
-                        .map(|package| {
-                            (
-                                package.version,
-                                package.modules,
-                                package.dependencies.into_iter().collect(),
-                            )
-                        })
+                        .map(|package| (package.version, package.modules, package.dependencies))
                         .collect(),
                 })
             }
@@ -767,13 +705,7 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                     system_packages: change_epoch_v3
                         .system_packages
                         .into_iter()
-                        .map(|package| {
-                            (
-                                package.version,
-                                package.modules,
-                                package.dependencies.into_iter().collect(),
-                            )
-                        })
+                        .map(|package| (package.version, package.modules, package.dependencies))
                         .collect(),
                     eligible_active_validators: change_epoch_v3.eligible_active_validators,
                 })
@@ -880,7 +812,7 @@ impl TryFrom<crate::effects::TransactionEffects> for TransactionEffects {
                     gas_object_index: effects.gas_object_index,
                     transaction_digest: effects.transaction_digest,
                     events_digest: effects.events_digest,
-                    dependencies: effects.dependencies.into_iter().collect(),
+                    dependencies: effects.dependencies,
                     lamport_version: effects.lamport_version,
                     changed_objects: effects
                         .changed_objects
@@ -1531,7 +1463,8 @@ impl From<MoveLocation> for crate::execution_status::MoveLocation {
         Self {
             module: ModuleId::new(
                 move_core_types::account_address::AccountAddress::new(value.package.into_bytes()),
-                crate::Identifier::new(value.module.as_str()).expect("invalid module name"),
+                move_core_types::identifier::Identifier::new(value.module.as_str())
+                    .expect("invalid module name"),
             ),
             function: value.function,
             instruction: value.instruction,
@@ -1743,9 +1676,9 @@ impl TryFrom<crate::event::Event> for Event {
     fn try_from(value: crate::event::Event) -> Result<Self, Self::Error> {
         Self {
             package_id: value.package_id,
-            module: Identifier::new(value.transaction_module.as_str())?,
+            module: value.transaction_module,
             sender: value.sender,
-            type_: struct_tag_core_to_sdk(value.type_)?,
+            type_: value.type_,
             contents: value.contents,
         }
         .pipe(Ok)
@@ -1758,9 +1691,9 @@ impl TryFrom<Event> for crate::event::Event {
     fn try_from(value: Event) -> Result<Self, Self::Error> {
         Self {
             package_id: value.package_id,
-            transaction_module: crate::Identifier::new(value.module.as_str())?,
+            transaction_module: value.module,
             sender: value.sender,
-            type_: struct_tag_sdk_to_core(&value.type_)?,
+            type_: value.type_,
             contents: value.contents,
         }
         .pipe(Ok)
@@ -1780,12 +1713,7 @@ impl TryFrom<crate::transaction::Command> for Command {
                 type_arguments: programmable_move_call
                     .type_arguments
                     .into_iter()
-                    .map(|type_input| {
-                        type_input
-                            .into_type_tag()
-                            .map_err(|err| err.into())
-                            .and_then(type_tag_core_to_sdk)
-                    })
+                    .map(|type_input| type_input.into_type_tag())
                     .collect::<Result<_, _>>()?,
                 arguments: programmable_move_call
                     .arguments
@@ -1809,23 +1737,18 @@ impl TryFrom<crate::transaction::Command> for Command {
             }),
             InternalCmd::Publish(modules, dependencies) => Self::Publish(Publish {
                 modules,
-                dependencies: dependencies.into_iter().collect(),
+                dependencies,
             }),
             InternalCmd::MakeMoveVec(type_tag, elements) => Self::MakeMoveVector(MakeMoveVector {
                 type_: type_tag
-                    .map(|type_input| {
-                        type_input
-                            .into_type_tag()
-                            .map_err(|err| err.into())
-                            .and_then(type_tag_core_to_sdk)
-                    })
+                    .map(|type_input| type_input.into_type_tag())
                     .transpose()?,
                 elements: elements.into_iter().map(Into::into).collect(),
             }),
             InternalCmd::Upgrade(modules, dependencies, package, ticket) => {
                 Self::Upgrade(Upgrade {
                     modules,
-                    dependencies: dependencies.into_iter().collect(),
+                    dependencies,
                     package,
                     ticket: ticket.into(),
                 })
@@ -1842,15 +1765,9 @@ impl TryFrom<Command> for crate::transaction::Command {
         match value {
             Command::MoveCall(move_call) => Self::move_call(
                 move_call.package,
-                crate::Identifier::new(move_call.module.as_str())
-                    .expect("invalid move call module identifier"),
-                crate::Identifier::new(move_call.function.as_str())
-                    .expect("invalid move call function identifier"),
-                move_call
-                    .type_arguments
-                    .iter()
-                    .map(type_tag_sdk_to_core)
-                    .collect::<Result<_, _>>()?,
+                move_call.module,
+                move_call.function,
+                move_call.type_arguments,
                 move_call.arguments.into_iter().map(Into::into).collect(),
             ),
             Command::TransferObjects(transfer_objects) => Self::TransferObjects(
@@ -1873,15 +1790,9 @@ impl TryFrom<Command> for crate::transaction::Command {
                     .map(Into::into)
                     .collect(),
             ),
-            Command::Publish(publish) => {
-                Self::Publish(publish.modules, publish.dependencies.into_iter().collect())
-            }
+            Command::Publish(publish) => Self::Publish(publish.modules, publish.dependencies),
             Command::MakeMoveVector(make_move_vector) => Self::make_move_vec(
-                make_move_vector
-                    .type_
-                    .as_ref()
-                    .map(type_tag_sdk_to_core)
-                    .transpose()?,
+                make_move_vector.type_,
                 make_move_vector
                     .elements
                     .into_iter()
@@ -1890,7 +1801,7 @@ impl TryFrom<Command> for crate::transaction::Command {
             ),
             Command::Upgrade(upgrade) => Self::Upgrade(
                 upgrade.modules,
-                upgrade.dependencies.into_iter().collect(),
+                upgrade.dependencies,
                 upgrade.package,
                 upgrade.ticket.into(),
             ),
@@ -2184,9 +2095,7 @@ impl TryFrom<SignedTransaction> for crate::transaction::Transaction {
     }
 }
 
-pub fn type_tag_core_to_sdk(
-    value: move_core_types::language_storage::TypeTag,
-) -> Result<TypeTag, SdkTypeConversionError> {
+pub fn type_tag_core_to_sdk(value: &move_core_types::language_storage::TypeTag) -> TypeTag {
     match value {
         move_core_types::language_storage::TypeTag::Bool => TypeTag::Bool,
         move_core_types::language_storage::TypeTag::U8 => TypeTag::U8,
@@ -2195,21 +2104,18 @@ pub fn type_tag_core_to_sdk(
         move_core_types::language_storage::TypeTag::Address => TypeTag::Address,
         move_core_types::language_storage::TypeTag::Signer => TypeTag::Signer,
         move_core_types::language_storage::TypeTag::Vector(type_tag) => {
-            TypeTag::Vector(Box::new(type_tag_core_to_sdk(*type_tag)?))
+            TypeTag::Vector(Box::new(type_tag_core_to_sdk(type_tag)))
         }
         move_core_types::language_storage::TypeTag::Struct(struct_tag) => {
-            TypeTag::Struct(Box::new(struct_tag_core_to_sdk(*struct_tag)?))
+            TypeTag::Struct(Box::new(struct_tag_core_to_sdk(struct_tag)))
         }
         move_core_types::language_storage::TypeTag::U16 => TypeTag::U16,
         move_core_types::language_storage::TypeTag::U32 => TypeTag::U32,
         move_core_types::language_storage::TypeTag::U256 => TypeTag::U256,
     }
-    .pipe(Ok)
 }
 
-pub fn type_tag_sdk_to_core(
-    value: &TypeTag,
-) -> Result<move_core_types::language_storage::TypeTag, SdkTypeConversionError> {
+pub fn type_tag_sdk_to_core(value: &TypeTag) -> move_core_types::language_storage::TypeTag {
     match value {
         TypeTag::Bool => move_core_types::language_storage::TypeTag::Bool,
         TypeTag::U8 => move_core_types::language_storage::TypeTag::U8,
@@ -2218,21 +2124,18 @@ pub fn type_tag_sdk_to_core(
         TypeTag::Address => move_core_types::language_storage::TypeTag::Address,
         TypeTag::Signer => move_core_types::language_storage::TypeTag::Signer,
         TypeTag::Vector(type_tag) => move_core_types::language_storage::TypeTag::Vector(Box::new(
-            type_tag_sdk_to_core(type_tag)?,
+            type_tag_sdk_to_core(type_tag),
         )),
         TypeTag::Struct(struct_tag) => move_core_types::language_storage::TypeTag::Struct(
-            Box::new(struct_tag_sdk_to_core(struct_tag)?),
+            Box::new(struct_tag_sdk_to_core(struct_tag)),
         ),
         TypeTag::U16 => move_core_types::language_storage::TypeTag::U16,
         TypeTag::U32 => move_core_types::language_storage::TypeTag::U32,
         TypeTag::U256 => move_core_types::language_storage::TypeTag::U256,
     }
-    .pipe(Ok)
 }
 
-pub fn struct_tag_core_to_sdk(
-    value: move_core_types::language_storage::StructTag,
-) -> Result<StructTag, SdkTypeConversionError> {
+pub fn struct_tag_core_to_sdk(value: &move_core_types::language_storage::StructTag) -> StructTag {
     let move_core_types::language_storage::StructTag {
         address,
         module,
@@ -2241,34 +2144,28 @@ pub fn struct_tag_core_to_sdk(
     } = value;
 
     let address = Address::new(address.into_bytes());
-    let module = Identifier::new(module.as_str())?;
-    let name = Identifier::new(name.as_str())?;
-    let type_params = type_params
-        .into_iter()
-        .map(type_tag_core_to_sdk)
-        .collect::<Result<_, _>>()?;
-    StructTag::new(address, module, name, type_params).pipe(Ok)
+    let module = Identifier::new_unchecked(module.as_str());
+    let name = Identifier::new_unchecked(name.as_str());
+    let type_params = type_params.iter().map(type_tag_core_to_sdk).collect();
+    StructTag::new(address, module, name, type_params)
 }
 
-pub fn struct_tag_sdk_to_core(
-    value: &StructTag,
-) -> Result<move_core_types::language_storage::StructTag, SdkTypeConversionError> {
+pub fn struct_tag_sdk_to_core(value: &StructTag) -> move_core_types::language_storage::StructTag {
     let address =
         move_core_types::account_address::AccountAddress::new(value.address().into_bytes());
-    let module = move_core_types::identifier::Identifier::new(value.module().as_str())?;
-    let name = move_core_types::identifier::Identifier::new(value.name().as_str())?;
+    let module = move_core_types::identifier::Identifier::new(value.module().as_str()).unwrap();
+    let name = move_core_types::identifier::Identifier::new(value.name().as_str()).unwrap();
     let type_params = value
         .type_params()
         .iter()
         .map(type_tag_sdk_to_core)
-        .collect::<Result<_, _>>()?;
+        .collect();
     move_core_types::language_storage::StructTag {
         address,
         module,
         name,
         type_params,
     }
-    .pipe(Ok)
 }
 
 impl From<crate::committee::Committee> for ValidatorCommittee {

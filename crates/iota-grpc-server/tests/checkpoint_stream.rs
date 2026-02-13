@@ -14,14 +14,13 @@ use iota_grpc_server::GrpcServerHandle;
 use iota_grpc_types::v1::{filter, ledger_service::checkpoint_data};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, random_object_ref},
+    base_types::{Identifier, IotaAddress, StructTag, random_object_ref},
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TestEffectsBuilder, TransactionEvents},
     event::Event,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::CheckpointSequenceNumber,
 };
-use move_core_types::{account_address::AccountAddress, ident_str, language_storage::StructTag};
 use prost::Message;
 use tokio_stream::StreamExt;
 
@@ -923,15 +922,15 @@ fn build_checkpoint_transactions_with_events(
             let mut data = Vec::with_capacity(events_per_tx);
             for _ in 0..events_per_tx {
                 data.push(Event::new(
-                    &AccountAddress::ZERO,
-                    ident_str!("test_module"),
+                    IotaAddress::ZERO,
+                    Identifier::from_static("test_module"),
                     sender,
-                    StructTag {
-                        address: AccountAddress::ZERO,
-                        module: ident_str!("test_module").into(),
-                        name: ident_str!("TestEvent").into(),
-                        type_params: vec![],
-                    },
+                    StructTag::new(
+                        IotaAddress::ZERO,
+                        Identifier::from_static("test_module"),
+                        Identifier::from_static("TestEvent"),
+                        vec![],
+                    ),
                     vec![0u8; 64], // 64 bytes of dummy content
                 ));
             }

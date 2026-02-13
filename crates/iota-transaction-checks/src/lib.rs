@@ -16,8 +16,7 @@ mod checked {
     use iota_config::verifier_signing_config::VerifierSigningConfig;
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
-        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
-        IOTA_RANDOMNESS_STATE_OBJECT_ID,
+        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
         base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
         error::{IotaError, IotaResult, UserInputError, UserInputResult},
         executable_transaction::VerifiedExecutableTransaction,
@@ -643,7 +642,7 @@ mod checked {
                 };
             }
             InputObjectKind::SharedMoveObject {
-                id: IOTA_CLOCK_OBJECT_ID,
+                id: ObjectID::CLOCK,
                 initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
                 mutable: true,
             } => {
@@ -653,24 +652,24 @@ mod checked {
                     return Ok(());
                 } else {
                     return Err(UserInputError::ImmutableParameterExpected {
-                        object_id: IOTA_CLOCK_OBJECT_ID,
+                        object_id: ObjectID::CLOCK,
                     });
                 }
             }
             InputObjectKind::SharedMoveObject {
-                id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                id: ObjectID::AUTHENTICATOR_STATE,
                 ..
             } => {
                 if system_transaction {
                     return Ok(());
                 } else {
                     return Err(UserInputError::InaccessibleSystemObject {
-                        object_id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                        object_id: ObjectID::AUTHENTICATOR_STATE,
                     });
                 }
             }
             InputObjectKind::SharedMoveObject {
-                id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                id: ObjectID::RANDOMNESS_STATE,
                 mutable: true,
                 ..
             } => {
@@ -680,7 +679,7 @@ mod checked {
                     return Ok(());
                 } else {
                     return Err(UserInputError::ImmutableParameterExpected {
-                        object_id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                        object_id: ObjectID::RANDOMNESS_STATE,
                     });
                 }
             }

@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -9,7 +9,6 @@ use super::unlock_conditions::{
     ExpirationUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
 };
 use crate::{
-    STARDUST_ADDRESS, TypeTag,
     balance::Balance,
     base_types::IotaAddress,
     collection_types::{Bag, VecMap},
@@ -18,12 +17,10 @@ use crate::{
     object::{Data, Object},
 };
 
-pub const IRC27_MODULE_NAME: &IdentStr = ident_str!("irc27");
-pub const NFT_MODULE_NAME: &IdentStr = ident_str!("nft");
-pub const NFT_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("nft_output");
-pub const NFT_OUTPUT_STRUCT_NAME: &IdentStr = ident_str!("NftOutput");
-pub const NFT_STRUCT_NAME: &IdentStr = ident_str!("Nft");
-pub const IRC27_STRUCT_NAME: &IdentStr = ident_str!("Irc27Metadata");
+pub const NFT_MODULE_NAME: Identifier = Identifier::from_static("nft");
+pub const NFT_OUTPUT_MODULE_NAME: Identifier = Identifier::from_static("nft_output");
+pub const NFT_OUTPUT_STRUCT_NAME: Identifier = Identifier::from_static("NftOutput");
+pub const NFT_STRUCT_NAME: Identifier = Identifier::from_static("Nft");
 pub const NFT_DYNAMIC_OBJECT_FIELD_KEY: &[u8] = b"nft";
 pub const NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE: &str = "vector<u8>";
 
@@ -134,12 +131,12 @@ impl Nft {
     /// Returns the struct tag that represents the fully qualified path of an
     /// [`Nft`] in its move package.
     pub fn tag() -> StructTag {
-        StructTag {
-            address: STARDUST_ADDRESS,
-            module: NFT_MODULE_NAME.to_owned(),
-            name: NFT_STRUCT_NAME.to_owned(),
-            type_params: Vec::new(),
-        }
+        StructTag::new(
+            IotaAddress::STARDUST,
+            NFT_MODULE_NAME,
+            NFT_STRUCT_NAME,
+            Vec::new(),
+        )
     }
 }
 
@@ -168,12 +165,12 @@ impl NftOutput {
     /// Returns the struct tag that represents the fully qualified path of an
     /// [`NftOutput`] in its move package.
     pub fn tag(type_param: TypeTag) -> StructTag {
-        StructTag {
-            address: STARDUST_ADDRESS,
-            module: NFT_OUTPUT_MODULE_NAME.to_owned(),
-            name: NFT_OUTPUT_STRUCT_NAME.to_owned(),
-            type_params: vec![type_param],
-        }
+        StructTag::new(
+            IotaAddress::STARDUST,
+            NFT_OUTPUT_MODULE_NAME,
+            NFT_OUTPUT_STRUCT_NAME,
+            vec![type_param],
+        )
     }
 
     /// Create an `NftOutput` from BCS bytes.
@@ -184,9 +181,9 @@ impl NftOutput {
     }
 
     pub fn is_nft_output(s: &StructTag) -> bool {
-        s.address == STARDUST_ADDRESS
-            && s.module.as_ident_str() == NFT_OUTPUT_MODULE_NAME
-            && s.name.as_ident_str() == NFT_OUTPUT_STRUCT_NAME
+        s.address() == IotaAddress::STARDUST
+            && s.module() == &NFT_OUTPUT_MODULE_NAME
+            && s.name() == &NFT_OUTPUT_STRUCT_NAME
     }
 }
 

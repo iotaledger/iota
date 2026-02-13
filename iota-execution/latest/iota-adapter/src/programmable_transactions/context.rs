@@ -20,12 +20,15 @@ mod checked {
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
         balance::Balance,
-        base_types::{IotaAddress, MoveObjectType, ObjectID, TxContext},
+        base_types::{
+            Identifier, IotaAddress, MoveObjectType, ObjectID, StructTag, TxContext, TypeTag,
+        },
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         event::Event,
         execution::{ExecutionResults, ExecutionResultsV1},
         execution_status::CommandArgumentError,
+        iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
         metrics::LimitsMetrics,
         move_package::{MovePackage, derive_package_metadata_id},
         object::{Data, MoveObject, Object, ObjectInner, Owner},
@@ -38,11 +41,8 @@ mod checked {
         file_format::{CodeOffset, FunctionDefinitionIndex, TypeParameterIndex},
     };
     use move_core_types::{
-        account_address::AccountAddress,
-        identifier::IdentStr,
-        language_storage::{ModuleId, StructTag, TypeTag},
-        resolver::ModuleResolver,
-        vm_status::StatusCode,
+        account_address::AccountAddress, identifier::IdentStr, language_storage::ModuleId,
+        resolver::ModuleResolver, vm_status::StatusCode,
     };
     use move_trace_format::format::MoveTraceBuilder;
     use move_vm_runtime::{
@@ -368,7 +368,7 @@ mod checked {
                     let Some(bytes) = value.simple_serialize(&layout) else {
                         invariant_violation!("Failed to deserialize already serialized Move value");
                     };
-                    Ok((module_id.clone(), tag, bytes))
+                    Ok((module_id.clone(), struct_tag_core_to_sdk(&tag), bytes))
                 })
                 .collect::<Result<Vec<_>, ExecutionError>>()?;
             self.user_events.extend(new_events);
@@ -466,7 +466,7 @@ mod checked {
         /// an object that cannot be taken by value (shared or immutable)
         pub fn by_value_arg<V: TryFromValue>(
             &mut self,
-            command_kind: CommandKind<'_>,
+            command_kind: CommandKind,
             arg_idx: usize,
             arg: Arg,
         ) -> Result<V, ExecutionError> {
@@ -475,7 +475,7 @@ mod checked {
         }
         fn by_value_arg_<V: TryFromValue>(
             &mut self,
-            command_kind: CommandKind<'_>,
+            command_kind: CommandKind,
             arg: Arg,
         ) -> Result<V, EitherError> {
             let is_borrowed = self.arg_is_borrowed(&arg);
@@ -946,8 +946,8 @@ mod checked {
                 .into_iter()
                 .map(|(module_id, tag, contents)| {
                     Event::new(
-                        module_id.address(),
-                        module_id.name(),
+                        IotaAddress::new(module_id.address().into_bytes()),
+                        Identifier::new_unchecked(module_id.name().as_str()),
                         ref_context.borrow().sender(),
                         tag,
                         contents,
@@ -1122,7 +1122,7 @@ mod checked {
         pub(crate) fn execute_function_bypass_visibility(
             &mut self,
             module: &ModuleId,
-            function_name: &IdentStr,
+            function_name: &Identifier,
             ty_args: Vec<Type>,
             args: Vec<impl Borrow<[u8]>>,
             tracer: &mut Option<MoveTraceBuilder>,
@@ -1131,7 +1131,7 @@ mod checked {
             let mut data_store = IotaDataStore::new(&self.linkage_view, &self.new_packages);
             self.vm.get_runtime().execute_function_bypass_visibility(
                 module,
-                function_name,
+                IdentStr::new(function_name.as_str()).unwrap(),
                 ty_args,
                 args,
                 &mut data_store,
@@ -1148,13 +1148,13 @@ mod checked {
         pub(crate) fn load_function(
             &mut self,
             module_id: &ModuleId,
-            function_name: &IdentStr,
+            function_name: &Identifier,
             type_arguments: &[Type],
         ) -> VMResult<LoadedFunctionInstantiation> {
             let mut data_store = IotaDataStore::new(&self.linkage_view, &self.new_packages);
             self.vm.get_runtime().load_function(
                 module_id,
-                function_name,
+                IdentStr::new(function_name.as_str()).unwrap(),
                 type_arguments,
                 &mut data_store,
             )
@@ -1209,6 +1209,7 @@ mod checked {
                 .get_runtime()
                 .get_type_tag(type_)
                 .map_err(|e| self.convert_vm_error(e))
+                .map(|tt| type_tag_core_to_sdk(&tt))
         }
     }
 
@@ -1250,15 +1251,8 @@ mod checked {
             Err(PartialVMError::new(code).finish(Location::Undefined))
         }
 
-        let StructTag {
-            address,
-            module,
-            name,
-            type_params,
-        } = struct_tag;
-
         // Load the package that the struct is defined in, in storage
-        let defining_id = ObjectID::new(address.into_bytes());
+        let defining_id = struct_tag.address().into();
         let package = package_for_linkage(linkage_view, defining_id)?;
 
         // Set the defining package as the link context while loading the
@@ -1271,22 +1265,30 @@ mod checked {
                     .finish(Location::Undefined)
             })?;
 
-        let runtime_id = ModuleId::new(original_address, module.clone());
+        let runtime_id = ModuleId::new(
+            original_address,
+            move_core_types::identifier::Identifier::new(struct_tag.module().as_str()).unwrap(),
+        );
         let data_store = IotaDataStore::new(linkage_view, new_packages);
-        let res = vm.get_runtime().load_type(&runtime_id, name, &data_store);
+        let res = vm.get_runtime().load_type(
+            &runtime_id,
+            IdentStr::new(struct_tag.name().as_str()).unwrap(),
+            &data_store,
+        );
         linkage_view.reset_linkage();
         let (idx, struct_type) = res?;
 
         // Recursively load type parameters, if necessary
         let type_param_constraints = struct_type.type_param_constraints();
-        if type_param_constraints.len() != type_params.len() {
+        if type_param_constraints.len() != struct_tag.type_params().len() {
             return verification_error(StatusCode::NUMBER_OF_TYPE_ARGUMENTS_MISMATCH);
         }
 
-        if type_params.is_empty() {
+        if struct_tag.type_params().is_empty() {
             Ok(Type::Datatype(idx))
         } else {
-            let loaded_type_params = type_params
+            let loaded_type_params = struct_tag
+                .type_params()
                 .iter()
                 .map(|type_param| load_type(vm, linkage_view, new_packages, type_param))
                 .collect::<VMResult<Vec<_>>>()?;
@@ -1615,10 +1617,11 @@ mod checked {
             .get(&id)
             .map(|obj: &LoadedRuntimeObject| obj.version);
 
-        let type_tag = vm
-            .get_runtime()
-            .get_type_tag(&type_)
-            .map_err(|e| crate::error::convert_vm_error(e, vm, linkage_view))?;
+        let type_tag = type_tag_core_to_sdk(
+            &vm.get_runtime()
+                .get_type_tag(&type_)
+                .map_err(|e| crate::error::convert_vm_error(e, vm, linkage_view))?,
+        );
 
         let struct_tag = match type_tag {
             TypeTag::Struct(inner) => *inner,

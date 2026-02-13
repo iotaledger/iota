@@ -11,13 +11,13 @@ task 1, line 8:
 Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move':
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9971200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9971200, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 10-18:
 //# publish --sender A --dependencies simple_abstract_account
 created: object(3,0), object(3,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8975600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8975600, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 20:
 //# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount

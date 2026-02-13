@@ -23,7 +23,7 @@ use iota_grpc_types::{
     },
 };
 use iota_types::{
-    base_types::{IotaAddress, MoveObjectType, ObjectID},
+    base_types::{IotaAddress, MoveObjectType, ObjectID, StructTag},
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     gas_coin::GasCoin,
@@ -41,7 +41,7 @@ use tonic::transport::Channel;
 fn make_gas_coin(owner: IotaAddress, object_id: ObjectID, balance: u64) -> Object {
     let contents = GasCoin::new(object_id, balance).to_bcs_bytes();
     let move_obj = MoveObject::new_from_execution_with_limit(
-        GasCoin::type_().into(),
+        StructTag::new_gas_coin().into(),
         OBJECT_START_VERSION,
         contents,
         256,
@@ -64,7 +64,7 @@ fn make_large_gas_coin(
     let mut contents = GasCoin::new(object_id, balance).to_bcs_bytes();
     contents.extend(vec![0u8; padding]);
     let move_obj = MoveObject::new_from_execution_with_limit(
-        GasCoin::type_().into(),
+        StructTag::new_gas_coin().into(),
         OBJECT_START_VERSION,
         contents,
         u64::try_from(padding).unwrap() + 1024,
@@ -154,7 +154,7 @@ async fn paginate_all(
 
 /// Set up a mock with `count` gas-coin objects for a single owner.
 fn make_coin_mock(owner: IotaAddress, count: usize) -> (MockGrpcStateReader, Vec<ObjectID>) {
-    let coin_type: MoveObjectType = GasCoin::type_().into();
+    let coin_type: MoveObjectType = StructTag::new_gas_coin().into();
     let type_id_hash = 42u64; // arbitrary stable hash for Coin
     let params_hash = 99u64; // arbitrary stable hash for <IOTA>
 
@@ -397,7 +397,7 @@ async fn mismatched_owner_in_page_token() {
 async fn message_size_triggers_pagination() {
     let (owner, _): (IotaAddress, AccountKeyPair) = get_key_pair();
 
-    let coin_type: MoveObjectType = GasCoin::type_().into();
+    let coin_type: MoveObjectType = StructTag::new_gas_coin().into();
     let type_id_hash = 42u64;
     let params_hash = 99u64;
 
@@ -479,7 +479,7 @@ async fn message_size_triggers_pagination() {
 async fn type_filter_with_pagination() {
     let (owner, _): (IotaAddress, AccountKeyPair) = get_key_pair();
 
-    let coin_type: MoveObjectType = GasCoin::type_().into();
+    let coin_type: MoveObjectType = StructTag::new_gas_coin().into();
     let coin_id_hash = 42u64;
     let coin_params_hash = 99u64;
 
@@ -560,7 +560,7 @@ async fn type_filter_with_pagination() {
     let filtered_base = ListOwnedObjectsRequest::default()
         .with_owner(owner_proto(owner))
         .with_page_size(2)
-        .with_object_type(GasCoin::type_().to_canonical_string(true))
+        .with_object_type(StructTag::new_gas_coin().to_canonical_string(true))
         .with_read_mask(FieldMask::from_str("reference.object_id"));
     let filtered_responses = paginate_all(&mut client, filtered_base).await;
     let total_filtered: usize = filtered_responses.iter().map(|r| r.objects.len()).sum();

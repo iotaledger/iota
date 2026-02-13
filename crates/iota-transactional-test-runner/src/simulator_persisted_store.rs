@@ -9,7 +9,7 @@ use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::ProtocolVersion;
 use iota_swarm_config::{genesis_config::AccountConfig, network_config_builder::ConfigBuilder};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber, VersionNumber},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, VersionNumber},
     committee::{Committee, EpochId},
     crypto::AccountKeyPair,
     digests::{ObjectDigest, TransactionDigest},
@@ -198,7 +198,7 @@ impl SimulatorStore for PersistedStore {
     }
 
     fn get_clock(&self) -> iota_types::clock::Clock {
-        SimulatorStore::get_object(self, &iota_types::IOTA_CLOCK_OBJECT_ID)
+        SimulatorStore::get_object(self, &ObjectID::CLOCK)
             .expect("clock should exist")
             .to_rust()
             .expect("clock object should deserialize")
@@ -800,7 +800,7 @@ impl GrpcStateReader for PersistedStoreInnerReadOnlyWrapper {
 
     fn get_struct_layout(
         &self,
-        _: &move_core_types::language_storage::StructTag,
+        _: &StructTag,
     ) -> iota_types::storage::error::Result<Option<move_core_types::annotated_value::MoveTypeLayout>>
     {
         Ok(None)

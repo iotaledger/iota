@@ -26,11 +26,10 @@ pub use iota_protocol::*;
 pub use iota_system_state_summary::*;
 pub use iota_transaction::*;
 use iota_types::{
-    base_types::ObjectID,
+    base_types::{ObjectID, TypeTag},
     crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
 };
-use move_core_types::language_storage::TypeTag;
 pub use object_changes::*;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

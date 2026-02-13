@@ -13,7 +13,10 @@ use iota_json::{
 use iota_json_rpc_types::{IotaArgument, IotaData, IotaObjectDataOptions, IotaRawData, PtbInput};
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, ObjectType, TxContext, TxContextKind},
+    base_types::{
+        Identifier, IotaAddress, ObjectID, ObjectRef, ObjectType, StructTag, TxContext,
+        TxContextKind, TypeTag,
+    },
     error::UserInputError,
     fp_ensure,
     gas_coin::GasCoin,
@@ -25,7 +28,6 @@ use iota_types::{
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
 };
-use move_core_types::{identifier::Identifier, language_storage::TypeTag};
 
 use crate::TransactionBuilder;
 
@@ -54,7 +56,7 @@ impl TransactionBuilder {
                     .0
                     .get_owned_objects(
                         signer,
-                        GasCoin::type_(),
+                        StructTag::new_gas_coin(),
                         cursor,
                         None,
                         IotaObjectDataOptions::new().with_bcs(),
@@ -196,8 +198,8 @@ impl TransactionBuilder {
         // Then resolve the function parameters type.
         let json_args_and_tokens = resolve_move_function_args(
             &package,
-            module_ident.clone(),
-            function_ident.clone(),
+            module_ident.to_owned(),
+            function_ident.to_owned(),
             type_args,
             json_args,
         )?;
@@ -471,12 +473,14 @@ fn get_function_parameters<'a>(
     module: &'a CompiledModule,
     function: &Identifier,
 ) -> Result<&'a [SignatureToken], anyhow::Error> {
-    let function_str = function.as_ident_str();
+    let function_str = function.as_str();
     let function_def = module
         .function_defs
         .iter()
         .find(|function_def| {
-            module.identifier_at(module.function_handle_at(function_def.function).name)
+            module
+                .identifier_at(module.function_handle_at(function_def.function).name)
+                .as_str()
                 == function_str
         })
         .ok_or_else(|| {

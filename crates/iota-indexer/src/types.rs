@@ -7,7 +7,7 @@ use iota_json_rpc_types::{
     ObjectChange,
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber, StructTag},
     crypto::AggregateAuthoritySignature,
     digests::TransactionDigest,
     dynamic_field::DynamicFieldType,
@@ -21,7 +21,6 @@ use iota_types::{
     object::{Object, Owner},
     transaction::SenderSignedData,
 };
-use move_core_types::language_storage::StructTag;
 #[cfg(any(test, feature = "shared_test_runtime", feature = "pg_integration"))]
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -186,9 +185,9 @@ impl IndexedEvent {
             package: event.package_id,
             module: event.transaction_module.to_string(),
             event_type: event.type_.to_canonical_string(/* with_prefix */ true),
-            event_type_package: ObjectID::new(event.type_.address.into_bytes()),
-            event_type_module: event.type_.module.to_string(),
-            event_type_name: event.type_.name.to_string(),
+            event_type_package: event.type_.address().into(),
+            event_type_module: event.type_.module().to_string(),
+            event_type_name: event.type_.name().to_string(),
             bcs: event.contents.clone(),
             timestamp_ms,
         }
@@ -229,9 +228,9 @@ impl EventIndex {
             sender: event.sender,
             emit_package: event.package_id,
             emit_module: event.transaction_module.to_string(),
-            type_package: ObjectID::new(event.type_.address.into_bytes()),
-            type_module: event.type_.module.to_string(),
-            type_name: event.type_.name.to_string(),
+            type_package: event.type_.address().into(),
+            type_module: event.type_.module().to_string(),
+            type_name: event.type_.name().to_string(),
             type_instantiation,
         }
     }
@@ -797,9 +796,7 @@ pub(crate) mod grpc_conversion {
         object::Objects as GrpcObjects,
     };
     use iota_json_rpc_types::{IotaArgument, IotaExecutionResult, IotaTypeTag};
-    use iota_types::{
-        iota_sdk_types_conversions::type_tag_sdk_to_core, object::Object, transaction::Argument,
-    };
+    use iota_types::{object::Object, transaction::Argument};
 
     use crate::types::IndexerResult;
 
@@ -822,7 +819,7 @@ pub(crate) mod grpc_conversion {
                 Ok((
                     IotaArgument::from(Argument::from(command_output.argument()?)),
                     command_output.output_bcs()?.to_vec(),
-                    type_tag_sdk_to_core(&command_output.type_tag()?)?.into(),
+                    command_output.type_tag()?.into(),
                 ))
             })
             .collect()
@@ -837,7 +834,7 @@ pub(crate) mod grpc_conversion {
             .map(|command_output| -> IndexerResult<_> {
                 Ok((
                     command_output.output_bcs()?.to_vec(),
-                    type_tag_sdk_to_core(&command_output.type_tag()?)?.into(),
+                    command_output.type_tag()?.into(),
                 ))
             })
             .collect()

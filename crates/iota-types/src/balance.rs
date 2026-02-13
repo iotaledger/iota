@@ -2,24 +2,23 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use move_core_types::{
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
 };
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS,
     error::{ExecutionError, ExecutionErrorKind},
+    iota_sdk_types_conversions::{struct_tag_core_to_sdk, struct_tag_sdk_to_core},
     iota_serde::{BigInt, Readable},
 };
-pub const BALANCE_MODULE_NAME: &IdentStr = ident_str!("balance");
-pub const BALANCE_STRUCT_NAME: &IdentStr = ident_str!("Balance");
-pub const BALANCE_CREATE_REWARDS_FUNCTION_NAME: &IdentStr = ident_str!("create_staking_rewards");
-pub const BALANCE_DESTROY_REBATES_FUNCTION_NAME: &IdentStr = ident_str!("destroy_storage_rebates");
+pub const BALANCE_CREATE_REWARDS_FUNCTION_NAME: Identifier =
+    Identifier::from_static("create_staking_rewards");
+pub const BALANCE_DESTROY_REBATES_FUNCTION_NAME: Identifier =
+    Identifier::from_static("destroy_storage_rebates");
 
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
@@ -36,25 +35,6 @@ pub struct Balance {
 impl Balance {
     pub fn new(value: u64) -> Self {
         Self { value }
-    }
-
-    pub fn type_(type_param: TypeTag) -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: BALANCE_MODULE_NAME.to_owned(),
-            name: BALANCE_STRUCT_NAME.to_owned(),
-            type_params: vec![type_param],
-        }
-    }
-
-    pub fn type_tag(inner_type_param: TypeTag) -> TypeTag {
-        TypeTag::Struct(Box::new(Self::type_(inner_type_param)))
-    }
-
-    pub fn is_balance(s: &StructTag) -> bool {
-        s.address == IOTA_FRAMEWORK_ADDRESS
-            && s.module.as_ident_str() == BALANCE_MODULE_NAME
-            && s.name.as_ident_str() == BALANCE_STRUCT_NAME
     }
 
     pub fn withdraw(&mut self, amount: u64) -> Result<(), ExecutionError> {
@@ -83,7 +63,7 @@ impl Balance {
 
     pub fn layout(type_param: TypeTag) -> MoveStructLayout {
         MoveStructLayout {
-            type_: Self::type_(type_param),
+            type_: struct_tag_sdk_to_core(&StructTag::new_balance(type_param)),
             fields: vec![MoveFieldLayout::new(
                 ident_str!("value").to_owned(),
                 MoveTypeLayout::U64,
@@ -94,13 +74,13 @@ impl Balance {
     /// Check if a struct layout represents a `Balance<T>` type with the
     /// expected field structure.
     pub fn is_balance_layout(struct_layout: &MoveStructLayout) -> bool {
-        let ty = &struct_layout.type_;
+        let ty = struct_tag_core_to_sdk(&struct_layout.type_);
 
-        if !Self::is_balance(ty) {
+        if !ty.is_balance() {
             return false;
         }
 
-        if ty.type_params.len() != 1 {
+        if ty.type_params().len() != 1 {
             return false;
         }
 

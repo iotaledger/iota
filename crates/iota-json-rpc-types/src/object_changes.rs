@@ -5,11 +5,10 @@
 use std::fmt::{Display, Formatter, Result};
 
 use iota_types::{
-    base_types::{IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber, StructTag},
     iota_serde::IotaStructTag,
     object::Owner,
 };
-use move_core_types::language_storage::StructTag;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;

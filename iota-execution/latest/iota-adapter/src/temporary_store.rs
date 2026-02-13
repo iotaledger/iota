@@ -11,7 +11,6 @@ use std::{
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    IOTA_DENY_LIST_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
     auth_context::AuthContext,
     base_types::{
         IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionDigest,
@@ -28,6 +27,7 @@ use iota_types::{
     fp_bail,
     gas::GasCostSummary,
     inner_temporary_store::InnerTemporaryStore,
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
     iota_system_state::{AdvanceEpochParams, get_iota_system_state_wrapper},
     layout_resolver::LayoutResolver,
     object::{Data, Object, Owner},
@@ -37,9 +37,7 @@ use iota_types::{
     },
     transaction::InputObjects,
 };
-use move_core_types::{
-    account_address::AccountAddress, language_storage::StructTag, resolver::ResourceResolver,
-};
+use move_core_types::{account_address::AccountAddress, resolver::ResourceResolver};
 use parking_lot::RwLock;
 
 use crate::gas_charger::GasCharger;
@@ -485,7 +483,7 @@ impl<'backing> TemporaryStore<'backing> {
             unmetered_storage_rebate
         );
         let mut system_state_wrapper = self
-            .read_object(&IOTA_SYSTEM_STATE_OBJECT_ID)
+            .read_object(&ObjectID::SYSTEM_STATE)
             .expect("0x5 object must be mutated in system tx with unmetered storage rebate")
             .clone();
         // In unmetered execution, storage_rebate field of mutated object must be 0.
@@ -1090,11 +1088,11 @@ impl Storage for TemporaryStore<'_> {
         // And also if we already have it in the input there is no need to commit it
         // again in the effects.
         if result.num_non_gas_coin_owners > 0
-            && !self.input_objects.contains_key(&IOTA_DENY_LIST_OBJECT_ID)
+            && !self.input_objects.contains_key(&ObjectID::DENY_LIST)
         {
             self.loaded_per_epoch_config_objects
                 .write()
-                .insert(IOTA_DENY_LIST_OBJECT_ID);
+                .insert(ObjectID::DENY_LIST);
         }
         result
     }
@@ -1144,7 +1142,7 @@ impl ResourceResolver for TemporaryStore<'_> {
     fn get_resource(
         &self,
         address: &AccountAddress,
-        struct_tag: &StructTag,
+        struct_tag: &move_core_types::language_storage::StructTag,
     ) -> Result<Option<Vec<u8>>, Self::Error> {
         let object = match self.read_object(&ObjectID::new(address.into_bytes())) {
             Some(x) => x,
@@ -1162,7 +1160,7 @@ impl ResourceResolver for TemporaryStore<'_> {
         match &object.data {
             Data::Move(m) => {
                 assert!(
-                    m.is_type(struct_tag),
+                    m.is_type(&struct_tag_core_to_sdk(struct_tag)),
                     "Invariant violation: ill-typed object in storage \
                     or bad object request from caller"
                 );

@@ -16,7 +16,7 @@ use iota_json_rpc_types::{
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::IotaClient;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, VersionNumber},
+    base_types::{ObjectID, SequenceNumber, StructTag, VersionNumber},
     digests::{ChainIdentifier, TransactionDigest},
     object::Object,
     transaction::{
@@ -24,7 +24,6 @@ use iota_types::{
     },
 };
 use lru::LruCache;
-use move_core_types::language_storage::StructTag;
 use parking_lot::RwLock;
 use rand::Rng;
 
@@ -610,7 +609,8 @@ impl DataFetcher for RemoteFetcher {
         let struct_tags: Vec<StructTag> = EPOCH_CHANGE_STRUCT_TAGS
             .iter()
             .map(|tag| StructTag::from_str(tag))
-            .collect::<Result<_, _>>()?;
+            .collect::<Result<_, _>>()
+            .map_err(|e| anyhow::anyhow!(e))?;
 
         let mut epoch_change_events: Vec<IotaEvent> = vec![];
 
