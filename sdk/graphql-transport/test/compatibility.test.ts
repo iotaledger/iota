@@ -20,6 +20,7 @@ const LOCALNET_INDEXER = 'http:127.0.0.1:9124';
 describe('GraphQL IotaClient compatibility', () => {
     let toolbox: TestToolbox;
     let transactionBlockDigest: string;
+    let anotherTransactionBlockDigest: string;
     let packageId: string;
     let parentObjectId: string;
     const graphQLClient = new IotaClient({
@@ -59,6 +60,22 @@ describe('GraphQL IotaClient compatibility', () => {
 
         await graphQLClient.waitForTransaction({
             digest: transactionBlockDigest,
+            waitMode: 'checkpoint',
+        });
+
+        // create another transaction
+        const anotherTx = new Transaction();
+        const [coins] = anotherTx.splitCoins(anotherTx.gas, [1]);
+        anotherTx.transferObjects([coins], toolbox.address());
+        const anotherResult = await toolbox.client.signAndExecuteTransaction({
+            transaction: anotherTx as never,
+            signer: toolbox.keypair,
+        });
+
+        anotherTransactionBlockDigest = anotherResult.digest;
+
+        await graphQLClient.waitForTransaction({
+            digest: anotherTransactionBlockDigest,
             waitMode: 'checkpoint',
         });
     });
@@ -460,14 +477,14 @@ describe('GraphQL IotaClient compatibility', () => {
 
     test('transactionBlocksByDigests - multiple digests', async () => {
         const result = await graphQLClient!.transactionBlocksByDigests({
-            digests: [transactionBlockDigest, transactionBlockDigest],
+            digests: [transactionBlockDigest, anotherTransactionBlockDigest],
         });
 
         expect(result).toHaveLength(2);
         expect(result[0]).toBeTruthy();
         expect(result[0]?.digest).toBe(transactionBlockDigest);
         expect(result[1]).toBeTruthy();
-        expect(result[1]?.digest).toBe(transactionBlockDigest);
+        expect(result[1]?.digest).toBe(anotherTransactionBlockDigest);
     });
 
     test('transactionBlocksByDigests - with non-existent digest', async () => {
