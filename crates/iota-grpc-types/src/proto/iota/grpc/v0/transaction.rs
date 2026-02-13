@@ -8,7 +8,7 @@ include!("../../../generated/iota.grpc.v0.transaction.accessors.rs");
 
 use crate::{
     proto::{TryFromProtoError, get_inner_field},
-    v0::bcs::BcsData,
+    v0::{bcs::BcsData, object::Objects},
 };
 
 // TryFrom implementations for TransactionEffects
@@ -176,6 +176,13 @@ impl ExecutedTransaction {
         get_inner_field!(self.events, Self::EVENTS_FIELD, events)
     }
 
+    fn events_opt(&self) -> Result<Option<iota_sdk_types::TransactionEvents>, TryFromProtoError> {
+        self.events
+            .as_ref()
+            .map(TransactionEvents::events)
+            .transpose()
+    }
+
     /// Get the events digest directly.
     pub fn events_digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
         get_inner_field!(self.events, Self::EVENTS_FIELD, digest)
@@ -195,14 +202,18 @@ impl ExecutedTransaction {
         crate::proto::proto_to_timestamp_ms(ts).map_err(|e| e.nested(Self::TIMESTAMP_FIELD.name))
     }
 
-    /// Deserialize input objects.
-    pub fn input_objects(&self) -> Result<Vec<iota_sdk_types::Object>, TryFromProtoError> {
-        get_inner_field!(self.input_objects, Self::INPUT_OBJECTS_FIELD, objects)
+    /// Get input objects.
+    pub fn input_objects(&self) -> Result<&Objects, TryFromProtoError> {
+        self.input_objects
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::INPUT_OBJECTS_FIELD.name))
     }
 
-    /// Deserialize output objects.
-    pub fn output_objects(&self) -> Result<Vec<iota_sdk_types::Object>, TryFromProtoError> {
-        get_inner_field!(self.output_objects, Self::OUTPUT_OBJECTS_FIELD, objects)
+    /// Get output objects.
+    pub fn output_objects(&self) -> Result<&Objects, TryFromProtoError> {
+        self.output_objects
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::OUTPUT_OBJECTS_FIELD.name))
     }
 }
 
@@ -217,9 +228,9 @@ impl TryFrom<&ExecutedTransaction> for iota_sdk_types::CheckpointTransaction {
                 signatures: value.signatures()?,
             },
             effects: value.effects()?,
-            events: Some(value.events()?),
-            input_objects: value.input_objects()?,
-            output_objects: value.output_objects()?,
+            events: value.events_opt()?,
+            input_objects: value.input_objects()?.objects()?,
+            output_objects: value.output_objects()?.objects()?,
         })
     }
 }

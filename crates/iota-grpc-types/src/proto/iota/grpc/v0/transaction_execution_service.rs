@@ -66,14 +66,20 @@ impl ExecuteTransactionResponse {
         get_inner_field!(self.transaction, Self::TRANSACTION_FIELD, effects_bcs)
     }
 
-    /// Deserialize input objects.
-    pub fn input_objects(&self) -> Result<Vec<iota_sdk_types::Object>, TryFromProtoError> {
-        get_inner_field!(self.transaction, Self::TRANSACTION_FIELD, input_objects)
+    /// Get input objects.
+    pub fn input_objects(&self) -> Result<&super::object::Objects, TryFromProtoError> {
+        self.transaction
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::TRANSACTION_FIELD.name))?
+            .input_objects()
     }
 
-    /// Deserialize output objects.
-    pub fn output_objects(&self) -> Result<Vec<iota_sdk_types::Object>, TryFromProtoError> {
-        get_inner_field!(self.transaction, Self::TRANSACTION_FIELD, output_objects)
+    /// Get output objects.
+    pub fn output_objects(&self) -> Result<&super::object::Objects, TryFromProtoError> {
+        self.transaction
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::TRANSACTION_FIELD.name))?
+            .output_objects()
     }
 
     /// Deserialize user signatures.

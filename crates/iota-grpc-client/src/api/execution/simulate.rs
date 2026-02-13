@@ -20,15 +20,26 @@ impl Client {
     /// This allows you to preview the effects of a transaction before
     /// actually submitting it to the network.
     ///
-    /// Set `dev_inspect` to true for relaxed Move VM checks (useful for
-    /// debugging and development).
+    /// # Parameters
     ///
-    /// Returns proto `ExecutedTransaction`. Use lazy conversion methods to
-    /// extract data:
-    /// - `result.effects()` - Get simulated effects
-    /// - `result.events()` - Get simulated events (if available)
-    /// - `result.input_objects()` - Get input objects (if requested)
-    /// - `result.output_objects()` - Get output objects (if requested)
+    /// - `transaction`: The transaction to simulate
+    /// - `dev_inspect`: Set to true for relaxed Move VM checks (useful for
+    ///   debugging and development)
+    /// - `estimate_gas_budget`: Set to true to estimate the gas budget required
+    /// - `read_mask`: Optional field mask to control which fields are returned
+    ///
+    /// Returns [`SimulateTransactionResponse`] which contains:
+    /// - `executed_transaction()` - Access to the simulated ExecutedTransaction
+    /// - `command_results()` - Access to intermediate command execution results
+    ///
+    /// Use lazy conversion methods on the executed transaction to extract data:
+    /// - `result.executed_transaction()?.effects()` - Get simulated effects
+    /// - `result.executed_transaction()?.events()` - Get simulated events (if
+    ///   available)
+    /// - `result.executed_transaction()?.input_objects()` - Get input objects
+    ///   (if requested)
+    /// - `result.executed_transaction()?.output_objects()` - Get output objects
+    ///   (if requested)
     ///
     /// # Field Mask
     ///
@@ -61,7 +72,7 @@ impl Client {
     /// println!("Simulation status: {:?}", effects.status());
     ///
     /// let output_objs = executed_tx.output_objects()?;
-    /// println!("Would create {} objects", output_objs.len());
+    /// println!("Would create {} objects", output_objs.objects()?.len());
     /// # Ok(())
     /// # }
     /// ```
