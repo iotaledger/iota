@@ -15,13 +15,11 @@ use anyhow::bail;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
-use itertools::Either;
-use move_core_types::{
-    ident_str,
-    identifier::{self, Identifier},
-    language_storage::TypeTag,
+use iota_sdk_types::{
+    Identifier, ObjectId, TypeTag,
+    crypto::{Intent, IntentMessage, IntentScope},
 };
+use itertools::Either;
 use nonempty::{NonEmpty, nonempty};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -31,9 +29,7 @@ use tracing::{instrument, trace};
 
 use super::{base_types::*, error::*};
 use crate::{
-    IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
-    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
-    IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
+    IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
     authenticator_state::ActiveJwk,
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{
@@ -90,12 +86,12 @@ pub enum CallArg {
 impl CallArg {
     pub const IOTA_SYSTEM_MUT: Self = Self::Object(ObjectArg::IOTA_SYSTEM_MUT);
     pub const CLOCK_IMM: Self = Self::Object(ObjectArg::SharedObject {
-        id: IOTA_CLOCK_OBJECT_ID,
+        id: ObjectID::CLOCK,
         initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
         mutable: false,
     });
     pub const CLOCK_MUT: Self = Self::Object(ObjectArg::SharedObject {
-        id: IOTA_CLOCK_OBJECT_ID,
+        id: ObjectID::CLOCK,
         initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
         mutable: true,
     });
@@ -156,13 +152,13 @@ pub fn type_input_validity_check(
                 let next_depth = depth + 1;
                 if config.validate_identifier_inputs() {
                     fp_ensure!(
-                        identifier::is_valid(&s.module),
+                        Identifier::is_valid(&s.module),
                         UserInputError::InvalidIdentifier {
                             error: s.module.clone()
                         }
                     );
                     fp_ensure!(
-                        identifier::is_valid(&s.name),
+                        Identifier::is_valid(&s.name),
                         UserInputError::InvalidIdentifier {
                             error: s.name.clone()
                         }
@@ -535,28 +531,28 @@ impl EndOfEpochTransactionKind {
         match self {
             Self::ChangeEpoch(_) => {
                 vec![InputObjectKind::SharedMoveObject {
-                    id: IOTA_SYSTEM_STATE_OBJECT_ID,
+                    id: ObjectID::SYSTEM_STATE,
                     initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
                     mutable: true,
                 }]
             }
             Self::ChangeEpochV2(_) => {
                 vec![InputObjectKind::SharedMoveObject {
-                    id: IOTA_SYSTEM_STATE_OBJECT_ID,
+                    id: ObjectID::SYSTEM_STATE,
                     initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
                     mutable: true,
                 }]
             }
             Self::ChangeEpochV3(_) => {
                 vec![InputObjectKind::SharedMoveObject {
-                    id: IOTA_SYSTEM_STATE_OBJECT_ID,
+                    id: ObjectID::SYSTEM_STATE,
                     initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
                     mutable: true,
                 }]
             }
             Self::ChangeEpochV4(_) => {
                 vec![InputObjectKind::SharedMoveObject {
-                    id: IOTA_SYSTEM_STATE_OBJECT_ID,
+                    id: ObjectId::SYSTEM_STATE,
                     initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
                     mutable: true,
                 }]
@@ -564,7 +560,7 @@ impl EndOfEpochTransactionKind {
             Self::AuthenticatorStateCreate => vec![],
             Self::AuthenticatorStateExpire(expire) => {
                 vec![InputObjectKind::SharedMoveObject {
-                    id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                    id: ObjectID::AUTHENTICATOR_STATE,
                     initial_shared_version: expire.authenticator_obj_initial_shared_version(),
                     mutable: true,
                 }]
@@ -588,7 +584,7 @@ impl EndOfEpochTransactionKind {
             }
             Self::AuthenticatorStateExpire(expire) => Either::Left(
                 vec![SharedInputObject {
-                    id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                    id: ObjectID::AUTHENTICATOR_STATE,
                     initial_shared_version: expire.authenticator_obj_initial_shared_version(),
                     mutable: true,
                 }]
@@ -828,7 +824,7 @@ impl From<ObjectRef> for CallArg {
 
 impl ObjectArg {
     pub const IOTA_SYSTEM_MUT: Self = Self::SharedObject {
-        id: IOTA_SYSTEM_STATE_OBJECT_ID,
+        id: ObjectID::SYSTEM_STATE,
         initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
         mutable: true,
     };
@@ -980,13 +976,13 @@ impl ProgrammableMoveCall {
         );
         if config.validate_identifier_inputs() {
             fp_ensure!(
-                identifier::is_valid(&self.module),
+                Identifier::is_valid(&self.module),
                 UserInputError::InvalidIdentifier {
                     error: self.module.clone()
                 }
             );
             fp_ensure!(
-                identifier::is_valid(&self.function),
+                Identifier::is_valid(&self.function),
                 UserInputError::InvalidIdentifier {
                     error: self.module.clone()
                 }
@@ -1233,7 +1229,7 @@ impl ProgrammableTransaction {
         // A command that uses Random can only be followed by TransferObjects or
         // MergeCoins.
         if let Some(random_index) = inputs.iter().position(|obj| {
-            matches!(obj, CallArg::Object(ObjectArg::SharedObject { id, .. }) if *id == IOTA_RANDOMNESS_STATE_OBJECT_ID)
+            matches!(obj, CallArg::Object(ObjectArg::SharedObject { id, .. }) if *id == ObjectID::RANDOMNESS_STATE)
         }) {
             let mut used_random_object = false;
             let random_index = random_index.try_into().unwrap();
@@ -1393,7 +1389,7 @@ pub struct SharedInputObject {
 
 impl SharedInputObject {
     pub const IOTA_SYSTEM_OBJ: Self = Self {
-        id: IOTA_SYSTEM_STATE_OBJECT_ID,
+        id: ObjectID::SYSTEM_STATE,
         initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
         mutable: true,
     };
@@ -1487,21 +1483,21 @@ impl TransactionKind {
         match &self {
             Self::ConsensusCommitPrologueV1(_) => {
                 Either::Left(Either::Left(iter::once(SharedInputObject {
-                    id: IOTA_CLOCK_OBJECT_ID,
+                    id: ObjectID::CLOCK,
                     initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
                     mutable: true,
                 })))
             }
             Self::AuthenticatorStateUpdateV1(update) => {
                 Either::Left(Either::Left(iter::once(SharedInputObject {
-                    id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                    id: ObjectID::AUTHENTICATOR_STATE,
                     initial_shared_version: update.authenticator_obj_initial_shared_version,
                     mutable: true,
                 })))
             }
             Self::RandomnessStateUpdate(update) => {
                 Either::Left(Either::Left(iter::once(SharedInputObject {
-                    id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                    id: ObjectID::RANDOMNESS_STATE,
                     initial_shared_version: update.randomness_obj_initial_shared_version,
                     mutable: true,
                 })))
@@ -1546,21 +1542,21 @@ impl TransactionKind {
             }
             Self::ConsensusCommitPrologueV1(_) => {
                 vec![InputObjectKind::SharedMoveObject {
-                    id: IOTA_CLOCK_OBJECT_ID,
+                    id: ObjectID::CLOCK,
                     initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
                     mutable: true,
                 }]
             }
             Self::AuthenticatorStateUpdateV1(update) => {
                 vec![InputObjectKind::SharedMoveObject {
-                    id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                    id: ObjectID::AUTHENTICATOR_STATE,
                     initial_shared_version: update.authenticator_obj_initial_shared_version(),
                     mutable: true,
                 }]
             }
             Self::RandomnessStateUpdate(update) => {
                 vec![InputObjectKind::SharedMoveObject {
-                    id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                    id: ObjectID::RANDOMNESS_STATE,
                     initial_shared_version: update.randomness_obj_initial_shared_version(),
                     mutable: true,
                 }]
@@ -2048,18 +2044,18 @@ impl TransactionData {
             let upgrade_arg = builder.pure(upgrade_policy).unwrap();
             let digest_arg = builder.pure(digest).unwrap();
             let upgrade_ticket = builder.programmable_move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
-                ident_str!("package").to_owned(),
-                ident_str!("authorize_upgrade").to_owned(),
+                ObjectID::FRAMEWORK,
+                Identifier::PACKAGE_MODULE,
+                Identifier::from_static("authorize_upgrade"),
                 vec![],
                 vec![Argument::Input(0), upgrade_arg, digest_arg],
             );
             let upgrade_receipt = builder.upgrade(package_id, upgrade_ticket, dep_ids, modules);
 
             builder.programmable_move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
-                ident_str!("package").to_owned(),
-                ident_str!("commit_upgrade").to_owned(),
+                ObjectID::FRAMEWORK,
+                Identifier::PACKAGE_MODULE,
+                Identifier::from_static("commit_upgrade"),
                 vec![],
                 vec![Argument::Input(0), upgrade_receipt],
             );
@@ -2123,7 +2119,7 @@ impl TransactionData {
     pub fn uses_randomness(&self) -> bool {
         self.shared_input_objects()
             .iter()
-            .any(|obj| obj.id() == IOTA_RANDOMNESS_STATE_OBJECT_ID)
+            .any(|obj| obj.id() == ObjectID::RANDOMNESS_STATE)
     }
 
     pub fn digest(&self) -> TransactionDigest {
@@ -2809,7 +2805,7 @@ impl SenderSignedData {
     pub fn uses_randomness(&self) -> bool {
         self.shared_input_objects()
             .iter()
-            .any(|obj| obj.id() == IOTA_RANDOMNESS_STATE_OBJECT_ID)
+            .any(|obj| obj.id() == ObjectId::RANDOMNESS_STATE)
     }
 
     fn move_authenticators_validity_check(&self, config: &ProtocolConfig) -> IotaResult {

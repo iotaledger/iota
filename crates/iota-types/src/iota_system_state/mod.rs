@@ -7,7 +7,7 @@ use std::fmt;
 use anyhow::Result;
 use enum_dispatch::enum_dispatch;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use iota_sdk_types::Identifier;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use self::{
@@ -16,7 +16,7 @@ use self::{
     iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
 };
 use crate::{
-    IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_STATE_OBJECT_ID, MoveTypeTagTrait,
+    MoveTypeTagTrait,
     base_types::ObjectID,
     committee::CommitteeWithNetworkMetadata,
     dynamic_field::{Field, get_dynamic_field_from_store, get_dynamic_field_object_from_store},
@@ -41,11 +41,9 @@ use self::simtest_iota_system_state_inner::{
     SimTestValidatorDeepV1, SimTestValidatorV1,
 };
 
-const IOTA_SYSTEM_STATE_WRAPPER_STRUCT_NAME: &IdentStr = ident_str!("IotaSystemState");
-
-pub const IOTA_SYSTEM_MODULE_NAME: &IdentStr = ident_str!("iota_system");
-pub const ADVANCE_EPOCH_FUNCTION_NAME: &IdentStr = ident_str!("advance_epoch");
-pub const ADVANCE_EPOCH_SAFE_MODE_FUNCTION_NAME: &IdentStr = ident_str!("advance_epoch_safe_mode");
+pub const ADVANCE_EPOCH_FUNCTION_NAME: Identifier = Identifier::from_static("advance_epoch");
+pub const ADVANCE_EPOCH_SAFE_MODE_FUNCTION_NAME: Identifier =
+    Identifier::from_static("advance_epoch_safe_mode");
 
 #[cfg(msim)]
 pub const IOTA_SYSTEM_STATE_SIM_TEST_V1: u64 = 18446744073709551605; // u64::MAX - 10
@@ -69,15 +67,6 @@ pub struct IotaSystemStateWrapper {
 }
 
 impl IotaSystemStateWrapper {
-    pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_SYSTEM_ADDRESS,
-            name: IOTA_SYSTEM_STATE_WRAPPER_STRUCT_NAME.to_owned(),
-            module: IOTA_SYSTEM_MODULE_NAME.to_owned(),
-            type_params: vec![],
-        }
-    }
-
     /// Advances epoch in safe mode natively in Rust, without involking Move.
     /// This ensures that there cannot be any failure from Move and is
     /// guaranteed to succeed. Returns the old and new inner system state
@@ -235,7 +224,7 @@ pub fn get_iota_system_state_wrapper(
     object_store: &dyn ObjectStore,
 ) -> Result<IotaSystemStateWrapper, IotaError> {
     let wrapper = object_store
-        .try_get_object(&IOTA_SYSTEM_STATE_OBJECT_ID)?
+        .try_get_object(&ObjectID::SYSTEM_STATE)?
         // Don't panic here on None because object_store is a generic store.
         .ok_or_else(|| {
             IotaError::IotaSystemStateRead("IotaSystemStateWrapper object not found".to_owned())

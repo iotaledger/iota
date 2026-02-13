@@ -9,14 +9,13 @@ use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, random_object_ref},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, random_object_ref},
     crypto::get_key_pair,
     effects::TransactionEffectsAPI,
     object::Owner,
     transaction::{CallArg, Command, ObjectArg, Transaction, TransactionData},
     utils::to_sender_signed_transaction,
 };
-use move_core_types::identifier::Identifier;
 use rand::{
     Rng,
     distributions::{Distribution, Standard},
@@ -239,7 +238,7 @@ impl AdversarialTestPayload {
                 builder.command(Command::move_call(
                     self.package_id,
                     Identifier::new(module_name).unwrap(),
-                    Identifier::new(args.fn_name.as_str()).unwrap(),
+                    Identifier::new(args.fn_name).unwrap(),
                     vec![],
                     vec![],
                 ));

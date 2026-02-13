@@ -8,14 +8,13 @@ use iota_stardust_types::block::output::{
 };
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, MoveObjectType, ObjectID},
+    base_types::{IotaAddress, MoveObjectType, ObjectID, TypeTag},
     coin::CoinMetadata,
     coin_manager::CoinManager,
     gas_coin::GAS,
     object::Object,
     stardust::coin_type::CoinType,
 };
-use move_core_types::language_storage::TypeTag;
 use primitive_types::U256;
 use url::Url;
 
@@ -189,9 +188,9 @@ fn foundry_with_simple_metadata() -> Result<()> {
     let TypeTag::Struct(type_tag) = &coin_manager_object_type_params[0] else {
         panic!("unexpected type tag")
     };
-    assert_eq!(type_tag.module.as_str(), "doge");
-    assert_eq!(type_tag.name.as_str(), "DOGE");
-    assert_eq!(type_tag.type_params.len(), 0);
+    assert_eq!(type_tag.module().as_str(), "doge");
+    assert_eq!(type_tag.name().as_str(), "DOGE");
+    assert_eq!(type_tag.type_params().len(), 0);
 
     Ok(())
 }
@@ -281,9 +280,9 @@ fn foundry_with_special_metadata() -> Result<()> {
     let TypeTag::Struct(type_tag) = &coin_manager_object_type_params[0] else {
         panic!("unexpected type tag")
     };
-    assert_eq!(type_tag.module.as_str(), "doge");
-    assert_eq!(type_tag.name.as_str(), "DOGE");
-    assert_eq!(type_tag.type_params.len(), 0);
+    assert_eq!(type_tag.module().as_str(), "doge");
+    assert_eq!(type_tag.name().as_str(), "DOGE");
+    assert_eq!(type_tag.type_params().len(), 0);
 
     Ok(())
 }

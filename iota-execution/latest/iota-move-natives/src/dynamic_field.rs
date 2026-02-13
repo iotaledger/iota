@@ -7,6 +7,7 @@ use std::collections::VecDeque;
 use iota_types::{
     base_types::{IotaAddress, MoveObjectType, ObjectID},
     dynamic_field::derive_dynamic_field_id,
+    iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
@@ -53,6 +54,7 @@ macro_rules! get_or_fetch_object {
                 ));
             }
         };
+        let tag = struct_tag_core_to_sdk(&tag);
 
         let object_runtime: &mut ObjectRuntime = $context.extensions_mut().get_mut()?;
         object_runtime.get_or_fetch_child_object(
@@ -129,6 +131,7 @@ pub fn hash_type_and_key(
 
     let k_tag = context.type_to_type_tag(&k_ty)?;
     let k_tag_size = u64::from(k_tag.abstract_size_for_gas_metering());
+    let k_tag = type_tag_core_to_sdk(&k_tag);
 
     native_charge_gas_early_exit!(
         context,
@@ -253,6 +256,7 @@ pub fn add_child_object(
             .dynamic_field_add_child_object_struct_tag_cost_per_byte
             * struct_tag_size.into()
     );
+    let tag = struct_tag_core_to_sdk(&tag);
 
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     object_runtime.add_child_object(
@@ -536,6 +540,7 @@ pub fn has_child_object_with_ty(
             .dynamic_field_has_child_object_with_ty_type_tag_cost_per_byte
             * u64::from(tag.abstract_size_for_gas_metering()).into()
     );
+    let tag = struct_tag_core_to_sdk(&tag);
 
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     let has_child = object_runtime.child_object_exists_and_has_type(

@@ -2,14 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{StructTag, TypeTag};
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
-use move_core_types::{
-    account_address::AccountAddress,
-    ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
-};
+use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -18,13 +14,10 @@ use crate::{
     id::ID,
 };
 
-const TRANSFER_MODULE_NAME: &IdentStr = ident_str!("transfer");
-const RECEIVING_STRUCT_NAME: &IdentStr = ident_str!("Receiving");
-
 pub const RESOLVED_RECEIVING_STRUCT: (&AccountAddress, &IdentStr, &IdentStr) = (
     &IOTA_FRAMEWORK_ADDRESS,
-    TRANSFER_MODULE_NAME,
-    RECEIVING_STRUCT_NAME,
+    ident_str!("transfer"),
+    ident_str!("Receiving"),
 );
 
 /// Rust version of the Move iota::transfer::Receiving type
@@ -47,14 +40,7 @@ impl Receiving {
     }
 
     pub fn struct_tag() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: TRANSFER_MODULE_NAME.to_owned(),
-            name: RECEIVING_STRUCT_NAME.to_owned(),
-            // TODO: this should really include the type parameters eventually when we add type
-            // parameters to the other polymorphic types like this.
-            type_params: vec![],
-        }
+        StructTag::new_transfer_receiving()
     }
 
     pub fn type_tag() -> TypeTag {

@@ -7,14 +7,12 @@ use std::result::Result;
 use anyhow::{Ok, anyhow, bail};
 use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{Identifier, IotaAddress, ObjectID},
     move_package::MovePackage,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Argument, ObjectArg, TransactionData, TransactionKind},
 };
-use move_core_types::ident_str;
 
 use crate::TransactionBuilder;
 
@@ -107,18 +105,18 @@ impl TransactionBuilder {
             let upgrade_arg = builder.pure(upgrade_policy).unwrap();
             let digest_arg = builder.pure(digest).unwrap();
             let upgrade_ticket = builder.programmable_move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
-                ident_str!("package").to_owned(),
-                ident_str!("authorize_upgrade").to_owned(),
+                ObjectID::FRAMEWORK,
+                Identifier::PACKAGE_MODULE,
+                Identifier::from_static("authorize_upgrade"),
                 vec![],
                 vec![Argument::Input(0), upgrade_arg, digest_arg],
             );
             let upgrade_receipt = builder.upgrade(package_id, upgrade_ticket, dep_ids, modules);
 
             builder.programmable_move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
-                ident_str!("package").to_owned(),
-                ident_str!("commit_upgrade").to_owned(),
+                ObjectID::FRAMEWORK,
+                Identifier::PACKAGE_MODULE,
+                Identifier::from_static("commit_upgrade"),
                 vec![],
                 vec![Argument::Input(0), upgrade_receipt],
             );

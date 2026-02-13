@@ -15,7 +15,7 @@ use iota_package_resolver::{
     Package, PackageStore, PackageStoreWithLruCache, Resolver, Result,
     error::Error as PackageResolverError,
 };
-use move_core_types::account_address::AccountAddress;
+use iota_sdk_types::Address;
 
 use crate::data::{DataLoader, Db, DbConnection, QueryExecutor};
 
@@ -30,7 +30,7 @@ pub struct DbPackageStore(DataLoader);
 
 /// `DataLoader` key for fetching the latest version of a `Package` by its ID.
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
-struct PackageKey(AccountAddress);
+struct PackageKey(Address);
 
 impl DbPackageStore {
     pub fn new(loader: DataLoader) -> Self {
@@ -40,7 +40,7 @@ impl DbPackageStore {
 
 #[async_trait]
 impl PackageStore for DbPackageStore {
-    async fn fetch(&self, id: AccountAddress) -> Result<Arc<Package>> {
+    async fn fetch(&self, id: Address) -> Result<Arc<Package>> {
         let Self(DataLoader(loader)) = self;
         let Some(package) = loader.load_one(PackageKey(id)).await? else {
             return Err(PackageResolverError::PackageNotFound(id));
@@ -57,7 +57,10 @@ impl Loader<PackageKey> for Db {
     async fn load(&self, keys: &[PackageKey]) -> Result<HashMap<PackageKey, Arc<Package>>> {
         use packages::dsl;
 
-        let ids: BTreeSet<_> = keys.iter().map(|PackageKey(id)| id.to_vec()).collect();
+        let ids: BTreeSet<_> = keys
+            .iter()
+            .map(|PackageKey(id)| id.as_bytes().to_vec())
+            .collect();
         let stored_packages: Vec<StoredPackage> = self
             .execute(move |conn| {
                 conn.results(move || {
@@ -74,10 +77,7 @@ impl Loader<PackageKey> for Db {
         for stored_package in stored_packages {
             let move_package = bcs::from_bytes(&stored_package.move_package)?;
             let package = Package::read_from_package(&move_package)?;
-            id_to_package.insert(
-                PackageKey(AccountAddress::new(move_package.id().into_bytes())),
-                Arc::new(package),
-            );
+            id_to_package.insert(PackageKey(move_package.id().into()), Arc::new(package));
         }
 
         Ok(id_to_package)

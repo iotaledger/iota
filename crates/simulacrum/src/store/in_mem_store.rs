@@ -134,7 +134,7 @@ impl InMemoryStore {
     }
 
     pub fn get_clock(&self) -> iota_types::clock::Clock {
-        self.get_object(&iota_types::IOTA_CLOCK_OBJECT_ID)
+        self.get_object(&ObjectID::CLOCK)
             .expect("clock should exist")
             .to_rust()
             .expect("clock object should deserialize")

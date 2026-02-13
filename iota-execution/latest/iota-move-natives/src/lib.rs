@@ -12,7 +12,6 @@ use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
     annotated_value as A,
     gas_algebra::InternalGas,
-    identifier::Identifier,
     language_storage::{StructTag, TypeTag},
     runtime_value as R,
     vm_status::StatusCode,
@@ -1327,8 +1326,8 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             .map(|(module_name, func_name, func)| {
                 (
                     IOTA_FRAMEWORK_ADDRESS,
-                    Identifier::new(module_name).unwrap(),
-                    Identifier::new(func_name).unwrap(),
+                    move_core_types::identifier::Identifier::new(module_name).unwrap(),
+                    move_core_types::identifier::Identifier::new(func_name).unwrap(),
                     func,
                 )
             });
@@ -1343,8 +1342,8 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
         .map(|(module_name, func_name, func)| {
             (
                 IOTA_SYSTEM_ADDRESS,
-                Identifier::new(module_name).unwrap(),
-                Identifier::new(func_name).unwrap(),
+                move_core_types::identifier::Identifier::new(module_name).unwrap(),
+                move_core_types::identifier::Identifier::new(func_name).unwrap(),
                 func,
             )
         })

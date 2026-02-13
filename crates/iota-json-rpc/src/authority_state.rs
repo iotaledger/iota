@@ -23,7 +23,9 @@ use iota_storage::key_value_store::{
     KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
 };
 use iota_types::{
-    base_types::{IotaAddress, MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber},
+    base_types::{
+        IotaAddress, MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber, TypeTag,
+    },
     committee::{Committee, EpochId},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
@@ -44,7 +46,6 @@ use iota_types::{
 };
 #[cfg(test)]
 use mockall::automock;
-use move_core_types::language_storage::TypeTag;
 use thiserror::Error;
 use tokio::task::JoinError;
 use typed_store::TypedStoreError;

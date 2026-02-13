@@ -3,7 +3,9 @@ source: crates/iota-package-resolver/src/lib.rs
 expression: "format!(\"a0::m::E0: {e0:#?}\\n\\\n             a0::m::E1: {e1:#?}\\n\\\n             a0::m::E2: {e2:#?}\",)"
 ---
 a0::m::E0: DataDef {
-    defining_id: 00000000000000000000000000000000000000000000000000000000000000a0,
+    defining_id: Address(
+        "0x00000000000000000000000000000000000000000000000000000000000000a0",
+    ),
     abilities: [],
     type_params: [],
     data: Enum(
@@ -20,21 +22,27 @@ a0::m::E0: DataDef {
                         Vector(
                             Datatype(
                                 DatatypeRef {
-                                    package: 00000000000000000000000000000000000000000000000000000000000000a0,
+                                    package: Address(
+                                        "0x00000000000000000000000000000000000000000000000000000000000000a0",
+                                    ),
                                     module: "m",
                                     name: "E1",
                                 },
                                 [
                                     Datatype(
                                         DatatypeRef {
-                                            package: 00000000000000000000000000000000000000000000000000000000000000a0,
+                                            package: Address(
+                                                "0x00000000000000000000000000000000000000000000000000000000000000a0",
+                                            ),
                                             module: "m",
                                             name: "T1",
                                         },
                                         [
                                             Datatype(
                                                 DatatypeRef {
-                                                    package: 00000000000000000000000000000000000000000000000000000000000000a0,
+                                                    package: Address(
+                                                        "0x00000000000000000000000000000000000000000000000000000000000000a0",
+                                                    ),
                                                     module: "m",
                                                     name: "T2",
                                                 },
@@ -54,7 +62,9 @@ a0::m::E0: DataDef {
     ),
 }
 a0::m::E1: DataDef {
-    defining_id: 00000000000000000000000000000000000000000000000000000000000000a0,
+    defining_id: Address(
+        "0x00000000000000000000000000000000000000000000000000000000000000a0",
+    ),
     abilities: [],
     type_params: [
         DatatypeTyParameter {
@@ -95,7 +105,9 @@ a0::m::E1: DataDef {
     ),
 }
 a0::m::E2: DataDef {
-    defining_id: 00000000000000000000000000000000000000000000000000000000000000a0,
+    defining_id: Address(
+        "0x00000000000000000000000000000000000000000000000000000000000000a0",
+    ),
     abilities: [],
     type_params: [],
     data: Enum(

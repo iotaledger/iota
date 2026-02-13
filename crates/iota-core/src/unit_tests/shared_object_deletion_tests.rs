@@ -23,7 +23,6 @@ use iota_types::{
         VerifiedCertificate,
     },
 };
-use move_core_types::ident_str;
 
 use crate::{
     authority::{

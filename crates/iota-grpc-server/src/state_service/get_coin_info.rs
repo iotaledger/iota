@@ -113,7 +113,7 @@ pub(crate) fn get_coin_info(
                 }
             }
         }
-    } else if iota_types::gas_coin::GAS::is_gas(&core_coin_type) {
+    } else if core_coin_type.is_gas() {
         // Special case for native GAS coin: get treasury from system state.
         // The native gas coin's total supply is fixed (no TreasuryCap can mint more).
         let summary = reader.get_system_state_summary()?;

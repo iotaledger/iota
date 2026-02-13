@@ -38,12 +38,9 @@ use iota_storage::{
 };
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
-    IOTA_CLOCK_OBJECT_ID, IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS,
-    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_ADDRESS,
-    IOTA_SYSTEM_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_ADDRESS,
-    MOVE_STDLIB_PACKAGE_ID, STARDUST_ADDRESS, STARDUST_PACKAGE_ID,
     base_types::{
-        IOTA_ADDRESS_LENGTH, IotaAddress, ObjectID, ObjectRef, SequenceNumber, VersionNumber,
+        IOTA_ADDRESS_LENGTH, Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag,
+        VersionNumber,
     },
     committee::EpochId,
     crypto::{AccountKeyPair, RandomnessRound, get_authority_key_pair, get_key_pair_from_rng},
@@ -52,6 +49,7 @@ use iota_types::{
     event::Event,
     execution_status::ExecutionStatus,
     gas::GasCostSummary,
+    iota_sdk_types_conversions::type_tag_core_to_sdk,
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
     },
@@ -82,9 +80,8 @@ use move_compiler::{
 };
 use move_core_types::{
     account_address::AccountAddress,
-    ident_str,
-    identifier::{IdentStr, Identifier},
-    language_storage::{ModuleId, TypeTag},
+    identifier::IdentStr,
+    language_storage::ModuleId,
     metadata::Metadata,
     parsing::{address::ParsedAddress, values::ParsedValue},
 };
@@ -116,14 +113,14 @@ pub enum FakeID {
 const DEFAULT_GAS_PRICE: u64 = 1_000;
 
 const WELL_KNOWN_OBJECTS: &[ObjectID] = &[
-    MOVE_STDLIB_PACKAGE_ID,
-    IOTA_FRAMEWORK_PACKAGE_ID,
-    IOTA_SYSTEM_PACKAGE_ID,
-    STARDUST_PACKAGE_ID,
-    IOTA_SYSTEM_STATE_OBJECT_ID,
-    IOTA_CLOCK_OBJECT_ID,
-    IOTA_DENY_LIST_OBJECT_ID,
-    IOTA_RANDOMNESS_STATE_OBJECT_ID,
+    ObjectID::STD,
+    ObjectID::FRAMEWORK,
+    ObjectID::SYSTEM,
+    ObjectID::STARDUST,
+    ObjectID::SYSTEM_STATE,
+    ObjectID::CLOCK,
+    ObjectID::DENY_LIST,
+    ObjectID::RANDOMNESS_STATE,
 ];
 // TODO use the file name as a seed
 const RNG_SEED: [u8; 32] = [
@@ -508,7 +505,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
 
         // we are assuming that all packages depend on Move Stdlib and IOTA Framework,
         // so these don't have to be provided explicitly as parameters
-        dependencies.extend([MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]);
+        dependencies.extend([ObjectID::STD, ObjectID::FRAMEWORK]);
 
         let data = |sender, gas| {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -582,7 +579,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
         &mut self,
         module_id: &ModuleId,
         function: &IdentStr,
-        type_args: Vec<TypeTag>,
+        type_args: Vec<move_core_types::language_storage::TypeTag>,
         signers: Vec<ParsedAddress>,
         args: Vec<IotaValue>,
         gas_budget: Option<u64>,
@@ -591,7 +588,16 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
         self.next_task();
         let IotaRunArgs { summarize, .. } = extra;
         let transaction = self.build_function_call_tx(
-            module_id, function, type_args, signers, args, gas_budget, extra,
+            module_id,
+            &Identifier::new_unchecked(function.as_str()),
+            type_args
+                .into_iter()
+                .map(|tt| type_tag_core_to_sdk(&tt))
+                .collect(),
+            signers,
+            args,
+            gas_budget,
+            extra,
         )?;
         let summary = self.execute_txn(transaction).await?;
         let output = self.object_summary_output(&summary, summarize);
@@ -1151,8 +1157,11 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let tx = self
                     .build_function_call_tx(
                         &module_id,
-                        name.as_ident_str(),
-                        type_args.clone(),
+                        &Identifier::new_unchecked(name.as_str()),
+                        type_args
+                            .iter()
+                            .map(type_tag_core_to_sdk)
+                            .collect::<Vec<_>>(),
                         signers.clone(),
                         args.clone(),
                         gas_budget,
@@ -1588,9 +1597,9 @@ impl IotaTestAdapter {
         let digest_arg = builder.pure(digest).unwrap();
 
         let upgrade_ticket = builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("package").to_owned(),
-            ident_str!("authorize_upgrade").to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::PACKAGE_MODULE,
+            Identifier::from_static("authorize_upgrade"),
             vec![],
             vec![Argument::Input(0), upgrade_arg, digest_arg],
         );
@@ -1600,9 +1609,9 @@ impl IotaTestAdapter {
             builder.upgrade(package_id, upgrade_ticket, dependencies, modules_bytes);
 
         builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("package").to_owned(),
-            ident_str!("commit_upgrade").to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::PACKAGE_MODULE,
+            Identifier::from_static("commit_upgrade"),
             vec![],
             vec![Argument::Input(0), upgrade_receipt],
         );
@@ -1744,7 +1753,7 @@ impl IotaTestAdapter {
     fn build_function_call_tx(
         &mut self,
         module_id: &ModuleId,
-        function: &IdentStr,
+        function: &Identifier,
         type_args: Vec<TypeTag>,
         signers: Vec<ParsedAddress>,
         args: Vec<IotaValue>,
@@ -1767,7 +1776,7 @@ impl IotaTestAdapter {
         let data = |sender, gas| {
             builder.command(Command::move_call(
                 package_id,
-                module_id.name().to_owned(),
+                Identifier::new_unchecked(module_id.name().as_str()),
                 function.to_owned(),
                 type_args,
                 arguments,
@@ -2211,7 +2220,7 @@ impl IotaTestAdapter {
         // we are assuming that all packages depend on Move Stdlib and IOTA Framework,
         // so these don't have to be provided explicitly as parameters
         if include_std {
-            dependencies.extend([MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]);
+            dependencies.extend([ObjectID::STD, ObjectID::FRAMEWORK]);
         }
         Ok(dependencies)
     }
@@ -2255,9 +2264,9 @@ impl IotaTestAdapter {
                 object
                     .struct_tag()
                     .filter(|tag| {
-                        tag.address == package_addr
-                            && tag.module.as_str() == module_name
-                            && tag.name.as_str() == account_type
+                        tag.address() == IotaAddress::from(*package_addr)
+                            && tag.module().as_str() == module_name
+                            && tag.name().as_str() == account_type
                     })
                     .map(|_| *id)
             })
@@ -2433,26 +2442,26 @@ impl Default for AdapterInitConfig {
 
 static NAMED_ADDRESSES: Lazy<BTreeMap<String, NumericalAddress>> = Lazy::new(|| {
     let mut map = move_stdlib::move_stdlib_named_addresses();
-    assert!(map.get("std").unwrap().into_inner() == MOVE_STDLIB_ADDRESS);
+    assert!(map.get("std").unwrap().as_ref() == IotaAddress::STD.as_bytes());
     // TODO fix IOTA framework constants
     map.insert(
         "iota".to_string(),
         NumericalAddress::new(
-            IOTA_FRAMEWORK_ADDRESS.into_bytes(),
+            IotaAddress::FRAMEWORK.into_bytes(),
             move_compiler::shared::NumberFormat::Hex,
         ),
     );
     map.insert(
         "iota_system".to_string(),
         NumericalAddress::new(
-            IOTA_SYSTEM_ADDRESS.into_bytes(),
+            IotaAddress::SYSTEM.into_bytes(),
             move_compiler::shared::NumberFormat::Hex,
         ),
     );
     map.insert(
         "stardust".to_string(),
         NumericalAddress::new(
-            STARDUST_ADDRESS.into_bytes(),
+            IotaAddress::STARDUST.into_bytes(),
             move_compiler::shared::NumberFormat::Hex,
         ),
     );

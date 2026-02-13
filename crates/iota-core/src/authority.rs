@@ -54,7 +54,6 @@ use iota_storage::{
 #[cfg(msim)]
 use iota_types::committee::CommitteeTrait;
 use iota_types::{
-    IOTA_SYSTEM_PACKAGE_ID, TypeTag,
     account_abstraction::{
         account::AuthenticatorFunctionRefV1Key,
         authenticator_function::{
@@ -63,7 +62,7 @@ use iota_types::{
         },
     },
     authenticator_state::get_authenticator_state,
-    base_types::*,
+    base_types::{TypeTag, *},
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{
         AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer,
@@ -88,6 +87,7 @@ use iota_types::{
         InnerTemporaryStore, ObjectMap, PackageStoreWithFallback, TemporaryModuleResolver, TxCoins,
         WrittenObjects,
     },
+    iota_sdk_types_conversions::type_tag_core_to_sdk,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
@@ -2746,7 +2746,7 @@ impl AuthorityState {
             })?;
 
         let type_ = field.kind;
-        let name_type: TypeTag = field.name_layout.into();
+        let name_type: TypeTag = type_tag_core_to_sdk(&field.name_layout.into());
         let bcs_name = field.name_bytes.to_owned();
 
         let name_value = BoundedVisitor::deserialize_value(field.name_bytes, field.name_layout)
@@ -3677,9 +3677,9 @@ impl AuthorityState {
 
     pub async fn get_iota_system_package_object_ref(&self) -> IotaResult<ObjectRef> {
         Ok(self
-            .try_get_object(&IOTA_SYSTEM_PACKAGE_ID)
+            .try_get_object(&ObjectID::SYSTEM)
             .await?
-            .expect("framework object should always exist")
+            .expect("system package should always exist")
             .compute_object_reference())
     }
 
@@ -4330,7 +4330,10 @@ impl AuthorityState {
                 index_store.events_by_transaction(&digest, tx_num, event_num, limit, descending)?
             }
             EventFilter::MoveModule { package, module } => {
-                let module_id = ModuleId::new(AccountAddress::new(package.into_bytes()), module);
+                let module_id = ModuleId::new(
+                    AccountAddress::new(package.into_bytes()),
+                    move_core_types::identifier::Identifier::new(module.as_str()).unwrap(),
+                );
                 index_store.events_by_module_id(&module_id, tx_num, event_num, limit, descending)?
             }
             EventFilter::MoveEventType(struct_name) => index_store
@@ -4351,7 +4354,10 @@ impl AuthorityState {
                 .event_iterator(start_time, end_time, tx_num, event_num, limit, descending)?,
             EventFilter::MoveEventModule { package, module } => index_store
                 .events_by_move_event_module(
-                    &ModuleId::new(AccountAddress::new(package.into_bytes()), module),
+                    &ModuleId::new(
+                        AccountAddress::new(package.into_bytes()),
+                        move_core_types::identifier::Identifier::new(module.as_str()).unwrap(),
+                    ),
                     tx_num,
                     event_num,
                     limit,

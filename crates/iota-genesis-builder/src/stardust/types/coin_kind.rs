@@ -16,12 +16,12 @@
 
 use std::mem::size_of;
 
+use iota_sdk_types::StructTag;
 use iota_types::{
     balance::Balance,
     gas_coin::GAS,
     object::{ID_END_INDEX, Object},
     stardust::output::{AliasOutput, BasicOutput, NftOutput},
-    timelock::timelock::TimeLock,
 };
 
 /// Infer whether the object is a kind of gas coin.
@@ -32,7 +32,7 @@ pub fn is_gas_coin_kind(object: &Object) -> bool {
     struct_tag == AliasOutput::tag(GAS::type_tag())
         || struct_tag == BasicOutput::tag(GAS::type_tag())
         || struct_tag == NftOutput::tag(GAS::type_tag())
-        || struct_tag == TimeLock::<Balance>::type_(Balance::type_(GAS::type_tag()).into())
+        || struct_tag == StructTag::new_time_lock(StructTag::new_balance(StructTag::new_gas()))
         || object.is_gas_coin()
 }
 

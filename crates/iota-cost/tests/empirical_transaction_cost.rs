@@ -11,9 +11,8 @@ use iota_test_transaction_builder::{
     TestTransactionBuilder, publish_basics_package_and_make_counter,
 };
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectRef},
-    coin::{COIN_JOIN_FUNC_NAME, COIN_MODULE_NAME, PAY_MODULE_NAME, PAY_SPLIT_VEC_FUNC_NAME},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef},
+    coin::{COIN_JOIN_FUNC_NAME, PAY_SPLIT_VEC_FUNC_NAME},
     gas::GasCostSummary,
     gas_coin::GAS,
     transaction::{CallArg, ObjectArg, TransactionData},
@@ -79,8 +78,8 @@ async fn split_n_tx(
 
     TestTransactionBuilder::new(sender, gas, gas_price)
         .move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            PAY_MODULE_NAME.as_str(),
+            ObjectID::FRAMEWORK,
+            Identifier::PAY_MODULE.as_str(),
             PAY_SPLIT_VEC_FUNC_NAME.as_str(),
             vec![
                 CallArg::Object(ObjectArg::ImmOrOwnedObject(coin)),
@@ -149,8 +148,8 @@ async fn create_txes(
 
     let merge_tx = TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price)
         .move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            COIN_MODULE_NAME.as_str(),
+            ObjectID::FRAMEWORK,
+            Identifier::COIN_MODULE.as_str(),
             COIN_JOIN_FUNC_NAME.as_str(),
             vec![
                 CallArg::Object(ObjectArg::ImmOrOwnedObject(c1)),
