@@ -114,45 +114,7 @@ console.log("sendOFT - received tx on destination chain:", deliveredMsg?.dstTxHa
 
 ### Send the OFT-wrapped Tokens Back
 
-To send back the OFT-wrapped tokens from IOTA L1 to IOTA EVM, you need to use the [layerzero-move-oft-v2-utils](https://github.com/iota-community/layerzero-move-oft-v2-utils) repository. The procedure is similar to sending tokens, but operates on the MoveVM side:
-
-#### 1. Estimate the Fee
-
-The sender calls `quoteSend()` to estimate the cross-chain fee:
-
-```typescript
-const sendParam = {
-  dstEid: remoteChain.EID, // e.g., 30284 for IOTA EVM mainnet
-  to: addressToBytes32(recipientAddress),
-  amountLd: BigInt(amountInLocalDecimals),
-  minAmountLd: BigInt(minAmount), // slippage protection
-  extraOptions: Options.newOptions().addExecutorLzReceiveOption(200_000, 0).toBytes(),
-  composeMsg: new Uint8Array(0),
-  oftCmd: new Uint8Array(0),
-};
-
-const messagingFee = await oft.quoteSend(senderAddr, sendParam, false);
-```
-
-#### 2. Send the Tokens
-
-The sender calls `sendMoveCall()` to transfer tokens from IOTA L1 back to IOTA EVM:
-
-```typescript
-const coin = await oft.splitCoinMoveCall(tx, senderAddr, sendParam.amountLd);
-
-await oft.sendMoveCall(
-  tx,
-  senderAddr,
-  sendParam,
-  coin,
-  messagingFee.nativeFee,
-  messagingFee.zroFee,
-  senderAddr, // refund address
-);
-```
-
-For complete instructions, see the [MoveVM OFT Send Guide](https://github.com/iota-community/layerzero-move-oft-v2-utils/blob/main/README_OFT_send.md).
+To send OFT-wrapped tokens from IOTA L1 back to IOTA EVM, you need to use the [layerzero-move-oft-v2-utils](https://github.com/iota-community/layerzero-move-oft-v2-utils) repository. For step-by-step instructions, see [Bridge Tokens from IOTA L1 MoveVM - Send Tokens from IOTA L1 to IOTA EVM](/developer/iota-101/send-tokens-from-iota-l1-movevm#step-8-send-tokens-from-iota-l1-to-iota-evm).
 
 ## EVM Utilities for LayerZero OFT V2
 
@@ -196,7 +158,7 @@ Deployed OFTAdapter contract address: <YOUR_DEPLOYED_CONTRACT_ADDRESS>
 
 #### Deploy OFT on IOTA L1 (MoveVM)
 
-For deploying OFT on IOTA L1, refer to the [layerzero-move-oft-v2-utils deployment guide](https://github.com/iota-community/layerzero-move-oft-v2-utils/blob/main/README_OFT_deployment.md).
+For deploying and configuring OFT on IOTA L1, see the [Bridge Tokens from IOTA L1 MoveVM](/developer/iota-101/send-tokens-from-iota-l1-movevm) guide, which covers the full IOTA L1 side setup including deployment, initialization, registration, and peer configuration.
 
 ### Setup the Contracts
 
@@ -220,7 +182,7 @@ npx hardhat run scripts/set_peer_oft_adapter.ts --network iotaEvmMainnet
 
 :::warning Required Configuration
 
-You must also set the peer on the IOTA L1 side. See [MoveVM setup guide](https://github.com/iota-community/layerzero-move-oft-v2-utils/blob/main/README_OFT_setup.md).
+You must also set the peer on the IOTA L1 side. See [Bridge Tokens from IOTA L1 MoveVM - Step 6: Set Peer](/developer/iota-101/send-tokens-from-iota-l1-movevm#step-6-set-peer).
 
 :::
 
@@ -254,13 +216,7 @@ sendOFT - received tx on destination chain: 8LDDk9xa6W4eGNrB7dSzWxH7hgFNwsWoDyzg
 
 ### Send Tokens Back from IOTA L1 to IOTA EVM
 
-To send OFT-wrapped tokens back from IOTA L1 to IOTA EVM, use the MoveVM utilities:
-
-```bash
-yarn send-oft
-```
-
-For detailed instructions, see [MoveVM OFT Send Guide](https://github.com/iota-community/layerzero-move-oft-v2-utils/blob/main/README_OFT_send.md).
+To send OFT-wrapped tokens back from IOTA L1 to IOTA EVM, see [Bridge Tokens from IOTA L1 MoveVM - Pathway 1](/developer/iota-101/send-tokens-from-iota-l1-movevm#pathway-1-iota-l1--iota-evm), which covers the full procedure using the MoveVM utilities.
 
 ## LayerZero Endpoint IDs
 
@@ -270,6 +226,10 @@ For detailed instructions, see [MoveVM OFT Send Guide](https://github.com/iota-c
 | IOTA EVM Mainnet | 30284       |
 
 For a complete list of endpoint IDs, see [LayerZero Deployed Contracts](https://docs.layerzero.network/v2/deployments/deployed-contracts).
+
+## Related Guides
+
+- [Bridge Tokens from IOTA L1 MoveVM](/developer/iota-101/send-tokens-from-iota-l1-movevm) — IOTA L1 side setup and Move-to-Move bridging (IOTA L1 ↔ Sui)
 
 ## References
 
