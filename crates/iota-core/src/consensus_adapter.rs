@@ -884,49 +884,38 @@ impl ConsensusAdapter {
             false
         };
         if send_end_of_publish {
+            // Submit a final misbehavior report to consensus before EndOfPublish.
+            // This ensures the latest scoring metrics are always available at epoch
+            // boundary, regardless of the regular rate-limiting interval.
             if epoch_store.protocol_config().calculate_validator_scores() {
-                // Build final misbehavior report and EndOfPublish as a single batch so they are
-                // submitted to consensus in one call and end up in the same block.
-                let mut eop_transactions = Vec::new();
-                eop_transactions.push(ConsensusTransaction::new_end_of_publish(self.authority));
-
                 let checkpoint_seq = self
                     .checkpoint_store
                     .get_highest_executed_checkpoint_seq_number()
                     .ok()
-                    .unwrap_or(None)
+                    .flatten()
                     .unwrap_or(0);
                 let misbehavior_report = epoch_store.scorer.current_local_metrics_count.to_report();
-                let report_tx = ConsensusTransaction::new_misbehavior_report(
+                let transaction = ConsensusTransaction::new_misbehavior_report(
                     epoch_store.name,
                     &misbehavior_report,
                     checkpoint_seq,
                 );
-
-                info!(epoch=?epoch_store.epoch(), "Sending EndOfPublish message to consensus");
                 info!(
-                    ?report_tx,
-                    "including final misbehavior report with EndOfPublish"
+                    ?transaction,
+                    "submitting final misbehavior report before EndOfPublish"
                 );
-
-                eop_transactions.push(report_tx);
-
-                if let Err(err) = self.submit_batch(&eop_transactions, None, epoch_store) {
-                    warn!(
-                        "Error when sending EndOfPublish transaction with report: {:?}",
-                        err
-                    );
+                if let Err(err) = self.submit(transaction, None, epoch_store) {
+                    warn!("Error when sending final misbehavior report: {:?}", err);
                 }
-            } else {
-                // sending message outside of any locks scope
-                info!(epoch=?epoch_store.epoch(), "Sending EndOfPublish message to consensus");
-                if let Err(err) = self.submit(
-                    ConsensusTransaction::new_end_of_publish(self.authority),
-                    None,
-                    epoch_store,
-                ) {
-                    warn!("Error when sending end of publish message: {:?}", err);
-                }
+            }
+            // sending message outside of any locks scope
+            info!(epoch=?epoch_store.epoch(), "Sending EndOfPublish message to consensus");
+            if let Err(err) = self.submit(
+                ConsensusTransaction::new_end_of_publish(self.authority),
+                None,
+                epoch_store,
+            ) {
+                warn!("Error when sending end of publish message: {:?}", err);
             }
         }
         self.metrics
@@ -1159,49 +1148,37 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
             // reconfig_guard lock is dropped here.
         };
         if send_end_of_publish {
+            // Submit a final misbehavior report to consensus before EndOfPublish.
+            // This ensures the latest scoring metrics are always available at epoch
+            // boundary, regardless of the regular rate-limiting interval.
             if epoch_store.protocol_config().calculate_validator_scores() {
-                // Build final misbehavior report and EndOfPublish as a single batch so they are
-                // submitted to consensus in one call and end up in the same block.
-                let mut eop_transactions = Vec::new();
-                eop_transactions.push(ConsensusTransaction::new_end_of_publish(self.authority));
-
                 let checkpoint_seq = self
                     .checkpoint_store
                     .get_highest_executed_checkpoint_seq_number()
                     .ok()
-                    .unwrap_or(None)
+                    .flatten()
                     .unwrap_or(0);
                 let misbehavior_report = epoch_store.scorer.current_local_metrics_count.to_report();
-                let report_tx = ConsensusTransaction::new_misbehavior_report(
+                let transaction = ConsensusTransaction::new_misbehavior_report(
                     epoch_store.name,
                     &misbehavior_report,
                     checkpoint_seq,
                 );
-
-                info!(epoch=?epoch_store.epoch(), "Sending EndOfPublish message to consensus");
                 info!(
-                    ?report_tx,
-                    "including final misbehavior report with EndOfPublish"
+                    ?transaction,
+                    "submitting final misbehavior report before EndOfPublish"
                 );
-
-                eop_transactions.push(report_tx);
-
-                if let Err(err) = self.submit_batch(&eop_transactions, None, epoch_store) {
-                    warn!(
-                        "Error when sending EndOfPublish transaction with report: {:?}",
-                        err
-                    );
+                if let Err(err) = self.submit(transaction, None, epoch_store) {
+                    warn!("Error when sending final misbehavior report: {:?}", err);
                 }
-            } else {
-                // sending message outside of any locks scope
-                info!(epoch=?epoch_store.epoch(), "Sending EndOfPublish message to consensus");
-                if let Err(err) = self.submit(
-                    ConsensusTransaction::new_end_of_publish(self.authority),
-                    None,
-                    epoch_store,
-                ) {
-                    warn!("Error when sending end of publish message: {:?}", err);
-                }
+            }
+            info!(epoch=?epoch_store.epoch(), "Sending EndOfPublish message to consensus");
+            if let Err(err) = self.submit(
+                ConsensusTransaction::new_end_of_publish(self.authority),
+                None,
+                epoch_store,
+            ) {
+                warn!("Error when sending end of publish message: {:?}", err);
             }
         }
     }
