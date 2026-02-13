@@ -16,6 +16,7 @@ import { RemoveDialog } from './RemoveDialog';
 import { Portal } from '_app/shared/Portal';
 import { formatAccountName } from '_src/ui/app/helpers';
 import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
+import { ampli } from '_src/shared/analytics/ampli';
 
 interface AccountGroupItemProps {
     account: SerializedUIAccount;
@@ -49,6 +50,10 @@ export function AccountGroupItem({
     });
 
     async function handleCopySuccess() {
+        ampli.elementCopied({
+            type: 'address',
+            value: account.address,
+        });
         toast('Address copied');
     }
 
