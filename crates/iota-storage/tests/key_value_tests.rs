@@ -372,7 +372,7 @@ mod simtests {
     use iota_simulator::configs::constant_latency_ms;
     use iota_storage::http_key_value_store::*;
     use iota_types::{
-        base_types::{Identifier, IotaAddress},
+        base_types::{Identifier, IotaAddress, StructTag},
         event::Event,
     };
     use rustls::crypto::{CryptoProvider, ring};
