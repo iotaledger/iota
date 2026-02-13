@@ -132,6 +132,8 @@ export function publicKeyFromRawBytes(
             return new MultiSigPublicKey(bytes);
         case 'Passkey':
             return new PasskeyPublicKey(bytes);
+        case 'MoveAuthenticator':
+            return new MoveAuthenticatorPublicKey(bytes);
         default:
             throw new Error(`Unsupported signature scheme ${signatureScheme}`);
     }

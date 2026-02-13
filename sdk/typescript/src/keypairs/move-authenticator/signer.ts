@@ -5,11 +5,7 @@ import { toBase64 } from '@iota/bcs';
 
 import { bcs } from '../../bcs/index.js';
 import type { IntentScope, SignatureWithBytes } from '../../cryptography/index.js';
-import {
-    SIGNATURE_SCHEME_TO_FLAG,
-    Signer,
-    toSerializedSignature,
-} from '../../cryptography/index.js';
+import { SIGNATURE_SCHEME_TO_FLAG, Signer } from '../../cryptography/index.js';
 import type { PublicKey } from '../../cryptography/publickey.js';
 import type { SignatureScheme } from '../../cryptography/signature-scheme.js';
 import { MoveAuthenticatorPublicKey } from './publickey.js';
@@ -82,20 +78,14 @@ export class MoveSigner extends Signer {
     /**
      * Override signWithIntent to handle MoveAuthenticator's special serialization format.
      * Unlike traditional signatures, MoveAuthenticator doesn't follow the standard
-     * flag || signature || publicKey format.
+     * `flag || signature || publicKey` format.
+     * It follows `flag || signature` format.
      */
     async signWithIntent(bytes: Uint8Array, _intent: IntentScope): Promise<SignatureWithBytes> {
-        // For MoveAuthenticator, we serialize the authenticator data
-        // The transaction bytes and intent are not directly used in the serialization
-        const serialized = await this.sign();
-
-        // Prepend the MoveAuthenticator flag
-        const result = new Uint8Array(1 + serialized.length);
-        result[0] = SIGNATURE_SCHEME_TO_FLAG[this.getKeyScheme()];
-        result.set(serialized, 1);
+        const signature = await this.getSignature();
 
         return {
-            signature: toBase64(result),
+            signature,
             bytes: toBase64(bytes),
         };
     }
@@ -103,7 +93,13 @@ export class MoveSigner extends Signer {
     /**
      * Generates the Move Authenticator signature.
      */
-     async getSignature(): Promise<string> {
-        return toBase64(await this.sign())
+    async getSignature(): Promise<string> {
+        const serialized = await this.sign();
+
+        // Prepend the MoveAuthenticator flag
+        const result = new Uint8Array(1 + serialized.length);
+        result[0] = SIGNATURE_SCHEME_TO_FLAG[this.getKeyScheme()];
+        result.set(serialized, 1);
+        return toBase64(result);
     }
 }
