@@ -110,7 +110,8 @@
         "update-graphql-schemas": "pnpm tsx scripts/update-graphql-schemas.ts",
         "update-open-rpc-client-types": "pnpm tsx scripts/generate.ts",
         "generate-schema": "gql.tada generate-output",
-        "codegen": "pnpm update-graphql-schemas && pnpm update-open-rpc-client-types"
+        "codegen": "pnpm update-graphql-schemas && pnpm update-open-rpc-client-types",
+        "dummy": "echo \"I want to see the kiosk tests run.\""
     },
     "bugs": {
         "url": "https://github.com/iotaledger/iota/issues/new"
