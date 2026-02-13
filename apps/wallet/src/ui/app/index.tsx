@@ -155,7 +155,7 @@ export function App() {
         };
     }, [backgroundClient, autoLockEnabled]);
     const network = useAppSelector(({ app }) => app.network);
-    const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeyAccounts, network);
+    const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
 
     // Placeholder check for storage migration.
     // currently hook useStorageMigrationStatus always returns 'ready'

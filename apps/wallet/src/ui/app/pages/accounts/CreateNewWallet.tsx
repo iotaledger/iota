@@ -27,7 +27,7 @@ export function CreateNewWallet() {
     const createAccountsMutation = useCreateAccountsMutation();
     const [searchParams] = useSearchParams();
     const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';
-    const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeyAccounts, network);
+    const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
 
     const profileOptions = [
         {
