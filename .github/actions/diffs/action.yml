@@ -9,7 +9,7 @@ outputs:
     value: "${{ steps.diff.outputs.isRust }}"
   isRustExample:
     description: True when changes happened to the Rust example code
-    value: "${{ steps.diff.outputs.isRustExample }}"
+    value: "${{ steps.diff.outputs.isRustExample || steps.diff.outputs.isRust }}"
   isRpc:
     description: True when changes happened to the RPC code
     value: "${{ steps.diff.outputs.isRpc }}"
