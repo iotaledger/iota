@@ -7868,6 +7868,7 @@ dependencies = [
  "iota-storage",
  "iota-types",
  "object_store 0.13.1",
+ "rustls 0.23.35",
  "serde",
  "serde_yaml",
  "thiserror 1.0.64",
