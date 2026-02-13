@@ -49,8 +49,8 @@ impl AuthenticatorFunctionRefV1 {
 
     pub fn is_authenticator_function_ref_v1(tag: &StructTag) -> bool {
         tag.address() == IotaAddress::FRAMEWORK
-            && *tag.module() == AUTHENTICATOR_FUNCTION_MODULE_NAME
-            && *tag.name() == AUTHENTICATOR_FUNCTION_REF_V1_STRUCT_NAME
+            && tag.module() == &AUTHENTICATOR_FUNCTION_MODULE_NAME
+            && tag.name() == &AUTHENTICATOR_FUNCTION_REF_V1_STRUCT_NAME
     }
 }
 
