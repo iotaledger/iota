@@ -15,6 +15,7 @@ use iota_grpc_types::{
         signatures::{UserSignature, UserSignatures},
         transaction::{ExecutedTransaction, Transaction, TransactionEffects, TransactionEvents},
         types::{Address, ObjectReference},
+        versioned::{VersionedCheckpointSummary, VersionedEvent, VersionedObject},
     },
 };
 use iota_types::iota_sdk_types_conversions::SdkTypeConversionError;
@@ -294,7 +295,7 @@ impl Merge<&iota_sdk_types::Event> for Event {
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::BCS_FIELD.name) {
-            self.bcs = Some(BcsData::serialize(&source)?);
+            self.bcs = Some(BcsData::serialize(&VersionedEvent::V1(source.clone()))?);
         }
 
         if mask.contains(Self::PACKAGE_ID_FIELD.name) {
@@ -339,7 +340,6 @@ impl Merge<iota_types::object::Object> for Object {
             return Ok(());
         }
 
-        // TODO: wrap Object into a type with a version
         let sdk_object: iota_sdk_types::object::Object = source
             .try_into()
             .map_err(|e: SdkTypeConversionError| format!("Failed to convert SDK object: {}", e))?;
@@ -348,7 +348,6 @@ impl Merge<iota_types::object::Object> for Object {
     }
 }
 
-// TODO: wrap Object into a type with a version
 impl Merge<&iota_sdk_types::object::Object> for Object {
     fn merge(
         &mut self,
@@ -356,7 +355,7 @@ impl Merge<&iota_sdk_types::object::Object> for Object {
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::BCS_FIELD.name) {
-            self.bcs = Some(BcsData::serialize(source)?);
+            self.bcs = Some(BcsData::serialize(&VersionedObject::V1(source.clone()))?);
         }
 
         if mask.contains(Self::REFERENCE_FIELD.name) {
@@ -462,7 +461,9 @@ impl Merge<iota_sdk_types::CheckpointSummary> for CheckpointSummary {
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::BCS_FIELD.name) {
-            self.bcs = Some(BcsData::serialize(&source)?);
+            self.bcs = Some(BcsData::serialize(&VersionedCheckpointSummary::V1(
+                source.clone(),
+            ))?);
         }
 
         if mask.contains(Self::DIGEST_FIELD.name) {
@@ -500,7 +501,8 @@ impl Merge<iota_sdk_types::CheckpointContents> for CheckpointContents {
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if mask.contains(Self::BCS_FIELD.name) {
-            // TODO: add version
+            // CheckpointContents has a custom Serialize impl that embeds
+            // a BCS enum discriminant byte, so no versioned wrapper needed.
             self.bcs = Some(BcsData::serialize(&source)?);
         }
 
@@ -692,7 +694,6 @@ impl Merge<iota_types::effects::TransactionEvents> for TransactionEvents {
     }
 }
 
-// TODO: Wrap TransactionEvents into a type with a version
 impl Merge<&iota_sdk_types::TransactionEvents> for TransactionEvents {
     fn merge(
         &mut self,

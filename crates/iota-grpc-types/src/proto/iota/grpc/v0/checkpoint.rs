@@ -8,7 +8,7 @@ include!("../../../generated/iota.grpc.v0.checkpoint.accessors.rs");
 
 use crate::{
     proto::{TryFromProtoError, get_inner_field},
-    v0::bcs::BcsData,
+    v0::{bcs::BcsData, versioned::VersionedCheckpointSummary},
 };
 
 // CheckpointSummary
@@ -23,8 +23,15 @@ impl TryFrom<&CheckpointSummary> for iota_sdk_types::CheckpointSummary {
         let bcs = bcs
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(CheckpointSummary::BCS_FIELD.name))?;
-        BcsData::deserialize(bcs)
-            .map_err(|e| TryFromProtoError::invalid(CheckpointSummary::BCS_FIELD, e))
+        bcs.deserialize::<VersionedCheckpointSummary>()
+            .map_err(|e| TryFromProtoError::invalid(CheckpointSummary::BCS_FIELD, e))?
+            .try_into_v1()
+            .map_err(|_| {
+                TryFromProtoError::invalid(
+                    CheckpointSummary::BCS_FIELD,
+                    "unsupported CheckpointSummary version",
+                )
+            })
     }
 }
 
@@ -59,7 +66,8 @@ impl TryFrom<&CheckpointContents> for iota_sdk_types::CheckpointContents {
             .bcs
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(CheckpointContents::BCS_FIELD.name))?;
-        // TODO: add version
+        // CheckpointContents has a custom Serialize impl that embeds
+        // a BCS enum discriminant byte, so no versioned wrapper needed.
         BcsData::deserialize(bcs)
             .map_err(|e| TryFromProtoError::invalid(CheckpointContents::BCS_FIELD, e))
     }
