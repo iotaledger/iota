@@ -20,10 +20,8 @@ use iota_move_build::BuildConfig;
 use iota_sdk::{PagedFn, wallet_context::WalletContext};
 use iota_swarm_config::genesis_config::{DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT};
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
     balance::Supply,
-    base_types::{IotaAddress, ObjectID},
-    coin::{COIN_MODULE_NAME, TreasuryCap},
+    base_types::{Identifier, IotaAddress, ObjectID, StructTag},
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -111,15 +109,15 @@ async fn create_and_mint_coins(
         })
         .find_map(|(object_id, object_type)| {
             let coin_type = parse_iota_struct_tag(&coin_name).unwrap();
-            (&TreasuryCap::type_(coin_type) == object_type).then_some(object_id)
+            (&StructTag::new_treasury_cap(coin_type) == object_type).then_some(object_id)
         })
         .unwrap();
 
     let transaction_bytes: TransactionBlockBytes = http_client
         .move_call(
             address,
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            COIN_MODULE_NAME.to_string(),
+            ObjectID::FRAMEWORK,
+            Identifier::COIN_MODULE.to_string(),
             "mint_and_transfer".into(),
             type_args![coin_name.clone()].unwrap(),
             call_args![treasury_cap, amount, address].unwrap(),

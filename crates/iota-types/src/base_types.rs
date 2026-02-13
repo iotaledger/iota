@@ -12,13 +12,12 @@ use std::{
 use anyhow::anyhow;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
+pub use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
-    account_address::AccountAddress,
-    annotated_value as A, ident_str,
-    identifier::IdentStr,
-    language_storage::{ModuleId, StructTag, TypeTag},
+    account_address::AccountAddress, annotated_value as A, ident_str, identifier::IdentStr,
+    language_storage::ModuleId,
 };
 use serde::{
     Deserialize, Serialize, Serializer,
@@ -26,11 +25,8 @@ use serde::{
 };
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
+    MOVE_STDLIB_ADDRESS,
     account_abstraction::authenticator_function::AuthenticatorFunctionRefV1,
-    balance::Balance,
-    coin::{COIN_MODULE_NAME, COIN_STRUCT_NAME, Coin, CoinMetadata, TreasuryCap},
-    coin_manager::CoinManager,
     crypto::{
         AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, IotaSignature, PublicKey,
         SignatureScheme,
@@ -39,9 +35,9 @@ use crate::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     epoch_data::EpochData,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
-    gas_coin::{GAS, GasCoin},
-    governance::{STAKED_IOTA_STRUCT_NAME, STAKING_POOL_MODULE_NAME, StakedIota},
+    gas_coin::GAS,
     id::RESOLVED_IOTA_ID,
+    iota_sdk_types_conversions::struct_tag_sdk_to_core,
     iota_serde::to_iota_struct_tag_string,
     messages_checkpoint::CheckpointTimestamp,
     multisig::MultiSigPublicKey,
@@ -49,10 +45,7 @@ use crate::{
     parse_iota_struct_tag,
     signature::GenericSignature,
     stardust::output::{AliasOutput, BasicOutput, Nft, NftOutput},
-    timelock::{
-        timelock::{self, TimeLock},
-        timelocked_staked_iota::TimelockedStakedIota,
-    },
+    timelock::timelock::{self},
     transaction::{Transaction, VerifiedTransaction},
 };
 pub use crate::{
@@ -101,7 +94,7 @@ pub fn random_object_ref() -> ObjectRef {
 /// types like coins The StructTag for a gas coin is 84 bytes, so using 1 byte
 /// instead is a win. The inner representation is private to prevent incorrectly
 /// constructing an `Other` instead of one of the specialized variants, e.g.
-/// `Other(GasCoin::type_())` instead of `GasCoin`
+/// `Other(StructTag::new_gas_coin())` instead of `GasCoin`
 #[derive(Eq, PartialEq, PartialOrd, Ord, Debug, Clone, Deserialize, Serialize, Hash)]
 pub struct MoveObjectType(MoveObjectType_);
 
@@ -110,7 +103,7 @@ pub struct MoveObjectType(MoveObjectType_);
 #[derive(Eq, PartialEq, PartialOrd, Ord, Debug, Clone, Deserialize, Serialize, Hash)]
 pub enum MoveObjectType_ {
     /// A type that is not `0x2::coin::Coin<T>`
-    Other(StructTag),
+    Other(Box<StructTag>),
     /// An IOTA coin (i.e., `0x2::coin::Coin<0x2::iota::IOTA>`)
     GasCoin,
     /// A record of a staked IOTA coin (i.e., `0x3::staking_pool::StakedIota`)
@@ -141,40 +134,42 @@ impl MoveObjectType {
     }
 
     pub fn timelocked_iota_balance() -> Self {
-        Self(MoveObjectType_::Other(TimeLock::<Balance>::type_(
-            Balance::type_(GAS::type_().into()).into(),
-        )))
+        Self(MoveObjectType_::Other(Box::new(StructTag::new_time_lock(
+            StructTag::new_balance(StructTag::new_gas()),
+        ))))
     }
 
     pub fn timelocked_staked_iota() -> Self {
-        Self(MoveObjectType_::Other(TimelockedStakedIota::type_()))
+        Self(MoveObjectType_::Other(Box::new(
+            StructTag::new_timelocked_staked_iota(),
+        )))
     }
 
     pub fn stardust_nft() -> Self {
-        Self(MoveObjectType_::Other(Nft::tag()))
+        Self(MoveObjectType_::Other(Box::new(Nft::tag())))
     }
 
-    pub fn address(&self) -> AccountAddress {
+    pub fn address(&self) -> IotaAddress {
         match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => IOTA_FRAMEWORK_ADDRESS,
-            MoveObjectType_::StakedIota => IOTA_SYSTEM_ADDRESS,
-            MoveObjectType_::Other(s) => s.address,
+            MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => IotaAddress::FRAMEWORK,
+            MoveObjectType_::StakedIota => IotaAddress::SYSTEM,
+            MoveObjectType_::Other(s) => s.address(),
         }
     }
 
-    pub fn module(&self) -> &IdentStr {
+    pub fn module(&self) -> Identifier {
         match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => COIN_MODULE_NAME,
-            MoveObjectType_::StakedIota => STAKING_POOL_MODULE_NAME,
-            MoveObjectType_::Other(s) => &s.module,
+            MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => Identifier::COIN_MODULE,
+            MoveObjectType_::StakedIota => Identifier::STAKING_POOL_MODULE,
+            MoveObjectType_::Other(s) => s.module().clone(),
         }
     }
 
-    pub fn name(&self) -> &IdentStr {
+    pub fn name(&self) -> Identifier {
         match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => COIN_STRUCT_NAME,
-            MoveObjectType_::StakedIota => STAKED_IOTA_STRUCT_NAME,
-            MoveObjectType_::Other(s) => &s.name,
+            MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => Identifier::COIN,
+            MoveObjectType_::StakedIota => Identifier::STAKED_IOTA,
+            MoveObjectType_::Other(s) => s.name().clone(),
         }
     }
 
@@ -183,7 +178,7 @@ impl MoveObjectType {
             MoveObjectType_::GasCoin => vec![GAS::type_tag()],
             MoveObjectType_::StakedIota => vec![],
             MoveObjectType_::Coin(inner) => vec![inner.clone()],
-            MoveObjectType_::Other(s) => s.type_params.clone(),
+            MoveObjectType_::Other(s) => s.type_params().to_vec(),
         }
     }
 
@@ -192,7 +187,7 @@ impl MoveObjectType {
             MoveObjectType_::GasCoin => vec![GAS::type_tag()],
             MoveObjectType_::StakedIota => vec![],
             MoveObjectType_::Coin(inner) => vec![inner],
-            MoveObjectType_::Other(s) => s.type_params,
+            MoveObjectType_::Other(s) => s.type_params().to_vec(),
         }
     }
 
@@ -206,7 +201,10 @@ impl MoveObjectType {
     }
 
     pub fn module_id(&self) -> ModuleId {
-        ModuleId::new(self.address(), self.module().to_owned())
+        ModuleId::new(
+            AccountAddress::new(self.address().into_bytes()),
+            move_core_types::identifier::Identifier::new(self.module().as_str()).unwrap(),
+        )
     }
 
     pub fn size_for_gas_metering(&self) -> usize {
@@ -261,12 +259,12 @@ impl MoveObjectType {
             MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
                 false
             }
-            MoveObjectType_::Other(s) => CoinMetadata::is_coin_metadata(s),
+            MoveObjectType_::Other(s) => s.is_coin_metadata(),
         }
     }
 
     pub fn is_coin_manager(&self) -> bool {
-        matches!(&self.0, MoveObjectType_::Other(struct_tag) if CoinManager::is_coin_manager(struct_tag))
+        matches!(&self.0, MoveObjectType_::Other(struct_tag) if struct_tag.is_coin_manager())
     }
 
     pub fn is_treasury_cap(&self) -> bool {
@@ -274,20 +272,20 @@ impl MoveObjectType {
             MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
                 false
             }
-            MoveObjectType_::Other(s) => TreasuryCap::is_treasury_type(s),
+            MoveObjectType_::Other(s) => s.is_treasury_cap(),
         }
     }
 
     pub fn is_regulated_coin_metadata(&self) -> bool {
-        self.address() == IOTA_FRAMEWORK_ADDRESS
-            && self.module().as_str() == "coin"
-            && self.name().as_str() == "RegulatedCoinMetadata"
+        self.address() == IotaAddress::FRAMEWORK
+            && self.module() == Identifier::COIN_MODULE
+            && self.name() == Identifier::from_static("RegulatedCoinMetadata")
     }
 
     pub fn is_coin_deny_cap_v1(&self) -> bool {
-        self.address() == IOTA_FRAMEWORK_ADDRESS
-            && self.module().as_str() == "coin"
-            && self.name().as_str() == "DenyCapV1"
+        self.address() == IotaAddress::FRAMEWORK
+            && self.module() == Identifier::COIN_MODULE
+            && self.name() == Identifier::from_static("DenyCapV1")
     }
 
     pub fn is_dynamic_field(&self) -> bool {
@@ -304,7 +302,7 @@ impl MoveObjectType {
             MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
                 false
             }
-            MoveObjectType_::Other(s) => timelock::is_timelock(s),
+            MoveObjectType_::Other(s) => s.is_time_lock(),
         }
     }
 
@@ -322,7 +320,7 @@ impl MoveObjectType {
             MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
                 false
             }
-            MoveObjectType_::Other(s) => TimelockedStakedIota::is_timelocked_staked_iota(s),
+            MoveObjectType_::Other(s) => s.is_timelocked_staked_iota(),
         }
     }
 
@@ -359,7 +357,9 @@ impl MoveObjectType {
                 false
             }
             MoveObjectType_::Other(s) => {
-                AuthenticatorFunctionRefV1::is_authenticator_function_ref_v1(s)
+                AuthenticatorFunctionRefV1::is_authenticator_function_ref_v1(
+                    &struct_tag_sdk_to_core(s),
+                )
             }
         }
     }
@@ -388,12 +388,10 @@ impl MoveObjectType {
 
     pub fn is(&self, s: &StructTag) -> bool {
         match &self.0 {
-            MoveObjectType_::GasCoin => GasCoin::is_gas_coin(s),
-            MoveObjectType_::StakedIota => StakedIota::is_staked_iota(s),
-            MoveObjectType_::Coin(inner) => {
-                Coin::is_coin(s) && s.type_params.len() == 1 && inner == &s.type_params[0]
-            }
-            MoveObjectType_::Other(o) => s == o,
+            MoveObjectType_::GasCoin => s.is_gas_coin(),
+            MoveObjectType_::StakedIota => s.is_staked_iota(),
+            MoveObjectType_::Coin(inner) => s.is_coin() && inner == &s.type_params()[0],
+            MoveObjectType_::Other(o) => s == o.as_ref(),
         }
     }
 
@@ -412,17 +410,36 @@ impl MoveObjectType {
     }
 }
 
-impl From<StructTag> for MoveObjectType {
-    fn from(mut s: StructTag) -> Self {
-        Self(if GasCoin::is_gas_coin(&s) {
+impl From<&StructTag> for MoveObjectType {
+    fn from(s: &StructTag) -> Self {
+        Self(if s.is_gas_coin() {
             MoveObjectType_::GasCoin
-        } else if Coin::is_coin(&s) {
-            // unwrap safe because a coin has exactly one type parameter
-            MoveObjectType_::Coin(s.type_params.pop().unwrap())
-        } else if StakedIota::is_staked_iota(&s) {
+        } else if s.is_coin() {
+            let [type_param] = s.type_params() else {
+                unreachable!("a coin has exactly one type parameter");
+            };
+            MoveObjectType_::Coin(type_param.clone())
+        } else if s.is_staked_iota() {
             MoveObjectType_::StakedIota
         } else {
-            MoveObjectType_::Other(s)
+            MoveObjectType_::Other(Box::new(s.clone()))
+        })
+    }
+}
+
+impl From<StructTag> for MoveObjectType {
+    fn from(s: StructTag) -> Self {
+        Self(if s.is_gas_coin() {
+            MoveObjectType_::GasCoin
+        } else if s.is_coin() {
+            let Some(type_param) = s.into_parts().3.into_iter().next() else {
+                unreachable!("a coin has exactly one type parameter");
+            };
+            MoveObjectType_::Coin(type_param)
+        } else if s.is_staked_iota() {
+            MoveObjectType_::StakedIota
+        } else {
+            MoveObjectType_::Other(Box::new(s))
         })
     }
 }
@@ -430,10 +447,10 @@ impl From<StructTag> for MoveObjectType {
 impl From<MoveObjectType> for StructTag {
     fn from(t: MoveObjectType) -> Self {
         match t.0 {
-            MoveObjectType_::GasCoin => GasCoin::type_(),
-            MoveObjectType_::StakedIota => StakedIota::type_(),
-            MoveObjectType_::Coin(inner) => Coin::type_(inner),
-            MoveObjectType_::Other(s) => s,
+            MoveObjectType_::GasCoin => StructTag::new_gas_coin(),
+            MoveObjectType_::StakedIota => StructTag::new_staked_iota(),
+            MoveObjectType_::Coin(inner) => StructTag::new_coin(inner),
+            MoveObjectType_::Other(s) => *s,
         }
     }
 }
@@ -453,13 +470,11 @@ pub fn is_primitive_type_tag(t: &TypeTag) -> bool {
         T::Bool | T::U8 | T::U16 | T::U32 | T::U64 | T::U128 | T::U256 | T::Address => true,
         T::Vector(inner) => is_primitive_type_tag(inner),
         T::Struct(st) => {
-            let StructTag {
-                address,
-                module,
-                name,
-                type_params: type_args,
-            } = &**st;
-            let resolved_struct = (address, module.as_ident_str(), name.as_ident_str());
+            let resolved_struct = (
+                &AccountAddress::new(st.address().into_bytes()),
+                move_core_types::identifier::IdentStr::new(st.module().as_str()).unwrap(),
+                move_core_types::identifier::IdentStr::new(st.name().as_str()).unwrap(),
+            );
             // is id or..
             if resolved_struct == RESOLVED_IOTA_ID {
                 return true;
@@ -474,8 +489,8 @@ pub fn is_primitive_type_tag(t: &TypeTag) -> bool {
             }
             // is option of a primitive
             resolved_struct == RESOLVED_STD_OPTION
-                && type_args.len() == 1
-                && is_primitive_type_tag(&type_args[0])
+                && st.type_params().len() == 1
+                && is_primitive_type_tag(&st.type_params()[0])
         }
         T::Signer => false,
     }
@@ -741,44 +756,27 @@ impl VerifiedExecutionData {
     }
 }
 
-pub const STD_OPTION_MODULE_NAME: &IdentStr = ident_str!("option");
-pub const STD_OPTION_STRUCT_NAME: &IdentStr = ident_str!("Option");
 pub const RESOLVED_STD_OPTION: (&AccountAddress, &IdentStr, &IdentStr) = (
     &MOVE_STDLIB_ADDRESS,
-    STD_OPTION_MODULE_NAME,
-    STD_OPTION_STRUCT_NAME,
+    ident_str!("option"),
+    ident_str!("Option"),
 );
 
-pub const STD_ASCII_MODULE_NAME: &IdentStr = ident_str!("ascii");
-pub const STD_ASCII_STRUCT_NAME: &IdentStr = ident_str!("String");
 pub const RESOLVED_ASCII_STR: (&AccountAddress, &IdentStr, &IdentStr) = (
     &MOVE_STDLIB_ADDRESS,
-    STD_ASCII_MODULE_NAME,
-    STD_ASCII_STRUCT_NAME,
+    ident_str!("ascii"),
+    ident_str!("String"),
 );
 
-pub const STD_UTF8_MODULE_NAME: &IdentStr = ident_str!("string");
-pub const STD_UTF8_STRUCT_NAME: &IdentStr = ident_str!("String");
 pub const RESOLVED_UTF8_STR: (&AccountAddress, &IdentStr, &IdentStr) = (
     &MOVE_STDLIB_ADDRESS,
-    STD_UTF8_MODULE_NAME,
-    STD_UTF8_STRUCT_NAME,
+    ident_str!("string"),
+    ident_str!("String"),
 );
-
-pub const TX_CONTEXT_MODULE_NAME: &IdentStr = ident_str!("tx_context");
-pub const TX_CONTEXT_STRUCT_NAME: &IdentStr = ident_str!("TxContext");
-
-pub const URL_MODULE_NAME: &IdentStr = ident_str!("url");
-pub const URL_STRUCT_NAME: &IdentStr = ident_str!("Url");
 
 pub fn move_ascii_str_layout() -> A::MoveStructLayout {
     A::MoveStructLayout {
-        type_: StructTag {
-            address: MOVE_STDLIB_ADDRESS,
-            module: STD_ASCII_MODULE_NAME.to_owned(),
-            name: STD_ASCII_STRUCT_NAME.to_owned(),
-            type_params: vec![],
-        },
+        type_: struct_tag_sdk_to_core(&StructTag::new_ascii_string()),
         fields: vec![A::MoveFieldLayout::new(
             ident_str!("bytes").into(),
             A::MoveTypeLayout::Vector(Box::new(A::MoveTypeLayout::U8)),
@@ -788,12 +786,7 @@ pub fn move_ascii_str_layout() -> A::MoveStructLayout {
 
 pub fn move_utf8_str_layout() -> A::MoveStructLayout {
     A::MoveStructLayout {
-        type_: StructTag {
-            address: MOVE_STDLIB_ADDRESS,
-            module: STD_UTF8_MODULE_NAME.to_owned(),
-            name: STD_UTF8_STRUCT_NAME.to_owned(),
-            type_params: vec![],
-        },
+        type_: struct_tag_sdk_to_core(&StructTag::new_string()),
         fields: vec![A::MoveFieldLayout::new(
             ident_str!("bytes").into(),
             A::MoveTypeLayout::Vector(Box::new(A::MoveTypeLayout::U8)),
@@ -803,12 +796,7 @@ pub fn move_utf8_str_layout() -> A::MoveStructLayout {
 
 pub fn url_layout() -> A::MoveStructLayout {
     A::MoveStructLayout {
-        type_: StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: URL_MODULE_NAME.to_owned(),
-            name: URL_STRUCT_NAME.to_owned(),
-            type_params: vec![],
-        },
+        type_: struct_tag_sdk_to_core(&StructTag::new_url()),
         fields: vec![A::MoveFieldLayout::new(
             ident_str!("url").to_owned(),
             A::MoveTypeLayout::Struct(Box::new(move_ascii_str_layout())),
@@ -953,9 +941,9 @@ impl TxContext {
         };
 
         let (module_addr, module_name, struct_name) = resolve_struct(view, *idx);
-        let is_tx_context_type = module_name == TX_CONTEXT_MODULE_NAME
-            && module_addr == &IOTA_FRAMEWORK_ADDRESS
-            && struct_name == TX_CONTEXT_STRUCT_NAME;
+        let is_tx_context_type = module_name.as_str() == Identifier::TX_CONTEXT_MODULE.as_str()
+            && module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
+            && struct_name.as_str() == Identifier::TX_CONTEXT.as_str();
 
         if is_tx_context_type {
             kind

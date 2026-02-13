@@ -7,14 +7,12 @@ use std::{fmt, fmt::Display, str::FromStr};
 use fastcrypto::encoding::{Base58, Base64};
 use iota_metrics::monitored_scope;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, TransactionDigest},
+    base_types::{Identifier, IotaAddress, ObjectID, StructTag, TransactionDigest},
     error::IotaResult,
     event::{Event, EventEnvelope, EventID},
 };
 use json_to_table::json_to_table;
-use move_core_types::{
-    annotated_value::MoveDatatypeLayout, identifier::Identifier, language_storage::StructTag,
-};
+use move_core_types::annotated_value::MoveDatatypeLayout;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -425,8 +423,7 @@ impl EventFilter {
                 }
             }
             EventFilter::MoveEventModule { package, module } => {
-                &item.type_.module == module
-                    && &ObjectID::new(item.type_.address.into_bytes()) == package
+                item.type_.module() == module && ObjectID::from(item.type_.address()) == *package
             }
         })
     }

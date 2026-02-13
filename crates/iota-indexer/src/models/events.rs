@@ -4,17 +4,17 @@
 
 use std::{str::FromStr, sync::Arc};
 
+use anyhow::anyhow;
 use diesel::prelude::*;
 use iota_json_rpc_types::{BcsEvent, IotaEvent, type_and_fields_from_move_event_data};
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::{Identifier, IotaAddress, ObjectID},
     digests::TransactionDigest,
     event::EventID,
     object::bounded_visitor::BoundedVisitor,
     parse_iota_struct_tag,
 };
-use move_core_types::identifier::Identifier;
 
 use crate::{errors::IndexerError, schema::events, types::IndexedEvent};
 
@@ -130,7 +130,7 @@ impl StoredEvent {
                 event_seq: self.event_sequence_number as u64,
             },
             package_id,
-            transaction_module: Identifier::from_str(&self.module)?,
+            transaction_module: Identifier::from_str(&self.module).map_err(|e| anyhow!(e))?,
             sender,
             type_,
             bcs: BcsEvent::new(self.bcs),
@@ -142,8 +142,7 @@ impl StoredEvent {
 
 #[cfg(test)]
 mod tests {
-    use iota_types::event::Event;
-    use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
+    use iota_types::{base_types::StructTag, event::Event};
 
     use super::*;
 
@@ -152,14 +151,14 @@ mod tests {
         let tx_digest = TransactionDigest::default();
         let event = Event {
             package_id: ObjectID::random(),
-            transaction_module: Identifier::new("test").unwrap(),
+            transaction_module: Identifier::from_static("test"),
             sender: IotaAddress::random(),
-            type_: StructTag {
-                address: AccountAddress::TWO,
-                module: Identifier::new("test").unwrap(),
-                name: Identifier::new("test").unwrap(),
-                type_params: vec![],
-            },
+            type_: StructTag::new(
+                IotaAddress::FRAMEWORK,
+                Identifier::from_static("test"),
+                Identifier::from_static("test"),
+                vec![],
+            ),
             contents: vec![],
         };
 

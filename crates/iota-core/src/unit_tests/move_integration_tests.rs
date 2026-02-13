@@ -7,8 +7,9 @@ use std::{collections::HashSet, env, path::PathBuf, str::FromStr};
 
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
+    base_types::{
+        Identifier, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, StructTag, TypeTag,
+    },
     crypto::{AccountKeyPair, get_key_pair},
     error::{ExecutionErrorKind, IotaError},
     execution_status::{CommandArgumentError, ExecutionFailureStatus, ExecutionStatus},
@@ -16,12 +17,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     utils::to_sender_signed_transaction,
 };
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::{IdentStr, Identifier},
-    language_storage::{StructTag, TypeTag},
-    u256::U256,
-};
+use move_core_types::{account_address::AccountAddress, identifier::IdentStr, u256::U256};
 
 use super::*;
 use crate::authority::authority_tests::{
@@ -801,8 +797,8 @@ async fn test_entry_point_vector_empty() {
             builder.command(Command::MakeMoveVec(Some(type_tag.clone().into()), vec![]));
         builder.programmable_move_call(
             package.0,
-            Identifier::new("entry_point_vector").unwrap(),
-            Identifier::new("obj_vec_empty").unwrap(),
+            Identifier::from_static("entry_point_vector"),
+            Identifier::from_static("obj_vec_empty"),
             vec![],
             vec![empty_vec],
         );
@@ -831,8 +827,8 @@ async fn test_entry_point_vector_empty() {
             builder.command(Command::MakeMoveVec(Some(type_tag.clone().into()), vec![]));
         builder.programmable_move_call(
             package.0,
-            Identifier::new("entry_point_vector").unwrap(),
-            Identifier::new("type_param_vec_empty").unwrap(),
+            Identifier::from_static("entry_point_vector"),
+            Identifier::from_static("type_param_vec_empty"),
             vec![type_tag.clone()],
             vec![empty_vec],
         );
@@ -861,8 +857,8 @@ async fn test_entry_point_vector_empty() {
         let empty_vec = builder.command(Command::MakeMoveVec(None, vec![]));
         builder.programmable_move_call(
             package.0,
-            Identifier::new("entry_point_vector").unwrap(),
-            Identifier::new("obj_vec_empty").unwrap(),
+            Identifier::from_static("entry_point_vector"),
+            Identifier::from_static("obj_vec_empty"),
             vec![],
             vec![empty_vec],
         );
@@ -891,8 +887,8 @@ async fn test_entry_point_vector_empty() {
         let empty_vec = builder.command(Command::MakeMoveVec(None, vec![]));
         builder.programmable_move_call(
             package.0,
-            Identifier::new("entry_point_vector").unwrap(),
-            Identifier::new("type_param_vec_empty").unwrap(),
+            Identifier::from_static("entry_point_vector"),
+            Identifier::from_static("type_param_vec_empty"),
             vec![type_tag],
             vec![empty_vec],
         );
@@ -2305,8 +2301,8 @@ async fn test_make_move_vec_for_type<T: Clone + Serialize>(
         let vec = builder.command(Command::MakeMoveVec(Some(t.clone().into()), args));
         builder.programmable_move_call(
             package,
-            Identifier::new("entry_point_types").unwrap(),
-            Identifier::new("drop_all").unwrap(),
+            Identifier::from_static("entry_point_types"),
+            Identifier::from_static("drop_all"),
             vec![t.clone()],
             vec![vec, n],
         );
@@ -2385,8 +2381,8 @@ async fn test_make_move_vec_for_type<T: Clone + Serialize>(
     let arg = builder.pure(value.clone()).unwrap();
     let id_result = builder.programmable_move_call(
         package_id,
-        Identifier::new("entry_point_types").unwrap(),
-        Identifier::new("id").unwrap(),
+        Identifier::from_static("entry_point_types"),
+        Identifier::from_static("id"),
         vec![t.clone()],
         vec![arg],
     );
@@ -2415,8 +2411,8 @@ async fn test_make_move_vec_for_type<T: Clone + Serialize>(
     let arg = builder.pure(value).unwrap();
     let id_result = builder.programmable_move_call(
         package_id,
-        Identifier::new("entry_point_types").unwrap(),
-        Identifier::new("id").unwrap(),
+        Identifier::from_static("entry_point_types"),
+        Identifier::from_static("id"),
         vec![t.clone()],
         vec![arg],
     );
@@ -2547,7 +2543,7 @@ make_vec_tests_for_type!(
 make_vec_tests_for_type!(
     test_make_move_vec_address_id,
     ObjectID,
-    TypeTag::Struct(Box::new(iota_types::id::ID::type_())),
+    TypeTag::Struct(Box::new(StructTag::new_id())),
     ObjectID::ZERO
 );
 make_vec_tests_for_type!(test_make_move_vec_utf8, &str, utf8_tag(), "❤️🧀");
@@ -2735,7 +2731,7 @@ make_vec_error_tests_for_type!(
 make_vec_error_tests_for_type!(
     test_error_make_move_vec_address_id,
     ObjectID,
-    TypeTag::Struct(Box::new(iota_types::id::ID::type_())),
+    TypeTag::Struct(Box::new(StructTag::new_id())),
     ObjectID::ZERO
 );
 make_vec_error_tests_for_type!(test_error_make_move_vec_utf8, &str, utf8_tag(), "❤️🧀");
@@ -2778,12 +2774,12 @@ fn resolved_struct(
     (address, module, name): (&AccountAddress, &IdentStr, &IdentStr),
     type_args: Vec<TypeTag>,
 ) -> TypeTag {
-    TypeTag::Struct(Box::new(StructTag {
-        address: *address,
-        module: module.to_owned(),
-        name: name.to_owned(),
-        type_params: type_args,
-    }))
+    TypeTag::Struct(Box::new(StructTag::new(
+        IotaAddress::new(address.into_bytes()),
+        Identifier::new_unchecked(module.as_str()),
+        Identifier::new_unchecked(name.as_str()),
+        type_args,
+    )))
 }
 
 fn option_tag(inner: TypeTag) -> TypeTag {
@@ -3021,9 +3017,9 @@ pub fn build_multi_upgrade_txns(
         let policy = builder.pure(package_upgrade.policy).unwrap();
         let digest = builder.pure(package_upgrade.digest).unwrap();
         let ticket = builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            Identifier::new("package").unwrap(),
-            Identifier::new("authorize_upgrade").unwrap(),
+            ObjectID::FRAMEWORK,
+            Identifier::PACKAGE_MODULE,
+            Identifier::from_static("authorize_upgrade"),
             vec![],
             vec![cap, policy, digest],
         );
@@ -3034,9 +3030,9 @@ pub fn build_multi_upgrade_txns(
             package_upgrade.modules,
         );
         builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            Identifier::new("package").unwrap(),
-            Identifier::new("commit_upgrade").unwrap(),
+            ObjectID::FRAMEWORK,
+            Identifier::PACKAGE_MODULE,
+            Identifier::from_static("commit_upgrade"),
             vec![],
             vec![cap, receipt],
         );

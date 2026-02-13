@@ -9,8 +9,8 @@ use clap::*;
 use iota_sdk_types::crypto::{Intent, IntentMessage, PersonalMessage};
 use iota_types::{
     base_types::{
-        self, IotaAddress, MoveObjectType, MoveObjectType_, ObjectDigest, ObjectID,
-        TransactionDigest, TransactionEffectsDigest,
+        self, Identifier, IotaAddress, MoveObjectType, MoveObjectType_, ObjectDigest, ObjectID,
+        StructTag, TransactionDigest, TransactionEffectsDigest, TypeTag,
     },
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
@@ -44,11 +44,7 @@ use iota_types::{
     },
     type_input::{StructInput, TypeInput},
 };
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::Identifier,
-    language_storage::{ModuleId, StructTag, TypeTag},
-};
+use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use pretty_assertions::assert_str_eq;
 use rand::{SeedableRng, rngs::StdRng};
 use roaring::RoaringBitmap;
@@ -84,7 +80,51 @@ fn get_registry() -> Result<Registry> {
     // with all the base types contained in messages, especially the ones with
     // custom serializers; or involving generics (see [serde_reflection documentation](https://novifinancial.github.io/serde-reflection/serde_reflection/index.html)).
 
-    let m = ModuleId::new(AccountAddress::ZERO, Identifier::new("foo").unwrap());
+    // Trace SDK Identifier, StructTag and TypeTag samples early - these use custom
+    // serde that requires valid sample values to be provided before types
+    // containing them (like MoveObjectType_) are traced.
+    let sdk_identifier = iota_types::base_types::Identifier::from_static("sample_identifier");
+    tracer.trace_value(&mut samples, &sdk_identifier).unwrap();
+    let struct_tag = StructTag::new_gas_coin();
+    tracer.trace_value(&mut samples, &struct_tag).unwrap();
+
+    // Trace all TypeTag variants since the SDK's TypeTag has custom serde
+    tracer.trace_value(&mut samples, &TypeTag::Bool).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::U8).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::U16).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::U32).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::U64).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::U128).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::U256).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::Address).unwrap();
+    tracer.trace_value(&mut samples, &TypeTag::Signer).unwrap();
+    tracer
+        .trace_value(&mut samples, &TypeTag::Vector(Box::new(TypeTag::U8)))
+        .unwrap();
+    let type_tag_struct = TypeTag::from(struct_tag.clone());
+    tracer.trace_value(&mut samples, &type_tag_struct).unwrap();
+
+    // Also trace sample MoveObjectType_ values to capture all variants properly
+    // These contain the SDK's StructTag and TypeTag types
+    let move_obj_type_other = MoveObjectType_::Other(Box::new(struct_tag.clone()));
+    tracer
+        .trace_value(&mut samples, &move_obj_type_other)
+        .unwrap();
+    let move_obj_type_coin = MoveObjectType_::Coin(type_tag_struct.clone());
+    tracer
+        .trace_value(&mut samples, &move_obj_type_coin)
+        .unwrap();
+    let move_obj_type_staked = MoveObjectType_::StakedIota;
+    tracer
+        .trace_value(&mut samples, &move_obj_type_staked)
+        .unwrap();
+    let move_obj_type = MoveObjectType::gas_coin();
+    tracer.trace_value(&mut samples, &move_obj_type).unwrap();
+
+    let m = ModuleId::new(
+        AccountAddress::ZERO,
+        move_core_types::identifier::Identifier::new("foo").unwrap(),
+    );
     tracer.trace_value(&mut samples, &m).unwrap();
     tracer
         .trace_value(&mut samples, &Identifier::new("foo").unwrap())
@@ -162,9 +202,6 @@ fn get_registry() -> Result<Registry> {
     let ccd = CheckpointContentsDigest::random();
     tracer.trace_value(&mut samples, &ccd).unwrap();
 
-    let struct_tag = StructTag::from_str("0x2::coin::Coin<0x2::iota::IOTA>").unwrap();
-    tracer.trace_value(&mut samples, &struct_tag).unwrap();
-
     let ccd = CheckpointDigest::random();
     tracer.trace_value(&mut samples, &ccd).unwrap();
 
@@ -176,7 +213,7 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_value(&mut samples, &tot).unwrap();
 
     let si = StructInput {
-        address: AccountAddress::ZERO,
+        address: IotaAddress::ZERO,
         module: "foo".to_owned(),
         name: "bar".to_owned(),
         type_params: vec![TypeInput::Bool],
@@ -187,7 +224,7 @@ fn get_registry() -> Result<Registry> {
     // Event while, sui's doesn't.
     let event = Event {
         package_id: ObjectID::random(),
-        transaction_module: Identifier::new("foo").unwrap(),
+        transaction_module: Identifier::from_static("foo"),
         sender: IotaAddress::ZERO,
         type_: struct_tag.clone(),
         contents: vec![0],
@@ -205,14 +242,11 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_type::<CallArg>(&samples).unwrap();
     tracer.trace_type::<ObjectArg>(&samples).unwrap();
     tracer.trace_type::<Data>(&samples).unwrap();
-    tracer.trace_type::<TypeTag>(&samples).unwrap();
     tracer.trace_type::<TypedStoreError>(&samples).unwrap();
     tracer
         .trace_type::<ObjectInfoRequestKind>(&samples)
         .unwrap();
     tracer.trace_type::<TransactionKind>(&samples).unwrap();
-    tracer.trace_type::<MoveObjectType>(&samples).unwrap();
-    tracer.trace_type::<MoveObjectType_>(&samples).unwrap();
     tracer
         .trace_type::<base_types::IotaAddress>(&samples)
         .unwrap();

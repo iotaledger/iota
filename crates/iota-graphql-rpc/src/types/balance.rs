@@ -13,7 +13,7 @@ use diesel::{
     sql_types::{BigInt as SqlBigInt, Nullable, Text},
 };
 use iota_indexer::types::OwnerType;
-use iota_types::TypeTag;
+use iota_types::base_types::TypeTag;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -290,7 +290,7 @@ fn filter(mut query: RawQuery, owner: IotaAddress, coin_type: Option<TypeTag>) -
         query = filter!(
             query,
             "coin_type = {}",
-            coin_type.to_canonical_display(/* with_prefix */ true)
+            coin_type.to_canonical_string(/* with_prefix */ true)
         );
     };
 

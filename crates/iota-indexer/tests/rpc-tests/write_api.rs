@@ -23,8 +23,7 @@ use iota_json_rpc_types::{
 use iota_move_build::BuildConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, Identifier, TypeTag,
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag, TypeTag},
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     gas_coin::NANOS_PER_IOTA,
     object::Owner,
@@ -35,9 +34,6 @@ use iota_types::{
 };
 use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
-use move_core_types::{
-    account_address::AccountAddress, identifier::IdentStr, language_storage::StructTag,
-};
 
 use crate::{
     coin_api::execute_move_call,
@@ -934,12 +930,12 @@ fn test_repeatedly_update_display() {
             .await
             .unwrap();
 
-        let bear_type_tag = TypeTag::Struct(Box::new(StructTag {
-            address: AccountAddress::new(package_id.into_bytes()),
-            name: IdentStr::new("DemoBear").unwrap().into(),
-            module: IdentStr::new("demo_bear").unwrap().into(),
-            type_params: Vec::new(),
-        }));
+        let bear_type_tag = TypeTag::Struct(Box::new(StructTag::new(
+            package_id,
+            Identifier::from_static("demo_bear"),
+            Identifier::from_static("DemoBear"),
+            Vec::new(),
+        )));
 
         for n in 0..NON_DETERMINISTIC_TESTS_REPETITIONS {
             let new_bear_description = format!("Bear description {n}");
@@ -1150,7 +1146,7 @@ async fn update_display_object(
         client,
         address,
         address_kp,
-        IOTA_FRAMEWORK_PACKAGE_ID,
+        ObjectID::FRAMEWORK,
         "display".to_string(),
         "edit".to_string(),
         type_args![display_obj_type_tag].unwrap(),
@@ -1176,7 +1172,7 @@ async fn bump_display_object_version(
         client,
         address,
         address_kp,
-        IOTA_FRAMEWORK_PACKAGE_ID,
+        ObjectID::FRAMEWORK,
         "display".to_string(),
         "update_version".to_string(),
         type_args![display_obj_type_tag].unwrap(),
@@ -1442,7 +1438,7 @@ fn move_view_function_call() {
         let IotaMoveValue::Struct(IotaMoveStruct::WithTypes { type_, fields }) = wat else {
             panic!("return value should have been a struct");
         };
-        assert_eq!(type_.name.to_string(), format!("Wat"));
+        assert_eq!(type_.name().to_string(), "Wat");
         assert!(fields.contains_key(&"counter".to_string()));
     });
 }

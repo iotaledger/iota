@@ -50,7 +50,7 @@ impl TestCaseImpl for RandomBeaconTest {
         );
         assert_eq!(
             "RandomU128Event".to_string(),
-            events.data[0].type_.name.to_string()
+            events.data[0].type_.name().to_string()
         );
 
         // Verify fullnode observes the txn

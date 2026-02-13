@@ -189,11 +189,9 @@ impl MoveCallArg {
 
 #[cfg(test)]
 mod tests {
-    use move_core_types::account_address::AccountAddress;
-
     use super::*;
     use crate::{
-        base_types::{ObjectDigest, ObjectID, SequenceNumber},
+        base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
         transaction::{Argument, CallArg, Command, ObjectArg, ProgrammableMoveCall},
         type_input::{StructInput, TypeInput},
     };
@@ -431,7 +429,7 @@ mod tests {
     #[test]
     fn command_from_move_call_struct_type_input() {
         let type_input = TypeInput::Struct(Box::new(StructInput {
-            address: AccountAddress::from_hex_literal("0x2").unwrap(),
+            address: IotaAddress::FRAMEWORK,
             module: "coin".to_string(),
             name: "Coin".to_string(),
             type_params: vec![TypeInput::U64],

@@ -15,15 +15,12 @@ use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_macros::sim_test;
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
-    TypeTag,
-    base_types::IotaAddress,
-    coin::TreasuryCap,
+    base_types::{IotaAddress, StructTag, TypeTag},
     effects::TransactionEffectsAPI,
     object::Owner,
     parse_iota_struct_tag,
     transaction::{CallArg, ObjectArg},
 };
-use move_core_types::language_storage::StructTag;
 use prost_types::FieldMask;
 
 use crate::utils::{
@@ -680,8 +677,8 @@ async fn list_owned_objects_filter_by_type() {
         .parse::<TypeTag>()
         .unwrap()
         .to_string();
-    let treasury_cap_type =
-        TreasuryCap::type_(parse_iota_struct_tag(&trusted).unwrap()).to_canonical_string(true);
+    let treasury_cap_type = StructTag::new_treasury_cap(parse_iota_struct_tag(&trusted).unwrap())
+        .to_canonical_string(true);
 
     // After publishing we have the treasury cap and the coin metadata has 0
     // supply

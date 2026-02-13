@@ -32,10 +32,9 @@ use iota_json_rpc_types::{
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
 use iota_transaction_builder::DataReader;
 use iota_types::{
-    TypeTag,
     balance::Supply,
-    base_types::{IotaAddress, ObjectID, SequenceNumber, VersionNumber},
-    coin::{CoinMetadata, TreasuryCap},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TypeTag, VersionNumber},
+    coin::TreasuryCap,
     coin_manager::CoinManager,
     committee::EpochId,
     digests::{ChainIdentifier, TransactionDigest},
@@ -43,6 +42,7 @@ use iota_types::{
     effects::TransactionEvents,
     error::IotaError,
     event::EventID,
+    iota_sdk_types_conversions::type_tag_core_to_sdk,
     iota_system_state::{
         IotaSystemStateTrait,
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
@@ -51,9 +51,7 @@ use iota_types::{
     object::{Object, ObjectRead, PastObjectRead, bounded_visitor::BoundedVisitor},
 };
 use itertools::Itertools;
-use move_core_types::{
-    account_address::AccountAddress, annotated_value::MoveStructLayout, language_storage::StructTag,
-};
+use move_core_types::annotated_value::MoveStructLayout;
 use tap::TapFallible;
 
 use crate::{
@@ -460,7 +458,7 @@ impl IndexerReader {
     pub async fn get_package(&self, package_id: ObjectID) -> Result<Package, IndexerError> {
         let store = self.package_resolver.package_store();
         let pkg = store
-            .fetch(AccountAddress::new(package_id.into_bytes()))
+            .fetch(package_id.into())
             .await
             .map_err(|e| {
                 IndexerError::PostgresRead(format!(
@@ -1031,9 +1029,9 @@ impl IndexerReader {
 
         run_query!(&self.pool, |conn| {
             let object = match objects::dsl::objects
-                .filter(objects::object_type_package.eq(struct_tag.address.to_vec()))
-                .filter(objects::object_type_module.eq(struct_tag.module.to_string()))
-                .filter(objects::object_type_name.eq(struct_tag.name.to_string()))
+                .filter(objects::object_type_package.eq(struct_tag.address().as_bytes().to_vec()))
+                .filter(objects::object_type_module.eq(struct_tag.module().to_string()))
+                .filter(objects::object_type_name.eq(struct_tag.name().to_string()))
                 .filter(objects::object_type.eq(object_type))
                 .first::<StoredObject>(conn)
                 .optional()
@@ -1989,8 +1987,7 @@ impl IndexerReader {
             .await
             .map_err(|e| {
                 IndexerError::ResolveMoveStruct(format!(
-                    "Failed to get type layout for type {}: {e}",
-                    type_tag.to_canonical_display(/* with_prefix */ true),
+                    "Failed to get type layout for type {type_tag}: {e}",
                 ))
             })?;
 
@@ -1998,7 +1995,7 @@ impl IndexerReader {
             .tap_err(|e| tracing::warn!("{e}"))?;
 
         let type_ = field.kind;
-        let name_type: TypeTag = field.name_layout.into();
+        let name_type: TypeTag = type_tag_core_to_sdk(&field.name_layout.into());
         let bcs_name = field.name_bytes.to_owned();
 
         let name_value = BoundedVisitor::deserialize_value(field.name_bytes, field.name_layout)
@@ -2071,7 +2068,7 @@ impl IndexerReader {
 
     pub async fn get_display_object_by_type(
         &self,
-        object_type: &move_core_types::language_storage::StructTag,
+        object_type: &StructTag,
     ) -> Result<Option<iota_types::display::DisplayVersionUpdatedEvent>, IndexerError> {
         let object_type = object_type.to_canonical_string(/* with_prefix */ true);
         self.spawn_blocking(move |this| this.get_display_update_event(object_type))
@@ -2355,7 +2352,7 @@ impl IndexerReader {
         &self,
         coin_struct: StructTag,
     ) -> Result<Option<IotaCoinMetadata>, IndexerError> {
-        let coin_metadata_type = CoinMetadata::type_(coin_struct.clone());
+        let coin_metadata_type = StructTag::new_coin_metadata(coin_struct.clone());
         let metadata_object = self
             .get_singleton_object(coin_metadata_type)?
             .and_then(|o| IotaCoinMetadata::try_from(o).ok());
@@ -2385,7 +2382,7 @@ impl IndexerReader {
         &self,
         coin_type: StructTag,
     ) -> Result<Option<CoinManager>, IndexerError> {
-        let coin_manager_type = CoinManager::type_(coin_type);
+        let coin_manager_type = StructTag::new_coin_manager(coin_type);
         let coin_manager_object = self
             .get_singleton_object(coin_manager_type)?
             .and_then(|o| CoinManager::try_from(o).ok());
@@ -2417,7 +2414,7 @@ impl IndexerReader {
         &self,
         coin_struct: &StructTag,
     ) -> Result<Option<Supply>, IndexerError> {
-        let tag = TreasuryCap::type_(coin_struct.clone());
+        let tag = StructTag::new_treasury_cap(coin_struct.clone());
         Ok(self
             .get_object_as::<TreasuryCap>(tag)?
             .map(|tc| tc.total_supply))
@@ -2427,7 +2424,7 @@ impl IndexerReader {
         &self,
         coin_struct: &StructTag,
     ) -> Result<Option<Supply>, IndexerError> {
-        let tag = CoinManager::type_(coin_struct.clone());
+        let tag = StructTag::new_coin_manager(coin_struct.clone());
         Ok(self
             .get_object_as::<CoinManager>(tag)?
             .map(|mgr| mgr.treasury_cap.total_supply))

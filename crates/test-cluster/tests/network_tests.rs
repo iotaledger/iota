@@ -7,8 +7,7 @@ use iota_json_rpc_api::ReadApiClient;
 use iota_json_rpc_types::IotaObjectResponse;
 use iota_macros::sim_test;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
-    base_types::ObjectID, digests::TransactionDigest, object::Object,
+    IOTA_SYSTEM_ADDRESS, base_types::ObjectID, digests::TransactionDigest, object::Object,
 };
 use test_cluster::TestClusterBuilder;
 
@@ -32,10 +31,7 @@ async fn test_package_override() {
     let framework_ref = {
         let default_cluster = TestClusterBuilder::new().build().await;
         let client = default_cluster.rpc_client();
-        let obj = client
-            .get_object(IOTA_SYSTEM_PACKAGE_ID, None)
-            .await
-            .unwrap();
+        let obj = client.get_object(ObjectID::SYSTEM, None).await.unwrap();
 
         if let Some(obj) = obj.data {
             obj.object_ref()
@@ -45,7 +41,7 @@ async fn test_package_override() {
     };
 
     let modified_ref = {
-        let mut framework_modules = BuiltInFramework::get_package_by_id(&IOTA_SYSTEM_PACKAGE_ID)
+        let mut framework_modules = BuiltInFramework::get_package_by_id(&ObjectID::SYSTEM)
             .modules()
             .to_vec();
 
@@ -62,9 +58,8 @@ async fn test_package_override() {
             &framework_modules,
             TransactionDigest::GENESIS_MARKER,
             [
-                BuiltInFramework::get_package_by_id(&MOVE_STDLIB_PACKAGE_ID).genesis_move_package(),
-                BuiltInFramework::get_package_by_id(&IOTA_FRAMEWORK_PACKAGE_ID)
-                    .genesis_move_package(),
+                BuiltInFramework::get_package_by_id(&ObjectID::STD).genesis_move_package(),
+                BuiltInFramework::get_package_by_id(&ObjectID::FRAMEWORK).genesis_move_package(),
             ],
         )
         .unwrap();
@@ -75,10 +70,7 @@ async fn test_package_override() {
             .await;
 
         let client = modified_cluster.rpc_client();
-        let obj = client
-            .get_object(IOTA_SYSTEM_PACKAGE_ID, None)
-            .await
-            .unwrap();
+        let obj = client.get_object(ObjectID::SYSTEM, None).await.unwrap();
 
         if let Some(obj) = obj.data {
             obj.object_ref()

@@ -5,20 +5,13 @@
 use std::str::FromStr;
 
 use anyhow::ensure;
-use move_core_types::{
-    account_address::AccountAddress,
-    annotated_value::{MoveDatatypeLayout, MoveValue},
-    ident_str,
-    identifier::{IdentStr, Identifier},
-    language_storage::StructTag,
-};
+use move_core_types::annotated_value::{MoveDatatypeLayout, MoveValue};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_with::{Bytes, serde_as};
 
 use crate::{
-    IOTA_SYSTEM_ADDRESS,
-    base_types::{IotaAddress, ObjectID, TransactionDigest},
+    base_types::{Identifier, IotaAddress, ObjectID, StructTag, TransactionDigest},
     error::{IotaError, IotaResult},
     iota_serde::{BigInt, Readable},
     object::bounded_visitor::BoundedVisitor,
@@ -110,15 +103,15 @@ pub struct Event {
 
 impl Event {
     pub fn new(
-        package_id: &AccountAddress,
-        module: &IdentStr,
+        package_id: IotaAddress,
+        module: Identifier,
         sender: IotaAddress,
         type_: StructTag,
         contents: Vec<u8>,
     ) -> Self {
         Self {
-            package_id: ObjectID::new(package_id.into_bytes()),
-            transaction_module: Identifier::from(module),
+            package_id: package_id.into(),
+            transaction_module: module,
             sender,
             type_,
             contents,
@@ -136,15 +129,15 @@ impl Event {
     }
 
     pub fn is_system_epoch_info_event_v1(&self) -> bool {
-        self.type_.address == IOTA_SYSTEM_ADDRESS
-            && self.type_.module.as_ident_str() == ident_str!("iota_system_state_inner")
-            && self.type_.name.as_ident_str() == ident_str!("SystemEpochInfoEventV1")
+        self.type_.address() == IotaAddress::SYSTEM
+            && self.type_.module() == &Identifier::from_static("iota_system_state_inner")
+            && self.type_.name() == &Identifier::from_static("SystemEpochInfoEventV1")
     }
 
     pub fn is_system_epoch_info_event_v2(&self) -> bool {
-        self.type_.address == IOTA_SYSTEM_ADDRESS
-            && self.type_.module.as_ident_str() == ident_str!("iota_system_state_inner")
-            && self.type_.name.as_ident_str() == ident_str!("SystemEpochInfoEventV2")
+        self.type_.address() == IotaAddress::SYSTEM
+            && self.type_.module() == &Identifier::from_static("iota_system_state_inner")
+            && self.type_.name() == &Identifier::from_static("SystemEpochInfoEventV2")
     }
 
     pub fn is_system_epoch_info_event(&self) -> bool {
@@ -156,14 +149,14 @@ impl Event {
     pub fn random_for_testing() -> Self {
         Self {
             package_id: ObjectID::random(),
-            transaction_module: Identifier::new("test").unwrap(),
+            transaction_module: Identifier::from_static("test"),
             sender: IotaAddress::random(),
-            type_: StructTag {
-                address: AccountAddress::random(),
-                module: Identifier::new("test").unwrap(),
-                name: Identifier::new("test").unwrap(),
-                type_params: vec![],
-            },
+            type_: StructTag::new(
+                IotaAddress::random(),
+                Identifier::from_static("test"),
+                Identifier::from_static("test"),
+                vec![],
+            ),
             contents: vec![],
         }
     }

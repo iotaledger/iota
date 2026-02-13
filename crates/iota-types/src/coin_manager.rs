@@ -1,20 +1,19 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::TypeTag};
+use iota_sdk_types::Identifier;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS, StructTag,
+    IotaAddress, StructTag,
     coin::{CoinMetadata, TreasuryCap},
     error::IotaError,
     id::UID,
     object::{Data, Object},
 };
 
-pub const COIN_MANAGER_MODULE_NAME: &IdentStr = ident_str!("coin_manager");
-pub const COIN_MANAGER_STRUCT_NAME: &IdentStr = ident_str!("CoinManager");
-pub const COIN_MANAGER_TREASURY_CAP_STRUCT_NAME: &IdentStr = ident_str!("CoinManagerTreasuryCap");
+pub const COIN_MANAGER_TREASURY_CAP_STRUCT_NAME: Identifier =
+    Identifier::from_static("CoinManagerTreasuryCap");
 
 /// The purpose of a CoinManager is to allow access to all
 /// properties of a Coin on-chain from within a single shared object
@@ -45,25 +44,10 @@ pub struct CoinManager {
 }
 
 impl CoinManager {
-    pub fn is_coin_manager(object_type: &StructTag) -> bool {
-        object_type.address == IOTA_FRAMEWORK_ADDRESS
-            && object_type.module.as_ident_str() == COIN_MANAGER_MODULE_NAME
-            && object_type.name.as_ident_str() == COIN_MANAGER_STRUCT_NAME
-    }
-
     pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
         bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
             error: format!("Unable to deserialize CoinManager object: {err}"),
         })
-    }
-
-    pub fn type_(type_param: StructTag) -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            name: COIN_MANAGER_STRUCT_NAME.to_owned(),
-            module: COIN_MANAGER_MODULE_NAME.to_owned(),
-            type_params: vec![TypeTag::Struct(Box::new(type_param))],
-        }
     }
 }
 
@@ -93,9 +77,9 @@ pub struct CoinManagerTreasuryCap {
 
 impl CoinManagerTreasuryCap {
     pub fn is_coin_manager_treasury_cap(object_type: &StructTag) -> bool {
-        object_type.address == IOTA_FRAMEWORK_ADDRESS
-            && object_type.module.as_ident_str() == COIN_MANAGER_MODULE_NAME
-            && object_type.name.as_ident_str() == COIN_MANAGER_TREASURY_CAP_STRUCT_NAME
+        object_type.address() == IotaAddress::FRAMEWORK
+            && object_type.module() == &Identifier::COIN_MANAGER_MODULE
+            && object_type.name() == &COIN_MANAGER_TREASURY_CAP_STRUCT_NAME
     }
 }
 

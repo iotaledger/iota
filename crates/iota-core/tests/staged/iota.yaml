@@ -871,7 +871,7 @@ SenderSignedTransaction:
 StructInput:
   STRUCT:
     - address:
-        TYPENAME: AccountAddress
+        TYPENAME: Address
     - module: STR
     - name: STR
     - type_args:
@@ -880,10 +880,10 @@ StructInput:
 StructTag:
   STRUCT:
     - address:
-        TYPENAME: AccountAddress
+        TYPENAME: Address
     - module: STR
     - name: STR
-    - type_args:
+    - type_params:
         SEQ:
           TYPENAME: TypeTag
 TransactionData:
@@ -1019,19 +1019,19 @@ TypeOrigin:
 TypeTag:
   ENUM:
     0:
-      Bool: UNIT
+      bool: UNIT
     1:
-      U8: UNIT
+      u8: UNIT
     2:
-      U64: UNIT
+      u64: UNIT
     3:
-      U128: UNIT
+      u128: UNIT
     4:
-      Address: UNIT
+      address: UNIT
     5:
-      Signer: UNIT
+      signer: UNIT
     6:
-      Vector:
+      vector:
         NEWTYPE:
           TYPENAME: TypeTag
     7:
@@ -1039,11 +1039,11 @@ TypeTag:
         NEWTYPE:
           TYPENAME: StructTag
     8:
-      U16: UNIT
+      u16: UNIT
     9:
-      U32: UNIT
+      u32: UNIT
     10:
-      U256: UNIT
+      u256: UNIT
 TypedStoreError:
   ENUM:
     0:

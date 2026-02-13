@@ -37,7 +37,7 @@ use iota_swarm_config::{
     network_config_builder::ConfigBuilder,
 };
 use iota_types::{
-    base_types::{AuthorityName, IotaAddress, ObjectID, VersionNumber},
+    base_types::{AuthorityName, IotaAddress, ObjectID, StructTag, VersionNumber},
     committee::Committee,
     crypto::{AuthoritySignature, KeypairTraits},
     digests::{ConsensusCommitDigest, TransactionDigest},
@@ -726,7 +726,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcStateReader for
 
     fn get_struct_layout(
         &self,
-        _: &move_core_types::language_storage::StructTag,
+        _: &StructTag,
     ) -> iota_types::storage::error::Result<Option<move_core_types::annotated_value::MoveTypeLayout>>
     {
         Ok(None)
@@ -831,7 +831,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
         &self,
         _owner: iota_types::base_types::IotaAddress,
         _cursor: Option<&iota_types::storage::OwnedObjectCursor>,
-        _object_type: Option<move_core_types::language_storage::StructTag>,
+        _object_type: Option<StructTag>,
     ) -> iota_types::storage::error::Result<
         Box<dyn Iterator<Item = iota_types::storage::OwnedObjectIteratorItem> + '_>,
     > {
@@ -857,7 +857,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
 
     fn get_coin_info(
         &self,
-        _coin_type: &move_core_types::language_storage::StructTag,
+        _coin_type: &StructTag,
     ) -> iota_types::storage::error::Result<Option<iota_types::storage::CoinInfo>> {
         Ok(None)
     }

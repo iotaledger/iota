@@ -30,20 +30,21 @@ use iota_execution::{self, Executor};
 use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_config};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use iota_sdk_types::{
+    StructTag,
+    crypto::{Intent, IntentMessage, IntentScope},
+};
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
-    balance::{BALANCE_MODULE_NAME, Balance},
     base_types::{
-        ExecutionDigests, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
-        TxContext,
+        ExecutionDigests, Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber,
+        TransactionDigest, TxContext,
     },
     committee::Committee,
     crypto::{
         AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo, AuthoritySignInfoTrait,
         AuthoritySignature, DefaultHash, IotaAuthoritySignature,
     },
-    deny_list_v1::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
+    deny_list_v1::DENY_LIST_CREATE_FUNC,
     digests::ChainIdentifier,
     effects::{TransactionEffects, TransactionEvents},
     epoch_data::EpochData,
@@ -61,8 +62,7 @@ use iota_types::{
     metrics::LimitsMetrics,
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_CREATE_FUNCTION_NAME},
-    system_admin_cap::IOTA_SYSTEM_ADMIN_CAP_MODULE_NAME,
+    randomness_state::RANDOMNESS_STATE_CREATE_FUNCTION_NAME,
     timelock::{
         stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
         timelocked_staked_iota::TimelockedStakedIota,
@@ -73,7 +73,6 @@ use iota_types::{
     },
 };
 use move_binary_format::CompiledModule;
-use move_core_types::ident_str;
 use serde::{Deserialize, Serialize};
 use stake::GenesisStake;
 use stardust::migration::MigrationObjects;
@@ -1491,45 +1490,45 @@ pub fn generate_genesis_system_object(
         let mut builder = ProgrammableTransactionBuilder::new();
         // Step 1: Create the IotaSystemState UID
         let iota_system_state_uid = builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("object").to_owned(),
-            ident_str!("iota_system_state").to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::OBJECT_MODULE,
+            Identifier::from_static("iota_system_state"),
             vec![],
             vec![],
         );
 
         // Step 2: Create and share the Clock.
         builder.move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("clock").to_owned(),
-            ident_str!("create").to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::CLOCK_MODULE,
+            Identifier::from_static("create"),
             vec![],
             vec![],
         )?;
 
         // Create the randomness state_object
         builder.move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            RANDOMNESS_MODULE_NAME.to_owned(),
-            RANDOMNESS_STATE_CREATE_FUNCTION_NAME.to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::RANDOM_MODULE,
+            RANDOMNESS_STATE_CREATE_FUNCTION_NAME,
             vec![],
             vec![],
         )?;
 
         // Create the deny list
         builder.move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            DENY_LIST_MODULE.to_owned(),
-            DENY_LIST_CREATE_FUNC.to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::DENY_LIST_MODULE,
+            DENY_LIST_CREATE_FUNC,
             vec![],
             vec![],
         )?;
 
         // Step 4: Create the IOTA Coin Treasury Cap.
         let iota_treasury_cap = builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("iota").to_owned(),
-            ident_str!("new").to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::IOTA_MODULE,
+            Identifier::from_static("new"),
             vec![],
             vec![],
         );
@@ -1538,26 +1537,26 @@ pub fn generate_genesis_system_object(
             .pure(token_distribution_schedule.pre_minted_supply)
             .expect("serialization of u64 should succeed");
         let pre_minted_supply = builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            ident_str!("iota").to_owned(),
-            ident_str!("mint_balance").to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::IOTA_MODULE,
+            Identifier::from_static("mint_balance"),
             vec![],
             vec![iota_treasury_cap, pre_minted_supply_amount],
         );
 
         builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            BALANCE_MODULE_NAME.to_owned(),
-            ident_str!("destroy_genesis_supply").to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::BALANCE_MODULE,
+            Identifier::from_static("destroy_genesis_supply"),
             vec![GAS::type_tag()],
             vec![pre_minted_supply],
         );
 
         // Step 5: Create System Admin Cap.
         let system_admin_cap = builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            IOTA_SYSTEM_ADMIN_CAP_MODULE_NAME.to_owned(),
-            ident_str!("new_system_admin_cap").to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::SYSTEM_ADMIN_CAP_MODULE,
+            Identifier::from_static("new_system_admin_cap"),
             vec![],
             vec![],
         );
@@ -1578,9 +1577,9 @@ pub fn generate_genesis_system_object(
         arguments.append(&mut call_arg_arguments);
         arguments.push(system_admin_cap);
         builder.programmable_move_call(
-            ObjectID::SYSTEM_PACKAGE,
-            ident_str!("genesis").to_owned(),
-            ident_str!("create").to_owned(),
+            ObjectID::SYSTEM,
+            Identifier::from_static("genesis"),
+            Identifier::from_static("create"),
             vec![],
             arguments,
         );
@@ -1599,7 +1598,7 @@ pub fn generate_genesis_system_object(
 
     // update the value of the clock to match the chain start time
     {
-        let object = written.get_mut(&iota_types::IOTA_CLOCK_OBJECT_ID).unwrap();
+        let object = written.get_mut(&ObjectID::CLOCK).unwrap();
         object
             .data
             .try_as_move_mut()
@@ -1704,18 +1703,18 @@ pub fn split_timelocks(
                 builder.pure(surplus_amount)?,
             ];
             let surplus_timelock = builder.programmable_move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
-                ident_str!("timelock").to_owned(),
-                ident_str!("split").to_owned(),
+                ObjectID::FRAMEWORK,
+                Identifier::from_static("timelock"),
+                Identifier::from_static("split"),
                 vec![GAS::type_tag()],
                 arguments,
             );
             let arguments = vec![surplus_timelock, builder.pure(*recipient)?];
             builder.programmable_move_call(
-                IOTA_FRAMEWORK_PACKAGE_ID,
-                ident_str!("timelock").to_owned(),
-                ident_str!("transfer").to_owned(),
-                vec![Balance::type_tag(GAS::type_tag())],
+                ObjectID::FRAMEWORK,
+                Identifier::from_static("timelock"),
+                Identifier::from_static("transfer"),
+                vec![StructTag::new_balance(GAS::type_tag()).into()],
                 arguments,
             );
         }

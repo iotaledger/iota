@@ -11,10 +11,6 @@ use std::{
 };
 
 use iota_protocol_config::ProtocolVersion;
-use move_core_types::{
-    account_address::AccountAddress,
-    language_storage::{StructTag, TypeTag},
-};
 use serde::{
     self, Deserialize, Serialize,
     de::{Deserializer, Error},
@@ -23,8 +19,8 @@ use serde::{
 use serde_with::{Bytes, DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 
 use crate::{
-    IOTA_CLOCK_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_STATE_ADDRESS,
-    STARDUST_ADDRESS, parse_iota_struct_tag, parse_iota_type_tag,
+    base_types::{IotaAddress, StructTag, TypeTag},
+    parse_iota_struct_tag, parse_iota_type_tag,
 };
 
 #[inline]
@@ -111,30 +107,31 @@ impl SerializeAs<StructTag> for IotaStructTag {
     }
 }
 
-const IOTA_ADDRESSES: [AccountAddress; 7] = [
-    AccountAddress::ZERO,
-    AccountAddress::ONE,
-    IOTA_FRAMEWORK_ADDRESS,
-    IOTA_SYSTEM_ADDRESS,
-    STARDUST_ADDRESS,
-    IOTA_SYSTEM_STATE_ADDRESS,
-    IOTA_CLOCK_ADDRESS,
+const IOTA_ADDRESSES: [IotaAddress; 7] = [
+    IotaAddress::ZERO,
+    IotaAddress::STD,
+    IotaAddress::FRAMEWORK,
+    IotaAddress::SYSTEM,
+    IotaAddress::STARDUST,
+    IotaAddress::SYSTEM_STATE,
+    IotaAddress::CLOCK,
 ];
 /// Serialize StructTag as a string, retaining the leading zeros in the address.
 pub fn to_iota_struct_tag_string(value: &StructTag) -> Result<String, fmt::Error> {
     let mut f = String::new();
+    let address = value.address();
     // trim leading zeros if address is in IOTA_ADDRESSES
-    let address = if IOTA_ADDRESSES.contains(&value.address) {
-        value.address.short_str_lossless()
+    let address_str = if IOTA_ADDRESSES.contains(&address) {
+        address.to_short_hex()
     } else {
-        value.address.to_canonical_string(/* with_prefix */ false)
+        address.to_canonical_string(/* with_prefix */ true)
     };
 
-    write!(f, "0x{}::{}::{}", address, value.module, value.name)?;
-    if let Some(first_ty) = value.type_params.first() {
+    write!(f, "{}::{}::{}", address_str, value.module(), value.name())?;
+    if let Some(first_ty) = value.type_params().first() {
         write!(f, "<")?;
         write!(f, "{}", to_iota_type_tag_string(first_ty)?)?;
-        for ty in value.type_params.iter().skip(1) {
+        for ty in value.type_params().iter().skip(1) {
             write!(f, ", {}", to_iota_type_tag_string(ty)?)?;
         }
         write!(f, ">")?;

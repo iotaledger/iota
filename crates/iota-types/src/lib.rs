@@ -9,23 +9,20 @@
     rust_2021_compatibility
 )]
 
-use base_types::{IotaAddress, ObjectID, SequenceNumber};
+use base_types::{Identifier, IotaAddress, ObjectID, SequenceNumber, StructTag, TypeTag};
 pub use iota_network_stack::multiaddr;
 use move_binary_format::{
     CompiledModule,
     file_format::{AbilitySet, SignatureToken},
 };
 use move_bytecode_utils::resolve_struct;
-use move_core_types::{
-    account_address::AccountAddress,
-    language_storage::{ModuleId, StructTag},
-};
-pub use move_core_types::{identifier::Identifier, language_storage::TypeTag};
+use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use object::OBJECT_START_VERSION;
 
 use crate::{
     base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
     id::RESOLVED_IOTA_ID,
+    iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
 };
 
 #[macro_use]
@@ -115,9 +112,6 @@ macro_rules! built_in_pkgs {
     ($($addr:ident / $id:ident = $init:expr);* $(;)?) => {
         built_in_ids! { $($addr / $id = $init;)* }
         pub const SYSTEM_PACKAGE_ADDRESSES: &[AccountAddress] = &[$($addr),*];
-        pub fn is_system_package(addr: impl Into<AccountAddress>) -> bool {
-            matches!(addr.into(), $($addr)|*)
-        }
     }
 }
 
@@ -150,7 +144,7 @@ const fn builtin_address(suffix: u16) -> AccountAddress {
 }
 
 pub fn iota_framework_address_concat_string(suffix: &str) -> String {
-    format!("{}{suffix}", IOTA_FRAMEWORK_ADDRESS.to_hex_literal())
+    format!("{}{suffix}", IotaAddress::FRAMEWORK.to_short_hex())
 }
 
 /// Parses `s` as an address. Valid formats for addresses are:
@@ -198,7 +192,9 @@ pub fn parse_iota_fq_name(s: &str) -> anyhow::Result<(ModuleId, String)> {
 /// intended for use within the authority codebase.
 pub fn parse_iota_struct_tag(s: &str) -> anyhow::Result<StructTag> {
     use move_core_types::parsing::types::ParsedStructType;
-    ParsedStructType::parse(s)?.into_struct_tag(&resolve_address)
+    ParsedStructType::parse(s)?
+        .into_struct_tag(&resolve_address)
+        .map(|s| struct_tag_core_to_sdk(&s))
 }
 
 /// Parse `s` as a type: Either a struct type (see `parse_iota_struct_tag`), a
@@ -207,18 +203,21 @@ pub fn parse_iota_struct_tag(s: &str) -> anyhow::Result<StructTag> {
 /// function is intended for use within the authority codebase.
 pub fn parse_iota_type_tag(s: &str) -> anyhow::Result<TypeTag> {
     use move_core_types::parsing::types::ParsedType;
-    ParsedType::parse(s)?.into_type_tag(&resolve_address)
+    ParsedType::parse(s)?
+        .into_type_tag(&resolve_address)
+        .map(|s| type_tag_core_to_sdk(&s))
 }
 
 /// Resolve well-known named addresses into numeric addresses.
 pub fn resolve_address(addr: &str) -> Option<AccountAddress> {
     match addr {
-        "std" => Some(MOVE_STDLIB_ADDRESS),
-        "iota" => Some(IOTA_FRAMEWORK_ADDRESS),
-        "iota_system" => Some(IOTA_SYSTEM_ADDRESS),
-        "stardust" => Some(STARDUST_ADDRESS),
+        "std" => Some(IotaAddress::STD),
+        "iota" => Some(IotaAddress::FRAMEWORK),
+        "iota_system" => Some(IotaAddress::SYSTEM),
+        "stardust" => Some(IotaAddress::STARDUST),
         _ => None,
     }
+    .map(|addr| AccountAddress::new(addr.into_bytes()))
 }
 
 pub trait MoveTypeTagTrait {
@@ -522,7 +521,7 @@ mod tests {
         expected.assert_eq(&result.to_string());
 
         let expected = expect![
-            "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<address,0x0000000000000000000000000000000000000000000000000000000000000002::balance::Balance<0x0000000000000000000000000000000000000000000000000000000000000234::coin::COIN>>"
+            "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<address, 0x0000000000000000000000000000000000000000000000000000000000000002::balance::Balance<0x0000000000000000000000000000000000000000000000000000000000000234::coin::COIN>>"
         ];
         expected.assert_eq(&result.to_canonical_string(/* with_prefix */ true));
     }
@@ -539,7 +538,7 @@ mod tests {
         expected.assert_eq(&result.to_string());
 
         let expected = expect![
-            "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<address,0x0000000000000000000000000000000000000000000000000000000000000002::balance::Balance<0x0000000000000000000000000000000000000000000000000000000000000234::coin::COIN>>"
+            "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<address, 0x0000000000000000000000000000000000000000000000000000000000000002::balance::Balance<0x0000000000000000000000000000000000000000000000000000000000000234::coin::COIN>>"
         ];
         expected.assert_eq(&result.to_canonical_string(/* with_prefix */ true));
     }

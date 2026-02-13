@@ -26,7 +26,7 @@ use iota_types::{
             AuthenticatorFunctionRefForExecution, AuthenticatorFunctionRefV1,
         },
     },
-    base_types::{ObjectID, ObjectRef, SequenceNumber, VersionNumber},
+    base_types::{ObjectID, ObjectRef, SequenceNumber, StructTag, VersionNumber},
     committee::EpochId,
     digests::{ObjectDigest, TransactionDigest},
     dynamic_field::{self, Field},
@@ -36,6 +36,7 @@ use iota_types::{
     gas::IotaGasStatus,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
     message_envelope::Message,
     metrics::LimitsMetrics,
     move_authenticator::MoveAuthenticator,
@@ -55,7 +56,7 @@ use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{
     account_address::AccountAddress,
-    language_storage::{ModuleId, StructTag},
+    language_storage::ModuleId,
     resolver::{ModuleResolver, ResourceResolver},
 };
 use prometheus::Registry;
@@ -2294,7 +2295,7 @@ impl ResourceResolver for LocalExec {
     fn get_resource(
         &self,
         address: &AccountAddress,
-        type_: &StructTag,
+        type_: &move_core_types::language_storage::StructTag,
     ) -> IotaResult<Option<Vec<u8>>> {
         fn inner(
             self_: &LocalExec,
@@ -2326,7 +2327,7 @@ impl ResourceResolver for LocalExec {
             }
         }
 
-        let res = inner(self, address, type_);
+        let res = inner(self, address, &struct_tag_core_to_sdk(type_));
         self.exec_store_events
             .lock()
             .expect("Unable to lock events list")

@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use anyhow::{Result, anyhow, ensure};
 use iota_stardust_types::block::output::{FoundryOutput, OutputId, TokenId};
 use iota_types::{
-    Identifier, base_types::IotaAddress, coin_manager::CoinManager,
-    in_memory_storage::InMemoryStorage, object::Owner,
+    base_types::IotaAddress, coin_manager::CoinManager, in_memory_storage::InMemoryStorage,
+    object::Owner,
 };
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 
@@ -111,7 +111,9 @@ pub(super) fn verify_foundry_output(
 
     let module_id = ModuleId::new(
         AccountAddress::new(created_package.id().into_bytes()),
-        Identifier::new(expected_package_data.module().module_name.as_ref())?,
+        move_core_types::identifier::Identifier::new(
+            expected_package_data.module().module_name.as_ref(),
+        )?,
     );
 
     ensure!(

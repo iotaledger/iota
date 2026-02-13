@@ -15,11 +15,9 @@ use iota_sdk::{
 };
 use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_types::{
-    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, TypeTag,
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
     crypto::{AccountKeyPair, Signature, Signer, get_key_pair},
     digests::TransactionDigest,
-    iota_system_state::IOTA_SYSTEM_MODULE_NAME,
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
     object::Owner,
     signature::GenericSignature,
@@ -30,7 +28,6 @@ use iota_types::{
     },
     utils::to_sender_signed_transaction,
 };
-use move_core_types::ident_str;
 
 pub struct TestTransactionBuilder {
     test_data: TestTransactionData,
@@ -63,15 +60,15 @@ impl TestTransactionBuilder {
     pub fn move_call(
         mut self,
         package_id: ObjectID,
-        module: &'static str,
-        function: &'static str,
+        module: &str,
+        function: &str,
         args: Vec<CallArg>,
     ) -> Self {
         assert!(matches!(self.test_data, TestTransactionData::Empty));
         self.test_data = TestTransactionData::Move(MoveData {
             package_id,
-            module,
-            function,
+            module: Identifier::new(module).unwrap(),
+            function: Identifier::new(function).unwrap(),
             args,
             type_args: vec![],
         });
@@ -177,8 +174,8 @@ impl TestTransactionBuilder {
 
     pub fn call_staking(self, stake_coin: ObjectRef, validator: IotaAddress) -> Self {
         self.move_call(
-            IOTA_SYSTEM_PACKAGE_ID,
-            IOTA_SYSTEM_MODULE_NAME.as_str(),
+            ObjectID::SYSTEM,
+            Identifier::IOTA_SYSTEM_MODULE.as_str(),
             "request_add_stake",
             vec![
                 CallArg::IOTA_SYSTEM_MUT,
@@ -198,7 +195,7 @@ impl TestTransactionBuilder {
             "random",
             "new",
             vec![CallArg::Object(ObjectArg::SharedObject {
-                id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                id: ObjectID::RANDOMNESS_STATE,
                 initial_shared_version: randomness_initial_shared_version,
                 mutable: false,
             })],
@@ -207,8 +204,8 @@ impl TestTransactionBuilder {
 
     pub fn call_request_add_validator(self) -> Self {
         self.move_call(
-            IOTA_SYSTEM_PACKAGE_ID,
-            IOTA_SYSTEM_MODULE_NAME.as_str(),
+            ObjectID::SYSTEM,
+            Identifier::IOTA_SYSTEM_MODULE.as_str(),
             "request_add_validator",
             vec![CallArg::IOTA_SYSTEM_MUT],
         )
@@ -219,8 +216,8 @@ impl TestTransactionBuilder {
         validator: &GenesisValidatorMetadata,
     ) -> Self {
         self.move_call(
-            IOTA_SYSTEM_PACKAGE_ID,
-            IOTA_SYSTEM_MODULE_NAME.as_str(),
+            ObjectID::SYSTEM,
+            Identifier::IOTA_SYSTEM_MODULE.as_str(),
             "request_add_validator_candidate",
             vec![
                 CallArg::IOTA_SYSTEM_MUT,
@@ -243,8 +240,8 @@ impl TestTransactionBuilder {
 
     pub fn call_request_remove_validator(self) -> Self {
         self.move_call(
-            IOTA_SYSTEM_PACKAGE_ID,
-            IOTA_SYSTEM_MODULE_NAME.as_str(),
+            ObjectID::SYSTEM,
+            Identifier::IOTA_SYSTEM_MODULE.as_str(),
             "request_remove_validator",
             vec![CallArg::IOTA_SYSTEM_MUT],
         )
@@ -306,8 +303,8 @@ impl TestTransactionBuilder {
             TestTransactionData::Move(data) => TransactionData::new_move_call(
                 self.sender,
                 data.package_id,
-                ident_str!(data.module).to_owned(),
-                ident_str!(data.function).to_owned(),
+                data.module,
+                data.function,
                 data.type_args,
                 self.gas_object,
                 data.args,
@@ -427,8 +424,8 @@ enum TestTransactionData {
 
 struct MoveData {
     package_id: ObjectID,
-    module: &'static str,
-    function: &'static str,
+    module: Identifier,
+    function: Identifier,
     args: Vec<CallArg>,
     type_args: Vec<TypeTag>,
 }
@@ -645,7 +642,7 @@ pub async fn emit_new_random_u128(
     let random_obj = client
         .read_api()
         .get_object_with_options(
-            IOTA_RANDOMNESS_STATE_OBJECT_ID,
+            ObjectID::RANDOMNESS_STATE,
             IotaObjectDataOptions::new().with_owner(),
         )
         .await
@@ -663,7 +660,7 @@ pub async fn emit_new_random_u128(
         panic!("Expect Randomness to be shared object")
     };
     let random_call_arg = CallArg::Object(ObjectArg::SharedObject {
-        id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
+        id: ObjectID::RANDOMNESS_STATE,
         initial_shared_version,
         mutable: false,
     });
