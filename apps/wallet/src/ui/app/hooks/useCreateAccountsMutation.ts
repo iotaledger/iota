@@ -5,32 +5,30 @@
 import { ampli, type AddedAccountsProperties } from '_src/shared/analytics/ampli';
 import { useMutation } from '@tanstack/react-query';
 
-import {
-    useAccountsFormContext,
-    AccountsFormType,
-    type AccountsFormValues,
-} from '_src/ui/app/components/accounts/AccountsFormContext';
+import { useAccountsFormContext, AccountsFormType, type AccountsFormValues } from '_components';
 import { useBackgroundClient } from './useBackgroundClient';
 import { AccountType } from '_src/background/accounts/account';
 
 import { useCreatePasskeyAccount } from './useCreatePasskeyAccount';
-import { createAccountValidation } from '../helpers/validation/createAccountValidation';
 
 function validateAccountFormValues(
     createType: AccountsFormType,
     values: AccountsFormValues | null,
-    password?: string,
-): { values: Exclude<AccountsFormValues, null>; password: string | undefined } {
+): Exclude<AccountsFormValues, null> {
     if (!values) {
         throw new Error('Missing account data values');
     }
     if (values.type !== createType) {
         throw new Error('Account data values type mismatch');
     }
+    return values;
+}
 
-    // Validate with Zod - ensures password is present when required
-    const validated = createAccountValidation.parse({ type: createType, password });
-    return { values, password: validated.password };
+function ensurePassword(password: string | undefined): string {
+    if (!password) {
+        throw new Error('Missing password');
+    }
+    return password;
 }
 
 enum AmpliAccountType {
@@ -67,10 +65,8 @@ export function useCreateAccountsMutation() {
             let createdAccounts;
             const accountsFormValues = accountsFormValuesRef.current;
 
-            // Validate once upfront - Zod ensures password is present when required
-            const validated = validateAccountFormValues(type, accountsFormValues, password);
-            const values = validated.values;
-            const validatedPassword = validated.password;
+            // Validate form values are present and match the requested type
+            const values = validateAccountFormValues(type, accountsFormValues);
 
             if (values.type === AccountsFormType.MnemonicSource) {
                 createdAccounts = await backgroundClient.createAccounts({
@@ -86,15 +82,15 @@ export function useCreateAccountsMutation() {
                 values.type === AccountsFormType.NewMnemonic ||
                 values.type === AccountsFormType.ImportMnemonic
             ) {
-                // Password is guaranteed by Zod validation above
+                const validatedPassword = ensurePassword(password);
                 const accountSource = await backgroundClient.createMnemonicAccountSource({
-                    password: validatedPassword as string,
+                    password: validatedPassword,
                     entropy: 'entropy' in values ? values.entropy : undefined,
                 });
 
                 await backgroundClient.unlockAccountSource({
                     id: accountSource.id,
-                    password: validatedPassword as string,
+                    password: validatedPassword,
                 });
 
                 createdAccounts = await backgroundClient.createAccounts({
@@ -102,14 +98,15 @@ export function useCreateAccountsMutation() {
                     sourceID: accountSource.id,
                 });
             } else if (values.type === AccountsFormType.ImportSeed) {
+                const validatedPassword = ensurePassword(password);
                 const accountSource = await backgroundClient.createSeedAccountSource({
-                    password: validatedPassword as string,
+                    password: validatedPassword,
                     seed: values.seed,
                 });
 
                 await backgroundClient.unlockAccountSource({
                     id: accountSource.id,
-                    password: validatedPassword as string,
+                    password: validatedPassword,
                 });
 
                 createdAccounts = await backgroundClient.createAccounts({
@@ -117,12 +114,14 @@ export function useCreateAccountsMutation() {
                     sourceID: accountSource.id,
                 });
             } else if (values.type === AccountsFormType.ImportPrivateKey) {
+                const validatedPassword = ensurePassword(password);
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.PrivateKeyDerived,
                     keyPair: values.keyPair,
-                    password: validatedPassword as string,
+                    password: validatedPassword,
                 });
             } else if (values.type === AccountsFormType.Passkey) {
+                const validatedPassword = ensurePassword(password);
                 const { address, publicKey, providerOptions, credentialId } =
                     await createPasskeyAccount({
                         username: values.username,
@@ -135,9 +134,10 @@ export function useCreateAccountsMutation() {
                     publicKey,
                     providerOptions,
                     credentialId,
-                    password: validatedPassword as string,
+                    password: validatedPassword,
                 });
             } else if (values.type === AccountsFormType.ImportPasskey) {
+                const validatedPassword = ensurePassword(password);
                 const { address, publicKey, providerOptions, credentialId } =
                     await createPasskeyAccount({
                         isRestore: true,
@@ -149,28 +149,30 @@ export function useCreateAccountsMutation() {
                     publicKey,
                     providerOptions,
                     credentialId,
-                    password: validatedPassword as string,
+                    password: validatedPassword,
                 });
             } else if (values.type === AccountsFormType.ImportLedger) {
+                const validatedPassword = ensurePassword(password);
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.LedgerDerived,
                     accounts: values.accounts,
-                    password: validatedPassword as string,
+                    password: validatedPassword,
                     mainPublicKey: values.mainPublicKey,
                 });
             } else if (values.type === AccountsFormType.ImportKeystone) {
+                const validatedPassword = ensurePassword(password);
                 const sourceID = `keystone-${values.masterFingerprint}`;
                 try {
                     await backgroundClient.createKeystoneAccountSource({
-                        password: validatedPassword as string,
+                        password: validatedPassword,
                         masterFingerprint: values.masterFingerprint,
                     });
                 } catch {
-                    // Its fine to ignore if the account source already exists
+                    // It's fine to ignore if the account source already exists
                 }
 
                 await backgroundClient.unlockAccountSource({
-                    password: validatedPassword as string,
+                    password: validatedPassword,
                     id: sourceID,
                 });
                 createdAccounts = await backgroundClient.createAccounts({
