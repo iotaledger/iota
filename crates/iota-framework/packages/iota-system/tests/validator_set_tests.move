@@ -1754,7 +1754,7 @@ fun test_record_scores() {
     );
     // Check the recorded scores for epoch 1
     validator_set.active_validators_inner().zip_do_ref!(&expected_scores, |validator, score| {
-        assert_eq(validator.get_historical_score_for_epoch(1), score[0]);
+        assert_eq(validator.get_recorded_score_for_epoch(1), score[0]);
     });
 
     // Epoch 2
@@ -1775,7 +1775,7 @@ fun test_record_scores() {
     );
     // Check the recorded scores for epoch 2
     validator_set.active_validators_inner().zip_do_ref!(&expected_scores, |validator, score| {
-        assert_eq(validator.get_historical_score_for_epoch(2), score[1]);
+        assert_eq(validator.get_recorded_score_for_epoch(2), score[1]);
     });
 
     // Epoch 3
@@ -1793,12 +1793,12 @@ fun test_record_scores() {
     );
     // Check the recorded scores for epoch 3
     validator_set.active_validators_inner().zip_do_ref!(&expected_scores, |validator, score| {
-        assert_eq(validator.get_historical_score_for_epoch(3), score[2]);
+        assert_eq(validator.get_recorded_score_for_epoch(3), score[2]);
     });
 
     // Check the correct scores over a range are retrieved.
     validator_set.active_validators_inner().zip_do_ref!(&expected_scores, |validator, score| {
-        assert_eq(validator.get_historical_score_for_epoch_range(1, 3), *score);
+        assert_eq(validator.get_recorded_score_for_epoch_range(1, 3), *score);
     });
 
     test_utils::destroy(validator_set);

@@ -73,8 +73,8 @@ const MAX_VALIDATOR_METADATA_LENGTH: u64 = 256;
 /// Max gas price a validator can set is 100K NANOS.
 const MAX_VALIDATOR_GAS_PRICE: u64 = 100_000;
 
-// A unique key to identify the score history of a validator stored as a dynamic field in extra_fields of ValidatorV1.
-public struct ScoreHistoryKey has copy, drop, store {}
+// A unique key to identify the score record of a validator stored as a dynamic field in extra_fields of ValidatorV1.
+public struct ScoreRecordKey has copy, drop, store {}
 
 public struct ValidatorMetadataV1 has store {
     /// The IOTA Address of the validator. This is the sender that created the ValidatorV1 object,
@@ -948,31 +948,27 @@ public(package) fun new_for_testing(
     validator
 }
 
-// ==== Validator score history ====
+// ==== Validator score recording ====
 
-// Records a score in the score history table for this validator.
+// Records a score in the score record table for this validator.
 // This function should only be called from the advance_epoch function in validator_set, and the score will be set for the corresponding epoch as provided by the TxContext.
 public(package) fun record_score(self: &mut ValidatorV1, score: u64, ctx: &mut TxContext) {
-    if (
-        self.extra_fields.contains_with_type<ScoreHistoryKey, Table<u64, u64>>(ScoreHistoryKey {})
-    ) {
-        let score_history: &mut Table<u64, u64> = self.extra_fields.borrow_mut(ScoreHistoryKey {});
-        score_history.add(ctx.epoch(), score)
+    if (self.extra_fields.contains_with_type<ScoreRecordKey, Table<u64, u64>>(ScoreRecordKey {})) {
+        let score_record: &mut Table<u64, u64> = self.extra_fields.borrow_mut(ScoreRecordKey {});
+        score_record.add(ctx.epoch(), score)
     } else {
-        let mut score_history = table::new(ctx);
-        score_history.add(ctx.epoch(), score);
-        self.extra_fields.add(ScoreHistoryKey {}, score_history);
+        let mut score_record = table::new(ctx);
+        score_record.add(ctx.epoch(), score);
+        self.extra_fields.add(ScoreRecordKey {}, score_record);
     }
 }
 
-// Returns the score given to this validator at the given epoch, if exists. Otherwise returns None.
-public fun get_historical_score_for_epoch(self: &ValidatorV1, epoch: u64): Option<u64> {
-    if (
-        self.extra_fields.contains_with_type<ScoreHistoryKey, Table<u64, u64>>(ScoreHistoryKey {})
-    ) {
-        let score_history: &Table<u64, u64> = self.extra_fields.borrow(ScoreHistoryKey {});
-        if (score_history.contains(epoch)) {
-            let score = score_history.borrow(epoch);
+// Returns the score recorded for this validator at the given epoch, if exists. Otherwise returns None.
+public fun get_recorded_score_for_epoch(self: &ValidatorV1, epoch: u64): Option<u64> {
+    if (self.extra_fields.contains_with_type<ScoreRecordKey, Table<u64, u64>>(ScoreRecordKey {})) {
+        let score_record: &Table<u64, u64> = self.extra_fields.borrow(ScoreRecordKey {});
+        if (score_record.contains(epoch)) {
+            let score = score_record.borrow(epoch);
             option::some(*score)
         } else {
             option::none()
@@ -983,7 +979,7 @@ public fun get_historical_score_for_epoch(self: &ValidatorV1, epoch: u64): Optio
 }
 
 // Returns the scores given to this validator over a given range of epochs, if they exist. Epochs for which no score was recorded will be None.
-public fun get_historical_score_for_epoch_range(
+public fun get_recorded_score_for_epoch_range(
     self: &ValidatorV1,
     start_epoch: u64,
     end_epoch: u64,
@@ -992,13 +988,11 @@ public fun get_historical_score_for_epoch_range(
     let mut scores = vector::empty<Option<u64>>();
     while (i <= end_epoch) {
         if (
-            self
-                .extra_fields
-                .contains_with_type<ScoreHistoryKey, Table<u64, u64>>(ScoreHistoryKey {})
+            self.extra_fields.contains_with_type<ScoreRecordKey, Table<u64, u64>>(ScoreRecordKey {})
         ) {
-            let score_history: &Table<u64, u64> = self.extra_fields.borrow(ScoreHistoryKey {});
-            if (score_history.contains(i)) {
-                let score = score_history.borrow(i);
+            let score_record: &Table<u64, u64> = self.extra_fields.borrow(ScoreRecordKey {});
+            if (score_record.contains(i)) {
+                let score = score_record.borrow(i);
                 scores.push_back(option::some(*score));
             } else {
                 scores.push_back(option::none());
