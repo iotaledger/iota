@@ -2862,10 +2862,14 @@ dependencies = [
  "insta",
  "iota-network-stack",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "rand 0.8.5",
  "serde",
 ]
@@ -2891,10 +2895,14 @@ dependencies = [
  "iota-network-stack",
  "iota-protocol-config",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "iota-tls",
  "itertools 0.13.0",
  "lru 0.12.5",
@@ -6320,10 +6328,14 @@ dependencies = [
  "iota-replay",
  "iota-sdk",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "iota-simulator",
  "iota-source-validation",
  "iota-swarm",
@@ -6673,10 +6685,14 @@ dependencies = [
  "iota-move-build",
  "iota-sdk",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "iota-swarm",
  "iota-swarm-config",
  "iota-test-transaction-builder",
@@ -6801,10 +6817,14 @@ dependencies = [
  "iota-network-stack",
  "iota-protocol-config",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "iota-simulator",
  "iota-storage",
  "iota-swarm-config",
@@ -7010,10 +7030,14 @@ dependencies = [
  "iota-rest-api",
  "iota-sdk",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "iota-simulator",
  "iota-storage",
  "iota-swarm",
@@ -7115,10 +7139,14 @@ dependencies = [
  "iota-network-stack",
  "iota-sdk",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "iota-types",
  "parking_lot 0.12.5",
  "prometheus",
@@ -7247,10 +7275,14 @@ dependencies = [
  "iota-protocol-config",
  "iota-sdk-crypto",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "iota-simulator",
  "iota-stardust-types",
  "iota-swarm-config",
@@ -7375,10 +7407,14 @@ dependencies = [
  "iota-package-resolver",
  "iota-rest-api",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "iota-swarm-config",
  "iota-test-transaction-builder",
  "iota-types",
@@ -7452,12 +7488,16 @@ dependencies = [
  "http 1.4.0",
  "iota-grpc-types",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
  "serde",
  "thiserror 1.0.69",
  "tonic 0.14.4",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "serde",
  "thiserror 1.0.69",
  "tonic 0.14.3",
@@ -7483,6 +7523,7 @@ dependencies = [
  "iota-metrics",
  "iota-protocol-config",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
  "iota-test-transaction-builder",
  "iota-types",
@@ -7497,6 +7538,9 @@ dependencies = [
  "tonic 0.14.4",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "iota-test-transaction-builder",
  "iota-types",
  "move-core-types",
@@ -7523,8 +7567,12 @@ dependencies = [
 version = "1.17.0-alpha"
 dependencies = [
  "bcs",
+<<<<<<< HEAD
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "prost 0.14.3",
  "prost-types 0.14.3",
  "serde",
@@ -7737,10 +7785,14 @@ dependencies = [
  "iota-package-resolver",
  "iota-protocol-config",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "iota-storage",
  "iota-transaction-builder",
  "iota-types",
@@ -7882,10 +7934,14 @@ dependencies = [
  "bip32",
  "fastcrypto",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "iota-types",
  "rand 0.8.5",
  "regex",
@@ -7938,10 +7994,14 @@ dependencies = [
  "hex",
  "hidapi",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "iota-types",
  "ledger-transport",
  "ledger-transport-hid",
@@ -7966,10 +8026,14 @@ dependencies = [
  "iota-ledger",
  "iota-sdk",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "thiserror 1.0.69",
  "tokio",
  "tracing",
@@ -8245,10 +8309,14 @@ dependencies = [
  "iota-network-stack",
  "iota-protocol-config",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "iota-simulator",
  "iota-storage",
  "iota-swarm-config",
@@ -8345,10 +8413,14 @@ dependencies = [
  "iota-protocol-config",
  "iota-rest-api",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "iota-simulator",
  "iota-snapshot",
  "iota-storage",
@@ -8691,10 +8763,14 @@ dependencies = [
  "iota-network-stack",
  "iota-protocol-config",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "iota-types",
  "itertools 0.13.0",
  "mime",
@@ -8772,10 +8848,14 @@ dependencies = [
  "iota-node",
  "iota-sdk",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "iota-swarm-config",
  "iota-types",
  "move-core-types",
@@ -8814,10 +8894,14 @@ dependencies = [
  "iota-keys",
  "iota-sdk",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "iota-types",
  "itertools 0.13.0",
  "serde",
@@ -8855,10 +8939,14 @@ dependencies = [
  "iota-keys",
  "iota-move-build",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "iota-transaction-builder",
  "iota-types",
  "jsonrpsee",
@@ -8904,6 +8992,7 @@ dependencies = [
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b788e641030664a1cbdac71c08d0771f307d977f#b788e641030664a1cbdac71c08d0771f307d977f"
 =======
 source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=d8cdab6ab3f2fd9ba8059ba56e80ba950badc88d#d8cdab6ab3f2fd9ba8059ba56e80ba950badc88d"
@@ -8931,6 +9020,9 @@ name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
 source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c#dc9e05947b185b2b1348509b5a97167d49852a6c"
 >>>>>>> d735805ba8 (some fixes)
+=======
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5#0f5ab383dd7f4727a563f03d7115b968982db0a5"
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
 dependencies = [
  "base64ct",
  "bcs",
@@ -8952,6 +9044,29 @@ dependencies = [
  "serde_with",
  "strum 0.27.2",
  "test-strategy",
+ "thiserror 2.0.18",
+ "winnow 0.7.14",
+]
+
+[[package]]
+name = "iota-sdk-types"
+version = "0.0.1-alpha.1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=d8cdab6ab3f2fd9ba8059ba56e80ba950badc88d#d8cdab6ab3f2fd9ba8059ba56e80ba950badc88d"
+dependencies = [
+ "base64ct",
+ "bcs",
+ "blake2",
+ "bnum",
+ "bs58 0.5.1",
+ "hex",
+ "itertools 0.13.0",
+ "paste",
+ "roaring",
+ "serde",
+ "serde_json",
+ "serde_repr",
+ "serde_with",
+ "strum 0.27.2",
  "thiserror 2.0.18",
  "winnow 0.7.14",
 ]
@@ -9292,10 +9407,14 @@ dependencies = [
  "iota-protocol-config",
  "iota-rest-api",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "iota-simulator",
  "iota-types",
  "prometheus",
@@ -9341,10 +9460,14 @@ dependencies = [
  "iota-move-build",
  "iota-sdk",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "iota-types",
  "move-core-types",
 ]
@@ -9547,10 +9670,14 @@ dependencies = [
  "iota-network-stack",
  "iota-protocol-config",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "itertools 0.13.0",
  "lru 0.12.5",
  "move-binary-format",
@@ -15708,10 +15835,14 @@ dependencies = [
  "insta",
  "iota-network-stack",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "rand 0.8.5",
  "rs_merkle",
  "serde",
@@ -15741,10 +15872,14 @@ dependencies = [
  "iota-network-stack",
  "iota-protocol-config",
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f4727a563f03d7115b968982db0a5)",
+>>>>>>> c7e8a14304 (remove MoveLocOpt for now)
  "iota-tls",
  "itertools 0.13.0",
  "lru 0.12.5",

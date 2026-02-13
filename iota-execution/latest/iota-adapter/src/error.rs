@@ -5,7 +5,7 @@
 use iota_types::{
     base_types::{Identifier, ObjectID},
     error::{ExecutionError, IotaError},
-    execution_status::{ExecutionFailureStatus, MoveLocation, MoveLocationOpt},
+    execution_status::{ExecutionFailureStatus, MoveLocation},
 };
 use move_binary_format::{
     errors::{Location, VMError},
@@ -81,9 +81,7 @@ pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
                     }
                     _ => None,
                 };
-                ExecutionFailureStatus::MovePrimitiveRuntimeError {
-                    location: MoveLocationOpt(location),
-                }
+                ExecutionFailureStatus::MovePrimitiveRuntimeError { location }
             }
             StatusType::Validation
             | StatusType::Verification
