@@ -81,7 +81,7 @@ export function AddAccountPage() {
     );
     const [cameraPermissionStatus] = useCheckCameraPermissionStatus();
     const network = useAppSelector(({ app }) => app.network);
-    const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
+    const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeyAccounts, network);
 
     const cardLinks: CardLinkItem[] = [
         {

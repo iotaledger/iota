@@ -57,7 +57,7 @@ export class FeaturesController {
                         bannerUrl: '',
                     },
                 },
-                [Feature.WalletPasskeys]: {
+                [Feature.WalletPasskeyAccounts]: {
                     defaultValue: {
                         [Network.Mainnet]: true,
                         [Network.Devnet]: true,
@@ -159,7 +159,7 @@ export class FeaturesController {
                         bannerUrl: '',
                     },
                 },
-                [Feature.WalletPasskeys]: {
+                [Feature.WalletPasskeyAccounts]: {
                     defaultValue: {
                         [Network.Mainnet]: true,
                         [Network.Devnet]: true,

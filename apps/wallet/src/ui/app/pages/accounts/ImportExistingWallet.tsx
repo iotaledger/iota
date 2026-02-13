@@ -27,7 +27,7 @@ export function ImportExistingWallet() {
     const createAccountsMutation = useCreateAccountsMutation();
     const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';
     const network = useAppSelector(({ app }) => app.network);
-    const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
+    const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeyAccounts, network);
 
     const profileOptions = [
         {
