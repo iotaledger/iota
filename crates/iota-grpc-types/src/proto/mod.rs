@@ -82,6 +82,36 @@ impl TryFromProtoError {
     }
 }
 
+/// Macro to reduce boilerplate when accessing an optional field and calling
+/// an inner method that returns `Result<T, TryFromProtoError>`.
+///
+/// # Usage
+/// ```ignore
+/// get_inner_field!(self.transaction, Self::TRANSACTION_FIELD, digest)
+/// ```
+macro_rules! get_inner_field {
+    // Variant for try_into() that needs explicit TryFromProtoError type annotation
+    // This must come first to match before the general case
+    ($field:expr, $FIELD:expr, try_into) => {{
+        <_ as core::convert::TryInto<_>>::try_into(
+            $field
+                .as_ref()
+                .ok_or_else(|| $crate::proto::TryFromProtoError::missing($FIELD.name))?,
+        )
+        .map_err(|e: $crate::proto::TryFromProtoError| e.nested($FIELD.name))
+    }};
+    // Standard case: call a method on the inner value
+    ($field:expr, $FIELD:expr, $inner:ident) => {{
+        $field
+            .as_ref()
+            .ok_or_else(|| $crate::proto::TryFromProtoError::missing($FIELD.name))?
+            .$inner()
+            .map_err(|e| e.nested($FIELD.name))
+    }};
+}
+
+pub(crate) use get_inner_field;
+
 #[derive(Debug)]
 pub enum GrpcConversionError {
     UnsupportedArgumentType { arg_type: String },

@@ -375,8 +375,8 @@ impl Client {
                     }
 
                     Some(_) => {
-                        // Unknown payload type - skip
-                        continue;
+                        // Unknown payload type
+                        Err(Error::server("Received unknown checkpoint data payload type"))?;
                     }
                 }
             }

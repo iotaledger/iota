@@ -7,21 +7,21 @@ mod _accessor_impls {
     impl super::Address {
         /// Sets `address` with the provided value.
         pub fn with_address<T: Into<::prost::bytes::Bytes>>(mut self, field: T) -> Self {
-            self.address = field.into().into();
+            self.address = field.into();
             self
         }
     }
     impl super::Digest {
         /// Sets `digest` with the provided value.
         pub fn with_digest<T: Into<::prost::bytes::Bytes>>(mut self, field: T) -> Self {
-            self.digest = field.into().into();
+            self.digest = field.into();
             self
         }
     }
     impl super::ObjectReference {
         /// Sets `object_id` with the provided value.
         pub fn with_object_id<T: Into<String>>(mut self, field: T) -> Self {
-            self.object_id = Some(field.into().into());
+            self.object_id = Some(field.into());
             self
         }
         /// Sets `version` with the provided value.
@@ -31,7 +31,7 @@ mod _accessor_impls {
         }
         /// Sets `digest` with the provided value.
         pub fn with_digest<T: Into<super::Digest>>(mut self, field: T) -> Self {
-            self.digest = Some(field.into().into());
+            self.digest = Some(field.into());
             self
         }
     }

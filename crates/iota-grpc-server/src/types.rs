@@ -714,8 +714,7 @@ impl GrpcReader {
             }
 
             // 3. Always send EndMarker at the end
-            let end_marker = EndMarker::default().with_sequence_number(sequence_number);
-            yield Ok(grpc_ledger_service::CheckpointData::default().with_end_marker(end_marker));
+            yield Ok(grpc_ledger_service::CheckpointData::default().with_end_marker(EndMarker::default().with_sequence_number(sequence_number)));
         }
     }
 

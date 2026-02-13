@@ -12,7 +12,7 @@ mod _accessor_impls {
             field: T,
         ) -> Self {
             self.payload = Some(
-                super::checkpoint_data::Payload::Checkpoint(field.into().into()),
+                super::checkpoint_data::Payload::Checkpoint(field.into()),
             );
             self
         }
@@ -22,7 +22,7 @@ mod _accessor_impls {
             T: Into<super::super::transaction::ExecutedTransactions>,
         >(mut self, field: T) -> Self {
             self.payload = Some(
-                super::checkpoint_data::Payload::Transactions(field.into().into()),
+                super::checkpoint_data::Payload::Transactions(field.into()),
             );
             self
         }
@@ -32,9 +32,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.payload = Some(
-                super::checkpoint_data::Payload::Events(field.into().into()),
-            );
+            self.payload = Some(super::checkpoint_data::Payload::Events(field.into()));
             self
         }
         /// Sets `end_marker` with the provided value.
@@ -44,7 +42,7 @@ mod _accessor_impls {
             field: T,
         ) -> Self {
             self.payload = Some(
-                super::checkpoint_data::Payload::EndMarker(field.into().into()),
+                super::checkpoint_data::Payload::EndMarker(field.into()),
             );
             self
         }
@@ -72,14 +70,14 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.read_mask = Some(field.into().into());
+            self.read_mask = Some(field.into());
             self
         }
         /// Sets `transactions_filter` with the provided value.
         pub fn with_transactions_filter<
             T: Into<super::super::filter::TransactionFilter>,
         >(mut self, field: T) -> Self {
-            self.transactions_filter = Some(field.into().into());
+            self.transactions_filter = Some(field.into());
             self
         }
         /// Sets `events_filter` with the provided value.
@@ -87,7 +85,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.events_filter = Some(field.into().into());
+            self.events_filter = Some(field.into());
             self
         }
         /// Sets `max_message_size_bytes` with the provided value.
@@ -102,14 +100,14 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.read_mask = Some(field.into().into());
+            self.read_mask = Some(field.into());
             self
         }
         /// Sets `transactions_filter` with the provided value.
         pub fn with_transactions_filter<
             T: Into<super::super::filter::TransactionFilter>,
         >(mut self, field: T) -> Self {
-            self.transactions_filter = Some(field.into().into());
+            self.transactions_filter = Some(field.into());
             self
         }
         /// Sets `events_filter` with the provided value.
@@ -117,7 +115,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.events_filter = Some(field.into().into());
+            self.events_filter = Some(field.into());
             self
         }
         /// Sets `max_message_size_bytes` with the provided value.
@@ -148,9 +146,7 @@ mod _accessor_impls {
             field: T,
         ) -> Self {
             self.checkpoint_id = Some(
-                super::get_checkpoint_data_request::CheckpointId::Digest(
-                    field.into().into(),
-                ),
+                super::get_checkpoint_data_request::CheckpointId::Digest(field.into()),
             );
             self
         }
@@ -166,7 +162,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.read_mask = Some(field.into().into());
+            self.read_mask = Some(field.into());
             self
         }
     }
@@ -176,7 +172,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.epoch = Some(field.into().into());
+            self.epoch = Some(field.into());
             self
         }
     }
@@ -186,7 +182,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.requests = Some(field.into().into());
+            self.requests = Some(field.into());
             self
         }
         /// Sets `read_mask` with the provided value.
@@ -194,7 +190,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.read_mask = Some(field.into().into());
+            self.read_mask = Some(field.into());
             self
         }
         /// Sets `max_message_size_bytes` with the provided value.
@@ -221,19 +217,22 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.read_mask = Some(field.into().into());
+            self.read_mask = Some(field.into());
             self
         }
     }
     impl super::GetServiceInfoResponse {
         /// Sets `chain_id` with the provided value.
-        pub fn with_chain_id<T: Into<String>>(mut self, field: T) -> Self {
-            self.chain_id = Some(field.into().into());
+        pub fn with_chain_id<T: Into<super::super::types::Digest>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.chain_id = Some(field.into());
             self
         }
         /// Sets `chain` with the provided value.
         pub fn with_chain<T: Into<String>>(mut self, field: T) -> Self {
-            self.chain = Some(field.into().into());
+            self.chain = Some(field.into());
             self
         }
         /// Sets `epoch` with the provided value.
@@ -251,7 +250,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.executed_checkpoint_timestamp = Some(field.into().into());
+            self.executed_checkpoint_timestamp = Some(field.into());
             self
         }
         /// Sets `lowest_available_checkpoint` with the provided value.
@@ -266,7 +265,7 @@ mod _accessor_impls {
         }
         /// Sets `server` with the provided value.
         pub fn with_server<T: Into<String>>(mut self, field: T) -> Self {
-            self.server = Some(field.into().into());
+            self.server = Some(field.into());
             self
         }
     }
@@ -276,7 +275,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.requests = Some(field.into().into());
+            self.requests = Some(field.into());
             self
         }
         /// Sets `read_mask` with the provided value.
@@ -284,7 +283,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.read_mask = Some(field.into().into());
+            self.read_mask = Some(field.into());
             self
         }
         /// Sets `max_message_size_bytes` with the provided value.
@@ -314,7 +313,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.object_ref = Some(field.into().into());
+            self.object_ref = Some(field.into());
             self
         }
     }
@@ -332,9 +331,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.result = Some(
-                super::object_result::Result::Object(field.into().into()),
-            );
+            self.result = Some(super::object_result::Result::Object(field.into()));
             self
         }
         /// Sets `error` with the provided value.
@@ -342,7 +339,7 @@ mod _accessor_impls {
         pub fn with_error<
             T: Into<super::super::super::super::super::google::rpc::Status>,
         >(mut self, field: T) -> Self {
-            self.result = Some(super::object_result::Result::Error(field.into().into()));
+            self.result = Some(super::object_result::Result::Error(field.into()));
             self
         }
     }
@@ -352,7 +349,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.digest = Some(field.into().into());
+            self.digest = Some(field.into());
             self
         }
     }
@@ -371,7 +368,7 @@ mod _accessor_impls {
             field: T,
         ) -> Self {
             self.result = Some(
-                super::transaction_result::Result::Transaction(field.into().into()),
+                super::transaction_result::Result::Transaction(field.into()),
             );
             self
         }
@@ -380,9 +377,7 @@ mod _accessor_impls {
         pub fn with_error<
             T: Into<super::super::super::super::super::google::rpc::Status>,
         >(mut self, field: T) -> Self {
-            self.result = Some(
-                super::transaction_result::Result::Error(field.into().into()),
-            );
+            self.result = Some(super::transaction_result::Result::Error(field.into()));
             self
         }
     }

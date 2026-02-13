@@ -6,7 +6,10 @@ include!("../../../generated/iota.grpc.v0.event.rs");
 include!("../../../generated/iota.grpc.v0.event.field_info.rs");
 include!("../../../generated/iota.grpc.v0.event.accessors.rs");
 
-use crate::{proto::TryFromProtoError, v0::bcs::BcsData};
+use crate::{
+    proto::{TryFromProtoError, get_inner_field},
+    v0::bcs::BcsData,
+};
 
 // TryFrom implementations for Event
 impl TryFrom<&Event> for iota_sdk_types::Event {
@@ -60,11 +63,7 @@ impl Event {
 
     /// Get the package ID of the Move module that emitted this event.
     pub fn package_id(&self) -> Result<iota_sdk_types::Address, TryFromProtoError> {
-        self.package_id
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::PACKAGE_ID_FIELD.name))?
-            .try_into()
-            .map_err(|e: TryFromProtoError| e.nested(Self::PACKAGE_ID_FIELD.name))
+        get_inner_field!(self.package_id, Self::PACKAGE_ID_FIELD, try_into)
     }
 
     /// Get the module name of the Move module that emitted this event.
@@ -76,11 +75,7 @@ impl Event {
 
     /// Get the sender address of the transaction that emitted this event.
     pub fn sender_address(&self) -> Result<iota_sdk_types::Address, TryFromProtoError> {
-        self.sender
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::SENDER_FIELD.name))?
-            .try_into()
-            .map_err(|e: TryFromProtoError| e.nested(Self::SENDER_FIELD.name))
+        get_inner_field!(self.sender, Self::SENDER_FIELD, try_into)
     }
 
     /// Get the type of the event emitted.

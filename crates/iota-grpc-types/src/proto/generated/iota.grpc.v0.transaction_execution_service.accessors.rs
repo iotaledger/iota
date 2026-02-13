@@ -10,7 +10,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.transaction = Some(field.into().into());
+            self.transaction = Some(field.into());
             self
         }
         /// Sets `signatures` with the provided value.
@@ -18,7 +18,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.signatures = Some(field.into().into());
+            self.signatures = Some(field.into());
             self
         }
         /// Sets `read_mask` with the provided value.
@@ -26,7 +26,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.read_mask = Some(field.into().into());
+            self.read_mask = Some(field.into());
             self
         }
     }
@@ -36,7 +36,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.transaction = Some(field.into().into());
+            self.transaction = Some(field.into());
             self
         }
         /// Sets `tx_checks` with the provided value.
@@ -54,7 +54,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.read_mask = Some(field.into().into());
+            self.read_mask = Some(field.into());
             self
         }
     }

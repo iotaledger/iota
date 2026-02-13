@@ -60,7 +60,8 @@ impl Client {
     /// let effects = result.effects()?;
     /// println!("Status: {:?}", effects.status());
     ///
-    /// if let Some(events) = result.events()? {
+    /// let events = result.events()?;
+    /// if !events.0.is_empty() {
     ///     println!("Events: {}", events.0.len());
     /// }
     /// # Ok(())

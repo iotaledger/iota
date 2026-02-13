@@ -64,7 +64,14 @@ fn main() {
     fds.file.sort_by(|a, b| a.name.cmp(&b.name));
 
     // Define boxing configuration for prost-build
-    let boxed_types_prost = vec![];
+    // These fields are boxed by prost in the generated structs
+    let boxed_types_prost = vec![
+        ".iota.grpc.v0.filter.EventFilter.negation".to_string(),
+        ".iota.grpc.v0.filter.TransactionFilter.negation".to_string(),
+        ".iota.grpc.v0.filter.NotEventFilter.filter".to_string(),
+        ".iota.grpc.v0.filter.NotTransactionFilter.filter".to_string(),
+        ".iota.grpc.v0.types.TypeTag.vector_tag".to_string(),
+    ];
 
     // for field info and accessor generation
     let boxed_types_field_info = vec![
@@ -77,9 +84,15 @@ fn main() {
         ".iota.grpc.v0.types.TypeTagVector.inner_type".to_string(),
     ];
 
-    // for accessor generation
-    let mut boxed_types_accessor = vec![];
-    boxed_types_accessor.extend(boxed_types_prost.clone());
+    // for accessor generation - includes both boxed proto fields and fields where
+    // we want the accessor to accept boxed types for ergonomics
+    let boxed_types_accessor = vec![
+        ".iota.grpc.v0.filter.EventFilter.negation".to_string(),
+        ".iota.grpc.v0.filter.TransactionFilter.negation".to_string(),
+        ".iota.grpc.v0.filter.NotEventFilter.filter".to_string(),
+        ".iota.grpc.v0.filter.NotTransactionFilter.filter".to_string(),
+        ".iota.grpc.v0.types.TypeTag.vector_tag".to_string(),
+    ];
 
     let mut tonic_prost_builder = tonic_prost_build::configure()
         .build_client(true)
@@ -148,6 +161,7 @@ fn main() {
     codegen::accessors::generate_accessors(
         &context,
         &out_dir,
+        &boxed_types_prost,
         &boxed_types_accessor,
         &accessor_map,
     );

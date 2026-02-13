@@ -100,4 +100,19 @@ impl CheckpointResponse {
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(Into::into)
     }
+
+    pub fn checkpoint_data(&self) -> Result<iota_sdk_types::checkpoint::CheckpointData> {
+        Ok(iota_sdk_types::checkpoint::CheckpointData {
+            checkpoint_contents: self.contents()?,
+            checkpoint_summary: iota_sdk_types::SignedCheckpointSummary {
+                checkpoint: self.summary()?,
+                signature: self.signature()?,
+            },
+            transactions: self
+                .transactions()?
+                .into_iter()
+                .map(TryInto::try_into)
+                .collect::<std::result::Result<Vec<_>, _>>()?,
+        })
+    }
 }

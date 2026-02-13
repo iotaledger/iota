@@ -11,7 +11,6 @@ use iota_grpc_types::{
         ledger_service::{GetServiceInfoRequest, GetServiceInfoResponse},
     },
 };
-use iota_types::digests::Digest;
 use prost_types::FieldMask;
 
 use crate::{error::RpcError, ledger_service::LedgerGrpcService};
@@ -43,8 +42,9 @@ pub fn get_service_info(
     let mut message = GetServiceInfoResponse::default();
 
     if read_mask.contains(GetServiceInfoResponse::CHAIN_ID_FIELD.name) {
-        message =
-            message.with_chain_id(Digest::new(service.chain_id.as_bytes().to_owned()).to_string());
+        message = message.with_chain_id(iota_sdk_types::Digest::new(
+            service.chain_id.digest().into_inner(),
+        ));
     }
 
     if read_mask.contains(GetServiceInfoResponse::CHAIN_FIELD.name) {

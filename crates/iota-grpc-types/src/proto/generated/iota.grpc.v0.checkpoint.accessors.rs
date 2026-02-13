@@ -15,7 +15,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.summary = Some(field.into().into());
+            self.summary = Some(field.into());
             self
         }
         /// Sets `contents` with the provided value.
@@ -23,14 +23,14 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.contents = Some(field.into().into());
+            self.contents = Some(field.into());
             self
         }
         /// Sets `signature` with the provided value.
         pub fn with_signature<
             T: Into<super::super::signatures::ValidatorAggregatedSignature>,
         >(mut self, field: T) -> Self {
-            self.signature = Some(field.into().into());
+            self.signature = Some(field.into());
             self
         }
     }
@@ -40,7 +40,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.digest = Some(field.into().into());
+            self.digest = Some(field.into());
             self
         }
         /// Sets `bcs` with the provided value.
@@ -48,7 +48,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.bcs = Some(field.into().into());
+            self.bcs = Some(field.into());
             self
         }
     }
@@ -58,7 +58,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.digest = Some(field.into().into());
+            self.digest = Some(field.into());
             self
         }
         /// Sets `bcs` with the provided value.
@@ -66,7 +66,7 @@ mod _accessor_impls {
             mut self,
             field: T,
         ) -> Self {
-            self.bcs = Some(field.into().into());
+            self.bcs = Some(field.into());
             self
         }
     }

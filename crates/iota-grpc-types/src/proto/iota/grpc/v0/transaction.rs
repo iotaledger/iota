@@ -6,7 +6,10 @@ include!("../../../generated/iota.grpc.v0.transaction.rs");
 include!("../../../generated/iota.grpc.v0.transaction.field_info.rs");
 include!("../../../generated/iota.grpc.v0.transaction.accessors.rs");
 
-use crate::{proto::TryFromProtoError, v0::bcs::BcsData};
+use crate::{
+    proto::{TryFromProtoError, get_inner_field},
+    v0::{bcs::BcsData, object::Objects},
+};
 
 // TryFrom implementations for TransactionEffects
 impl TryFrom<&TransactionEffects> for iota_sdk_types::TransactionEffects {
@@ -122,29 +125,17 @@ impl TransactionEvents {
 impl ExecutedTransaction {
     /// Get the transaction digest.
     pub fn digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
-        self.transaction
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::TRANSACTION_FIELD.name))?
-            .digest()
-            .map_err(|e| e.nested(Self::TRANSACTION_FIELD.name))
+        get_inner_field!(self.transaction, Self::TRANSACTION_FIELD, digest)
     }
 
     /// Deserialize the transaction from BCS.
     pub fn transaction(&self) -> Result<iota_sdk_types::Transaction, TryFromProtoError> {
-        self.transaction
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::TRANSACTION_FIELD.name))?
-            .transaction()
-            .map_err(|e| e.nested(Self::TRANSACTION_FIELD.name))
+        get_inner_field!(self.transaction, Self::TRANSACTION_FIELD, transaction)
     }
 
     /// Get the raw BCS bytes of the transaction.
     pub fn transaction_bcs(&self) -> Result<&[u8], TryFromProtoError> {
-        self.transaction
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::TRANSACTION_FIELD.name))?
-            .transaction_bcs()
-            .map_err(|e| e.nested(Self::TRANSACTION_FIELD.name))
+        get_inner_field!(self.transaction, Self::TRANSACTION_FIELD, transaction_bcs)
     }
 
     /// Deserialize user signatures.
@@ -167,49 +158,34 @@ impl ExecutedTransaction {
 
     /// Deserialize transaction effects from BCS.
     pub fn effects(&self) -> Result<iota_sdk_types::TransactionEffects, TryFromProtoError> {
-        self.effects
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::EFFECTS_FIELD.name))?
-            .effects()
-            .map_err(|e| e.nested(Self::EFFECTS_FIELD.name))
+        get_inner_field!(self.effects, Self::EFFECTS_FIELD, effects)
     }
 
     /// Get the effects digest directly.
     pub fn effects_digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
-        self.effects
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::EFFECTS_FIELD.name))?
-            .digest()
-            .map_err(|e| e.nested(Self::EFFECTS_FIELD.name))
+        get_inner_field!(self.effects, Self::EFFECTS_FIELD, digest)
     }
 
     /// Get the raw BCS bytes of the transaction effects.
     pub fn effects_bcs(&self) -> Result<&[u8], TryFromProtoError> {
-        self.effects
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::EFFECTS_FIELD.name))?
-            .effects_bcs()
-            .map_err(|e| e.nested(Self::EFFECTS_FIELD.name))
+        get_inner_field!(self.effects, Self::EFFECTS_FIELD, effects_bcs)
     }
 
     /// Deserialize transaction events.
-    ///
-    /// Returns `Ok(None)` if events were not included in the response.
-    pub fn events(&self) -> Result<Option<iota_sdk_types::TransactionEvents>, TryFromProtoError> {
+    pub fn events(&self) -> Result<iota_sdk_types::TransactionEvents, TryFromProtoError> {
+        get_inner_field!(self.events, Self::EVENTS_FIELD, events)
+    }
+
+    fn events_opt(&self) -> Result<Option<iota_sdk_types::TransactionEvents>, TryFromProtoError> {
         self.events
             .as_ref()
-            .map(|ev| ev.events().map_err(|e| e.nested(Self::EVENTS_FIELD.name)))
+            .map(TransactionEvents::events)
             .transpose()
     }
 
     /// Get the events digest directly.
-    ///
-    /// Returns `Ok(None)` if events were not included in the response.
-    pub fn events_digest(&self) -> Result<Option<iota_sdk_types::Digest>, TryFromProtoError> {
-        self.events
-            .as_ref()
-            .map(|ev| ev.digest().map_err(|e| e.nested(Self::EVENTS_FIELD.name)))
-            .transpose()
+    pub fn events_digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
+        get_inner_field!(self.events, Self::EVENTS_FIELD, digest)
     }
 
     /// Get checkpoint sequence number.
@@ -226,30 +202,36 @@ impl ExecutedTransaction {
         crate::proto::proto_to_timestamp_ms(ts).map_err(|e| e.nested(Self::TIMESTAMP_FIELD.name))
     }
 
-    /// Deserialize input objects.
-    ///
-    /// Returns `Ok(None)` if input objects were not included in the response.
-    pub fn input_objects(&self) -> Result<Option<Vec<iota_sdk_types::Object>>, TryFromProtoError> {
+    /// Get input objects.
+    pub fn input_objects(&self) -> Result<&Objects, TryFromProtoError> {
         self.input_objects
             .as_ref()
-            .map(|objs| {
-                objs.objects()
-                    .map_err(|e| e.nested(Self::INPUT_OBJECTS_FIELD.name))
-            })
-            .transpose()
+            .ok_or_else(|| TryFromProtoError::missing(Self::INPUT_OBJECTS_FIELD.name))
     }
 
-    /// Deserialize output objects.
-    ///
-    /// Returns `Ok(None)` if output objects were not included in the response.
-    pub fn output_objects(&self) -> Result<Option<Vec<iota_sdk_types::Object>>, TryFromProtoError> {
+    /// Get output objects.
+    pub fn output_objects(&self) -> Result<&Objects, TryFromProtoError> {
         self.output_objects
             .as_ref()
-            .map(|objs| {
-                objs.objects()
-                    .map_err(|e| e.nested(Self::OUTPUT_OBJECTS_FIELD.name))
-            })
-            .transpose()
+            .ok_or_else(|| TryFromProtoError::missing(Self::OUTPUT_OBJECTS_FIELD.name))
+    }
+}
+
+// TryFrom implementations for CheckpointTransaction
+impl TryFrom<&ExecutedTransaction> for iota_sdk_types::CheckpointTransaction {
+    type Error = TryFromProtoError;
+
+    fn try_from(value: &ExecutedTransaction) -> Result<Self, Self::Error> {
+        Ok(Self {
+            transaction: iota_sdk_types::SignedTransaction {
+                transaction: value.transaction()?,
+                signatures: value.signatures()?,
+            },
+            effects: value.effects()?,
+            events: value.events_opt()?,
+            input_objects: value.input_objects()?.objects()?,
+            output_objects: value.output_objects()?.objects()?,
+        })
     }
 }
 
