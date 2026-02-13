@@ -28,6 +28,7 @@ jobs:
       isGraphQlTransport: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/graphql-transport')) }}
       isEvmBridge: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-evm-bridge')) }}
       isLedgerjs: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/ledgerjs-hw-app-iota')) }}
+      isKiosk: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/kiosk')) }}
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - name: Detect Changes (turbo)
@@ -151,6 +152,7 @@ jobs:
       isWalletDashboard: ${{ needs.diff.outputs.isWalletDashboard == 'true' }}
       isEvmBridge: ${{ needs.diff.outputs.isEvmBridge == 'true' }}
       isIscSDK: ${{ needs.diff.outputs.isIscSDK == 'true' }}
+      isKiosk: ${{ needs.diff.outputs.isKiosk == 'true' }}
     secrets:
       EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK: ${{ secrets.EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK }}
       EVM_BRIDGE_CONFIG: ${{ secrets.EVM_BRIDGE_CONFIG }}

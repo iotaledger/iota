@@ -31,6 +31,9 @@ on:
       isIscSDK:
         type: boolean
         required: false
+      isKiosk:
+        type: boolean
+        required: false
     secrets:
       EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK:
         required: true
@@ -150,11 +153,11 @@ jobs:
           retention-days: 30
 
       - name: Build Kiosk
-        if: (!cancelled()) && (inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop')
+        if: (!cancelled()) && (inputs.isRpc || inputs.isTypescriptSDK || inputs.isKiosk || github.ref_name == 'develop')
         run: pnpm turbo --filter=@iota/kiosk build
 
       - name: Run Kiosk e2e tests
-        if: (!cancelled()) && (inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop')
+        if: (!cancelled()) && (inputs.isRpc || inputs.isTypescriptSDK || inputs.isKiosk || github.ref_name == 'develop')
         run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter=@iota/kiosk test:e2e'
 
       - name: Run Local net
