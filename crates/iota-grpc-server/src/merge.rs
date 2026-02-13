@@ -15,8 +15,8 @@ use iota_grpc_types::{
         signatures::{UserSignature, UserSignatures},
         transaction::{ExecutedTransaction, Transaction, TransactionEffects, TransactionEvents},
         types::{Address, ObjectReference},
+        versioned::{VersionedCheckpointSummary, VersionedEvent, VersionedObject},
     },
-    versioned::{VersionedCheckpointSummary, VersionedEvent, VersionedObject},
 };
 use iota_types::iota_sdk_types_conversions::SdkTypeConversionError;
 

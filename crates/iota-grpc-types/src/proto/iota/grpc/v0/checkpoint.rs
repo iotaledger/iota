@@ -8,8 +8,7 @@ include!("../../../generated/iota.grpc.v0.checkpoint.accessors.rs");
 
 use crate::{
     proto::{TryFromProtoError, get_inner_field},
-    v0::bcs::BcsData,
-    versioned::VersionedCheckpointSummary,
+    v0::{bcs::BcsData, versioned::VersionedCheckpointSummary},
 };
 
 // CheckpointSummary

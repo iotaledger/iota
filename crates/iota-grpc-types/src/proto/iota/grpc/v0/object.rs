@@ -7,8 +7,7 @@ include!("../../../generated/iota.grpc.v0.object.field_info.rs");
 
 use crate::{
     proto::TryFromProtoError,
-    v0::{bcs::BcsData, types::ObjectReference},
-    versioned::VersionedObject,
+    v0::{bcs::BcsData, types::ObjectReference, versioned::VersionedObject},
 };
 
 // TryFrom implementations for Object

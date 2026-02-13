@@ -8,8 +8,7 @@ include!("../../../generated/iota.grpc.v0.event.accessors.rs");
 
 use crate::{
     proto::{TryFromProtoError, get_inner_field},
-    v0::bcs::BcsData,
-    versioned::VersionedEvent,
+    v0::{bcs::BcsData, versioned::VersionedEvent},
 };
 
 // TryFrom implementations for Event

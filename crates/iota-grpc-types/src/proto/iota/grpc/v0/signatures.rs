@@ -8,8 +8,7 @@ include!("../../../generated/iota.grpc.v0.signatures.accessors.rs");
 
 use crate::{
     proto::{GrpcConversionError, TryFromProtoError},
-    v0::bcs::BcsData,
-    versioned::VersionedValidatorAggregatedSignature,
+    v0::{bcs::BcsData, versioned::VersionedValidatorAggregatedSignature},
 };
 
 // ValidatorAggregatedSignature
