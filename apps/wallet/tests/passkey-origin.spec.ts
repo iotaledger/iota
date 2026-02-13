@@ -57,7 +57,6 @@ test(`Passkey origin should be ${EXPECTED_RP_ID} and not other values`, async ({
     expect(rpId).toBeDefined();
     expect(rpId).toBe(EXPECTED_RP_ID);
     expect(rpId).not.toContain('chrome-extension://');
-    expect(rpId).not.toBe('');
 
     if (capturedRpId) {
         expect(capturedRpId).toBe(EXPECTED_RP_ID);
