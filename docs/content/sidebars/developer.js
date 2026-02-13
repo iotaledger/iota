@@ -221,6 +221,7 @@ const developer = [
                 label: 'NFT',
                 items: ['developer/iota-101/nft/create-nft', 'developer/iota-101/nft/rent-nft', 'developer/iota-101/nft/marketplace'],
             },
+            'developer/iota-101/send-tokens-from-iota-l1-movevm',
             {
                 type: 'category',
                 label: 'GraphQL',
