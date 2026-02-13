@@ -8,9 +8,8 @@
 /// that the function signature matches the expected signature for an
 /// authenticator function.
 use iota_types::{
-    Identifier,
     auth_context::{AuthContext, AuthContextKind},
-    base_types::{TxContext, TxContextKind},
+    base_types::{Identifier, TxContext, TxContextKind},
     error::ExecutionError,
     is_object_struct, is_primitive_strict,
     transfer::Receiving,

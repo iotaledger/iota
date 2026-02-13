@@ -19,13 +19,13 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 3, line 31:
 //# run Test::M1::emit_2 --sender A --args 2
-events: Event { package_id: ObjectId("Test"), transaction_module: Identifier("M1"), sender: Address("A"), type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [2, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: ObjectId("Test"), transaction_module: Identifier("M1"), sender: Address("A"), type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [3, 0, 0, 0, 0, 0, 0, 0] }
+events: Event { package_id: ObjectId("Test"), transaction_module: Identifier("M1"), sender: Address("A"), type_: StructTag { address: Address("Test"), module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [2, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: ObjectId("Test"), transaction_module: Identifier("M1"), sender: Address("A"), type_: StructTag { address: Address("Test"), module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [3, 0, 0, 0, 0, 0, 0, 0] }
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, line 33:
 //# run Test::M1::emit_2 --sender B --args 4
-events: Event { package_id: ObjectId("Test"), transaction_module: Identifier("M1"), sender: Address("B"), type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [4, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: ObjectId("Test"), transaction_module: Identifier("M1"), sender: Address("B"), type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [5, 0, 0, 0, 0, 0, 0, 0] }
+events: Event { package_id: ObjectId("Test"), transaction_module: Identifier("M1"), sender: Address("B"), type_: StructTag { address: Address("Test"), module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [4, 0, 0, 0, 0, 0, 0, 0] }, Event { package_id: ObjectId("Test"), transaction_module: Identifier("M1"), sender: Address("B"), type_: StructTag { address: Address("Test"), module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [5, 0, 0, 0, 0, 0, 0, 0] }
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400, storage_rebate: 0, non_refundable_storage_fee: 0
 

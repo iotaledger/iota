@@ -20,7 +20,6 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{ObjectArg, Transaction},
 };
-use move_core_types::ident_str;
 
 use crate::{
     authority::{

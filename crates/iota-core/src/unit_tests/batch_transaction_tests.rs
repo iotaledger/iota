@@ -5,20 +5,21 @@
 use authority_tests::send_and_confirm_transaction;
 use bcs;
 use iota_types::{
+    base_types::Identifier,
     crypto::{AccountKeyPair, get_key_pair},
     execution_status::ExecutionStatus,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     utils::to_sender_signed_transaction,
 };
-use move_core_types::{account_address::AccountAddress, ident_str};
+use move_core_types::account_address::AccountAddress;
 
 use super::*;
 use crate::authority::authority_tests::init_state_with_ids_and_object_basics;
 
 #[tokio::test]
 async fn test_batch_transaction_ok() -> anyhow::Result<()> {
-    // This test tests a sucecssful normal batch transaction.
+    // This test tests a successful normal batch transaction.
     // This batch transaction contains 5 transfers, and 5 Move calls.
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let (recipient, _): (_, AccountKeyPair) = get_key_pair();
@@ -47,8 +48,8 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
         builder
             .move_call(
                 package.0,
-                ident_str!("object_basics").to_owned(),
-                ident_str!("create").to_owned(),
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("create"),
                 vec![],
                 vec![
                     CallArg::Pure(16u64.to_le_bytes().to_vec()),
@@ -131,8 +132,8 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
     builder
         .move_call(
             package.0,
-            ident_str!("object_basics").to_owned(),
-            ident_str!("create").to_owned(),
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("create"),
             vec![],
             vec![],
         )
@@ -187,8 +188,8 @@ async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
         builder
             .move_call(
                 package.0,
-                ident_str!("object_basics").to_owned(),
-                ident_str!("create").to_owned(),
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("create"),
                 vec![],
                 vec![
                     CallArg::Pure(16u64.to_le_bytes().to_vec()),

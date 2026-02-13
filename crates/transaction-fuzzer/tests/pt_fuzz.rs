@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
-    base_types::ObjectRef,
+    base_types::{ObjectID, ObjectRef},
     effects::TransactionEffectsAPI,
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::Owner,
@@ -39,7 +38,7 @@ fn publish_coin_factory(
 ) -> (ObjectRef, ObjectRef) {
     let effects = exec.publish(
         "coin_factory",
-        vec![MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID],
+        vec![ObjectID::STD, ObjectID::FRAMEWORK],
         account,
     );
     let package = effects
@@ -58,7 +57,7 @@ fn publish_coin_factory(
                 .data
                 .struct_tag()
             {
-                stag.name.as_str().eq("TreasuryCap")
+                stag.name().as_str().eq("TreasuryCap")
             } else {
                 false
             }
@@ -115,7 +114,7 @@ pub fn run_pt_success(
                 .data
                 .struct_tag()
             {
-                stag.name.as_str().eq("TreasuryCap")
+                stag.name().as_str().eq("TreasuryCap")
             } else {
                 false
             }

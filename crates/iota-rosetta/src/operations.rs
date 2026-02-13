@@ -14,20 +14,14 @@ use iota_sdk::rpc_types::{
     IotaTransactionBlockKind, IotaTransactionBlockResponse,
 };
 use iota_types::{
-    IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    base_types::{Identifier, IotaAddress, ObjectID, SequenceNumber, StructTag},
     digests::TransactionDigest,
     gas_coin::{GAS, GasCoin},
     governance::{ADD_STAKE_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
-    iota_system_state::IOTA_SYSTEM_MODULE_NAME,
     object::Owner,
     transaction::TransactionData,
 };
-use move_core_types::{
-    ident_str,
-    language_storage::{ModuleId, StructTag},
-    resolver::ModuleResolver,
-};
+use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -486,14 +480,14 @@ impl Operations {
     }
 
     fn is_stake_call(tx: &IotaProgrammableMoveCall) -> bool {
-        tx.package == IOTA_SYSTEM_PACKAGE_ID
-            && tx.module == IOTA_SYSTEM_MODULE_NAME.as_str()
+        tx.package == ObjectID::SYSTEM
+            && tx.module == Identifier::IOTA_SYSTEM_MODULE.as_str()
             && tx.function == ADD_STAKE_FUN_NAME.as_str()
     }
 
     fn is_unstake_call(tx: &IotaProgrammableMoveCall) -> bool {
-        tx.package == IOTA_SYSTEM_PACKAGE_ID
-            && tx.module == IOTA_SYSTEM_MODULE_NAME.as_str()
+        tx.package == ObjectID::SYSTEM
+            && tx.module == Identifier::IOTA_SYSTEM_MODULE.as_str()
             && tx.function == WITHDRAW_STAKE_FUN_NAME.as_str()
     }
 
@@ -636,9 +630,9 @@ impl TryFrom<IotaTransactionBlockResponse> for Operations {
 }
 
 fn is_unstake_event(tag: &StructTag) -> bool {
-    tag.address == IOTA_SYSTEM_ADDRESS
-        && tag.module.as_ident_str() == ident_str!("validator")
-        && tag.name.as_ident_str() == ident_str!("UnstakingRequestEvent")
+    tag.address() == IotaAddress::SYSTEM
+        && tag.module() == &Identifier::from_static("validator")
+        && tag.name() == &Identifier::from_static("UnstakingRequestEvent")
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]

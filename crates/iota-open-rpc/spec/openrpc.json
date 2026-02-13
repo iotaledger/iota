@@ -7292,7 +7292,11 @@
           },
           "transactionModule": {
             "description": "Move module where this event was emitted.",
-            "type": "string"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Identifier"
+              }
+            ]
           },
           "type": {
             "description": "Move event type.",
@@ -7357,7 +7361,11 @@
                 "properties": {
                   "module": {
                     "description": "the module name",
-                    "type": "string"
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/Identifier"
+                      }
+                    ]
                   },
                   "package": {
                     "description": "the Move package ID",
@@ -7401,7 +7409,11 @@
                 "properties": {
                   "module": {
                     "description": "the module name",
-                    "type": "string"
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/Identifier"
+                      }
+                    ]
                   },
                   "package": {
                     "description": "the Move package ID",
@@ -7761,6 +7773,15 @@
             ]
           }
         }
+      },
+      "Identifier": {
+        "title": "Identifier",
+        "description": "A Move Identifier",
+        "examples": [
+          "iota"
+        ],
+        "type": "string",
+        "pattern": "(?:[a-zA-Z][a-zA-Z0-9_]{0,127})|(?:_[a-zA-Z0-9_]{0,127})"
       },
       "InputObjectKind": {
         "oneOf": [
@@ -8796,7 +8817,11 @@
                 "properties": {
                   "module": {
                     "description": "the module name",
-                    "type": "string"
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/Identifier"
+                      }
+                    ]
                   },
                   "package": {
                     "description": "the Move package ID",
@@ -10550,13 +10575,15 @@
                 "type": "array",
                 "items": [
                   {
-                    "$ref": "#/components/schemas/ObjectID"
+                    "$ref": "#/components/schemas/ObjectId"
                   },
                   {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "type": "integer",
+                    "format": "uint64",
+                    "minimum": 0.0
                   },
                   {
-                    "$ref": "#/components/schemas/ObjectDigest"
+                    "$ref": "#/components/schemas/Digest"
                   }
                 ],
                 "maxItems": 3,
@@ -10580,10 +10607,12 @@
                 ],
                 "properties": {
                   "id": {
-                    "$ref": "#/components/schemas/ObjectID"
+                    "$ref": "#/components/schemas/ObjectId"
                   },
                   "initial_shared_version": {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "type": "integer",
+                    "format": "uint64",
+                    "minimum": 0.0
                   },
                   "mutable": {
                     "type": "boolean"
@@ -10603,13 +10632,15 @@
                 "type": "array",
                 "items": [
                   {
-                    "$ref": "#/components/schemas/ObjectID"
+                    "$ref": "#/components/schemas/ObjectId"
                   },
                   {
-                    "$ref": "#/components/schemas/SequenceNumber"
+                    "type": "integer",
+                    "format": "uint64",
+                    "minimum": 0.0
                   },
                   {
-                    "$ref": "#/components/schemas/ObjectDigest"
+                    "$ref": "#/components/schemas/Digest"
                   }
                 ],
                 "maxItems": 3,
@@ -13152,7 +13183,7 @@
             "description": "`Storage ID` of the package, where the given type first appeared.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               }
             ]
           }
@@ -13178,7 +13209,7 @@
             ]
           },
           "upgraded_version": {
-            "description": "Version of the upgraded package",
+            "description": "The version of the package at `upgraded_id`.",
             "type": "integer",
             "format": "uint64",
             "minimum": 0.0

@@ -7,19 +7,19 @@ task 1, lines 6-21:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4575200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4575200, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, lines 25-40:
 //# publish --dependencies test
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5988800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5988800, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, lines 42-56:
 //# publish --dependencies test
 created: object(4,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5320000,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5320000, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 5, lines 58-69:
 //# publish --dependencies test

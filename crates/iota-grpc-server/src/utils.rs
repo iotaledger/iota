@@ -4,12 +4,14 @@
 
 use std::sync::Arc;
 
+use iota_types::base_types::TypeTag;
+
 use crate::GrpcReader;
 
 pub fn render_json(
     grpc_reader: Arc<GrpcReader>,
     max_json_move_value_size: usize,
-    type_tag: &iota_types::TypeTag,
+    type_tag: &TypeTag,
     contents: &[u8],
 ) -> Option<prost_types::Value> {
     let layout = grpc_reader.get_type_layout(type_tag).ok().flatten()?;

@@ -5,14 +5,10 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use iota_protocol_config::ProtocolConfig;
-use move_core_types::{
-    ident_str,
-    language_storage::{StructTag, TypeTag},
-};
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use tap::Pipe;
 
 use crate::{
-    IOTA_SYSTEM_ADDRESS,
     base_types::{
         ExecutionDigests, IotaAddress, ObjectID, ObjectRef, SequenceNumber, dbg_addr,
         random_object_ref,
@@ -381,8 +377,8 @@ impl TestCheckpointDataBuilder {
             pt_builder
                 .move_call(
                     package,
-                    ident_str!(module).to_owned(),
-                    ident_str!(function).to_owned(),
+                    Identifier::from_static(module),
+                    Identifier::from_static(function),
                     vec![],
                     vec![],
                 )
@@ -502,17 +498,11 @@ impl TestCheckpointDataBuilder {
                 protocol_version: protocol_config.version.as_u64(),
                 ..Default::default()
             };
-            let struct_tag = StructTag {
-                address: IOTA_SYSTEM_ADDRESS,
-                module: ident_str!("iota_system_state_inner").to_owned(),
-                name: ident_str!("SystemEpochInfoEvent").to_owned(),
-                type_params: vec![],
-            };
             Some(vec![Event::new(
-                &IOTA_SYSTEM_ADDRESS,
-                ident_str!("iota_system_state_inner"),
+                IotaAddress::SYSTEM,
+                Identifier::from_static("iota_system_state_inner"),
                 TestCheckpointDataBuilder::derive_address(0),
-                struct_tag,
+                StructTag::new_system_epoch_info_event(),
                 bcs::to_bytes(&system_epoch_info_event).unwrap(),
             )])
         } else {
@@ -610,8 +600,6 @@ impl TestCheckpointDataBuilder {
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
-
-    use move_core_types::{account_address::AccountAddress, ident_str};
 
     use super::*;
     use crate::transaction::{Command, ProgrammableMoveCall, TransactionDataAPI};
@@ -922,10 +910,10 @@ mod tests {
         let checkpoint = TestCheckpointDataBuilder::new(1)
             .start_transaction(0)
             .with_events(vec![Event::new(
-                &AccountAddress::ZERO,
-                ident_str!("test"),
+                IotaAddress::ZERO,
+                Identifier::from_static("test"),
                 TestCheckpointDataBuilder::derive_address(0),
-                GAS::type_(),
+                StructTag::new_gas(),
                 vec![],
             )])
             .finish_transaction()
