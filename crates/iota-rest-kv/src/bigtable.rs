@@ -22,7 +22,7 @@ use iota_kvstore::{
     proto::bigtable::v2::{RowFilter, row_filter::Filter},
 };
 use iota_storage::http_key_value_store::Key;
-use iota_types::storage::ObjectKey;
+use iota_types::{effects::TransactionEvents, storage::ObjectKey};
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
@@ -243,15 +243,22 @@ impl KvStoreClient {
                 )
                 .await?;
 
-                Ok(response
+                response
                     .into_iter()
-                    .map(|value| {
-                        value.map(|bytes|
-                        // we strip the first byte which represents the Option<T>, returning only
-                        // the bytes which represent the contained value in the Option<T>
-                        bytes.slice(1..))
+                    .map(|cell| {
+                        cell.map(|bytes| {
+                            bcs::from_bytes::<Option<TransactionEvents>>(&bytes)
+                                .and_then(|opt_events| {
+                                    opt_events
+                                        .map(|e| bcs::to_bytes(&e).map(Bytes::from))
+                                        .transpose()
+                                })
+                                .map_err(anyhow::Error::from)
+                        })
+                        .transpose()
+                        .map(Option::flatten)
                     })
-                    .collect())
+                    .collect::<Result<Vec<Option<Bytes>>, _>>()
             }
         }
         .map_err(Into::into)
