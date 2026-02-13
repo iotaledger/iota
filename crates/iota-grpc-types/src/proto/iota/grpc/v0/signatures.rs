@@ -107,11 +107,3 @@ impl TryFrom<&UserSignatures> for Vec<iota_sdk_types::UserSignature> {
             .collect()
     }
 }
-
-// Convenience methods for UserSignatures (delegate to TryFrom)
-impl UserSignatures {
-    /// Get all user signatures.
-    pub fn signatures(&self) -> &Vec<UserSignature> {
-        &self.signatures
-    }
-}

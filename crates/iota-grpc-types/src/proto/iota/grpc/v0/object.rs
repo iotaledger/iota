@@ -96,11 +96,3 @@ impl Object {
         self.try_into()
     }
 }
-
-// Convenience methods for Objects (delegate to TryFrom)
-impl Objects {
-    /// Get all objects.
-    pub fn objects(&self) -> &Vec<Object> {
-        &self.objects
-    }
-}

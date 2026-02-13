@@ -36,7 +36,11 @@ async fn test_get_checkpoint() {
 
     // Verify the checkpoint data structure
     assert_eq!(response.sequence_number(), 0);
-    let summary = response.summary().expect("should have summary");
+    let summary = response
+        .summary()
+        .expect("should have summary")
+        .summary()
+        .expect("should deserialize summary");
     assert_eq!(summary.epoch, 0);
     assert!(!response.transactions.is_empty());
     assert!(response.contents.is_some());
@@ -49,7 +53,11 @@ async fn test_get_checkpoint() {
         .expect("gRPC call");
 
     assert_eq!(response_1.sequence_number(), 1);
-    let summary_1 = response_1.summary().expect("should have summary");
+    let summary_1 = response_1
+        .summary()
+        .expect("should have summary")
+        .summary()
+        .expect("should deserialize summary");
     assert_eq!(summary_1.epoch, 0);
     let digest_1 = summary_1.content_digest;
 
@@ -226,18 +234,18 @@ async fn test_event_filtering() {
         while let Some(checkpoint_result) = sender_stream.next().await {
             match checkpoint_result {
                 Ok(response) => {
-                    let events = response.events().expect("should deserialize events");
+                    let events = response.events();
                     for event in events {
                         // Verify BCS serialization integrity
-                        assert!(!event.contents.is_empty(), "BCS data must be valid");
+                        assert!(event.bcs_contents.is_some(), "BCS data must be valid");
                         // Verify sender filter logic: only events from sender_1
                         assert_eq!(
-                            event.sender,
-                            sender_1.into(),
+                            event.sender.as_ref().unwrap().address.as_ref(),
+                            sender_1.as_ref(),
                             "SenderFilter should only match sender_1 events"
                         );
 
-                        sender_events.push(event);
+                        sender_events.push(event.clone());
                     }
                 }
                 Err(e) => panic!("SenderFilter client error: {e}"),
@@ -270,19 +278,19 @@ async fn test_event_filtering() {
         while let Some(checkpoint_result) = nft_stream.next().await {
             match checkpoint_result {
                 Ok(response) => {
-                    let events = response.events().expect("should deserialize events");
+                    let events = response.events();
                     for event in events {
                         // Verify BCS serialization integrity
-                        assert!(!event.contents.is_empty(), "BCS data must be valid");
+                        assert!(event.bcs_contents.is_some(), "BCS data must be valid");
 
                         // Verify NFT filter logic: only NFT events
                         assert_eq!(
-                            event.package_id,
-                            nft_package_id.into(),
+                            event.package_id.as_ref().unwrap().address.as_ref(),
+                            nft_package_id.as_ref(),
                             "MoveEventTypeFilter should only match NFT package events"
                         );
 
-                        nft_events.push(event);
+                        nft_events.push(event.clone());
                     }
                 }
                 Err(e) => panic!("MoveEventTypeFilter client error: {e}"),
@@ -315,20 +323,22 @@ async fn test_event_filtering() {
         while let Some(checkpoint_result) = any_stream.next().await {
             match checkpoint_result {
                 Ok(response) => {
-                    let events = response.events().expect("should deserialize events");
+                    let events = response.events();
                     for event in events {
                         // Verify BCS serialization integrity
-                        assert!(!event.contents.is_empty());
+                        assert!(event.bcs_contents.is_some());
 
                         // Verify AnyEventFilter logic: events from sender_1 and NFT events
                         assert!(
-                            event.sender == sender_1.into()
-                                || event.package_id == nft_package_id.into(),
-                            "AnyEventFilter should receive events from both events: {}",
-                            event.package_id
+                            (event.sender.as_ref().map(|s| &s.address)
+                                == Some(&sender_1.as_ref().to_vec().into()))
+                                || (event.package_id.as_ref().map(|p| &p.address)
+                                    == Some(&nft_package_id.as_ref().to_vec().into())),
+                            "AnyEventFilter should receive events from both events: {:?}",
+                            event.package_id.as_ref().map(|p| &p.address)
                         );
 
-                        any_events.push(event);
+                        any_events.push(event.clone());
                     }
                 }
                 Err(e) => panic!("AnyEventFilter client error: {e}"),

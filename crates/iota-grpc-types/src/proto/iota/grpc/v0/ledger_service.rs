@@ -81,9 +81,9 @@ impl GetServiceInfoResponse {
 
 impl ObjectResult {
     /// Get the object if this result is an object.
-    pub fn object(&self) -> Result<Option<super::object::Object>, TryFromProtoError> {
+    pub fn object(&self) -> Result<Option<&super::object::Object>, TryFromProtoError> {
         match &self.result {
-            Some(object_result::Result::Object(obj)) => Ok(Some(obj.clone())),
+            Some(object_result::Result::Object(obj)) => Ok(Some(obj)),
             _ => Ok(None),
         }
     }
@@ -105,21 +105,6 @@ impl ObjectResult {
     }
 }
 
-// GetObjectsResponse
-//
-
-impl GetObjectsResponse {
-    /// Get all object results.
-    pub fn objects(&self) -> &Vec<ObjectResult> {
-        &self.objects
-    }
-
-    /// Check if there are more results available.
-    pub fn has_more(&self) -> bool {
-        self.has_next
-    }
-}
-
 // TransactionResult
 //
 
@@ -127,9 +112,9 @@ impl TransactionResult {
     /// Get the executed transaction if this result is a transaction.
     pub fn executed_transaction(
         &self,
-    ) -> Result<Option<super::transaction::ExecutedTransaction>, TryFromProtoError> {
+    ) -> Result<Option<&super::transaction::ExecutedTransaction>, TryFromProtoError> {
         match &self.result {
-            Some(transaction_result::Result::Transaction(tx)) => Ok(Some(tx.clone())),
+            Some(transaction_result::Result::Transaction(tx)) => Ok(Some(tx)),
             _ => Ok(None),
         }
     }
@@ -151,27 +136,12 @@ impl TransactionResult {
     }
 }
 
-// GetTransactionsResponse
-//
-
-impl GetTransactionsResponse {
-    pub fn transactions(&self) -> &Vec<TransactionResult> {
-        &self.transactions
-    }
-
-    /// Check if there are more results available.
-    pub fn has_more(&self) -> bool {
-        self.has_next
-    }
-}
-
 // GetEpochResponse
 //
 
 impl GetEpochResponse {
     pub fn epoch(&self) -> Result<&crate::v0::epoch::Epoch, TryFromProtoError> {
-        self
-            .epoch
+        self.epoch
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))
     }

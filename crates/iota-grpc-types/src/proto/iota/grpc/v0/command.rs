@@ -120,15 +120,6 @@ impl CommandOutput {
     }
 }
 
-// CommandOutputs
-//
-
-impl CommandOutputs {
-    pub fn outputs(&self) -> &Vec<CommandOutput> {
-        &self.outputs
-    }
-}
-
 // CommandResult
 //
 
@@ -143,14 +134,5 @@ impl CommandResult {
         self.return_values
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(Self::RETURN_VALUES_FIELD.name))
-    }
-}
-
-// CommandResults
-//
-
-impl CommandResults {
-    pub fn results(&self) -> &Vec<CommandResult> {
-        &self.results
     }
 }

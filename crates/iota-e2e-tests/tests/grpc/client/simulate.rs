@@ -29,7 +29,9 @@ async fn simulate_transaction_scenarios() {
             .executed_transaction()
             .expect("Failed to get executed_transaction from simulation result")
             .effects()
-            .expect("Failed to get effects from simulation result");
+            .expect("Failed to get effects from simulation result")
+            .effects()
+            .expect("Failed to get inner effects from simulation result");
         assert!(
             is_success(effects.status()),
             "{mode_name} simulation should succeed"
@@ -53,7 +55,9 @@ async fn simulate_transaction_scenarios() {
         .executed_transaction()
         .expect("Failed to get executed_transaction from simulation result")
         .effects()
-        .expect("Failed to get effects from simulation result with minimal mask");
+        .expect("Failed to get effects from simulation result")
+        .effects()
+        .expect("Failed to get inner effects from simulation result");
 
     assert!(
         is_success(effects.status()),
@@ -105,7 +109,9 @@ async fn simulate_transaction_scenarios() {
         .executed_transaction()
         .expect("Failed to get executed_transaction from simulation result")
         .effects()
-        .expect("Failed to get SDK effects from simulation result");
+        .expect("Failed to get effects from simulation result")
+        .effects()
+        .expect("Failed to get inner effects from simulation result");
 
     assert!(
         !is_success(effects.status()),

@@ -12,7 +12,9 @@ use crate::proto::TryFromProtoError;
 //
 
 impl ExecuteTransactionResponse {
-    pub fn executed_transaction(&self) -> Result<&crate::v0::transaction::ExecutedTransaction, TryFromProtoError> {
+    pub fn executed_transaction(
+        &self,
+    ) -> Result<&crate::v0::transaction::ExecutedTransaction, TryFromProtoError> {
         self.transaction
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(Self::TRANSACTION_FIELD.name))
@@ -23,7 +25,9 @@ impl ExecuteTransactionResponse {
 //
 
 impl SimulateTransactionResponse {
-    pub fn executed_transaction(&self) -> Result<&crate::v0::transaction::ExecutedTransaction, TryFromProtoError> {
+    pub fn executed_transaction(
+        &self,
+    ) -> Result<&crate::v0::transaction::ExecutedTransaction, TryFromProtoError> {
         self.transaction
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(Self::TRANSACTION_FIELD.name))

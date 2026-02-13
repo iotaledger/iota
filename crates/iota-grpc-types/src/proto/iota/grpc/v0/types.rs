@@ -118,7 +118,7 @@ impl ObjectReference {
     }
 
     /// Get the object ID parsed as SDK type.
-    pub fn parsed_object_id(&self) -> Result<iota_sdk_types::ObjectId, TryFromProtoError> {
+    pub fn object_identifier(&self) -> Result<iota_sdk_types::ObjectId, TryFromProtoError> {
         self.object_id
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(Self::OBJECT_ID_FIELD.name))?
@@ -127,7 +127,7 @@ impl ObjectReference {
     }
 
     /// Get the object version number.
-    pub fn object_version(&self) -> Result<u64, TryFromProtoError> {
+    pub fn object_version(&self) -> Result<iota_sdk_types::Version, TryFromProtoError> {
         self.version
             .ok_or_else(|| TryFromProtoError::missing(Self::VERSION_FIELD.name))
     }
@@ -209,22 +209,5 @@ impl TypeTag {
     /// Deserialize the type tag to SDK type.
     pub fn type_tag(&self) -> Result<iota_sdk_types::TypeTag, TryFromProtoError> {
         self.try_into()
-    }
-}
-
-// TypeTags
-//
-
-impl TypeTags {
-    /// Deserialize all type tags to SDK types.
-    pub fn type_tags(&self) -> Result<Vec<iota_sdk_types::TypeTag>, TryFromProtoError> {
-        self.type_tags
-            .iter()
-            .enumerate()
-            .map(|(i, tt)| {
-                tt.type_tag()
-                    .map_err(|e| e.nested_at(Self::TYPE_TAGS_FIELD.name, i))
-            })
-            .collect()
     }
 }

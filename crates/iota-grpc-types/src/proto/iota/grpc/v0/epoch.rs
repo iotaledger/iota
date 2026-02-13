@@ -160,19 +160,11 @@ impl Epoch {
             .ok_or_else(|| TryFromProtoError::missing(Self::REFERENCE_GAS_PRICE_FIELD.name))
     }
 
-    // TODO: Implement when ProtocolConfig conversion is available.
-    // Use `protocol_version()`, `feature_flags()`, and `protocol_attributes()`
-    // for individual field access in the meantime.
-    // See https://github.com/iotaledger/iota/issues/10077
-    //
-    // pub fn protocol_config(&self) -> Result<iota_protocol_config::ProtocolConfig,
-    // TryFromProtoError> {     ...
-    // }
-    pub fn protocol_config(&self) -> Result<ProtocolConfig, TryFromProtoError> {
+    /// Get the protocol configuration for this epoch.
+    pub fn protocol_config(&self) -> Result<&ProtocolConfig, TryFromProtoError> {
         self.protocol_config
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(Self::PROTOCOL_CONFIG_FIELD.name))
-            .cloned()
     }
 }
 
@@ -204,83 +196,5 @@ impl ProtocolConfig {
             .as_ref()
             .map(|a| &a.attributes)
             .ok_or_else(|| TryFromProtoError::missing(Self::ATTRIBUTES_FIELD.name))
-    }
-
-    // TODO: Implement when ProtocolConfig conversion is available.
-    // Use `version()`, `flags()`, and `attrs()` for individual field access in the
-    // meantime.
-    // See https://github.com/iotaledger/iota/issues/10077
-    //
-    // pub fn to_protocol_config(&self) ->
-    // Result<iota_protocol_config::ProtocolConfig, TryFromProtoError> {     ...
-    // }
-}
-
-// ProtocolFeatureFlags
-//
-
-impl ProtocolFeatureFlags {
-    /// Get the feature flags map.
-    pub fn feature_flags(&self) -> &std::collections::BTreeMap<String, bool> {
-        &self.flags
-    }
-}
-
-// ProtocolAttributes
-//
-
-impl ProtocolAttributes {
-    /// Get the attributes map.
-    pub fn protocol_attributes(&self) -> &std::collections::BTreeMap<String, String> {
-        &self.attributes
-    }
-}
-
-// ValidatorCommitteeMembers
-//
-
-impl ValidatorCommitteeMembers {
-    /// Deserialize all committee members.
-    pub fn committee_members(
-        &self,
-    ) -> Result<Vec<iota_sdk_types::ValidatorCommitteeMember>, TryFromProtoError> {
-        self.members
-            .iter()
-            .enumerate()
-            .map(|(i, m)| {
-                m.committee_member()
-                    .map_err(|e| e.nested_at(Self::MEMBERS_FIELD.name, i))
-            })
-            .collect()
-    }
-}
-
-// ValidatorCommittee
-//
-
-impl ValidatorCommittee {
-    /// Get the epoch number.
-    pub fn epoch_number(&self) -> Result<iota_sdk_types::EpochId, TryFromProtoError> {
-        self.epoch
-            .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))
-    }
-
-    /// Deserialize the validator committee.
-    pub fn validator_committee(
-        &self,
-    ) -> Result<iota_sdk_types::ValidatorCommittee, TryFromProtoError> {
-        self.try_into()
-    }
-}
-
-// ValidatorCommitteeMember
-//
-
-impl ValidatorCommitteeMember {
-    /// Deserialize the committee member.
-    pub fn committee_member(
-        &self,
-    ) -> Result<iota_sdk_types::ValidatorCommitteeMember, TryFromProtoError> {
-        self.try_into()
     }
 }

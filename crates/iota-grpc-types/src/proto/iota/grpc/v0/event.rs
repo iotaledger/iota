@@ -88,11 +88,3 @@ impl Event {
             .ok_or_else(|| TryFromProtoError::missing(Self::JSON_CONTENTS_FIELD.name))
     }
 }
-
-// Convenience methods for Events
-impl Events {
-    /// Get all events.
-    pub fn events(&self) -> &Vec<Event> {
-        &self.events
-    }
-}
