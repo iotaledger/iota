@@ -148,7 +148,7 @@ impl IndexerFeatureArgs {
     }
 }
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[clap(rename_all = "kebab-case")]
 pub struct IotaEnvConfig {
     /// Sets the file storing the state of our user accounts (an empty one will
@@ -649,11 +649,14 @@ impl IotaCommand {
                 // ID to the one that is specified.
                 if client_config.env.is_some() && matches!(cmd, MoveCommand::Build(_)) {
                     // TODO replace with get_chain_id_and_client when https://github.com/iotaledger/iota/issues/10215 is done
-                    let context = WalletContext::new(
+                    let mut context = WalletContext::new(
                         &client_config
                             .config
                             .unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG)),
                     )?;
+                    if let Some(env_override) = &client_config.env {
+                        context = context.with_env_override(env_override.clone());
+                    }
                     let Ok(client) = context.get_client().await else {
                         bail!(
                             "`iota move build` requires a connection to the network. Current active network is {} but failed to connect to it.",
