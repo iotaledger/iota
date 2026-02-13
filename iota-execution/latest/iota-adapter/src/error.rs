@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
-    base_types::ObjectID,
+    base_types::{Identifier, ObjectID},
     error::{ExecutionError, IotaError},
     execution_status::{ExecutionFailureStatus, MoveLocation, MoveLocationOpt},
 };
@@ -46,7 +46,7 @@ pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
             ExecutionFailureStatus::MoveAbort {
                 location: MoveLocation {
                     package: ObjectID::new(abort_location_id.address().into_bytes()),
-                    module: abort_location_id.name().to_owned().into(),
+                    module: Identifier::new_unchecked(abort_location_id.name().as_str()),
                     function,
                     instruction,
                     function_name,
@@ -73,7 +73,7 @@ pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
                         });
                         Some(MoveLocation {
                             package: ObjectID::new(id.address().into_bytes()),
-                            module: id.module(),
+                            module: Identifier::new_unchecked(id.name().as_str()),
                             function,
                             instruction,
                             function_name,

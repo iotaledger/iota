@@ -1492,10 +1492,10 @@ impl IotaExecutionStatus {
                 command: Some(mut command_index),
             } => {
                 let error = 'error: {
-                    let ExecutionFailureStatus::MoveAbort(loc, code) = &error else {
+                    let ExecutionFailureStatus::MoveAbort { location, code } = &error else {
                         break 'error error.to_string();
                     };
-                    let fname_string = if let Some(fname) = &loc.function_name {
+                    let fname_string = if let Some(fname) = &location.function_name {
                         format!("::{fname}'")
                     } else {
                         "'".to_string()
@@ -1506,13 +1506,22 @@ impl IotaExecutionStatus {
                         source_line_number,
                         error_info,
                     }) = resolver
-                        .resolve_clever_error(loc.module.clone(), *code)
+                        .resolve_clever_error(
+                            ModuleId::new(
+                                AccountAddress::from(location.package.into_bytes()),
+                                move_core_types::identifier::Identifier::new(
+                                    location.module.as_str(),
+                                )
+                                .unwrap(),
+                            ),
+                            *code,
+                        )
                         .await
                     else {
                         break 'error format!(
                             "from '{}{fname_string} (instruction {}), abort code: {code}",
-                            loc.module.to_canonical_display(true),
-                            loc.instruction,
+                            location.module.as_str(),
+                            location.instruction,
                         );
                     };
 

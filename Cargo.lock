@@ -180,7 +180,11 @@ dependencies = [
  "prettyplease",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -317,9 +321,15 @@ dependencies = [
 
 [[package]]
 name = "arc-swap"
+<<<<<<< HEAD
 version = "1.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9f3647c145568cec02c42054e07bdf9a5a698e15b466fb2341bfc393cd24aa5"
+=======
+version = "1.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ded5f9a03ac8f24d1b8a25101ee812cd32cdc8c50a4c50237de2c4915850e73"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "rustversion",
  "serde",
@@ -858,7 +868,11 @@ checksum = "3109e49b1e4909e9db6515a30c633684d68cdeaa252f215214cb4fa1a5bfee2c"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
  "synstructure 0.13.2",
 ]
 
@@ -870,7 +884,11 @@ checksum = "7b18050c2cd6fe86c3a76584ef5e0baf286d038cda203eb6223df2cc413565f7"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -967,7 +985,11 @@ dependencies = [
  "proc-macro2",
  "quote",
  "strum 0.27.2",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
  "thiserror 2.0.18",
 ]
 
@@ -1021,7 +1043,11 @@ checksum = "3b43422f69d8ff38f95f1b2bb76517c91589a924d1559a0e935d7c8ce0274c11"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -1043,7 +1069,11 @@ checksum = "c7c24de15d275a1ecfd47a380fb4d5ec9bfe0933f309ed5e705b775596a3574d"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -1060,7 +1090,11 @@ checksum = "9035ad2d096bed7955a320ee7e2230574d28fd3c3a0f186cbea1ff3c7eed5dbb"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -1228,9 +1262,15 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-ec2"
+<<<<<<< HEAD
 version = "1.211.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bedb3080c7585181d7e536424fcd32db29262fe6158baa7282dc072e6bb2e6af"
+=======
+version = "1.210.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7dadc192b071ef3bfa245a3a39185353e0961724bd32c034c0907a35a6c26bc"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "aws-credential-types",
  "aws-runtime",
@@ -1253,9 +1293,15 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-kms"
+<<<<<<< HEAD
 version = "1.101.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1dca55e9417ba817965206945209c061a77cf03380d93ce9556b0ea76499e02"
+=======
+version = "1.100.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "723700afe7459a33d1ac30852e9208b801946c032625cc8c808f57b9563bb5c7"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "aws-credential-types",
  "aws-runtime",
@@ -1372,9 +1418,15 @@ dependencies = [
 
 [[package]]
 name = "aws-smithy-async"
+<<<<<<< HEAD
 version = "1.2.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5cc50d0f63e714784b84223abd7abbc8577de8c35d699e0edd19f0a88a08ae13"
+=======
+version = "1.2.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3cba48474f1d6807384d06fec085b909f5807e16653c5af5c45dfe89539f0b70"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "futures-util",
  "pin-project-lite",
@@ -1383,9 +1435,15 @@ dependencies = [
 
 [[package]]
 name = "aws-smithy-http"
+<<<<<<< HEAD
 version = "0.63.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d619373d490ad70966994801bc126846afaa0d1ee920697a031f0cf63f2568e7"
+=======
+version = "0.63.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af4a8a5fe3e4ac7ee871237c340bbce13e982d37543b65700f4419e039f5d78e"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "aws-smithy-runtime-api",
  "aws-smithy-types",
@@ -1404,9 +1462,15 @@ dependencies = [
 
 [[package]]
 name = "aws-smithy-http-client"
+<<<<<<< HEAD
 version = "1.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "00ccbb08c10f6bcf912f398188e42ee2eab5f1767ce215a02a73bc5df1bbdd95"
+=======
+version = "1.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0709f0083aa19b704132684bc26d3c868e06bd428ccc4373b0b55c3e8748a58b"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "aws-smithy-async",
  "aws-smithy-runtime-api",
@@ -1462,9 +1526,15 @@ dependencies = [
 
 [[package]]
 name = "aws-smithy-runtime"
+<<<<<<< HEAD
 version = "1.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22ccf7f6eba8b2dcf8ce9b74806c6c185659c311665c4bf8d6e71ebd454db6bf"
+=======
+version = "1.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8fd3dfc18c1ce097cf81fced7192731e63809829c6cbf933c1ec47452d08e1aa"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "aws-smithy-async",
  "aws-smithy-http",
@@ -1487,9 +1557,15 @@ dependencies = [
 
 [[package]]
 name = "aws-smithy-runtime-api"
+<<<<<<< HEAD
 version = "1.11.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4af6e5def28be846479bbeac55aa4603d6f7986fc5da4601ba324dd5d377516"
+=======
+version = "1.11.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c55e0837e9b8526f49e0b9bfa9ee18ddee70e853f5bc09c5d11ebceddcb0fec"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "aws-smithy-async",
  "aws-smithy-types",
@@ -1504,9 +1580,15 @@ dependencies = [
 
 [[package]]
 name = "aws-smithy-types"
+<<<<<<< HEAD
 version = "1.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ca2734c16913a45343b37313605d84e7d8b34a4611598ce1d25b35860a2bed3"
+=======
+version = "1.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "576b0d6991c9c32bc14fc340582ef148311f924d41815f641a308b5d11e8e7cd"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "base64-simd",
  "bytes",
@@ -1685,7 +1767,11 @@ checksum = "604fde5e028fea851ce1d8570bbdc034bec850d157f7569d10f347d06808c05c"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -1911,7 +1997,11 @@ checksum = "230c5f1ca6a325a32553f8640d31ac9b49f2411e901e427570154868b46da4f7"
 
 [[package]]
 name = "bin-version"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "const-str 0.5.7",
  "git-version",
@@ -1944,7 +2034,11 @@ dependencies = [
  "regex",
  "rustc-hash 1.1.0",
  "shlex",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -2026,9 +2120,15 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
 name = "bitflags"
+<<<<<<< HEAD
 version = "2.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "843867be96c8daad0d758b57df9392b6d8d271134fce549de6ce169ff98a92af"
+=======
+version = "2.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "812e12b5285cc515a9c72a5c1d3b6d46a19dac5acfef5265968c166106e31dd3"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "serde_core",
 ]
@@ -2543,9 +2643,15 @@ dependencies = [
 
 [[package]]
 name = "clap"
+<<<<<<< HEAD
 version = "4.5.59"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c5caf74d17c3aec5495110c34cc3f78644bfa89af6c8993ed4de2790e49b6499"
+=======
+version = "4.5.58"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63be97961acde393029492ce0be7a1af7e323e6bae9511ebfac33751be5e6806"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -2553,9 +2659,15 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
+<<<<<<< HEAD
 version = "4.5.59"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "370daa45065b80218950227371916a1633217ae42b2715b2287b606dcd618e24"
+=======
+version = "4.5.58"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f13174bda5dfd69d7e947827e5af4b0f2f94a4a3ee92912fba07a66150f21e2"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anstream",
  "anstyle",
@@ -2582,7 +2694,11 @@ dependencies = [
  "heck 0.5.0",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -2745,7 +2861,11 @@ dependencies = [
  "fastcrypto",
  "insta",
  "iota-network-stack",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "rand 0.8.5",
  "serde",
 ]
@@ -2770,7 +2890,11 @@ dependencies = [
  "iota-metrics",
  "iota-network-stack",
  "iota-protocol-config",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "iota-tls",
  "itertools 0.13.0",
  "lru 0.12.5",
@@ -2790,8 +2914,13 @@ dependencies = [
  "tokio-rustls 0.26.4",
  "tokio-stream",
  "tokio-util 0.7.18",
+<<<<<<< HEAD
  "tonic 0.14.4",
  "tonic-build 0.14.4",
+=======
+ "tonic 0.14.3",
+ "tonic-build 0.14.3",
+>>>>>>> d735805ba8 (some fixes)
  "tonic-prost",
  "tonic-rustls",
  "tower 0.4.13",
@@ -3200,7 +3329,11 @@ version = "0.28.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "829d955a0bb380ef178a640b91779e3987da38c9aea133b20614cfed8cdea9c6"
 dependencies = [
+<<<<<<< HEAD
  "bitflags 2.11.0",
+=======
+ "bitflags 2.10.0",
+>>>>>>> d735805ba8 (some fixes)
  "crossterm_winapi",
  "mio 1.1.1",
  "parking_lot 0.12.5",
@@ -3344,7 +3477,11 @@ checksum = "f46882e17999c6cc590af592290432be3bce0428cb0d5f8b6715e4dc7b383eb3"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -3389,7 +3526,11 @@ dependencies = [
  "proc-macro2",
  "quote",
  "strsim 0.10.0",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
  "thiserror 1.0.69",
 ]
 
@@ -3413,7 +3554,11 @@ dependencies = [
  "cynic-codegen",
  "darling 0.20.11",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -3481,7 +3626,11 @@ dependencies = [
  "proc-macro2",
  "quote",
  "strsim 0.11.1",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -3495,7 +3644,11 @@ dependencies = [
  "proc-macro2",
  "quote",
  "strsim 0.11.1",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -3508,7 +3661,11 @@ dependencies = [
  "proc-macro2",
  "quote",
  "strsim 0.11.1",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -3530,7 +3687,11 @@ checksum = "fc34b93ccb385b40dc71c6fceac4b2ad23662c7eeb248cf10d529b7e055b6ead"
 dependencies = [
  "darling_core 0.20.11",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -3541,7 +3702,11 @@ checksum = "d38308df82d1080de0afee5d069fa14b0326a88c14f15c5ccda35b4a6c414c81"
 dependencies = [
  "darling_core 0.21.3",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -3552,7 +3717,11 @@ checksum = "ac3984ec7bd6cfa798e62b4a642426a5be0e68f9401cfc2a01e3fa9ea2fcdb8d"
 dependencies = [
  "darling_core 0.23.0",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -3591,7 +3760,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ab67060fc6b8ef687992d439ca0fa36e7ed17e9a0b16b25b601e8757df720de"
 dependencies = [
  "data-encoding",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -3639,7 +3812,11 @@ checksum = "780eb241654bf097afb00fc5f054a09b687dad862e485fdcf8399bb056565370"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -3666,9 +3843,15 @@ dependencies = [
 
 [[package]]
 name = "der"
+<<<<<<< HEAD
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "71fd89660b2dc699704064e59e9dba0147b903e85319429e131620d022be411b"
+=======
+version = "0.8.0-rc.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c0182be35043efdd2df327a443bb600606e350cfb090cccb233e9451e76f5a3"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "const-oid 0.10.2",
  "pem-rfc7468 1.0.0",
@@ -3719,7 +3902,11 @@ dependencies = [
  "proc-macro2",
  "quote",
  "structmeta",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -3741,7 +3928,11 @@ checksum = "ef941ded77d15ca19b40374869ac6000af1c9f2a4c0f3d4c70926287e6364a8f"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -3752,7 +3943,11 @@ checksum = "1e567bd82dcff979e4b03460c307b3cdc9e96fde3d73bed1496d2bc75d9dd62a"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -3773,7 +3968,11 @@ dependencies = [
  "darling 0.20.11",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -3783,7 +3982,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab63b0e2bf4d5928aff72e83a7dace85d7bba5fe12dcc3c5a572d78caffd3f3c"
 dependencies = [
  "derive_builder_core",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -3796,7 +3999,11 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustc_version",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -3825,7 +4032,11 @@ checksum = "cb7330aeadfbe296029522e6c40f315320aba36fc43a5b3632f3795348f3bd22"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
  "unicode-xid",
 ]
 
@@ -3839,7 +4050,11 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustc_version",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
  "unicode-xid",
 ]
 
@@ -3849,7 +4064,11 @@ version = "2.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9b6c2fc184a6fb6ebcf5f9a5e3bbfa84d8fd268cdfcce4ed508979a6259494d"
 dependencies = [
+<<<<<<< HEAD
  "bitflags 2.11.0",
+=======
+ "bitflags 2.10.0",
+>>>>>>> d735805ba8 (some fixes)
  "byteorder",
  "chrono",
  "diesel_derives",
@@ -3870,7 +4089,11 @@ dependencies = [
  "dsl_auto_type",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -3890,7 +4113,11 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe2444076b48641147115697648dc743c2c00b61adade0f01ce67133c7babe8c"
 dependencies = [
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -4017,7 +4244,11 @@ checksum = "97369cbbc041bc366949bc74d34658d6cda5621039731c6310521892a3a20ae0"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -4055,7 +4286,11 @@ dependencies = [
  "heck 0.5.0",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -4207,7 +4442,11 @@ dependencies = [
  "heck 0.5.0",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -4226,7 +4465,11 @@ dependencies = [
  "once_cell",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -4246,7 +4489,11 @@ checksum = "44f23cf4b44bfce11a86ace86f8a73ffdec849c9fd00a386a53d278bd9e81fb3"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -4684,9 +4931,15 @@ checksum = "e6d5a32815ae3f33302d95fdcb2ce17862f8c65363dcfd29360480ba1001fc9c"
 
 [[package]]
 name = "futures"
+<<<<<<< HEAD
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b147ee9d1f6d097cef9ce628cd2ee62288d963e16fb287bd9286455b241382d"
+=======
+version = "0.3.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65bc07b1a8bc7c85c5f2e110c476c7389b4554ba72af57d8445ea63a576b0876"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "futures-channel",
  "futures-core",
@@ -4699,9 +4952,15 @@ dependencies = [
 
 [[package]]
 name = "futures-channel"
+<<<<<<< HEAD
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07bbe89c50d7a535e539b8c17bc0b49bdb77747034daa8087407d655f3f7cc1d"
+=======
+version = "0.3.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2dff15bf788c671c1934e366d07e30c1814a8ef514e1af724a602e8a2fbe1b10"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "futures-core",
  "futures-sink",
@@ -4709,6 +4968,7 @@ dependencies = [
 
 [[package]]
 name = "futures-core"
+<<<<<<< HEAD
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e3450815272ef58cec6d564423f6e755e25379b217b0bc688e295ba24df6b1d"
@@ -4718,6 +4978,17 @@ name = "futures-executor"
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf29c38818342a3b26b5b923639e7b1f4a61fc5e76102d4b1981c6dc7a7579d"
+=======
+version = "0.3.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05f29059c0c2090612e8d742178b0580d2dc940c837851ad723096f87af6663e"
+
+[[package]]
+name = "futures-executor"
+version = "0.3.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e28d1d997f585e54aebc3f97d39e72338912123a67330d723fdbb564d646c9f"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "futures-core",
  "futures-task",
@@ -4726,9 +4997,15 @@ dependencies = [
 
 [[package]]
 name = "futures-io"
+<<<<<<< HEAD
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cecba35d7ad927e23624b22ad55235f2239cfa44fd10428eecbeba6d6a717718"
+=======
+version = "0.3.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e5c1b78ca4aae1ac06c48a526a655760685149f0d465d21f37abfe57ce075c6"
+>>>>>>> d735805ba8 (some fixes)
 
 [[package]]
 name = "futures-lite"
@@ -4742,6 +5019,7 @@ dependencies = [
 
 [[package]]
 name = "futures-macro"
+<<<<<<< HEAD
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e835b70203e41293343137df5c0664546da5745f82ec9b84d40be8336958447b"
@@ -4749,10 +5027,20 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.116",
+=======
+version = "0.3.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "162ee34ebcb7c64a8abebc059ce0fee27c2262618d7b60ed8faf72fef13c3650"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
 name = "futures-sink"
+<<<<<<< HEAD
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c39754e157331b013978ec91992bde1ac089843443c49cbc7f46150b0fad0893"
@@ -4762,6 +5050,17 @@ name = "futures-task"
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "037711b3d59c33004d3856fbdc83b99d4ff37a24768fa1be9ce3538a1cde4393"
+=======
+version = "0.3.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e575fab7d1e0dcb8d0c7bcf9a63ee213816ab51902e6d244a95819acacf1d4f7"
+
+[[package]]
+name = "futures-task"
+version = "0.3.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f90f7dce0722e95104fcb095585910c0977252f286e354b5e3bd38902cd99988"
+>>>>>>> d735805ba8 (some fixes)
 
 [[package]]
 name = "futures-timer"
@@ -4775,9 +5074,15 @@ dependencies = [
 
 [[package]]
 name = "futures-util"
+<<<<<<< HEAD
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "389ca41296e6190b48053de0321d02a77f32f8a5d2461dd38762c0593805c6d6"
+=======
+version = "0.3.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9fa08315bb612088cc391249efdc3bc77536f16c91f6cf495e6fbe85b20a4a81"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "futures-channel",
  "futures-core",
@@ -4787,6 +5092,10 @@ dependencies = [
  "futures-task",
  "memchr",
  "pin-project-lite",
+<<<<<<< HEAD
+=======
+ "pin-utils",
+>>>>>>> d735805ba8 (some fixes)
  "slab",
 ]
 
@@ -4815,8 +5124,13 @@ dependencies = [
  "time",
  "tokio",
  "tokio-stream",
+<<<<<<< HEAD
  "tonic 0.14.4",
  "tonic-build 0.14.4",
+=======
+ "tonic 0.14.3",
+ "tonic-build 0.14.3",
+>>>>>>> d735805ba8 (some fixes)
  "tonic-prost",
  "tonic-prost-build",
  "url",
@@ -4932,7 +5246,11 @@ dependencies = [
  "proc-macro-error2",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -4968,7 +5286,11 @@ checksum = "53010ccb100b96a67bc32c0175f0ed1426b31b655d562898e57325f81c023ac0"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -5186,7 +5508,11 @@ dependencies = [
  "proc-macro-error2",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -5729,7 +6055,11 @@ checksum = "a0eb5a3343abf848c0984fe4604b2b105da9539376e24fc0a3b0007411ae4fd9"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -5763,9 +6093,15 @@ dependencies = [
 
 [[package]]
 name = "indicatif"
+<<<<<<< HEAD
 version = "0.18.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25470f23803092da7d239834776d653104d551bc4d7eacaf31e6837854b8e9eb"
+=======
+version = "0.18.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9375e112e4b463ec1b1c6c011953545c65a30164fbab5b581df32b3abf0dcb88"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "console 0.16.2",
  "portable-atomic",
@@ -5871,7 +6207,11 @@ dependencies = [
  "indoc",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -5925,7 +6265,11 @@ dependencies = [
 
 [[package]]
 name = "iota"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anemo",
  "anyhow",
@@ -5975,7 +6319,11 @@ dependencies = [
  "iota-protocol-config",
  "iota-replay",
  "iota-sdk",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "iota-simulator",
  "iota-source-validation",
  "iota-swarm",
@@ -6047,7 +6395,11 @@ dependencies = [
 
 [[package]]
 name = "iota-adapter-transactional-tests"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "datatest-stable",
  "iota-transactional-test-runner",
@@ -6055,7 +6407,11 @@ dependencies = [
 
 [[package]]
 name = "iota-analytics-indexer"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "arrow-array 53.4.0",
@@ -6097,7 +6453,11 @@ dependencies = [
 
 [[package]]
 name = "iota-analytics-indexer-derive"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6106,7 +6466,11 @@ dependencies = [
 
 [[package]]
 name = "iota-archival"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "byteorder",
@@ -6137,7 +6501,11 @@ dependencies = [
 
 [[package]]
 name = "iota-authority-aggregation"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "futures",
  "iota-metrics",
@@ -6148,7 +6516,11 @@ dependencies = [
 
 [[package]]
 name = "iota-aws-orchestrator"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "async-trait",
  "aws-config",
@@ -6180,7 +6552,11 @@ dependencies = [
 
 [[package]]
 name = "iota-benchmark"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6245,7 +6621,11 @@ dependencies = [
 
 [[package]]
 name = "iota-build-cache-server"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "chrono",
@@ -6269,7 +6649,11 @@ dependencies = [
 
 [[package]]
 name = "iota-cluster-test"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6288,7 +6672,11 @@ dependencies = [
  "iota-keys",
  "iota-move-build",
  "iota-sdk",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "iota-swarm",
  "iota-swarm-config",
  "iota-test-transaction-builder",
@@ -6309,7 +6697,11 @@ dependencies = [
 
 [[package]]
 name = "iota-common"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "fastcrypto",
@@ -6328,7 +6720,11 @@ dependencies = [
 
 [[package]]
 name = "iota-config"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anemo",
  "anyhow",
@@ -6357,7 +6753,11 @@ dependencies = [
 
 [[package]]
 name = "iota-core"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anemo",
  "anyhow",
@@ -6400,7 +6800,11 @@ dependencies = [
  "iota-network",
  "iota-network-stack",
  "iota-protocol-config",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "iota-simulator",
  "iota-storage",
  "iota-swarm-config",
@@ -6458,7 +6862,11 @@ dependencies = [
 
 [[package]]
 name = "iota-cost"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "bcs",
@@ -6491,7 +6899,11 @@ dependencies = [
 
 [[package]]
 name = "iota-data-ingestion"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6524,7 +6936,11 @@ dependencies = [
 
 [[package]]
 name = "iota-data-ingestion-core"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6558,7 +6974,11 @@ dependencies = [
 
 [[package]]
 name = "iota-e2e-tests"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6589,7 +7009,11 @@ dependencies = [
  "iota-protocol-config",
  "iota-rest-api",
  "iota-sdk",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "iota-simulator",
  "iota-storage",
  "iota-swarm",
@@ -6615,14 +7039,22 @@ dependencies = [
  "tempfile",
  "test-cluster",
  "tokio",
+<<<<<<< HEAD
  "tonic 0.14.4",
+=======
+ "tonic 0.14.3",
+>>>>>>> d735805ba8 (some fixes)
  "tracing",
  "url",
 ]
 
 [[package]]
 name = "iota-enum-compat-util"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "serde_yaml",
 ]
@@ -6661,7 +7093,11 @@ dependencies = [
 
 [[package]]
 name = "iota-faucet"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -6678,7 +7114,11 @@ dependencies = [
  "iota-metrics",
  "iota-network-stack",
  "iota-sdk",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "iota-types",
  "parking_lot 0.12.5",
  "prometheus",
@@ -6690,7 +7130,11 @@ dependencies = [
  "test-cluster",
  "thiserror 1.0.69",
  "tokio",
+<<<<<<< HEAD
  "tonic 0.14.4",
+=======
+ "tonic 0.14.3",
+>>>>>>> d735805ba8 (some fixes)
  "tower 0.4.13",
  "tower-http 0.5.2",
  "tracing",
@@ -6706,7 +7150,11 @@ source = "git+https://github.com/iotaledger/flamegraph-svg?rev=ba681350dc9a72c9b
 
 [[package]]
 name = "iota-framework"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "bcs",
@@ -6726,7 +7174,11 @@ dependencies = [
 
 [[package]]
 name = "iota-framework-snapshot"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "bcs",
@@ -6744,7 +7196,11 @@ dependencies = [
 
 [[package]]
 name = "iota-framework-tests"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "datatest-stable",
  "iota-adapter-latest",
@@ -6765,7 +7221,11 @@ dependencies = [
 
 [[package]]
 name = "iota-genesis-builder"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "bcs",
@@ -6786,7 +7246,11 @@ dependencies = [
  "iota-move-natives-latest",
  "iota-protocol-config",
  "iota-sdk-crypto",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "iota-simulator",
  "iota-stardust-types",
  "iota-swarm-config",
@@ -6822,7 +7286,11 @@ dependencies = [
 
 [[package]]
 name = "iota-genesis-common"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "iota-execution",
  "iota-protocol-config",
@@ -6832,7 +7300,11 @@ dependencies = [
 
 [[package]]
 name = "iota-graphql-config"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -6840,7 +7312,11 @@ dependencies = [
 
 [[package]]
 name = "iota-graphql-e2e-tests"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6853,7 +7329,11 @@ dependencies = [
 
 [[package]]
 name = "iota-graphql-rpc"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-graphql",
@@ -6894,7 +7374,11 @@ dependencies = [
  "iota-network-stack",
  "iota-package-resolver",
  "iota-rest-api",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "iota-swarm-config",
  "iota-test-transaction-builder",
  "iota-types",
@@ -6928,7 +7412,11 @@ dependencies = [
 
 [[package]]
 name = "iota-graphql-rpc-client"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-graphql",
@@ -6941,29 +7429,48 @@ dependencies = [
 
 [[package]]
 name = "iota-graphql-rpc-headers"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "axum 0.8.8",
 ]
 
 [[package]]
 name = "iota-grpc-client"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "async-stream",
  "base64 0.21.7",
  "futures",
  "http 1.4.0",
  "iota-grpc-types",
+<<<<<<< HEAD
  "iota-sdk-types",
  "serde",
  "thiserror 1.0.69",
  "tonic 0.14.4",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+ "serde",
+ "thiserror 1.0.69",
+ "tonic 0.14.3",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
 name = "iota-grpc-server"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-stream",
@@ -6975,6 +7482,7 @@ dependencies = [
  "iota-grpc-types",
  "iota-metrics",
  "iota-protocol-config",
+<<<<<<< HEAD
  "iota-sdk-types",
  "iota-test-transaction-builder",
  "iota-types",
@@ -6987,27 +7495,56 @@ dependencies = [
  "tokio-stream",
  "tokio-util 0.7.18",
  "tonic 0.14.4",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+ "iota-test-transaction-builder",
+ "iota-types",
+ "move-core-types",
+ "prost 0.14.3",
+ "prost-types 0.14.3",
+ "serde",
+ "tap",
+ "tokio",
+ "tokio-stream",
+ "tokio-util 0.7.18",
+ "tonic 0.14.3",
+>>>>>>> d735805ba8 (some fixes)
  "tracing",
 ]
 
 [[package]]
 name = "iota-grpc-types"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
 dependencies = [
  "bcs",
  "iota-sdk-types",
+=======
+version = "1.17.0-alpha"
+dependencies = [
+ "bcs",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "prost 0.14.3",
  "prost-types 0.14.3",
  "serde",
  "serde_json",
  "tap",
+<<<<<<< HEAD
  "tonic 0.14.4",
+=======
+ "tonic 0.14.3",
+>>>>>>> d735805ba8 (some fixes)
  "tonic-prost",
 ]
 
 [[package]]
 name = "iota-http"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "axum 0.8.8",
  "bytes",
@@ -7028,7 +7565,11 @@ dependencies = [
 
 [[package]]
 name = "iota-indexer"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7097,7 +7638,11 @@ dependencies = [
 
 [[package]]
 name = "iota-indexer-builder"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7113,7 +7658,11 @@ dependencies = [
 
 [[package]]
 name = "iota-indexer-streaming"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "async-trait",
  "backoff",
@@ -7132,7 +7681,11 @@ dependencies = [
 
 [[package]]
 name = "iota-json"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "bcs",
@@ -7151,7 +7704,11 @@ dependencies = [
 
 [[package]]
 name = "iota-json-rpc"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -7179,7 +7736,11 @@ dependencies = [
  "iota-open-rpc",
  "iota-package-resolver",
  "iota-protocol-config",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "iota-storage",
  "iota-transaction-builder",
  "iota-types",
@@ -7208,7 +7769,11 @@ dependencies = [
 
 [[package]]
 name = "iota-json-rpc-api"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "fastcrypto",
@@ -7227,7 +7792,11 @@ dependencies = [
 
 [[package]]
 name = "iota-json-rpc-tests"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7265,7 +7834,11 @@ dependencies = [
 
 [[package]]
 name = "iota-json-rpc-types"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "bcs",
@@ -7299,12 +7872,20 @@ dependencies = [
 
 [[package]]
 name = "iota-keys"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "bip32",
  "fastcrypto",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "iota-types",
  "rand 0.8.5",
  "regex",
@@ -7320,7 +7901,11 @@ dependencies = [
 
 [[package]]
 name = "iota-kvstore"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7338,7 +7923,11 @@ dependencies = [
 
 [[package]]
 name = "iota-ledger"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -7348,7 +7937,11 @@ dependencies = [
  "fastcrypto",
  "hex",
  "hidapi",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "iota-types",
  "ledger-transport",
  "ledger-transport-hid",
@@ -7359,7 +7952,11 @@ dependencies = [
 
 [[package]]
 name = "iota-ledger-signer"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -7368,7 +7965,11 @@ dependencies = [
  "clap",
  "iota-ledger",
  "iota-sdk",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "thiserror 1.0.69",
  "tokio",
  "tracing",
@@ -7376,7 +7977,11 @@ dependencies = [
 
 [[package]]
 name = "iota-light-client"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7409,7 +8014,11 @@ dependencies = [
 
 [[package]]
 name = "iota-macros"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "futures",
  "iota-proc-macros",
@@ -7419,7 +8028,11 @@ dependencies = [
 
 [[package]]
 name = "iota-mainnet-unlocks"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "chrono",
@@ -7431,7 +8044,11 @@ dependencies = [
 
 [[package]]
 name = "iota-metric-checker"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "backoff",
@@ -7452,7 +8069,11 @@ dependencies = [
 
 [[package]]
 name = "iota-metrics"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anemo",
  "anemo-tower",
@@ -7477,7 +8098,11 @@ dependencies = [
 
 [[package]]
 name = "iota-move"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "bin-version",
@@ -7516,7 +8141,11 @@ dependencies = [
 
 [[package]]
 name = "iota-move-build"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "fastcrypto",
@@ -7537,7 +8166,11 @@ dependencies = [
 
 [[package]]
 name = "iota-move-lsp"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "bin-version",
  "clap",
@@ -7570,7 +8203,11 @@ dependencies = [
 
 [[package]]
 name = "iota-names"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "bcs",
@@ -7582,7 +8219,11 @@ dependencies = [
 
 [[package]]
 name = "iota-network"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anemo",
  "anemo-build",
@@ -7603,7 +8244,11 @@ dependencies = [
  "iota-metrics",
  "iota-network-stack",
  "iota-protocol-config",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "iota-simulator",
  "iota-storage",
  "iota-swarm-config",
@@ -7615,15 +8260,24 @@ dependencies = [
  "telemetry-subscribers",
  "tempfile",
  "tokio",
+<<<<<<< HEAD
  "tonic 0.14.4",
  "tonic-build 0.14.4",
+=======
+ "tonic 0.14.3",
+ "tonic-build 0.14.3",
+>>>>>>> d735805ba8 (some fixes)
  "tower 0.4.13",
  "tracing",
 ]
 
 [[package]]
 name = "iota-network-stack"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anemo",
  "bcs",
@@ -7643,7 +8297,11 @@ dependencies = [
  "snap",
  "tokio",
  "tokio-rustls 0.26.4",
+<<<<<<< HEAD
  "tonic 0.14.4",
+=======
+ "tonic 0.14.3",
+>>>>>>> d735805ba8 (some fixes)
  "tonic-health",
  "tower 0.4.13",
  "tower-http 0.5.2",
@@ -7652,7 +8310,11 @@ dependencies = [
 
 [[package]]
 name = "iota-node"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anemo",
  "anemo-tower",
@@ -7682,7 +8344,11 @@ dependencies = [
  "iota-network-stack",
  "iota-protocol-config",
  "iota-rest-api",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "iota-simulator",
  "iota-snapshot",
  "iota-storage",
@@ -7697,7 +8363,11 @@ dependencies = [
  "telemetry-subscribers",
  "tokio",
  "tokio-util 0.7.18",
+<<<<<<< HEAD
  "tonic 0.14.4",
+=======
+ "tonic 0.14.3",
+>>>>>>> d735805ba8 (some fixes)
  "tower 0.4.13",
  "tracing",
  "typed-store",
@@ -7706,7 +8376,11 @@ dependencies = [
 
 [[package]]
 name = "iota-open-rpc"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "bcs",
@@ -7730,7 +8404,11 @@ dependencies = [
 
 [[package]]
 name = "iota-open-rpc-macros"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "derive-syn-parse",
  "itertools 0.13.0",
@@ -7742,7 +8420,11 @@ dependencies = [
 
 [[package]]
 name = "iota-package-alt"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "move-package-alt",
  "serde",
@@ -7750,7 +8432,11 @@ dependencies = [
 
 [[package]]
 name = "iota-package-dump"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "bcs",
@@ -7766,7 +8452,11 @@ dependencies = [
 
 [[package]]
 name = "iota-package-management"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "iota-framework-snapshot",
@@ -7782,7 +8472,11 @@ dependencies = [
 
 [[package]]
 name = "iota-package-resolver"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "async-trait",
  "bcs",
@@ -7803,39 +8497,64 @@ dependencies = [
 
 [[package]]
 name = "iota-proc-macros"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "msim-macros",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
 name = "iota-proto-build"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
 dependencies = [
  "bitflags 2.11.0",
+=======
+version = "1.17.0-alpha"
+dependencies = [
+>>>>>>> d735805ba8 (some fixes)
  "heck 0.5.0",
  "itertools 0.13.0",
  "petgraph 0.7.1",
  "prettyplease",
  "proc-macro2",
  "prost 0.14.3",
+<<<<<<< HEAD
  "prost-reflect",
+=======
+>>>>>>> d735805ba8 (some fixes)
  "prost-types 0.14.3",
  "protox",
  "quote",
  "regex",
+<<<<<<< HEAD
  "syn 2.0.116",
  "tonic-build 0.14.4",
+=======
+ "syn 2.0.115",
+ "tonic-build 0.14.3",
+>>>>>>> d735805ba8 (some fixes)
  "tonic-prost-build",
  "walkdir",
 ]
 
 [[package]]
 name = "iota-protocol-config"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "clap",
  "insta",
@@ -7850,7 +8569,11 @@ dependencies = [
 
 [[package]]
 name = "iota-protocol-config-macros"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7859,7 +8582,11 @@ dependencies = [
 
 [[package]]
 name = "iota-proxy"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "axum 0.8.8",
@@ -7901,7 +8628,11 @@ dependencies = [
 
 [[package]]
 name = "iota-replay"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -7946,7 +8677,11 @@ dependencies = [
 
 [[package]]
 name = "iota-rest-api"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "axum 0.8.8",
@@ -7955,7 +8690,11 @@ dependencies = [
  "fastcrypto",
  "iota-network-stack",
  "iota-protocol-config",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "iota-types",
  "itertools 0.13.0",
  "mime",
@@ -7975,7 +8714,11 @@ dependencies = [
 
 [[package]]
 name = "iota-rest-kv"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "aws-config",
@@ -7991,7 +8734,10 @@ dependencies = [
  "iota-storage",
  "iota-types",
  "object_store 0.13.1",
+<<<<<<< HEAD
  "rustls 0.23.36",
+=======
+>>>>>>> d735805ba8 (some fixes)
  "serde",
  "serde_yaml",
  "thiserror 1.0.69",
@@ -8003,7 +8749,11 @@ dependencies = [
 
 [[package]]
 name = "iota-rosetta"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8021,7 +8771,11 @@ dependencies = [
  "iota-move-build",
  "iota-node",
  "iota-sdk",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "iota-swarm-config",
  "iota-types",
  "move-core-types",
@@ -8044,7 +8798,11 @@ dependencies = [
 
 [[package]]
 name = "iota-rpc-loadgen"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8055,7 +8813,11 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-keys",
  "iota-sdk",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "iota-types",
  "itertools 0.13.0",
  "serde",
@@ -8069,7 +8831,11 @@ dependencies = [
 
 [[package]]
 name = "iota-sdk"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8088,7 +8854,11 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-keys",
  "iota-move-build",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "iota-transaction-builder",
  "iota-types",
  "jsonrpsee",
@@ -8110,12 +8880,20 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
+<<<<<<< HEAD
 source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b788e641030664a1cbdac71c08d0771f307d977f#b788e641030664a1cbdac71c08d0771f307d977f"
+=======
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=d8cdab6ab3f2fd9ba8059ba56e80ba950badc88d#d8cdab6ab3f2fd9ba8059ba56e80ba950badc88d"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "bip32",
  "bip39",
  "ed25519-dalek",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=d8cdab6ab3f2fd9ba8059ba56e80ba950badc88d)",
+>>>>>>> d735805ba8 (some fixes)
  "rand_core 0.6.4",
  "signature 2.2.0",
  "slip10_ed25519",
@@ -8125,7 +8903,34 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
+<<<<<<< HEAD
 source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b788e641030664a1cbdac71c08d0771f307d977f#b788e641030664a1cbdac71c08d0771f307d977f"
+=======
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=d8cdab6ab3f2fd9ba8059ba56e80ba950badc88d#d8cdab6ab3f2fd9ba8059ba56e80ba950badc88d"
+dependencies = [
+ "base64ct",
+ "bcs",
+ "blake2",
+ "bnum",
+ "bs58 0.5.1",
+ "hex",
+ "itertools 0.13.0",
+ "paste",
+ "roaring",
+ "serde",
+ "serde_json",
+ "serde_repr",
+ "serde_with",
+ "strum 0.27.2",
+ "thiserror 2.0.18",
+ "winnow 0.7.14",
+]
+
+[[package]]
+name = "iota-sdk-types"
+version = "0.0.1-alpha.1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c#dc9e05947b185b2b1348509b5a97167d49852a6c"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "base64ct",
  "bcs",
@@ -8153,7 +8958,11 @@ dependencies = [
 
 [[package]]
 name = "iota-simulator"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anemo",
  "anemo-tower",
@@ -8175,7 +8984,11 @@ dependencies = [
 
 [[package]]
 name = "iota-single-node-benchmark"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "async-trait",
  "bcs",
@@ -8209,7 +9022,11 @@ dependencies = [
 
 [[package]]
 name = "iota-snapshot"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "bcs",
@@ -8236,7 +9053,11 @@ dependencies = [
 
 [[package]]
 name = "iota-source-validation"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "colored",
@@ -8268,7 +9089,11 @@ dependencies = [
 
 [[package]]
 name = "iota-source-validation-service"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "axum 0.8.8",
@@ -8304,10 +9129,17 @@ dependencies = [
 
 [[package]]
 name = "iota-stardust-types"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
 dependencies = [
  "bech32",
  "bitflags 2.11.0",
+=======
+version = "1.17.0-alpha"
+dependencies = [
+ "bech32",
+ "bitflags 2.10.0",
+>>>>>>> d735805ba8 (some fixes)
  "derive_more 1.0.0",
  "getset",
  "iota-crypto",
@@ -8323,7 +9155,11 @@ dependencies = [
 
 [[package]]
 name = "iota-storage"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8374,7 +9210,11 @@ dependencies = [
 
 [[package]]
 name = "iota-surfer"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "bcs",
  "clap",
@@ -8402,7 +9242,11 @@ dependencies = [
 
 [[package]]
 name = "iota-swarm"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "futures",
@@ -8429,7 +9273,11 @@ dependencies = [
 
 [[package]]
 name = "iota-swarm-config"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anemo",
  "anyhow",
@@ -8443,7 +9291,11 @@ dependencies = [
  "iota-names",
  "iota-protocol-config",
  "iota-rest-api",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "iota-simulator",
  "iota-types",
  "prometheus",
@@ -8457,7 +9309,11 @@ dependencies = [
 
 [[package]]
 name = "iota-synthetic-ingestion"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8474,20 +9330,32 @@ dependencies = [
 
 [[package]]
 name = "iota-test-transaction-builder"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "bcs",
  "iota-genesis-builder",
  "iota-move-build",
  "iota-sdk",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "iota-types",
  "move-core-types",
 ]
 
 [[package]]
 name = "iota-tls"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -8509,7 +9377,11 @@ dependencies = [
 
 [[package]]
 name = "iota-tool"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anemo",
  "anemo-cli",
@@ -8554,7 +9426,11 @@ dependencies = [
 
 [[package]]
 name = "iota-transaction-builder"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8570,7 +9446,11 @@ dependencies = [
 
 [[package]]
 name = "iota-transaction-checks"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "fastcrypto-zkp",
  "iota-config",
@@ -8583,7 +9463,11 @@ dependencies = [
 
 [[package]]
 name = "iota-transactional-test-runner"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8628,7 +9512,11 @@ dependencies = [
 
 [[package]]
 name = "iota-types"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anemo",
  "anyhow",
@@ -8658,7 +9546,11 @@ dependencies = [
  "iota-macros",
  "iota-network-stack",
  "iota-protocol-config",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "itertools 0.13.0",
  "lru 0.12.5",
  "move-binary-format",
@@ -8696,7 +9588,11 @@ dependencies = [
  "tap",
  "thiserror 1.0.69",
  "tokio",
+<<<<<<< HEAD
  "tonic 0.14.4",
+=======
+ "tonic 0.14.3",
+>>>>>>> d735805ba8 (some fixes)
  "tracing",
  "typed-store-error",
  "url",
@@ -8704,7 +9600,11 @@ dependencies = [
 
 [[package]]
 name = "iota-upgrade-compatibility-transactional-tests"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "datatest-stable",
@@ -8733,7 +9633,11 @@ dependencies = [
 
 [[package]]
 name = "iota-verifier-transactional-tests"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "datatest-stable",
  "iota-transactional-test-runner",
@@ -9003,7 +9907,11 @@ dependencies = [
  "proc-macro-crate 3.4.0",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -9098,9 +10006,15 @@ dependencies = [
 
 [[package]]
 name = "keccak"
+<<<<<<< HEAD
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb26cec98cce3a3d96cbb7bced3c4b16e3d13f27ec56dbd62cbc8f39cfb9d653"
+=======
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ecc2af9a1119c51f12a14607e783cb977bde58bc069ff0c3da1095e635d70654"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "cpufeatures",
 ]
@@ -9349,7 +10263,11 @@ version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d0b95e02c851351f877147b7deea7b1afb1df71b63aa5f8270716e0c5720616"
 dependencies = [
+<<<<<<< HEAD
  "bitflags 2.11.0",
+=======
+ "bitflags 2.10.0",
+>>>>>>> d735805ba8 (some fixes)
  "libc",
  "redox_syscall 0.7.1",
 ]
@@ -9464,7 +10382,11 @@ dependencies = [
  "proc-macro2",
  "quote",
  "regex-syntax",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -9480,7 +10402,11 @@ dependencies = [
  "quote",
  "regex-syntax",
  "rustc_version",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -9578,7 +10504,11 @@ checksum = "757aee279b8bdbb9f9e676796fd459e4207a1f986e87886700abf589f5abf771"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -9642,9 +10572,15 @@ checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 
 [[package]]
 name = "memmap2"
+<<<<<<< HEAD
 version = "0.9.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "714098028fe011992e1c3962653c96b2d578c4b4bce9036e15ff220319b1e0e3"
+=======
+version = "0.9.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "744133e4a0e0a658e1374cf3bf8e415c4052a15a111acd372764c55b4177d490"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "libc",
 ]
@@ -9676,7 +10612,11 @@ checksum = "db5b29714e950dbb20d5e6f74f9dcec4edbcc1067bb7f8ed198c097b8c1a818b"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -10232,7 +11172,11 @@ name = "move-proc-macros"
 version = "0.1.0"
 dependencies = [
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -10556,7 +11500,11 @@ checksum = "254a5372af8fc138e36684761d3c0cdb758a4410e938babcff1c860ce14ddbfc"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -10618,7 +11566,11 @@ version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "71e2746dc3a24dd78b3cfcb7be93368c6de9963d30f43a6a73998a9cf4b17b46"
 dependencies = [
+<<<<<<< HEAD
  "bitflags 2.11.0",
+=======
+ "bitflags 2.10.0",
+>>>>>>> d735805ba8 (some fixes)
  "cfg-if",
  "cfg_aliases",
  "libc",
@@ -10664,7 +11616,11 @@ version = "6.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6205bd8bb1e454ad2e27422015fb5e4f2bcc7e08fa8f27058670d208324a4d2d"
 dependencies = [
+<<<<<<< HEAD
  "bitflags 2.11.0",
+=======
+ "bitflags 2.10.0",
+>>>>>>> d735805ba8 (some fixes)
  "crossbeam-channel",
  "filetime",
  "fsevent-sys",
@@ -10886,7 +11842,11 @@ dependencies = [
  "proc-macro-crate 3.4.0",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -10904,7 +11864,11 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a180dd8642fa45cdb7dd721cd4c11b1cadd4929ce112ebd8b9f5803cc79d536"
 dependencies = [
+<<<<<<< HEAD
  "bitflags 2.11.0",
+=======
+ "bitflags 2.10.0",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -11158,7 +12122,11 @@ dependencies = [
  "proc-macro-error",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -11171,7 +12139,11 @@ dependencies = [
  "proc-macro2",
  "proc-macro2-diagnostics",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -11367,7 +12339,11 @@ dependencies = [
  "proc-macro-crate 3.4.0",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -11495,7 +12471,11 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77144664f6aac5f629d7efa815f5098a054beeeca6ccafee5ec453fd2b0c53f9"
 dependencies = [
+<<<<<<< HEAD
  "bitflags 2.11.0",
+=======
+ "bitflags 2.10.0",
+>>>>>>> d735805ba8 (some fixes)
  "ciborium",
  "coset",
  "data-encoding",
@@ -11649,7 +12629,11 @@ dependencies = [
  "pest_meta",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -11733,7 +12717,11 @@ dependencies = [
  "phf_shared 0.11.3",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -11771,7 +12759,11 @@ checksum = "6e918e4ff8c4549eb882f14b3a4bc8c8bc93de829416eacf579f1207a8fbf861"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -11815,7 +12807,11 @@ version = "0.8.0-rc.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "986d2e952779af96ea048f160fd9194e1751b4faea78bcf3ceb456efe008088e"
 dependencies = [
+<<<<<<< HEAD
  "der 0.8.0",
+=======
+ "der 0.8.0-rc.12",
+>>>>>>> d735805ba8 (some fixes)
  "spki 0.8.0-rc.4",
 ]
 
@@ -11862,7 +12858,11 @@ version = "0.11.0-rc.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "12922b6296c06eb741b02d7b5161e3aaa22864af38dfa025a1a3ba3f68c84577"
 dependencies = [
+<<<<<<< HEAD
  "der 0.8.0",
+=======
+ "der 0.8.0-rc.12",
+>>>>>>> d735805ba8 (some fixes)
  "spki 0.8.0-rc.4",
 ]
 
@@ -12097,7 +13097,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "479ca8adacdd7ce8f1fb39ce9ecccbfe93a3f1344b3d0d97f20bc0196208f62b"
 dependencies = [
  "proc-macro2",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -12209,7 +13213,11 @@ dependencies = [
  "proc-macro-error-attr2",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -12229,7 +13237,11 @@ checksum = "af066a9c399a26e020ada66a034357a868728e72cd426f3adcd35f80d88d88c8"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
  "version_check",
  "yansi",
 ]
@@ -12251,7 +13263,11 @@ dependencies = [
 
 [[package]]
 name = "prometheus-closure-metric"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "prometheus",
@@ -12291,7 +13307,11 @@ checksum = "37566cb3fdacef14c0737f9546df7cfeadbfbc9fef10991038bf5015d0c80532"
 dependencies = [
  "bit-set",
  "bit-vec",
+<<<<<<< HEAD
  "bitflags 2.11.0",
+=======
+ "bitflags 2.10.0",
+>>>>>>> d735805ba8 (some fixes)
  "num-traits",
  "rand 0.9.2",
  "rand_chacha 0.9.0",
@@ -12310,7 +13330,11 @@ checksum = "4ee1c9ac207483d5e7db4940700de86a9aae46ef90c48b57f99fe7edb8345e49"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -12349,7 +13373,11 @@ dependencies = [
  "prost 0.13.5",
  "prost-types 0.13.5",
  "regex",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
  "tempfile",
 ]
 
@@ -12370,7 +13398,11 @@ dependencies = [
  "pulldown-cmark",
  "pulldown-cmark-to-cmark",
  "regex",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
  "tempfile",
 ]
 
@@ -12384,7 +13416,11 @@ dependencies = [
  "itertools 0.14.0",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -12397,7 +13433,11 @@ dependencies = [
  "itertools 0.14.0",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -12500,7 +13540,11 @@ version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e8bbe1a966bd2f362681a44f6edce3c2310ac21e4d5067a6e7ec396297a6ea0"
 dependencies = [
+<<<<<<< HEAD
  "bitflags 2.11.0",
+=======
+ "bitflags 2.10.0",
+>>>>>>> d735805ba8 (some fixes)
  "memchr",
  "unicase",
 ]
@@ -12817,7 +13861,11 @@ version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eabd94c2f37801c20583fc49dd5cd6b0ba68c716787c2dd6ed18571e1e63117b"
 dependencies = [
+<<<<<<< HEAD
  "bitflags 2.11.0",
+=======
+ "bitflags 2.10.0",
+>>>>>>> d735805ba8 (some fixes)
  "cassowary",
  "compact_str",
  "crossterm 0.28.1",
@@ -12838,7 +13886,11 @@ version = "11.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "498cd0dc59d73224351ee52a95fee0f1a617a2eae0e7d9d720cc622c73a54186"
 dependencies = [
+<<<<<<< HEAD
  "bitflags 2.11.0",
+=======
+ "bitflags 2.10.0",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -12894,7 +13946,11 @@ checksum = "f2a62d85ed81ca5305dc544bd42c8804c5060b78ffa5ad3c64b0fb6a8c13d062"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -12928,7 +13984,11 @@ version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed2bf2547551a7053d6fdfafda3f938979645c44812fbfcda098faae3f1a362d"
 dependencies = [
+<<<<<<< HEAD
  "bitflags 2.11.0",
+=======
+ "bitflags 2.10.0",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -12937,7 +13997,11 @@ version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "35985aa610addc02e24fc232012c86fd11f14111180f902b67e2d5331f8ebf2b"
 dependencies = [
+<<<<<<< HEAD
  "bitflags 2.11.0",
+=======
+ "bitflags 2.10.0",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -12991,7 +14055,11 @@ checksum = "b7186006dcb21920990093f30e3dea63b7d6e977bf1256be20c3563a5db070da"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -13179,7 +14247,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b91f7eff05f748767f183df4320a63d6936e9c6107d97c9e6bdd9784f4289c94"
 dependencies = [
  "base64 0.21.7",
+<<<<<<< HEAD
  "bitflags 2.11.0",
+=======
+ "bitflags 2.10.0",
+>>>>>>> d735805ba8 (some fixes)
  "serde",
  "serde_derive",
 ]
@@ -13293,7 +14365,11 @@ checksum = "01fe22d10a0e39c1134a971d5b8db8a40357b48ef22d81fa8d6eac22202dd782"
 dependencies = [
  "aes",
  "aws-lc-rs",
+<<<<<<< HEAD
  "bitflags 2.11.0",
+=======
+ "bitflags 2.10.0",
+>>>>>>> d735805ba8 (some fixes)
  "block-padding 0.3.3",
  "byteorder",
  "bytes",
@@ -13440,7 +14516,11 @@ version = "0.38.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fdb5bc1ae2baa591800df16c9ca78619bf65c0488b41b96ccec5d11220d8c154"
 dependencies = [
+<<<<<<< HEAD
  "bitflags 2.11.0",
+=======
+ "bitflags 2.10.0",
+>>>>>>> d735805ba8 (some fixes)
  "errno",
  "libc",
  "linux-raw-sys 0.4.15",
@@ -13453,7 +14533,11 @@ version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "146c9e247ccc180c1f61615433868c99f3de3ae256a30a43b49f67c2d9171f34"
 dependencies = [
+<<<<<<< HEAD
  "bitflags 2.11.0",
+=======
+ "bitflags 2.10.0",
+>>>>>>> d735805ba8 (some fixes)
  "errno",
  "libc",
  "linux-raw-sys 0.11.0",
@@ -13674,7 +14758,11 @@ dependencies = [
  "proc-macro2",
  "quote",
  "serde_derive_internals",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -13756,11 +14844,19 @@ dependencies = [
 
 [[package]]
 name = "security-framework"
+<<<<<<< HEAD
 version = "3.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d17b898a6d6948c3a8ee4372c17cb384f90d2e6e912ef00895b14fd7ab54ec38"
 dependencies = [
  "bitflags 2.11.0",
+=======
+version = "3.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b3297343eaf830f66ede390ea39da1d462b6b0c1b000f420d0a83f898bbbe6ef"
+dependencies = [
+ "bitflags 2.10.0",
+>>>>>>> d735805ba8 (some fixes)
  "core-foundation",
  "core-foundation-sys",
  "libc",
@@ -13769,9 +14865,15 @@ dependencies = [
 
 [[package]]
 name = "security-framework-sys"
+<<<<<<< HEAD
 version = "2.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "321c8673b092a9a42605034a9879d73cb79101ed5fd117bc9a597b89b4e9e61a"
+=======
+version = "2.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc1f0cbffaac4852523ce30d8bd3c5cdc873501d96ff467ca09b6767bb8cd5c0"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "core-foundation-sys",
  "libc",
@@ -13870,7 +14972,11 @@ checksum = "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -13881,7 +14987,11 @@ checksum = "18d26a20a969b9e3fdf2fc2d9f21eda6c40e2de84c9408bb5d3b05d499aae711"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -13917,7 +15027,11 @@ checksum = "175ee3e80ae9982737ca543e96133087cbd9a485eecc3bc4de9c1a37b47ea59c"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -13978,7 +15092,11 @@ dependencies = [
  "darling 0.21.3",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -14035,7 +15153,11 @@ checksum = "91d129178576168c589c9ec973feedf7d3126c01ac2bf08795109aa35b69fb8f"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -14264,7 +15386,11 @@ dependencies = [
 
 [[package]]
 name = "simulacrum"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-trait",
@@ -14288,7 +15414,11 @@ dependencies = [
 
 [[package]]
 name = "simulacrum-server"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "async-trait",
@@ -14372,7 +15502,11 @@ dependencies = [
  "heck 0.5.0",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -14510,7 +15644,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8baeff88f34ed0691978ec34440140e1572b68c7dd4a495fd14a3dc1944daa80"
 dependencies = [
  "base64ct",
+<<<<<<< HEAD
  "der 0.8.0",
+=======
+ "der 0.8.0-rc.12",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -14569,7 +15707,11 @@ dependencies = [
  "fastcrypto",
  "insta",
  "iota-network-stack",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "rand 0.8.5",
  "rs_merkle",
  "serde",
@@ -14598,7 +15740,11 @@ dependencies = [
  "iota-metrics",
  "iota-network-stack",
  "iota-protocol-config",
+<<<<<<< HEAD
  "iota-sdk-types",
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
+>>>>>>> d735805ba8 (some fixes)
  "iota-tls",
  "itertools 0.13.0",
  "lru 0.12.5",
@@ -14624,8 +15770,13 @@ dependencies = [
  "tokio-rustls 0.26.4",
  "tokio-stream",
  "tokio-util 0.7.18",
+<<<<<<< HEAD
  "tonic 0.14.4",
  "tonic-build 0.14.4",
+=======
+ "tonic 0.14.3",
+ "tonic-build 0.14.3",
+>>>>>>> d735805ba8 (some fixes)
  "tonic-prost",
  "tonic-rustls",
  "tower 0.4.13",
@@ -14716,7 +15867,11 @@ dependencies = [
  "proc-macro2",
  "quote",
  "structmeta-derive",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -14727,7 +15882,11 @@ checksum = "152a0b65a590ff6c3da95cabe2353ee04e6167c896b28e3b14478c2636c922fc"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -14786,7 +15945,11 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustversion",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -14799,7 +15962,11 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustversion",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -14811,7 +15978,11 @@ dependencies = [
  "heck 0.5.0",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -14893,9 +16064,15 @@ dependencies = [
 
 [[package]]
 name = "syn"
+<<<<<<< HEAD
 version = "2.0.116"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3df424c70518695237746f84cede799c9c58fcb37450d7b23716568cc8bc69cb"
+=======
+version = "2.0.115"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e614ed320ac28113fa64972c4262d5dbc89deacdfd00c34a3e4cea073243c12"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "proc-macro2",
  "quote",
@@ -14931,7 +16108,11 @@ checksum = "728a70f3dbaf5bab7f0c4b1ac8d7ae5ea60a4b5549c8a5914361c99147a709d2"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -14997,7 +16178,11 @@ dependencies = [
 
 [[package]]
 name = "telemetry-subscribers"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "atomic_float",
  "bytes",
@@ -15079,7 +16264,11 @@ checksum = "8f50febec83f5ee1df3015341d8bd429f2d1cc62bcba7ea2076759d315084683"
 
 [[package]]
 name = "test-cluster"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "anyhow",
  "fastcrypto-zkp",
@@ -15150,7 +16339,11 @@ dependencies = [
  "proc-macro2",
  "quote",
  "subprocess",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
  "test-fuzz-internal",
  "toolchain_find",
 ]
@@ -15179,7 +16372,11 @@ dependencies = [
  "proc-macro2",
  "quote",
  "structmeta",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -15218,7 +16415,11 @@ checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -15229,7 +16430,11 @@ checksum = "ebc4ee7f67670e9b64d05fa4253e753e016c6c95ff35b89b7941d6b856dec1d5"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -15375,7 +16580,11 @@ checksum = "2d2e76690929402faae40aebdda620a2c0e25dd6d3b9afe48867dfd95991f4bd"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -15404,7 +16613,11 @@ checksum = "af407857209536a95c8e56f8231ef2c2e2aff839b22e07a1ffcbc617e9db9fa5"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -15414,7 +16627,11 @@ source = "git+https://github.com/iotaledger/tokio-madsim-fork.git?rev=6b1da10b18
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -15624,9 +16841,15 @@ dependencies = [
 
 [[package]]
 name = "toml_parser"
+<<<<<<< HEAD
 version = "1.0.9+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "702d4415e08923e7e1ef96cd5727c0dfed80b4d2fa25db9647fe5eb6f7c5a4c4"
+=======
+version = "1.0.8+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0742ff5ff03ea7e67c8ae6c93cac239e0d9784833362da3f9a9c1da8dfefcbdc"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "winnow 0.7.14",
 ]
@@ -15700,9 +16923,15 @@ dependencies = [
 
 [[package]]
 name = "tonic"
+<<<<<<< HEAD
 version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f32a6f80051a4111560201420c7885d0082ba9efe2ab61875c587bb6b18b9a0"
+=======
+version = "0.14.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a286e33f82f8a1ee2df63f4fa35c0becf4a85a0cb03091a15fd7bf0b402dc94a"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "async-trait",
  "axum 0.8.8",
@@ -15742,36 +16971,61 @@ dependencies = [
  "prost-build 0.13.5",
  "prost-types 0.13.5",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
 name = "tonic-build"
+<<<<<<< HEAD
 version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ce6d8958ed3be404120ca43ffa0fb1e1fc7be214e96c8d33bd43a131b6eebc9e"
+=======
+version = "0.14.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "27aac809edf60b741e2d7db6367214d078856b8a5bff0087e94ff330fb97b6fc"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "prettyplease",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
 name = "tonic-health"
+<<<<<<< HEAD
 version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "163e5ad9be2924d9cef75f02fcd44c1803a5af250f4ef7e085992270ac51fb9b"
+=======
+version = "0.14.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8dbde2c702c4be12b9b2f6f7e6c824a84a7b7be177070cada8ee575a581af359"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "prost 0.14.3",
  "tokio",
  "tokio-stream",
+<<<<<<< HEAD
  "tonic 0.14.4",
+=======
+ "tonic 0.14.3",
+>>>>>>> d735805ba8 (some fixes)
  "tonic-prost",
 ]
 
 [[package]]
 name = "tonic-prost"
+<<<<<<< HEAD
 version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f86539c0089bfd09b1f8c0ab0239d80392af74c21bc9e0f15e1b4aca4c1647f"
@@ -15779,22 +17033,43 @@ dependencies = [
  "bytes",
  "prost 0.14.3",
  "tonic 0.14.4",
+=======
+version = "0.14.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6c55a2d6a14174563de34409c9f92ff981d006f56da9c6ecd40d9d4a31500b0"
+dependencies = [
+ "bytes",
+ "prost 0.14.3",
+ "tonic 0.14.3",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
 name = "tonic-prost-build"
+<<<<<<< HEAD
 version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "65873ace111e90344b8973e94a1fc817c924473affff24629281f90daed1cd2e"
+=======
+version = "0.14.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4556786613791cfef4ed134aa670b61a85cfcacf71543ef33e8d801abae988f"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "prettyplease",
  "proc-macro2",
  "prost-build 0.14.3",
  "prost-types 0.14.3",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
  "tempfile",
  "tonic-build 0.14.4",
+=======
+ "syn 2.0.115",
+ "tempfile",
+ "tonic-build 0.14.3",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -15817,7 +17092,11 @@ dependencies = [
  "tokio",
  "tokio-rustls 0.26.4",
  "tokio-stream",
+<<<<<<< HEAD
  "tonic 0.14.4",
+=======
+ "tonic 0.14.3",
+>>>>>>> d735805ba8 (some fixes)
  "tower 0.5.3",
  "tower-layer",
  "tower-service",
@@ -15883,7 +17162,11 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e9cd434a998747dd2c4276bc96ee2e0c7a2eadf3cae88e52be55a05fa9053f5"
 dependencies = [
+<<<<<<< HEAD
  "bitflags 2.11.0",
+=======
+ "bitflags 2.10.0",
+>>>>>>> d735805ba8 (some fixes)
  "bytes",
  "http 1.4.0",
  "http-body 1.0.1",
@@ -15902,7 +17185,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4e6559d53cc268e5031cd8429d05415bc4cb4aefc4aa5d6cc35fbf5b924a1f8"
 dependencies = [
  "async-compression",
+<<<<<<< HEAD
  "bitflags 2.11.0",
+=======
+ "bitflags 2.10.0",
+>>>>>>> d735805ba8 (some fixes)
  "bytes",
  "futures-core",
  "futures-util",
@@ -15962,7 +17249,11 @@ checksum = "7490cfa5ec963746568740651ac6781f701c9c5ea257c58e057f3ba8cf69e8da"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -16071,7 +17362,11 @@ dependencies = [
 
 [[package]]
 name = "transaction-fuzzer"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "iota-core",
  "iota-move-build",
@@ -16143,7 +17438,11 @@ checksum = "9ea3136b675547379c4bd395ca6b938e5ad3c3d20fad76e7fe85f9e0d011419c"
 
 [[package]]
 name = "typed-store"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "backoff",
  "bcs",
@@ -16173,7 +17472,11 @@ dependencies = [
 
 [[package]]
 name = "typed-store-derive"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "itertools 0.13.0",
  "proc-macro2",
@@ -16183,7 +17486,11 @@ dependencies = [
 
 [[package]]
 name = "typed-store-error"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "serde",
  "thiserror 1.0.69",
@@ -16191,7 +17498,11 @@ dependencies = [
 
 [[package]]
 name = "typed-store-workspace-hack"
+<<<<<<< HEAD
 version = "1.18.0-alpha"
+=======
+version = "1.17.0-alpha"
+>>>>>>> d735805ba8 (some fixes)
 dependencies = [
  "libc",
  "memchr",
@@ -16228,7 +17539,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "621963e302416b389a1ec177397e9e62de849a78bd8205d428608553def75350"
 dependencies = [
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -16275,9 +17590,15 @@ checksum = "5c1cb5db39152898a79168971543b1cb5020dff7fe43c8dc468b0885f5e29df5"
 
 [[package]]
 name = "unicode-ident"
+<<<<<<< HEAD
 version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
+=======
+version = "1.0.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "537dd038a89878be9b64dd4bd1b260315c1bb94f4d784956b81e27a088d9a09e"
+>>>>>>> d735805ba8 (some fixes)
 
 [[package]]
 name = "unicode-linebreak"
@@ -16424,11 +17745,19 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "uuid"
+<<<<<<< HEAD
 version = "1.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b672338555252d43fd2240c714dc444b8c6fb0a5c5335e65a07bba7742735ddb"
 dependencies = [
  "getrandom 0.4.1",
+=======
+version = "1.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee48d38b119b0cd71fe4141b30f5ba9c7c5d9f4e7a3a8b4a674e4b6ef789976f"
+dependencies = [
+ "getrandom 0.3.4",
+>>>>>>> d735805ba8 (some fixes)
  "js-sys",
  "rand 0.9.2",
  "wasm-bindgen",
@@ -16448,7 +17777,11 @@ checksum = "a1935e10c6f04d22688d07c0790f2fc0e1b1c5c2c55bc0cc87ed67656e587dd8"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -16613,7 +17946,11 @@ dependencies = [
  "bumpalo",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
  "wasm-bindgen-shared",
 ]
 
@@ -16682,7 +18019,11 @@ version = "0.244.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47b807c72e1bac69382b3a6fb3dbe8ea4c0ed87ff5629b8685ae6b9a611028fe"
 dependencies = [
+<<<<<<< HEAD
  "bitflags 2.11.0",
+=======
+ "bitflags 2.10.0",
+>>>>>>> d735805ba8 (some fixes)
  "hashbrown 0.15.5",
  "indexmap 2.13.0",
  "semver",
@@ -16890,7 +18231,11 @@ checksum = "9107ddc059d5b6fbfbffdfa7a7fe3e22a226def0b2608f72e9d552763d3e1ad7"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -16901,7 +18246,11 @@ checksum = "053e2e040ab57b9dc951b72c264860db7eb3b0200ba345b4e4c3b14f67855ddf"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -16912,7 +18261,11 @@ checksum = "29bee4b38ea3cde66011baa44dba677c432a78593e202392d1e9070cf2a7fca7"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -16923,7 +18276,11 @@ checksum = "3f316c4a2570ba26bbec722032c4099d8c8bc095efccdc15688708623367e358"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -17323,7 +18680,11 @@ dependencies = [
  "heck 0.5.0",
  "indexmap 2.13.0",
  "prettyplease",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
  "wasm-metadata",
  "wit-bindgen-core",
  "wit-component",
@@ -17339,7 +18700,11 @@ dependencies = [
  "prettyplease",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
  "wit-bindgen-core",
  "wit-bindgen-rust",
 ]
@@ -17351,7 +18716,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d66ea20e9553b30172b5e831994e35fbde2d165325bec84fc43dbf6f4eb9cb2"
 dependencies = [
  "anyhow",
+<<<<<<< HEAD
  "bitflags 2.11.0",
+=======
+ "bitflags 2.10.0",
+>>>>>>> d735805ba8 (some fixes)
  "indexmap 2.13.0",
  "log",
  "serde",
@@ -17478,7 +18847,11 @@ checksum = "b659052874eb698efe5b9e8cf382204678a0086ebf46982b79d6ca3182927e5d"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
  "synstructure 0.13.2",
 ]
 
@@ -17524,7 +18897,11 @@ checksum = "4122cd3169e94605190e77839c9a40d40ed048d305bfdc146e7df40ab0f3e517"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -17544,7 +18921,11 @@ checksum = "d71e5d6e06ab090c67b5e44993ec16b72dcbaabc526db883a360057678b48502"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
  "synstructure 0.13.2",
 ]
 
@@ -17566,7 +18947,11 @@ checksum = "85a5b4158499876c763cb03bc4e49185d3cccbabb15b33c627f7884f43db852e"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
@@ -17599,7 +18984,11 @@ checksum = "eadce39539ca5cb3985590102671f2567e659fca9666581ad3411d59207951f3"
 dependencies = [
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.116",
+=======
+ "syn 2.0.115",
+>>>>>>> d735805ba8 (some fixes)
 ]
 
 [[package]]
