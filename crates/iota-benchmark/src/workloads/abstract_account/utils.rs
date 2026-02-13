@@ -8,18 +8,13 @@ use iota_core::test_utils::make_pay_iota_transaction;
 use iota_sdk::types::transaction::{Argument, ObjectArg};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    Identifier,
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag},
     crypto::{AccountKeyPair, KeypairTraits},
-    move_package::{
-        PACKAGE_METADATA_MODULE_NAME, PACKAGE_METADATA_V1_STRUCT_NAME, PACKAGE_MODULE_NAME,
-        UPGRADECAP_STRUCT_NAME,
-    },
+    move_package::{PACKAGE_METADATA_MODULE_NAME, PACKAGE_METADATA_V1_STRUCT_NAME},
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Transaction, TransactionData},
 };
-use move_core_types::ident_str;
 use tracing::info;
 
 use crate::{
@@ -52,7 +47,7 @@ pub async fn publish_aa_package_and_find_metadata(
         "::{}::{}",
         PACKAGE_METADATA_MODULE_NAME, PACKAGE_METADATA_V1_STRUCT_NAME
     );
-    let upgrade_cap_ty = format!("::{}::{}", PACKAGE_MODULE_NAME, UPGRADECAP_STRUCT_NAME);
+    let upgrade_cap_ty = StructTag::new_upgrade_cap().to_string();
 
     let tx = TestTransactionBuilder::new(owner.0, init_coin.0, gas_price)
         .publish_examples(WORKLOAD_PATH)
@@ -188,7 +183,7 @@ pub async fn create_abstract_account(
         builder.programmable_move_call(
             aa_package_id,
             Identifier::new(authenticator.module_name())?,
-            ident_str!("create").into(),
+            Identifier::from_static("create"),
             vec![],
             args,
         );
@@ -311,7 +306,7 @@ pub async fn init_bench_objects(
     amount: u64,
     is_shared: bool,
 ) -> Result<Vec<ObjectRef>> {
-    let module = ident_str!(AA_MODULE_NAME).to_owned();
+    let module = Identifier::from_static(AA_MODULE_NAME);
     let function = Identifier::new("create_bench_objects")?;
 
     let pt = {

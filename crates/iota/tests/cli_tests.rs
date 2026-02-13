@@ -41,6 +41,7 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
+use iota_sdk_types::StructTag;
 use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
@@ -620,7 +621,7 @@ async fn test_ptb_publish_upgrade() -> Result<(), anyhow::Error> {
         .iter()
         .filter_map(|c| {
             if let iota_json_rpc_types::ObjectChange::Created { object_type, .. } = c {
-                if object_type == &iota_types::move_package::UpgradeCap::type_() {
+                if object_type.is_upgrade_cap() {
                     Some(c.object_id())
                 } else {
                     None
@@ -3902,7 +3903,7 @@ async fn test_stake_with_u64_amount() -> Result<(), anyhow::Error> {
 }
 
 async fn test_with_iota_binary(args: &[&str]) -> Result<(), anyhow::Error> {
-    let mut cmd = assert_cmd::Command::cargo_bin("iota").unwrap();
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("iota");
     let args = args.iter().map(|s| s.to_string()).collect::<Vec<_>>();
     // test cluster will not response if this call is in the same thread
     let out = thread::spawn(move || cmd.args(args).assert());
@@ -3929,7 +3930,7 @@ async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Resul
         .get_owned_objects(
             address,
             Some(IotaObjectResponseQuery::new(
-                Some(IotaObjectDataFilter::StructType(GasCoin::type_())),
+                Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
                 Some(
                     IotaObjectDataOptions::new()
                         .with_type()
@@ -3960,7 +3961,7 @@ async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Resul
             .get_owned_objects(
                 address,
                 Some(IotaObjectResponseQuery::new(
-                    Some(IotaObjectDataFilter::StructType(GasCoin::type_())),
+                    Some(IotaObjectDataFilter::StructType(StructTag::new_gas_coin())),
                     Some(
                         IotaObjectDataOptions::new()
                             .with_type()
@@ -3983,7 +3984,7 @@ async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Resul
 #[tokio::test]
 async fn test_linter_suppression_stats() -> Result<(), anyhow::Error> {
     const LINTER_MSG: &str = "Total number of linter warnings suppressed: 5 (unique lints: 3)";
-    let mut cmd = assert_cmd::Command::cargo_bin("iota").unwrap();
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("iota");
     let args = vec!["move", "test", "--path", "tests/data/linter"];
     let output = cmd
         .args(&args)

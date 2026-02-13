@@ -16,8 +16,7 @@ use iota_stardust_types::block::{
     },
 };
 use iota_types::{
-    TypeTag,
-    base_types::ObjectID,
+    base_types::{Identifier, ObjectID, TypeTag},
     dynamic_field::{DynamicFieldInfo, derive_dynamic_field_id},
     id::UID,
     object::{Object, Owner},
@@ -29,7 +28,6 @@ use iota_types::{
         },
     },
 };
-use move_core_types::ident_str;
 
 use crate::stardust::{
     migration::tests::{
@@ -222,9 +220,9 @@ fn alias_migration_with_alias_owner() {
             (alias1_header, stardust_alias1.into()),
             (alias2_header, stardust_alias2.into()),
         ],
-        ALIAS_OUTPUT_MODULE_NAME,
-        ALIAS_OUTPUT_MODULE_NAME,
-        ident_str!("unlock_alias_address_owned_alias"),
+        &ALIAS_OUTPUT_MODULE_NAME,
+        &ALIAS_OUTPUT_MODULE_NAME,
+        &Identifier::from_static("unlock_alias_address_owned_alias"),
         CoinType::Iota,
     )
     .unwrap();
@@ -258,9 +256,9 @@ fn alias_migration_with_nft_owner() {
         alias_header.output_id(),
         3_000_000,
         [(nft_header, nft.into()), (alias_header, alias.into())],
-        NFT_OUTPUT_MODULE_NAME,
-        ALIAS_OUTPUT_MODULE_NAME,
-        ident_str!("unlock_nft_address_owned_alias"),
+        &NFT_OUTPUT_MODULE_NAME,
+        &ALIAS_OUTPUT_MODULE_NAME,
+        &Identifier::from_static("unlock_nft_address_owned_alias"),
         CoinType::Iota,
     )
     .unwrap();
@@ -307,7 +305,7 @@ fn alias_migration_with_native_tokens() {
         alias_output_id,
         1_000_000,
         outputs,
-        ALIAS_OUTPUT_MODULE_NAME,
+        &ALIAS_OUTPUT_MODULE_NAME,
         native_tokens,
         ExpectedAssets::BalanceBagObject,
         CoinType::Iota,

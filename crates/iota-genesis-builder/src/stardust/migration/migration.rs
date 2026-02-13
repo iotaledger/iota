@@ -16,7 +16,6 @@ use iota_move_build::CompiledPackage;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_stardust_types::block::output::{FoundryOutput, Output, OutputId};
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     balance::Balance,
     base_types::{IotaAddress, ObjectID, TxContext},
     epoch_data::EpochData,
@@ -46,10 +45,10 @@ pub const MIGRATION_PROTOCOL_VERSION: u64 = 1;
 
 /// The dependencies of the generated packages for native tokens.
 pub const PACKAGE_DEPS: [ObjectID; 4] = [
-    MOVE_STDLIB_PACKAGE_ID,
-    IOTA_FRAMEWORK_PACKAGE_ID,
-    IOTA_SYSTEM_PACKAGE_ID,
-    STARDUST_PACKAGE_ID,
+    ObjectID::STD,
+    ObjectID::FRAMEWORK,
+    ObjectID::SYSTEM,
+    ObjectID::STARDUST,
 ];
 
 pub(crate) const NATIVE_TOKEN_BAG_KEY_TYPE: &str = "0x01::ascii::String";

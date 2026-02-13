@@ -116,7 +116,7 @@ impl TryFrom<IndexedObject> for StoredObjectSnapshot {
             object_type: object
                 .type_()
                 .map(|t| t.to_canonical_string(/* with_prefix */ true)),
-            object_type_package: object.type_().map(|t| t.address().to_vec()),
+            object_type_package: object.type_().map(|t| t.address().as_bytes().to_vec()),
             object_type_module: object.type_().map(|t| t.module().to_string()),
             object_type_name: object.type_().map(|t| t.name().to_string()),
             serialized_object: Some(bcs::to_bytes(&object).unwrap()),
@@ -284,7 +284,7 @@ impl TryFrom<IndexedObject> for StoredHistoryObject {
             object_type: object
                 .type_()
                 .map(|t| t.to_canonical_string(/* with_prefix */ true)),
-            object_type_package: object.type_().map(|t| t.address().to_vec()),
+            object_type_package: object.type_().map(|t| t.address().as_bytes().to_vec()),
             object_type_module: object.type_().map(|t| t.module().to_string()),
             object_type_name: object.type_().map(|t| t.name().to_string()),
             serialized_object: Some(bcs::to_bytes(&object).unwrap()),
@@ -370,7 +370,7 @@ impl From<IndexedObject> for StoredObject {
             object_type: object
                 .type_()
                 .map(|t| t.to_canonical_string(/* with_prefix */ true)),
-            object_type_package: object.type_().map(|t| t.address().to_vec()),
+            object_type_package: object.type_().map(|t| t.address().as_bytes().to_vec()),
             object_type_module: object.type_().map(|t| t.module().to_string()),
             object_type_name: object.type_().map(|t| t.name().to_string()),
             serialized_object: bcs::to_bytes(&object).unwrap(),
@@ -602,14 +602,11 @@ impl TryFrom<CoinBalance> for Balance {
 #[cfg(test)]
 mod tests {
     use iota_types::{
-        Identifier, TypeTag,
-        base_types::IotaAddress,
-        coin::Coin,
+        base_types::{Identifier, IotaAddress, StructTag, TypeTag},
         digests::TransactionDigest,
-        gas_coin::{GAS, GasCoin},
+        gas_coin::GasCoin,
         object::{Data, MoveObject, ObjectInner, Owner},
     };
-    use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
 
     use super::*;
 
@@ -662,15 +659,13 @@ mod tests {
     #[test]
     fn test_vec_of_coin_iota_conversion() {
         // 0xe7::vec_coin::VecCoin<vector<0x2::coin::Coin<0x2::iota::IOTA>>>
-        let vec_coins_type = TypeTag::Vector(Box::new(
-            Coin::type_(TypeTag::Struct(Box::new(GAS::type_()))).into(),
-        ));
-        let object_type = StructTag {
-            address: AccountAddress::from_hex_literal("0xe7").unwrap(),
-            module: Identifier::new("vec_coin").unwrap(),
-            name: Identifier::new("VecCoin").unwrap(),
-            type_params: vec![vec_coins_type],
-        };
+        let vec_coins_type = TypeTag::Vector(Box::new(StructTag::new_gas_coin().into()));
+        let object_type = StructTag::new(
+            IotaAddress::from_short_hex("0xe7").unwrap(),
+            Identifier::from_static("vec_coin"),
+            Identifier::from_static("VecCoin"),
+            vec![vec_coins_type],
+        );
 
         let id = ObjectID::ZERO;
         let gas = 10;

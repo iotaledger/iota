@@ -17,17 +17,18 @@ mod checked {
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
-        IOTA_FRAMEWORK_ADDRESS, auth_context,
+        auth_context,
         base_types::{
-            IotaAddress, MoveLegacyTxContext, MoveObjectType, ObjectID, RESOLVED_ASCII_STR,
-            RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME,
-            TxContext, TxContextKind,
+            Identifier, IotaAddress, MoveLegacyTxContext, MoveObjectType, ObjectID,
+            RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, StructTag, TxContext,
+            TxContextKind, TypeTag,
         },
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         execution_config_utils::to_binary_config,
         execution_status::{CommandArgumentError, PackageUpgradeError},
         id::RESOLVED_IOTA_ID,
+        iota_sdk_types_conversions::type_tag_core_to_sdk,
         metrics::LimitsMetrics,
         move_package::{
             IotaAttribute, MovePackage, PackageMetadata, RuntimeModuleMetadata,
@@ -58,9 +59,7 @@ mod checked {
         normalized,
     };
     use move_core_types::{
-        account_address::AccountAddress,
-        identifier::{IdentStr, Identifier},
-        language_storage::{ModuleId, TypeTag},
+        account_address::AccountAddress, identifier::IdentStr, language_storage::ModuleId,
         u256::U256,
     };
     use move_trace_format::format::MoveTraceBuilder;
@@ -357,9 +356,12 @@ mod checked {
                 }
 
                 let original_address = context.set_link_context(package)?;
-                let storage_id =
-                    ModuleId::new(AccountAddress::new(package.into_bytes()), module.clone());
-                let runtime_id = ModuleId::new(original_address, module);
+                let storage_id = ModuleId::new(AccountAddress::new(package.into_bytes()), unsafe {
+                    move_core_types::identifier::Identifier::new_unchecked(module.as_str())
+                });
+                let runtime_id = ModuleId::new(original_address, unsafe {
+                    move_core_types::identifier::Identifier::new_unchecked(module.as_str())
+                });
                 let return_values = execute_move_call::<Mode>(
                     context,
                     &mut argument_updates,
@@ -406,7 +408,7 @@ mod checked {
         argument_updates: &mut Mode::ArgumentUpdates,
         storage_id: &ModuleId,
         runtime_id: &ModuleId,
-        function: &IdentStr,
+        function: &Identifier,
         type_arguments: Vec<Type>,
         arguments: Vec<Arg>,
         is_init: bool,
@@ -615,7 +617,7 @@ mod checked {
             // Upgrade cap creation
             let cap = &UpgradeCap::new(context.fresh_id()?, storage_id);
             vec![Value::Object(context.make_object_value(
-                UpgradeCap::type_().into(),
+                StructTag::new_upgrade_cap().into(),
                 // used_in_non_entry_move_call
                 false,
                 &bcs::to_bytes(cap).unwrap(),
@@ -642,10 +644,10 @@ mod checked {
             .charge_upgrade_package(module_bytes.iter().map(|v| v.len()).sum())?;
 
         let upgrade_ticket_type = context
-            .load_type_from_struct(&UpgradeTicket::type_())
+            .load_type_from_struct(&StructTag::new_upgrade_ticket())
             .map_err(|e| context.convert_vm_error(e))?;
         let upgrade_receipt_type = context
-            .load_type_from_struct(&UpgradeReceipt::type_())
+            .load_type_from_struct(&StructTag::new_upgrade_receipt())
             .map_err(|e| context.convert_vm_error(e))?;
 
         let upgrade_ticket: UpgradeTicket = {
@@ -1021,7 +1023,7 @@ mod checked {
                 if let Some(type_tag) =
                     normalized::Type::new(pool, module, ref_param).to_type_tag(pool)
                 {
-                    Ok(type_tag)
+                    Ok(type_tag_core_to_sdk(&type_tag))
                 } else {
                     Err(ExecutionError::from_kind(
                         ExecutionErrorKind::VMVerificationOrDeserializationError,
@@ -1047,7 +1049,7 @@ mod checked {
     fn vm_move_call(
         context: &mut ExecutionContext<'_, '_, '_>,
         module_id: &ModuleId,
-        function: &IdentStr,
+        function: &Identifier,
         type_arguments: Vec<Type>,
         tx_context_kind: TxContextKind,
         has_auth_context: bool,
@@ -1183,7 +1185,7 @@ mod checked {
         let modules_to_init = modules.iter().filter_map(|module| {
             for fdef in &module.function_defs {
                 let fhandle = module.function_handle_at(fdef.function);
-                let fname = module.identifier_at(fhandle.name);
+                let fname = Identifier::new_unchecked(module.identifier_at(fhandle.name).as_str());
                 if fname == INIT_FN_NAME {
                     return Some(module.self_id());
                 }
@@ -1200,7 +1202,7 @@ mod checked {
                 // for some reason, then we would need to perform relocation here.
                 &module_id,
                 &module_id,
-                INIT_FN_NAME,
+                &INIT_FN_NAME,
                 vec![],
                 vec![],
                 // is_init
@@ -1259,7 +1261,7 @@ mod checked {
     fn check_visibility_and_signature<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         module_id: &ModuleId,
-        function: &IdentStr,
+        function: &Identifier,
         type_arguments: &[Type],
         from_init: bool,
     ) -> Result<LoadedFunctionInfo, ExecutionError> {
@@ -1282,7 +1284,10 @@ mod checked {
             .iter()
             .enumerate()
             .find(|(_index, fdef)| {
-                module.identifier_at(module.function_handle_at(fdef.function).name) == function
+                module
+                    .identifier_at(module.function_handle_at(fdef.function).name)
+                    .as_str()
+                    == function.as_str()
             })
         else {
             return Err(ExecutionError::new_with_source(
@@ -1295,7 +1300,7 @@ mod checked {
         };
 
         // entry on init is banned, so ban invoking it
-        if !from_init && function == INIT_FN_NAME {
+        if !from_init && function == &INIT_FN_NAME {
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::NonEntryFunctionInvoked,
                 "Cannot call 'init'",
@@ -1313,7 +1318,7 @@ mod checked {
             (Visibility::Public, false) => FunctionKind::NonEntry,
             (Visibility::Private, false) if from_init => {
                 assert_invariant!(
-                    function == INIT_FN_NAME,
+                    function == &INIT_FN_NAME,
                     "module init specified non-init function"
                 );
                 FunctionKind::Init
@@ -1387,7 +1392,7 @@ mod checked {
     fn check_non_entry_signature<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         _module_id: &ModuleId,
-        _function: &IdentStr,
+        _function: &Identifier,
         signature: &LoadedFunctionInstantiation,
     ) -> Result<Vec<ValueKind>, ExecutionError> {
         signature
@@ -1425,6 +1430,7 @@ mod checked {
                             .get_runtime()
                             .get_type_tag(return_type)
                             .map_err(|e| context.convert_vm_error(e))?;
+                        let type_tag = type_tag_core_to_sdk(&type_tag);
                         let TypeTag::Struct(struct_tag) = type_tag else {
                             invariant_violation!("Struct type make a non struct type tag")
                         };
@@ -1456,19 +1462,22 @@ mod checked {
     fn check_private_generics(
         _context: &mut ExecutionContext,
         module_id: &ModuleId,
-        function: &IdentStr,
+        function: &Identifier,
         _type_arguments: &[Type],
     ) -> Result<(), ExecutionError> {
-        let module_ident = (module_id.address(), module_id.name());
-        if module_ident == (&IOTA_FRAMEWORK_ADDRESS, EVENT_MODULE) {
+        let module_ident = (
+            IotaAddress::new(module_id.address().into_bytes()),
+            Identifier::new_unchecked(module_id.name().as_str()),
+        );
+        if module_ident == (IotaAddress::FRAMEWORK, EVENT_MODULE) {
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::NonEntryFunctionInvoked,
                 format!("Cannot directly call functions in iota::{EVENT_MODULE}"),
             ));
         }
 
-        if module_ident == (&IOTA_FRAMEWORK_ADDRESS, TRANSFER_MODULE)
-            && PRIVATE_TRANSFER_FUNCTIONS.contains(&function)
+        if module_ident == (IotaAddress::FRAMEWORK, TRANSFER_MODULE)
+            && PRIVATE_TRANSFER_FUNCTIONS.contains(function)
         {
             let msg = format!(
                 "Cannot directly call iota::{TRANSFER_MODULE}::{function}. \
@@ -1480,8 +1489,8 @@ mod checked {
             ));
         }
 
-        if module_ident == (&IOTA_FRAMEWORK_ADDRESS, ACCOUNT_MODULE)
-            && PRIVATE_ACCOUNT_FUNCTIONS.contains(&function)
+        if module_ident == (IotaAddress::FRAMEWORK, ACCOUNT_MODULE)
+            && PRIVATE_ACCOUNT_FUNCTIONS.contains(function)
         {
             let msg = format!("Cannot directly call iota::{ACCOUNT_MODULE}::{function}.");
             return Err(ExecutionError::new_with_source(
@@ -1506,7 +1515,7 @@ mod checked {
     fn build_move_args<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         module_id: &ModuleId,
-        function: &IdentStr,
+        function: &Identifier,
         function_kind: FunctionKind,
         signature: &LoadedFunctionInstantiation,
         args: &[Arg],
@@ -1566,7 +1575,7 @@ mod checked {
         let mut serialized_args = Vec::with_capacity(num_args);
         let command_kind = CommandKind::MoveCall {
             package: ObjectID::new(module_id.address().into_bytes()),
-            module: module_id.name(),
+            module: &Identifier::new_unchecked(module_id.name().as_str()),
             function,
         };
         // an init function can have one or two arguments, with the last one always
@@ -1589,6 +1598,7 @@ mod checked {
                             .get_runtime()
                             .get_type_tag(type_)
                             .map_err(|e| context.convert_vm_error(e))?;
+                        let type_tag = type_tag_core_to_sdk(&type_tag);
                         let TypeTag::Struct(struct_tag) = type_tag else {
                             invariant_violation!("Struct type make a non struct type tag")
                         };
@@ -1739,7 +1749,7 @@ mod checked {
             })
         } else {
             // SAFETY: Preserving existing behaviour for identifier deserialization.
-            Ok(unsafe { Identifier::new_unchecked(ident) })
+            Ok(Identifier::new_unchecked(&ident))
         }
     }
 
@@ -1790,9 +1800,9 @@ mod checked {
             invariant_violation!("Loaded struct not found")
         };
         let (module_addr, module_name, struct_name) = get_datatype_ident(&s);
-        let is_tx_context_type = module_addr == &IOTA_FRAMEWORK_ADDRESS
-            && module_name == TX_CONTEXT_MODULE_NAME
-            && struct_name == TX_CONTEXT_STRUCT_NAME;
+        let is_tx_context_type = module_addr.as_ref() == IotaAddress::FRAMEWORK.as_bytes()
+            && module_name.as_str() == Identifier::TX_CONTEXT_MODULE.as_str()
+            && struct_name.as_str() == Identifier::TX_CONTEXT.as_str();
         Ok(if is_tx_context_type {
             if is_mut {
                 TxContextKind::Mutable

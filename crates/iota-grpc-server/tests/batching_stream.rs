@@ -20,7 +20,7 @@ use iota_grpc_types::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{ObjectID, random_object_ref},
+    base_types::{ObjectID, StructTag, random_object_ref},
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     effects::{TestEffectsBuilder, TransactionEffects},
@@ -42,7 +42,7 @@ fn create_large_object(padding_bytes_len: usize) -> (ObjectID, Object) {
     let mut contents = GasCoin::new(id, 100).to_bcs_bytes();
     contents.extend(vec![0u8; padding_bytes_len]);
     let move_obj = MoveObject::new_from_execution_with_limit(
-        GasCoin::type_().into(),
+        StructTag::new_gas_coin().into(),
         OBJECT_START_VERSION,
         contents,
         u64::try_from(padding_bytes_len).unwrap() + 1024,

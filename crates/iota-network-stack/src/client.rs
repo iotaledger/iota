@@ -132,7 +132,7 @@ impl MyEndpoint {
                 self.endpoint.connect_with_connector_lazy(
                     hyper_rustls::HttpsConnectorBuilder::new()
                         .with_tls_config(tls_config)
-                        .https_only()
+                        .https_or_http()
                         .enable_http2()
                         .build(),
                 )
@@ -149,7 +149,7 @@ impl MyEndpoint {
             if let Some(tls_config) = self.tls_config {
                 let https = hyper_rustls::HttpsConnectorBuilder::new()
                     .with_tls_config(tls_config)
-                    .https_only()
+                    .https_or_http()
                     .enable_http1()
                     .wrap_connector(http);
                 self.endpoint.connect_with_connector_lazy(https)
@@ -163,7 +163,7 @@ impl MyEndpoint {
         if let Some(tls_config) = self.tls_config {
             let https_connector = hyper_rustls::HttpsConnectorBuilder::new()
                 .with_tls_config(tls_config)
-                .https_only()
+                .https_or_http()
                 .enable_http2()
                 .build();
             self.endpoint

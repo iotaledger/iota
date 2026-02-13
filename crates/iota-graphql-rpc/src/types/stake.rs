@@ -4,8 +4,7 @@
 
 use async_graphql::{connection::Connection, *};
 use iota_json_rpc_types::{Stake as RpcStakedIota, StakeStatus as RpcStakeStatus};
-use iota_types::{base_types::MoveObjectType, governance::StakedIota as NativeStakedIota};
-use move_core_types::language_storage::StructTag;
+use iota_types::{base_types::StructTag, governance::StakedIota as NativeStakedIota};
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,
@@ -409,7 +408,7 @@ impl StakedIota {
         owner: IotaAddress,
         checkpoint_viewed_at: u64,
     ) -> Result<Connection<String, StakedIota>, Error> {
-        let type_: StructTag = MoveObjectType::staked_iota().into();
+        let type_ = StructTag::new_staked_iota();
 
         let filter = ObjectFilter {
             type_: Some(type_.into()),

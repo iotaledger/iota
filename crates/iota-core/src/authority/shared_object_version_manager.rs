@@ -5,7 +5,6 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use iota_types::{
-    IOTA_RANDOMNESS_STATE_OBJECT_ID,
     base_types::{ObjectID, SequenceNumber, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaResult,
@@ -174,7 +173,7 @@ impl SharedObjVerManager {
                         }
                     }
                     Some(CancelConsensusCertificateReason::DkgFailed) => {
-                        if id == &IOTA_RANDOMNESS_STATE_OBJECT_ID {
+                        if id == &ObjectID::RANDOMNESS_STATE {
                             SequenceNumber::RANDOMNESS_UNAVAILABLE
                         } else {
                             SequenceNumber::CANCELLED_READ
@@ -263,7 +262,6 @@ mod tests {
 
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        IOTA_RANDOMNESS_STATE_OBJECT_ID,
         base_types::{IotaAddress, ObjectID, SequenceNumber},
         crypto::RandomnessRound,
         digests::ObjectDigest,
@@ -362,7 +360,7 @@ mod tests {
             ),
             generate_shared_objs_tx_with_gas_version(
                 &[(
-                    IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                    ObjectID::RANDOMNESS_STATE,
                     randomness_obj_version,
                     // This can only be false since it's not allowed to use randomness object with
                     // mutable=true.
@@ -371,11 +369,7 @@ mod tests {
                 3,
             ),
             generate_shared_objs_tx_with_gas_version(
-                &[(
-                    IOTA_RANDOMNESS_STATE_OBJECT_ID,
-                    randomness_obj_version,
-                    false,
-                )],
+                &[(ObjectID::RANDOMNESS_STATE, randomness_obj_version, false)],
                 5,
             ),
         ];
@@ -392,7 +386,7 @@ mod tests {
         // Check that the randomness object's next version is initialized.
         assert_eq!(
             epoch_store
-                .get_next_object_version(&IOTA_RANDOMNESS_STATE_OBJECT_ID)
+                .get_next_object_version(&ObjectID::RANDOMNESS_STATE)
                 .unwrap(),
             randomness_obj_version
         );
@@ -400,26 +394,26 @@ mod tests {
         assert_eq!(
             shared_input_next_versions,
             // Randomness object's version is only incremented by 1 regardless of lamport version.
-            HashMap::from([(IOTA_RANDOMNESS_STATE_OBJECT_ID, next_randomness_obj_version)])
+            HashMap::from([(ObjectID::RANDOMNESS_STATE, next_randomness_obj_version)])
         );
         assert_eq!(
             assigned_versions,
             vec![
                 (
                     certs[0].key(),
-                    vec![(IOTA_RANDOMNESS_STATE_OBJECT_ID, randomness_obj_version),]
+                    vec![(ObjectID::RANDOMNESS_STATE, randomness_obj_version),]
                 ),
                 (
                     certs[1].key(),
                     // It is critical that the randomness object version is updated before the
                     // assignment.
-                    vec![(IOTA_RANDOMNESS_STATE_OBJECT_ID, next_randomness_obj_version)]
+                    vec![(ObjectID::RANDOMNESS_STATE, next_randomness_obj_version)]
                 ),
                 (
                     certs[2].key(),
                     // It is critical that the randomness object version is updated before the
                     // assignment.
-                    vec![(IOTA_RANDOMNESS_STATE_OBJECT_ID, next_randomness_obj_version)]
+                    vec![(ObjectID::RANDOMNESS_STATE, next_randomness_obj_version)]
                 ),
             ]
         );
@@ -496,11 +490,7 @@ mod tests {
             ),
             generate_shared_objs_tx_with_gas_version(
                 &[
-                    (
-                        IOTA_RANDOMNESS_STATE_OBJECT_ID,
-                        randomness_obj_version,
-                        false,
-                    ),
+                    (ObjectID::RANDOMNESS_STATE, randomness_obj_version, false),
                     (id2, init_shared_version_2, true),
                 ],
                 11,
@@ -552,7 +542,7 @@ mod tests {
             HashMap::from([
                 (id1, SequenceNumber::from_u64(5)), // determined by tx3
                 (id2, SequenceNumber::from_u64(4)), // determined by tx1
-                (IOTA_RANDOMNESS_STATE_OBJECT_ID, SequenceNumber::from_u64(1)), // not mutable
+                (ObjectID::RANDOMNESS_STATE, SequenceNumber::from_u64(1)), // not mutable
             ])
         );
 
@@ -595,7 +585,7 @@ mod tests {
                     certs[4].key(),
                     vec![
                         (
-                            IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                            ObjectID::RANDOMNESS_STATE,
                             SequenceNumber::RANDOMNESS_UNAVAILABLE
                         ),
                         (id2, SequenceNumber::CANCELLED_READ)

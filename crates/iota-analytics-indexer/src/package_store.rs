@@ -9,8 +9,10 @@ use iota_grpc_client::Client;
 use iota_package_resolver::{
     Package, PackageStore, PackageStoreWithLruCache, error::Error as PackageResolverError,
 };
-use iota_types::{base_types::ObjectID, object::Object};
-use move_core_types::account_address::AccountAddress;
+use iota_types::{
+    base_types::{IotaAddress, ObjectID},
+    object::Object,
+};
 use thiserror::Error;
 use typed_store::{
     DBMapUtils, Map, TypedStoreError,
@@ -86,7 +88,7 @@ impl LocalDBPackageStore {
         Ok(())
     }
 
-    pub async fn get(&self, id: AccountAddress) -> iota_package_resolver::Result<Object> {
+    pub async fn get(&self, id: IotaAddress) -> iota_package_resolver::Result<Object> {
         let object = if let Some(object) = self
             .package_store_tables
             .packages
@@ -122,7 +124,7 @@ impl LocalDBPackageStore {
 
 #[async_trait]
 impl PackageStore for LocalDBPackageStore {
-    async fn fetch(&self, id: AccountAddress) -> iota_package_resolver::Result<Arc<Package>> {
+    async fn fetch(&self, id: IotaAddress) -> iota_package_resolver::Result<Arc<Package>> {
         let object = self.get(id).await?;
         Ok(Arc::new(Package::read_from_object(&object)?))
     }

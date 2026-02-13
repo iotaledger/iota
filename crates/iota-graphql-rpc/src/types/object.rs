@@ -19,16 +19,13 @@ use iota_indexer::{
     types::{ObjectStatus as NativeObjectStatus, OwnerType},
 };
 use iota_types::{
-    TypeTag,
+    base_types::{StructTag, TypeTag},
     object::{
         MoveObject as NativeMoveObject, Object as NativeObject, Owner as NativeOwner,
         bounded_visitor::BoundedVisitor,
     },
 };
-use move_core_types::{
-    annotated_value::{MoveStruct, MoveTypeLayout},
-    language_storage::StructTag,
-};
+use move_core_types::annotated_value::{MoveStruct, MoveTypeLayout};
 use serde::{Deserialize, Serialize};
 
 use crate::{

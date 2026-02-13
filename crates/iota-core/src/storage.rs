@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use iota_node_storage::{GrpcIndexes, GrpcStateReader};
 use iota_types::{
-    base_types::TransactionDigest,
+    base_types::{StructTag, TransactionDigest},
     committee::{Committee, EpochId},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaError,
@@ -527,7 +527,7 @@ impl GrpcStateReader for GrpcReadStore {
 
     fn get_struct_layout(
         &self,
-        struct_tag: &move_core_types::language_storage::StructTag,
+        struct_tag: &StructTag,
     ) -> Result<Option<move_core_types::annotated_value::MoveTypeLayout>> {
         self.state
             .load_epoch_store_one_call_per_task()

@@ -6,10 +6,12 @@ use anyhow::bail;
 use iota_json_rpc_types::{BalanceChange, IotaData, IotaObjectData, IotaObjectDataOptions};
 use iota_sdk::IotaClient;
 use iota_types::{
-    base_types::ObjectID, error::IotaObjectResponseError, gas_coin::GasCoin, object::Owner,
+    base_types::{ObjectID, TypeTag},
+    error::IotaObjectResponseError,
+    gas_coin::GasCoin,
+    object::Owner,
     parse_iota_type_tag,
 };
-use move_core_types::language_storage::TypeTag;
 use tracing::{debug, trace};
 
 /// A util struct that helps verify IOTA Object.

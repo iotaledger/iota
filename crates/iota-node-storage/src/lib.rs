@@ -14,7 +14,7 @@
 //! - `simulacrum` and other test harnesses can implement them freely
 
 use iota_types::{
-    base_types::{EpochId, IotaAddress, ObjectID},
+    base_types::{EpochId, IotaAddress, ObjectID, StructTag, TypeTag},
     digests::{ChainIdentifier, TransactionDigest},
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     storage::{
@@ -23,7 +23,6 @@ use iota_types::{
         error::Result,
     },
 };
-use move_core_types::language_storage::{StructTag, TypeTag};
 
 /// Trait extending [`ReadStore`] with full-node-specific queries that may
 /// require richer databases or indexes to support.

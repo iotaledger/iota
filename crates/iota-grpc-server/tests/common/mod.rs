@@ -14,7 +14,7 @@ use iota_config::{local_ip_utils, node::GrpcApiConfig};
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_node_storage::GrpcStateReader;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
+    base_types::{ObjectID, SequenceNumber, StructTag},
     crypto::AuthorityStrongQuorumSignInfo,
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
@@ -346,7 +346,7 @@ impl GrpcStateReader for MockGrpcStateReader {
 
     fn get_struct_layout(
         &self,
-        _type_tag: &move_core_types::language_storage::StructTag,
+        _type_tag: &StructTag,
     ) -> StorageResult<Option<move_core_types::annotated_value::MoveTypeLayout>> {
         Ok(None)
     }
@@ -372,7 +372,7 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
         &self,
         owner: iota_types::base_types::IotaAddress,
         cursor: Option<&iota_types::storage::OwnedObjectV2Cursor>,
-        object_type: Option<move_core_types::language_storage::StructTag>,
+        object_type: Option<StructTag>,
     ) -> StorageResult<Box<dyn Iterator<Item = iota_types::storage::OwnedObjectV2IteratorItem> + '_>>
     {
         // Find the start index: if cursor is provided, seek to its position
@@ -404,9 +404,9 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
             .iter()
             .filter(move |(info, _)| {
                 info.owner == owner_filter
-                    && type_filter.as_ref().is_none_or(|t| {
-                        move_core_types::language_storage::StructTag::from(info.type_.clone()) == *t
-                    })
+                    && type_filter
+                        .as_ref()
+                        .is_none_or(|t| StructTag::from(info.type_.clone()) == *t)
             })
             .map(|(info, cursor)| {
                 Ok((
@@ -442,7 +442,7 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
 
     fn get_coin_v2_info(
         &self,
-        _coin_type: &move_core_types::language_storage::StructTag,
+        _coin_type: &StructTag,
     ) -> StorageResult<Option<iota_types::storage::CoinInfoV2>> {
         Ok(None)
     }

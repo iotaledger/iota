@@ -12,15 +12,13 @@ use iota_json_rpc_types::{
 };
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
+    base_types::TypeTag,
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
     event::Event,
     transaction::SenderSignedData,
 };
-use move_core_types::{
-    annotated_value::{MoveDatatypeLayout, MoveTypeLayout},
-    language_storage::TypeTag,
-};
+use move_core_types::annotated_value::{MoveDatatypeLayout, MoveTypeLayout};
 #[cfg(feature = "shared_test_runtime")]
 use serde::Deserialize;
 

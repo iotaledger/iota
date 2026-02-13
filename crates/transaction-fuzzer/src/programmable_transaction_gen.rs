@@ -2,15 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{cmp, str::FromStr};
+use std::cmp;
 
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Argument, CallArg, Command, ProgrammableTransaction},
 };
-use move_core_types::identifier::Identifier;
 use once_cell::sync::Lazy;
 use proptest::{collection::vec, prelude::*};
 
@@ -527,8 +526,8 @@ fn create_input_calls(
     builder
         .move_call(
             package,
-            Identifier::from_str("coin_factory").unwrap(),
-            Identifier::from_str("mint_vec").unwrap(),
+            Identifier::from_static("coin_factory"),
+            Identifier::from_static("mint_vec"),
             vec![],
             vec![
                 CallArg::from(cap),
@@ -548,8 +547,8 @@ fn create_unpack_call(
 ) {
     builder.programmable_move_call(
         package,
-        Identifier::from_str("coin_factory").unwrap(),
-        Identifier::from_str(format!("unpack_{input_size}").as_str()).unwrap(),
+        Identifier::from_static("coin_factory"),
+        Identifier::new(format!("unpack_{input_size}")).unwrap(),
         vec![],
         vec![Argument::Result(prev_cmd_num as u16)],
     );

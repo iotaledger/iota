@@ -11,12 +11,10 @@ use std::{
 };
 
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{StructTag, TypeTag};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
-use move_core_types::{
-    annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue},
-    language_storage::{StructTag, TypeTag},
-};
+use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
@@ -34,6 +32,7 @@ use crate::{
         ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError, UserInputResult,
     },
     gas_coin::{GAS, GasCoin},
+    iota_sdk_types_conversions::type_tag_sdk_to_core,
     layout_resolver::LayoutResolver,
     move_package::MovePackage,
     timelock::timelock::TimeLock,
@@ -107,7 +106,7 @@ impl MoveObject {
         // unwrap safe because coins are always smaller than the max object size
         {
             Self::new_from_execution_with_limit(
-                GasCoin::type_().into(),
+                StructTag::new_gas_coin().into(),
                 version,
                 GasCoin::new(id, value).to_bcs_bytes(),
                 256,
@@ -196,7 +195,7 @@ impl MoveObject {
     }
 
     pub fn is_clock(&self) -> bool {
-        self.type_.is(&crate::clock::Clock::type_())
+        self.type_.is(&StructTag::new_clock())
     }
 
     pub fn version(&self) -> SequenceNumber {
@@ -295,10 +294,9 @@ impl MoveObject {
         resolver: &impl GetModule,
     ) -> Result<MoveStructLayout, IotaError> {
         let type_ = TypeTag::Struct(Box::new(struct_tag));
-        let layout = TypeLayoutBuilder::build_with_types(&type_, resolver).map_err(|e| {
-            IotaError::ObjectSerialization {
-                error: e.to_string(),
-            }
+        let layout = TypeLayoutBuilder::build_with_types(&type_tag_sdk_to_core(&type_), resolver)
+            .map_err(|e| IotaError::ObjectSerialization {
+            error: e.to_string(),
         })?;
         match layout {
             MoveTypeLayout::Struct(l) => Ok(*l),
@@ -874,13 +872,13 @@ impl ObjectInner {
             error: "Object must be a Move object".to_owned(),
         })?;
         fp_ensure!(
-            move_struct.type_params.len() == 1,
+            move_struct.type_params().len() == 1,
             IotaError::Type {
                 error: "Move object struct must have one type parameter".to_owned()
             }
         );
         // Index access safe due to checks above.
-        let type_tag = move_struct.type_params[0].clone();
+        let type_tag = move_struct.type_params()[0].clone();
         Ok(type_tag)
     }
 
@@ -906,7 +904,7 @@ impl Object {
 
     pub fn immutable_with_id_for_testing(id: ObjectID) -> Self {
         let data = Data::Move(MoveObject {
-            type_: GasCoin::type_().into(),
+            type_: StructTag::new_gas_coin().into(),
             version: OBJECT_START_VERSION,
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
         });
@@ -939,7 +937,7 @@ impl Object {
 
     pub fn with_id_owner_gas_for_testing(id: ObjectID, owner: IotaAddress, gas: u64) -> Self {
         let data = Data::Move(MoveObject {
-            type_: GasCoin::type_().into(),
+            type_: StructTag::new_gas_coin().into(),
             version: OBJECT_START_VERSION,
             contents: GasCoin::new(id, gas).to_bcs_bytes(),
         });
@@ -954,7 +952,7 @@ impl Object {
 
     pub fn treasury_cap_for_testing(struct_tag: StructTag, treasury_cap: TreasuryCap) -> Self {
         let data = Data::Move(MoveObject {
-            type_: TreasuryCap::type_(struct_tag).into(),
+            type_: StructTag::new_treasury_cap(struct_tag).into(),
             version: OBJECT_START_VERSION,
             contents: bcs::to_bytes(&treasury_cap).expect("Failed to serialize"),
         });
@@ -969,7 +967,7 @@ impl Object {
 
     pub fn coin_metadata_for_testing(struct_tag: StructTag, metadata: CoinMetadata) -> Self {
         let data = Data::Move(MoveObject {
-            type_: CoinMetadata::type_(struct_tag).into(),
+            type_: StructTag::new_coin_metadata(struct_tag).into(),
             version: OBJECT_START_VERSION,
             contents: bcs::to_bytes(&metadata).expect("Failed to serialize"),
         });
@@ -984,7 +982,7 @@ impl Object {
 
     pub fn with_object_owner_for_testing(id: ObjectID, owner: ObjectID) -> Self {
         let data = Data::Move(MoveObject {
-            type_: GasCoin::type_().into(),
+            type_: StructTag::new_gas_coin().into(),
             version: OBJECT_START_VERSION,
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
         });
@@ -1008,7 +1006,7 @@ impl Object {
         owner: Owner,
     ) -> Self {
         let data = Data::Move(MoveObject {
-            type_: GasCoin::type_().into(),
+            type_: StructTag::new_gas_coin().into(),
             version,
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
         });

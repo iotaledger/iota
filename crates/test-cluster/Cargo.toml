@@ -35,6 +35,7 @@ iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
+move-core-types.workspace = true
 
 [target.'cfg(msim)'.dependencies]
 # external dependencies

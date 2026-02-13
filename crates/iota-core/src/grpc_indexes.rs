@@ -14,7 +14,7 @@ use std::{
 };
 
 use iota_types::{
-    base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, StructTag, TypeTag},
     committee::EpochId,
     digests::TransactionDigest,
     error::IotaResult,
@@ -28,7 +28,6 @@ use iota_types::{
         PackageVersionKey, TransactionInfo, error::Error as StorageError,
     },
 };
-use move_core_types::language_storage::StructTag;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
@@ -228,7 +227,7 @@ impl OwnerV2TypeFilter {
     /// with type params, returns `OwnerV2TypeFilter::ExactType`.
     pub fn from_struct_tag(tag: Option<&StructTag>) -> Self {
         if let Some(tag) = tag {
-            if tag.type_params.is_empty() {
+            if tag.type_params().is_empty() {
                 Self::BaseType {
                     id_hash: hash_type_identifier(tag),
                     tag: tag.clone(),
@@ -248,15 +247,15 @@ impl OwnerV2TypeFilter {
 
 fn hash_type_identifier(tag: &StructTag) -> u64 {
     let mut hasher = twox_hash::XxHash64::with_seed(0);
-    hasher.write(tag.address.as_ref());
-    hasher.write(tag.module.as_bytes());
-    hasher.write(tag.name.as_bytes());
+    hasher.write(tag.address().as_ref());
+    hasher.write(tag.module().as_bytes());
+    hasher.write(tag.name().as_bytes());
     hasher.finish()
 }
 
 fn hash_type_params(tag: &StructTag) -> u64 {
     let mut hasher = twox_hash::XxHash64::with_seed(1);
-    let bytes = bcs::to_bytes(&tag.type_params).expect("type_params serialization cannot fail");
+    let bytes = bcs::to_bytes(&tag.type_params()).expect("type_params serialization cannot fail");
     hasher.write(&bytes);
     hasher.finish()
 }
@@ -1023,9 +1022,9 @@ impl IndexStoreTables {
                 Ok((_, info)) => match &type_filter {
                     OwnerV2TypeFilter::None => true,
                     OwnerV2TypeFilter::BaseType { tag, .. } => {
-                        info.object_type.address == tag.address
-                            && info.object_type.module == tag.module
-                            && info.object_type.name == tag.name
+                        info.object_type.address() == tag.address()
+                            && info.object_type.module() == tag.module()
+                            && info.object_type.name() == tag.name()
                     }
                     OwnerV2TypeFilter::ExactType { tag, .. } => info.object_type == *tag,
                 },
@@ -1507,15 +1506,13 @@ fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinInde
 /// Returns `(CoinIndexKey, regulated_coin_metadata_object_id)` if `object` is
 /// a `RegulatedCoinMetadata<T>`.  Used to populate the `coin_v2` table.
 fn try_create_regulated_coin_info(object: &Object) -> Option<(CoinIndexKey, ObjectID)> {
-    use move_core_types::language_storage::TypeTag;
-
     let move_object_type = object.type_()?;
     if !move_object_type.is_regulated_coin_metadata() {
         return None;
     }
     let object_type = move_object_type.other()?;
     // RegulatedCoinMetadata<T> has one type parameter: the coin type
-    let coin_type = match object_type.type_params.first()? {
+    let coin_type = match object_type.type_params().first()? {
         TypeTag::Struct(s) => *s.clone(),
         _ => return None,
     };

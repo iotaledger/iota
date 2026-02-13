@@ -11,10 +11,10 @@ use iota_indexer::{errors::IndexerError, types::owner_to_owner_info};
 use iota_json_rpc_types::IotaMoveValue;
 use iota_package_resolver::Resolver;
 use iota_types::{
-    SYSTEM_PACKAGE_ADDRESSES, TypeTag,
-    base_types::ObjectID,
+    base_types::{ObjectID, TypeTag},
     dynamic_field::{DynamicFieldName, DynamicFieldType, visitor as DFV},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+    iota_sdk_types_conversions::type_tag_core_to_sdk,
     object::{Object, bounded_visitor::BoundedVisitor},
 };
 use tap::tap::TapFallible;
@@ -23,7 +23,7 @@ use tracing::error;
 
 use crate::{
     FileType,
-    handlers::AnalyticsHandler,
+    handlers::{AnalyticsHandler, SYSTEM_PACKAGE_ADDRESSES},
     package_store::{LocalDBPackageStore, PackageCache},
     tables::DynamicFieldEntry,
 };
@@ -69,7 +69,7 @@ impl Worker for DynamicFieldHandler {
                 state
                     .resolver
                     .package_store()
-                    .evict(SYSTEM_PACKAGE_ADDRESSES.iter().copied());
+                    .evict(SYSTEM_PACKAGE_ADDRESSES);
             }
         }
         Ok(())
@@ -132,7 +132,7 @@ impl DynamicFieldHandler {
         let field = DFV::FieldVisitor::deserialize(move_object.contents(), &layout)?;
 
         let type_ = field.kind;
-        let name_type: TypeTag = field.name_layout.into();
+        let name_type: TypeTag = type_tag_core_to_sdk(&field.name_layout.into());
         let bcs_name = field.name_bytes.to_owned();
 
         let name_value = BoundedVisitor::deserialize_value(field.name_bytes, field.name_layout)

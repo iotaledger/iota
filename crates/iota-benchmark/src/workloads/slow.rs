@@ -8,12 +8,11 @@ use async_trait::async_trait;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
-    base_types::{IotaAddress, ObjectID, ObjectRef, random_object_ref},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, random_object_ref},
     crypto::get_key_pair,
     object::Owner,
     transaction::{ObjectArg, Transaction},
 };
-use move_core_types::identifier::Identifier;
 
 use super::{
     WorkloadBuilderInfo, WorkloadParams,

@@ -11,9 +11,11 @@ use iota_json::{IotaJsonValue, primitive_type};
 use iota_metrics::monitored_scope;
 use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
     authenticator_state::ActiveJwk,
-    base_types::{EpochId, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{
+        EpochId, Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
+        TypeTag,
+    },
     crypto::IotaSignature,
     digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
@@ -21,6 +23,7 @@ use iota_types::{
     event::EventID,
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     gas::GasCostSummary,
+    iota_sdk_types_conversions::type_tag_core_to_sdk,
     iota_serde::{
         BigInt, IotaTypeTag as AsIotaTypeTag, Readable, SequenceNumber as AsSequenceNumber,
     },
@@ -42,10 +45,7 @@ use iota_types::{
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{
-    account_address::AccountAddress,
-    annotated_value::MoveTypeLayout,
-    identifier::{IdentStr, Identifier},
-    language_storage::{ModuleId, StructTag, TypeTag},
+    account_address::AccountAddress, annotated_value::MoveTypeLayout, language_storage::ModuleId,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -424,14 +424,9 @@ pub fn get_new_package_upgrade_cap_from_response(
             .find(|change| {
                 matches!(change, ObjectChange::Created {
                     owner: Owner::AddressOwner(_),
-                    object_type: StructTag {
-                        address: IOTA_FRAMEWORK_ADDRESS,
-                        module,
-                        name,
-                        ..
-                    },
+                    object_type,
                     ..
-                } if module.as_str() == "package" && name.as_str() == "UpgradeCap")
+                } if object_type.is_upgrade_cap())
             })
             .map(|change| change.object_ref())
     })
@@ -2009,10 +2004,11 @@ impl IotaProgrammableTransactionBlock {
                         return result_types;
                     };
 
-                    let id = ModuleId::new(AccountAddress::new(c.package.into_bytes()), module);
-                    let Some(types) =
-                        get_signature_types(id, function.as_ident_str(), module_cache)
-                    else {
+                    let id = ModuleId::new(
+                        AccountAddress::new(c.package.into_bytes()),
+                        move_core_types::identifier::Identifier::new(module.as_str()).unwrap(),
+                    );
+                    let Some(types) = get_signature_types(id, &function, module_cache) else {
                         return result_types;
                     };
                     for (arg, type_) in c.arguments.iter().zip(types) {
@@ -2046,7 +2042,7 @@ impl IotaProgrammableTransactionBlock {
 
 fn get_signature_types(
     id: ModuleId,
-    function: &IdentStr,
+    function: &Identifier,
     module_cache: &impl GetModule,
 ) -> Option<Vec<Option<MoveTypeLayout>>> {
     use std::borrow::Borrow;
@@ -2055,7 +2051,7 @@ fn get_signature_types(
         let func = module
             .function_handles
             .iter()
-            .find(|f| module.identifier_at(f.name) == function)?;
+            .find(|f| module.identifier_at(f.name).as_str() == function.as_str())?;
         Some(
             module
                 .signature_at(func.parameters)
@@ -2436,7 +2432,7 @@ impl IotaCallArg {
     ) -> Result<Self, anyhow::Error> {
         Ok(match value {
             CallArg::Pure(p) => IotaCallArg::Pure(IotaPureValue {
-                value_type: layout.map(|l| l.into()),
+                value_type: layout.map(|l| type_tag_core_to_sdk(&l.into())),
                 value: IotaJsonValue::from_bcs_bytes(layout, &p)?,
             }),
             CallArg::Object(ObjectArg::ImmOrOwnedObject((id, version, digest))) => {

@@ -7,17 +7,11 @@ use std::{
     fmt::{Display, Formatter},
 };
 
-use move_core_types::{
-    annotated_value::MoveStructLayout,
-    ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
-};
+use move_core_types::annotated_value::MoveStructLayout;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS,
-    balance::{Balance, Supply},
+    balance::Supply,
     base_types::{ObjectID, SequenceNumber},
     coin::{Coin, TreasuryCap},
     error::{ExecutionError, ExecutionErrorKind},
@@ -37,38 +31,23 @@ pub const STARDUST_TOTAL_SUPPLY_IOTA: u64 = 4_600_000_000;
 /// Stardust ledger, before any inflation mechanism
 pub const STARDUST_TOTAL_SUPPLY_NANOS: u64 = STARDUST_TOTAL_SUPPLY_IOTA * NANOS_PER_IOTA;
 
-pub const GAS_MODULE_NAME: &IdentStr = ident_str!("iota");
-pub const GAS_STRUCT_NAME: &IdentStr = ident_str!("IOTA");
-pub const GAS_TREASURY_CAP_STRUCT_NAME: &IdentStr = ident_str!("IotaTreasuryCap");
-
 pub use checked::*;
 
 #[iota_macros::with_checked_arithmetic]
 mod checked {
+    use iota_sdk_types::{StructTag, TypeTag};
+
     use super::*;
 
     pub struct GAS {}
     impl GAS {
-        pub fn type_() -> StructTag {
-            StructTag {
-                address: IOTA_FRAMEWORK_ADDRESS,
-                name: GAS_STRUCT_NAME.to_owned(),
-                module: GAS_MODULE_NAME.to_owned(),
-                type_params: Vec::new(),
-            }
-        }
-
         pub fn type_tag() -> TypeTag {
-            TypeTag::Struct(Box::new(Self::type_()))
-        }
-
-        pub fn is_gas(other: &StructTag) -> bool {
-            &Self::type_() == other
+            StructTag::new_gas().into()
         }
 
         pub fn is_gas_type(other: &TypeTag) -> bool {
             match other {
-                TypeTag::Struct(s) => Self::is_gas(s),
+                TypeTag::Struct(s) => s.is_gas(),
                 _ => false,
             }
         }
@@ -87,22 +66,10 @@ mod checked {
             self.0.value()
         }
 
-        pub fn type_() -> StructTag {
-            Coin::type_(TypeTag::Struct(Box::new(GAS::type_())))
-        }
-
-        /// Return `true` if `s` is the type of a gas coin (i.e.,
-        /// 0x2::coin::Coin<0x2::iota::IOTA>)
-        pub fn is_gas_coin(s: &StructTag) -> bool {
-            Coin::is_coin(s) && s.type_params.len() == 1 && GAS::is_gas_type(&s.type_params[0])
-        }
-
         /// Return `true` if `s` is the type of a gas balance (i.e.,
         /// 0x2::balance::Balance<0x2::iota::IOTA>)
         pub fn is_gas_balance(s: &StructTag) -> bool {
-            Balance::is_balance(s)
-                && s.type_params.len() == 1
-                && GAS::is_gas_type(&s.type_params[0])
+            s.is_balance() && GAS::is_gas_type(&s.type_params()[0])
         }
 
         pub fn id(&self) -> &ObjectID {
@@ -118,7 +85,7 @@ mod checked {
         }
 
         pub fn layout() -> MoveStructLayout {
-            Coin::layout(TypeTag::Struct(Box::new(GAS::type_())))
+            Coin::layout(TypeTag::Struct(Box::new(StructTag::new_gas())))
         }
 
         pub fn new_for_testing(value: u64) -> Self {
@@ -177,15 +144,6 @@ mod checked {
     }
 
     impl IotaTreasuryCap {
-        pub fn type_() -> StructTag {
-            StructTag {
-                address: IOTA_FRAMEWORK_ADDRESS,
-                module: GAS_MODULE_NAME.to_owned(),
-                name: GAS_TREASURY_CAP_STRUCT_NAME.to_owned(),
-                type_params: Vec::new(),
-            }
-        }
-
         /// Returns the `TreasuryCap<IOTA>` object ID.
         pub fn id(&self) -> &ObjectID {
             self.inner.id.object_id()
