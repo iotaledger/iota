@@ -20,15 +20,6 @@ pub use common::{
 pub(crate) use common::{
     ProtoResult, TryFromProtoError, build_proto_transaction, field_mask_with_default,
 };
-// Re-export proto types as the primary API
-pub use iota_grpc_types::v0::{
-    checkpoint::Checkpoint,
-    epoch::Epoch,
-    event::Event,
-    ledger_service::GetServiceInfoResponse,
-    object::{Object, Objects},
-    transaction::{ExecutedTransaction, Transaction, TransactionEffects, TransactionEvents},
-};
 
 /// Response for a checkpoint query.
 ///
@@ -50,9 +41,9 @@ pub struct CheckpointResponse {
     pub contents: Option<iota_grpc_types::v0::checkpoint::CheckpointContents>,
     /// Proto executed transactions. Use methods like `tx.effects()?`,
     /// `tx.transaction()?`, etc.
-    pub transactions: Vec<ExecutedTransaction>,
+    pub transactions: Vec<iota_grpc_types::v0::transaction::ExecutedTransaction>,
     /// Proto events. Use `event.events()` to convert to SDK type.
-    pub events: Vec<Event>,
+    pub events: Vec<iota_grpc_types::v0::event::Event>,
 }
 
 impl CheckpointResponse {
@@ -64,7 +55,7 @@ impl CheckpointResponse {
         self.summary
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing("summary"))?
-            .try_into()
+            .summary()
             .map_err(Into::into)
     }
 
@@ -72,7 +63,7 @@ impl CheckpointResponse {
         self.signature
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing("signature"))?
-            .try_into()
+            .signature()
             .map_err(Into::into)
     }
 
@@ -80,11 +71,13 @@ impl CheckpointResponse {
         self.contents
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing("contents"))?
-            .try_into()
+            .contents()
             .map_err(Into::into)
     }
 
-    pub fn transactions(&self) -> Result<Vec<&ExecutedTransaction>> {
+    pub fn transactions(
+        &self,
+    ) -> Result<Vec<&iota_grpc_types::v0::transaction::ExecutedTransaction>> {
         Ok(self.transactions.iter().collect())
     }
 

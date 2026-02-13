@@ -48,14 +48,6 @@ impl ValidatorAggregatedSignature {
     ) -> Result<iota_sdk_types::ValidatorAggregatedSignature, TryFromProtoError> {
         self.try_into()
     }
-
-    /// Get the raw BCS bytes of this validator aggregated signature.
-    pub fn signature_bcs(&self) -> Result<&[u8], TryFromProtoError> {
-        self.bcs
-            .as_ref()
-            .map(BcsData::as_bytes)
-            .ok_or_else(|| TryFromProtoError::missing(Self::BCS_FIELD.name))
-    }
 }
 
 // UserSignature
@@ -93,14 +85,6 @@ impl UserSignature {
     pub fn signature(&self) -> Result<iota_sdk_types::UserSignature, TryFromProtoError> {
         self.try_into()
     }
-
-    /// Get the raw BCS bytes of this user signature.
-    pub fn signature_bcs(&self) -> Result<&[u8], TryFromProtoError> {
-        self.bcs
-            .as_ref()
-            .map(BcsData::as_bytes)
-            .ok_or_else(|| TryFromProtoError::missing(Self::BCS_FIELD.name))
-    }
 }
 
 // UserSignatures
@@ -126,8 +110,8 @@ impl TryFrom<&UserSignatures> for Vec<iota_sdk_types::UserSignature> {
 
 // Convenience methods for UserSignatures (delegate to TryFrom)
 impl UserSignatures {
-    /// Deserialize all user signatures.
-    pub fn signatures(&self) -> Result<Vec<iota_sdk_types::UserSignature>, TryFromProtoError> {
-        self.try_into()
+    /// Get all user signatures.
+    pub fn signatures(&self) -> &Vec<UserSignature> {
+        &self.signatures
     }
 }
