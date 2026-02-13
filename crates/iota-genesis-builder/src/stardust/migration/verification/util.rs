@@ -9,9 +9,8 @@ use iota_stardust_types::block::{
     output::{self as sdk_output, NativeTokens, OutputId, TokenId},
 };
 use iota_types::{
-    TypeTag,
     balance::Balance,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{IotaAddress, ObjectID, TypeTag},
     coin::Coin,
     collection_types::Bag,
     dynamic_field::Field,

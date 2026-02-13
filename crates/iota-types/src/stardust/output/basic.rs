@@ -4,7 +4,8 @@
 //! Rust types and logic for the Move counterparts in the `stardust` system
 //! package.
 
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use anyhow::Result;
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -12,7 +13,6 @@ use super::unlock_conditions::{
     ExpirationUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
 };
 use crate::{
-    STARDUST_ADDRESS, TypeTag,
     balance::Balance,
     base_types::IotaAddress,
     collection_types::Bag,
@@ -21,8 +21,8 @@ use crate::{
     object::{Data, Object},
 };
 
-pub const BASIC_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("basic_output");
-pub const BASIC_OUTPUT_STRUCT_NAME: &IdentStr = ident_str!("BasicOutput");
+pub const BASIC_OUTPUT_MODULE_NAME: Identifier = Identifier::from_static("basic_output");
+pub const BASIC_OUTPUT_STRUCT_NAME: Identifier = Identifier::from_static("BasicOutput");
 
 /// Rust version of the stardust basic output.
 #[serde_as]
@@ -59,12 +59,12 @@ pub struct BasicOutput {
 impl BasicOutput {
     /// Returns the struct tag of the BasicOutput struct
     pub fn tag(type_param: TypeTag) -> StructTag {
-        StructTag {
-            address: STARDUST_ADDRESS,
-            module: BASIC_OUTPUT_MODULE_NAME.to_owned(),
-            name: BASIC_OUTPUT_STRUCT_NAME.to_owned(),
-            type_params: vec![type_param],
-        }
+        StructTag::new(
+            IotaAddress::STARDUST,
+            BASIC_OUTPUT_MODULE_NAME,
+            BASIC_OUTPUT_STRUCT_NAME,
+            vec![type_param],
+        )
     }
 
     /// Create a `BasicOutput` from BCS bytes.
@@ -76,9 +76,9 @@ impl BasicOutput {
 
     /// Whether the given `StructTag` represents a `BasicOutput`.
     pub fn is_basic_output(s: &StructTag) -> bool {
-        s.address == STARDUST_ADDRESS
-            && s.module.as_ident_str() == BASIC_OUTPUT_MODULE_NAME
-            && s.name.as_ident_str() == BASIC_OUTPUT_STRUCT_NAME
+        s.address() == IotaAddress::STARDUST
+            && s.module() == &BASIC_OUTPUT_MODULE_NAME
+            && s.name() == &BASIC_OUTPUT_STRUCT_NAME
     }
 }
 

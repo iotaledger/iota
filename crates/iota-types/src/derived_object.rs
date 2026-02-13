@@ -2,20 +2,13 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{
-    ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
-};
-
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{Identifier, IotaAddress, ObjectID, StructTag, TypeTag},
     dynamic_field,
 };
 
-pub const DERIVED_OBJECT_MODULE_NAME: &IdentStr = ident_str!("derived_object");
-pub const DERIVED_OBJECT_STRUCT_NAME: &IdentStr = ident_str!("DerivedObjectKey");
+pub const DERIVED_OBJECT_MODULE_NAME: Identifier = Identifier::from_static("derived_object");
+pub const DERIVED_OBJECT_STRUCT_NAME: Identifier = Identifier::from_static("DerivedObjectKey");
 
 /// Using a parent object, a type tag and the bcs bytes of the key,
 /// compute the derived object address.
@@ -32,12 +25,12 @@ where
     let parent_address = parent.into();
 
     // Wrap `T` into `DerivedObjectKey<T>` type (to preserve on-chain namespacing)
-    let wrapper_type_tag = TypeTag::Struct(Box::new(StructTag {
-        address: IOTA_FRAMEWORK_ADDRESS,
-        module: DERIVED_OBJECT_MODULE_NAME.into(),
-        name: DERIVED_OBJECT_STRUCT_NAME.into(),
-        type_params: vec![key_type_tag.clone()],
-    }));
+    let wrapper_type_tag = TypeTag::Struct(Box::new(StructTag::new(
+        IotaAddress::FRAMEWORK,
+        DERIVED_OBJECT_MODULE_NAME,
+        DERIVED_OBJECT_STRUCT_NAME,
+        vec![key_type_tag.clone()],
+    )));
 
     dynamic_field::derive_dynamic_field_id(parent_address, &wrapper_type_tag, key_bytes)
 }
@@ -46,7 +39,6 @@ where
 mod tests {
     use std::str::FromStr;
 
-    use move_core_types::identifier::Identifier;
     use serde::Serialize;
 
     use super::*;
@@ -92,12 +84,12 @@ mod tests {
 
         let id = derive_object_id(
             ObjectID::from_str("0x2").unwrap(),
-            &TypeTag::Struct(Box::new(StructTag {
-                address: IOTA_FRAMEWORK_ADDRESS,
-                module: Identifier::new("derived_object_tests").unwrap(),
-                name: Identifier::new("DemoStruct").unwrap(),
-                type_params: vec![],
-            })),
+            &TypeTag::Struct(Box::new(StructTag::new(
+                IotaAddress::FRAMEWORK,
+                Identifier::from_static("derived_object_tests"),
+                Identifier::from_static("DemoStruct"),
+                vec![],
+            ))),
             &key_value,
         )
         .unwrap();
@@ -118,12 +110,12 @@ mod tests {
 
         let id = derive_object_id(
             ObjectID::from_str("0x2").unwrap(),
-            &TypeTag::Struct(Box::new(StructTag {
-                address: IOTA_FRAMEWORK_ADDRESS,
-                module: Identifier::new("derived_object_tests").unwrap(),
-                name: Identifier::new("GenericStruct").unwrap(),
-                type_params: vec![TypeTag::U64],
-            })),
+            &TypeTag::Struct(Box::new(StructTag::new(
+                IotaAddress::FRAMEWORK,
+                Identifier::from_static("derived_object_tests"),
+                Identifier::from_static("GenericStruct"),
+                vec![TypeTag::U64],
+            ))),
             &key_value,
         )
         .unwrap();

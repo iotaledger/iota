@@ -4,14 +4,11 @@
 
 use anyhow::{Ok, anyhow, bail, ensure};
 use iota_types::{
-    IOTA_SYSTEM_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectID, ObjectType},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectType},
     governance::{ADD_STAKE_MUL_COIN_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
-    iota_system_state::IOTA_SYSTEM_MODULE_NAME,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     timelock::timelocked_staking::{
-        ADD_TIMELOCKED_STAKE_FUN_NAME, TIMELOCKED_STAKING_MODULE_NAME,
-        WITHDRAW_TIMELOCKED_STAKE_FUN_NAME,
+        ADD_TIMELOCKED_STAKE_FUN_NAME, WITHDRAW_TIMELOCKED_STAKE_FUN_NAME,
     },
     transaction::{CallArg, Command, ObjectArg, TransactionData},
 };
@@ -71,9 +68,9 @@ impl TransactionBuilder {
                     .unwrap(),
             ];
             builder.command(Command::move_call(
-                IOTA_SYSTEM_PACKAGE_ID,
-                IOTA_SYSTEM_MODULE_NAME.to_owned(),
-                ADD_STAKE_MUL_COIN_FUN_NAME.to_owned(),
+                ObjectID::SYSTEM,
+                Identifier::IOTA_SYSTEM_MODULE,
+                ADD_STAKE_MUL_COIN_FUN_NAME,
                 vec![],
                 arguments,
             ));
@@ -103,9 +100,9 @@ impl TransactionBuilder {
             .await?;
         TransactionData::new_move_call(
             signer,
-            IOTA_SYSTEM_PACKAGE_ID,
-            IOTA_SYSTEM_MODULE_NAME.to_owned(),
-            WITHDRAW_STAKE_FUN_NAME.to_owned(),
+            ObjectID::SYSTEM,
+            Identifier::IOTA_SYSTEM_MODULE,
+            WITHDRAW_STAKE_FUN_NAME,
             vec![],
             gas,
             vec![
@@ -149,9 +146,9 @@ impl TransactionBuilder {
                 builder.input(CallArg::Pure(bcs::to_bytes(&validator)?))?,
             ];
             builder.command(Command::move_call(
-                IOTA_SYSTEM_PACKAGE_ID,
-                TIMELOCKED_STAKING_MODULE_NAME.to_owned(),
-                ADD_TIMELOCKED_STAKE_FUN_NAME.to_owned(),
+                ObjectID::SYSTEM,
+                Identifier::TIMELOCKED_STAKING_MODULE,
+                ADD_TIMELOCKED_STAKE_FUN_NAME,
                 vec![],
                 arguments,
             ));
@@ -181,9 +178,9 @@ impl TransactionBuilder {
             .await?;
         TransactionData::new_move_call(
             signer,
-            IOTA_SYSTEM_PACKAGE_ID,
-            TIMELOCKED_STAKING_MODULE_NAME.to_owned(),
-            WITHDRAW_TIMELOCKED_STAKE_FUN_NAME.to_owned(),
+            ObjectID::SYSTEM,
+            Identifier::TIMELOCKED_STAKING_MODULE,
+            WITHDRAW_TIMELOCKED_STAKE_FUN_NAME,
             vec![],
             gas,
             vec![

@@ -1,14 +1,13 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
 
-use crate::IOTA_FRAMEWORK_ADDRESS;
+use crate::base_types::{Identifier, IotaAddress, StructTag};
 
-pub const ACCOUNT_MODULE_NAME: &IdentStr = ident_str!("account");
-pub const AUTHENTICATOR_FUNCTION_REF_V1_KEY_STRUCT_NAME: &IdentStr =
-    ident_str!("AuthenticatorFunctionRefV1Key");
+pub const ACCOUNT_MODULE_NAME: Identifier = Identifier::from_static("account");
+pub const AUTHENTICATOR_FUNCTION_REF_V1_KEY_STRUCT_NAME: Identifier =
+    Identifier::from_static("AuthenticatorFunctionRefV1Key");
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct AuthenticatorFunctionRefV1Key {
@@ -20,12 +19,12 @@ pub struct AuthenticatorFunctionRefV1Key {
 
 impl AuthenticatorFunctionRefV1Key {
     pub fn tag() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: ACCOUNT_MODULE_NAME.to_owned(),
-            name: AUTHENTICATOR_FUNCTION_REF_V1_KEY_STRUCT_NAME.to_owned(),
-            type_params: Vec::new(),
-        }
+        StructTag::new(
+            IotaAddress::FRAMEWORK,
+            ACCOUNT_MODULE_NAME,
+            AUTHENTICATOR_FUNCTION_REF_V1_KEY_STRUCT_NAME,
+            Vec::new(),
+        )
     }
 
     pub fn to_bcs_bytes(&self) -> Vec<u8> {

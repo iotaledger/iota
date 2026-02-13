@@ -18,9 +18,7 @@ use iota_protocol_config::{
 };
 use iota_sdk_types::Address;
 use iota_types::{
-    IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
-    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_PACKAGE_ID,
-    base_types::{AuthorityName, dbg_addr},
+    base_types::{AuthorityName, Identifier, StructTag, dbg_addr},
     crypto::{
         AccountKeyPair, AuthorityKeyPair, Signature, get_key_pair,
         random_committee_key_pairs_of_size,
@@ -44,12 +42,6 @@ use iota_types::{
 use move_binary_format::{
     CompiledModule,
     file_format::{self, AddressIdentifierIndex, IdentifierIndex, ModuleHandle},
-};
-use move_core_types::{
-    account_address::AccountAddress,
-    ident_str,
-    identifier::{IdentStr, Identifier},
-    language_storage::{StructTag, TypeTag},
 };
 use rand::{
     Rng, SeedableRng,
@@ -181,8 +173,8 @@ async fn construct_shared_object_transaction_with_sequence_number(
     let data = TransactionData::new_move_call(
         sender,
         package.0,
-        ident_str!("object_basics").to_owned(),
-        ident_str!("set_value").to_owned(),
+        Identifier::from_static("object_basics"),
+        Identifier::from_static("set_value"),
         // type_args
         vec![],
         gas_object_ref,
@@ -546,8 +538,8 @@ async fn test_dev_inspect_dynamic_field() {
         ],
         commands: vec![Command::move_call(
             object_basics.0,
-            Identifier::new("object_basics").unwrap(),
-            Identifier::new("add_ofield").unwrap(),
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("add_ofield"),
             vec![],
             vec![Argument::Input(0), Argument::Input(1)],
         )],
@@ -766,12 +758,12 @@ async fn test_dev_inspect_return_values() {
     assert!(mutable_reference_outputs.is_empty());
     assert_eq!(return_values.len(), 1);
     let (_return_value, return_type) = return_values.pop().unwrap();
-    let expected_type = TypeTag::Struct(Box::new(StructTag {
-        address: AccountAddress::new(object_basics.0.into_bytes()),
-        module: Identifier::new("object_basics").unwrap(),
-        name: Identifier::new("Wrapper").unwrap(),
-        type_params: vec![],
-    }));
+    let expected_type = TypeTag::Struct(Box::new(StructTag::new(
+        object_basics.0,
+        Identifier::from_static("object_basics"),
+        Identifier::from_static("Wrapper"),
+        vec![],
+    )));
     let return_type: TypeTag = return_type.try_into().unwrap();
     assert_eq!(return_type, expected_type);
 }
@@ -880,7 +872,10 @@ async fn test_dev_inspect_gas_price() {
 
 fn check_coin_value(actual_value: &[u8], actual_type: &IotaTypeTag, expected_value: u64) {
     let actual_type: TypeTag = actual_type.clone().try_into().unwrap();
-    assert_eq!(actual_type, TypeTag::Struct(Box::new(GasCoin::type_())));
+    assert_eq!(
+        actual_type,
+        TypeTag::Struct(Box::new(StructTag::new_gas_coin()))
+    );
     let actual_coin: GasCoin = bcs::from_bytes(actual_value).unwrap();
     assert_eq!(actual_coin.value(), expected_value);
 }
@@ -897,8 +892,8 @@ async fn test_dev_inspect_uses_unbound_object() {
         builder
             .move_call(
                 object_basics.0,
-                Identifier::new("object_basics").unwrap(),
-                Identifier::new("freeze").unwrap(),
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("freeze"),
                 vec![],
                 vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(
                     random_object_ref(),
@@ -1053,8 +1048,8 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
         inputs: vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(parent))],
         commands: vec![Command::move_call(
             object_basics.0,
-            Identifier::new("object_basics").unwrap(),
-            Identifier::new("remove_field").unwrap(),
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("remove_field"),
             vec![],
             vec![Argument::Input(0)],
         )],
@@ -1111,8 +1106,8 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
         ],
         commands: vec![Command::move_call(
             object_basics.0,
-            Identifier::new("object_basics").unwrap(),
-            Identifier::new("create").unwrap(),
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("create"),
             vec![],
             vec![Argument::Input(0), Argument::Input(1)],
         )],
@@ -1863,8 +1858,10 @@ async fn test_package_size_limit() {
     while modules_size <= max_move_package_size {
         let mut module = file_format::empty_module();
         // generate unique name
-        module.identifiers[0] =
-            Identifier::new(format!("TestModule{modules_size:0>21000?}")).unwrap();
+        module.identifiers[0] = move_core_types::identifier::Identifier::new(format!(
+            "TestModule{modules_size:0>21000?}"
+        ))
+        .unwrap();
         let module_bytes = {
             let mut bytes = Vec::new();
             module
@@ -2120,8 +2117,8 @@ async fn test_missing_package() {
     let data = TransactionData::new_move_call(
         sender,
         non_existent_package,
-        ident_str!("object_basics").to_owned(),
-        ident_str!("wrap").to_owned(),
+        Identifier::from_static("object_basics"),
+        Identifier::from_static("wrap"),
         vec![],
         gas_object_ref,
         vec![],
@@ -2168,8 +2165,8 @@ async fn test_type_argument_dependencies() {
     let data = TransactionData::new_move_call(
         s1,
         object_basics,
-        ident_str!("object_basics").to_owned(),
-        ident_str!("generic_test").to_owned(),
+        Identifier::from_static("object_basics"),
+        Identifier::from_static("generic_test"),
         vec![TypeTag::U64],
         gas1,
         vec![],
@@ -2189,14 +2186,14 @@ async fn test_type_argument_dependencies() {
     let data = TransactionData::new_move_call(
         s2,
         object_basics,
-        ident_str!("object_basics").to_owned(),
-        ident_str!("generic_test").to_owned(),
-        vec![TypeTag::Struct(Box::new(StructTag {
-            address: AccountAddress::new(object_basics.into_bytes()),
-            module: ident_str!("object_basics").to_owned(),
-            name: ident_str!("Object").to_owned(),
-            type_params: vec![],
-        }))],
+        Identifier::from_static("object_basics"),
+        Identifier::from_static("generic_test"),
+        vec![TypeTag::Struct(Box::new(StructTag::new(
+            object_basics,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("Object"),
+            vec![],
+        )))],
         gas2,
         vec![],
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
@@ -2215,14 +2212,14 @@ async fn test_type_argument_dependencies() {
     let data = TransactionData::new_move_call(
         s3,
         object_basics,
-        ident_str!("object_basics").to_owned(),
-        ident_str!("generic_test").to_owned(),
-        vec![TypeTag::Struct(Box::new(StructTag {
-            address: AccountAddress::new(ObjectID::MAX.into_bytes()),
-            module: ident_str!("object_basics").to_owned(),
-            name: ident_str!("Object").to_owned(),
-            type_params: vec![],
-        }))],
+        Identifier::from_static("object_basics"),
+        Identifier::from_static("generic_test"),
+        vec![TypeTag::Struct(Box::new(StructTag::new(
+            ObjectID::MAX,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("Object"),
+            vec![],
+        )))],
         gas3,
         vec![],
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
@@ -2882,8 +2879,8 @@ async fn test_invalid_mutable_clock_parameter() {
     let tx_data = TransactionData::new_move_call(
         sender,
         package_object_ref.0,
-        ident_str!("object_basics").to_owned(),
-        ident_str!("use_clock").to_owned(),
+        Identifier::from_static("object_basics"),
+        Identifier::from_static("use_clock"),
         // type_args
         vec![],
         gas_ref,
@@ -2906,7 +2903,7 @@ async fn test_invalid_mutable_clock_parameter() {
     assert_eq!(
         UserInputError::try_from(e).unwrap(),
         UserInputError::ImmutableParameterExpected {
-            object_id: IOTA_CLOCK_OBJECT_ID
+            object_id: ObjectID::CLOCK
         }
     );
 }
@@ -2931,8 +2928,8 @@ async fn test_invalid_authenticator_state_parameter() {
     let tx_data = TransactionData::new_move_call(
         sender,
         package_object_ref.0,
-        ident_str!("object_basics").to_owned(),
-        ident_str!("use_auth_state").to_owned(),
+        Identifier::from_static("object_basics"),
+        Identifier::from_static("use_auth_state"),
         // type_args
         vec![],
         gas_ref,
@@ -2955,7 +2952,7 @@ async fn test_invalid_authenticator_state_parameter() {
     assert_eq!(
         UserInputError::try_from(e).unwrap(),
         UserInputError::InaccessibleSystemObject {
-            object_id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID
+            object_id: ObjectID::AUTHENTICATOR_STATE
         }
     );
 }
@@ -2975,7 +2972,7 @@ async fn test_invalid_randomness_parameter() {
         get_randomness_state_obj_initial_shared_version(authority_state.get_object_store())
             .unwrap();
     let random_mut = CallArg::Object(ObjectArg::SharedObject {
-        id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
+        id: ObjectID::RANDOMNESS_STATE,
         initial_shared_version: init_random_version,
         mutable: true,
     });
@@ -2987,8 +2984,8 @@ async fn test_invalid_randomness_parameter() {
     let tx_data = TransactionData::new_move_call(
         sender,
         package_object_ref.0,
-        ident_str!("object_basics").to_owned(),
-        ident_str!("use_random").to_owned(),
+        Identifier::from_static("object_basics"),
+        Identifier::from_static("use_random"),
         // type_args
         vec![],
         gas_ref,
@@ -3009,7 +3006,7 @@ async fn test_invalid_randomness_parameter() {
     assert_eq!(
         UserInputError::try_from(e).unwrap(),
         UserInputError::ImmutableParameterExpected {
-            object_id: IOTA_RANDOMNESS_STATE_OBJECT_ID
+            object_id: ObjectID::RANDOMNESS_STATE
         }
     );
 }
@@ -3079,8 +3076,8 @@ async fn test_valid_immutable_clock_parameter() {
     let tx_data = TransactionData::new_move_call(
         sender,
         package_object_ref.0,
-        ident_str!("object_basics").to_owned(),
-        ident_str!("use_clock").to_owned(),
+        Identifier::from_static("object_basics"),
+        Identifier::from_static("use_clock"),
         // type_args
         vec![],
         gas_ref,
@@ -3105,14 +3102,14 @@ async fn test_genesis_iota_system_state_object() {
     // deserialize it).
     let authority_state = TestAuthorityBuilder::new().build().await;
     let wrapper = authority_state
-        .get_object(&IOTA_SYSTEM_STATE_OBJECT_ID)
+        .get_object(&ObjectID::SYSTEM_STATE)
         .await
         .unwrap();
     assert_eq!(wrapper.version(), SequenceNumber::from(1));
     let move_object = wrapper.data.try_as_move().unwrap();
     let _iota_system_state =
         bcs::from_bytes::<IotaSystemStateWrapper>(move_object.contents()).unwrap();
-    assert!(move_object.type_().is(&IotaSystemStateWrapper::type_()));
+    assert!(move_object.type_().is(&StructTag::new_iota_system_state()));
     let iota_system_state = authority_state
         .get_iota_system_state_object_for_testing()
         .unwrap();
@@ -3310,8 +3307,8 @@ async fn test_store_revert_wrap_move_call() {
         TransactionData::new_move_call(
             sender,
             object_basics.0,
-            ident_str!("object_basics").to_owned(),
-            ident_str!("wrap").to_owned(),
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("wrap"),
             vec![],
             create_effects.gas_object().0,
             vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(object_v0))],
@@ -3410,8 +3407,8 @@ async fn test_store_revert_unwrap_move_call() {
         TransactionData::new_move_call(
             sender,
             object_basics.0,
-            ident_str!("object_basics").to_owned(),
-            ident_str!("unwrap").to_owned(),
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("unwrap"),
             vec![],
             wrap_effects.gas_object().0,
             vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(wrapper_v0))],
@@ -3457,14 +3454,14 @@ async fn test_store_revert_unwrap_move_call() {
 
 #[tokio::test]
 async fn test_store_get_dynamic_object() {
-    let (_, fields) = create_and_retrieve_df_info(ident_str!("add_ofield")).await;
+    let (_, fields) = create_and_retrieve_df_info(&Identifier::from_static("add_ofield")).await;
     assert_eq!(fields.len(), 1);
     assert_eq!(fields[0].type_, DynamicFieldType::DynamicObject);
 }
 
 #[tokio::test]
 async fn test_store_get_dynamic_field() {
-    let (_, fields) = create_and_retrieve_df_info(ident_str!("add_field")).await;
+    let (_, fields) = create_and_retrieve_df_info(&Identifier::from_static("add_field")).await;
 
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicField));
@@ -3472,7 +3469,9 @@ async fn test_store_get_dynamic_field() {
     assert_eq!(TypeTag::Bool, fields[0].name.type_)
 }
 
-async fn create_and_retrieve_df_info(function: &IdentStr) -> (IotaAddress, Vec<DynamicFieldInfo>) {
+async fn create_and_retrieve_df_info(
+    function: &Identifier,
+) -> (IotaAddress, Vec<DynamicFieldInfo>) {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let gas_object_id = ObjectID::random();
     let (authority_state, object_basics) =
@@ -3515,7 +3514,7 @@ async fn create_and_retrieve_df_info(function: &IdentStr) -> (IotaAddress, Vec<D
         TransactionData::new_move_call(
             sender,
             object_basics.0,
-            ident_str!("object_basics").to_owned(),
+            Identifier::from_static("object_basics"),
             function.to_owned(),
             vec![],
             create_inner_effects.gas_object().0,
@@ -3550,7 +3549,8 @@ async fn create_and_retrieve_df_info(function: &IdentStr) -> (IotaAddress, Vec<D
 
 #[tokio::test]
 async fn test_dynamic_field_struct_name_parsing() {
-    let (_, fields) = create_and_retrieve_df_info(ident_str!("add_field_with_struct_name")).await;
+    let (_, fields) =
+        create_and_retrieve_df_info(&Identifier::from_static("add_field_with_struct_name")).await;
 
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicField));
@@ -3564,7 +3564,8 @@ async fn test_dynamic_field_struct_name_parsing() {
 #[tokio::test]
 async fn test_dynamic_field_bytearray_name_parsing() {
     let (_, fields) =
-        create_and_retrieve_df_info(ident_str!("add_field_with_bytearray_name")).await;
+        create_and_retrieve_df_info(&Identifier::from_static("add_field_with_bytearray_name"))
+            .await;
 
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicField));
@@ -3578,7 +3579,7 @@ async fn test_dynamic_field_bytearray_name_parsing() {
 #[tokio::test]
 async fn test_dynamic_field_address_name_parsing() {
     let (sender, fields) =
-        create_and_retrieve_df_info(ident_str!("add_field_with_address_name")).await;
+        create_and_retrieve_df_info(&Identifier::from_static("add_field_with_address_name")).await;
 
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicField));
@@ -3588,7 +3589,8 @@ async fn test_dynamic_field_address_name_parsing() {
 
 #[tokio::test]
 async fn test_dynamic_object_field_struct_name_parsing() {
-    let (_, fields) = create_and_retrieve_df_info(ident_str!("add_ofield_with_struct_name")).await;
+    let (_, fields) =
+        create_and_retrieve_df_info(&Identifier::from_static("add_ofield_with_struct_name")).await;
 
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicObject));
@@ -3602,7 +3604,8 @@ async fn test_dynamic_object_field_struct_name_parsing() {
 #[tokio::test]
 async fn test_dynamic_object_field_bytearray_name_parsing() {
     let (_, fields) =
-        create_and_retrieve_df_info(ident_str!("add_ofield_with_bytearray_name")).await;
+        create_and_retrieve_df_info(&Identifier::from_static("add_ofield_with_bytearray_name"))
+            .await;
 
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicObject));
@@ -3616,7 +3619,7 @@ async fn test_dynamic_object_field_bytearray_name_parsing() {
 #[tokio::test]
 async fn test_dynamic_object_field_address_name_parsing() {
     let (sender, fields) =
-        create_and_retrieve_df_info(ident_str!("add_ofield_with_address_name")).await;
+        create_and_retrieve_df_info(&Identifier::from_static("add_ofield_with_address_name")).await;
 
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicObject));
@@ -3675,8 +3678,8 @@ async fn test_store_revert_add_ofield() {
         TransactionData::new_move_call(
             sender,
             object_basics.0,
-            ident_str!("object_basics").to_owned(),
-            ident_str!("add_ofield").to_owned(),
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("add_ofield"),
             vec![],
             create_inner_effects.gas_object().0,
             vec![
@@ -3805,8 +3808,8 @@ async fn test_store_revert_remove_ofield() {
         TransactionData::new_move_call(
             sender,
             object_basics.0,
-            ident_str!("object_basics").to_owned(),
-            ident_str!("remove_ofield").to_owned(),
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("remove_ofield"),
             vec![],
             add_effects.gas_object().0,
             vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(outer_v1))],
@@ -4517,9 +4520,9 @@ async fn make_test_transaction(
         .unwrap();
     let data = TransactionData::new_move_call(
         *sender,
-        IOTA_FRAMEWORK_PACKAGE_ID,
-        ident_str!(module).to_owned(),
-        ident_str!(function).to_owned(),
+        ObjectID::FRAMEWORK,
+        Identifier::from_static(module),
+        Identifier::from_static(function),
         // type_args
         vec![],
         *gas_object_ref,
@@ -4702,8 +4705,8 @@ async fn test_consensus_commit_prologue_generation() {
     let tx_data = TransactionData::new_move_call(
         sender,
         package_object_ref.0,
-        ident_str!("object_basics").to_owned(),
-        ident_str!("use_clock").to_owned(),
+        Identifier::from_static("object_basics"),
+        Identifier::from_static("use_clock"),
         // type_args
         vec![],
         gas_objects[0].compute_object_reference(),
@@ -4743,7 +4746,7 @@ async fn test_consensus_commit_prologue_generation() {
             .expect("versions should be set")
             .iter()
             .filter_map(|(id, seq)| {
-                if id == &IOTA_CLOCK_OBJECT_ID {
+                if id == &ObjectID::CLOCK {
                     Some(*seq)
                 } else {
                     None
@@ -5644,7 +5647,7 @@ async fn test_for_inc_201_dev_inspect() {
     assert_eq!(1, events.data.len());
     assert_eq!(
         "PublishEvent".to_string(),
-        events.data[0].type_.name.to_string()
+        events.data[0].type_.name().to_string()
     );
     assert_eq!(json!({"foo":"bar"}), events.data[0].parsed_json);
 }
@@ -5698,7 +5701,7 @@ async fn test_for_inc_201_dry_run() {
     assert_eq!(1, events.data.len());
     assert_eq!(
         "PublishEvent".to_string(),
-        events.data[0].type_.name.to_string()
+        events.data[0].type_.name().to_string()
     );
     assert_eq!(json!({"foo":"bar"}), events.data[0].parsed_json);
 }
@@ -5714,8 +5717,8 @@ async fn test_function_not_found() {
     builder
         .move_call(
             Address::STD.into(),
-            ident_str!("option").to_owned(),
-            ident_str!("bad_function").to_owned(),
+            Identifier::OPTION_MODULE,
+            Identifier::from_static("bad_function"),
             vec![],
             vec![],
         )
@@ -5770,8 +5773,8 @@ async fn test_arity_mismatch() {
     builder
         .move_call(
             Address::STD.into(),
-            ident_str!("option").to_owned(),
-            ident_str!("is_none").to_owned(),
+            Identifier::OPTION_MODULE,
+            Identifier::from_static("is_none"),
             vec![TypeTag::U64],
             vec![],
         )
@@ -6029,7 +6032,7 @@ async fn test_publish_missing_dependency() {
         .get_package_bytes(/* with_unpublished_deps */ false);
 
     let mut builder = ProgrammableTransactionBuilder::new();
-    builder.publish_immutable(modules, vec![IOTA_FRAMEWORK_PACKAGE_ID]);
+    builder.publish_immutable(modules, vec![ObjectID::FRAMEWORK]);
     let kind = TransactionKind::programmable(builder.finish());
 
     let rgp = state.reference_gas_price_for_testing().unwrap();
@@ -6078,7 +6081,7 @@ async fn test_publish_missing_transitive_dependency() {
         .get_package_bytes(/* with_unpublished_deps */ false);
 
     let mut builder = ProgrammableTransactionBuilder::new();
-    builder.publish_immutable(modules, vec![MOVE_STDLIB_PACKAGE_ID]);
+    builder.publish_immutable(modules, vec![ObjectID::STD]);
     let kind = TransactionKind::programmable(builder.finish());
 
     let rgp = state.reference_gas_price_for_testing().unwrap();
@@ -6129,7 +6132,7 @@ async fn test_publish_not_a_package_dependency() {
     let mut builder = ProgrammableTransactionBuilder::new();
     let mut deps = BuiltInFramework::all_package_ids();
     // One of these things is not like the others
-    deps.push(IOTA_SYSTEM_STATE_OBJECT_ID);
+    deps.push(ObjectID::SYSTEM_STATE);
     builder.publish_immutable(modules, deps);
     let kind = TransactionKind::programmable(builder.finish());
 
@@ -6150,7 +6153,7 @@ async fn test_publish_not_a_package_dependency() {
     assert_eq!(
         IotaError::UserInput {
             error: UserInputError::MoveObjectAsPackage {
-                object_id: IOTA_SYSTEM_STATE_OBJECT_ID
+                object_id: ObjectID::SYSTEM_STATE
             }
         },
         failure,

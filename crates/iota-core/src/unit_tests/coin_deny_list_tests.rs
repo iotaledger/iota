@@ -6,8 +6,7 @@ use std::sync::Arc;
 
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectID, ObjectRef, dbg_addr},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag, TypeTag, dbg_addr},
     crypto::{AccountKeyPair, get_account_key_pair},
     deny_list_v1::{
         DenyCapV1, RegulatedCoinMetadata, check_address_denied_by_config, check_global_pause,
@@ -16,11 +15,6 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     object::Object,
     transaction::{CallArg, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
-};
-use move_core_types::{
-    account_address::AccountAddress,
-    ident_str,
-    language_storage::{StructTag, TypeTag},
 };
 
 use crate::authority::{
@@ -85,14 +79,13 @@ async fn test_regulated_coin_v1_types() {
     );
 
     // Step 2: Deny an address and check the denylist types.
-    let deny_list_object_init_version =
-        env.get_latest_object_ref(&IOTA_DENY_LIST_OBJECT_ID).await.1;
-    let regulated_coin_type = TypeTag::Struct(Box::new(StructTag {
-        address: AccountAddress::new(package_id.into_bytes()),
-        module: ident_str!("regulated_coin").to_owned(),
-        name: ident_str!("REGULATED_COIN").to_owned(),
-        type_params: vec![],
-    }));
+    let deny_list_object_init_version = env.get_latest_object_ref(&ObjectID::DENY_LIST).await.1;
+    let regulated_coin_type = TypeTag::Struct(Box::new(StructTag::new(
+        package_id,
+        Identifier::from_static("regulated_coin"),
+        Identifier::from_static("REGULATED_COIN"),
+        vec![],
+    )));
     let deny_address = dbg_addr(2);
     let tx = TestTransactionBuilder::new(
         env.sender,
@@ -100,12 +93,12 @@ async fn test_regulated_coin_v1_types() {
         env.authority.reference_gas_price_for_testing().unwrap(),
     )
     .move_call(
-        IOTA_FRAMEWORK_PACKAGE_ID,
+        ObjectID::FRAMEWORK,
         "coin",
         "deny_list_v1_add",
         vec![
             CallArg::Object(ObjectArg::SharedObject {
-                id: IOTA_DENY_LIST_OBJECT_ID,
+                id: ObjectID::DENY_LIST,
                 initial_shared_version: deny_list_object_init_version,
                 mutable: true,
             }),
@@ -176,12 +169,12 @@ async fn test_regulated_coin_v1_types() {
         env.authority.reference_gas_price_for_testing().unwrap(),
     )
     .move_call(
-        IOTA_FRAMEWORK_PACKAGE_ID,
+        ObjectID::FRAMEWORK,
         "coin",
         "deny_list_v1_enable_global_pause",
         vec![
             CallArg::Object(ObjectArg::SharedObject {
-                id: IOTA_DENY_LIST_OBJECT_ID,
+                id: ObjectID::DENY_LIST,
                 initial_shared_version: deny_list_object_init_version,
                 mutable: true,
             }),

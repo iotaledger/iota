@@ -18,7 +18,7 @@ use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 #[cfg(msim)]
 use iota_simulator::configs::constant_latency_ms;
 use iota_types::{
-    base_types::{AuthorityName, EpochId},
+    base_types::{AuthorityName, EpochId, Identifier},
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
         KeypairTraits, Signature, Signer, get_key_pair, get_key_pair_from_rng,
@@ -35,7 +35,7 @@ use iota_types::{
     transaction::*,
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };
-use move_core_types::{account_address::AccountAddress, ident_str};
+use move_core_types::account_address::AccountAddress;
 use rand::{SeedableRng, rngs::StdRng};
 use tokio::time::Instant;
 
@@ -105,8 +105,8 @@ pub fn create_object_move_transaction(
         TransactionData::new_move_call(
             src,
             package_id,
-            ident_str!("object_basics").to_owned(),
-            ident_str!("create").to_owned(),
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("create"),
             Vec::new(),
             gas_object_ref,
             arguments,
@@ -130,8 +130,8 @@ pub fn delete_object_move_transaction(
         TransactionData::new_move_call(
             src,
             framework_obj_id,
-            ident_str!("object_basics").to_owned(),
-            ident_str!("delete").to_owned(),
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("delete"),
             Vec::new(),
             gas_object_ref,
             vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(object_ref))],
@@ -161,8 +161,8 @@ pub fn set_object_move_transaction(
         TransactionData::new_move_call(
             src,
             framework_obj_id,
-            ident_str!("object_basics").to_owned(),
-            ident_str!("set_value").to_owned(),
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("set_value"),
             Vec::new(),
             gas_object_ref,
             args,

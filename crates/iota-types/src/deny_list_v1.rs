@@ -7,16 +7,12 @@ use std::{
     fmt,
 };
 
-use move_core_types::{
-    ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
-};
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{error, instrument};
 
 use crate::{
-    IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, MoveTypeTagTrait,
+    IOTA_DENY_LIST_OBJECT_ID, MoveTypeTagTrait,
     base_types::{EpochId, IotaAddress, ObjectID, SequenceNumber},
     config::{Config, Setting},
     dynamic_field::{DOFWrapper, get_dynamic_field_from_store},
@@ -27,8 +23,7 @@ use crate::{
     transaction::{CheckedInputObjects, ReceivingObjects},
 };
 
-pub const DENY_LIST_MODULE: &IdentStr = ident_str!("deny_list");
-pub const DENY_LIST_CREATE_FUNC: &IdentStr = ident_str!("create");
+pub const DENY_LIST_CREATE_FUNC: Identifier = Identifier::from_static("create");
 
 pub const DENY_LIST_COIN_TYPE_INDEX: u64 = 0;
 
@@ -56,20 +51,9 @@ struct ConfigKey {
     per_type_key: Vec<u8>,
 }
 
-impl ConfigKey {
-    pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: DENY_LIST_MODULE.to_owned(),
-            name: ident_str!("ConfigKey").to_owned(),
-            type_params: vec![],
-        }
-    }
-}
-
 impl MoveTypeTagTrait for ConfigKey {
     fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(Self::type_()))
+        TypeTag::Struct(Box::new(StructTag::new_deny_list_config_key()))
     }
 }
 
@@ -77,20 +61,9 @@ impl MoveTypeTagTrait for ConfigKey {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct AddressKey(IotaAddress);
 
-impl AddressKey {
-    pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: DENY_LIST_MODULE.to_owned(),
-            name: ident_str!("AddressKey").to_owned(),
-            type_params: vec![],
-        }
-    }
-}
-
 impl MoveTypeTagTrait for AddressKey {
     fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(Self::type_()))
+        TypeTag::Struct(Box::new(StructTag::new_deny_list_address_key()))
     }
 }
 
@@ -104,19 +77,11 @@ impl GlobalPauseKey {
     pub fn new() -> Self {
         Self(false)
     }
-    pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: DENY_LIST_MODULE.to_owned(),
-            name: ident_str!("GlobalPauseKey").to_owned(),
-            type_params: vec![],
-        }
-    }
 }
 
 impl MoveTypeTagTrait for GlobalPauseKey {
     fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(Self::type_()))
+        TypeTag::Struct(Box::new(StructTag::new_deny_list_global_pause_key()))
     }
 }
 

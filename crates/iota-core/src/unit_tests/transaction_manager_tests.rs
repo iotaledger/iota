@@ -6,7 +6,6 @@ use std::{time::Duration, vec};
 
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{ObjectID, SequenceNumber},
     crypto::deterministic_random_account_key,
     executable_transaction::VerifiedExecutableTransaction,
@@ -49,7 +48,7 @@ fn make_transaction(gas_object: Object, input: Vec<CallArg>) -> VerifiedExecutab
     let (sender, keypair) = deterministic_random_account_key();
     let transaction =
         TestTransactionBuilder::new(sender, gas_object.compute_object_reference(), rgp)
-            .move_call(IOTA_FRAMEWORK_PACKAGE_ID, "counter", "assert_value", input)
+            .move_call(ObjectID::FRAMEWORK, "counter", "assert_value", input)
             .build_and_sign(&keypair);
     VerifiedExecutableTransaction::new_system(VerifiedTransaction::new_unchecked(transaction), 0)
 }

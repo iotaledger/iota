@@ -7,8 +7,8 @@ use move_core_types::{account_address::AccountAddress, ident_str, identifier::Id
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS,
-    base_types::SequenceNumber,
+    IOTA_FRAMEWORK_ADDRESS,
+    base_types::{Identifier, ObjectID, SequenceNumber},
     dynamic_field::get_dynamic_field_from_store,
     error::{IotaError, IotaResult},
     id::UID,
@@ -16,16 +16,15 @@ use crate::{
     storage::ObjectStore,
 };
 
-pub const AUTHENTICATOR_STATE_MODULE_NAME: &IdentStr = ident_str!("authenticator_state");
-pub const AUTHENTICATOR_STATE_STRUCT_NAME: &IdentStr = ident_str!("AuthenticatorState");
-pub const AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME: &IdentStr =
-    ident_str!("update_authenticator_state");
-pub const AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME: &IdentStr = ident_str!("create");
-pub const AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME: &IdentStr = ident_str!("expire_jwks");
+pub const AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME: Identifier =
+    Identifier::from_static("update_authenticator_state");
+pub const AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME: Identifier = Identifier::from_static("create");
+pub const AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME: Identifier =
+    Identifier::from_static("expire_jwks");
 pub const RESOLVED_IOTA_AUTHENTICATOR_STATE: (&AccountAddress, &IdentStr, &IdentStr) = (
     &IOTA_FRAMEWORK_ADDRESS,
-    AUTHENTICATOR_STATE_MODULE_NAME,
-    AUTHENTICATOR_STATE_STRUCT_NAME,
+    ident_str!("authenticator_state"),
+    ident_str!("AuthenticatorState"),
 );
 
 /// Current latest version of the authenticator state object.
@@ -111,7 +110,7 @@ impl std::cmp::Ord for ActiveJwk {
 pub fn get_authenticator_state(
     object_store: impl ObjectStore,
 ) -> IotaResult<Option<AuthenticatorStateInner>> {
-    let outer = object_store.try_get_object(&IOTA_AUTHENTICATOR_STATE_OBJECT_ID)?;
+    let outer = object_store.try_get_object(&ObjectID::AUTHENTICATOR_STATE)?;
     let Some(outer) = outer else {
         return Ok(None);
     };
@@ -140,7 +139,7 @@ pub fn get_authenticator_state_obj_initial_shared_version(
     object_store: &dyn ObjectStore,
 ) -> IotaResult<Option<SequenceNumber>> {
     Ok(object_store
-        .try_get_object(&IOTA_AUTHENTICATOR_STATE_OBJECT_ID)?
+        .try_get_object(&ObjectID::AUTHENTICATOR_STATE)?
         .map(|obj| match obj.owner {
             Owner::Shared {
                 initial_shared_version,

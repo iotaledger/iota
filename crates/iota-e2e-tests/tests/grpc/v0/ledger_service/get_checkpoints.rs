@@ -240,9 +240,10 @@ async fn test_event_filtering() {
                         // Verify BCS serialization integrity
                         assert!(event.bcs_contents.is_some(), "BCS data must be valid");
                         // Verify sender filter logic: only events from sender_1
-                        assert_eq!(
-                            event.sender.as_ref().unwrap().address.as_ref(),
-                            sender_1.as_bytes(),
+                        assert!(
+                            event.sender.as_ref()
+                                .map(|s| s.address.as_ref() == sender_1.as_bytes())
+                                .unwrap_or(false),
                             "SenderFilter should only match sender_1 events"
                         );
 
@@ -285,9 +286,10 @@ async fn test_event_filtering() {
                         assert!(event.bcs_contents.is_some(), "BCS data must be valid");
 
                         // Verify NFT filter logic: only NFT events
-                        assert_eq!(
-                            event.package_id.as_ref().unwrap().address.as_ref(),
-                            nft_package_id.as_ref(),
+                        assert!(
+                            event.package_id.as_ref()
+                                .map(|p| p.address.as_ref() == nft_package_id.as_bytes())
+                                .unwrap_or(false),
                             "MoveEventTypeFilter should only match NFT package events"
                         );
 
@@ -334,12 +336,12 @@ async fn test_event_filtering() {
                             .map(|s| s.address.as_ref() == sender_1.as_bytes())
                             .unwrap_or(false);
                         let nft_package_matches = event.package_id.as_ref()
-                            .map(|p| p.address.as_ref() == nft_package_id.as_ref())
+                            .map(|p| p.address.as_ref() == nft_package_id.as_bytes())
                             .unwrap_or(false);
                         assert!(
                             sender_matches || nft_package_matches,
-                            "AnyEventFilter should receive events from both events: {:?}",
-                            event.package_id.as_ref().map(|p| &p.address)
+                            "AnyEventFilter should receive events from sender_1 or NFT package: {:?}",
+                            event.package_id
                         );
 
                         any_events.push(event.clone());

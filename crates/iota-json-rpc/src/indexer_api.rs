@@ -28,18 +28,18 @@ use iota_names::{
 use iota_open_rpc::Module;
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::{IotaAddress, ObjectID, TypeTag},
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldName, Field},
     error::{IotaObjectResponseError, UserInputError},
     event::EventID,
+    iota_sdk_types_conversions::type_tag_sdk_to_core,
 };
 use jsonrpsee::{
     PendingSubscriptionSink, RpcModule, SendTimeoutError, SubscriptionMessage,
     core::{RpcResult, SubscriptionResult},
 };
 use move_bytecode_utils::layout::TypeLayoutBuilder;
-use move_core_types::{account_address::AccountAddress, language_storage::TypeTag};
 use serde::Serialize;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tracing::{debug, instrument};
@@ -142,7 +142,10 @@ impl<R: ReadApiServer> IndexerApi<R> {
             value,
         } = name;
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
-        let layout = TypeLayoutBuilder::build_with_types(&name_type, epoch_store.module_cache())?;
+        let layout = TypeLayoutBuilder::build_with_types(
+            &type_tag_sdk_to_core(&name_type),
+            epoch_store.module_cache(),
+        )?;
         let iota_json_value = IotaJsonValue::new(value)?;
         let name_bcs_value = iota_json_value.to_bcs_bytes(&layout)?;
         Ok((name_type, name_bcs_value))
@@ -603,7 +606,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
     ) -> RpcResult<ObjectsPage> {
         let query = IotaObjectResponseQuery {
             filter: Some(IotaObjectDataFilter::StructType(NameRegistration::type_(
-                AccountAddress::new(self.iota_names_config.package_address.into_bytes()),
+                self.iota_names_config.package_address,
             ))),
             options,
         };

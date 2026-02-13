@@ -11,11 +11,9 @@ use axum::{
 use fastcrypto::encoding::Hex;
 use iota_sdk::rpc_types::{IotaExecutionStatus, IotaTransactionBlockKind};
 use iota_types::{
-    IOTA_SYSTEM_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
     crypto::{PublicKey as IotaPublicKey, SignatureScheme},
     governance::{ADD_STAKE_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
-    iota_system_state::IOTA_SYSTEM_MODULE_NAME,
     messages_checkpoint::CheckpointDigest,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Argument, CallArg, Command, ObjectArg, TransactionData},
@@ -917,9 +915,9 @@ impl InternalOperation {
                 let arguments = vec![system_state, coin, validator];
 
                 builder.command(Command::move_call(
-                    IOTA_SYSTEM_PACKAGE_ID,
-                    IOTA_SYSTEM_MODULE_NAME.to_owned(),
-                    ADD_STAKE_FUN_NAME.to_owned(),
+                    ObjectID::SYSTEM,
+                    Identifier::IOTA_SYSTEM_MODULE,
+                    ADD_STAKE_FUN_NAME,
                     vec![],
                     arguments,
                 ));
@@ -945,9 +943,9 @@ impl InternalOperation {
 
                     let arguments = vec![system_state, id];
                     builder.command(Command::move_call(
-                        IOTA_SYSTEM_PACKAGE_ID,
-                        IOTA_SYSTEM_MODULE_NAME.to_owned(),
-                        WITHDRAW_STAKE_FUN_NAME.to_owned(),
+                        ObjectID::SYSTEM,
+                        Identifier::IOTA_SYSTEM_MODULE,
+                        WITHDRAW_STAKE_FUN_NAME,
                         vec![],
                         arguments,
                     ));

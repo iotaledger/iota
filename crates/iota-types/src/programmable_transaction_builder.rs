@@ -7,13 +7,11 @@
 
 use anyhow::Context;
 use indexmap::IndexMap;
-use move_core_types::{ident_str, identifier::Identifier, language_storage::TypeTag};
+use iota_sdk_types::{Identifier, TypeTag};
 use serde::Serialize;
 
 use crate::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID, ObjectRef},
-    move_package::PACKAGE_MODULE_NAME,
     transaction::{Argument, CallArg, Command, ObjectArg, ProgrammableTransaction},
 };
 
@@ -191,9 +189,9 @@ impl ProgrammableTransactionBuilder {
     pub fn publish_immutable(&mut self, modules: Vec<Vec<u8>>, dep_ids: Vec<ObjectID>) {
         let cap = self.publish_upgradeable(modules, dep_ids);
         self.commands.push(Command::move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            PACKAGE_MODULE_NAME.to_owned(),
-            ident_str!("make_immutable").to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::PACKAGE_MODULE,
+            Identifier::from_static("make_immutable"),
             vec![],
             vec![cap],
         ));
