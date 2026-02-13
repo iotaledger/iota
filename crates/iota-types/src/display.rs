@@ -11,11 +11,6 @@ use crate::{
     id::{ID, UID},
 };
 
-pub const DISPLAY_MODULE_NAME: Identifier = Identifier::from_static("display");
-pub const DISPLAY_CREATED_EVENT_NAME: Identifier = Identifier::from_static("DisplayCreated");
-pub const DISPLAY_VERSION_UPDATED_EVENT_NAME: Identifier =
-    Identifier::from_static("VersionUpdated");
-
 // TODO: add tests to keep in sync
 /// Rust version of the Move iota::display::Display type
 #[derive(Debug, Deserialize, Clone, Eq, PartialEq)]
@@ -38,17 +33,10 @@ impl DisplayVersionUpdatedEvent {
     pub fn type_(inner: &StructTag) -> StructTag {
         StructTag::new(
             Address::FRAMEWORK,
-            DISPLAY_MODULE_NAME,
-            DISPLAY_VERSION_UPDATED_EVENT_NAME,
+            Identifier::DISPLAY_MODULE,
+            Identifier::VERSION_UPDATED,
             vec![TypeTag::Struct(Box::new(inner.clone()))],
         )
-    }
-
-    // Checks if the provided `StructTag` is a DisplayVersionUpdatedEvent<T>
-    pub fn is_display_updated_event(inner: &StructTag) -> bool {
-        inner.address() == Address::FRAMEWORK
-            && *inner.module() == DISPLAY_MODULE_NAME
-            && *inner.name() == DISPLAY_VERSION_UPDATED_EVENT_NAME
     }
 
     // Checks if the provided `StructTag` is a DisplayVersionUpdatedEvent<T> and
@@ -83,8 +71,8 @@ impl DisplayCreatedEvent {
     pub fn type_(inner: &StructTag) -> StructTag {
         StructTag::new(
             Address::FRAMEWORK,
-            DISPLAY_MODULE_NAME,
-            DISPLAY_CREATED_EVENT_NAME,
+            Identifier::DISPLAY_MODULE,
+            Identifier::DISPLAY_CREATED,
             vec![TypeTag::Struct(Box::new(inner.clone()))],
         )
     }
