@@ -7,8 +7,7 @@ use std::path::PathBuf;
 use iota_macros::*;
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
-    base_types::{ObjectID, ObjectRef, SequenceNumber},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::{OBJECT_START_VERSION, Owner},
@@ -36,7 +35,10 @@ async fn objects_transitioning_to_shared_remember_their_previous_version() {
     else {
         panic!()
     };
-    assert_eq!(location.module.address(), &IOTA_FRAMEWORK_ADDRESS);
+    assert_eq!(
+        location.module.address().as_ref(),
+        IotaAddress::FRAMEWORK.as_bytes()
+    );
     assert_eq!(location.module.name().as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }
@@ -52,7 +54,10 @@ async fn shared_object_owner_doesnt_change_on_write() {
     else {
         panic!()
     };
-    assert_eq!(location.module.address(), &IOTA_FRAMEWORK_ADDRESS);
+    assert_eq!(
+        location.module.address().as_ref(),
+        IotaAddress::FRAMEWORK.as_bytes()
+    );
     assert_eq!(location.module.name().as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }
@@ -68,7 +73,10 @@ async fn initial_shared_version_mismatch_start_version() {
     else {
         panic!()
     };
-    assert_eq!(location.module.address(), &IOTA_FRAMEWORK_ADDRESS);
+    assert_eq!(
+        location.module.address().as_ref(),
+        IotaAddress::FRAMEWORK.as_bytes()
+    );
     assert_eq!(location.module.name().as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }
@@ -83,7 +91,10 @@ async fn initial_shared_version_mismatch_current_version() {
     else {
         panic!()
     };
-    assert_eq!(location.module.address(), &IOTA_FRAMEWORK_ADDRESS);
+    assert_eq!(
+        location.module.address().as_ref(),
+        IotaAddress::FRAMEWORK.as_bytes()
+    );
     assert_eq!(location.module.name().as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }

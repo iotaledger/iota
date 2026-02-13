@@ -14,7 +14,7 @@ use crate::error::Error;
 const IOTA_ADDRESS_LENGTH: usize = 32;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Copy)]
-pub(crate) struct IotaAddress([u8; IOTA_ADDRESS_LENGTH]);
+pub(crate) struct IotaAddress(pub(crate) [u8; IOTA_ADDRESS_LENGTH]);
 
 #[derive(thiserror::Error, Debug, Eq, PartialEq)]
 pub(crate) enum FromStrError {

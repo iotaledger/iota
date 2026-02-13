@@ -24,8 +24,7 @@ use iota_stardust_types::block::{
     },
 };
 use iota_types::{
-    TypeTag,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{Identifier, IotaAddress, ObjectID, TypeTag},
     collection_types::VecMap,
     dynamic_field::{DynamicFieldInfo, derive_dynamic_field_id},
     id::UID,
@@ -38,7 +37,6 @@ use iota_types::{
         },
     },
 };
-use move_core_types::ident_str;
 
 use crate::stardust::{
     migration::tests::{
@@ -240,9 +238,9 @@ fn nft_migration_with_alias_owner() {
             (nft_header.clone(), nft.into()),
             (alias_header.clone(), alias.into()),
         ],
-        ALIAS_OUTPUT_MODULE_NAME,
-        NFT_OUTPUT_MODULE_NAME,
-        ident_str!("unlock_alias_address_owned_nft"),
+        &ALIAS_OUTPUT_MODULE_NAME,
+        &NFT_OUTPUT_MODULE_NAME,
+        &Identifier::from_static("unlock_alias_address_owned_nft"),
         CoinType::Iota,
     )
     .unwrap();
@@ -275,9 +273,9 @@ fn nft_migration_with_nft_owner() {
             (nft1_header.clone(), nft1.into()),
             (nft2_header.clone(), nft2.into()),
         ],
-        NFT_OUTPUT_MODULE_NAME,
-        NFT_OUTPUT_MODULE_NAME,
-        ident_str!("unlock_nft_address_owned_nft"),
+        &NFT_OUTPUT_MODULE_NAME,
+        &NFT_OUTPUT_MODULE_NAME,
+        &Identifier::from_static("unlock_nft_address_owned_nft"),
         CoinType::Iota,
     )
     .unwrap();
@@ -322,7 +320,7 @@ fn nft_migration_with_native_tokens() {
         nft_output_id,
         1_000_000,
         outputs,
-        NFT_OUTPUT_MODULE_NAME,
+        &NFT_OUTPUT_MODULE_NAME,
         native_tokens,
         ExpectedAssets::BalanceBagObject,
         CoinType::Iota,
@@ -554,7 +552,7 @@ fn nft_migration_with_timelock_unlocked() {
         [(header, stardust_nft.into())],
         // Sender is not important for this test.
         &IotaAddress::ZERO,
-        NFT_OUTPUT_MODULE_NAME,
+        &NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
         ExpectedAssets::BalanceBagObject,
@@ -585,7 +583,7 @@ fn nft_migration_with_timelock_still_locked() {
         [(header, stardust_nft.into())],
         // Sender is not important for this test.
         &IotaAddress::ZERO,
-        NFT_OUTPUT_MODULE_NAME,
+        &NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_TIMELOCK_NOT_EXPIRED_FAILURE,
         ExpectedAssets::BalanceBagObject,
@@ -624,7 +622,7 @@ fn nft_migration_with_expired_unlock_condition() {
         1_000_000,
         [(header.clone(), stardust_nft.clone().into())],
         &iota_owner_address,
-        NFT_OUTPUT_MODULE_NAME,
+        &NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_WRONG_SENDER_FAILURE,
         ExpectedAssets::BalanceBagObject,
@@ -638,7 +636,7 @@ fn nft_migration_with_expired_unlock_condition() {
         1_000_000,
         [(header, stardust_nft.into())],
         &iota_return_address,
-        NFT_OUTPUT_MODULE_NAME,
+        &NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
         ExpectedAssets::BalanceBagObject,
@@ -677,7 +675,7 @@ fn nft_migration_with_unexpired_unlock_condition() {
         1_000_000,
         [(header.clone(), stardust_nft.clone().into())],
         &iota_return_address,
-        NFT_OUTPUT_MODULE_NAME,
+        &NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::ERROR_WRONG_SENDER_FAILURE,
         ExpectedAssets::BalanceBagObject,
@@ -691,7 +689,7 @@ fn nft_migration_with_unexpired_unlock_condition() {
         1_000_000,
         [(header, stardust_nft.into())],
         &iota_owner_address,
-        NFT_OUTPUT_MODULE_NAME,
+        &NFT_OUTPUT_MODULE_NAME,
         epoch_start_timestamp_ms as u64,
         UnlockObjectTestResult::Success,
         ExpectedAssets::BalanceBagObject,
@@ -723,7 +721,7 @@ fn nft_migration_with_storage_deposit_return_unlock_condition() {
         [(header.clone(), stardust_nft.clone().into())],
         // Sender is not important for this test.
         &IotaAddress::ZERO,
-        NFT_OUTPUT_MODULE_NAME,
+        &NFT_OUTPUT_MODULE_NAME,
         // Epoch start time is not important for this test.
         0,
         UnlockObjectTestResult::Success,

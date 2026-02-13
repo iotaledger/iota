@@ -57,7 +57,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 7, line 80:
 //# run test::object_basics::update --sender B --args object(2,0) object(6,0)
-events: Event { package_id: ObjectId("test"), transaction_module: Identifier("object_basics"), sender: Address("B"), type_: StructTag { address: test, module: Identifier("object_basics"), name: Identifier("NewValueEvent"), type_params: [] }, contents: [20, 0, 0, 0, 0, 0, 0, 0] }
+events: Event { package_id: ObjectId("test"), transaction_module: Identifier("object_basics"), sender: Address("B"), type_: StructTag { address: Address("test"), module: Identifier("object_basics"), name: Identifier("NewValueEvent"), type_params: [] }, contents: [20, 0, 0, 0, 0, 0, 0, 0] }
 mutated: object(0,1), object(2,0), object(6,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3762000, storage_rebate: 3762000, non_refundable_storage_fee: 0
 

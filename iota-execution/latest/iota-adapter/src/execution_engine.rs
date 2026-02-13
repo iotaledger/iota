@@ -17,8 +17,6 @@ mod checked {
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
-        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
-        IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, Identifier,
         account_abstraction::authenticator_function::{
             AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
             AuthenticatorFunctionRefV1,
@@ -26,17 +24,15 @@ mod checked {
         auth_context::AuthContext,
         authenticator_state::{
             AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME,
-            AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME, AUTHENTICATOR_STATE_MODULE_NAME,
+            AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME,
             AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME,
         },
-        balance::{
-            BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME,
-            BALANCE_MODULE_NAME,
-        },
+        balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
         base_types::{
-            IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest, TxContext,
+            Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
+            TxContext,
         },
-        clock::{CLOCK_MODULE_NAME, CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME},
+        clock::CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
         committee::EpochId,
         effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
@@ -46,15 +42,13 @@ mod checked {
         gas::{GasCostSummary, IotaGasStatus},
         gas_coin::GAS,
         inner_temporary_store::InnerTemporaryStore,
-        iota_system_state::{
-            ADVANCE_EPOCH_FUNCTION_NAME, AdvanceEpochParams, IOTA_SYSTEM_MODULE_NAME,
-        },
+        iota_system_state::{ADVANCE_EPOCH_FUNCTION_NAME, AdvanceEpochParams},
         messages_checkpoint::CheckpointTimestamp,
         metrics::LimitsMetrics,
         move_authenticator::MoveAuthenticator,
         object::{OBJECT_START_VERSION, Object, ObjectInner},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_UPDATE_FUNCTION_NAME},
+        randomness_state::RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
         storage::{BackingStore, Storage},
         transaction::{
             Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, CallArg, ChangeEpoch,
@@ -1315,9 +1309,9 @@ mod checked {
             ))
             .unwrap();
         let storage_charges = builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            BALANCE_MODULE_NAME.to_owned(),
-            BALANCE_CREATE_REWARDS_FUNCTION_NAME.to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::BALANCE_MODULE,
+            BALANCE_CREATE_REWARDS_FUNCTION_NAME,
             vec![GAS::type_tag()],
             vec![storage_charge_arg],
         );
@@ -1329,9 +1323,9 @@ mod checked {
             ))
             .unwrap();
         let computation_charges = builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            BALANCE_MODULE_NAME.to_owned(),
-            BALANCE_CREATE_REWARDS_FUNCTION_NAME.to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::BALANCE_MODULE,
+            BALANCE_CREATE_REWARDS_FUNCTION_NAME,
             vec![GAS::type_tag()],
             vec![computation_charge_arg],
         );
@@ -1375,18 +1369,18 @@ mod checked {
         info!("Call arguments to advance_epoch transaction: {:?}", params);
 
         let storage_rebates = builder.programmable_move_call(
-            IOTA_SYSTEM_PACKAGE_ID,
-            IOTA_SYSTEM_MODULE_NAME.to_owned(),
-            ADVANCE_EPOCH_FUNCTION_NAME.to_owned(),
+            ObjectID::SYSTEM,
+            Identifier::IOTA_SYSTEM_MODULE,
+            ADVANCE_EPOCH_FUNCTION_NAME,
             vec![],
             arguments,
         );
 
         // Step 3: Destroy the storage rebates.
         builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            BALANCE_MODULE_NAME.to_owned(),
-            BALANCE_DESTROY_REBATES_FUNCTION_NAME.to_owned(),
+            ObjectID::FRAMEWORK,
+            Identifier::BALANCE_MODULE,
+            BALANCE_DESTROY_REBATES_FUNCTION_NAME,
             vec![GAS::type_tag()],
             vec![storage_rebates],
         );
@@ -1822,9 +1816,9 @@ mod checked {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let res = builder.move_call(
-                ObjectID::FRAMEWORK_PACKAGE,
-                CLOCK_MODULE_NAME.to_owned(),
-                CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME.to_owned(),
+                ObjectID::FRAMEWORK,
+                Identifier::CLOCK_MODULE,
+                CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
                 vec![],
                 vec![
                     CallArg::CLOCK_MUT,
@@ -1857,9 +1851,9 @@ mod checked {
     ) -> ProgrammableTransactionBuilder {
         builder
             .move_call(
-                ObjectID::FRAMEWORK_PACKAGE,
-                AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
-                AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME.to_owned(),
+                ObjectID::FRAMEWORK,
+                Identifier::AUTHENTICATOR_STATE_MODULE,
+                AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME,
                 vec![],
                 vec![],
             )
@@ -1886,13 +1880,13 @@ mod checked {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let res = builder.move_call(
-                ObjectID::FRAMEWORK_PACKAGE,
-                AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
-                AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME.to_owned(),
+                ObjectID::FRAMEWORK,
+                Identifier::AUTHENTICATOR_STATE_MODULE,
+                AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME,
                 vec![],
                 vec![
                     CallArg::Object(ObjectArg::SharedObject {
-                        id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                        id: ObjectID::AUTHENTICATOR_STATE,
                         initial_shared_version: update.authenticator_obj_initial_shared_version,
                         mutable: true,
                     }),
@@ -1927,13 +1921,13 @@ mod checked {
     ) -> ProgrammableTransactionBuilder {
         builder
             .move_call(
-                ObjectID::FRAMEWORK_PACKAGE,
-                AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
-                AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME.to_owned(),
+                ObjectID::FRAMEWORK,
+                Identifier::AUTHENTICATOR_STATE_MODULE,
+                AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME,
                 vec![],
                 vec![
                     CallArg::Object(ObjectArg::SharedObject {
-                        id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                        id: ObjectID::AUTHENTICATOR_STATE,
                         initial_shared_version: expire.authenticator_obj_initial_shared_version,
                         mutable: true,
                     }),
@@ -1962,13 +1956,13 @@ mod checked {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let res = builder.move_call(
-                ObjectID::FRAMEWORK_PACKAGE,
-                RANDOMNESS_MODULE_NAME.to_owned(),
-                RANDOMNESS_STATE_UPDATE_FUNCTION_NAME.to_owned(),
+                ObjectID::FRAMEWORK,
+                Identifier::RANDOM_MODULE,
+                RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
                 vec![],
                 vec![
                     CallArg::Object(ObjectArg::SharedObject {
-                        id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                        id: ObjectID::RANDOMNESS_STATE,
                         initial_shared_version: update.randomness_obj_initial_shared_version,
                         mutable: true,
                     }),
