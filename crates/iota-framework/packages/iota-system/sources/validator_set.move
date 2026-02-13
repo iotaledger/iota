@@ -583,15 +583,10 @@ fun record_scores(
     committee_members: &vector<u64>,
     ctx: &mut TxContext,
 ) {
-    let num_committee_members = committee_members.length();
-    assert!(scores.length() == num_committee_members, EInvalidScoresData);
-    let mut i = 0;
-    while (i < num_committee_members) {
-        let validator_index = committee_members[i];
-        let committee_validator = &mut active_validators[validator_index];
-        committee_validator.record_score(scores[i], ctx);
-        i = i + 1;
-    }
+    assert!(scores.length() == committee_members.length(), EInvalidScoresData);
+    active_validators.take_do_with_ix_mut!(committee_members, |i, _, validator| {
+        validator.record_score(scores[i], ctx);
+    });
 }
 
 fun update_and_process_low_stake_departures(

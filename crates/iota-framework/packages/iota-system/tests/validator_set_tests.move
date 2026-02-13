@@ -975,9 +975,41 @@ fun advance_epoch_with_dummy_rewards(
         |i| i,
     );
 
-   let scores = vector::tabulate!(
+    let scores = vector::tabulate!(
         validator_set.committee_validator_addresses().length(),
-        |_| 65536u64,    
+        |_| 65536u64,
+    );
+
+    validator_set.advance_epoch(
+        &mut dummy_computation_charge,
+        &mut vec_map::empty(),
+        0, // reward_slashing_rate
+        0, // low_stake_threshold
+        0, // very_low_stake_threshold
+        0, // low_stake_grace_period
+        committee_size,
+        eligible_validators,
+        scores,
+        true,
+        scenario.ctx(),
+    );
+
+    dummy_computation_charge.destroy_zero();
+}
+
+fun advance_epoch_with_dummy_rewards_and_score(
+    validator_set: &mut ValidatorSetV2,
+    committee_size: u64,
+    scores: vector<u64>,
+    scenario: &mut Scenario,
+) {
+    scenario.next_epoch(@0x0);
+    let mut dummy_computation_charge = balance::zero();
+
+    // Default: all validators are eligible (indices 0 to n-1)
+    let eligible_validators = vector::tabulate!(
+        validator_set.active_validators_inner().length(),
+        |i| i,
     );
 
     validator_set.advance_epoch(
@@ -1006,11 +1038,9 @@ fun advance_epoch_with_eligible_validators(
     scenario.next_epoch(@0x0);
     let mut dummy_computation_charge = balance::zero();
 
-
-
     let scores = vector::tabulate!(
         validator_set.committee_validator_addresses().length(),
-        |_| 65536u64,    
+        |_| 65536u64,
     );
 
     validator_set.advance_epoch(
@@ -1047,9 +1077,9 @@ fun advance_epoch_with_low_stake_params(
         |i| i,
     );
 
-   let scores = vector::tabulate!(
+    let scores = vector::tabulate!(
         validator_set.committee_validator_addresses().length(),
-        |_| 65536u64,    
+        |_| 65536u64,
     );
 
     validator_set.advance_epoch(
@@ -1672,4 +1702,127 @@ fun test_eligible_committee_selection_duplicate_indices() {
 
     test_utils::destroy(validator_set);
     scenario_val.end();
+}
+
+#[test]
+fun test_record_scores() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+    let ctx = scenario.ctx();
+    let active_validator_addresses = vector[@0x1, @0x2, @0x3, @0x4, @0x5];
+
+    // create 5 validators
+    let v1 = create_validator(active_validator_addresses[0], 2, 1, true, ctx); // 200 IOTA
+    let v2 = create_validator(active_validator_addresses[1], 4, 1, true, ctx); // 400 IOTA
+    let v3 = create_validator(active_validator_addresses[2], 6, 1, true, ctx); // 600 IOTA
+    let v4 = create_validator(active_validator_addresses[3], 8, 1, true, ctx); // 800 IOTA
+    let v5 = create_validator(active_validator_addresses[4], 10, 1, true, ctx); // 1000 IOTA
+    let mut committee_size = 3;
+    let mut validator_set = validator_set::new_v2(vector[v1, v2, v3, v4, v5], committee_size, ctx);
+    scenario_val.end();
+
+    let mut scenario_val = test_scenario::begin(@0x1);
+    let scenario = &mut scenario_val;
+    assert_same_elems(
+        active_validator_addresses(&validator_set),
+        vector[@0x1, @0x2, @0x3, @0x4, @0x5],
+    );
+    assert_same_elems(
+        committee_validator_addresses(&validator_set),
+        vector[@0x3, @0x4, @0x5],
+    );
+    let expected_scores = vector[
+        vector[option::none(), option::none(), option::none()], // validator 1 not on the committee in any epoch, so no scores
+        vector[option::none(), option::none(), option::some(32768u64)], // validator 2 only on the committee in epoch 3, so only has a score for epoch 3
+        vector[option::some(65536u64), option::some(0u64), option::some(32768u64)], // validator 3 on the committee for all epochs, so has scores for all epochs
+        vector[option::some(65536u64), option::some(100u64), option::some(32768u64)], // validator 4 on the committee for all epochs, so has scores for all epochs
+        vector[option::some(65536u64), option::some(65536u64), option::some(32768u64)], // validator 5 on the committee for all epochs, so has scores for all epochs
+    ];
+
+    // Epoch 1
+    let scores = committee_validator_scores(
+        validator_set.committee_validator_addresses(),
+        active_validator_addresses,
+        expected_scores,
+        1,
+    );
+    advance_epoch_with_dummy_rewards_and_score(
+        &mut validator_set,
+        committee_size,
+        scores,
+        scenario,
+    );
+    // Check the recorded scores for epoch 1
+    validator_set.active_validators_inner().zip_do_ref!(&expected_scores, |validator, score| {
+        assert_eq(validator.get_historical_score_for_epoch(1), score[0]);
+    });
+
+    // Epoch 2
+    // give validator 3 a score of 0, validator 4 a score of 100, and validator 5 a score of 65536 for the second epoch
+    let scores = committee_validator_scores(
+        validator_set.committee_validator_addresses(),
+        active_validator_addresses,
+        expected_scores,
+        2,
+    );
+    // Add an additional committee member (validator 2) for the next epoch
+    committee_size = 4;
+    advance_epoch_with_dummy_rewards_and_score(
+        &mut validator_set,
+        committee_size,
+        scores,
+        scenario,
+    );
+    // Check the recorded scores for epoch 2
+    validator_set.active_validators_inner().zip_do_ref!(&expected_scores, |validator, score| {
+        assert_eq(validator.get_historical_score_for_epoch(2), score[1]);
+    });
+
+    // Epoch 3
+    let scores = committee_validator_scores(
+        validator_set.committee_validator_addresses(),
+        active_validator_addresses,
+        expected_scores,
+        3,
+    );
+    advance_epoch_with_dummy_rewards_and_score(
+        &mut validator_set,
+        committee_size,
+        scores,
+        scenario,
+    );
+    // Check the recorded scores for epoch 3
+    validator_set.active_validators_inner().zip_do_ref!(&expected_scores, |validator, score| {
+        assert_eq(validator.get_historical_score_for_epoch(3), score[2]);
+    });
+
+    // Check the correct scores over a range are retrieved.
+    validator_set.active_validators_inner().zip_do_ref!(&expected_scores, |validator, score| {
+        assert_eq(validator.get_historical_score_for_epoch_range(1, 3), *score);
+    });
+
+    test_utils::destroy(validator_set);
+    scenario_val.end();
+}
+
+fun committee_validator_scores(
+    committee_addresses: vector<address>,
+    active_validator_addresses: vector<address>,
+    active_validator_scores: vector<vector<Option<u64>>>,
+    epoch: u64,
+): vector<u64> {
+    committee_addresses.map!(|address| {
+        let index = active_validator_addresses.find_index!(
+            |active_address| active_address==address,
+        );
+        if (index.is_some()) {
+            if (active_validator_scores[*index.borrow()][epoch-1].is_some()) {
+                *active_validator_scores[*index.borrow()][epoch-1].borrow()
+            } else {
+                abort 0
+            }
+        } else {
+            abort 0
+        }
+    })
 }

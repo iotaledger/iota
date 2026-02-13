@@ -9,12 +9,12 @@ use iota::bag::{Self, Bag};
 use iota::balance::Balance;
 use iota::event;
 use iota::iota::IOTA;
+use iota::table::{Self, Table};
 use iota::url::{Self, Url};
 use iota_system::staking_pool::{Self, PoolTokenExchangeRate, StakedIota, StakingPoolV1};
 use iota_system::validator_cap;
 use std::bcs;
 use std::string::String;
-use iota::table::{Self, Table};
 
 /// Invalid proof_of_possession field in ValidatorMetadata
 const EInvalidProofOfPossession: u64 = 0;
@@ -951,26 +951,26 @@ public(package) fun new_for_testing(
 // ==== Validator score history ====
 
 // Records a score in the score history table for this validator.
-// This function should only be called from the advance_epoch function in validator_set, and the score is score will be set for the corresponding epoch as provided by the TxContext.
-public(package) fun record_score(
-    self: &mut ValidatorV1,
-    score: u64,
-    ctx: &mut TxContext,
-) {
-    if (self.extra_fields.contains_with_type<ScoreHistoryKey, Table<u64, u64>>(ScoreHistoryKey{})) {
-        let score_history: &mut Table<u64, u64> = self.extra_fields.borrow_mut(ScoreHistoryKey{});
+// This function should only be called from the advance_epoch function in validator_set, and the score will be set for the corresponding epoch as provided by the TxContext.
+public(package) fun record_score(self: &mut ValidatorV1, score: u64, ctx: &mut TxContext) {
+    if (
+        self.extra_fields.contains_with_type<ScoreHistoryKey, Table<u64, u64>>(ScoreHistoryKey {})
+    ) {
+        let score_history: &mut Table<u64, u64> = self.extra_fields.borrow_mut(ScoreHistoryKey {});
         score_history.add(ctx.epoch(), score)
     } else {
         let mut score_history = table::new(ctx);
         score_history.add(ctx.epoch(), score);
-        self.extra_fields.add(ScoreHistoryKey{}, score_history);
+        self.extra_fields.add(ScoreHistoryKey {}, score_history);
     }
 }
 
 // Returns the score given to this validator at the given epoch, if exists. Otherwise returns None.
 public fun get_historical_score_for_epoch(self: &ValidatorV1, epoch: u64): Option<u64> {
-    if (self.extra_fields.contains_with_type<ScoreHistoryKey, Table<u64, u64>>(ScoreHistoryKey{})) {
-        let score_history: &Table<u64, u64> = self.extra_fields.borrow(ScoreHistoryKey{});
+    if (
+        self.extra_fields.contains_with_type<ScoreHistoryKey, Table<u64, u64>>(ScoreHistoryKey {})
+    ) {
+        let score_history: &Table<u64, u64> = self.extra_fields.borrow(ScoreHistoryKey {});
         if (score_history.contains(epoch)) {
             let score = score_history.borrow(epoch);
             option::some(*score)
@@ -983,12 +983,20 @@ public fun get_historical_score_for_epoch(self: &ValidatorV1, epoch: u64): Optio
 }
 
 // Returns the scores given to this validator over a given range of epochs, if they exist. Epochs for which no score was recorded will be None.
-public fun get_historical_score_for_epoch_range(self: &ValidatorV1, start_epoch: u64, end_epoch: u64): vector<Option<u64>> {
+public fun get_historical_score_for_epoch_range(
+    self: &ValidatorV1,
+    start_epoch: u64,
+    end_epoch: u64,
+): vector<Option<u64>> {
     let mut i = start_epoch;
     let mut scores = vector::empty<Option<u64>>();
     while (i <= end_epoch) {
-        if (self.extra_fields.contains_with_type<ScoreHistoryKey, Table<u64, u64>>(ScoreHistoryKey{})) {
-            let score_history: &Table<u64, u64> = self.extra_fields.borrow(ScoreHistoryKey{});
+        if (
+            self
+                .extra_fields
+                .contains_with_type<ScoreHistoryKey, Table<u64, u64>>(ScoreHistoryKey {})
+        ) {
+            let score_history: &Table<u64, u64> = self.extra_fields.borrow(ScoreHistoryKey {});
             if (score_history.contains(i)) {
                 let score = score_history.borrow(i);
                 scores.push_back(option::some(*score));
