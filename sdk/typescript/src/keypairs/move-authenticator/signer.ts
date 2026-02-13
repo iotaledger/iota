@@ -103,11 +103,7 @@ export class MoveSigner extends Signer {
     /**
      * Generates the Move Authenticator signature.
      */
-    async getSignature(): Promise<string> {
-        return toSerializedSignature({
-            signature: await this.sign(),
-            signatureScheme: this.getKeyScheme(),
-            publicKey: this.getPublicKey(),
-        });
+     async getSignature(): Promise<string> {
+        return toBase64(await this.sign())
     }
 }
