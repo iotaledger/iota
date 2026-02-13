@@ -33,6 +33,7 @@ jobs:
       isWalletDashboard: true
       isEvmBridge: true
       isIscSDK: true
+      isKiosk: true
     secrets:
       EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK: ${{ secrets.EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK }}
       EVM_BRIDGE_CONFIG: ${{ secrets.EVM_BRIDGE_CONFIG }}

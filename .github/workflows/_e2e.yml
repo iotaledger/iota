@@ -34,6 +34,9 @@ on:
       isIscSDK:
         type: boolean
         required: true
+      isKiosk:
+        type: boolean
+        required: true
     secrets:
       EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK:
         required: true
@@ -81,7 +84,7 @@ jobs:
           echo "runDashboard=${{ inputs.isNightly || inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK }}" >> $GITHUB_OUTPUT
           echo "runWallet=${{ inputs.isNightly || inputs.isWallet || inputs.isRpc || inputs.isTypescriptSDK }}" >> $GITHUB_OUTPUT
           echo "runEvmBridge=${{ inputs.isNightly || inputs.isEvmBridge || inputs.isIscSDK || inputs.isTypescriptSDK }}" >> $GITHUB_OUTPUT
-          echo "runKiosk=${{ inputs.isNightly || inputs.isRpc || inputs.isTypescriptSDK }}" >> $GITHUB_OUTPUT
+          echo "runKiosk=${{ inputs.isNightly || inputs.isRpc || inputs.isKiosk || inputs.isTypescriptSDK }}" >> $GITHUB_OUTPUT
           echo "runAppsBackend=${{ inputs.isNightly || inputs.isAppsBackend }}" >> $GITHUB_OUTPUT
           echo "runGraphql=${{ inputs.isNightly || inputs.isGraphQlTransport || inputs.isRpc }}" >> $GITHUB_OUTPUT
           echo "runTsSdk=${{ inputs.isNightly || inputs.isTypescriptSDK || inputs.isRpc }}" >> $GITHUB_OUTPUT
