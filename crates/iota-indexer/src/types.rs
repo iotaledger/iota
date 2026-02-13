@@ -227,7 +227,7 @@ impl EventIndex {
             event_sequence_number,
             sender: event.sender,
             emit_package: event.package_id,
-            emit_module: event.transaction_module.to_string(),
+            emit_module: event.module.to_string(),
             type_package: event.type_.address().into(),
             type_module: event.type_.module().to_string(),
             type_name: event.type_.name().to_string(),

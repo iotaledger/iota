@@ -10,7 +10,6 @@ use iota_types::{
     base_types::{Identifier, IotaAddress, ObjectID, StructTag, TransactionDigest},
     error::IotaResult,
     event::{Event, EventEnvelope, EventID},
-    iota_sdk_types_conversions::struct_tag_sdk_to_core,
     iota_serde::{BigInt, IotaStructTag},
     object::bounded_visitor::BoundedVisitor,
 };
@@ -137,18 +136,15 @@ impl From<MaybeTaggedBcsEvent> for BcsEvent {
 
 impl From<EventEnvelope> for IotaEvent {
     fn from(ev: EventEnvelope) -> Self {
-        let transaction_module =
-            Identifier::new(ev.event.module.as_str()).expect("valid identifier");
-        let type_ = struct_tag_sdk_to_core(&ev.event.type_).expect("valid struct tag");
         Self {
             id: EventID {
                 tx_digest: ev.tx_digest,
                 event_seq: ev.event_num,
             },
             package_id: ev.event.package_id,
-            transaction_module,
+            transaction_module: ev.event.module,
             sender: ev.event.sender,
-            type_,
+            type_: ev.event.type_,
             parsed_json: ev.parsed_json,
             bcs: BcsEvent::Base64 {
                 bcs: ev.event.contents,
@@ -160,14 +156,11 @@ impl From<EventEnvelope> for IotaEvent {
 
 impl From<IotaEvent> for Event {
     fn from(val: IotaEvent) -> Self {
-        use iota_types::iota_sdk_types_conversions::struct_tag_core_to_sdk;
-
         Event {
             package_id: val.package_id,
-            module: iota_sdk_types::Identifier::new(val.transaction_module.as_str())
-                .expect("valid identifier"),
+            module: val.transaction_module,
             sender: val.sender,
-            type_: struct_tag_core_to_sdk(val.type_).expect("valid struct tag"),
+            type_: val.type_,
             contents: val.bcs.into_bytes(),
         }
     }
@@ -188,7 +181,6 @@ impl IotaEvent {
             type_: _,
             contents,
         } = event;
-        let transaction_module = Identifier::new(module.as_str()).expect("valid identifier");
 
         let bcs = BcsEvent::Base64 {
             bcs: contents.to_vec(),
@@ -206,7 +198,7 @@ impl IotaEvent {
                 event_seq,
             },
             package_id,
-            transaction_module,
+            transaction_module: module,
             sender,
             type_,
             parsed_json: fields,

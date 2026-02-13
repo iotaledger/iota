@@ -7,10 +7,7 @@ use std::{fs::File, io::Write, str::FromStr};
 
 use clap::*;
 use fastcrypto_zkp::{bn254::zk_login::OIDCProvider, zk_login_utils::Bn254FrElement};
-use iota_sdk_types::{
-    crypto::{Intent, IntentMessage, PersonalMessage},
-    type_tag::Identifier as SdkIdentifier,
-};
+use iota_sdk_types::crypto::{Intent, IntentMessage, PersonalMessage};
 use iota_types::{
     base_types::{
         self, Identifier, IotaAddress, MoveObjectType, MoveObjectType_, ObjectDigest, ObjectID,
@@ -32,7 +29,6 @@ use iota_types::{
         TypeArgumentError,
     },
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    iota_sdk_types_conversions::struct_tag_core_to_sdk,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
         CheckpointContentsDigest, CheckpointDigest, CheckpointSummary, FullCheckpointContents,

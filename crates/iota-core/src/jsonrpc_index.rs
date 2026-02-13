@@ -30,16 +30,11 @@ use iota_types::{
     effects::TransactionEvents,
     error::{IotaError, IotaResult, UserInputError},
     inner_temporary_store::TxCoins,
-    iota_sdk_types_conversions::struct_tag_sdk_to_core,
     object::{Object, Owner},
     parse_iota_struct_tag,
 };
 use itertools::Itertools;
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::Identifier,
-    language_storage::{ModuleId, StructTag, TypeTag},
-};
+use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use parking_lot::ArcMutexGuard;
 use prometheus::{
     IntCounter, IntCounterVec, Registry, register_int_counter_vec_with_registry,
@@ -740,10 +735,8 @@ impl IndexStore {
                         i,
                         ModuleId::new(
                             AccountAddress::new(e.package_id.into_bytes()),
-                            move_core_types::identifier::Identifier::new(
-                                e.transaction_module.as_str(),
-                            )
-                            .unwrap(),
+                            move_core_types::identifier::Identifier::new(e.module.as_str())
+                                .unwrap(),
                         ),
                     )
                 })
@@ -761,9 +754,8 @@ impl IndexStore {
         batch.insert_batch(
             &self.tables.event_by_move_event,
             events.data.iter().enumerate().map(|(i, e)| {
-                let type_ = struct_tag_sdk_to_core(&e.type_).expect("valid struct tag");
                 (
-                    (type_, (sequence, i)),
+                    (e.type_.clone(), (sequence, i)),
                     (event_digest, *digest, timestamp_ms),
                 )
             }),
@@ -782,7 +774,6 @@ impl IndexStore {
         batch.insert_batch(
             &self.tables.event_by_event_module,
             events.data.iter().enumerate().map(|(i, e)| {
-                let type_ = struct_tag_sdk_to_core(&e.type_).expect("valid struct tag");
                 (
                     (
                         ModuleId::new(

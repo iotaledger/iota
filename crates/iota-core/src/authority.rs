@@ -4299,16 +4299,12 @@ impl AuthorityState {
             .type_layout_resolver(Box::new(backing_store));
         let mut events = vec![];
         for (e, tx_digest, event_seq, timestamp) in stored_events.into_iter() {
-            let type_ = iota_types::iota_sdk_types_conversions::struct_tag_sdk_to_core(&e.type_)
-                .map_err(|err| IotaError::ObjectSerialization {
-                    error: err.to_string(),
-                })?;
             events.push(IotaEvent::try_from(
                 e.clone(),
                 tx_digest,
                 event_seq as u64,
                 Some(timestamp),
-                layout_resolver.get_annotated_layout(&type_)?,
+                layout_resolver.get_annotated_layout(&e.type_)?,
             )?)
         }
         Ok(events)

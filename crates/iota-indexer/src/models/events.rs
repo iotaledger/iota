@@ -142,11 +142,7 @@ impl StoredEvent {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::type_tag::Identifier as SdkIdentifier;
-    use iota_types::{
-        base_types::StructTag, event::Event, iota_sdk_types_conversions::struct_tag_core_to_sdk,
-    };
-    use move_core_types::account_address::AccountAddress;
+    use iota_types::{base_types::StructTag, event::Event};
 
     use super::*;
 

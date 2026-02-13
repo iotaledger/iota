@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_sdk_types::{Address, Identifier, StructTag, TypeTag};
-use move_core_types::{ident_str, identifier::IdentStr};
 use serde::Deserialize;
 
 use crate::{
@@ -11,6 +10,11 @@ use crate::{
     event::Event,
     id::{ID, UID},
 };
+
+pub const DISPLAY_MODULE_NAME: Identifier = Identifier::from_static("display");
+pub const DISPLAY_CREATED_EVENT_NAME: Identifier = Identifier::from_static("DisplayCreated");
+pub const DISPLAY_VERSION_UPDATED_EVENT_NAME: Identifier =
+    Identifier::from_static("VersionUpdated");
 
 // TODO: add tests to keep in sync
 /// Rust version of the Move iota::display::Display type
@@ -34,8 +38,8 @@ impl DisplayVersionUpdatedEvent {
     pub fn type_(inner: &StructTag) -> StructTag {
         StructTag::new(
             Address::FRAMEWORK,
-            Identifier::new(DISPLAY_MODULE_NAME.as_str()).unwrap(),
-            Identifier::new(DISPLAY_VERSION_UPDATED_EVENT_NAME.as_str()).unwrap(),
+            DISPLAY_MODULE_NAME,
+            DISPLAY_VERSION_UPDATED_EVENT_NAME,
             vec![TypeTag::Struct(Box::new(inner.clone()))],
         )
     }
@@ -43,8 +47,8 @@ impl DisplayVersionUpdatedEvent {
     // Checks if the provided `StructTag` is a DisplayVersionUpdatedEvent<T>
     pub fn is_display_updated_event(inner: &StructTag) -> bool {
         inner.address() == Address::FRAMEWORK
-            && inner.module().as_str() == DISPLAY_MODULE_NAME.as_str()
-            && inner.name().as_str() == DISPLAY_VERSION_UPDATED_EVENT_NAME.as_str()
+            && *inner.module() == DISPLAY_MODULE_NAME
+            && *inner.name() == DISPLAY_VERSION_UPDATED_EVENT_NAME
     }
 
     // Checks if the provided `StructTag` is a DisplayVersionUpdatedEvent<T> and
@@ -79,8 +83,8 @@ impl DisplayCreatedEvent {
     pub fn type_(inner: &StructTag) -> StructTag {
         StructTag::new(
             Address::FRAMEWORK,
-            Identifier::new(DISPLAY_MODULE_NAME.as_str()).unwrap(),
-            Identifier::new(DISPLAY_CREATED_EVENT_NAME.as_str()).unwrap(),
+            DISPLAY_MODULE_NAME,
+            DISPLAY_CREATED_EVENT_NAME,
             vec![TypeTag::Struct(Box::new(inner.clone()))],
         )
     }

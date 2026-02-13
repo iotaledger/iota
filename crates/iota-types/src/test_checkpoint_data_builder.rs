@@ -5,7 +5,8 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, StructTag as SdkStructTag, TypeTag};
+use iota_sdk_types::{Identifier, StructTag, TypeTag};
+use tap::Pipe;
 
 use crate::{
     base_types::{
@@ -498,7 +499,7 @@ impl TestCheckpointDataBuilder {
                 ..Default::default()
             };
             Some(vec![Event {
-                package_id: ObjectID::SYSTEM_PACKAGE,
+                package_id: ObjectID::SYSTEM,
                 module: Identifier::from_static("iota_system_state_inner"),
                 sender: TestCheckpointDataBuilder::derive_address(0),
                 type_: StructTag::new_system_epoch_info_event(),

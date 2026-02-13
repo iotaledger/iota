@@ -5,15 +5,14 @@
 use std::str::FromStr;
 
 use anyhow::ensure;
-use move_core_types::annotated_value::{MoveDatatypeLayout, MoveValue};
+pub use iota_sdk_types::Event;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_with::serde_as;
 
 use crate::{
-    base_types::{Event, Identifier, IotaAddress, ObjectID, StructTag, TransactionDigest},
-    error::{IotaError, IotaResult},
+    base_types::TransactionDigest,
     iota_serde::{BigInt, Readable},
 };
 

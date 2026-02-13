@@ -23,7 +23,6 @@ use iota_types::{
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
     event::Event,
-    iota_sdk_types_conversions::struct_tag_sdk_to_core,
     transaction::SenderSignedData,
 };
 use move_core_types::annotated_value::{MoveDatatypeLayout, MoveTypeLayout};
@@ -526,9 +525,9 @@ pub async fn tx_events_to_iota_tx_events(
         let package_resolver_clone = package_resolver.clone();
         iota_event_futures.push(tokio::task::spawn(async move {
             let resolver = package_resolver_clone;
-            let type_ = struct_tag_sdk_to_core(&tx_event.type_)
-                .map_err(|e| iota_package_resolver::error::Error::NotAnIdentifier(e.to_string()))?;
-            resolver.type_layout(TypeTag::Struct(Box::new(type_))).await
+            resolver
+                .type_layout(TypeTag::Struct(Box::new(tx_event.type_)))
+                .await
         }));
     }
     let event_move_type_layouts = futures::future::join_all(iota_event_futures)

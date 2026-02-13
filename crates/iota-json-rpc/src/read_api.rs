@@ -36,7 +36,6 @@ use iota_types::{
     display::DisplayVersionUpdatedEvent,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{IotaError, IotaObjectResponseError},
-    iota_sdk_types_conversions::struct_tag_sdk_to_core,
     iota_serde::BigInt,
     messages_checkpoint::{
         CheckpointContents, CheckpointSequenceNumber, CheckpointSummary, CheckpointTimestamp,
@@ -967,9 +966,7 @@ impl ReadApiServer for ReadApi {
                         .into_iter()
                         .enumerate()
                         .map(|(seq, e)| {
-                            let type_ = struct_tag_sdk_to_core(&e.type_)
-                                .map_err(|err| IotaError::ObjectSerialization { error: err.to_string() })?;
-                            let layout = store.executor().type_layout_resolver(Box::new(&state.get_backing_package_store().as_ref())).get_annotated_layout(&type_)?;
+                            let layout = store.executor().type_layout_resolver(Box::new(&state.get_backing_package_store().as_ref())).get_annotated_layout(&e.type_)?;
                             IotaEvent::try_from(e, transaction_digest, seq as u64, None, layout)
                         })
                         .collect::<Result<Vec<_>, _>>()

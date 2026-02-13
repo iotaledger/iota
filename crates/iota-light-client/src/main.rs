@@ -26,7 +26,6 @@ use iota_types::{
     digests::{CheckpointDigest, TransactionDigest},
     event::EventID,
     full_checkpoint_content::CheckpointData,
-    iota_sdk_types_conversions::struct_tag_sdk_to_core,
     object::{Data, bounded_visitor::BoundedVisitor},
 };
 use tracing::{debug, error, info};
@@ -182,9 +181,7 @@ pub async fn main() -> Result<()> {
 
             if let Some(events) = &events {
                 for event in &events.data {
-                    let type_layout = resolver
-                        .type_layout(struct_tag_sdk_to_core(&event.type_)?.into())
-                        .await?;
+                    let type_layout = resolver.type_layout(event.type_.clone().into()).await?;
 
                     let result = BoundedVisitor::deserialize_value(&event.contents, &type_layout)
                         .context("Failed to deserialize event")?;

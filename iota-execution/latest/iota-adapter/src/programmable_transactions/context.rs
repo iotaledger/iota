@@ -945,14 +945,11 @@ mod checked {
                     .expect("valid object id");
                     let module = Identifier::new_unchecked(module_id.name().as_str());
                     let sender = tx_context.sender();
-                    let type_ =
-                        iota_types::iota_sdk_types_conversions::struct_tag_core_to_sdk(&tag)
-                            .expect("valid struct tag");
                     Event {
                         package_id,
                         module,
                         sender,
-                        type_,
+                        type_: tag,
                         contents,
                     }
                 })

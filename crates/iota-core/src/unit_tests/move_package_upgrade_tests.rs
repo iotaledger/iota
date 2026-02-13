@@ -20,7 +20,6 @@ use iota_types::{
     execution_status::{
         CommandArgumentError, ExecutionFailureStatus, ExecutionStatus, PackageUpgradeError,
     },
-    iota_sdk_types_conversions::struct_tag_core_to_sdk,
     move_package::UpgradePolicy,
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -1260,8 +1259,8 @@ async fn test_upgraded_types_in_one_txn() {
         .data;
     events.sort_by(|a, b| a.type_.name().as_str().cmp(b.type_.name().as_str()));
     assert!(events.len() == 2);
-    assert_eq!(events[0].type_, struct_tag_core_to_sdk(e1_type).unwrap());
-    assert_eq!(events[1].type_, struct_tag_core_to_sdk(e2_type).unwrap());
+    assert_eq!(events[0].type_, e1_type);
+    assert_eq!(events[1].type_, e2_type);
 }
 
 #[tokio::test]

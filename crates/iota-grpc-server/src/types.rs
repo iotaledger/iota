@@ -528,11 +528,7 @@ impl GrpcReader {
                                             }
                                         }
 
-                                        // Convert matching event to SDK type
-                                        let sdk_event: Result<iota_sdk_types::Event, _> =
-                                            raw_event.clone().try_into();
-                                        if let Ok(event) = sdk_event {
-                                            let grpc_event = grpc_event::Event::merge_from(&event, &events_submask)
+                                            let grpc_event = grpc_event::Event::merge_from(raw_event, &events_submask)
                                                 .map_err(|e| Status::internal(format!("event merge error: {e}")))?;
                                             let event_size = grpc_event.encoded_len();
 
@@ -553,7 +549,6 @@ impl GrpcReader {
                                                 events_batch.push(grpc_event);
                                                 events_batch_size += event_size;
                                             }
-                                        }
                                     }
                                 }
                             }
