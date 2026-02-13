@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
-    error::ExecutionError, execution::ExecutionResult, transaction::Argument, transfer::Receiving,
+    base_types::TypeTag, error::ExecutionError, execution::ExecutionResult, transaction::Argument,
+    transfer::Receiving,
 };
-use move_core_types::language_storage::TypeTag;
 
 use crate::{
     execution_value::{RawValueType, Value},

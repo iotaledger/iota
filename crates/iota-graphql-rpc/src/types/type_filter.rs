@@ -6,10 +6,10 @@ use std::{fmt, result::Result, str::FromStr};
 
 use async_graphql::*;
 use iota_types::{
-    TypeTag, parse_iota_address, parse_iota_fq_name, parse_iota_module_id, parse_iota_struct_tag,
+    base_types::{StructTag, TypeTag},
+    parse_iota_address, parse_iota_fq_name, parse_iota_module_id, parse_iota_struct_tag,
     parse_iota_type_tag,
 };
-use move_core_types::language_storage::StructTag;
 
 use crate::{
     filter,
@@ -98,13 +98,13 @@ impl TypeFilter {
 
             // A type filter without type parameters is interpreted as either an exact match, or a
             // match for all generic instantiations of the type.
-            TypeFilter::ByType(tag) if tag.type_params.is_empty() => {
-                let m = tag.module.to_string();
-                let n = tag.name.to_string();
+            TypeFilter::ByType(tag) if tag.type_params().is_empty() => {
+                let m = tag.module().to_string();
+                let n = tag.name().to_string();
                 let statement = format!(
                     "{} = '\\x{}'::bytea",
                     package_field,
-                    hex::encode(tag.address.to_vec())
+                    tag.address().to_raw_hex()
                 );
                 query = filter!(query, statement);
                 let statement = module_field.to_string() + " = {}";
@@ -114,12 +114,12 @@ impl TypeFilter {
             }
 
             TypeFilter::ByType(tag) => {
-                let m = tag.module.to_string();
-                let n = tag.name.to_string();
+                let m = tag.module().to_string();
+                let n = tag.name().to_string();
                 let statement = format!(
                     "{} = '\\x{}'::bytea",
                     package_field,
-                    hex::encode(tag.address.to_vec())
+                    tag.address().to_raw_hex()
                 );
                 query = filter!(query, statement);
                 let statement = module_field.to_string() + " = {}";
@@ -147,13 +147,13 @@ impl TypeFilter {
         match (&self, &other) {
             (T::ByModule(m), T::ByModule(n)) => m.clone().intersect(n.clone()).map(T::ByModule),
 
-            (T::ByType(s), T::ByType(t)) if s.type_params.is_empty() => {
-                ((&s.address, &s.module, &s.name) == (&t.address, &t.module, &t.name))
+            (T::ByType(s), T::ByType(t)) if s.type_params().is_empty() => {
+                ((&s.address(), &s.module(), &s.name()) == (&t.address(), &t.module(), &t.name()))
                     .then_some(other)
             }
 
-            (T::ByType(s), T::ByType(t)) if t.type_params.is_empty() => {
-                ((&s.address, &s.module, &s.name) == (&t.address, &t.module, &t.name))
+            (T::ByType(s), T::ByType(t)) if t.type_params().is_empty() => {
+                ((&s.address(), &s.module(), &s.name()) == (&t.address(), &t.module(), &t.name()))
                     .then_some(self)
             }
 
@@ -163,20 +163,20 @@ impl TypeFilter {
             (T::ByType(_), T::ByType(_)) => (self == other).then_some(self),
 
             (T::ByType(s), T::ByModule(M::ByPackage(q))) => {
-                (IotaAddress::from(s.address) == *q).then_some(self)
+                (IotaAddress::from(s.address()) == *q).then_some(self)
             }
 
             (T::ByType(s), T::ByModule(M::ByModule(q, n))) => {
-                ((IotaAddress::from(s.address), s.module.as_str()) == (*q, n.as_str()))
+                ((IotaAddress::from(s.address()), s.module().as_str()) == (*q, n.as_str()))
                     .then_some(self)
             }
 
             (T::ByModule(M::ByPackage(p)), T::ByType(t)) => {
-                (IotaAddress::from(t.address) == *p).then_some(other)
+                (IotaAddress::from(t.address()) == *p).then_some(other)
             }
 
             (T::ByModule(M::ByModule(p, m)), T::ByType(t)) => {
-                ((IotaAddress::from(t.address), t.module.as_str()) == (*p, m.as_str()))
+                ((IotaAddress::from(t.address()), t.module().as_str()) == (*p, m.as_str()))
                     .then_some(other)
             }
         }
@@ -318,7 +318,7 @@ impl fmt::Display for TypeFilter {
         match self {
             TypeFilter::ByModule(m) => write!(f, "{m}"),
             TypeFilter::ByType(t) => {
-                write!(f, "{}", t.to_canonical_display(/* with_prefix */ true))
+                write!(f, "{}", t.to_canonical_string(/* with_prefix */ true))
             }
         }
     }
@@ -326,7 +326,7 @@ impl fmt::Display for TypeFilter {
 
 impl fmt::Display for ExactTypeFilter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0.to_canonical_display(/* with_prefix */ true))
+        write!(f, "{}", self.0.to_canonical_string(/* with_prefix */ true))
     }
 }
 

@@ -12,14 +12,13 @@ use std::{
 use better_any::{Tid, TidAble};
 use indexmap::{IndexMap, IndexSet};
 use iota_types::{
-    TypeTag,
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
-    config,
+    base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TypeTag},
     digests::{ObjectDigest, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
     execution::DynamicallyLoadedObjectMetadata,
     id::UID,
     in_memory_storage::InMemoryStorage,
+    iota_sdk_types_conversions::struct_tag_core_to_sdk,
     object::{MoveObject, Object, Owner},
     storage::{BackingPackageStore, ChildObjectResolver},
 };
@@ -28,7 +27,6 @@ use move_core_types::{
     account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout, MoveValue},
     annotated_visitor as AV,
-    language_storage::StructTag,
     vm_status::StatusCode,
 };
 use move_vm_runtime::{native_extensions::NativeExtensionMarker, native_functions::NativeContext};
@@ -317,7 +315,7 @@ pub fn end_transaction(
     for child in object_runtime_ref.all_active_child_objects() {
         let s: StructTag = child.move_type.clone().into();
         let is_setting = DynamicFieldInfo::is_dynamic_field(&s)
-            && matches!(&s.type_params[1], TypeTag::Struct(s) if config::is_setting(s));
+            && matches!(&s.type_params()[1], TypeTag::Struct(s) if s.is_config_setting());
         if is_setting {
             config_settings.push((
                 *child.owner,
@@ -657,6 +655,7 @@ pub fn allocate_receiving_ticket_for_object(
             E_UNABLE_TO_ALLOCATE_RECEIVING_TICKET,
         ));
     };
+    let tag = struct_tag_core_to_sdk(&tag);
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     let object_version = SequenceNumber::default();
     let inventories = &mut object_runtime.test_inventories;

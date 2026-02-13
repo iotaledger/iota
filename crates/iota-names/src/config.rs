@@ -4,8 +4,7 @@
 use std::str::FromStr;
 
 use iota_types::{
-    TypeTag,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{IotaAddress, ObjectID, StructTag, TypeTag},
     supported_protocol_versions::Chain,
 };
 use serde::{Deserialize, Serialize};
@@ -69,7 +68,7 @@ impl IotaNamesConfig {
     }
 
     pub fn record_field_id(&self, name: &Name) -> ObjectID {
-        let name_type_tag = Name::type_(self.package_address);
+        let name_type_tag = StructTag::new_name(self.package_address);
         let name_bytes = bcs::to_bytes(name).unwrap();
 
         iota_types::dynamic_field::derive_dynamic_field_id(

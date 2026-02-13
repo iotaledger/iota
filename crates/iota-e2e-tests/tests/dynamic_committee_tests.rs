@@ -14,7 +14,6 @@ use iota_macros::*;
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_SYSTEM_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     effects::{TransactionEffects, TransactionEffectsAPI},
     iota_system_state::{
@@ -26,7 +25,6 @@ use iota_types::{
     storage::ObjectStore,
     transaction::{Argument, Command, ObjectArg, ProgrammableTransaction},
 };
-use move_core_types::ident_str;
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
@@ -38,8 +36,8 @@ macro_rules! move_call {
     {$builder:expr, ($addr:expr)::$module_name:ident::$func:ident($($args:expr),* $(,)?)} => {
         $builder.programmable_move_call(
             $addr,
-            ident_str!(stringify!($module_name)).to_owned(),
-            ident_str!(stringify!($func)).to_owned(),
+            iota_types::base_types::Identifier::from_static(stringify!($module_name)),
+            iota_types::base_types::Identifier::from_static(stringify!($func)),
             vec![],
             vec![$($args),*],
         )
@@ -263,7 +261,7 @@ impl StressTestRunner {
             .filter_map(|(obj_ref, _)| {
                 let object = db.get_object_by_key(&obj_ref.0, obj_ref.1).unwrap();
                 let struct_tag = object.struct_tag().unwrap();
-                if struct_tag.name.to_string() == name {
+                if struct_tag.name().as_str() == name {
                     Some(object)
                 } else {
                     None
@@ -315,7 +313,7 @@ mod add_stake {
                 let coin = StressTestRunner::split_off(&mut builder, self.stake_amount);
                 move_call! {
                     builder,
-                    (IOTA_SYSTEM_PACKAGE_ID)::iota_system::request_add_stake(Argument::Input(0), coin, Argument::Input(1))
+                    (ObjectID::SYSTEM)::iota_system::request_add_stake(Argument::Input(0), coin, Argument::Input(1))
                 };
                 builder.finish()
             };

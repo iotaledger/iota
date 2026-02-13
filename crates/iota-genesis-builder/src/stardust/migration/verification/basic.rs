@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use anyhow::{Result, anyhow, ensure};
 use iota_stardust_types::block::output::{BasicOutput, OutputId, TokenId};
 use iota_types::{
-    TypeTag,
     balance::Balance,
+    base_types::TypeTag,
     coin::Coin,
     dynamic_field::Field,
     in_memory_storage::InMemoryStorage,

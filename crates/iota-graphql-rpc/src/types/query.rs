@@ -10,7 +10,7 @@ use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{ReadApiClient, WriteApiServer};
 use iota_json_rpc_types::{DevInspectArgs, IotaTypeTag};
 use iota_types::{
-    TypeTag,
+    base_types::TypeTag,
     gas_coin::GAS,
     supported_protocol_versions::Chain,
     transaction::{TransactionData, TransactionDataAPI, TransactionKind},

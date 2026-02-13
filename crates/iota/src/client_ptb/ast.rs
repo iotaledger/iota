@@ -4,11 +4,7 @@
 
 use std::fmt;
 
-use iota_types::{
-    Identifier, TypeTag,
-    base_types::{ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
-    id::RESOLVED_IOTA_ID,
-};
+use iota_types::base_types::{Identifier, ObjectID, TypeTag};
 use move_core_types::{
     parsing::{
         address::{NumericalAddress, ParsedAddress},
@@ -210,24 +206,11 @@ impl Argument {
                 MoveValue::Vector(s.bytes().map(MoveValue::U8).collect::<Vec<_>>())
             }
             (Argument::String(s), TypeTag::Struct(stag))
-                if {
-                    let resolved = (
-                        &stag.address,
-                        stag.module.as_ident_str(),
-                        stag.name.as_ident_str(),
-                    );
-                    resolved == RESOLVED_ASCII_STR || resolved == RESOLVED_UTF8_STR
-                } =>
+                if stag.is_string() || stag.is_ascii_string() =>
             {
                 MoveValue::Vector(s.bytes().map(MoveValue::U8).collect::<Vec<_>>())
             }
-            (Argument::Address(a), TypeTag::Struct(stag))
-                if (
-                    &stag.address,
-                    stag.module.as_ident_str(),
-                    stag.name.as_ident_str(),
-                ) == RESOLVED_IOTA_ID =>
-            {
+            (Argument::Address(a), TypeTag::Struct(stag)) if stag.is_id() => {
                 MoveValue::Address(a.into_inner())
             }
             (Argument::Option(sp!(loc, o)), TypeTag::Vector(ty)) => {
@@ -245,18 +228,11 @@ impl Argument {
                     MoveValue::Vector(vec![])
                 }
             }
-            (Argument::Option(sp!(loc, o)), TypeTag::Struct(stag))
-                if (
-                    &stag.address,
-                    stag.module.as_ident_str(),
-                    stag.name.as_ident_str(),
-                ) == RESOLVED_STD_OPTION
-                    && stag.type_params.len() == 1 =>
-            {
+            (Argument::Option(sp!(loc, o)), TypeTag::Struct(stag)) if stag.is_option() => {
                 if let Some(v) = o {
                     let v = v
                         .as_ref()
-                        .checked_to_pure_move_value(*loc, &stag.type_params[0])
+                        .checked_to_pure_move_value(*loc, &stag.type_params()[0])
                         .map_err(|e| {
                             e.with_help(
                                 "Literal option values cannot contain object values.".to_string(),

@@ -11,7 +11,7 @@
 use std::collections::BTreeSet;
 
 use iota_types::{
-    Identifier,
+    base_types::Identifier,
     error::ExecutionError,
     move_package::{IotaAttribute, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper},
 };

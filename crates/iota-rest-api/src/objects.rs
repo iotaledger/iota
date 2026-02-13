@@ -5,7 +5,7 @@
 use axum::extract::{Path, Query, State};
 use iota_sdk_types::{Object, ObjectId, TypeTag, Version};
 use iota_types::{
-    iota_sdk_types_conversions::{SdkTypeConversionError, type_tag_core_to_sdk},
+    iota_sdk_types_conversions::SdkTypeConversionError,
     storage::{DynamicFieldIndexInfo, DynamicFieldKey},
 };
 use serde::{Deserialize, Serialize};
@@ -300,7 +300,7 @@ impl TryFrom<(DynamicFieldKey, DynamicFieldIndexInfo)> for DynamicFieldInfo {
             parent,
             field_id,
             dynamic_field_type: dynamic_field_type.into(),
-            name_type: type_tag_core_to_sdk(name_type)?,
+            name_type,
             name_value,
             dynamic_object_id,
         }

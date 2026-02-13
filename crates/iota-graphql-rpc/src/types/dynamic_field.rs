@@ -8,11 +8,12 @@ use async_graphql::{
 };
 use iota_indexer::{models::objects::StoredHistoryObject, types::OwnerType};
 use iota_types::{
-    TypeTag,
+    base_types::TypeTag,
     dynamic_field::{
         DynamicFieldInfo, DynamicFieldType, derive_dynamic_field_id,
         visitor::{Field, FieldVisitor},
     },
+    iota_sdk_types_conversions::type_tag_core_to_sdk,
 };
 
 use crate::{
@@ -76,7 +77,7 @@ impl DynamicField {
         let layout = resolver.type_layout(type_.clone()).await.map_err(|e| {
             Error::Internal(format!(
                 "Error fetching layout for type {}: {e}",
-                type_.to_canonical_display(/* with_prefix */ true)
+                type_.to_canonical_string(/* with_prefix */ true)
             ))
         })?;
 
@@ -89,7 +90,7 @@ impl DynamicField {
             .extend()?;
 
         Ok(Some(MoveValue::new(
-            name_layout.into(),
+            type_tag_core_to_sdk(&name_layout.into()),
             Base64::from(name_bytes.to_owned()),
         )))
     }
@@ -105,7 +106,7 @@ impl DynamicField {
         let layout = resolver.type_layout(type_.clone()).await.map_err(|e| {
             Error::Internal(format!(
                 "Error fetching layout for type {}: {e}",
-                type_.to_canonical_display(/* with_prefix */ true)
+                type_.to_canonical_string(/* with_prefix */ true)
             ))
         })?;
 
@@ -134,7 +135,7 @@ impl DynamicField {
             Ok(obj.map(|obj| DynamicFieldValue::MoveObject(Box::new(obj))))
         } else {
             Ok(Some(DynamicFieldValue::MoveValue(MoveValue::new(
-                value_layout.into(),
+                type_tag_core_to_sdk(&value_layout.into()),
                 Base64::from(value_bytes.to_owned()),
             ))))
         }
