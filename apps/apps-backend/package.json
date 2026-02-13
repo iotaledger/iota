@@ -21,7 +21,8 @@
         "@nestjs/schedule": "^6.0.1",
         "cache-manager": "^7.2.4",
         "class-validator": "^0.14.1",
-        "reflect-metadata": "^0.2.2"
+        "reflect-metadata": "^0.2.2",
+        "semver": "^7.5.4"
     },
     "devDependencies": {
         "@nestjs/cli": "^10.0.0",
@@ -30,6 +31,7 @@
         "@types/express": "^4.17.17",
         "@types/jest": "^29.5.2",
         "@types/node": "^20.14.10",
+        "@types/semver": "^7.5.0",
         "@types/supertest": "^6.0.0",
         "@typescript-eslint/eslint-plugin": "^6.21.0",
         "@typescript-eslint/parser": "^6.21.0",
