@@ -62,7 +62,15 @@ The cross-chain token transfer involves four main steps:
 
 ## Pathway 1: IOTA L1 ↔ IOTA EVM
 
-This pathway enables token transfers between IOTA L1 (MoveVM) and IOTA EVM using LayerZero OFT V2.
+This pathway enables token transfers between IOTA L1 (MoveVM) and IOTA EVM using LayerZero OFT V2. This section covers the **IOTA L1 (Move) side** setup.
+
+:::info EVM Side Setup
+
+For the IOTA EVM side (deploying OFT Adapter, setting enforced options, and sending tokens from EVM), see [Send ERC20 Tokens Between IOTA EVM and IOTA L1](../iota-evm/how-tos/send-ERC20-across-chains.md).
+
+You need to complete setup on **both sides** before bridging tokens.
+
+:::
 
 ### Architecture
 
@@ -206,7 +214,7 @@ yarn set-peer-oft
 
 :::warning Required: EVM Side Setup
 
-You must also deploy and configure the OFT contract on IOTA EVM. See the [EVM utilities repository](https://github.com/iota-community/layerzero-oft-v2-utils/tree/movevm) for instructions.
+You must also deploy and configure the OFT contract on IOTA EVM. See [Send ERC20 Tokens Between IOTA EVM and IOTA L1](../iota-evm/how-tos/send-ERC20-across-chains.md) for the full EVM-side procedure.
 
 The peer relationship must be established on **both sides**.
 
@@ -399,17 +407,7 @@ To send OFT-wrapped tokens back from destination chains to IOTA L1:
 
 ### From IOTA EVM
 
-Use the EVM utilities repository:
-
-```bash
-# Clone and setup
-git clone -b movevm https://github.com/iota-community/layerzero-oft-v2-utils.git
-cd layerzero-oft-v2-utils
-yarn install
-
-# Configure and send
-export isForOFTAdapter=true && npx hardhat run scripts/send_oft.ts --network iotaEvmMainnet
-```
+For sending tokens from IOTA EVM to IOTA L1, see [Send ERC20 Tokens Between IOTA EVM and IOTA L1 - Send Tokens](../iota-evm/how-tos/send-ERC20-across-chains.md#send-tokens-from-iota-evm-to-iota-l1).
 
 ### From Sui
 
@@ -501,6 +499,10 @@ The following pathways have been tested and verified:
 | IOTA L1 → Sui | Return | [View](https://layerzeroscan.com/tx/77364jpdNA63vuHEFX3VqS1GY4hYiqKYV3QLva4n3rkn) |
 | Arbitrum → IOTA L1 | Forward | [View](https://layerzeroscan.com/tx/0xb7abd5db36d8f6407c707dff2e8f08d4d11e4188a16b39f0233fa21e94388a5e) |
 | IOTA L1 → Arbitrum | Return | [View](https://layerzeroscan.com/tx/9QhCbuF9i4M863nERyFCd1cHqVggZfgTEetTY5Tny9WW) |
+
+## Related Guides
+
+- [Send ERC20 Tokens Between IOTA EVM and IOTA L1](../iota-evm/how-tos/send-ERC20-across-chains.md) — EVM side setup using Solidity/Hardhat
 
 ## References
 
