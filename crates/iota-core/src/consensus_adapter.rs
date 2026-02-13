@@ -575,28 +575,16 @@ impl ConsensusAdapter {
     ) -> IotaResult<JoinHandle<()>> {
         if transactions.len() > 1 {
             // In soft bundle, we need to check if all transactions are of UserTransaction
-            // kind. The check is required because we assume this in submit_and_wait_inner.
-            // Note that an (EndOfPublish + MisbehaviorReport) batch is not considered a
-            // soft bundle.
-            let is_eop_batch = transactions.len() == 2
-                && matches!(
-                    transactions[0].kind,
-                    ConsensusTransactionKind::EndOfPublish(_)
-                )
-                && matches!(
-                    transactions[1].kind,
-                    ConsensusTransactionKind::MisbehaviorReport(_, _, _)
+            // kind. The check is required because we assume this in
+            // submit_and_wait_inner.
+            for transaction in transactions {
+                fp_ensure!(
+                    matches!(
+                        transaction.kind,
+                        ConsensusTransactionKind::CertifiedTransaction(_)
+                    ),
+                    IotaError::InvalidTxKindInSoftBundle
                 );
-            if !is_eop_batch {
-                for transaction in transactions {
-                    fp_ensure!(
-                        matches!(
-                            transaction.kind,
-                            ConsensusTransactionKind::CertifiedTransaction(_)
-                        ),
-                        IotaError::InvalidTxKindInSoftBundle
-                    );
-                }
             }
         }
 
@@ -676,16 +664,12 @@ impl ConsensusAdapter {
         }
 
         // Current code path ensures:
-        // - If transactions.len() > 1, it is either a soft bundle or a (EndOfPublish +
-        //   MisbehaviorReport) batch. Otherwise transactions should have been submitted
-        //   individually.
+        // - If transactions.len() > 1, it is a soft bundle. Otherwise transactions
+        //   should have been submitted individually.
         // - If is_soft_bundle, then all transactions are of UserTransaction kind.
-        // - If not is_soft_bundle, then either:
-        //     - transactions must contain exactly 1 tx, and transactions[0] can be of
-        //       any kind, or
-        //     - transactions is a (EndOfPublish + MisbehaviorReport) batch , and
-        //       transactions[0] is EndOfPublish.
-        let is_soft_bundle = transactions.len() > 1 && !transactions[0].is_end_of_publish();
+        // - If not is_soft_bundle, then transactions must contain exactly 1 tx, and
+        //   transactions[0] can be of any kind.
+        let is_soft_bundle = transactions.len() > 1;
 
         let mut transaction_keys = Vec::new();
 
@@ -699,7 +683,6 @@ impl ConsensusAdapter {
             transaction_keys.push(transaction_key);
         }
         let tx_type = if !is_soft_bundle {
-            // For non-soft-bundle batches, classify by the first transaction.
             classify(&transactions[0])
         } else {
             "soft_bundle"
