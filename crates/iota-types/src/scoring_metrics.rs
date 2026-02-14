@@ -4,7 +4,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use iota_protocol_config::ProtocolConfig;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tracing::warn;
 
 use crate::{messages_consensus::VersionedMisbehaviorReport, misbehavior_counts::MisbehaviorsV1};
@@ -13,9 +13,40 @@ use crate::{messages_consensus::VersionedMisbehaviorReport, misbehavior_counts::
 // Each field is a `Vec<AtomicU64>` with one entry per authority.
 type ScoringMetricsV1 = MisbehaviorsV1<Vec<AtomicU64>>;
 
+// We can't serialize VersionedScoringMetrics directly because it contains
+// atomic types. This type is only introduces to enable this serialization.
+// Converts between atomic (in-memory) and non-atomic (serialized)
+// representations.
+#[derive(Serialize, Deserialize)]
+enum SerializableScoringMetrics {
+    V1(MisbehaviorsV1<Vec<u64>>),
+}
+
 // Versioned container for scoring metrics using atomic counters.
 pub enum VersionedScoringMetrics {
     V1(ScoringMetricsV1),
+}
+
+impl Serialize for VersionedScoringMetrics {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let serializable = match self {
+            VersionedScoringMetrics::V1(metrics) => {
+                SerializableScoringMetrics::V1(metrics.as_non_atomic())
+            }
+        };
+        serializable.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for VersionedScoringMetrics {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let serializable = SerializableScoringMetrics::deserialize(deserializer)?;
+        Ok(match serializable {
+            SerializableScoringMetrics::V1(non_atomic) => {
+                VersionedScoringMetrics::V1(non_atomic.as_atomic())
+            }
+        })
+    }
 }
 
 // Basic getters, setters and increments for the metrics. We also introduce
