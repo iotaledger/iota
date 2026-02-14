@@ -37,10 +37,11 @@ function ValidatorDetails(): JSX.Element {
         order: 'descending',
     });
     const epochId = systemStateData?.epoch;
+    const lastEpochId = epochId ? String(Number(epochId) - 1) : undefined;
     const validatorRewards = (() => {
-        if (!validatorEvents || !id || !epochId) return 0;
+        if (!validatorEvents || !id || !lastEpochId) return 0;
         const rewards = (
-            getValidatorMoveEvent(validatorEvents, id, epochId) as { pool_staking_reward: string }
+            getValidatorMoveEvent(validatorEvents, id, lastEpochId) as { pool_staking_reward: string }
         )?.pool_staking_reward;
 
         return rewards ? Number(rewards) : null;
