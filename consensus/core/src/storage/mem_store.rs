@@ -31,7 +31,7 @@ struct Inner {
     commits: BTreeMap<(CommitIndex, CommitDigest), TrustedCommit>,
     commit_votes: BTreeSet<(CommitIndex, CommitDigest, BlockRef)>,
     commit_info: BTreeMap<(CommitIndex, CommitDigest), CommitInfo>,
-    scoring_metrics: BTreeMap<AuthorityIndex, VersionedStorageScoringMetrics>,
+    scoring_metrics: BTreeMap<u32, VersionedStorageScoringMetrics>,
 }
 
 impl MemStore {
@@ -83,9 +83,10 @@ impl Store for MemStore {
                 .insert((commit_ref.index, commit_ref.digest), commit_info);
         }
 
-        for (authority, metrics) in write_batch.scoring_metrics {
-            inner.scoring_metrics.insert(authority, metrics);
+        if let Some(metrics) = write_batch.scoring_metrics {
+            inner.scoring_metrics.insert(0u32, metrics);
         }
+
         Ok(())
     }
 
@@ -132,16 +133,9 @@ impl Store for MemStore {
         Ok(blocks)
     }
 
-    fn scan_scoring_metrics(
-        &self,
-    ) -> ConsensusResult<Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>> {
+    fn scan_scoring_metrics(&self) -> ConsensusResult<Option<VersionedStorageScoringMetrics>> {
         let inner = self.inner.read();
-        let metrics_by_author = inner
-            .scoring_metrics
-            .iter()
-            .map(|(&authority_index, metrics)| (authority_index, metrics.clone()))
-            .collect::<Vec<_>>();
-        Ok(metrics_by_author)
+        Ok(inner.scoring_metrics.get(&0u32).cloned())
     }
 
     fn contains_block_at_slot(&self, slot: Slot) -> ConsensusResult<bool> {

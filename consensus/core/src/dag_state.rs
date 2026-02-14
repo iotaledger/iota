@@ -12,6 +12,7 @@ use std::{
 };
 
 use consensus_config::AuthorityIndex;
+use iota_common::scoring_metrics::VersionedStorageScoringMetrics;
 use itertools::Itertools as _;
 use tokio::time::Instant;
 use tracing::{debug, error, info, trace};
@@ -1055,13 +1056,11 @@ impl DagState {
         );
 
         // Update the scoring metrics accordingly to the blocks being flushed.
-        let mut metrics_to_write = vec![];
         let threshold_clock_round = self.threshold_clock_round();
         for (authority_index, authority) in self.context.committee.authorities() {
             let last_eviction_round = self.evicted_rounds[authority_index];
             let current_eviction_round = self.calculate_authority_eviction_round(authority_index);
-            let metrics_to_write_from_authority = self
-                .context
+            self.context
                 .scoring_metrics_store
                 .update_scoring_metrics_on_eviction(
                     authority_index,
@@ -1072,15 +1071,18 @@ impl DagState {
                     threshold_clock_round,
                     &self.context,
                 );
-            metrics_to_write.push((authority_index, metrics_to_write_from_authority));
         }
+
+        let metrics_to_write = VersionedStorageScoringMetrics::new_from(
+            &self.context.scoring_metrics_store.uncached_metrics,
+        );
 
         self.store
             .write(WriteBatch::new(
                 blocks,
                 commits,
                 commit_info_to_write,
-                metrics_to_write,
+                Some(metrics_to_write),
             ))
             .unwrap_or_else(|e| panic!("Failed to write to storage: {e:?}"));
         self.context

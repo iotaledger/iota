@@ -38,7 +38,7 @@ impl MysticetiScoringMetricsStore {
     // recovered_scoring_metrics and blocks_in_cache_by_authority.
     pub(crate) fn initialize_scoring_metrics(
         &self,
-        recovered_scoring_metrics: Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>,
+        recovered_scoring_metrics: Option<VersionedStorageScoringMetrics>,
         blocks_in_cache_by_authority: &Vec<BTreeSet<BlockRef>>,
         threshold_clock_round: u32,
         eviction_rounds: &Vec<u32>,
@@ -46,9 +46,9 @@ impl MysticetiScoringMetricsStore {
     ) {
         // At the beginning of the epoch (i.e., before the epoch's first eviction),
         // there is nothing to be recovered from storage, so recovered_scoring_metrics
-        // will be empty. In this case, the initialization functions will simply
+        // will be None. In this case, the initialization functions will simply
         // initialize zeroed metrics for all authorities, so we can return here.
-        if recovered_scoring_metrics.is_empty() {
+        if recovered_scoring_metrics.is_none() {
             return;
         }
 
@@ -56,7 +56,7 @@ impl MysticetiScoringMetricsStore {
         // them.
         match &context.protocol_config.scorer_version_as_option() {
             None | Some(1) => self.initialize_scoring_metrics_v1(
-                recovered_scoring_metrics,
+                recovered_scoring_metrics.unwrap(),
                 blocks_in_cache_by_authority,
                 threshold_clock_round,
                 eviction_rounds,
@@ -70,37 +70,36 @@ impl MysticetiScoringMetricsStore {
     // recovered_scoring_metrics and blocks_in_cache_by_authority.
     pub(crate) fn initialize_scoring_metrics_v1(
         &self,
-        recovered_scoring_metrics: Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>,
+        recovered_scoring_metrics: VersionedStorageScoringMetrics,
         blocks_in_cache_by_authority: &Vec<BTreeSet<BlockRef>>,
         threshold_clock_round: u32,
         eviction_rounds: &Vec<u32>,
         context: &Arc<Context>,
     ) {
-        let hostnames = context
+        let indices_and_hostnames = context
             .committee
             .authorities()
-            .map(|(_, x)| x.hostname.as_str())
+            .map(|(i, x)| (i, x.hostname.as_str()))
             .collect::<Vec<_>>();
+        let VersionedStorageScoringMetrics::V1(inner) = recovered_scoring_metrics;
 
-        for ((authority_index, metrics), hostname, blocks_in_cache, &eviction_round) in izip!(
-            recovered_scoring_metrics,
-            hostnames,
+        for ((authority_index, hostname), blocks_in_cache, &eviction_round) in izip!(
+            indices_and_hostnames,
             blocks_in_cache_by_authority,
             eviction_rounds
         ) {
             // Initialize the uncached scoring metrics according to
             // recovered_scoring_metrics
-            let VersionedStorageScoringMetrics::V1(inner) = &metrics;
             self.initialize_faulty_blocks_metrics(
-                *inner.faulty_blocks_provable(),
-                *inner.faulty_blocks_unprovable(),
+                inner.faulty_blocks_provable()[authority_index.value() as usize],
+                inner.faulty_blocks_unprovable()[authority_index.value() as usize],
                 hostname,
                 authority_index,
                 &context.metrics.node_metrics,
             );
             self.update_missing_blocks_and_equivocations(
-                *inner.missing_proposals(),
-                *inner.equivocations(),
+                inner.missing_proposals()[authority_index.value() as usize],
+                inner.equivocations()[authority_index.value() as usize],
                 hostname,
                 authority_index,
                 StoreType::Uncached,
@@ -286,14 +285,11 @@ impl MysticetiScoringMetricsStore {
         last_eviction_round: u32,
         threshold_clock_round: u32,
         context: &Arc<Context>,
-    ) -> VersionedStorageScoringMetrics {
+    ) {
         let node_metrics = &context.metrics.node_metrics;
         // threshold_clock_round should be always at least 1.
         if threshold_clock_round == 0 {
-            return VersionedStorageScoringMetrics::new_from(
-                &self.uncached_metrics,
-                authority_index.value(),
-            );
+            return;
         }
 
         // Get the blocks rounds that were not evicted.
@@ -323,10 +319,7 @@ impl MysticetiScoringMetricsStore {
         // If no eviction happened, we do not update the current local metrics counts
         // and the metrics on storage.
         if eviction_round == last_eviction_round {
-            return VersionedStorageScoringMetrics::new_from(
-                &self.uncached_metrics,
-                authority_index.value(),
-            );
+            return;
         }
 
         // Get the evicted blocks rounds.
@@ -360,8 +353,6 @@ impl MysticetiScoringMetricsStore {
         // since the last eviction (e.g., faulty blocks metrics updated on block
         // receival).
         self.update_current_local_metrics_count(authority_index);
-
-        VersionedStorageScoringMetrics::new_from(&self.uncached_metrics, authority_index.value())
     }
 
     // The `authority_index` should be a valid index, otherwise the function will
@@ -537,7 +528,6 @@ mod tests {
     use std::{collections::BTreeSet, sync::Arc, vec};
 
     use consensus_config::{AuthorityIndex, NetworkKeyPair, ProtocolKeyPair};
-    use iota_common::scoring_metrics::VersionedStorageScoringMetrics;
     use parking_lot::RwLock;
     use tokio::sync::broadcast;
 
@@ -706,6 +696,10 @@ mod tests {
         metrics
     }
 
+    fn is_all_zeroes(metrics: &[u64]) -> bool {
+        metrics.iter().all(|&v| v == 0)
+    }
+
     fn get_faulty_blocks_provable(
         context: &Arc<Context>,
         source: &ErrorSource,
@@ -773,11 +767,11 @@ mod tests {
 
         // Unexpected because: threshold_clock_round = last_evicted_round means that a
         // round with blocks from less than 2f+1 stake was evicted.
-        // Return: Zeroed metrics, because nothing is currently being evicted.
+        // Uncached metrics unchanged (all zeros) because nothing is evicted.
         let last_evicted_round = 5;
         let eviction_round = 5;
         let threshold_clock_round = 5;
-        let stored_metrics = scoring_metrics_store.update_scoring_metrics_on_eviction(
+        scoring_metrics_store.update_scoring_metrics_on_eviction(
             authority_index,
             hostname,
             &recent_refs_by_authority,
@@ -786,23 +780,25 @@ mod tests {
             threshold_clock_round,
             &context,
         );
-
-        assert_eq!(
-            stored_metrics,
-            VersionedStorageScoringMetrics::new_v1_for_test(
-                0, // faulty_blocks_provable
-                0, // faulty_blocks_unprovable
-                0, // missing_proposals
-                0, // equivocations
-            )
-        );
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.uncached_equivocations_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_provable_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_unprovable_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.uncached_missing_proposals_by_authority()
+        ));
 
         // Unexpected because: threshold_clock_round = 0 means that genesis is missing.
-        // Return: Zeroed metrics, because nothing is currently being evicted.
+        // Uncached metrics unchanged (all zeros) because of early return.
         let last_evicted_round = 0;
         let eviction_round = 0;
         let threshold_clock_round = 0;
-        let stored_metrics = scoring_metrics_store.update_scoring_metrics_on_eviction(
+        scoring_metrics_store.update_scoring_metrics_on_eviction(
             authority_index,
             hostname,
             &recent_refs_by_authority,
@@ -811,24 +807,26 @@ mod tests {
             threshold_clock_round,
             &context,
         );
-
-        assert_eq!(
-            stored_metrics,
-            VersionedStorageScoringMetrics::new_v1_for_test(
-                0, // faulty_blocks_provable
-                0, // faulty_blocks_unprovable
-                0, // missing_proposals
-                0, // equivocations
-            )
-        );
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.uncached_equivocations_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_provable_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_unprovable_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.uncached_missing_proposals_by_authority()
+        ));
 
         // Unexpected because: threshold_clock_round < eviction_round means that a
-        // round with blocks from less than 2f+1 stake in being evicted.
-        // Return: 3 missing proposals, from rounds 1 to 3(eviction_round).
+        // round with blocks from less than 2f+1 stake is being evicted.
+        // Uncached: 3 missing proposals for authority 0, from rounds 1 to 3.
         let last_evicted_round = 0;
         let eviction_round = 3;
         let threshold_clock_round = 2;
-        let stored_metrics = scoring_metrics_store.update_scoring_metrics_on_eviction(
+        scoring_metrics_store.update_scoring_metrics_on_eviction(
             authority_index,
             hostname,
             &recent_refs_by_authority,
@@ -837,25 +835,27 @@ mod tests {
             threshold_clock_round,
             &context,
         );
-
         assert_eq!(
-            stored_metrics,
-            VersionedStorageScoringMetrics::new_v1_for_test(
-                0, // faulty_blocks_provable
-                0, // faulty_blocks_unprovable
-                3, // missing_proposals
-                0, // equivocations
-            )
+            scoring_metrics_store.uncached_missing_proposals_by_authority(),
+            vec![3, 0, 0, 0]
         );
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.uncached_equivocations_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_provable_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_unprovable_by_authority()
+        ));
 
         // Unexpected because: eviction_round < last_evicted_round means that blocks
         // below or in last_evicted_round were accepted.
-        // Return: metrics won't be updated here, so it should return the same as in the
-        // last step.
+        // Uncached metrics unchanged because evicted range [2, 0] is inverted.
         let last_evicted_round = 1;
         let eviction_round = 0;
         let threshold_clock_round = 2;
-        let stored_metrics = scoring_metrics_store.update_scoring_metrics_on_eviction(
+        scoring_metrics_store.update_scoring_metrics_on_eviction(
             authority_index,
             hostname,
             &recent_refs_by_authority,
@@ -864,25 +864,27 @@ mod tests {
             threshold_clock_round,
             &context,
         );
-
         assert_eq!(
-            stored_metrics,
-            VersionedStorageScoringMetrics::new_v1_for_test(
-                0, // faulty_blocks_provable
-                0, // faulty_blocks_unprovable
-                3, // missing_proposals
-                0, // equivocations
-            )
+            scoring_metrics_store.uncached_missing_proposals_by_authority(),
+            vec![3, 0, 0, 0]
         );
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.uncached_equivocations_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_provable_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_unprovable_by_authority()
+        ));
 
         // Unexpected because: threshold_clock_round < eviction_round <
         // last_evicted_round and threshold_clock_round.
-        // Return: metrics won't be updated here, so it should return the same as in the
-        // last step.
+        // Uncached metrics unchanged because evicted range [3, 0] is inverted.
         let last_evicted_round = 2;
         let eviction_round = 0;
         let threshold_clock_round = 1;
-        let stored_metrics = scoring_metrics_store.update_scoring_metrics_on_eviction(
+        scoring_metrics_store.update_scoring_metrics_on_eviction(
             authority_index,
             hostname,
             &recent_refs_by_authority,
@@ -891,25 +893,28 @@ mod tests {
             threshold_clock_round,
             &context,
         );
-
         assert_eq!(
-            stored_metrics,
-            VersionedStorageScoringMetrics::new_v1_for_test(
-                0, // faulty_blocks_provable
-                0, // faulty_blocks_unprovable
-                3, // missing_proposals
-                0, // equivocations
-            )
+            scoring_metrics_store.uncached_missing_proposals_by_authority(),
+            vec![3, 0, 0, 0]
         );
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.uncached_equivocations_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_provable_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_unprovable_by_authority()
+        ));
 
         // Unexpected because: threshold_clock_round < last_evicted_round means that a
         // round with blocks from less than 2f+1 stake was evicted.
-        // Return: metrics won't be updated here, so it should return the same as in the
-        // last step.
+        // Uncached metrics unchanged because threshold_clock_round = 0 causes
+        // early return.
         let last_evicted_round = 1;
         let eviction_round = 2;
         let threshold_clock_round = 0;
-        let stored_metrics = scoring_metrics_store.update_scoring_metrics_on_eviction(
+        scoring_metrics_store.update_scoring_metrics_on_eviction(
             authority_index,
             hostname,
             &recent_refs_by_authority,
@@ -918,21 +923,25 @@ mod tests {
             threshold_clock_round,
             &context,
         );
-
         assert_eq!(
-            stored_metrics,
-            VersionedStorageScoringMetrics::new_v1_for_test(
-                0, // faulty_blocks_provable
-                0, // faulty_blocks_unprovable
-                3, // missing_proposals
-                0, // equivocations
-            )
+            scoring_metrics_store.uncached_missing_proposals_by_authority(),
+            vec![3, 0, 0, 0]
         );
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.uncached_equivocations_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_provable_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_unprovable_by_authority()
+        ));
 
+        // Same as above but with eviction_round < last_evicted_round.
         let last_evicted_round = 2;
         let eviction_round = 1;
         let threshold_clock_round = 0;
-        let stored_metrics = scoring_metrics_store.update_scoring_metrics_on_eviction(
+        scoring_metrics_store.update_scoring_metrics_on_eviction(
             authority_index,
             hostname,
             &recent_refs_by_authority,
@@ -941,16 +950,19 @@ mod tests {
             threshold_clock_round,
             &context,
         );
-
         assert_eq!(
-            stored_metrics,
-            VersionedStorageScoringMetrics::new_v1_for_test(
-                0, // faulty_blocks_provable
-                0, // faulty_blocks_unprovable
-                3, // missing_proposals
-                0, // equivocations
-            )
+            scoring_metrics_store.uncached_missing_proposals_by_authority(),
+            vec![3, 0, 0, 0]
         );
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.uncached_equivocations_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_provable_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_unprovable_by_authority()
+        ));
     }
 
     #[tokio::test]

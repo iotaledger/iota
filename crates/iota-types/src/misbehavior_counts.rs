@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 // - `T = Vec<u64>` for reports (one value per authority)
 // - `T = Vec<AtomicU64>` for atomic metrics collected and stored locally (one
 //   atomic per authority)
-// - `T = u64` for per-authority persistent storage
+// - `T = Vec<u64>` for storage (one value per authority)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct MisbehaviorsV1<T> {
     faulty_blocks_provable: T,
@@ -108,6 +108,15 @@ impl MisbehaviorsV1<u64> {
 }
 
 impl MisbehaviorsV1<Vec<u64>> {
+    pub fn new_zeroed(committee_size: usize) -> Self {
+        Self::new(
+            (0..committee_size).map(|_| 0).collect(),
+            (0..committee_size).map(|_| 0).collect(),
+            (0..committee_size).map(|_| 0).collect(),
+            (0..committee_size).map(|_| 0).collect(),
+        )
+    }
+
     // Verifies that all fields have the expected committee size.
     pub fn verify(&self, committee_size: usize) -> bool {
         self.iter().all(|metric| metric.len() == committee_size)

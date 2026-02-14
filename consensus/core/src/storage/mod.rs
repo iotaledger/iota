@@ -43,9 +43,7 @@ pub(crate) trait Store: Send + Sync {
 
     /// Reads and returns all metrics stored. Used for restoring the scoring
     /// metrics in case of DagState initialization from storage
-    fn scan_scoring_metrics(
-        &self,
-    ) -> ConsensusResult<Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>>;
+    fn scan_scoring_metrics(&self) -> ConsensusResult<Option<VersionedStorageScoringMetrics>>;
 
     /// Returns the last `num_of_rounds` rounds blocks by author in round
     /// ascending order. When a `before_round` is defined then the blocks of
@@ -78,7 +76,7 @@ pub(crate) struct WriteBatch {
     pub(crate) blocks: Vec<VerifiedBlock>,
     pub(crate) commits: Vec<TrustedCommit>,
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
-    pub(crate) scoring_metrics: Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>,
+    pub(crate) scoring_metrics: Option<VersionedStorageScoringMetrics>,
 }
 
 impl WriteBatch {
@@ -86,7 +84,7 @@ impl WriteBatch {
         blocks: Vec<VerifiedBlock>,
         commits: Vec<TrustedCommit>,
         commit_info: Vec<(CommitRef, CommitInfo)>,
-        scoring_metrics: Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>,
+        scoring_metrics: Option<VersionedStorageScoringMetrics>,
     ) -> Self {
         WriteBatch {
             blocks,
@@ -119,17 +117,15 @@ impl WriteBatch {
     #[cfg(test)]
     pub(crate) fn scoring_metrics(
         mut self,
-        scoring_metrics: Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>,
+        scoring_metrics: VersionedStorageScoringMetrics,
     ) -> Self {
-        self.scoring_metrics = scoring_metrics;
+        self.scoring_metrics = Some(scoring_metrics);
         self
     }
 }
 
-// This struct is used in storage. It holds the same data as
-// `UncachedScoringMetrics`, but uses `u64` instead of `AtomicU64`.
-// NOTE: This type is deprecated and should be removed once the metrics are
-// migrated to VersionedStorageScoringMetrics type.
+// Legacy storage type for scoring metrics. Kept only for migration from
+// the old per-authority format to the new single-blob VersionedScoringMetrics.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
 pub(crate) struct StorageScoringMetrics {
     pub(crate) faulty_blocks_provable: u64,

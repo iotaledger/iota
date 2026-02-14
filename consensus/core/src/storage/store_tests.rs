@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use consensus_config::AuthorityIndex;
-use iota_common::scoring_metrics::VersionedStorageScoringMetrics;
+use iota_common::{
+    misbehavior_counts::MisbehaviorsV1, scoring_metrics::VersionedStorageScoringMetrics,
+};
 use rstest::rstest;
 use tempfile::TempDir;
 
@@ -306,58 +308,52 @@ async fn scan_scoring_metrics(
     #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
 ) {
     let store = test_store.store();
-    let metrics_updates = [
-        VersionedStorageScoringMetrics::new_v1_for_test(
-            1, // faulty_blocks_provable
-            2, // faulty_blocks_unprovable
-            3, // missing_proposals
-            4, // equivocations
-        ),
-        VersionedStorageScoringMetrics::new_v1_for_test(
-            0, // faulty_blocks_provable
-            0, // faulty_blocks_unprovable
-            0, // missing_proposals
-            0, // equivocations
-        ),
-    ];
-    let authories = [
-        AuthorityIndex::new_for_test(0),
-        AuthorityIndex::new_for_test(1),
-        AuthorityIndex::new_for_test(2),
-    ];
 
-    let metrics_to_write = vec![
-        (authories[0], metrics_updates[0].clone()),
-        (authories[1], metrics_updates[1].clone()),
-    ];
+    // Create a VersionedScoringMetrics blob with 3 authorities.
+    let blob = VersionedStorageScoringMetrics::V1(MisbehaviorsV1::new(
+        vec![1, 0, 0],
+        vec![2, 0, 0],
+        vec![3, 0, 0],
+        vec![4, 0, 0],
+    ));
 
     store
-        .write(WriteBatch::default().scoring_metrics(metrics_to_write.clone()))
+        .write(WriteBatch::default().scoring_metrics(blob))
         .unwrap();
 
     {
-        let scanned_metrics = store
+        if let Some(VersionedStorageScoringMetrics::V1(scanned)) = store
             .scan_scoring_metrics()
-            .expect("Scan scoring_metrics should not fail");
-        assert_eq!(&scanned_metrics, &metrics_to_write);
+            .expect("Scan scoring_metrics should not fail here")
+        {
+            assert_eq!(*scanned.faulty_blocks_provable(), vec![1, 0, 0]);
+            assert_eq!(*scanned.faulty_blocks_unprovable(), vec![2, 0, 0]);
+            assert_eq!(*scanned.missing_proposals(), vec![3, 0, 0]);
+            assert_eq!(*scanned.equivocations(), vec![4, 0, 0]);
+        };
     }
 
-    let metrics_to_write = vec![(authories[0], metrics_updates[1].clone())];
+    // Overwrite with zeroed blob.
+    let zeroed_blob = VersionedStorageScoringMetrics::V1(MisbehaviorsV1::new(
+        vec![0, 0, 0],
+        vec![0, 0, 0],
+        vec![0, 0, 0],
+        vec![0, 0, 0],
+    ));
 
     store
-        .write(WriteBatch::default().scoring_metrics(metrics_to_write.clone()))
+        .write(WriteBatch::default().scoring_metrics(zeroed_blob))
         .unwrap();
 
     {
-        let scanned_metrics = store
+        if let Some(VersionedStorageScoringMetrics::V1(scanned)) = store
             .scan_scoring_metrics()
-            .expect("Scan scoring_metrics should not fail");
-        assert_eq!(
-            &scanned_metrics,
-            &vec![
-                (authories[0], metrics_updates[1].clone()),
-                (authories[1], metrics_updates[1].clone())
-            ]
-        );
+            .expect("Scan scoring_metrics should not fail here")
+        {
+            assert_eq!(*scanned.faulty_blocks_provable(), vec![0, 0, 0]);
+            assert_eq!(*scanned.faulty_blocks_unprovable(), vec![0, 0, 0]);
+            assert_eq!(*scanned.missing_proposals(), vec![0, 0, 0]);
+            assert_eq!(*scanned.equivocations(), vec![0, 0, 0]);
+        };
     }
 }
