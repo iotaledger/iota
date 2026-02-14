@@ -39,10 +39,18 @@ function ValidatorDetails(): JSX.Element {
     const epochId = systemStateData?.epoch;
     const validatorRewards = (() => {
         if (!validatorEvents || !id || !epochId) return 0;
-        const rewards = (
-            getValidatorMoveEvent(validatorEvents, id, epochId) as { pool_staking_reward: string }
-        )?.pool_staking_reward;
-
+        
+        // Try to get rewards for the current epoch first (which contains last epoch's rewards)
+        let event = getValidatorMoveEvent(validatorEvents, id, epochId) as { pool_staking_reward?: string };
+        
+        // If not found, try the previous epoch as a fallback
+        // This handles cases where the current epoch's events haven't been indexed yet
+        if (!event) {
+            const previousEpochId = String(Number(epochId) - 1);
+            event = getValidatorMoveEvent(validatorEvents, id, previousEpochId) as { pool_staking_reward?: string };
+        }
+        
+        const rewards = event?.pool_staking_reward;
         return rewards ? Number(rewards) : null;
     })();
 
