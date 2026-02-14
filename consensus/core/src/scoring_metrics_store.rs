@@ -7,7 +7,7 @@ use std::{
 };
 
 use consensus_config::AuthorityIndex;
-use iota_common::scoring_metrics::{VersionedScoringMetrics, VersionedStorageScoringMetrics};
+use iota_common::scoring_metrics::VersionedScoringMetrics;
 use iota_protocol_config::ProtocolConfig;
 use itertools::izip;
 
@@ -38,7 +38,7 @@ impl MysticetiScoringMetricsStore {
     // recovered_scoring_metrics and blocks_in_cache_by_authority.
     pub(crate) fn initialize_scoring_metrics(
         &self,
-        recovered_scoring_metrics: Option<VersionedStorageScoringMetrics>,
+        recovered_scoring_metrics: Option<VersionedScoringMetrics>,
         blocks_in_cache_by_authority: &Vec<BTreeSet<BlockRef>>,
         threshold_clock_round: u32,
         eviction_rounds: &Vec<u32>,
@@ -70,36 +70,41 @@ impl MysticetiScoringMetricsStore {
     // recovered_scoring_metrics and blocks_in_cache_by_authority.
     pub(crate) fn initialize_scoring_metrics_v1(
         &self,
-        recovered_scoring_metrics: VersionedStorageScoringMetrics,
+        recovered_scoring_metrics: VersionedScoringMetrics,
         blocks_in_cache_by_authority: &Vec<BTreeSet<BlockRef>>,
         threshold_clock_round: u32,
         eviction_rounds: &Vec<u32>,
         context: &Arc<Context>,
     ) {
-        let indices_and_hostnames = context
-            .committee
-            .authorities()
-            .map(|(i, x)| (i, x.hostname.as_str()))
-            .collect::<Vec<_>>();
-        let VersionedStorageScoringMetrics::V1(inner) = recovered_scoring_metrics;
-
-        for ((authority_index, hostname), blocks_in_cache, &eviction_round) in izip!(
-            indices_and_hostnames,
+        let (faulty_blocks_provable, faulty_blocks_unprovable, missing_proposals, equivocations) = (
+            recovered_scoring_metrics.faulty_blocks_provable(),
+            recovered_scoring_metrics.faulty_blocks_unprovable(),
+            recovered_scoring_metrics.missing_proposals(),
+            recovered_scoring_metrics.equivocations(),
+        );
+        for ((authority_index, authority), blocks_in_cache, &eviction_round, fbp, fbu, mp, eq) in izip!(
+            context.committee.authorities(),
             blocks_in_cache_by_authority,
-            eviction_rounds
+            eviction_rounds,
+            faulty_blocks_provable,
+            faulty_blocks_unprovable,
+            missing_proposals,
+            equivocations
         ) {
+            let hostname = authority.hostname.as_str();
+
             // Initialize the uncached scoring metrics according to
             // recovered_scoring_metrics
             self.initialize_faulty_blocks_metrics(
-                inner.faulty_blocks_provable()[authority_index.value() as usize],
-                inner.faulty_blocks_unprovable()[authority_index.value() as usize],
+                fbp.load(Ordering::Relaxed),
+                fbu.load(Ordering::Relaxed),
                 hostname,
                 authority_index,
                 &context.metrics.node_metrics,
             );
             self.update_missing_blocks_and_equivocations(
-                inner.missing_proposals()[authority_index.value() as usize],
-                inner.equivocations()[authority_index.value() as usize],
+                mp.load(Ordering::Relaxed),
+                eq.load(Ordering::Relaxed),
                 hostname,
                 authority_index,
                 StoreType::Uncached,

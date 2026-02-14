@@ -9,8 +9,8 @@ pub(crate) mod rocksdb_store;
 #[cfg(test)]
 mod store_tests;
 
-use consensus_config::AuthorityIndex;
-use iota_common::scoring_metrics::VersionedStorageScoringMetrics;
+use consensus_config::{AuthorityIndex, Committee};
+use iota_common::scoring_metrics::VersionedScoringMetrics;
 
 use crate::{
     CommitIndex,
@@ -43,7 +43,10 @@ pub(crate) trait Store: Send + Sync {
 
     /// Reads and returns all metrics stored. Used for restoring the scoring
     /// metrics in case of DagState initialization from storage
-    fn scan_scoring_metrics(&self) -> ConsensusResult<Option<VersionedStorageScoringMetrics>>;
+    fn scan_scoring_metrics(
+        &self,
+        committee: &Committee,
+    ) -> ConsensusResult<Option<VersionedScoringMetrics>>;
 
     /// Returns the last `num_of_rounds` rounds blocks by author in round
     /// ascending order. When a `before_round` is defined then the blocks of
@@ -76,7 +79,7 @@ pub(crate) struct WriteBatch {
     pub(crate) blocks: Vec<VerifiedBlock>,
     pub(crate) commits: Vec<TrustedCommit>,
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
-    pub(crate) scoring_metrics: Option<VersionedStorageScoringMetrics>,
+    pub(crate) scoring_metrics: Option<VersionedScoringMetrics>,
 }
 
 impl WriteBatch {
@@ -84,13 +87,13 @@ impl WriteBatch {
         blocks: Vec<VerifiedBlock>,
         commits: Vec<TrustedCommit>,
         commit_info: Vec<(CommitRef, CommitInfo)>,
-        scoring_metrics: Option<VersionedStorageScoringMetrics>,
+        scoring_metrics: VersionedScoringMetrics,
     ) -> Self {
         WriteBatch {
             blocks,
             commits,
             commit_info,
-            scoring_metrics,
+            scoring_metrics: Some(scoring_metrics),
         }
     }
 
@@ -115,10 +118,7 @@ impl WriteBatch {
     }
 
     #[cfg(test)]
-    pub(crate) fn scoring_metrics(
-        mut self,
-        scoring_metrics: VersionedStorageScoringMetrics,
-    ) -> Self {
+    pub(crate) fn scoring_metrics(mut self, scoring_metrics: VersionedScoringMetrics) -> Self {
         self.scoring_metrics = Some(scoring_metrics);
         self
     }
@@ -132,4 +132,15 @@ pub(crate) struct StorageScoringMetrics {
     pub(crate) faulty_blocks_unprovable: u64,
     pub(crate) equivocations: u64,
     pub(crate) missing_proposals: u64,
+}
+
+impl StorageScoringMetrics {
+    fn new_zeroed() -> Self {
+        StorageScoringMetrics {
+            faulty_blocks_provable: 0,
+            faulty_blocks_unprovable: 0,
+            equivocations: 0,
+            missing_proposals: 0,
+        }
+    }
 }

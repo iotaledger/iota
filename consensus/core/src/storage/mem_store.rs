@@ -7,8 +7,8 @@ use std::{
     ops::Bound::Included,
 };
 
-use consensus_config::AuthorityIndex;
-use iota_common::scoring_metrics::VersionedStorageScoringMetrics;
+use consensus_config::{AuthorityIndex, Committee};
+use iota_common::scoring_metrics::VersionedScoringMetrics;
 use parking_lot::RwLock;
 
 use super::{Store, WriteBatch};
@@ -31,7 +31,7 @@ struct Inner {
     commits: BTreeMap<(CommitIndex, CommitDigest), TrustedCommit>,
     commit_votes: BTreeSet<(CommitIndex, CommitDigest, BlockRef)>,
     commit_info: BTreeMap<(CommitIndex, CommitDigest), CommitInfo>,
-    scoring_metrics: BTreeMap<u32, VersionedStorageScoringMetrics>,
+    scoring_metrics: BTreeMap<u32, VersionedScoringMetrics>,
 }
 
 impl MemStore {
@@ -133,9 +133,12 @@ impl Store for MemStore {
         Ok(blocks)
     }
 
-    fn scan_scoring_metrics(&self) -> ConsensusResult<Option<VersionedStorageScoringMetrics>> {
+    fn scan_scoring_metrics(
+        &self,
+        _committee: &Committee,
+    ) -> ConsensusResult<Option<VersionedScoringMetrics>> {
         let inner = self.inner.read();
-        Ok(inner.scoring_metrics.get(&0u32).cloned())
+        Ok(inner.scoring_metrics.get(&0u32).map(|m| m.snapshot()))
     }
 
     fn contains_block_at_slot(&self, slot: Slot) -> ConsensusResult<bool> {

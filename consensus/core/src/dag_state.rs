@@ -12,7 +12,6 @@ use std::{
 };
 
 use consensus_config::AuthorityIndex;
-use iota_common::scoring_metrics::VersionedStorageScoringMetrics;
 use itertools::Itertools as _;
 use tokio::time::Instant;
 use tracing::{debug, error, info, trace};
@@ -249,7 +248,10 @@ impl DagState {
 
         // Initialize scoring metrics according to the metrics in store and the blocks
         // that were loaded to cache.
-        let recovered_scoring_metrics = state.store.scan_scoring_metrics().expect("Database error");
+        let recovered_scoring_metrics = state
+            .store
+            .scan_scoring_metrics(&state.context.committee)
+            .expect("Database error");
         state
             .context
             .scoring_metrics_store
@@ -1073,16 +1075,18 @@ impl DagState {
                 );
         }
 
-        let metrics_to_write = VersionedStorageScoringMetrics::new_from(
-            &self.context.scoring_metrics_store.uncached_metrics,
-        );
+        let metrics_to_write = self
+            .context
+            .scoring_metrics_store
+            .uncached_metrics
+            .snapshot();
 
         self.store
             .write(WriteBatch::new(
                 blocks,
                 commits,
                 commit_info_to_write,
-                Some(metrics_to_write),
+                metrics_to_write,
             ))
             .unwrap_or_else(|e| panic!("Failed to write to storage: {e:?}"));
         self.context

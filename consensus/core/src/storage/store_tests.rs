@@ -3,9 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use consensus_config::AuthorityIndex;
-use iota_common::{
-    misbehavior_counts::MisbehaviorsV1, scoring_metrics::VersionedStorageScoringMetrics,
-};
+use iota_common::{misbehavior_counts::MisbehaviorsV1, scoring_metrics::VersionedScoringMetrics};
 use rstest::rstest;
 use tempfile::TempDir;
 
@@ -307,53 +305,46 @@ async fn read_and_scan_commits(
 async fn scan_scoring_metrics(
     #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
 ) {
+    use consensus_config::{Stake, local_committee_and_keys};
+
+    let epoch = 100;
+    let authority_stakes = (1..=3).map(|s| s as Stake).collect();
+    let (committee, _) = local_committee_and_keys(epoch, authority_stakes);
     let store = test_store.store();
 
     // Create a VersionedScoringMetrics blob with 3 authorities.
-    let blob = VersionedStorageScoringMetrics::V1(MisbehaviorsV1::new(
-        vec![1, 0, 0],
-        vec![2, 0, 0],
-        vec![3, 0, 0],
-        vec![4, 0, 0],
-    ));
+    let blob = VersionedScoringMetrics::V1(
+        MisbehaviorsV1::new(vec![1, 0, 0], vec![2, 0, 0], vec![3, 0, 0], vec![4, 0, 0]).as_atomic(),
+    );
 
     store
-        .write(WriteBatch::default().scoring_metrics(blob))
+        .write(WriteBatch::default().scoring_metrics(blob.snapshot()))
         .unwrap();
 
     {
-        if let Some(VersionedStorageScoringMetrics::V1(scanned)) = store
-            .scan_scoring_metrics()
-            .expect("Scan scoring_metrics should not fail here")
-        {
-            assert_eq!(*scanned.faulty_blocks_provable(), vec![1, 0, 0]);
-            assert_eq!(*scanned.faulty_blocks_unprovable(), vec![2, 0, 0]);
-            assert_eq!(*scanned.missing_proposals(), vec![3, 0, 0]);
-            assert_eq!(*scanned.equivocations(), vec![4, 0, 0]);
-        };
+        if let Ok(Some(scanned)) = store.scan_scoring_metrics(&committee) {
+            assert_eq!(scanned.load_faulty_blocks_provable(), vec![1, 0, 0]);
+            assert_eq!(scanned.load_faulty_blocks_unprovable(), vec![2, 0, 0]);
+            assert_eq!(scanned.load_missing_proposals(), vec![3, 0, 0]);
+            assert_eq!(scanned.load_equivocations(), vec![4, 0, 0]);
+        }
     }
 
     // Overwrite with zeroed blob.
-    let zeroed_blob = VersionedStorageScoringMetrics::V1(MisbehaviorsV1::new(
-        vec![0, 0, 0],
-        vec![0, 0, 0],
-        vec![0, 0, 0],
-        vec![0, 0, 0],
-    ));
+    let zeroed_blob = VersionedScoringMetrics::V1(
+        MisbehaviorsV1::new(vec![0, 0, 0], vec![0, 0, 0], vec![0, 0, 0], vec![0, 0, 0]).as_atomic(),
+    );
 
     store
-        .write(WriteBatch::default().scoring_metrics(zeroed_blob))
+        .write(WriteBatch::default().scoring_metrics(zeroed_blob.snapshot()))
         .unwrap();
 
     {
-        if let Some(VersionedStorageScoringMetrics::V1(scanned)) = store
-            .scan_scoring_metrics()
-            .expect("Scan scoring_metrics should not fail here")
-        {
-            assert_eq!(*scanned.faulty_blocks_provable(), vec![0, 0, 0]);
-            assert_eq!(*scanned.faulty_blocks_unprovable(), vec![0, 0, 0]);
-            assert_eq!(*scanned.missing_proposals(), vec![0, 0, 0]);
-            assert_eq!(*scanned.equivocations(), vec![0, 0, 0]);
-        };
+        if let Ok(Some(scanned)) = store.scan_scoring_metrics(&committee) {
+            assert_eq!(scanned.load_faulty_blocks_provable(), vec![0, 0, 0]);
+            assert_eq!(scanned.load_faulty_blocks_unprovable(), vec![0, 0, 0]);
+            assert_eq!(scanned.load_missing_proposals(), vec![0, 0, 0]);
+            assert_eq!(scanned.load_equivocations(), vec![0, 0, 0]);
+        }
     }
 }

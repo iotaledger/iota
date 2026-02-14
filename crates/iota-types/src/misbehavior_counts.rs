@@ -16,7 +16,6 @@ use serde::{Deserialize, Serialize};
 // - `T = Vec<u64>` for reports (one value per authority)
 // - `T = Vec<AtomicU64>` for atomic metrics collected and stored locally (one
 //   atomic per authority)
-// - `T = Vec<u64>` for storage (one value per authority)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct MisbehaviorsV1<T> {
     faulty_blocks_provable: T,
