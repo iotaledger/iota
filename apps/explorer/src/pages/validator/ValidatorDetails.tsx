@@ -38,7 +38,7 @@ function ValidatorDetails(): JSX.Element {
     });
     const epochId = systemStateData?.epoch;
     const validatorRewards = (() => {
-        if (!validatorEvents || !id || !epochId) return 0;
+        if (!validatorEvents || !id || !epochId) return null;
         
         // Try to get rewards for the current epoch first (which contains last epoch's rewards)
         let event = getValidatorMoveEvent(validatorEvents, id, epochId) as { pool_staking_reward?: string };
