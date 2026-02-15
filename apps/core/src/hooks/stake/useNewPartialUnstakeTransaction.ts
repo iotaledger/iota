@@ -15,7 +15,12 @@ export function useNewPartialUnstakeTransaction(
 
     return useQuery({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
-        queryKey: ['partial-unstake-transaction', unstakeIotaId, unstakeAmount.toString(), senderAddress],
+        queryKey: [
+            'partial-unstake-transaction',
+            unstakeIotaId,
+            unstakeAmount.toString(),
+            senderAddress,
+        ],
         queryFn: async () => {
             const transaction = createPartialUnstakeTransaction(unstakeIotaId, unstakeAmount);
             transaction.setSender(senderAddress);
