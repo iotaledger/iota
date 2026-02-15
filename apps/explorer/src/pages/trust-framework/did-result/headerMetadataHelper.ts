@@ -3,6 +3,7 @@
 
 import type { IotaObjectData } from '@iota/iota-sdk/src/client';
 import { type MetaItem } from '~/components/ui/PageHeaderMeta';
+import { IdentityPackageOfficial } from './views/IdentityPackageOfficial';
 
 const IDENTITY_MODULE = 'identity';
 const IDENTITY_METHOD = 'Identity';
@@ -58,7 +59,7 @@ export function getIdentityType(didObject: IotaObjectData | null, pkgId: string)
         // Official Identity package for the current network
         return {
             label: metadata.type.label,
-            value: metadata.type.badge,
+            value: IdentityPackageOfficial({ value: metadata.type.badge, copyValue: _package }),
             visible: true,
         } as MetaItem;
     }
