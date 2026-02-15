@@ -31,7 +31,7 @@ export function useNewPartialUnstakeTimelockedTransaction(
                 unstakeAmount,
             );
             transaction.setSender(senderAddress);
-            const txBytes = await transaction.build({ client });
+            const txBytes = await transaction.build({ client, maxSizeBytes });
             const txDryRun = await client.dryRunTransactionBlock({
                 transactionBlock: txBytes,
             });
