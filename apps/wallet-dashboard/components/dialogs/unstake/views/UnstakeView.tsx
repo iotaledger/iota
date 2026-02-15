@@ -13,6 +13,7 @@ import {
     InfoBox,
     Input,
     InputType,
+    Divider,
 } from '@iota/apps-ui-kit';
 import {
     ExtendedDelegatedStake,
@@ -30,7 +31,7 @@ import {
 import { CoinFormat, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { Warning, Info } from '@iota/apps-ui-icons';
-import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
+import { ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
@@ -58,9 +59,10 @@ export function UnstakeView({
 
     // Parse the unstake amount in nanos
     const parsedAmount = parseFloat(partialUnstakeAmount);
-    const unstakeAmountNanos = partialUnstakeAmount && !isNaN(parsedAmount) && parsedAmount > 0
-        ? BigInt(Math.floor(parsedAmount * Number(NANOS_PER_IOTA)))
-        : 0n;
+    const unstakeAmountNanos =
+        partialUnstakeAmount && !isNaN(parsedAmount) && parsedAmount > 0
+            ? BigInt(Math.floor(parsedAmount * Number(NANOS_PER_IOTA)))
+            : 0n;
 
     const {
         data: unstakeData,
@@ -77,11 +79,12 @@ export function UnstakeView({
     } = useNewPartialUnstakeTransaction(
         activeAddress,
         extendedStake.stakedIotaId,
-        unstakeAmountNanos
+        unstakeAmountNanos,
     );
 
     // Use partial unstake data if enabled, otherwise use full unstake
-    const activeUnstakeData = isPartialUnstake && unstakeAmountNanos > 0n ? partialUnstakeData : unstakeData;
+    const activeUnstakeData =
+        isPartialUnstake && unstakeAmountNanos > 0n ? partialUnstakeData : unstakeData;
     const activeError = isPartialUnstake ? partialError : error;
     const activeIsError = isPartialUnstake ? isPartialUnstakeError : isUnstakeError;
     const activeIsPending = isPartialUnstake ? isPartialUnstakeTxPending : isUnstakeTxPending;
@@ -94,29 +97,37 @@ export function UnstakeView({
     const { mutateAsync: signAndExecuteTransaction, isPending: isTransactionPending } =
         useSignAndExecuteTransaction();
 
-    const { totalStakeOriginal, systemDataResult, delegatedStakeDataResult } =
-        useGetStakingValidatorDetails({
-            accountAddress: activeAddress,
-            validatorAddress: extendedStake.validatorAddress,
-            stakeId: extendedStake.stakedIotaId,
-            unstake: true,
-        });
+    const { systemDataResult, delegatedStakeDataResult } = useGetStakingValidatorDetails({
+        accountAddress: activeAddress,
+        validatorAddress: extendedStake.validatorAddress,
+        stakeId: extendedStake.stakedIotaId,
+        unstake: true,
+    });
 
     // Calculate the amount to unstake and proportional rewards
     const principalAmount = BigInt(extendedStake.principal);
     const rewardAmount = BigInt(extendedStake.estimatedReward || 0);
-    const totalStaked = principalAmount + rewardAmount;
 
-    const unstakeAmount = isPartialUnstake && unstakeAmountNanos > 0n
-        ? unstakeAmountNanos
-        : principalAmount;
+    const unstakeAmount =
+        isPartialUnstake && unstakeAmountNanos > 0n ? unstakeAmountNanos : principalAmount;
 
     // Calculate proportional rewards for partial unstake
-    const proportionalRewards = principalAmount > 0n
-        ? (rewardAmount * unstakeAmount) / principalAmount
-        : 0n;
+    const proportionalRewards =
+        principalAmount > 0n ? (rewardAmount * unstakeAmount) / principalAmount : 0n;
 
     const totalUnstakeAmount = unstakeAmount + proportionalRewards;
+
+    const remainingStake = principalAmount - unstakeAmount;
+    const remainingRewards = rewardAmount - proportionalRewards;
+    const remainingTotalStaked = remainingStake + remainingRewards;
+    const [remainingStakeFormatted] = useFormatCoin({ balance: remainingStake });
+    const [remainingRewardsFormatted, remainingRewardsSymbol] = useFormatCoin({
+        balance: remainingRewards,
+    });
+    const [remainingTotalStakedFormatted] = useFormatCoin({ balance: remainingTotalStaked });
+    const [unstakeAmountFormatted] = useFormatCoin({ balance: unstakeAmount });
+    const [rewardsFormatted, rewardSymbol] = useFormatCoin({ balance: proportionalRewards });
+    const [totalUnstakeAmountFormatted] = useFormatCoin({ balance: totalUnstakeAmount });
 
     useEffect(() => {
         if ((isUnstakeError && error) || (isPartialUnstakeError && partialError)) {
@@ -143,18 +154,24 @@ export function UnstakeView({
     // For partial unstake:
     // - Unstake amount must be >= MIN_STAKING_THRESHOLD
     // - Remaining amount must be >= MIN_STAKING_THRESHOLD
-    // - OR user must unstake everything (full unstake)
+    // For full unstake:
+    // - Remaining amount must be >= MIN_STAKING_THRESHOLD (i.e., cannot unstake everything)
     const remainingAmount = principalAmount - unstakeAmountNanos;
-    const isInvalidAmount = isPartialUnstake && (
-        unstakeAmountNanos <= 0n ||
-        unstakeAmountNanos > principalAmount ||
-        (unstakeAmountNanos < MIN_STAKING_THRESHOLD && unstakeAmountNanos !== principalAmount) ||
-        (remainingAmount > 0n && remainingAmount < MIN_STAKING_THRESHOLD)
-    );
+    const isInvalidAmount =
+        (isPartialUnstake &&
+            (unstakeAmountNanos <= 0n ||
+                unstakeAmountNanos > principalAmount ||
+                unstakeAmountNanos < MIN_STAKING_THRESHOLD ||
+                remainingAmount < MIN_STAKING_THRESHOLD)) ||
+        (!isPartialUnstake && remainingAmount < MIN_STAKING_THRESHOLD);
 
     // Determine the appropriate error message
     const getErrorMessage = () => {
-        if (!isPartialUnstake || !isInvalidAmount) return undefined;
+        if (!isInvalidAmount) return undefined;
+
+        if (!isPartialUnstake) {
+            return 'You must leave at least 1 IOTA staked';
+        }
 
         if (unstakeAmountNanos <= 0n) {
             return 'Amount must be greater than 0';
@@ -165,8 +182,8 @@ export function UnstakeView({
         if (unstakeAmountNanos < MIN_STAKING_THRESHOLD) {
             return 'Unstake amount must be at least 1 IOTA';
         }
-        if (remainingAmount > 0n && remainingAmount < MIN_STAKING_THRESHOLD) {
-            return 'Remaining stake must be at least 1 IOTA or unstake all';
+        if (remainingAmount < MIN_STAKING_THRESHOLD) {
+            return 'Remaining stake must be at least 1 IOTA';
         }
         return undefined;
     };
@@ -177,7 +194,7 @@ export function UnstakeView({
         )?.name ?? '';
 
     const [stakedFormattedPlain] = useFormatCoin({
-        balance: totalStakeOriginal,
+        balance: unstakeAmount,
         format: CoinFormat.Full,
         useGroupSeparator: false,
     });
@@ -256,10 +273,12 @@ export function UnstakeView({
                     <Panel hasBorder>
                         <div className="flex flex-col gap-y-sm p-md">
                             <div className="flex items-center justify-between">
-                                <span className="text-label-lg text-neutral-40">Unstake Amount</span>
+                                <span className="text-neutral-40 text-label-lg">
+                                    Unstake Amount
+                                </span>
                                 <Button
-                                    type={ButtonType.Ghost}
-                                    text={isPartialUnstake ? "Unstake All" : "Partial Unstake"}
+                                    type={ButtonType.Secondary}
+                                    text={isPartialUnstake ? 'Partial Unstake' : 'Unstake All'}
                                     onClick={() => {
                                         setIsPartialUnstake(!isPartialUnstake);
                                         setPartialUnstakeAmount('');
@@ -276,18 +295,82 @@ export function UnstakeView({
                                         suffix=" IOTA"
                                         errorMessage={getErrorMessage()}
                                     />
-                                    <div className="text-body-sm text-neutral-60">
-                                        Minimum: 1 IOTA to unstake and 1 IOTA must remain staked (or unstake all)
+                                    <div className="text-neutral-60 text-body-sm">
+                                        Minimum: 1 IOTA to unstake and 1 IOTA must remain staked
                                     </div>
                                 </>
                             )}
                         </div>
                     </Panel>
 
-                    <StakeRewardsPanel
-                        stakingRewards={proportionalRewards.toString()}
-                        totalStaked={unstakeAmount}
-                    />
+                    <Panel hasBorder>
+                        <div className="flex flex-col gap-y-sm p-md">
+                            {isPartialUnstake ? (
+                                <>
+                                    <KeyValueInfo
+                                        keyText="Amount to Unstake"
+                                        value={unstakeAmountFormatted}
+                                        supportingLabel={GAS_SYMBOL}
+                                        fullwidth
+                                    />
+                                    <KeyValueInfo
+                                        keyText="Rewards Earned"
+                                        value={rewardsFormatted}
+                                        supportingLabel={rewardSymbol}
+                                        fullwidth
+                                    />
+                                    <Divider />
+                                    <KeyValueInfo
+                                        keyText="Remaining Stake"
+                                        value={remainingStakeFormatted}
+                                        supportingLabel={GAS_SYMBOL}
+                                        fullwidth
+                                    />
+                                    <KeyValueInfo
+                                        keyText="Remaining Rewards"
+                                        value={remainingRewardsFormatted}
+                                        supportingLabel={remainingRewardsSymbol}
+                                        fullwidth
+                                    />
+                                    <Divider />
+                                    <KeyValueInfo
+                                        keyText="Total Unstaked IOTA"
+                                        value={totalUnstakeAmountFormatted}
+                                        supportingLabel={GAS_SYMBOL}
+                                        fullwidth
+                                    />
+                                    <KeyValueInfo
+                                        keyText="Remaining Total Staked IOTA"
+                                        value={remainingTotalStakedFormatted}
+                                        supportingLabel={GAS_SYMBOL}
+                                        fullwidth
+                                    />
+                                </>
+                            ) : (
+                                <>
+                                    <KeyValueInfo
+                                        keyText="Your Stake"
+                                        value={unstakeAmountFormatted}
+                                        supportingLabel={GAS_SYMBOL}
+                                        fullwidth
+                                    />
+                                    <KeyValueInfo
+                                        keyText="Rewards Earned"
+                                        value={rewardsFormatted}
+                                        supportingLabel={rewardSymbol}
+                                        fullwidth
+                                    />
+                                    <Divider />
+                                    <KeyValueInfo
+                                        keyText="Total unstaked IOTA"
+                                        value={totalUnstakeAmountFormatted}
+                                        supportingLabel={GAS_SYMBOL}
+                                        fullwidth
+                                    />
+                                </>
+                            )}
+                        </div>
+                    </Panel>
 
                     <Panel hasBorder>
                         <div className="flex flex-col gap-y-sm p-md">
@@ -313,6 +396,16 @@ export function UnstakeView({
                         />
                     </div>
                 )}
+                {getErrorMessage() && !isPartialUnstake && (
+                    <div className="pt-sm">
+                        <InfoBox
+                            supportingText={getErrorMessage()}
+                            icon={<Info />}
+                            type={InfoBoxType.Error}
+                            style={InfoBoxStyle.Elevated}
+                        />
+                    </div>
+                )}
                 <Button
                     type={ButtonType.Secondary}
                     fullWidth
@@ -322,6 +415,7 @@ export function UnstakeView({
                         activeIsPending ||
                         isTransactionPending ||
                         isNotEnoughGas ||
+                        activeIsError ||
                         isInvalidAmount ||
                         !delegationId
                     }
