@@ -11,6 +11,7 @@ import {
     splitCoinsTransaction,
     submitAndVerifyStaking,
     submitAndVerifyUnstaking,
+    submitAndVerifyPartialUnstaking,
 } from './utils/staking';
 import { generateKeypair } from './utils/utils';
 import { importWallet } from './utils/wallet';
@@ -34,6 +35,28 @@ test.describe('Staking functionality', () => {
             await expect(page.getByText(`${STAKE_AMOUNT} IOTA`)).not.toBeVisible({
                 timeout: SHORT_TIMEOUT,
             });
+        });
+
+        test('should partially unstake a staked amount', async ({ page, extensionUrl }) => {
+            test.setTimeout(LONG_TIMEOUT);
+            await setupWalletWithFunds(page, extensionUrl);
+            await navigateToStakePage(page);
+            await page.getByPlaceholder('0 IOTA').fill(STAKE_AMOUNT.toString());
+            await submitAndVerifyStaking(page);
+
+            // Partial unstake half the amount
+            await navigateToUnstakePage(page);
+            const partialAmount = (STAKE_AMOUNT / 2).toString();
+            await submitAndVerifyPartialUnstaking(page, partialAmount);
+
+            // Verify remaining stake is still visible
+            await expect(page.getByText('Current stake')).toBeVisible({
+                timeout: SHORT_TIMEOUT,
+            });
+
+            // Full unstake the rest
+            await navigateToUnstakePage(page);
+            await submitAndVerifyUnstaking(page);
         });
     });
 

@@ -51,8 +51,10 @@ export async function navigateToUnstakePage(page: Page) {
 
 export async function submitAndVerifyUnstaking(page: Page) {
     await expect(page.getByTestId('overlay-title')).toHaveText('Unstake');
+    const unstakeButton = page.getByRole('button', { name: 'Unstake', exact: true });
+    await expect(unstakeButton).toBeEnabled({ timeout: SHORT_TIMEOUT });
     await retryAction(async () => {
-        await page.getByRole('button', { name: 'Unstake' }).click();
+        await unstakeButton.click();
         await expect(page.getByText(/Unstake failed/)).not.toBeVisible({ timeout: 1500 });
         await expect(page.getByTestId('loading-indicator')).not.toBeVisible({
             timeout: SHORT_TIMEOUT,
@@ -71,6 +73,35 @@ export async function submitAndVerifyUnstaking(page: Page) {
     await expect(page.getByText(`Current stake`)).not.toBeVisible({
         timeout: SHORT_TIMEOUT,
     });
+}
+
+export async function submitAndVerifyPartialUnstaking(page: Page, amount: string) {
+    await expect(page.getByTestId('overlay-title')).toHaveText('Unstake');
+
+    // Switch to partial unstake mode and enter amount
+    await page.getByRole('button', { name: 'Partial Unstake' }).click();
+    await page.getByPlaceholder('Enter amount to unstake').fill(amount);
+
+    const unstakeButton = page.getByRole('button', { name: 'Unstake', exact: true });
+    await expect(unstakeButton).toBeEnabled({ timeout: SHORT_TIMEOUT });
+
+    await retryAction(async () => {
+        await unstakeButton.click();
+        await expect(page.getByText(/Unstake failed/)).not.toBeVisible({ timeout: 1500 });
+        await expect(page.getByTestId('loading-indicator')).not.toBeVisible({
+            timeout: SHORT_TIMEOUT,
+        });
+        await expect(page.getByTestId('overlay-title')).toHaveText('Transaction', {
+            timeout: 15000,
+        });
+    });
+
+    await expect(page.getByText(/Successfully sent/)).toBeVisible({ timeout: SHORT_TIMEOUT });
+    await expect(page.getByTestId('loading-indicator')).not.toBeVisible({
+        timeout: SHORT_TIMEOUT,
+    });
+
+    await page.getByTestId('close-icon').click();
 }
 
 async function retryAction<T>(action: () => Promise<T>, maxRetries = 3, delay = 2500) {
