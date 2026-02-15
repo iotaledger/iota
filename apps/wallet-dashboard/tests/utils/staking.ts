@@ -76,8 +76,10 @@ export async function submitAndVerifyUnstaking(
     await page.getByText(validatorName).click();
     await page.getByText('Unstake').click();
 
+    const unstakeButton = page.getByRole('button', { name: 'Unstake', exact: true });
+    await expect(unstakeButton).toBeEnabled({ timeout: SHORT_TIMEOUT });
     const walletApprovePagePromise = context.waitForEvent('page');
-    await page.getByRole('button', { name: 'Unstake' }).click();
+    await unstakeButton.click();
     const walletApprovePage = await walletApprovePagePromise;
     await walletApprovePage.getByRole('button', { name: 'Approve' }).click();
 
@@ -89,6 +91,34 @@ export async function submitAndVerifyUnstaking(
         timeout: SHORT_TIMEOUT,
     });
     expect(page.getByText(validatorName)).not.toBeVisible({ timeout: SHORT_TIMEOUT });
+}
+
+export async function submitAndVerifyPartialUnstaking(
+    page: Page,
+    context: BrowserContext,
+    amount: string,
+    validatorName: string = 'validator-0',
+): Promise<void> {
+    await page.getByText(validatorName).click();
+    await page.getByText('Unstake').click();
+
+    // Switch to partial unstake mode and enter amount
+    await page.getByRole('button', { name: 'Partial Unstake' }).click();
+    await page.getByPlaceholder('Enter amount to unstake').fill(amount);
+
+    const unstakeButton = page.getByRole('button', { name: 'Unstake', exact: true });
+    await expect(unstakeButton).toBeEnabled({ timeout: SHORT_TIMEOUT });
+
+    const walletApprovePagePromise = context.waitForEvent('page');
+    await unstakeButton.click();
+    const walletApprovePage = await walletApprovePagePromise;
+    await walletApprovePage.getByRole('button', { name: 'Approve' }).click();
+
+    await page.bringToFront();
+    await expect(page.getByText('Successfully sent')).toBeVisible({
+        timeout: SHORT_TIMEOUT,
+    });
+    await page.getByTestId('close-icon').click();
 }
 
 export async function getStakedAmount(page: Page): Promise<string | null> {
