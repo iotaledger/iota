@@ -5,6 +5,15 @@ import type { IotaObjectData, ObjectOwner } from '@iota/iota-sdk/src/client';
 import { type ControllerCap } from './types';
 
 /**
+ * Extracts DID Document from IOTA object data.
+ * @param objectData The IOTA object data.
+ * @returns a FieldObject or null if deleted.
+ */
+export function extractDidDoc(objectData: IotaObjectData): FieldObject | null {
+    return getField<FieldObject>(objectData.content as FieldObject, 'did_doc') || null;
+}
+
+/**
  * Extracts controller capabilities from IOTA object data.
  * @param objectData The IOTA object data.
  * @returns An array of controller capabilities.

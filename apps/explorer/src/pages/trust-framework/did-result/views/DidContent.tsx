@@ -17,6 +17,7 @@ import { DidSummaryView } from './DidSummaryView';
 import { DidDocumentJsonView } from './DidDocumentJsonView';
 import { SideBySidePanelsView } from './SideBySidePanelsView';
 import { TransactionsView } from './TransactionsView';
+import { extractDidDoc } from '../helper';
 
 interface DidContentProps {
     did: IotaDID;
@@ -26,6 +27,10 @@ export function DidContent({ did }: DidContentProps) {
     const { didDocument, isPending: isDidDocumentPending } = useResolveDid(did);
     const { data: objectResult, isPending: isObjectPending } = useGetObjectOrPastObject(did.tag());
     const didObject = useMemo(() => objectResult?.data || null, [objectResult?.data]);
+    const didDocFromObject = useMemo(
+        () => (didObject && extractDidDoc(didObject)) || null,
+        [didObject],
+    );
 
     const copyToClipboard = useCopyToClipboard(onCopySuccess);
     const iotaIdentityPackage = useIdentityPkgId();
@@ -61,6 +66,22 @@ export function DidContent({ did }: DidContentProps) {
                     <InfoBox
                         title="Error fetching DID Object"
                         supportingText={`Could not fetch DID Object ${did.tag()} from the current network.`}
+                        icon={<Warning />}
+                        type={InfoBoxType.Error}
+                        style={InfoBoxStyle.Elevated}
+                    />
+                }
+            />
+        );
+    }
+
+    if (didDocFromObject == null) {
+        return (
+            <PageLayout
+                content={
+                    <InfoBox
+                        title="Deleted DID"
+                        supportingText={`Deleted DID Object ${did.tag()} from the current network.`}
                         icon={<Warning />}
                         type={InfoBoxType.Error}
                         style={InfoBoxStyle.Elevated}
