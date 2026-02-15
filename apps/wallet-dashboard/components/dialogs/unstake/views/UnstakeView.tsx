@@ -272,15 +272,28 @@ export function UnstakeView({
 
                     <Panel hasBorder>
                         <div className="flex flex-col gap-y-sm p-md">
-                            <div className="flex items-center justify-between">
-                                <span className="text-neutral-40 text-label-lg">
-                                    Unstake Amount
-                                </span>
+                            <div className="flex gap-2">
                                 <Button
-                                    type={ButtonType.Secondary}
-                                    text={isPartialUnstake ? 'Partial Unstake' : 'Unstake All'}
+                                    type={
+                                        isPartialUnstake
+                                            ? ButtonType.Outlined
+                                            : ButtonType.Secondary
+                                    }
+                                    text="Unstake All"
                                     onClick={() => {
-                                        setIsPartialUnstake(!isPartialUnstake);
+                                        setIsPartialUnstake(false);
+                                        setPartialUnstakeAmount('');
+                                    }}
+                                />
+                                <Button
+                                    type={
+                                        isPartialUnstake
+                                            ? ButtonType.Secondary
+                                            : ButtonType.Outlined
+                                    }
+                                    text="Partial Unstake"
+                                    onClick={() => {
+                                        setIsPartialUnstake(true);
                                         setPartialUnstakeAmount('');
                                     }}
                                 />
