@@ -212,25 +212,12 @@ impl VersionedScoringMetrics {
     }
 
     pub fn reset(&self) {
-        match self {
-            VersionedScoringMetrics::V1(metrics) => {
-                for metric in metrics.faulty_blocks_provable() {
-                    metric.store(0, Ordering::Relaxed);
-                }
-                for metric in metrics.faulty_blocks_unprovable() {
-                    metric.store(0, Ordering::Relaxed);
-                }
-                for metric in metrics.equivocations() {
-                    metric.store(0, Ordering::Relaxed);
-                }
-                for metric in metrics.missing_proposals() {
-                    metric.store(0, Ordering::Relaxed);
-                }
-            }
+        for metric in self.iter().flatten() {
+            metric.store(0, Ordering::Relaxed);
         }
     }
 
-    pub fn iterate_over_metrics(&self) -> std::vec::IntoIter<&Vec<AtomicU64>> {
+    pub fn iter(&self) -> std::vec::IntoIter<&Vec<AtomicU64>> {
         match self {
             VersionedScoringMetrics::V1(metrics) => metrics.iter(),
         }
@@ -251,9 +238,9 @@ impl VersionedScoringMetrics {
             );
         }
         for (current_value, new_value) in self
-            .iterate_over_metrics()
+            .iter()
             .flatten()
-            .zip(report.iterate_over_metrics().flatten())
+            .zip(report.iter().flatten())
         {
             current_value.fetch_max(*new_value, Ordering::Relaxed);
         }

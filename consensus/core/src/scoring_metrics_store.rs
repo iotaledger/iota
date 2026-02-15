@@ -48,15 +48,15 @@ impl MysticetiScoringMetricsStore {
         // there is nothing to be recovered from storage, so recovered_scoring_metrics
         // will be None. In this case, the initialization functions will simply
         // initialize zeroed metrics for all authorities, so we can return here.
-        if recovered_scoring_metrics.is_none() {
+        let Some(recovered_scoring_metrics) = recovered_scoring_metrics else {
             return;
-        }
+        };
 
         // If recovered_scoring_metrics is not empty, we initialize metrics according to
         // them.
         match &context.protocol_config.scorer_version_as_option() {
             None | Some(1) => self.initialize_scoring_metrics_v1(
-                recovered_scoring_metrics.unwrap(),
+                recovered_scoring_metrics,
                 blocks_in_cache_by_authority,
                 threshold_clock_round,
                 eviction_rounds,
@@ -76,35 +76,42 @@ impl MysticetiScoringMetricsStore {
         eviction_rounds: &Vec<u32>,
         context: &Arc<Context>,
     ) {
-        let (faulty_blocks_provable, faulty_blocks_unprovable, missing_proposals, equivocations) = (
-            recovered_scoring_metrics.faulty_blocks_provable(),
-            recovered_scoring_metrics.faulty_blocks_unprovable(),
-            recovered_scoring_metrics.missing_proposals(),
-            recovered_scoring_metrics.equivocations(),
-        );
-        for ((authority_index, authority), blocks_in_cache, &eviction_round, fbp, fbu, mp, eq) in izip!(
+        let faulty_blocks_provable = recovered_scoring_metrics.load_faulty_blocks_provable();
+        let faulty_blocks_unprovable = recovered_scoring_metrics.load_faulty_blocks_unprovable();
+        let missing_proposals = recovered_scoring_metrics.load_missing_proposals();
+        let equivocations = recovered_scoring_metrics.load_equivocations();
+
+        for (
+            (authority_index, authority),
+            blocks_in_cache,
+            &eviction_round,
+            &fbp,
+            &fbu,
+            &mp,
+            &eq,
+        ) in izip!(
             context.committee.authorities(),
             blocks_in_cache_by_authority,
             eviction_rounds,
-            faulty_blocks_provable,
-            faulty_blocks_unprovable,
-            missing_proposals,
-            equivocations
+            &faulty_blocks_provable,
+            &faulty_blocks_unprovable,
+            &missing_proposals,
+            &equivocations
         ) {
             let hostname = authority.hostname.as_str();
 
             // Initialize the uncached scoring metrics according to
             // recovered_scoring_metrics
             self.initialize_faulty_blocks_metrics(
-                fbp.load(Ordering::Relaxed),
-                fbu.load(Ordering::Relaxed),
+                fbp,
+                fbu,
                 hostname,
                 authority_index,
                 &context.metrics.node_metrics,
             );
             self.update_missing_blocks_and_equivocations(
-                mp.load(Ordering::Relaxed),
-                eq.load(Ordering::Relaxed),
+                mp,
+                eq,
                 hostname,
                 authority_index,
                 StoreType::Uncached,
@@ -173,13 +180,11 @@ impl MysticetiScoringMetricsStore {
         source: ErrorSource,
         node_metrics: &NodeMetrics,
     ) {
-        let (metric_type, source_str) = match source {
-            ErrorSource::CommitSyncer => (classify_commit_syncer_error_v1(&error), "fetch_once"),
-            ErrorSource::Subscriber => (classify_subscriber_error_v1(&error), "handle_send_block"),
-            ErrorSource::Synchronizer => (
-                classify_synchronizer_error_v1(&error),
-                "process_fetched_blocks",
-            ),
+        let source_str = source.as_str();
+        let metric_type = match source {
+            ErrorSource::CommitSyncer => classify_commit_syncer_error_v1(&error),
+            ErrorSource::Subscriber => classify_subscriber_error_v1(&error),
+            ErrorSource::Synchronizer => classify_synchronizer_error_v1(&error),
         };
         match metric_type {
             MetricType::Provable => {
@@ -278,9 +283,8 @@ impl MysticetiScoringMetricsStore {
 
     // Updates the authority's scoring metrics according to the recent changes in
     // the DAG state, i.e., recent evictions and additions to cache. It also
-    // updates the current local metrics count used by Scorer. It returns metrics
-    // changes that should be updated in disk storage. authority_index should be a
-    // valid AuthorityIndex, otherwise this function will panic.
+    // updates the current local metrics count used by Scorer. authority_index
+    // should be a valid AuthorityIndex, otherwise this function will panic.
     pub(crate) fn update_scoring_metrics_on_eviction(
         &self,
         authority_index: AuthorityIndex,
@@ -366,11 +370,11 @@ impl MysticetiScoringMetricsStore {
     pub(crate) fn update_current_local_metrics_count(&self, authority_index: AuthorityIndex) {
         let uncached_metrics = &self
             .uncached_metrics
-            .iterate_over_metrics()
+            .iter()
             .map(|metric_vec| metric_vec[authority_index].load(Ordering::Relaxed))
             .collect::<Vec<u64>>();
         self.current_local_metrics_count
-            .iterate_over_metrics()
+            .iter()
             .zip(uncached_metrics)
             .for_each(|(local_metric_vec, uncached_metric)| {
                 local_metric_vec[authority_index].store(*uncached_metric, Ordering::Relaxed);
@@ -511,6 +515,16 @@ pub(crate) enum ErrorSource {
     Synchronizer,
 }
 
+impl ErrorSource {
+    pub(crate) fn as_str(&self) -> &'static str {
+        match self {
+            ErrorSource::CommitSyncer => "fetch_once",
+            ErrorSource::Subscriber => "handle_send_block",
+            ErrorSource::Synchronizer => "process_fetched_blocks",
+        }
+    }
+}
+
 #[cfg(test)]
 impl MysticetiScoringMetricsStore {
     // Creates a dummy scoring metrics store for testing purposes (i.e., without any
@@ -631,74 +645,90 @@ mod tests {
         }
     }
 
-    fn get_uncached_missing_proposals(context: &Arc<Context>) -> Vec<u64> {
-        let mut metrics = Vec::new();
-        for authority in context.committee.authorities() {
-            let hostname = authority.1.hostname.as_str();
-            metrics.push(
-                context
-                    .metrics
-                    .node_metrics
-                    .uncached_missing_proposals_by_authority
-                    .get_metric_with_label_values(&[hostname])
+    fn read_counter_metric(context: &Arc<Context>, metric: &prometheus::IntCounterVec) -> Vec<u64> {
+        context
+            .committee
+            .authorities()
+            .map(|(_, authority)| {
+                metric
+                    .get_metric_with_label_values(&[authority.hostname.as_str()])
                     .unwrap()
-                    .get(),
-            )
-        }
-        metrics
+                    .get()
+            })
+            .collect()
+    }
+
+    fn read_gauge_metric(context: &Arc<Context>, metric: &prometheus::IntGaugeVec) -> Vec<u64> {
+        context
+            .committee
+            .authorities()
+            .map(|(_, authority)| {
+                metric
+                    .get_metric_with_label_values(&[authority.hostname.as_str()])
+                    .unwrap()
+                    .get()
+                    .unsigned_abs()
+            })
+            .collect()
+    }
+
+    fn read_faulty_blocks_metric(
+        context: &Arc<Context>,
+        metric: &prometheus::IntCounterVec,
+        source: &ErrorSource,
+        error: &str,
+    ) -> Vec<u64> {
+        let source_str = source.as_str();
+        context
+            .committee
+            .authorities()
+            .map(|(_, authority)| {
+                metric
+                    .get_metric_with_label_values(&[authority.hostname.as_str(), source_str, error])
+                    .unwrap()
+                    .get()
+            })
+            .collect()
+    }
+
+    fn get_uncached_missing_proposals(context: &Arc<Context>) -> Vec<u64> {
+        read_counter_metric(
+            context,
+            &context
+                .metrics
+                .node_metrics
+                .uncached_missing_proposals_by_authority,
+        )
     }
 
     fn get_missing_proposals_in_cache(context: &Arc<Context>) -> Vec<u64> {
-        let mut metrics = Vec::new();
-        for authority in context.committee.authorities() {
-            let hostname = authority.1.hostname.as_str();
-            metrics.push(
-                context
-                    .metrics
-                    .node_metrics
-                    .missing_proposals_in_cache_by_authority
-                    .get_metric_with_label_values(&[hostname])
-                    .unwrap()
-                    .get()
-                    .unsigned_abs(),
-            )
-        }
-        metrics
+        read_gauge_metric(
+            context,
+            &context
+                .metrics
+                .node_metrics
+                .missing_proposals_in_cache_by_authority,
+        )
     }
 
     fn get_uncached_equivocations(context: &Arc<Context>) -> Vec<u64> {
-        let mut metrics = Vec::new();
-        for authority in context.committee.authorities() {
-            let hostname = authority.1.hostname.as_str();
-            metrics.push(
-                context
-                    .metrics
-                    .node_metrics
-                    .uncached_equivocations_by_authority
-                    .get_metric_with_label_values(&[hostname])
-                    .unwrap()
-                    .get(),
-            )
-        }
-        metrics
+        read_counter_metric(
+            context,
+            &context
+                .metrics
+                .node_metrics
+                .uncached_equivocations_by_authority,
+        )
     }
 
     fn get_equivocations_in_cache(context: &Arc<Context>) -> Vec<u64> {
-        let mut metrics = Vec::new();
-        for authority in context.committee.authorities() {
-            let hostname = authority.1.hostname.as_str();
-            metrics.push(
-                context
-                    .metrics
-                    .node_metrics
-                    .equivocations_in_cache_by_authority
-                    .get_metric_with_label_values(&[hostname])
-                    .unwrap()
-                    .get()
-                    .unsigned_abs(),
-            )
-        }
-        metrics
+        read_gauge_metric(
+            context,
+            &context
+                .metrics
+                .node_metrics
+                .equivocations_in_cache_by_authority,
+        )
     }
 
     fn is_all_zeroes(metrics: &[u64]) -> bool {
@@ -710,25 +740,15 @@ mod tests {
         source: &ErrorSource,
         error: &str,
     ) -> Vec<u64> {
-        let source_str = match source {
-            ErrorSource::CommitSyncer => "fetch_once",
-            ErrorSource::Subscriber => "handle_send_block",
-            ErrorSource::Synchronizer => "process_fetched_blocks",
-        };
-        let mut metrics = Vec::new();
-        for authority in context.committee.authorities() {
-            let hostname = authority.1.hostname.as_str();
-            metrics.push(
-                context
-                    .metrics
-                    .node_metrics
-                    .faulty_blocks_provable_by_authority
-                    .get_metric_with_label_values(&[hostname, source_str, error])
-                    .unwrap()
-                    .get(),
-            )
-        }
-        metrics
+        read_faulty_blocks_metric(
+            context,
+            &context
+                .metrics
+                .node_metrics
+                .faulty_blocks_provable_by_authority,
+            source,
+            error,
+        )
     }
 
     fn get_faulty_blocks_unprovable(
@@ -736,25 +756,15 @@ mod tests {
         source: &ErrorSource,
         error: &str,
     ) -> Vec<u64> {
-        let source_str = match source {
-            ErrorSource::CommitSyncer => "fetch_once",
-            ErrorSource::Subscriber => "handle_send_block",
-            ErrorSource::Synchronizer => "process_fetched_blocks",
-        };
-        let mut metrics = Vec::new();
-        for authority in context.committee.authorities() {
-            let hostname = authority.1.hostname.as_str();
-            metrics.push(
-                context
-                    .metrics
-                    .node_metrics
-                    .faulty_blocks_unprovable_by_authority
-                    .get_metric_with_label_values(&[hostname, source_str, error])
-                    .unwrap()
-                    .get(),
-            )
-        }
-        metrics
+        read_faulty_blocks_metric(
+            context,
+            &context
+                .metrics
+                .node_metrics
+                .faulty_blocks_unprovable_by_authority,
+            source,
+            error,
+        )
     }
 
     #[tokio::test]
@@ -1590,7 +1600,6 @@ mod tests {
 
         // Clear and check all metrics
         scoring_metrics.uncached_metrics.reset();
-        scoring_metrics.cached_metrics.reset();
         scoring_metrics.cached_metrics.reset();
         node_metrics
             .uncached_missing_proposals_by_authority

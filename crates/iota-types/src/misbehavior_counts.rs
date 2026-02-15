@@ -100,19 +100,13 @@ impl<T> FromIterator<T> for MisbehaviorsV1<T> {
     }
 }
 
-impl MisbehaviorsV1<u64> {
-    pub fn new_zeroed() -> Self {
-        Self::new(0, 0, 0, 0)
-    }
-}
-
 impl MisbehaviorsV1<Vec<u64>> {
     pub fn new_zeroed(committee_size: usize) -> Self {
         Self::new(
-            (0..committee_size).map(|_| 0).collect(),
-            (0..committee_size).map(|_| 0).collect(),
-            (0..committee_size).map(|_| 0).collect(),
-            (0..committee_size).map(|_| 0).collect(),
+            vec![0; committee_size],
+            vec![0; committee_size],
+            vec![0; committee_size],
+            vec![0; committee_size],
         )
     }
 
@@ -130,12 +124,6 @@ impl MisbehaviorsV1<Vec<u64>> {
                     .collect::<Vec<AtomicU64>>()
             })
             .collect::<MisbehaviorsV1<Vec<AtomicU64>>>()
-    }
-
-    pub fn misbehaviors_from_authority(&self, authority: usize) -> MisbehaviorsV1<u64> {
-        self.iter()
-            .map(|metric| metric[authority])
-            .collect::<MisbehaviorsV1<u64>>()
     }
 }
 
@@ -158,12 +146,6 @@ impl MisbehaviorsV1<Vec<AtomicU64>> {
                     .collect::<Vec<u64>>()
             })
             .collect::<MisbehaviorsV1<Vec<u64>>>()
-    }
-
-    pub fn misbehaviors_from_authority(&self, authority: usize) -> MisbehaviorsV1<u64> {
-        self.iter()
-            .map(|metric| metric[authority].load(std::sync::atomic::Ordering::Relaxed))
-            .collect::<MisbehaviorsV1<u64>>()
     }
 }
 
