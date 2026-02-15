@@ -38,38 +38,22 @@ impl MysticetiScoringMetricsStore {
     // recovered_scoring_metrics and blocks_in_cache_by_authority.
     pub(crate) fn initialize_scoring_metrics(
         &self,
-        mut recovered_scoring_metrics: Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>,
+        recovered_scoring_metrics: Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>,
         blocks_in_cache_by_authority: &Vec<BTreeSet<BlockRef>>,
         threshold_clock_round: u32,
         eviction_rounds: &Vec<u32>,
         context: &Arc<Context>,
     ) {
-        // It is possible that the vector recovered_scoring_metrics does not have a
-        // component for every authority. A perfectly functioning validator, for
-        // example, will never have its metrics updated, so no metric will ever be
-        // stored. For this reason, we manually "fill" this vector.
-        if recovered_scoring_metrics.len() < context.committee.size() {
-            for (i, _) in context.committee.authorities() {
-                if !recovered_scoring_metrics
-                    .iter()
-                    .any(|(index, _)| *index == i)
-                {
-                    // We add a component with zeroed metrics for the authority with index i.
-                    // This will ensure that every authority has its metrics initialized.
-                    // They are initialized as zero because if an authority does not have any
-                    // recovered metrics, it means that it never misbehaved in a way that was
-                    // detected by the node.
-                    recovered_scoring_metrics.insert(
-                        i.value(),
-                        (
-                            i,
-                            VersionedStorageScoringMetrics::new_zeroed(&context.protocol_config),
-                        ),
-                    );
-                }
-            }
+        // At the beginning of the epoch (i.e., before the epoch's first eviction),
+        // there is nothing to be recovered from storage, so recovered_scoring_metrics
+        // will be empty. In this case, the initialization functions will simply
+        // initialize zeroed metrics for all authorities, so we can return here.
+        if recovered_scoring_metrics.is_empty() {
+            return;
         }
 
+        // If recovered_scoring_metrics is not empty, we initialize metrics according to
+        // them.
         match &context.protocol_config.scorer_version_as_option() {
             None | Some(1) => self.initialize_scoring_metrics_v1(
                 recovered_scoring_metrics,
@@ -291,7 +275,8 @@ impl MysticetiScoringMetricsStore {
     // Updates the authority's scoring metrics according to the recent changes in
     // the DAG state, i.e., recent evictions and additions to cache. It also
     // updates the current local metrics count used by Scorer. It returns metrics
-    // changes that should be updated in disk storage.
+    // changes that should be updated in disk storage. authority_index should be a
+    // valid AuthorityIndex, otherwise this function will panic.
     pub(crate) fn update_scoring_metrics_on_eviction(
         &self,
         authority_index: AuthorityIndex,
@@ -301,13 +286,14 @@ impl MysticetiScoringMetricsStore {
         last_eviction_round: u32,
         threshold_clock_round: u32,
         context: &Arc<Context>,
-    ) -> Option<VersionedStorageScoringMetrics> {
-        let committee_size = context.committee.size();
+    ) -> VersionedStorageScoringMetrics {
         let node_metrics = &context.metrics.node_metrics;
-        // threshold_clock_round should be always at least 1.  Analogously,
-        // authority_index should be a valid index.
-        if threshold_clock_round == 0 || authority_index.value() >= committee_size {
-            return None;
+        // threshold_clock_round should be always at least 1.
+        if threshold_clock_round == 0 {
+            return VersionedStorageScoringMetrics::new_from(
+                &self.uncached_metrics,
+                authority_index.value(),
+            );
         }
 
         // Get the blocks rounds that were not evicted.
@@ -334,9 +320,13 @@ impl MysticetiScoringMetricsStore {
             node_metrics,
         );
 
-        // If no eviction happened, we do not update the metrics on storage.
+        // If no eviction happened, we do not update the current local metrics counts
+        // and the metrics on storage.
         if eviction_round == last_eviction_round {
-            return None;
+            return VersionedStorageScoringMetrics::new_from(
+                &self.uncached_metrics,
+                authority_index.value(),
+            );
         }
 
         // Get the evicted blocks rounds.
@@ -346,7 +336,7 @@ impl MysticetiScoringMetricsStore {
             .filter(|&round| round <= eviction_round)
             .collect::<Vec<u32>>();
 
-        // Update metrics according to the blocks from evicted rounds.
+        // Calculate metrics according to the blocks from evicted rounds.
         let (evicted_equivocations, missing_blocks_in_evicted_rounds) =
             calculate_scoring_metrics_for_range(
                 evicted_block_rounds,
@@ -354,6 +344,7 @@ impl MysticetiScoringMetricsStore {
                 eviction_round,
             );
 
+        // Update metrics according to the blocks from evicted rounds.
         self.update_missing_blocks_and_equivocations(
             missing_blocks_in_evicted_rounds,
             evicted_equivocations,
@@ -363,13 +354,14 @@ impl MysticetiScoringMetricsStore {
             node_metrics,
         );
 
-        // Update current local metrics count.
+        // Update current local metrics count according to the uncached metrics at this
+        // point in time. Note that this will update the counts for the metrics
+        // calculated above, but also for the other uncached metrics that were changed
+        // since the last eviction (e.g., faulty blocks metrics updated on block
+        // receival).
         self.update_current_local_metrics_count(authority_index);
 
-        Some(VersionedStorageScoringMetrics::new_from(
-            &self.uncached_metrics,
-            authority_index.value(),
-        ))
+        VersionedStorageScoringMetrics::new_from(&self.uncached_metrics, authority_index.value())
     }
 
     // The `authority_index` should be a valid index, otherwise the function will
@@ -781,7 +773,7 @@ mod tests {
 
         // Unexpected because: threshold_clock_round = last_evicted_round means that a
         // round with blocks from less than 2f+1 stake was evicted.
-        // Return: None, because nothing is currently being evicted.
+        // Return: Zeroed metrics, because nothing is currently being evicted.
         let last_evicted_round = 5;
         let eviction_round = 5;
         let threshold_clock_round = 5;
@@ -794,10 +786,19 @@ mod tests {
             threshold_clock_round,
             &context,
         );
-        assert!(stored_metrics.is_none());
+
+        assert_eq!(
+            stored_metrics,
+            VersionedStorageScoringMetrics::new_v1_for_test(
+                0, // faulty_blocks_provable
+                0, // faulty_blocks_unprovable
+                0, // missing_proposals
+                0, // equivocations
+            )
+        );
 
         // Unexpected because: threshold_clock_round = 0 means that genesis is missing.
-        // Return: None, because nothing is currently being evicted.
+        // Return: Zeroed metrics, because nothing is currently being evicted.
         let last_evicted_round = 0;
         let eviction_round = 0;
         let threshold_clock_round = 0;
@@ -810,7 +811,16 @@ mod tests {
             threshold_clock_round,
             &context,
         );
-        assert!(stored_metrics.is_none());
+
+        assert_eq!(
+            stored_metrics,
+            VersionedStorageScoringMetrics::new_v1_for_test(
+                0, // faulty_blocks_provable
+                0, // faulty_blocks_unprovable
+                0, // missing_proposals
+                0, // equivocations
+            )
+        );
 
         // Unexpected because: threshold_clock_round < eviction_round means that a
         // round with blocks from less than 2f+1 stake in being evicted.
@@ -827,14 +837,15 @@ mod tests {
             threshold_clock_round,
             &context,
         );
+
         assert_eq!(
             stored_metrics,
-            Some(VersionedStorageScoringMetrics::new_v1_for_test(
+            VersionedStorageScoringMetrics::new_v1_for_test(
                 0, // faulty_blocks_provable
                 0, // faulty_blocks_unprovable
                 3, // missing_proposals
                 0, // equivocations
-            ))
+            )
         );
 
         // Unexpected because: eviction_round < last_evicted_round means that blocks
@@ -853,19 +864,21 @@ mod tests {
             threshold_clock_round,
             &context,
         );
+
         assert_eq!(
             stored_metrics,
-            Some(VersionedStorageScoringMetrics::new_v1_for_test(
+            VersionedStorageScoringMetrics::new_v1_for_test(
                 0, // faulty_blocks_provable
                 0, // faulty_blocks_unprovable
                 3, // missing_proposals
                 0, // equivocations
-            ))
+            )
         );
 
         // Unexpected because: threshold_clock_round < eviction_round <
-        // last_evicted_round and threshold_clock_round. Return: metrics won't
-        // be updated here, so it should return the same as in the last step.
+        // last_evicted_round and threshold_clock_round.
+        // Return: metrics won't be updated here, so it should return the same as in the
+        // last step.
         let last_evicted_round = 2;
         let eviction_round = 0;
         let threshold_clock_round = 1;
@@ -878,19 +891,21 @@ mod tests {
             threshold_clock_round,
             &context,
         );
+
         assert_eq!(
             stored_metrics,
-            Some(VersionedStorageScoringMetrics::new_v1_for_test(
+            VersionedStorageScoringMetrics::new_v1_for_test(
                 0, // faulty_blocks_provable
                 0, // faulty_blocks_unprovable
                 3, // missing_proposals
                 0, // equivocations
-            ))
+            )
         );
 
         // Unexpected because: threshold_clock_round < last_evicted_round means that a
         // round with blocks from less than 2f+1 stake was evicted.
-        // Return: None, because nothing is currently being evicted.
+        // Return: metrics won't be updated here, so it should return the same as in the
+        // last step.
         let last_evicted_round = 1;
         let eviction_round = 2;
         let threshold_clock_round = 0;
@@ -903,7 +918,16 @@ mod tests {
             threshold_clock_round,
             &context,
         );
-        assert!(stored_metrics.is_none());
+
+        assert_eq!(
+            stored_metrics,
+            VersionedStorageScoringMetrics::new_v1_for_test(
+                0, // faulty_blocks_provable
+                0, // faulty_blocks_unprovable
+                3, // missing_proposals
+                0, // equivocations
+            )
+        );
 
         let last_evicted_round = 2;
         let eviction_round = 1;
@@ -917,27 +941,16 @@ mod tests {
             threshold_clock_round,
             &context,
         );
-        assert!(stored_metrics.is_none());
 
-        // The function should not panic if the authority index is out of
-        // bounds.
-        // Unexpected because: threshold_clock_round = last_evicted_round means that a
-        // round with blocks from less than 2f+1 stake was evicted.
-        // Return: None, because nothing is currently being evicted.
-        let out_of_bounds_authority_index = AuthorityIndex::new_for_test(4);
-        let last_evicted_round = 1;
-        let eviction_round = 2;
-        let threshold_clock_round = 3;
-        let stored_metrics = scoring_metrics_store.update_scoring_metrics_on_eviction(
-            out_of_bounds_authority_index,
-            hostname,
-            &recent_refs_by_authority,
-            eviction_round,
-            last_evicted_round,
-            threshold_clock_round,
-            &context,
+        assert_eq!(
+            stored_metrics,
+            VersionedStorageScoringMetrics::new_v1_for_test(
+                0, // faulty_blocks_provable
+                0, // faulty_blocks_unprovable
+                3, // missing_proposals
+                0, // equivocations
+            )
         );
-        assert!(stored_metrics.is_none());
     }
 
     #[tokio::test]

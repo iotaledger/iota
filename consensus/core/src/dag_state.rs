@@ -1072,9 +1072,7 @@ impl DagState {
                     threshold_clock_round,
                     &self.context,
                 );
-            if let Some(metrics_to_write_from_authority) = metrics_to_write_from_authority {
-                metrics_to_write.push((authority_index, metrics_to_write_from_authority));
-            }
+            metrics_to_write.push((authority_index, metrics_to_write_from_authority));
         }
 
         self.store
