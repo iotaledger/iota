@@ -5,7 +5,10 @@
 import type { IotaTransactionBlockResponseOptions } from '@iota/iota-sdk/client';
 import type { SignedTransaction, IotaSignTransactionInput } from './iotaSignTransaction.js';
 
-/** The latest API version of the signAndExecuteTransactionBlock API. */
+/** Name of the feature. */
+export const IotaSignAndExecuteTransaction = 'iota:signAndExecuteTransaction';
+
+/** The latest API version of the signAndExecuteTransaction API. */
 export type IotaSignAndExecuteTransactionVersion = '2.0.0';
 
 /**
@@ -15,7 +18,7 @@ export type IotaSignAndExecuteTransactionVersion = '2.0.0';
  */
 export type IotaSignAndExecuteTransactionFeature = {
     /** Namespace for the feature. */
-    'iota:signAndExecuteTransaction': {
+    [IotaSignAndExecuteTransaction]: {
         /** Version of the feature API. */
         version: IotaSignAndExecuteTransactionVersion;
         signAndExecuteTransaction: IotaSignAndExecuteTransactionMethod;
