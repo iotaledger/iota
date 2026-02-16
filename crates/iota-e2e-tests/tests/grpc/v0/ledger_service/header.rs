@@ -5,7 +5,7 @@ use iota_grpc_types::{
     headers,
     v0::ledger_service::{
         CheckpointDataStreamRequest, GetCheckpointDataRequest, GetEpochRequest, GetObjectsRequest,
-        GetServiceInfoRequest, GetTransactionsRequest, get_checkpoint_data_request::CheckpointId,
+        GetServiceInfoRequest, GetTransactionsRequest,
     },
 };
 use iota_macros::sim_test;
@@ -27,7 +27,7 @@ async fn test_response_headers() {
     {
         test_cluster.wait_for_checkpoint(2, None).await;
 
-        let request = GetServiceInfoRequest { read_mask: None };
+        let request = GetServiceInfoRequest::default();
 
         let response = ledger_client
             .get_service_info(request)
@@ -55,10 +55,7 @@ async fn test_response_headers() {
     {
         test_cluster.wait_for_epoch(Some(2)).await;
 
-        let request = GetEpochRequest {
-            epoch: Some(1),
-            read_mask: None,
-        };
+        let request = GetEpochRequest::default().with_epoch(1);
         let response = ledger_client
             .get_epoch(request)
             .await
@@ -76,11 +73,7 @@ async fn test_response_headers() {
 
     // Test get_objects
     {
-        let request = GetObjectsRequest {
-            requests: None,
-            read_mask: None,
-            max_message_size_bytes: None,
-        };
+        let request = GetObjectsRequest::default();
 
         let stream = ledger_client
             .get_objects(request)
@@ -98,11 +91,7 @@ async fn test_response_headers() {
 
     // Test get_transactions
     {
-        let request = GetTransactionsRequest {
-            requests: None,
-            read_mask: None,
-            max_message_size_bytes: None,
-        };
+        let request = GetTransactionsRequest::default();
 
         let stream = ledger_client
             .get_transactions(request)
@@ -120,13 +109,7 @@ async fn test_response_headers() {
 
     // Test get_checkpoint_data
     {
-        let request = GetCheckpointDataRequest {
-            checkpoint_id: Some(CheckpointId::Latest(true)),
-            read_mask: None,
-            transactions_filter: None,
-            events_filter: None,
-            max_message_size_bytes: None,
-        };
+        let request = GetCheckpointDataRequest::default().with_latest(true);
 
         let stream = ledger_client
             .get_checkpoint_data(request)
@@ -144,14 +127,9 @@ async fn test_response_headers() {
 
     // Test stream_checkpoint_data
     {
-        let request = CheckpointDataStreamRequest {
-            start_sequence_number: Some(1),
-            end_sequence_number: Some(2),
-            read_mask: None,
-            transactions_filter: None,
-            events_filter: None,
-            max_message_size_bytes: None,
-        };
+        let request = CheckpointDataStreamRequest::default()
+            .with_start_sequence_number(1)
+            .with_end_sequence_number(2);
 
         let stream = ledger_client
             .stream_checkpoint_data(request)

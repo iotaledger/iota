@@ -66,6 +66,15 @@ export function parseSerializedSignature(serializedSignature: string) {
                 multisig,
                 bytes,
             };
+        case 'MoveAuthenticator':
+            const moveAuthenticator = bcs.MoveAuthenticator.parse(bytes.slice(1));
+            return {
+                serializedSignature,
+                signatureScheme,
+                signature: bytes,
+                moveAuthenticator,
+                bytes,
+            };
         case 'ED25519':
         case 'Secp256k1':
         case 'Secp256r1':

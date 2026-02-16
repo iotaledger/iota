@@ -20,7 +20,7 @@
 //! let digest: Digest = todo!();
 //! let txs = client.get_transactions(&[digest], None).await?;
 //! if let Some(tx) = txs.first() {
-//!     println!("Transaction digest: {:?}", tx.digest()?);
+//!     println!("Transaction digest: {:?}", tx.transaction()?.digest()?);
 //! }
 //!
 //! // Get an object (None = use default field mask)
@@ -37,8 +37,8 @@ pub mod api;
 
 // Re-export types for convenience
 pub use api::{
-    CHECKPOINT_READ_MASK, CheckpointResponse, EXECUTION_READ_MASK, Error, OBJECTS_READ_MASK,
-    Result, TRANSACTIONS_READ_MASK,
+    CHECKPOINT_READ_MASK, CheckpointResponse, EPOCH_READ_MASK, EXECUTION_READ_MASK, Error,
+    OBJECTS_READ_MASK, Result, SERVICE_INFO_READ_MASK, TRANSACTIONS_READ_MASK,
 };
 
 mod client;
