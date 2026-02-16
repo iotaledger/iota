@@ -1,0 +1,79 @@
+---
+title: Basic Account Abstraction Example
+description: 'How to attach an authenticator to an account in Move'
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+---
+
+# Basic Account Abstraction Example
+
+## About Account Abstraction
+
+Account Abstraction in IOTA Move allows an account to delegate transaction authorization to a custom Move
+`authenticate` function.  
+Instead of verifying cryptographic signatures, the runtime executes this function during transaction validation
+to decide whether the transaction is allowed.
+
+The authenticator function is referenced on-chain via package metadata and attached to a shared account object.
+
+## What This Example Shows
+
+This how-to demonstrates the **minimum building blocks** required to use Account Abstraction:
+
+- Defining a shared account object
+- Attaching an authenticator function at runtime
+- Executing a transaction that is authorized via the authenticator
+
+This example intentionally avoids multisig, thresholds, or off-chain coordination to focus on core mechanics.
+
+## Example Code
+
+
+Below is the **minimal core code** required for Account Abstraction.  
+The full package includes additional setup and comments, but this snippet highlights only the essential logic.
+
+### Account creation and authenticator attachment
+
+```move reference
+https://github.com/iotaledger/iota/blob/develop/examples/move/account/sources/account.move#L4-L26
+```
+
+### Minimal authenticator function
+
+```move reference
+https://github.com/iotaledger/iota/blob/develop/examples/move/account/sources/account.move#L28-L46
+```
+
+### Code Outcome
+
+After attaching the authenticator:
+
+- The account becomes an abstract account
+- Any transaction sent from this account must pass the authenticate function
+- Transactions succeed only if the provided argument equals `"hello"`
+
+### Full Example Code
+
+The complete Move package, including comments and setup logic, is available here:
+
+<Tabs groupId="language" queryString>
+
+<TabItem value="move" label="Move">
+
+```move reference
+https://github.com/iotaledger/iota/blob/develop/examples/move/account/sources/account.move
+```
+
+</TabItem>
+</Tabs>
+
+### Expected Behavior
+
+After publishing the package, anyone can call `link_auth` to attach the authenticator to the shared account. The
+example authenticator accepts a message string and succeeds only when the message equals `"hello"`.
+
+## For reference and setup instructions, see the full Readme:
+
+[Readme](https://github.com/iotaledger/iota/blob/develop/examples/move/account/README.md)
