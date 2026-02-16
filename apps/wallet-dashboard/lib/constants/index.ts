@@ -3,3 +3,4 @@
 
 export * from './vesting.constants';
 export * from './migration.constants';
+export * from './metadata.constants';

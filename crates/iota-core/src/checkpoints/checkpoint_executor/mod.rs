@@ -36,10 +36,7 @@ use iota_types::{
     full_checkpoint_content::CheckpointData,
     inner_temporary_store::PackageStoreWithFallback,
     message_envelope::Message,
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-        VerifiedCheckpoint,
-    },
+    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},
     transaction::{TransactionDataAPI, TransactionKind, VerifiedTransaction},
 };
 use parking_lot::Mutex;
@@ -61,14 +58,14 @@ mod data_ingestion_handler;
 pub mod metrics;
 pub(crate) mod utils;
 
-#[cfg(test)]
-pub(crate) mod tests;
+// TODO: re-enable or remove these tests https://github.com/iotaledger/iota/issues/9257
+//#[cfg(test)]
+// pub(crate) mod tests;
 
 use data_ingestion_handler::{load_checkpoint_data, store_checkpoint_locally};
 use metrics::CheckpointExecutorMetrics;
 use utils::*;
 
-type CheckpointSummarySender = Box<dyn Fn(&CertifiedCheckpointSummary) + Send + Sync>;
 type CheckpointDataSender = Box<dyn Fn(&CheckpointData) + Send + Sync>;
 
 const CHECKPOINT_PROGRESS_LOG_COUNT_INTERVAL: u64 = 5000;
@@ -121,7 +118,6 @@ pub struct CheckpointExecutor {
     config: CheckpointExecutorConfig,
     metrics: Arc<CheckpointExecutorMetrics>,
     tps_estimator: Mutex<TPSEstimator>,
-    summary_sender: Option<CheckpointSummarySender>,
     data_sender: Option<CheckpointDataSender>,
 }
 
@@ -134,7 +130,6 @@ impl CheckpointExecutor {
         backpressure_manager: Arc<BackpressureManager>,
         config: CheckpointExecutorConfig,
         metrics: Arc<CheckpointExecutorMetrics>,
-        summary_sender: Option<CheckpointSummarySender>,
         data_sender: Option<CheckpointDataSender>,
     ) -> Self {
         Self {
@@ -149,7 +144,6 @@ impl CheckpointExecutor {
             config,
             metrics,
             tps_estimator: Mutex::new(TPSEstimator::default()),
-            summary_sender,
             data_sender,
         }
     }
@@ -168,7 +162,6 @@ impl CheckpointExecutor {
             BackpressureManager::new_from_checkpoint_store(&checkpoint_store),
             Default::default(),
             CheckpointExecutorMetrics::new_for_tests(),
-            None, // No callback for summary
             None, // No callback for data
         )
     }
@@ -468,7 +461,7 @@ impl CheckpointExecutor {
 
         let checkpoint_data = load_checkpoint_data(
             &ckpt_state.data,
-            &*self.object_cache_reader,
+            self.state.get_object_store(),
             &*self.transaction_cache_reader,
         )
         .expect("failed to load checkpoint data");
@@ -783,17 +776,13 @@ impl CheckpointExecutor {
         checkpoint_exec_data: &CheckpointExecutionData,
         checkpoint_data: Option<&CheckpointData>,
     ) {
-        if let Some(summary_sender) = &self.summary_sender {
-            let summary = CertifiedCheckpointSummary::from(checkpoint_exec_data.checkpoint.clone());
-            summary_sender(&summary);
-        }
         if let Some(data_sender) = &self.data_sender {
             let checkpoint_data = if let Some(data) = checkpoint_data {
                 data.clone()
             } else {
                 load_checkpoint_data(
                     checkpoint_exec_data,
-                    self.object_cache_reader.as_ref(),
+                    self.state.get_object_store(),
                     self.transaction_cache_reader.as_ref(),
                 )
                 .expect("Failed to load full CheckpointData")

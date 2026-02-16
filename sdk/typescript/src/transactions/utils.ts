@@ -2,9 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { is } from 'valibot';
+
 import type { IotaMoveNormalizedType } from '../client/index.js';
 import { normalizeIotaAddress } from '../utils/iota-types.js';
 import type { CallArg } from './data/internal.js';
+import { Argument } from './data/internal.js';
 
 export function extractMutableReference(
     normalizedType: IotaMoveNormalizedType,
@@ -64,4 +67,8 @@ export function getIdFromCallArg(arg: string | CallArg) {
     }
 
     return undefined;
+}
+
+export function isArgument(value: unknown): value is Argument {
+    return is(Argument, value);
 }

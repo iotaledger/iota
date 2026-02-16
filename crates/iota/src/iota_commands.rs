@@ -147,6 +147,19 @@ impl IndexerFeatureArgs {
 }
 
 #[derive(Parser)]
+#[clap(rename_all = "kebab-case")]
+pub struct IotaEnvConfig {
+    /// Sets the file storing the state of our user accounts (an empty one will
+    /// be created if missing)
+    #[clap(long = "client.config")]
+    pub config: Option<PathBuf>,
+    /// The IOTA environment to use. This must be present in the current config
+    /// file.
+    #[clap(long = "client.env")]
+    pub env: Option<String>,
+}
+
+#[derive(Parser)]
 pub enum IotaCommand {
     /// Start a local network in two modes: saving state between re-runs and not
     /// saving state between re-runs. Please use (--help) to see the full
@@ -326,10 +339,8 @@ pub enum IotaCommand {
     },
     /// Client for interacting with the IOTA network.
     Client {
-        /// Sets the file storing the state of our user accounts (an empty one
-        /// will be created if missing)
-        #[arg(long = "client.config")]
-        config: Option<PathBuf>,
+        #[clap(flatten)]
+        config: IotaEnvConfig,
         #[command(subcommand)]
         cmd: Option<IotaClientCommands>,
         /// Return command outputs in json format.
@@ -357,11 +368,8 @@ pub enum IotaCommand {
         /// Path to a package which the command should be run with respect to.
         #[arg(long = "path", short = 'p', global = true)]
         package_path: Option<PathBuf>,
-        /// Sets the file storing the state of our user accounts (an empty one
-        /// will be created if missing) Only used when the
-        /// `--dump-bytecode-as-base64` is set.
-        #[arg(long = "client.config")]
-        config: Option<PathBuf>,
+        #[clap(flatten)]
+        config: IotaEnvConfig,
         /// Package build options
         #[command(flatten)]
         build_config: BuildConfig,
@@ -374,9 +382,8 @@ pub enum IotaCommand {
     /// By using this service, you agree to the Terms & Conditions:
     /// iotanames.com/terms-of-service."
     Name {
-        /// The file storing the state of the user accounts
-        #[arg(long = "client.config")]
-        config: Option<PathBuf>,
+        #[clap(flatten)]
+        config: IotaEnvConfig,
         /// Return command outputs in json format.
         #[arg(long, global = true)]
         json: bool,
@@ -492,7 +499,9 @@ impl IotaCommand {
                 json,
                 accept_defaults,
             } => {
-                let config_path = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
+                let config_path = config
+                    .config
+                    .unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
                 prompt_if_no_config(
                     &config_path,
                     accept_defaults,
@@ -500,7 +509,10 @@ impl IotaCommand {
                     !matches!(cmd, Some(IotaClientCommands::NewAddress { .. })),
                 )?;
                 if let Some(cmd) = cmd {
-                    let mut context = WalletContext::new(&config_path, None, None)?;
+                    let mut context = WalletContext::new(&config_path)?;
+                    if let Some(env_override) = config.env {
+                        context = context.with_env_override(env_override);
+                    }
                     cmd.execute(&mut context).await?.print(!json);
                 } else {
                     // Print help
@@ -518,7 +530,7 @@ impl IotaCommand {
             } => {
                 let config_path = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
                 prompt_if_no_config(&config_path, accept_defaults, true, true)?;
-                let mut context = WalletContext::new(&config_path, None, None)?;
+                let mut context = WalletContext::new(&config_path)?;
                 if let Some(cmd) = cmd {
                     cmd.execute(&mut context, json).await?.print(!json);
                 } else {
@@ -544,10 +556,15 @@ impl IotaCommand {
                         // management. In addition, tree shaking also
                         // requires a network as it needs to fetch
                         // on-chain linkage table of package dependencies.
-                        let config =
-                            client_config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
+                        let config = client_config
+                            .config
+                            .unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
                         prompt_if_no_config(&config, false, true, true)?;
-                        let context = WalletContext::new(&config, None, None)?;
+                        let mut context = WalletContext::new(&config)?;
+
+                        if let Some(env_override) = client_config.env {
+                            context = context.with_env_override(env_override);
+                        }
 
                         let Ok(client) = context.get_client().await else {
                             bail!(
@@ -635,9 +652,11 @@ impl IotaCommand {
                         .bold()
                         .yellow()
                 );
-                let config_path = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
+                let config_path = config
+                    .config
+                    .unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
                 prompt_if_no_config(&config_path, false, true, true)?;
-                let mut context = WalletContext::new(&config_path, None, None)?;
+                let mut context = WalletContext::new(&config_path)?;
                 cmd.execute(&mut context).await?.print(!json);
                 Ok(())
             }
@@ -797,17 +816,23 @@ async fn start(
                 "Cannot open IOTA network config file at {network_config_path:?}"
             ))
         })?;
-        let genesis_path = config_path.join(IOTA_GENESIS_FILENAME);
-        let genesis = iota_config::genesis::Genesis::load(genesis_path)?;
-        let network_config = NetworkConfig {
-            validator_configs,
-            account_keys,
-            genesis,
-        };
-
-        swarm_builder = swarm_builder
-            .dir(config_path.clone())
-            .with_network_config(network_config);
+        let first_validator_config = validator_configs.first().ok_or(anyhow!(
+            "IOTA network config file must contain at least one validator config"
+        ))?;
+        let genesis = first_validator_config.genesis.clone();
+        let migration_tx_data_path = first_validator_config.migration_tx_data_path.clone();
+        ensure!(
+            validator_configs
+                .iter()
+                .all(|config| genesis.eq(&config.genesis)),
+            "All validators in IOTA network config must use the same genesis blob"
+        );
+        ensure!(
+            validator_configs
+                .iter()
+                .all(|config| migration_tx_data_path.eq(&config.migration_tx_data_path)),
+            "All validators in IOTA network config must use the same migration blob"
+        );
 
         let fullnode_config_path = config_path.join(IOTA_FULLNODE_CONFIG);
         if fullnode_config_path.exists() {
@@ -819,21 +844,32 @@ async fn start(
                 iota_names_config,
                 enable_grpc_api,
                 grpc_api_config,
+                db_path,
+                genesis: fullnode_genesis,
+                migration_tx_data_path: fullnode_migration_tx_data_path,
                 ..
             } = PersistedConfig::read(&fullnode_config_path).map_err(|err| {
                 err.context(format!(
                     "Cannot open fullnode config file at {fullnode_config_path:?}"
                 ))
             })?;
+            ensure!(
+                genesis.eq(&fullnode_genesis),
+                "Fullnode must use the same genesis blob as validators in IOTA network config"
+            );
+            ensure!(
+                migration_tx_data_path.eq(&fullnode_migration_tx_data_path),
+                "Fullnode must use the same migration blob as validators in IOTA network config"
+            );
+            swarm_builder = swarm_builder.with_fullnode_db_path(db_path);
 
             if let Some(iota_names_config) = iota_names_config {
-                swarm_builder = swarm_builder
-                    .dir(config_path.clone())
-                    .with_iota_names_config(iota_names_config);
+                swarm_builder = swarm_builder.with_iota_names_config(iota_names_config);
             }
 
-            // Apply gRPC configuration if enabled
+            swarm_builder = swarm_builder.with_fullnode_enable_grpc_api(enable_grpc_api);
             if enable_grpc_api {
+                // Apply gRPC configuration if enabled
                 if let Some(grpc_config) = grpc_api_config {
                     info!("Enabling gRPC API for fullnode with config: {grpc_config:?}");
                     swarm_builder = swarm_builder.with_fullnode_grpc_api_config(grpc_config);
@@ -844,6 +880,16 @@ async fn start(
                 }
             }
         }
+
+        let network_config = NetworkConfig {
+            validator_configs,
+            account_keys,
+            genesis: genesis.genesis()?.clone(),
+        };
+
+        swarm_builder = swarm_builder
+            .dir(config_path.clone())
+            .with_network_config(network_config);
     }
 
     // the indexer requires to set the fullnode's data ingestion directory

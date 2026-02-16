@@ -48,3 +48,4 @@ export type {
 } from './json-rpc-resolver.js';
 
 export { Arguments } from './Arguments.js';
+export { isArgument } from './utils.js';
