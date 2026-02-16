@@ -10557,22 +10557,7 @@
             ],
             "properties": {
               "ImmOrOwnedObject": {
-                "type": "array",
-                "items": [
-                  {
-                    "$ref": "#/components/schemas/ObjectId"
-                  },
-                  {
-                    "type": "integer",
-                    "format": "uint64",
-                    "minimum": 0.0
-                  },
-                  {
-                    "$ref": "#/components/schemas/Digest"
-                  }
-                ],
-                "maxItems": 3,
-                "minItems": 3
+                "$ref": "#/components/schemas/ObjectReference"
               }
             },
             "additionalProperties": false
@@ -10614,22 +10599,7 @@
             ],
             "properties": {
               "Receiving": {
-                "type": "array",
-                "items": [
-                  {
-                    "$ref": "#/components/schemas/ObjectId"
-                  },
-                  {
-                    "type": "integer",
-                    "format": "uint64",
-                    "minimum": 0.0
-                  },
-                  {
-                    "$ref": "#/components/schemas/Digest"
-                  }
-                ],
-                "maxItems": 3,
-                "minItems": 3
+                "$ref": "#/components/schemas/ObjectReference"
               }
             },
             "additionalProperties": false
