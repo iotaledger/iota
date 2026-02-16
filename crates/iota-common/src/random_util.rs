@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_macros::nondeterministic;
 use rand::{Rng, seq::SliceRandom};
 
 use crate::{in_test_configuration, random::get_rng};
@@ -35,4 +36,12 @@ where
     let random_size = rng.gen_range(two..size);
     let choices = [two, size, random_size];
     *choices.choose(&mut rng).unwrap()
+}
+
+pub type TempDir = tempfile::TempDir;
+
+/// Creates a temporary directory with random name.
+/// Ensure the name is randomized even in simtests.
+pub fn tempdir() -> std::io::Result<TempDir> {
+    nondeterministic!(tempfile::tempdir())
 }

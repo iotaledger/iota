@@ -55,7 +55,7 @@ use std::{
 
 use dashmap::{DashMap, mapref::entry::Entry as DashMapEntry};
 use futures::{FutureExt, future::BoxFuture};
-use iota_common::{sync::notify_read::NotifyRead, util::randomize_cache_capacity_in_tests};
+use iota_common::{random_util::randomize_cache_capacity_in_tests, sync::notify_read::NotifyRead};
 use iota_config::WritebackCacheConfig;
 use iota_macros::fail_point;
 use iota_types::{
