@@ -71,6 +71,26 @@ impl From<anyhow::Error> for RpcError {
     }
 }
 
+impl From<iota_types::iota_sdk_types_conversions::SdkTypeConversionError> for RpcError {
+    fn from(value: iota_types::iota_sdk_types_conversions::SdkTypeConversionError) -> Self {
+        Self {
+            code: Code::Internal,
+            message: Some(value.to_string()),
+            details: None,
+        }
+    }
+}
+
+impl From<bcs::Error> for RpcError {
+    fn from(value: bcs::Error) -> Self {
+        Self {
+            code: Code::Internal,
+            message: Some(value.to_string()),
+            details: None,
+        }
+    }
+}
+
 impl From<iota_grpc_types::google::rpc::bad_request::FieldViolation> for RpcError {
     fn from(value: iota_grpc_types::google::rpc::bad_request::FieldViolation) -> Self {
         BadRequest::from(value).into()

@@ -48,19 +48,24 @@ async fn assert_get_transactions_request(
     expected_field_mask_paths: &[&str],
     scenario: &str,
 ) -> Vec<GetTransactionsResponse> {
-    let request = GetTransactionsRequest {
-        requests: Some(TransactionRequests {
-            requests: digests
+    let mut request = GetTransactionsRequest::default().with_requests(
+        TransactionRequests::default().with_requests(
+            digests
                 .iter()
-                .map(|d| TransactionRequest {
-                    digest: Some(iota_grpc_types::v0::types::Digest {
-                        digest: d.inner().to_vec().into(),
-                    }),
+                .map(|d| {
+                    TransactionRequest::default().with_digest({
+                        iota_grpc_types::v0::types::Digest::default()
+                            .with_digest(d.inner().to_vec())
+                    })
                 })
                 .collect(),
-        }),
-        read_mask,
-        max_message_size_bytes,
+        ),
+    );
+    if let Some(mask) = read_mask {
+        request = request.with_read_mask(mask);
+    }
+    if let Some(size) = max_message_size_bytes {
+        request = request.with_max_message_size_bytes(size);
     };
 
     let mut stream = ledger_client
@@ -358,24 +363,18 @@ async fn get_transactions_nonexistent() {
     let fake_digest1 = TransactionDigest::new([0u8; 32]);
     let fake_digest2 = TransactionDigest::new([1u8; 32]);
 
-    let request = GetTransactionsRequest {
-        requests: Some(TransactionRequests {
-            requests: vec![
-                TransactionRequest {
-                    digest: Some(iota_grpc_types::v0::types::Digest {
-                        digest: fake_digest1.inner().to_vec().into(),
-                    }),
-                },
-                TransactionRequest {
-                    digest: Some(iota_grpc_types::v0::types::Digest {
-                        digest: fake_digest2.inner().to_vec().into(),
-                    }),
-                },
-            ],
-        }),
-        read_mask: None,
-        max_message_size_bytes: None,
-    };
+    let request = GetTransactionsRequest::default().with_requests(
+        TransactionRequests::default().with_requests(vec![
+            TransactionRequest::default().with_digest({
+                iota_grpc_types::v0::types::Digest::default()
+                    .with_digest(fake_digest1.inner().to_vec())
+            }),
+            TransactionRequest::default().with_digest({
+                iota_grpc_types::v0::types::Digest::default()
+                    .with_digest(fake_digest2.inner().to_vec())
+            }),
+        ]),
+    );
 
     let mut stream = ledger_client
         .get_transactions(request)
@@ -436,26 +435,20 @@ async fn get_transactions_mixed_valid_invalid() {
     // Request mix of valid and invalid digests
     let fake_digest = TransactionDigest::new([0u8; 32]);
 
-    let request = GetTransactionsRequest {
-        requests: Some(TransactionRequests {
-            requests: vec![
-                // Valid digest first
-                TransactionRequest {
-                    digest: Some(iota_grpc_types::v0::types::Digest {
-                        digest: real_digest.inner().to_vec().into(),
-                    }),
-                },
-                // Invalid digest
-                TransactionRequest {
-                    digest: Some(iota_grpc_types::v0::types::Digest {
-                        digest: fake_digest.inner().to_vec().into(),
-                    }),
-                },
-            ],
-        }),
-        read_mask: Some(FieldMask::from_paths(["transaction.digest"])),
-        max_message_size_bytes: None,
-    };
+    let request = GetTransactionsRequest::default()
+        .with_requests(TransactionRequests::default().with_requests(vec![
+            // Valid digest first
+            TransactionRequest::default().with_digest({
+                iota_grpc_types::v0::types::Digest::default()
+                    .with_digest(real_digest.inner().to_vec())
+            }),
+            // Invalid digest
+            TransactionRequest::default().with_digest({
+                iota_grpc_types::v0::types::Digest::default()
+                    .with_digest(fake_digest.inner().to_vec())
+            }),
+        ]))
+        .with_read_mask(FieldMask::from_paths(["transaction.digest"]));
 
     let mut stream = ledger_client
         .get_transactions(request)

@@ -22,7 +22,9 @@ async fn execute_transaction_transfer() {
 
     let effects = result
         .effects()
-        .expect("Failed to get SDK effects from execution result");
+        .expect("Failed to get effects from execution result")
+        .effects()
+        .expect("Failed to get inner effects from execution result");
 
     assert!(
         is_success(effects.status()),
@@ -63,6 +65,8 @@ async fn execute_transaction_minimal_mask() {
             result
                 .effects()
                 .expect("Failed to get SDK effects from execution result with minimal mask")
+                .effects()
+                .expect("Failed to get inner effects from execution result with minimal mask")
                 .status()
         ),
         "Effects should show successful execution"
@@ -127,6 +131,8 @@ async fn execute_transaction_idempotency() {
             result1
                 .effects()
                 .expect("Failed to get SDK effects from first execution result")
+                .effects()
+                .expect("Failed to get inner effects from first execution result")
                 .status()
         ),
         "First execution should succeed"
@@ -145,6 +151,8 @@ async fn execute_transaction_idempotency() {
             result2
                 .effects()
                 .expect("Failed to get SDK effects from re-execution result")
+                .effects()
+                .expect("Failed to get inner effects from re-execution result")
                 .status()
         ),
         "Re-execution should show success (cached result)"
