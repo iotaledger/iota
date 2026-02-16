@@ -214,7 +214,7 @@ impl CheckpointStore {
     }
 
     pub fn new_for_tests() -> Arc<Self> {
-        let ckpt_dir = tempfile::tempdir().unwrap();
+        let ckpt_dir = iota_common::tempdir().unwrap();
         CheckpointStore::new(ckpt_dir.path())
     }
 

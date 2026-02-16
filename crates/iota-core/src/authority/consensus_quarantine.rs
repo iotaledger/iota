@@ -7,7 +7,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque, hash_map};
 use dashmap::DashMap;
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
-use iota_common::{fatal, util::randomize_cache_capacity_in_tests};
+use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_types::{
     authenticator_state::ActiveJwk,
     base_types::{AuthorityName, ObjectID, SequenceNumber, TransactionDigest},
