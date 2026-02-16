@@ -1509,7 +1509,7 @@ impl TestClusterBuilder {
 
         let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
         for key in &swarm.config().account_keys {
-            keystore.add_key(None, IotaKeyPair::Ed25519(key.copy()))?;
+            keystore.import(None, IotaKeyPair::Ed25519(key.copy()))?;
         }
 
         let active_address = keystore.addresses().first().cloned();

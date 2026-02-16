@@ -30,6 +30,7 @@ use fastcrypto::{
 };
 use iota_keys::{
     key_derive::generate_new_key,
+    key_identity::KeyIdentity,
     keypair_file::{
         read_authority_keypair_from_file, read_keypair_from_file, write_authority_keypair_to_file,
         write_keypair_to_file,
@@ -66,9 +67,6 @@ use tracing::info;
 
 use crate::{
     PrintableResult,
-    key_identity::{
-        KeyIdentity, get_identity_address_from_keystore, get_identity_alias_from_keystore,
-    },
     signing::{ExternalKeySource, SignData, sign_secure},
 };
 

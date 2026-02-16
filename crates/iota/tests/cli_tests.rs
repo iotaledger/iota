@@ -30,7 +30,6 @@ use iota::{
     },
     client_ptb::ptb::{PTB, PTBCommandResult},
     iota_commands::{IotaCommand, IotaEnvConfig, parse_host_port},
-    key_identity::{KeyIdentity, get_identity_address},
 };
 use iota_config::{
     IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME,
@@ -43,7 +42,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, ObjectChange, OwnedObjectRef,
     get_new_package_obj_from_response,
 };
-use iota_keys::keystore::AccountKeystore;
+use iota_keys::{key_identity::KeyIdentity, keystore::AccountKeystore};
 use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::{
@@ -485,7 +484,7 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
         context
             .config_mut()
             .keystore_mut()
-            .add_key(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
+            .import(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
     }
 
     // Print all addresses
@@ -508,11 +507,7 @@ async fn test_objects_command() -> Result<(), anyhow::Error> {
         .await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
-    let alias = context
-        .config()
-        .keystore()
-        .get_alias_by_address(&address)
-        .unwrap();
+    let alias = context.config().keystore().get_alias(&address).unwrap();
     // Print objects owned by `address`
     IotaClientCommands::Objects {
         address: Some(KeyIdentity::Address(address)),
@@ -950,11 +945,7 @@ async fn test_gas_command() -> Result<(), anyhow::Error> {
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
-    let alias = context
-        .config()
-        .keystore()
-        .get_alias_by_address(&address)
-        .unwrap();
+    let alias = context.config().keystore().get_alias(&address).unwrap();
 
     let client = context.get_client().await?;
     let object_refs = client
@@ -3217,7 +3208,7 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
         context
             .config()
             .keystore()
-            .keys()
+            .entries()
             .iter()
             .filter(|k| k.public().flag() == Ed25519IotaSignature::SCHEME.flag())
             .count(),
@@ -3238,7 +3229,7 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
         context
             .config()
             .keystore()
-            .keys()
+            .entries()
             .iter()
             .filter(|k| k.public().flag() == Secp256k1IotaSignature::SCHEME.flag())
             .count(),
@@ -3326,11 +3317,7 @@ async fn test_active_address_command() -> Result<(), anyhow::Error> {
     );
 
     // switch back to addr1 by using its alias
-    let alias1 = context
-        .config()
-        .keystore()
-        .get_alias_by_address(&addr1)
-        .unwrap();
+    let alias1 = context.config().keystore().get_alias(&addr1).unwrap();
     let resp = IotaClientCommands::Switch {
         address: Some(KeyIdentity::Alias(alias1)),
         env: None,
@@ -3842,11 +3829,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
     let address = test_cluster.get_address_0();
     let address1 = test_cluster.get_address_1();
     let context = &mut test_cluster.wallet;
-    let alias1 = context
-        .config()
-        .keystore()
-        .get_alias_by_address(&address1)
-        .unwrap();
+    let alias1 = context.config().keystore().get_alias(&address1).unwrap();
     let client = context.get_client().await?;
     let object_refs = client
         .read_api()
@@ -4165,37 +4148,33 @@ async fn key_identity_test() {
         .await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
-    let alias = context
-        .config()
-        .keystore()
-        .get_alias_by_address(&address)
-        .unwrap();
+    let alias = context.config().keystore().get_alias(&address).unwrap();
 
     // by alias
     assert_eq!(
         address,
-        get_identity_address(Some(KeyIdentity::Alias(alias)), context)
-            .await
+        context
+            .get_identity_address(Some(KeyIdentity::Alias(alias)))
             .unwrap()
     );
     // by address
     assert_eq!(
         address,
-        get_identity_address(Some(KeyIdentity::Address(address)), context)
-            .await
+        context
+            .get_identity_address(Some(KeyIdentity::Address(address)))
             .unwrap()
     );
     // alias does not exist
     assert!(
-        get_identity_address(Some(KeyIdentity::Alias("alias".to_string())), context)
-            .await
+        context
+            .get_identity_address(Some(KeyIdentity::Alias("alias".to_string())))
             .is_err()
     );
 
     // get active address instead when no alias/address is given
     assert_eq!(
         context.active_address().unwrap(),
-        get_identity_address(None, context).await.unwrap()
+        context.get_identity_address(None).unwrap()
     );
 }
 

@@ -13,7 +13,10 @@ use iota_json_rpc_types::{
     IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
-use iota_keys::keystore::{AccountKeystore, Keystore};
+use iota_keys::{
+    key_identity::KeyIdentity,
+    keystore::{AccountKeystore, Keystore},
+};
 use iota_sdk_types::crypto::Intent;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef},
@@ -107,6 +110,17 @@ impl WalletContext {
         self.env_override.clone()
     }
 
+    pub fn get_identity_address(
+        &self,
+        input: Option<KeyIdentity>,
+    ) -> Result<IotaAddress, anyhow::Error> {
+        if let Some(key_identity) = input {
+            Ok(self.config.keystore.get_by_identity(key_identity)?)
+        } else {
+            self.active_address()
+        }
+    }
+
     /// Get the configured [`IotaClient`].
     pub async fn get_client(&self) -> Result<IotaClient, anyhow::Error> {
         let read = self.client.read().await;
@@ -164,7 +178,7 @@ impl WalletContext {
         }
     }
 
-    /// Get the latest object reference given a object id.
+    /// Get the latest object reference given an object id
     pub async fn get_object_ref(&self, object_id: ObjectID) -> Result<ObjectRef, anyhow::Error> {
         let client = self.get_client().await?;
         Ok(client
@@ -377,7 +391,7 @@ impl WalletContext {
 
     /// Add an account.
     pub fn add_account(&mut self, alias: impl Into<Option<String>>, keypair: IotaKeyPair) {
-        self.config.keystore.add_key(alias.into(), keypair).unwrap();
+        self.config.keystore.import(alias.into(), keypair).unwrap();
     }
 
     /// Sign a transaction with a key currently managed by the WalletContext.

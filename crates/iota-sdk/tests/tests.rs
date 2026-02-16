@@ -12,7 +12,7 @@ fn mnemonic_test() {
     let keystore_path = temp_dir.path().join("iota.keystore");
     let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
     let (address, phrase, scheme) = keystore
-        .generate_and_add_new_key(SignatureScheme::ED25519, None, None, None)
+        .generate(SignatureScheme::ED25519, None, None, None)
         .unwrap();
 
     let keystore_path_2 = temp_dir.path().join("iota2.keystore");

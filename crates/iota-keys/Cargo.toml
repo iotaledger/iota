@@ -6,6 +6,9 @@ edition = "2021"
 license = "Apache-2.0"
 publish = false
 
+[features]
+iota-names = ["dep:iota-names"]
+
 [dependencies]
 # external dependencies
 anyhow.workspace = true
@@ -22,6 +25,7 @@ tiny-bip39 = "1.0"
 tracing.workspace = true
 
 # internal dependencies
+iota-names = { workspace = true, optional = true }
 iota-sdk-types.workspace = true
 iota-types.workspace = true
 

@@ -7183,6 +7183,7 @@ dependencies = [
  "anyhow",
  "bip32",
  "fastcrypto",
+ "iota-names",
  "iota-sdk-types",
  "iota-types",
  "rand 0.8.5",

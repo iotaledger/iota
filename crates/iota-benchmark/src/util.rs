@@ -27,7 +27,7 @@ pub fn get_ed25519_keypair_from_keystore(
     requested_address: &IotaAddress,
 ) -> Result<AccountKeyPair> {
     let keystore = FileBasedKeystore::new(&keystore_path)?;
-    match keystore.get_key(requested_address) {
+    match keystore.export(requested_address) {
         Ok(StoredKey::KeyPair(IotaKeyPair::Ed25519(kp))) => Ok(kp.copy()),
         other => bail!("Invalid key type: {:?}", other),
     }
