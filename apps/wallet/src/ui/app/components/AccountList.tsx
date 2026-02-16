@@ -15,6 +15,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { useBalance, useFormatCoin } from '@iota/core';
+import { useAccounts } from '_hooks';
 
 interface AccountListProps<A> {
     accounts: A[];
@@ -29,6 +30,9 @@ export function AccountList<A extends { address: string }>({
     onAccountClick,
     selectAll,
 }: AccountListProps<A>) {
+    const { data: existingAccounts } = useAccounts();
+
+    const existingAddresses = new Set((existingAccounts ?? []).map((acc) => acc.address));
     const headersData = [
         { label: 'Address', columnKey: 1 },
         { label: '', columnKey: 2 },
@@ -60,25 +64,30 @@ export function AccountList<A extends { address: string }>({
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {rowsData.map((row, rowIndex) => (
-                    <TableRow
-                        key={rowIndex}
-                        leading={
-                            <TableRowCheckbox
-                                rowIndex={rowIndex}
-                                onCheckboxChange={(checked) =>
-                                    onAccountClick(accounts[rowIndex], checked)
-                                }
-                            />
-                        }
-                    >
-                        {row.map((cell, cellIndex) => (
-                            <TableCellBase key={cellIndex}>
-                                <TableCellText>{cell}</TableCellText>
-                            </TableCellBase>
-                        ))}
-                    </TableRow>
-                ))}
+                {rowsData.map((row, rowIndex) => {
+                    const isExisting = existingAddresses.has(accounts[rowIndex].address);
+                    return (
+                        <TableRow
+                            key={rowIndex}
+                            leading={
+                                <TableRowCheckbox
+                                    rowIndex={rowIndex}
+                                    isDisabled={isExisting}
+                                    onCheckboxChange={(checked) => {
+                                        if (isExisting) return;
+                                        onAccountClick(accounts[rowIndex], checked);
+                                    }}
+                                />
+                            }
+                        >
+                            {row.map((cell, cellIndex) => (
+                                <TableCellBase key={cellIndex}>
+                                    <TableCellText>{cell}</TableCellText>
+                                </TableCellBase>
+                            ))}
+                        </TableRow>
+                    );
+                })}
             </TableBody>
         </Table>
     );
