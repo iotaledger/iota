@@ -155,7 +155,7 @@ impl StressTestRunner {
             .await
             .unwrap();
 
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         effects
     }
 

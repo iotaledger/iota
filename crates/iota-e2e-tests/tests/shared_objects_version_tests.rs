@@ -30,7 +30,7 @@ async fn objects_transitioning_to_shared_remember_their_previous_version() {
     let (counter, _) = env.increment_owned_counter(counter).await;
     assert_ne!(counter.version, OBJECT_START_VERSION);
 
-    let ExecutionFailureStatus::MoveAbort(location, code) =
+    let ExecutionFailureStatus::MoveAbort{location, code} =
         env.share_counter(counter).await.unwrap_err()
     else {
         panic!()
@@ -49,7 +49,7 @@ async fn shared_object_owner_doesnt_change_on_write() {
     let (counter, _) = env.create_counter().await;
 
     let (inc_counter, _) = env.increment_owned_counter(counter).await;
-    let ExecutionFailureStatus::MoveAbort(location, code) =
+    let ExecutionFailureStatus::MoveAbort{location, code} =
         env.share_counter(inc_counter).await.unwrap_err()
     else {
         panic!()
@@ -68,7 +68,7 @@ async fn initial_shared_version_mismatch_start_version() {
     let (counter, _) = env.create_counter().await;
 
     let (counter, _) = env.increment_owned_counter(counter).await;
-    let ExecutionFailureStatus::MoveAbort(location, code) =
+    let ExecutionFailureStatus::MoveAbort{location, code} =
         env.share_counter(counter).await.unwrap_err()
     else {
         panic!()
@@ -86,7 +86,7 @@ async fn initial_shared_version_mismatch_current_version() {
     let env = TestEnvironment::new().await;
     let (counter, _) = env.create_counter().await;
 
-    let ExecutionFailureStatus::MoveAbort(location, code) =
+    let ExecutionFailureStatus::MoveAbort{location, code} =
         env.share_counter(counter).await.unwrap_err()
     else {
         panic!()

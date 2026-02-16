@@ -123,7 +123,7 @@ async fn resolve_transaction_simple_transfer() {
         .unwrap()
         .effects;
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     assert_eq!(
         resolved.simulation.unwrap().effects,
         effects.try_into().unwrap()
@@ -208,7 +208,7 @@ async fn resolve_transaction_transfer_with_sponsor() {
         .unwrap()
         .effects;
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     assert_eq!(
         resolved.simulation.unwrap().effects,
         effects.try_into().unwrap()
@@ -268,7 +268,7 @@ async fn resolve_transaction_borrowed_shared_object() {
         .unwrap()
         .effects;
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 }
 
 #[sim_test]
@@ -346,7 +346,7 @@ async fn resolve_transaction_mutable_shared_object() {
         .unwrap()
         .effects;
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     assert_eq!(
         resolved.simulation.unwrap().effects,
         effects.try_into().unwrap()
