@@ -263,7 +263,6 @@ impl ValidatorConfigBuilder {
             grpc_api_config: None,
             chain_override_for_testing: self.chain_override,
             validator_client_monitor_config: None,
-            use_transaction_driver: false,
         }
     }
 
@@ -624,7 +623,6 @@ impl FullnodeConfigBuilder {
             grpc_api_config,
             chain_override_for_testing: self.chain_override,
             validator_client_monitor_config: None,
-            use_transaction_driver: false,
         }
     }
 
