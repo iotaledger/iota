@@ -166,7 +166,10 @@ pub enum EffectsFinality {
     },
 }
 
-#[derive(PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
+type ReadableDisplay =
+    ::serde_with::As<::serde_with::IfIsHumanReadable<::serde_with::DisplayFromStr>>;
+
+#[derive(PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct BalanceChange {
     /// Owner of the balance change
     pub address: IotaAddress,
@@ -175,5 +178,37 @@ pub struct BalanceChange {
     /// The amount indicate the balance value changes,
     /// negative amount means spending coin value and positive means receiving
     /// coin value.
+    #[serde(with = "ReadableDisplay")]
+    #[schemars(with = "I128")]
     pub amount: i128,
+}
+
+use schemars::{
+    JsonSchema,
+    schema::{InstanceType, Metadata, SchemaObject},
+};
+
+pub(crate) struct I128;
+
+impl JsonSchema for I128 {
+    fn schema_name() -> String {
+        "i128".to_owned()
+    }
+
+    fn json_schema(_: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
+        SchemaObject {
+            metadata: Some(Box::new(Metadata {
+                description: Some("Radix-10 encoded 128-bit signed integer".to_owned()),
+                ..Default::default()
+            })),
+            instance_type: Some(InstanceType::String.into()),
+            format: Some("i128".to_owned()),
+            ..Default::default()
+        }
+        .into()
+    }
+
+    fn is_referenceable() -> bool {
+        false
+    }
 }

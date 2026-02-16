@@ -682,9 +682,7 @@ impl Merge<iota_types::effects::TransactionEvents> for TransactionEvents {
             return Ok(());
         }
 
-        let sdk_events: iota_sdk_types::TransactionEvents = source
-            .try_into()
-            .map_err(|e| format!("failed to convert events to SDK type: {e}"))?;
+        let sdk_events: iota_sdk_types::TransactionEvents = source.into();
 
         Merge::merge(self, &sdk_events, mask)
     }

@@ -939,13 +939,19 @@ mod checked {
             let user_events = user_events
                 .into_iter()
                 .map(|(module_id, tag, contents)| {
-                    Event::new(
-                        IotaAddress::new(module_id.address().into_bytes()),
-                        Identifier::new_unchecked(module_id.name().as_str()),
-                        tx_context.sender(),
-                        tag,
-                        contents,
+                    let package_id = iota_types::base_types::ObjectID::from_bytes(
+                        module_id.address().into_bytes(),
                     )
+                    .expect("valid object id");
+                    let module = Identifier::new_unchecked(module_id.name().as_str());
+                    let sender = tx_context.sender();
+                    Event {
+                        package_id,
+                        module,
+                        sender,
+                        type_: tag,
+                        contents,
+                    }
                 })
                 .collect();
 

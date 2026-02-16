@@ -2902,6 +2902,7 @@ dependencies = [
  "iota-metrics",
  "iota-move-natives-latest",
  "iota-protocol-config",
+ "iota-sdk-types",
  "iota-types",
  "iota-verifier-latest",
  "leb128",
@@ -3098,6 +3099,7 @@ dependencies = [
  "iota-names",
  "iota-package-resolver",
  "iota-protocol-config",
+ "iota-sdk-types",
  "iota-types",
  "itertools 0.13.0",
  "json_to_table",
@@ -3405,7 +3407,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=87a781f46ab173d87dc050fa6bad85367492ce69#87a781f46ab173d87dc050fa6bad85367492ce69"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b863acabc4379bfb5fbb4fb0773fdfad7f107fc3#b863acabc4379bfb5fbb4fb0773fdfad7f107fc3"
 dependencies = [
  "base64ct",
  "bcs",
