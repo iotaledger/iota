@@ -366,11 +366,9 @@ class RustTestOrchestrator:
             crate_list = [c.strip() for c in changed_crates.split() if c.strip()]
             return self.build_filterset_included_rdeps(crate_list)
         
-        # if no crates were changed, we want to run all tests.
-        # because changes that trigger the workflow but which aren't explicitly in a crate can potentially affect the entire workspace
-        # returning an empty filter_set does that
-        return ""
-    
+        # If no crates were changed, we should not run any tests
+        return None
+
     # build_filterset_tests builds a combined filter set for tests based on the given conditions
     # tests_crates_workspace: run tests for rust crates
     # tests_pg_integration: run tests that depend on Postgres
@@ -386,15 +384,24 @@ class RustTestOrchestrator:
         # they are run separately after the nextest tests via "cargo test"
         exclude_set = self.build_filterset_excluded(self.FILTERSET_TESTS_POSTGRES_SHARED_TEST_RUNTIME)
         
+        tests_added = False
+
         if tests_crates_workspace:
             changed_crates_rust_filter = self.build_filterset_changed_crates(
                 test_only_changed_crates, changed_crates, changed_crates_given
             )
-            filter_set = self.append_filter_item_or(filter_set, changed_crates_rust_filter)
+            # If changed_crates_rust_filter is None, it means no workspace crates changed,
+            # so we shouldn't add any workspace tests
+            if changed_crates_rust_filter is not None:
+                filter_set = self.append_filter_item_or(filter_set, changed_crates_rust_filter)
+                tests_added = True
+            else:
+                self.logger.info("Skipping workspace tests - no workspace crates changed")
         
         if tests_pg_integration:
             postgres_tests_filter = self.build_filterset_included(self.FILTERSET_TESTS_POSTGRES_PG_INTEGRATION)
             filter_set = self.append_filter_item_or(filter_set, postgres_tests_filter)
+            tests_added = True
         else:
             postgres_tests_exclude_filter = self.build_filterset_excluded(self.FILTERSET_TESTS_POSTGRES_PG_INTEGRATION)
             exclude_set = self.append_filter_item_and(exclude_set, postgres_tests_exclude_filter)
@@ -402,8 +409,9 @@ class RustTestOrchestrator:
         if tests_move_example_used_by_others:
             move_examples_rdeps_tests_filter = self.build_filterset_included(self.FILTERSET_TESTS_MOVE_EXAMPLES_RDEPS)
             filter_set = self.append_filter_item_or(filter_set, move_examples_rdeps_tests_filter)
+            tests_added = True
         
-        return self.build_filterset_combined(filter_set, exclude_set)
+        return self.build_filterset_combined(filter_set, exclude_set), tests_added
     
     # finalize_filter_set appends "-E" to the beginning of the string if it is not empty
     def finalize_filter_set(self, filter_set: str) -> str:
@@ -581,29 +589,39 @@ class RustTestOrchestrator:
             external_filter = self.build_filterset_changed_crates(
                 test_only_changed_crates, changed_crates_external, changed_crates_external_given
             )
-            exclude_external = self.build_filterset_excluded(self.EXCLUDE_SET_EXTERNAL)
-            combined_external = self.build_filterset_combined(external_filter, exclude_external)
             
-            # first run tests for external crates (they are not part of the workspace)
-            if test_type == self.TEST_TYPE_NEXTEST:
-                result = self.run_cargo_nextest(
-                    combined_external,
-                    ".config/nextest_external.toml", 
-                    "external-crates/move/Cargo.toml",
-                    "tracing"
-                )
-                if result != 0:
-                    return result
+            # If external_filter is None, it means no external crates changed,
+            # so we shouldn't add any external tests
+            if external_filter is not None:
+                exclude_external = self.build_filterset_excluded(self.EXCLUDE_SET_EXTERNAL)
+                combined_external = self.build_filterset_combined(external_filter, exclude_external)
+                
+                # first run tests for external crates (they are not part of the workspace)
+                if test_type == self.TEST_TYPE_NEXTEST:
+                    result = self.run_cargo_nextest(
+                        combined_external,
+                        ".config/nextest_external.toml", 
+                        "external-crates/move/Cargo.toml",
+                        "tracing"
+                    )
+                    if result != 0:
+                        return result
+            else:
+                self.logger.info("Skipping external crates tests - no external crates changed")
         
         # check again if any of the other conditions are set, in case only external crates were set
         if not any([tests_crates_workspace, tests_pg_integration, tests_move_example_used_by_others]):
             return 0
         
         # Build main test filter set
-        combined_set = self.build_filterset_tests(
+        combined_set, tests_added = self.build_filterset_tests(
             tests_crates_workspace, tests_pg_integration, tests_move_example_used_by_others,
             test_only_changed_crates, changed_crates, changed_crates_given
         )
+        
+        if not tests_added:
+            self.logger.error("No tests to run after building filter set. Exiting.")
+            return 0
         
         # check if a restart of postgres is needed
         if tests_pg_integration and restart_postgres:
