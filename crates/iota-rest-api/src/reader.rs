@@ -102,7 +102,7 @@ impl StateReader {
         Ok((
             transaction.try_into()?,
             effects.try_into()?,
-            events.map(TryInto::try_into).transpose()?,
+            events.map(Into::into),
         ))
     }
 

@@ -17,7 +17,7 @@ use iota_config::WritebackCacheConfig;
 use iota_framework::BuiltInFramework;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, random_object_ref},
+    base_types::{Identifier, IotaAddress, ObjectID, StructTag, random_object_ref},
     crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair_from_rng},
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     event::Event,
@@ -47,6 +47,21 @@ impl<T> AssertInserted for Option<T> {
 impl AssertInserted for bool {
     fn assert_inserted(&self) {
         assert!(*self);
+    }
+}
+
+fn random_event() -> Event {
+    Event {
+        package_id: ObjectID::random(),
+        module: Identifier::new("test").unwrap(),
+        sender: IotaAddress::random(),
+        type_: StructTag::new(
+            IotaAddress::random(),
+            Identifier::new("test").unwrap(),
+            Identifier::new("test").unwrap(),
+            vec![],
+        ),
+        contents: vec![],
     }
 }
 
@@ -244,7 +259,7 @@ impl Scenario {
 
     pub fn with_events(&mut self) {
         let mut events: TransactionEvents = Default::default();
-        events.data.push(Event::random_for_testing());
+        events.data.push(random_event());
 
         let effects = TestEffectsBuilder::new(self.outputs.transaction.inner())
             .with_events_digest(events.digest())
