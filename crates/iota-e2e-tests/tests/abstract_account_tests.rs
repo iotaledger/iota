@@ -389,7 +389,10 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
         .unwrap();
     let summary = effects_cert.summary_for_debug();
 
-    assert!(summary.status.is_failure(), "Expected the TX execution to fail");
+    assert!(
+        summary.status.is_failure(),
+        "Expected the TX execution to fail"
+    );
     assert!(
         summary.gas_used.gas_used() == 3401600
             && summary.mutated_object_count == 2
@@ -404,8 +407,8 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
         matches!(
             summary.status.unwrap_err().0,
             ExecutionFailureStatus::MoveAbort{location: MoveLocation { module, function_name, .. }, code: abort_code}
-            if module.name().as_str() == "basic_keyed_aa"
-            && function_name == Some("authenticate_ed25519".to_string())
+            if module.as_str() == "basic_keyed_aa"
+            && function_name == Some(Identifier::from_static("authenticate_ed25519"))
             && ErrorBitset::from_u64(abort_code).unwrap().error_code() == Some(0)
         ),
         "Expected failure to be a Move abort in basic_keyed_aa::authenticate_ed25519",
@@ -607,7 +610,7 @@ async fn test_receiving_gas_executing_aa_tx_later() -> Result<(), anyhow::Error>
         .create_certificate(tx2, Some(client_ip))
         .await;
     assert!(
-        tx2_cert.is_success(),
+        tx2_cert.is_ok(),
         "Expected TX2 certificate creation to succeed"
     );
 

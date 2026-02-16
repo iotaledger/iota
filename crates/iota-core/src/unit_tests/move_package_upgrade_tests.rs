@@ -466,8 +466,8 @@ async fn test_upgrade_incompatible() {
 async fn test_upgrade_package_incorrect_digest() {
     let mut runner = UpgradeStateRunner::new("move_upgrade/base").await;
     let (digest, modules) = build_upgrade_test_modules("stage1_basic_compatibility_valid");
-    let digest = Digest::from_bytes(digest).unwrap();
     let bad_digest = vec![0; digest.len()];
+    let digest = Digest::from_bytes(digest).unwrap();
 
     let effects = runner
         .upgrade(UpgradePolicy::COMPATIBLE, bad_digest, modules, vec![])
