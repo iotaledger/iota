@@ -144,8 +144,7 @@ impl EventFilter {
 
             EventFilter::MovePackageAndModule { package, module } => {
                 item.package_id == *package
-                    && (module.is_none()
-                        || matches!(module,  Some(m2) if m2 == &item.transaction_module))
+                    && (module.is_none() || matches!(module,  Some(m2) if m2 == &item.module))
             }
             EventFilter::MoveEventPackageAndModule { package, module } => {
                 &item.type_.address() == package.as_address()
