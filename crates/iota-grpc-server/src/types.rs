@@ -631,13 +631,8 @@ impl GrpcReader {
                                             }
                                         }
 
-                                        // Convert matching event to SDK type
-                                        let sdk_event: iota_sdk_types::Event = raw_event
-                                            .clone()
-                                            .try_into()
-                                            .map_err(|e| Status::internal(format!("event conversion error: {e}")))?;
-                                        let grpc_event = grpc_event::Event::merge_from(&sdk_event, &events_submask)
-                                            .map_err(|e| Status::internal(format!("event merge error: {e}")))?;
+                                        let grpc_event = grpc_event::Event::merge_from(raw_event, &events_submask)
+                                             .map_err(|e| Status::internal(format!("event merge error: {e}")))?;
                                         let event_size = grpc_event.encoded_len();
 
                                         // Check if adding this event would exceed limit

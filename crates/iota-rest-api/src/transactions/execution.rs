@@ -6,9 +6,8 @@ use std::{net::SocketAddr, sync::Arc};
 
 use axum::extract::{Query, State, rejection::ExtensionRejection};
 use iota_sdk_types::{
-    Address, BalanceChange, CheckpointSequenceNumber, Object, Owner, SignedTransaction,
-    Transaction, TransactionEffects, TransactionEvents, ValidatorAggregatedSignature,
-    framework::Coin,
+    Address, CheckpointSequenceNumber, Object, Owner, SignedTransaction, Transaction,
+    TransactionEffects, TransactionEvents, ValidatorAggregatedSignature, framework::Coin,
 };
 use iota_types::transaction_executor::{SimulateTransactionResult, TransactionExecutor, VmChecks};
 use schemars::JsonSchema;
@@ -17,6 +16,7 @@ use tap::Pipe;
 use crate::{
     RestError, RestService, Result,
     accept::AcceptFormat,
+    client::BalanceChange,
     openapi::{ApiEndpoint, OperationBuilder, RequestBodyBuilder, ResponseBuilder, RouteHandler},
     response::{Bcs, ResponseContent},
 };
@@ -111,7 +111,7 @@ async fn execute_transaction(
     };
 
     let events = if parameters.events {
-        events.map(TryInto::try_into).transpose()?
+        events.map(Into::into)
     } else {
         None
     };
@@ -445,7 +445,7 @@ pub(super) fn simulate_transaction_impl(
         ));
     }
 
-    let events = events.map(TryInto::try_into).transpose()?;
+    let events = events.map(Into::into);
     let effects = effects.try_into()?;
 
     let input_objects = input_objects
