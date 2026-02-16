@@ -151,7 +151,7 @@ impl OptimisticTransactionExecutor {
         // all fields should be Some, the only exception should be `checkpoint` &
         // `timestamp` fields which are always None.
         let effects = executed_transaction.effects()?.effects()?.try_into()?;
-        let events = TransactionEvents::try_from(executed_transaction.events()?.events()?)?;
+        let events = TransactionEvents::from(executed_transaction.events()?.events()?);
         let input_objects = grpc_conversion::objects(executed_transaction.input_objects()?)?;
         let output_objects = grpc_conversion::objects(executed_transaction.output_objects()?)?;
 

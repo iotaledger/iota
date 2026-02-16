@@ -282,11 +282,27 @@ mod tests {
     use std::{fs, io::Read, path::PathBuf, str::FromStr};
 
     use iota_types::{
+        base_types::{Identifier, IotaAddress, StructTag},
         event::Event,
         messages_checkpoint::{CertifiedCheckpointSummary, FullCheckpointContents},
     };
 
     use super::*;
+
+    fn random_event() -> Event {
+        Event {
+            package_id: ObjectID::random(),
+            module: Identifier::from_static("test"),
+            sender: IotaAddress::random(),
+            type_: StructTag::new(
+                IotaAddress::random(),
+                Identifier::from_static("test"),
+                Identifier::from_static("test"),
+                vec![],
+            ),
+            contents: vec![],
+        }
+    }
 
     const FIXTURES_DIR: &str = "tests/fixtures";
 
@@ -413,11 +429,11 @@ mod tests {
         let tx_digest_0 = *tx0.transaction.digest();
 
         if let Some(events) = tx0.events.as_mut() {
-            events.data.push(Event::random_for_testing());
+            events.data.push(random_event());
         } else {
             // if there are no events yet, add them
             tx0.events = Some(TransactionEvents {
-                data: vec![Event::random_for_testing()],
+                data: vec![random_event()],
             });
         }
 
