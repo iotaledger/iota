@@ -6,10 +6,13 @@ syntax = "proto3";
 
 package iota.grpc.v0.signatures;
 
+import "iota/grpc/options.proto";
 import "iota/grpc/v0/bcs.proto";
 
 // A signature from a user.
 message UserSignature {
+  option (iota.grpc.message_accessors) = "with";
+
   // This signature serialized as as BCS.
   //
   // When provided as input this will support both the form that is length
@@ -19,10 +22,14 @@ message UserSignature {
 
 // A list of user signatures.
 message UserSignatures {
+  option (iota.grpc.message_accessors) = "with";
+
   repeated UserSignature signatures = 1;
 }
 
 /// An aggregated signature from multiple validators.
 message ValidatorAggregatedSignature {
+  option (iota.grpc.message_accessors) = "with";
+
   optional iota.grpc.v0.bcs.BcsData bcs = 1;
 }
