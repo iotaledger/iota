@@ -2,12 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-pub type ExecutionStatus = iota_sdk_types::ExecutionStatus;
-pub type ExecutionFailureStatus = iota_sdk_types::ExecutionError;
-pub type PackageUpgradeError = iota_sdk_types::PackageUpgradeError;
-pub type CommandArgumentError = iota_sdk_types::CommandArgumentError;
-pub type TypeArgumentError = iota_sdk_types::TypeArgumentError;
-pub type MoveLocation = iota_sdk_types::MoveLocation;
+pub use iota_sdk_types::{
+    CommandArgumentError, ExecutionError as ExecutionFailureStatus, ExecutionStatus, MoveLocation,
+    PackageUpgradeError, TypeArgumentError,
+};
+
 // pub type MoveLocationOpt = iota_sdk_types::MoveLocationOpt;
 
 #[cfg(test)]

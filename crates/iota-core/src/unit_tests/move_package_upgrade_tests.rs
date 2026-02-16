@@ -216,7 +216,7 @@ impl UpgradeStateRunner {
             builder.finish()
         };
         let effects = self.run(pt).await;
-        assert!(effects.status().is_ok(), "{:#?}", effects.status());
+        assert!(effects.status().is_success(), "{:#?}", effects.status());
 
         let package = effects
             .created()
@@ -261,7 +261,7 @@ impl UpgradeStateRunner {
         };
 
         let effects = self.run(pt).await;
-        if effects.status().is_ok() {
+        if effects.status().is_success() {
             self.package = effects
                 .created()
                 .into_iter()
@@ -360,7 +360,7 @@ async fn test_upgrade_package_happy_path() {
             builder.finish()
         })
         .await;
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
 }
 
 #[tokio::test]
@@ -378,7 +378,7 @@ async fn test_upgrade_introduces_type_then_uses_it() {
         )
         .await;
 
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
     let package_v2 = runner.package.object_id;
 
     // Second upgrade introduces an entry function that creates `B`s.
@@ -392,7 +392,7 @@ async fn test_upgrade_introduces_type_then_uses_it() {
         )
         .await;
 
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
     let package_v3 = runner.package.object_id;
 
     // Create an instance of the type introduced at version 2, with the function
@@ -405,7 +405,7 @@ async fn test_upgrade_introduces_type_then_uses_it() {
         })
         .await;
 
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
     let created = effects
         .created()
         .into_iter()
@@ -438,7 +438,7 @@ async fn test_upgrade_introduces_type_then_uses_it() {
         })
         .await;
 
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
 }
 
 #[tokio::test]
@@ -453,7 +453,7 @@ async fn test_upgrade_incompatible() {
     assert_eq!(
         effects.into_status().unwrap_err().0,
         ExecutionFailureStatus::PackageUpgradeError {
-            upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
+            kind: PackageUpgradeError::IncompatibleUpgrade,
         },
     )
 }
@@ -471,7 +471,7 @@ async fn test_upgrade_package_incorrect_digest() {
     assert_eq!(
         effects.into_status().unwrap_err().0,
         ExecutionFailureStatus::PackageUpgradeError {
-            upgrade_error: PackageUpgradeError::DigestDoesNotMatch { digest }
+            kind: PackageUpgradeError::DigestDoesNotMatch { digest }
         }
     );
 }
@@ -491,7 +491,7 @@ async fn test_upgrade_package_compatibility_too_permissive() {
         })
         .await;
 
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
 
     let (digest, modules) = build_upgrade_test_modules("stage1_basic_compatibility_valid");
     let effects = runner
@@ -517,7 +517,7 @@ async fn test_upgrade_package_compatible_in_dep_only_mode() {
     assert_eq!(
         effects.into_status().unwrap_err().0,
         ExecutionFailureStatus::PackageUpgradeError {
-            upgrade_error: PackageUpgradeError::IncompatibleUpgrade
+            kind: PackageUpgradeError::IncompatibleUpgrade
         },
     );
 }
@@ -544,7 +544,7 @@ async fn test_upgrade_package_add_new_module_in_dep_only_mode_pre_v5() {
         .upgrade(UpgradePolicy::DEP_ONLY, digest, modules, dep_ids)
         .await;
 
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
 }
 
 #[tokio::test]
@@ -576,7 +576,7 @@ public fun friend_call(): u64 { base_addr::base::friend_fun(1) }
         assert_eq!(
             effects.into_status().unwrap_err().0,
             ExecutionFailureStatus::PackageUpgradeError {
-                upgrade_error: PackageUpgradeError::IncompatibleUpgrade
+                kind: PackageUpgradeError::IncompatibleUpgrade
             },
         );
     }
@@ -611,7 +611,7 @@ public fun friend_call(): u64 { base_addr::base::friend_fun(1) }
         assert_eq!(
             effects.into_status().unwrap_err().0,
             ExecutionFailureStatus::PackageUpgradeError {
-                upgrade_error: PackageUpgradeError::IncompatibleUpgrade
+                kind: PackageUpgradeError::IncompatibleUpgrade
             },
         );
     }
@@ -629,7 +629,7 @@ async fn test_upgrade_package_compatible_in_additive_mode() {
     assert_eq!(
         effects.into_status().unwrap_err().0,
         ExecutionFailureStatus::PackageUpgradeError {
-            upgrade_error: PackageUpgradeError::IncompatibleUpgrade
+            kind: PackageUpgradeError::IncompatibleUpgrade
         },
     );
 }
@@ -644,7 +644,7 @@ async fn test_upgrade_package_invalid_compatibility() {
     assert!(matches!(
         effects.into_status().unwrap_err().0,
         ExecutionFailureStatus::PackageUpgradeError {
-            upgrade_error: PackageUpgradeError::UnknownUpgradePolicy { policy: 255 }
+            kind: PackageUpgradeError::UnknownUpgradePolicy { policy: 255 }
         }
     ));
 }
@@ -661,7 +661,7 @@ async fn test_upgrade_package_missing_type() {
     assert!(matches!(
         effects.into_status().unwrap_err().0,
         ExecutionFailureStatus::PackageUpgradeError {
-            upgrade_error: PackageUpgradeError::IncompatibleUpgrade
+            kind: PackageUpgradeError::IncompatibleUpgrade
         }
     ));
 }
@@ -678,7 +678,7 @@ async fn test_upgrade_package_missing_type_module_removal() {
     assert!(matches!(
         effects.into_status().unwrap_err().0,
         ExecutionFailureStatus::PackageUpgradeError {
-            upgrade_error: PackageUpgradeError::IncompatibleUpgrade
+            kind: PackageUpgradeError::IncompatibleUpgrade
         }
     ));
 }
@@ -692,7 +692,7 @@ async fn test_upgrade_package_additive_mode() {
         .upgrade(UpgradePolicy::ADDITIVE, digest, modules, vec![])
         .await;
 
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
 }
 
 #[tokio::test]
@@ -707,7 +707,7 @@ async fn test_upgrade_package_invalid_additive_mode() {
     assert_eq!(
         effects.into_status().unwrap_err().0,
         ExecutionFailureStatus::PackageUpgradeError {
-            upgrade_error: PackageUpgradeError::IncompatibleUpgrade
+            kind: PackageUpgradeError::IncompatibleUpgrade
         },
     );
 }
@@ -724,7 +724,7 @@ async fn test_upgrade_package_additive_dep_only_mode() {
     assert_eq!(
         effects.into_status().unwrap_err().0,
         ExecutionFailureStatus::PackageUpgradeError {
-            upgrade_error: PackageUpgradeError::IncompatibleUpgrade
+            kind: PackageUpgradeError::IncompatibleUpgrade
         },
     );
 }
@@ -756,7 +756,7 @@ async fn test_upgrade_package_not_a_ticket() {
     assert_eq!(
         effects.into_status().unwrap_err().0,
         ExecutionFailureStatus::CommandArgumentError {
-            arg_idx: 0,
+            argument: 0,
             kind: CommandArgumentError::TypeMismatch
         }
     );
@@ -787,7 +787,7 @@ async fn test_upgrade_ticket_doesnt_match() {
     assert!(matches!(
         effects.into_status().unwrap_err().0,
         ExecutionFailureStatus::PackageUpgradeError {
-            upgrade_error: PackageUpgradeError::PackageIDDoesNotMatch {
+            kind: PackageUpgradeError::PackageIDDoesNotMatch {
                 package_id: _,
                 ticket_id: _
             }
@@ -802,7 +802,7 @@ async fn upgrade_missing_deps() {
     assert!(matches!(
         effects.into_status().unwrap_err().0,
         ExecutionFailureStatus::PackageUpgradeError {
-            upgrade_error: PackageUpgradeError::DigestDoesNotMatch { digest: _ }
+            kind: PackageUpgradeError::DigestDoesNotMatch { digest: _ }
         }
     ));
 }
@@ -811,7 +811,7 @@ async fn upgrade_missing_deps() {
 async fn test_multiple_upgrades_valid() {
     let mut runner = UpgradeStateRunner::new("move_upgrade/base").await;
     let (_, effects) = test_multiple_upgrades(&mut runner, false).await;
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
 }
 
 async fn test_multiple_upgrades(
@@ -823,7 +823,7 @@ async fn test_multiple_upgrades(
         .upgrade(UpgradePolicy::COMPATIBLE, digest, modules, vec![])
         .await;
 
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
 
     let package_v2 = effects
         .created()
@@ -890,7 +890,7 @@ async fn test_interleaved_upgrades() {
         builder.finish()
     };
     let effects = runner.run(pt1).await;
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
 
     let dep_v2_package = effects
         .created()
@@ -930,7 +930,7 @@ async fn test_interleaved_upgrades() {
         builder.finish()
     };
     let effects = runner.run(pt2).await;
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
 }
 
 #[tokio::test]
@@ -957,7 +957,7 @@ async fn test_publish_override_happy_path() {
     );
 
     let effects = runner.run(pt1).await;
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
 
     let dep_v2_package = effects
         .created()
@@ -1098,7 +1098,7 @@ async fn test_publish_transitive_override_happy_path() {
     );
 
     let effects = runner.run(pt1).await;
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
     // Dependency graph: base(v1) <-- dep_on_upgrading_package
     //                   base(v2)
 
@@ -1159,7 +1159,7 @@ async fn test_publish_transitive_override_happy_path() {
         .await;
 
     assert!(
-        call_effects.status().is_ok(),
+        call_effects.status().is_success(),
         "{:#?}",
         call_effects.status()
     );
@@ -1180,7 +1180,7 @@ async fn test_upgraded_types_in_one_txn() {
         )
         .await;
 
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
     let package_v2 = runner.package.object_id;
 
     // Second upgrade (version 3) introduces a new type, C.
@@ -1194,7 +1194,7 @@ async fn test_upgraded_types_in_one_txn() {
         )
         .await;
 
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
     let package_v3 = runner.package.object_id;
 
     // Create an instance of the type introduced at version 2 using function from
@@ -1207,7 +1207,7 @@ async fn test_upgraded_types_in_one_txn() {
         })
         .await;
 
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
     let created_b = effects
         .created()
         .into_iter()
@@ -1224,7 +1224,7 @@ async fn test_upgraded_types_in_one_txn() {
         })
         .await;
 
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
     let created_c = effects
         .created()
         .into_iter()
@@ -1245,7 +1245,7 @@ async fn test_upgraded_types_in_one_txn() {
         })
         .await;
 
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
 
     // verify that the types of events match
     let e1_type = StructTag::from_str(&format!("{package_v2}::base::BModEvent")).unwrap();
@@ -1268,7 +1268,7 @@ async fn test_different_versions_across_calls() {
     // create 3 versions of the same package, all containing the return_0 function
     let mut runner = UpgradeStateRunner::new("move_upgrade/base").await;
     let (package_v2, effects) = test_multiple_upgrades(&mut runner, false).await;
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
 
     let package_v3 = effects
         .created()
@@ -1289,7 +1289,7 @@ async fn test_different_versions_across_calls() {
         })
         .await;
 
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
 }
 
 #[tokio::test]
@@ -1317,7 +1317,7 @@ async fn test_conflicting_versions_across_calls() {
     );
 
     let effects = runner.run(pt1).await;
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
 
     let base_v2_package = effects
         .created()
@@ -1363,7 +1363,7 @@ async fn test_conflicting_versions_across_calls() {
     };
 
     let effects = runner.run(pt2).await;
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
 
     let dependent_v2_package = effects
         .created()
@@ -1412,7 +1412,7 @@ async fn test_upgrade_cross_module_refs() {
         })
         .await;
 
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
     assert_eq!(effects.created().len(), 2);
 
     // Upgrade and cross module, cross version type usage
@@ -1426,7 +1426,7 @@ async fn test_upgrade_cross_module_refs() {
         )
         .await;
 
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
     let package_v2 = runner.package.object_id;
 
     // create instances of objects within module and cross module for v2
@@ -1439,7 +1439,7 @@ async fn test_upgrade_cross_module_refs() {
         })
         .await;
 
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
     assert_eq!(effects.created().len(), 5);
 
     // Upgrade and cross module, cross version type usage
@@ -1453,7 +1453,7 @@ async fn test_upgrade_cross_module_refs() {
         )
         .await;
 
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
     let package_v2 = runner.package.object_id;
 
     // create instances of objects within module and cross module for v2
@@ -1467,7 +1467,7 @@ async fn test_upgrade_cross_module_refs() {
         })
         .await;
 
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
     assert_eq!(effects.created().len(), 6);
 }
 
@@ -1598,5 +1598,5 @@ async fn assert_valid_dep_only_upgrade(runner: &mut UpgradeStateRunner, package_
             vec![ObjectID::FRAMEWORK, ObjectID::STD],
         )
         .await;
-    assert!(effects.status().is_ok(), "{:#?}", effects.status());
+    assert!(effects.status().is_success(), "{:#?}", effects.status());
 }

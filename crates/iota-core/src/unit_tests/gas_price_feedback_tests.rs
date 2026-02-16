@@ -209,7 +209,7 @@ impl GasPriceFeedbackTester {
             .into_data();
 
         assert!(
-            effects.status().is_ok(),
+            effects.status().is_success(),
             "Execution error {:?}",
             effects.status()
         );
@@ -491,7 +491,7 @@ async fn per_object_congestion_control_mode_is_none() {
 
     // All transactions should be successfully executed.
     for effects in effects_vec {
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
     }
 }
 
@@ -564,7 +564,7 @@ async fn max_execution_duration_per_commit_is_none() {
 
     // All transactions should be successfully executed.
     for effects in effects_vec {
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
     }
 }
 
@@ -709,9 +709,9 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
     );
 
     // `ConsensusCommitPrologueV1` should be successfully executed
-    assert!(effects_vec[0].status().is_ok());
+    assert!(effects_vec[0].status().is_success());
     // The second transaction should be scheduled.
-    assert!(effects_vec[2].status().is_ok());
+    assert!(effects_vec[2].status().is_success());
 
     // The first transaction should be cancelled
     if let ExecutionStatus::Failure { error, command } = effects_vec[1].status() {
@@ -923,9 +923,9 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
     );
 
     // `ConsensusCommitPrologueV1` should be successfully executed
-    assert!(effects_vec[0].status().is_ok());
+    assert!(effects_vec[0].status().is_success());
     // The first transaction should be successfully executed
-    assert!(effects_vec[1].status().is_ok());
+    assert!(effects_vec[1].status().is_success());
 
     // The second transaction should be cancelled
     if let ExecutionStatus::Failure { error, command } = effects_vec[2].status() {
@@ -1069,9 +1069,9 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
     );
 
     // `ConsensusCommitPrologueV1` should be successfully executed
-    assert!(effects_vec[0].status().is_ok());
+    assert!(effects_vec[0].status().is_success());
     // The first transaction should be successfully executed
-    assert!(effects_vec[1].status().is_ok());
+    assert!(effects_vec[1].status().is_success());
 
     // The second transaction should be cancelled
     if let ExecutionStatus::Failure { error, command } = effects_vec[2].status() {
@@ -1229,7 +1229,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
 
     // Both scheduled transactions should be successfully executed
     for effects in effects_vec {
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
     }
 
     // Prepare certificates for consensus commit round 2
@@ -1317,9 +1317,9 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
     );
 
     // `ConsensusCommitPrologueV1` should be successfully executed
-    assert!(effects_vec[0].status().is_ok());
+    assert!(effects_vec[0].status().is_success());
     // The first scheduled transaction should be successfully executed
-    assert!(effects_vec[1].status().is_ok());
+    assert!(effects_vec[1].status().is_success());
 
     // The second scheduled transaction should be cancelled
     if let ExecutionStatus::Failure { error, command } = effects_vec[2].status() {
@@ -1593,7 +1593,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
     // `ConsensusCommitPrologueV1` and first 6 scheduled transactions should be
     // successfully executed
     for effects in effects_vec.iter().take(7) {
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
     }
 
     // The rest of transactions should be cancelled:
@@ -1922,7 +1922,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
     // `ConsensusCommitPrologueV1` and first 6 scheduled transactions should be
     // successfully executed
     for effects in effects_vec.iter().take(7) {
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
     }
 
     // The rest of transactions should be cancelled:
