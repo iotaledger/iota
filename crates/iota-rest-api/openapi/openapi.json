@@ -1266,7 +1266,7 @@
             ]
           },
           "amount": {
-            "description": "The amount indicate the balance value changes.\n\nA negative amount means spending coin value and positive means receiving coin value.",
+            "description": "The amount indicate the balance value changes, negative amount means spending coin value and positive means receiving coin value.",
             "type": "string",
             "format": "i128"
           },
