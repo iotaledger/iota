@@ -2085,12 +2085,12 @@ impl IotaClientCommands {
                 context.config().save()?;
                 IotaClientCommandResult::NewEnv(env)
             }
-            IotaClientCommands::ActiveEnv => {
-                IotaClientCommandResult::ActiveEnv(context.config().active_env().clone())
-            }
+            IotaClientCommands::ActiveEnv => IotaClientCommandResult::ActiveEnv(
+                context.active_env().ok().map(|e| e.alias().clone()),
+            ),
             IotaClientCommands::Envs => IotaClientCommandResult::Envs(
                 context.config().envs().clone(),
-                context.config().active_env().clone(),
+                context.active_env().ok().map(|e| e.alias().clone()),
             ),
             IotaClientCommands::VerifySource {
                 package_path,

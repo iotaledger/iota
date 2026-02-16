@@ -40,7 +40,7 @@ pub async fn data_as_bytes(
         .await
         .map(|res| match res {
             Some(bytes) => bytes.into_response(),
-            None => (StatusCode::NO_CONTENT, Body::empty()).into_response(),
+            None => (StatusCode::NOT_FOUND, Body::empty()).into_response(),
         })
 }
 

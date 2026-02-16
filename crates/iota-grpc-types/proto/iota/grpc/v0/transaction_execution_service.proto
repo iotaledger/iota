@@ -9,6 +9,7 @@ package iota.grpc.v0.transaction_execution_service;
 import "google/protobuf/field_mask.proto";
 import "google/protobuf/struct.proto";
 
+import "iota/grpc/options.proto";
 import "iota/grpc/v0/command.proto";
 import "iota/grpc/v0/signatures.proto";
 import "iota/grpc/v0/transaction.proto";
@@ -19,6 +20,8 @@ service TransactionExecutionService {
 }
 
 message ExecuteTransactionRequest {
+  option (iota.grpc.message_accessors) = "with";
+
   // The transaction to execute.
   optional iota.grpc.v0.transaction.Transaction transaction = 1;
 
@@ -37,6 +40,8 @@ message ExecuteTransactionResponse {
 }
 
 message SimulateTransactionRequest {
+  option (iota.grpc.message_accessors) = "with";
+
   optional iota.grpc.v0.transaction.Transaction transaction = 1;
 
   // Individual check modes that can be enabled/disabled

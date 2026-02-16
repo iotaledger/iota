@@ -9,4 +9,5 @@
 mod checkpoints;
 mod epochs;
 mod objects;
+mod service_info;
 mod transactions;
