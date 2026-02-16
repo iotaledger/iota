@@ -646,9 +646,9 @@ export class IotaClient {
         const isV2Supported = Number(protocolConfig.maxSupportedProtocolVersion) >= 5;
 
         const iotaSystemStateSummary: IotaSystemStateSummary = isV2Supported
-            ? await this.getLatestIotaSystemStateV2()
+            ? await this.getLatestIotaSystemStateV2({ signal })
             : {
-                  V1: await this.getLatestIotaSystemStateV1(),
+                  V1: await this.getLatestIotaSystemStateV1({ signal }),
               };
 
         return 'V2' in iotaSystemStateSummary
@@ -861,12 +861,16 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_getCommitteeInfo',
             params: [input?.epoch],
-            signal: input.signal,
+            signal: input?.signal,
         });
     }
 
     async getNetworkMetrics({ signal }: { signal?: AbortSignal } = {}): Promise<NetworkMetrics> {
-        return await this.transport.request({ method: 'iotax_getNetworkMetrics', params: [] });
+        return await this.transport.request({
+            method: 'iotax_getNetworkMetrics',
+            params: [],
+            signal,
+        });
     }
 
     async getAddressMetrics({ signal }: { signal?: AbortSignal } = {}): Promise<AddressMetrics> {
@@ -878,30 +882,36 @@ export class IotaClient {
     }
 
     async getEpochMetrics(
-        input?: { descendingOrder?: boolean } & PaginationArguments<EpochMetricsPage['nextCursor']>,
+        input?: { descendingOrder?: boolean; signal?: AbortSignal } & PaginationArguments<
+            EpochMetricsPage['nextCursor']
+        >,
     ): Promise<EpochMetricsPage> {
         return await this.transport.request({
             method: 'iotax_getEpochMetrics',
             params: [input?.cursor, input?.limit, input?.descendingOrder],
-            signal: input.signal,
+            signal: input?.signal,
         });
     }
 
     async getAllEpochAddressMetrics(input?: {
         descendingOrder?: boolean;
+        signal?: AbortSignal;
     }): Promise<AllEpochsAddressMetrics> {
         return await this.transport.request({
             method: 'iotax_getAllEpochAddressMetrics',
             params: [input?.descendingOrder],
-            signal: input.signal,
+            signal: input?.signal,
         });
     }
 
-    async getCheckpointAddressMetrics(input?: { checkpoint: string }): Promise<AddressMetrics> {
+    async getCheckpointAddressMetrics(input?: {
+        checkpoint: string;
+        signal?: AbortSignal;
+    }): Promise<AddressMetrics> {
         return await this.transport.request({
             method: 'iotax_getCheckpointAddressMetrics',
             params: [input?.checkpoint],
-            signal: input.signal,
+            signal: input?.signal,
         });
     }
 
@@ -911,12 +921,13 @@ export class IotaClient {
     async getEpochs(
         input?: {
             descendingOrder?: boolean;
+            signal?: AbortSignal;
         } & PaginationArguments<EpochPage['nextCursor']>,
     ): Promise<EpochPage> {
         return await this.transport.request({
             method: 'iotax_getEpochs',
             params: [input?.cursor, input?.limit, input?.descendingOrder],
-            signal: input.signal,
+            signal: input?.signal,
         });
     }
 
@@ -924,14 +935,22 @@ export class IotaClient {
      * Returns list of top move calls by usage
      */
     async getMoveCallMetrics({ signal }: { signal?: AbortSignal } = {}): Promise<MoveCallMetrics> {
-        return await this.transport.request({ method: 'iotax_getMoveCallMetrics', params: [] });
+        return await this.transport.request({
+            method: 'iotax_getMoveCallMetrics',
+            params: [],
+            signal,
+        });
     }
 
     /**
      * Return the committee information for the asked epoch
      */
     async getCurrentEpoch({ signal }: { signal?: AbortSignal } = {}): Promise<EpochInfo> {
-        return await this.transport.request({ method: 'iotax_getCurrentEpoch', params: [] });
+        return await this.transport.request({
+            method: 'iotax_getCurrentEpoch',
+            params: [],
+            signal,
+        });
     }
 
     async getTotalTransactions({ signal }: { signal?: AbortSignal } = {}): Promise<string> {
@@ -947,7 +966,11 @@ export class IotaClient {
      * Return the Validators APYs
      */
     async getValidatorsApy({ signal }: { signal?: AbortSignal } = {}): Promise<ValidatorsApy> {
-        return await this.transport.request({ method: 'iotax_getValidatorsApy', params: [] });
+        return await this.transport.request({
+            method: 'iotax_getValidatorsApy',
+            params: [],
+            signal,
+        });
     }
 
     async getChainIdentifier({ signal }: { signal?: AbortSignal } = {}): Promise<string> {
@@ -962,7 +985,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iota_getProtocolConfig',
             params: [input?.version],
-            signal: input.signal,
+            signal: input?.signal,
         });
     }
 

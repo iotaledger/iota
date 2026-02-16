@@ -163,6 +163,7 @@ export interface GetTransactionBlockParams {
 export interface IsTransactionIndexedOnNodeParams {
     /** the digest of the queried transaction */
     digest: string;
+    signal?: AbortSignal;
 }
 /** Return the object data for a list of objects */
 export interface MultiGetObjectsParams {
@@ -218,6 +219,7 @@ export interface ViewParams {
     functionName: string;
     typeArgs?: string[] | null | undefined;
     arguments: unknown[];
+    signal?: AbortSignal;
 }
 /** Return the total coin balance for all coin type, owned by the address owner. */
 export interface GetAllBalancesParams {
@@ -301,6 +303,7 @@ export interface GetDynamicFieldObjectV2Params {
     name: RpcTypes.DynamicFieldName;
     /** Options for specifying the content to be returned */
     options?: RpcTypes.IotaObjectDataOptions | null | undefined;
+    signal?: AbortSignal;
 }
 /** Return the list of dynamic field objects owned by an object. */
 export interface GetDynamicFieldsParams {
@@ -391,10 +394,12 @@ export interface GetStakesByIdsParams {
 /** Return all [DelegatedTimelockedStake]. */
 export interface GetTimelockedStakesParams {
     owner: string;
+    signal?: AbortSignal;
 }
 /** Return one or more [DelegatedTimelockedStake]. If a Stake was withdrawn its status will be Unstaked. */
 export interface GetTimelockedStakesByIdsParams {
     timelockedStakedIotaIds: string[];
+    signal?: AbortSignal;
 }
 /** Return total supply for a coin. */
 export interface GetTotalSupplyParams {
@@ -414,6 +419,7 @@ export interface IotaNamesFindAllRegistrationNFTsParams {
     cursor?: string | null | undefined;
     limit?: number | null | undefined;
     options?: RpcTypes.IotaObjectDataOptions | null | undefined;
+    signal?: AbortSignal;
 }
 /** Return the resolved record for the given name. */
 export interface IotaNamesLookupParams {
