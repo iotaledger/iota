@@ -11,7 +11,7 @@ workspace = true
 
 [dependencies]
 bech32 = { version = "0.9.1", default-features = false }
-bitflags = { version = "2.4.2", default-features = false }
+bitflags.workspace = true
 derive_more = { workspace = true, features = ["from", "as_ref", "deref", "deref_mut", "display"] }
 getset.workspace = true
 iota-crypto = { version = "0.23.2", default-features = false, features = ["blake2b", "ed25519"] }

@@ -16,10 +16,10 @@ async-stream.workspace = true
 bcs.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
+paste = "1.0.15"
 prost.workspace = true
 prost-types.workspace = true
 serde.workspace = true
-tap.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream.workspace = true
 tokio-util.workspace = true
