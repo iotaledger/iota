@@ -4,7 +4,7 @@
 
 import * as amplitude from '@amplitude/analytics-browser';
 import { LogLevel } from '@amplitude/analytics-types';
-import { getCustomNetwork } from '@iota/core';
+import { attachEnvironmentPlugin, getCustomNetwork } from '@iota/core';
 import { getNetwork, type Network } from '@iota/iota-sdk/client';
 
 import { ampli } from './ampli';
@@ -50,6 +50,9 @@ export async function initAmplitude() {
             amplitude.flush();
         }
     });
+
+    // Add environment plugin to set prefix dev events
+    ampli.client.add(attachEnvironmentPlugin());
 }
 
 export function getUrlWithDeviceId(url: URL) {

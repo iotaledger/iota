@@ -4,7 +4,7 @@
 
 import * as amplitude from '@amplitude/analytics-browser';
 import { LogLevel } from '@amplitude/analytics-types';
-import { getAmplitudeConsentStatus } from '@iota/core';
+import { attachEnvironmentPlugin, getAmplitudeConsentStatus } from '@iota/core';
 
 import { ampli } from './ampli';
 
@@ -45,4 +45,7 @@ export async function initAmplitude() {
         amplitude.setTransport('beacon');
         amplitude.flush();
     });
+
+    // Add environment plugin to set prefix dev events
+    ampli.client.add(attachEnvironmentPlugin());
 }
