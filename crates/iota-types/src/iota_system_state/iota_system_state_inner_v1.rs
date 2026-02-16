@@ -4,6 +4,11 @@
 
 use anyhow::Result;
 use fastcrypto::traits::ToFromBytes;
+use move_core_types::{
+    ident_str,
+    identifier::IdentStr,
+    language_storage::{StructTag, TypeTag},
+};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
@@ -14,6 +19,7 @@ use super::{
     },
 };
 use crate::{
+    IOTA_SYSTEM_ADDRESS, MoveTypeTagTrait,
     balance::Balance,
     base_types::{IotaAddress, ObjectID},
     collection_types::{Bag, Table, TableVec, VecMap, VecSet},
@@ -22,6 +28,7 @@ use crate::{
         AuthorityPublicKey, AuthorityPublicKeyBytes, AuthoritySignature, NetworkPublicKey,
         verify_proof_of_possession,
     },
+    dynamic_field::get_dynamic_field_from_store,
     error::IotaError,
     gas_coin::IotaTreasuryCap,
     id::ID,
@@ -40,6 +47,38 @@ const E_METADATA_INVALID_PROTOCOL_PUBKEY: u64 = 3;
 const E_METADATA_INVALID_NET_ADDR: u64 = 4;
 const E_METADATA_INVALID_P2P_ADDR: u64 = 5;
 const E_METADATA_INVALID_PRIMARY_ADDR: u64 = 6;
+
+pub const VALIDATOR_MODULE_NAME: &IdentStr = ident_str!("validator");
+pub const SCORE_RECORD_KEY_STRUCT_NAME: &IdentStr = ident_str!("ScoreRecordKey");
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
+pub struct ScoreRecordKey {
+    // This field is required to make a Rust struct compatible with an empty Move one.
+    // An empty Move struct contains a 1-byte dummy bool field because empty fields are not
+    // allowed in the bytecode.
+    dummy_field: bool,
+}
+
+impl ScoreRecordKey {
+    pub fn type_() -> StructTag {
+        StructTag {
+            address: IOTA_SYSTEM_ADDRESS,
+            module: VALIDATOR_MODULE_NAME.to_owned(),
+            name: SCORE_RECORD_KEY_STRUCT_NAME.to_owned(),
+            type_params: Vec::new(),
+        }
+    }
+
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        bcs::to_bytes(&self).unwrap()
+    }
+}
+
+impl MoveTypeTagTrait for ScoreRecordKey {
+    fn get_type_tag() -> TypeTag {
+        TypeTag::Struct(Box::new(Self::type_()))
+    }
+}
 
 /// Rust version of the Move iota::iota_system::SystemParametersV1 type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
@@ -396,6 +435,40 @@ impl ValidatorV1 {
             next_epoch_gas_price,
             next_epoch_commission_rate,
         }
+    }
+
+    pub fn get_score_per_epoch<S>(
+        &self,
+        object_store: &S,
+        epochs: &[u64],
+    ) -> Result<Vec<u64>, IotaError>
+    where
+        S: ObjectStore + ?Sized,
+    {
+        // The score table is stored as a dynamic field under the validator's
+        // `extra_fields` Bag with key `ScoreRecordKey`.
+        // If no table is stored, then the dynamic field get will fail.
+        let bag_id = *self.extra_fields.id.object_id();
+        let score_table: Table =
+            get_dynamic_field_from_store(&object_store, bag_id, &ScoreRecordKey::default())?;
+
+        // Now we have acceess to the table ID and can query the score for each epoch
+        // from the table.
+        // It will fail as well if the table does not contain an entry for a given
+        // epoch.
+        let mut scores = vec![];
+        for i in 0..epochs.len() {
+            let score: u64 =
+                get_dynamic_field_from_store(&object_store, score_table.id, &epochs[i]).map_err(
+                    |err| {
+                        IotaError::IotaSystemStateRead(format!(
+                            "Failed to load epoch score from table: {err:?}"
+                        ))
+                    },
+                )?;
+            scores.push(score);
+        }
+        Ok(scores)
     }
 }
 
