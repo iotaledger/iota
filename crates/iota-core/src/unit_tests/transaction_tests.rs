@@ -1744,7 +1744,7 @@ async fn test_handle_soft_bundle_certificates() {
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
                 senders[i].0,
-                package.0,
+                package.object_id,
                 Identifier::from_static("object_basics"),
                 Identifier::from_static("set_value"),
                 // type_args
@@ -2019,7 +2019,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
                 senders[6].0,
-                package.0,
+                package.object_id,
                 Identifier::from_static("object_basics"),
                 Identifier::from_static("set_value"),
                 // type_args
@@ -2049,7 +2049,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
                 senders[7].0,
-                package.0,
+                package.object_id,
                 Identifier::from_static("object_basics"),
                 Identifier::from_static("set_value"),
                 // type_args
@@ -2105,7 +2105,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
                 senders[8].0,
-                package.0,
+                package.object_id,
                 Identifier::from_static("object_basics"),
                 Identifier::from_static("set_value"),
                 // type_args
@@ -2135,7 +2135,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
                 senders[9].0,
-                package.0,
+                package.object_id,
                 Identifier::from_static("object_basics"),
                 Identifier::from_static("set_value"),
                 // type_args

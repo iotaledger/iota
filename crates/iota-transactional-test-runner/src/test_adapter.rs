@@ -2293,7 +2293,7 @@ impl IotaTestAdapter {
         let abstract_account = TestAccount {
             address: IotaAddress::from(created_abstract_account_id),
             key_pair: None,
-            gas: created_abstract_account_coin.0,
+            gas: created_abstract_account_coin.object_id,
         };
 
         // Store the created abstract account

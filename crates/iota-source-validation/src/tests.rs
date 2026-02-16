@@ -69,13 +69,16 @@ async fn successful_verification() -> anyhow::Result<()> {
 
     // Skip deps but verify root
     verifier
-        .verify(&a_pkg, ValidationMode::root_at(a_ref.0.into()))
+        .verify(&a_pkg, ValidationMode::root_at(a_ref.object_id.into()))
         .await
         .unwrap();
 
     // Verify both deps and root
     verifier
-        .verify(&a_pkg, ValidationMode::root_and_deps_at(a_ref.0.into()))
+        .verify(
+            &a_pkg,
+            ValidationMode::root_and_deps_at(a_ref.object_id.into()),
+        )
         .await
         .unwrap();
 
@@ -101,7 +104,7 @@ async fn successful_verification_unpublished_deps() -> anyhow::Result<()> {
 
     // Verify the root package which now includes dependency modules
     verifier
-        .verify(&a_pkg, ValidationMode::root_at(a_ref.0.into()))
+        .verify(&a_pkg, ValidationMode::root_at(a_ref.object_id.into()))
         .await
         .unwrap();
 
@@ -736,12 +739,15 @@ async fn successful_verification_with_bytecode_dep() -> anyhow::Result<()> {
         .unwrap();
     // Skip deps but verify root
     verifier
-        .verify(&a_pkg, ValidationMode::root_at(a_ref.0.into()))
+        .verify(&a_pkg, ValidationMode::root_at(a_ref.object_id.into()))
         .await
         .unwrap();
     // Verify both deps and root
     verifier
-        .verify(&a_pkg, ValidationMode::root_and_deps_at(a_ref.0.into()))
+        .verify(
+            &a_pkg,
+            ValidationMode::root_and_deps_at(a_ref.object_id.into()),
+        )
         .await
         .unwrap();
     Ok(())

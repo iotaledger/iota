@@ -1142,7 +1142,7 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
 
     let tx_data = TransactionData::new_move_call(
         sender,
-        package_ref.0,
+        package_ref.object_id,
         Identifier::from_static("object_basics"),
         Identifier::from_static("use_clock"),
         // type_args

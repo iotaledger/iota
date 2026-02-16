@@ -172,7 +172,7 @@ async fn construct_shared_object_transaction_with_sequence_number(
     let gas_object_ref = gas_object.unwrap().compute_object_reference();
     let data = TransactionData::new_move_call(
         sender,
-        package.0,
+        package.object_id,
         Identifier::from_static("object_basics"),
         Identifier::from_static("set_value"),
         // type_args
@@ -537,7 +537,7 @@ async fn test_dev_inspect_dynamic_field() {
             CallArg::Pure(test_object1_bytes.clone()),
         ],
         commands: vec![Command::move_call(
-            object_basics.0,
+            object_basics.object_id,
             Identifier::from_static("object_basics"),
             Identifier::from_static("add_ofield"),
             vec![],
@@ -759,7 +759,7 @@ async fn test_dev_inspect_return_values() {
     assert_eq!(return_values.len(), 1);
     let (_return_value, return_type) = return_values.pop().unwrap();
     let expected_type = TypeTag::Struct(Box::new(StructTag::new(
-        object_basics.0,
+        object_basics.object_id,
         Identifier::from_static("object_basics"),
         Identifier::from_static("Wrapper"),
         vec![],
@@ -891,7 +891,7 @@ async fn test_dev_inspect_uses_unbound_object() {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
             .move_call(
-                object_basics.0,
+                object_basics.object_id,
                 Identifier::from_static("object_basics"),
                 Identifier::from_static("freeze"),
                 vec![],
@@ -1050,7 +1050,7 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
     let pt = ProgrammableTransaction {
         inputs: vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(parent))],
         commands: vec![Command::move_call(
-            object_basics.0,
+            object_basics.object_id,
             Identifier::from_static("object_basics"),
             Identifier::from_static("remove_field"),
             vec![],
@@ -1108,7 +1108,7 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
             CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
         ],
         commands: vec![Command::move_call(
-            object_basics.0,
+            object_basics.object_id,
             Identifier::from_static("object_basics"),
             Identifier::from_static("create"),
             vec![],
@@ -2167,7 +2167,7 @@ async fn test_type_argument_dependencies() {
     // primitive type tag succeeds
     let data = TransactionData::new_move_call(
         s1,
-        object_basics,
+        object_ref.object_id,
         Identifier::from_static("object_basics"),
         Identifier::from_static("generic_test"),
         vec![TypeTag::U64],
@@ -2188,11 +2188,11 @@ async fn test_type_argument_dependencies() {
     // obj type tag succeeds
     let data = TransactionData::new_move_call(
         s2,
-        object_basics,
+        object_ref.object_id,
         Identifier::from_static("object_basics"),
         Identifier::from_static("generic_test"),
         vec![TypeTag::Struct(Box::new(StructTag::new(
-            object_basics,
+            object_ref.object_id,
             Identifier::from_static("object_basics"),
             Identifier::from_static("Object"),
             vec![],
@@ -2214,7 +2214,7 @@ async fn test_type_argument_dependencies() {
     // missing package fails
     let data = TransactionData::new_move_call(
         s3,
-        object_basics,
+        object_ref.object_id,
         Identifier::from_static("object_basics"),
         Identifier::from_static("generic_test"),
         vec![TypeTag::Struct(Box::new(StructTag::new(
@@ -2905,7 +2905,7 @@ async fn test_invalid_mutable_clock_parameter() {
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let tx_data = TransactionData::new_move_call(
         sender,
-        package_object_ref.0,
+        package_object_ref.object_id,
         Identifier::from_static("object_basics"),
         Identifier::from_static("use_clock"),
         // type_args
@@ -2954,7 +2954,7 @@ async fn test_invalid_authenticator_state_parameter() {
 
     let tx_data = TransactionData::new_move_call(
         sender,
-        package_object_ref.0,
+        package_object_ref.object_id,
         Identifier::from_static("object_basics"),
         Identifier::from_static("use_auth_state"),
         // type_args
@@ -3010,7 +3010,7 @@ async fn test_invalid_randomness_parameter() {
 
     let tx_data = TransactionData::new_move_call(
         sender,
-        package_object_ref.0,
+        package_object_ref.object_id,
         Identifier::from_static("object_basics"),
         Identifier::from_static("use_random"),
         // type_args
@@ -3102,7 +3102,7 @@ async fn test_valid_immutable_clock_parameter() {
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let tx_data = TransactionData::new_move_call(
         sender,
-        package_object_ref.0,
+        package_object_ref.object_id,
         Identifier::from_static("object_basics"),
         Identifier::from_static("use_clock"),
         // type_args
@@ -3333,7 +3333,7 @@ async fn test_store_revert_wrap_move_call() {
     let wrap_txn = to_sender_signed_transaction(
         TransactionData::new_move_call(
             sender,
-            object_basics.0,
+            object_basics.object_id,
             Identifier::from_static("object_basics"),
             Identifier::from_static("wrap"),
             vec![],
@@ -3433,7 +3433,7 @@ async fn test_store_revert_unwrap_move_call() {
     let unwrap_txn = to_sender_signed_transaction(
         TransactionData::new_move_call(
             sender,
-            object_basics.0,
+            object_basics.object_id,
             Identifier::from_static("object_basics"),
             Identifier::from_static("unwrap"),
             vec![],
@@ -3707,7 +3707,7 @@ async fn test_store_revert_add_ofield() {
     let add_txn = to_sender_signed_transaction(
         TransactionData::new_move_call(
             sender,
-            object_basics.0,
+            object_basics.object_id,
             Identifier::from_static("object_basics"),
             Identifier::from_static("add_ofield"),
             vec![],
@@ -3837,7 +3837,7 @@ async fn test_store_revert_remove_ofield() {
     let remove_ofield_txn = to_sender_signed_transaction(
         TransactionData::new_move_call(
             sender,
-            object_basics.0,
+            object_basics.object_id,
             Identifier::from_static("object_basics"),
             Identifier::from_static("remove_ofield"),
             vec![],
@@ -4735,7 +4735,7 @@ async fn test_consensus_commit_prologue_generation() {
 
     let tx_data = TransactionData::new_move_call(
         sender,
-        package_object_ref.0,
+        package_object_ref.object_id,
         Identifier::from_static("object_basics"),
         Identifier::from_static("use_clock"),
         // type_args

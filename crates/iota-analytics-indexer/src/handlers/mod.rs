@@ -103,7 +103,11 @@ impl InputObjectTracker {
             .map(|shared_io| shared_io.id())
             .collect();
         let tx_data = txn.transaction_data();
-        let coins: BTreeSet<ObjectID> = tx_data.gas().iter().map(|obj_ref| obj_ref.0).collect();
+        let coins: BTreeSet<ObjectID> = tx_data
+            .gas()
+            .iter()
+            .map(|obj_ref| obj_ref.object_id)
+            .collect();
         // All input objects (transaction + authenticators) are collected here, just
         // like the shared objects previously.
         let input: BTreeSet<ObjectID> = txn

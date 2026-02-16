@@ -1371,22 +1371,21 @@ fn clever_errors() {
         indexer_wait_for_checkpoint(store, 1).await;
         let (address, keypair) = get_key_pair();
         let keypair = IotaKeyPair::Ed25519(keypair);
-        let (gas_id, gas_seq, _) = cluster
+        let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
                 Some(10 * NANOS_PER_IOTA),
                 address,
             )
             .await;
-        indexer_wait_for_object(client, gas_id, gas_seq).await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
-        let ((package_id, _, _), _) =
-            publish_test_move_package(client, address, &keypair, "clever_errors")
-                .await
-                .unwrap();
+        let (object_ref, _) = publish_test_move_package(client, address, &keypair, "clever_errors")
+            .await
+            .unwrap();
 
         let gas = client
-            .get_object(gas_id, None)
+            .get_object(gas_ref.object_id, None)
             .await
             .unwrap()
             .data
@@ -1395,7 +1394,12 @@ fn clever_errors() {
         // Execute a transaction that will fail
         let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
         let tx_data = tx_builder
-            .move_call(package_id, "clever_errors", "clever_aborter", vec![])
+            .move_call(
+                object_ref.object_id,
+                "clever_errors",
+                "clever_aborter",
+                vec![],
+            )
             .build();
         let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
         let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
@@ -1411,7 +1415,7 @@ fn clever_errors() {
             .unwrap();
 
         // Assert clever error
-        let fn_name = format!("{package_id}::clever_errors::clever_aborter");
+        let fn_name = format!("{}::clever_errors::clever_aborter", object_ref.object_id);
         let clever_error = "'ENotFound': Element not found in vector 💥 🚀 🌠";
         let expected_error =
             format!("Error in 1st command, from '{fn_name}' (line 10), abort {clever_error}");

@@ -899,11 +899,11 @@ async fn create_migrated_coin_manager_coins(
                 .object_id;
 
         let guardian_type = StructTag::new(
-            package_id,
+            object_ref.object_id,
             Identifier::from_static("coin_manager_coin"),
             Identifier::from_static("Guardian"),
             vec![TypeTag::Struct(Box::new(StructTag::new(
-                package_id,
+                object_ref.object_id,
                 Identifier::from_static("coin_manager_coin"),
                 Identifier::from_static("COIN_MANAGER_COIN"),
                 vec![],
@@ -949,11 +949,11 @@ async fn create_migrated_coin_manager_coins(
             .unwrap();
 
         let guardian_type = StructTag::new(
-            package_id,
+            object_ref.object_id,
             Identifier::from_static("immutable_metadata_coin_manager_coin"),
             Identifier::from_static("Guardian"),
             vec![TypeTag::Struct(Box::new(StructTag::new(
-                package_id,
+                object_ref.object_id,
                 Identifier::from_static("immutable_metadata_coin_manager_coin"),
                 Identifier::from_static("IMMUTABLE_METADATA_COIN_MANAGER_COIN"),
                 vec![],
