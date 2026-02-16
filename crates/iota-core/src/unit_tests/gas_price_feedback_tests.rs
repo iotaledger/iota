@@ -12,7 +12,7 @@ use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI, UnchangedSharedKind},
     executable_transaction::VerifiedExecutableTransaction,
-    execution_status::{CongestedObjects, ExecutionFailureStatus, ExecutionStatus},
+    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     messages_consensus::ConsensusDeterminedVersionAssignments,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,

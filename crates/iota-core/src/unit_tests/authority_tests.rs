@@ -726,8 +726,8 @@ async fn test_dev_inspect_return_values() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::UnusedValueWithoutDrop {
-                result_idx: 0,
-                secondary_idx: 0,
+                result: 0,
+                subresult: 0,
             },
             command: None,
         }
@@ -1893,7 +1893,7 @@ async fn test_package_size_limit() {
     };
     assert!(matches!(
         error,
-        ExecutionFailureStatus::MovePackageTooBig { .. }
+        ExecutionFailureStatus::PackageTooBig { .. }
     ));
 }
 
@@ -6040,7 +6040,7 @@ async fn test_publish_transitive_dependencies_ok() {
         .into_data()
         .into_status();
 
-    assert!(status.is_ok(), "Transaction failed: {status:?}");
+    assert!(status.is_success(), "Transaction failed: {status:?}");
 }
 
 #[tokio::test]

@@ -14,6 +14,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag},
     crypto::{AccountKeyPair, get_key_pair},
+    digests::Digest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
     execution_config_utils::to_binary_config,
@@ -313,7 +314,10 @@ async fn test_upgrade_package_happy_path() {
         .await;
 
     match effects.into_status().unwrap_err().0 {
-        ExecutionFailureStatus::MoveAbort(_, 42) => { /* nop */ }
+        ExecutionFailureStatus::MoveAbort {
+            location: _,
+            code: 42,
+        } => { /* nop */ }
         err => panic!("Unexpected error: {err:#?}"),
     };
 
@@ -462,6 +466,7 @@ async fn test_upgrade_incompatible() {
 async fn test_upgrade_package_incorrect_digest() {
     let mut runner = UpgradeStateRunner::new("move_upgrade/base").await;
     let (digest, modules) = build_upgrade_test_modules("stage1_basic_compatibility_valid");
+    let digest = Digest::from_bytes(digest).unwrap();
     let bad_digest = vec![0; digest.len()];
 
     let effects = runner
@@ -501,7 +506,10 @@ async fn test_upgrade_package_compatibility_too_permissive() {
     // ETooPermissive abort when we try to authorize the upgrade.
     assert!(matches!(
         effects.into_status().unwrap_err().0,
-        ExecutionFailureStatus::MoveAbort(_, 1)
+        ExecutionFailureStatus::MoveAbort {
+            location: _,
+            code: 1
+        }
     ));
 }
 
@@ -787,7 +795,7 @@ async fn test_upgrade_ticket_doesnt_match() {
     assert!(matches!(
         effects.into_status().unwrap_err().0,
         ExecutionFailureStatus::PackageUpgradeError {
-            kind: PackageUpgradeError::PackageIDDoesNotMatch {
+            kind: PackageUpgradeError::PackageIdDoesNotMatch {
                 package_id: _,
                 ticket_id: _
             }
@@ -1068,7 +1076,10 @@ async fn test_publish_transitive_happy_path() {
         .await;
 
     match call_effects.into_status().unwrap_err().0 {
-        ExecutionFailureStatus::MoveAbort(_, 42) => { /* nop */ }
+        ExecutionFailureStatus::MoveAbort {
+            location: _,
+            code: 42,
+        } => { /* nop */ }
         err => panic!("Unexpected error: {err:#?}"),
     };
 }
@@ -1390,7 +1401,10 @@ async fn test_conflicting_versions_across_calls() {
 
     // verify that execution aborts
     match call_error.0 {
-        ExecutionFailureStatus::MoveAbort(_, 42) => { /* nop */ }
+        ExecutionFailureStatus::MoveAbort {
+            location: _,
+            code: 42,
+        } => { /* nop */ }
         err => panic!("Unexpected error: {err:#?}"),
     };
 
