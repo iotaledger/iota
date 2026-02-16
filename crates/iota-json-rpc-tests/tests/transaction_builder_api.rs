@@ -18,9 +18,8 @@ use iota_json_rpc_types::{
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, StructTag},
     IOTA_FRAMEWORK_ADDRESS,
-    base_types::{ObjectID, ObjectRef, SequenceNumber},
+    base_types::{ObjectID, ObjectRef, SequenceNumber, StructTag},
     coin::Coin,
     digests::ObjectDigest,
     gas_coin::GAS,

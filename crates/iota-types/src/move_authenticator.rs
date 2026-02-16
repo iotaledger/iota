@@ -99,9 +99,11 @@ impl MoveAuthenticator {
                 ));
             }
             CallArg::Object(object_arg) => match object_arg {
-                ObjectArg::ImmOrOwnedObject((id, sequence_number, digest)) => {
-                    (*id, Some(*sequence_number), Some(*digest))
-                }
+                ObjectArg::ImmOrOwnedObject(object_ref) => (
+                    object_ref.object_id,
+                    Some(object_ref.version),
+                    Some(object_ref.digest),
+                ),
                 ObjectArg::SharedObject { id, mutable, .. } => {
                     if *mutable {
                         return Err(UserInputError::Unsupported(

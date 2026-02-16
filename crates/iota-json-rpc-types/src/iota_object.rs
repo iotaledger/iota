@@ -75,13 +75,13 @@ impl IotaObjectResponse {
             ObjectRead::Exists(object_ref, o, layout) => Ok(IotaObjectResponse::new_with_data(
                 IotaObjectData::new(object_ref, o, layout, options, None)?,
             )),
-            ObjectRead::Deleted((object_id, version, digest)) => Ok(
-                IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
-                    object_id,
-                    version,
-                    digest,
-                }),
-            ),
+            ObjectRead::Deleted(object_ref) => Ok(IotaObjectResponse::new_with_error(
+                IotaObjectResponseError::Deleted {
+                    object_id: object_ref.object_id,
+                    version: object_ref.version,
+                    digest: object_ref.digest,
+                },
+            )),
         }
     }
 }

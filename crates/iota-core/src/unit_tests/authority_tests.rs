@@ -3543,7 +3543,7 @@ async fn create_and_retrieve_df_info(
     let add_txn = to_sender_signed_transaction(
         TransactionData::new_move_call(
             sender,
-            object_basics.0,
+            object_basics.object_id,
             Identifier::from_static("object_basics"),
             function.to_owned(),
             vec![],

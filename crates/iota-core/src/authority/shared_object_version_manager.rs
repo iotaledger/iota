@@ -295,8 +295,6 @@ mod tests {
 
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::{IotaAddress, ObjectID, SequenceNumber},
-        IOTA_RANDOMNESS_STATE_OBJECT_ID,
         base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
         crypto::RandomnessRound,
         digests::ObjectDigest,

@@ -838,7 +838,7 @@ async fn test_entry_point_vector_empty() {
         let empty_vec =
             builder.command(Command::MakeMoveVec(Some(type_tag.clone().into()), vec![]));
         builder.programmable_move_call(
-            package.0,
+            package.object_id,
             Identifier::from_static("entry_point_vector"),
             Identifier::from_static("obj_vec_empty"),
             vec![],
@@ -868,7 +868,7 @@ async fn test_entry_point_vector_empty() {
         let empty_vec =
             builder.command(Command::MakeMoveVec(Some(type_tag.clone().into()), vec![]));
         builder.programmable_move_call(
-            package.0,
+            package.object_id,
             Identifier::from_static("entry_point_vector"),
             Identifier::from_static("type_param_vec_empty"),
             vec![type_tag.clone()],
@@ -898,7 +898,7 @@ async fn test_entry_point_vector_empty() {
         let mut builder = ProgrammableTransactionBuilder::new();
         let empty_vec = builder.command(Command::MakeMoveVec(None, vec![]));
         builder.programmable_move_call(
-            package.0,
+            package.object_id,
             Identifier::from_static("entry_point_vector"),
             Identifier::from_static("obj_vec_empty"),
             vec![],
@@ -928,7 +928,7 @@ async fn test_entry_point_vector_empty() {
         let mut builder = ProgrammableTransactionBuilder::new();
         let empty_vec = builder.command(Command::MakeMoveVec(None, vec![]));
         builder.programmable_move_call(
-            package.0,
+            package.object_id,
             Identifier::from_static("entry_point_vector"),
             Identifier::from_static("type_param_vec_empty"),
             vec![type_tag],

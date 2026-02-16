@@ -8,8 +8,7 @@ use iota_config::genesis;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     committee::{Committee, EpochId},
-    digests::{ObjectDigest, TransactionDigest},
-    digests::{TransactionDigest, TransactionEventsDigest},
+    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{IotaResult, UserInputError},
     messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},

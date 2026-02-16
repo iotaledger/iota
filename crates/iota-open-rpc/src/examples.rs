@@ -29,10 +29,8 @@ use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_types::{
     balance::Supply,
     base_types::{
-        Identifier, IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectType,
+        Identifier, IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectRef, ObjectType,
         SequenceNumber, StructTag, TransactionDigest, TypeTag, random_object_ref,
-        IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectRef, ObjectType, SequenceNumber,
-        TransactionDigest, random_object_ref,
     },
     committee::Committee,
     crypto::{AccountKeyPair, AggregateAuthoritySignature, get_key_pair_from_rng},

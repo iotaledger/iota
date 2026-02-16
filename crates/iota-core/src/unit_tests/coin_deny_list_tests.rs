@@ -79,7 +79,10 @@ async fn test_regulated_coin_v1_types() {
     );
 
     // Step 2: Deny an address and check the denylist types.
-    let deny_list_object_init_version = env.get_latest_object_ref(&ObjectID::DENY_LIST).await.1;
+    let deny_list_object_init_version = env
+        .get_latest_object_ref(&ObjectID::DENY_LIST)
+        .await
+        .version;
     let regulated_coin_type = TypeTag::Struct(Box::new(StructTag::new(
         package_id,
         Identifier::from_static("regulated_coin"),

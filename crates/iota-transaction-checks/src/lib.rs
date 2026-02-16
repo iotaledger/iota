@@ -425,10 +425,10 @@ mod checked {
         let objects: BTreeMap<_, _> = objects.iter().map(|o| (o.id(), o)).collect();
         let mut gas_objects = vec![];
         for obj_ref in gas {
-            let obj = objects.get(&obj_ref.0);
+            let obj = objects.get(&obj_ref.object_id);
             let obj = *obj.ok_or(UserInputError::ObjectNotFound {
-                object_id: obj_ref.0,
-                version: Some(obj_ref.1),
+                object_id: obj_ref.object_id,
+                version: Some(obj_ref.version),
             })?;
             gas_objects.push(obj);
         }
@@ -671,32 +671,34 @@ mod checked {
             InputObjectKind::MovePackage(package_id) => {
                 return Err(UserInputError::PackageIsInMoveAuthenticatorInput { package_id });
             }
-            InputObjectKind::ImmOrOwnedMoveObject((object_id, sequence_number, object_digest)) => {
+            InputObjectKind::ImmOrOwnedMoveObject(object_ref) => {
                 fp_ensure!(
                     !object.is_package(),
-                    UserInputError::MovePackageAsObject { object_id }
+                    UserInputError::MovePackageAsObject {
+                        object_id: object_ref.object_id
+                    }
                 );
                 fp_ensure!(
-                    sequence_number < SequenceNumber::MAX_VALID_EXCL,
+                    object_ref.version < SequenceNumber::MAX_VALID_EXCL,
                     UserInputError::InvalidSequenceNumber
                 );
 
                 // This is an invariant - we just load the object with the given ID and version.
                 assert_eq!(
                     object.version(),
-                    sequence_number,
+                    object_ref.version,
                     "The fetched object version {} does not match the requested version {}, object id: {}",
                     object.version(),
-                    sequence_number,
+                    object_ref.version,
                     object.id(),
                 );
 
                 // Check the digest matches - user could give a mismatched `ObjectDigest`.
                 let expected_digest = object.digest();
                 fp_ensure!(
-                    expected_digest == object_digest,
+                    expected_digest == object_ref.digest,
                     UserInputError::InvalidObjectDigest {
-                        object_id,
+                        object_id: object_ref.object_id,
                         expected_digest
                     }
                 );
