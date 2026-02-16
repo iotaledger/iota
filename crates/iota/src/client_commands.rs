@@ -2311,10 +2311,10 @@ pub(crate) async fn compile_package(
     };
     let resolution_graph = config.resolution_graph(package_path, chain_id.clone())?;
     let (_, dependencies) = gather_published_ids(&resolution_graph, chain_id.clone());
-    
+
     check_conflicting_addresses(&dependencies.conflicting, false)?;
     check_invalid_dependencies(&dependencies.invalid)?;
-    
+
     if !with_unpublished_dependencies {
         check_unpublished_dependencies(&dependencies.unpublished)?;
     };

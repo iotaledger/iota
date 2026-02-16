@@ -627,7 +627,7 @@ impl IotaCommand {
 
                         check_conflicting_addresses(&pkg.dependency_ids.conflicting, true)?;
                         check_invalid_dependencies(&pkg.dependency_ids.invalid)?;
-                        
+
                         if !with_unpublished_deps {
                             check_unpublished_dependencies(&pkg.dependency_ids.unpublished)?;
                         }
