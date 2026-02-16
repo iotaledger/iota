@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import type { InferInput } from 'valibot';
@@ -115,7 +115,7 @@ async function resolveCoinBalance(
             balance: bigint;
         };
 
-        if (balance === 0n) {
+        if (balance === 0n && type !== 'gas') {
             transactionData.replaceCommand(
                 index,
                 Commands.MoveCall({ target: '0x2::coin::zero', typeArguments: [type] }),
