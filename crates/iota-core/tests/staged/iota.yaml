@@ -417,12 +417,12 @@ EndOfEpochTransactionKind:
           TYPENAME: AuthenticatorStateExpire
 Event:
   STRUCT:
-    - package_id:
+    - packageId:
         TYPENAME: ObjectId
-    - transaction_module: STR
+    - module: STR
     - sender:
         TYPENAME: Address
-    - type_:
+    - type:
         TYPENAME: StructTag
     - contents: BYTES
 ExecutionData:
