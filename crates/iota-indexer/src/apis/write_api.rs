@@ -151,7 +151,7 @@ impl WriteApi {
 
         let sender_signed_data = SenderSignedData::new(transaction_data.clone(), tx_signatures);
 
-        let tx_events = TransactionEvents::try_from(executed_transaction.events()?.events()?)?;
+        let tx_events = TransactionEvents::from(executed_transaction.events()?.events()?);
 
         let in_mem_tx_changes = TxObjectResolver::new(&objects, self.reader.clone());
 
@@ -275,7 +275,7 @@ impl WriteApi {
             .transpose()?
             .unwrap_or_default();
 
-        let tx_events = TransactionEvents::try_from(executed_transaction.events()?.events()?)?;
+        let tx_events = TransactionEvents::from(executed_transaction.events()?.events()?);
 
         let tx_digest = *tx_effects.transaction_digest();
         // timestamp is None because it represent a checkpoint one, on a dev inspect

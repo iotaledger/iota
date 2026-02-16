@@ -23,7 +23,7 @@ use iota_sdk_types::{
         ChangedObject, IdOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsV1,
         UnchangedSharedKind, UnchangedSharedObject,
     },
-    events::{Event, TransactionEvents},
+    events::TransactionEvents,
     execution_status::{
         CommandArgumentError, ExecutionError, ExecutionStatus, MoveLocation, PackageUpgradeError,
         TypeArgumentError,
@@ -378,26 +378,7 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                             }
                         })
                         .collect::<Result<_,_>>()?,
-                    events: genesis_transaction
-                        .events
-                        .into_iter()
-                        .map(|event| {
-                            let module = Identifier::new(event.transaction_module.as_str());
-
-                            match module {
-                                Ok(module) => Ok(Event {
-                                    package_id: event.package_id,
-                                    module,
-                                    sender: event.sender,
-                                    type_: event.type_,
-                                    contents: event.contents,
-                                }),
-                                _ => Err(SdkTypeConversionError(
-                                    "invalid transaction module or struct tag".to_string(),
-                                )),
-                            }
-                        })
-                        .collect::<Result<_,_>>()?,
+                    events: genesis_transaction.events,
                 })
             }
             InternalTxnKind::ConsensusCommitPrologueV1(consensus_commit_prologue_v1) => {
@@ -483,26 +464,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                             }
                         })
                         .collect::<Result<_,_>>()?,
-                    events: genesis_transaction
-                        .events
-                        .into_iter()
-                        .map(|event| {
-                            let transaction_module = crate::Identifier::new(event.module.as_str());
-
-                            match transaction_module {
-                                Ok(transaction_module) => Ok(crate::event::Event {
-                                    package_id: event.package_id,
-                                    transaction_module,
-                                    sender: event.sender,
-                                    type_: event.type_,
-                                    contents: event.contents,
-                                }),
-                                _ => Err(SdkTypeConversionError(
-                                    "invalid transaction module or struct tag".to_string(),
-                                )),
-                            }
-                        })
-                        .collect::<Result<_,_>>()?,
+                    events: genesis_transaction.events,
                 })
             }
             TransactionKind::ConsensusCommitPrologueV1(consensus_commit_prologue_v1) => {
@@ -1587,7 +1549,7 @@ impl TryFrom<crate::full_checkpoint_content::CheckpointTransaction> for Checkpoi
             (Ok(input_objects), Ok(output_objects)) => Ok(Self {
                 transaction: value.transaction.try_into()?,
                 effects: value.effects.try_into()?,
-                events: value.events.map(TryInto::try_into).transpose()?,
+                events: value.events.map(Into::into),
                 input_objects,
                 output_objects,
             }),
@@ -1615,7 +1577,7 @@ impl TryFrom<CheckpointTransaction> for crate::full_checkpoint_content::Checkpoi
             (Ok(input_objects), Ok(output_objects)) => Ok(Self {
                 transaction: value.transaction.try_into()?,
                 effects: value.effects.try_into()?,
-                events: value.events.map(TryInto::try_into).transpose()?,
+                events: value.events.map(Into::into),
                 input_objects,
                 output_objects,
             }),
@@ -1640,63 +1602,15 @@ impl TryFrom<UserSignature> for crate::signature::GenericSignature {
     }
 }
 
-impl TryFrom<crate::effects::TransactionEvents> for TransactionEvents {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: crate::effects::TransactionEvents) -> Result<Self, Self::Error> {
-        Self(
-            value
-                .data
-                .into_iter()
-                .map(TryInto::try_into)
-                .collect::<Result<Vec<_>, _>>()?,
-        )
-        .pipe(Ok)
+impl From<crate::effects::TransactionEvents> for TransactionEvents {
+    fn from(value: crate::effects::TransactionEvents) -> Self {
+        Self(value.data)
     }
 }
 
-impl TryFrom<TransactionEvents> for crate::effects::TransactionEvents {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: TransactionEvents) -> Result<Self, Self::Error> {
-        Self {
-            data: value
-                .0
-                .into_iter()
-                .map(TryInto::try_into)
-                .collect::<Result<_, _>>()?,
-        }
-        .pipe(Ok)
-    }
-}
-
-impl TryFrom<crate::event::Event> for Event {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: crate::event::Event) -> Result<Self, Self::Error> {
-        Self {
-            package_id: value.package_id,
-            module: value.transaction_module,
-            sender: value.sender,
-            type_: value.type_,
-            contents: value.contents,
-        }
-        .pipe(Ok)
-    }
-}
-
-impl TryFrom<Event> for crate::event::Event {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: Event) -> Result<Self, Self::Error> {
-        Self {
-            package_id: value.package_id,
-            transaction_module: value.module,
-            sender: value.sender,
-            type_: value.type_,
-            contents: value.contents,
-        }
-        .pipe(Ok)
+impl From<TransactionEvents> for crate::effects::TransactionEvents {
+    fn from(value: TransactionEvents) -> Self {
+        Self { data: value.0 }
     }
 }
 

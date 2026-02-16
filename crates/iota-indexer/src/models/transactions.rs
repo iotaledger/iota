@@ -469,7 +469,7 @@ pub async fn tx_events_to_iota_tx_events(
         iota_event_futures.push(tokio::task::spawn(async move {
             let resolver = package_resolver_clone;
             resolver
-                .type_layout(TypeTag::Struct(Box::new(tx_event.type_.clone())))
+                .type_layout(TypeTag::Struct(Box::new(tx_event.type_)))
                 .await
         }));
     }

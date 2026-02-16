@@ -10,6 +10,7 @@ use iota_types::{
     base_types::{Identifier, IotaAddress, ObjectID, StructTag, TransactionDigest},
     error::IotaResult,
     event::{Event, EventEnvelope, EventID},
+    object::bounded_visitor::BoundedVisitor,
 };
 use json_to_table::json_to_table;
 use move_core_types::annotated_value::MoveDatatypeLayout;
@@ -183,7 +184,7 @@ impl From<EventEnvelope> for IotaEvent {
                 event_seq: ev.event_num,
             },
             package_id: ev.event.package_id,
-            transaction_module: ev.event.transaction_module,
+            transaction_module: ev.event.module,
             sender: ev.event.sender,
             type_: ev.event.type_,
             parsed_json: ev.parsed_json,
@@ -199,7 +200,7 @@ impl From<IotaEvent> for Event {
     fn from(val: IotaEvent) -> Self {
         Event {
             package_id: val.package_id,
-            transaction_module: val.transaction_module,
+            module: val.transaction_module,
             sender: val.sender,
             type_: val.type_,
             contents: val.bcs.into_bytes(),
@@ -217,7 +218,7 @@ impl IotaEvent {
     ) -> IotaResult<Self> {
         let Event {
             package_id,
-            transaction_module,
+            module,
             sender,
             type_: _,
             contents,
@@ -227,7 +228,10 @@ impl IotaEvent {
             bcs: contents.to_vec(),
         };
 
-        let move_value = Event::move_event_to_move_value(&contents, layout)?;
+        let move_value = BoundedVisitor::deserialize_value(&contents, &layout.into_layout())
+            .map_err(|e| iota_types::error::IotaError::ObjectSerialization {
+                error: e.to_string(),
+            })?;
         let (type_, fields) = type_and_fields_from_move_event_data(move_value)?;
 
         Ok(IotaEvent {
@@ -236,7 +240,7 @@ impl IotaEvent {
                 event_seq,
             },
             package_id,
-            transaction_module,
+            transaction_module: module,
             sender,
             type_,
             parsed_json: fields,

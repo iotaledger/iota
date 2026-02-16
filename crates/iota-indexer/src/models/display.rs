@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::prelude::*;
-use iota_types::display::DisplayVersionUpdatedEvent;
+use iota_types::{base_types::TypeTag, display::DisplayVersionUpdatedEvent, event::Event};
 
 use crate::schema::display;
 
@@ -17,8 +17,15 @@ pub struct StoredDisplay {
 }
 
 impl StoredDisplay {
-    pub fn try_from_event(event: &iota_types::event::Event) -> Option<Self> {
-        let (ty, display_event) = DisplayVersionUpdatedEvent::try_from_event(event)?;
+    pub fn try_from_event(event: &Event) -> Option<Self> {
+        if !event.type_.is_display_version_updated() {
+            return None;
+        }
+        let ty = match event.type_.type_params() {
+            [TypeTag::Struct(struct_type)] => struct_type,
+            _ => return None,
+        };
+        let display_event: DisplayVersionUpdatedEvent = bcs::from_bytes(&event.contents).ok()?;
 
         Some(Self {
             object_type: ty.to_canonical_string(/* with_prefix */ true),

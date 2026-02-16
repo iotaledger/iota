@@ -116,7 +116,7 @@ impl EventHandler {
         for (idx, event) in events.data.iter().enumerate() {
             let Event {
                 package_id,
-                transaction_module,
+                module,
                 sender,
                 type_,
                 contents,
@@ -135,7 +135,7 @@ impl EventHandler {
                 timestamp_ms,
                 sender: sender.to_string(),
                 package: package_id.to_string(),
-                module: transaction_module.to_string(),
+                module: module.to_string(),
                 event_type: type_.to_string(),
                 bcs: Base64::encode(contents.clone()),
                 event_json: event_json.to_string(),
