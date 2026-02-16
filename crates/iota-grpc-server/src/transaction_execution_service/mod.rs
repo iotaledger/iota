@@ -200,12 +200,9 @@ pub async fn execute_transaction(
         .map(|m| m.contains(ExecutedTransaction::OUTPUT_OBJECTS_FIELD.name))
         .unwrap_or(false);
 
-    let transaction_data = transaction.transaction_data().clone();
-    let signatures = transaction.tx_signatures().to_owned();
-
     // Create execution request
     let exec_request = ExecuteTransactionRequestV1 {
-        transaction,
+        transaction: transaction.clone(),
         include_events,
         include_input_objects,
         include_output_objects,
@@ -234,11 +231,20 @@ pub async fn execute_transaction(
 
     // Only include transaction if requested
     if let Some(tx_mask) = read_mask.subtree(ExecuteTransactionResponse::TRANSACTION_FIELD.name) {
+        let sdk_transaction: iota_sdk_types::Transaction =
+            transaction.transaction_data().clone().try_into()?;
+        let signatures: Vec<iota_sdk_types::UserSignature> = transaction
+            .tx_signatures()
+            .to_owned()
+            .into_iter()
+            .map(|sig| sig.try_into())
+            .collect::<Result<_, _>>()?;
+
         // Create a source for the merge
         let source = TransactionReadSource {
             reader: reader.clone(),
             config,
-            transaction_data,
+            transaction: Some(sdk_transaction),
             signatures: Some(signatures),
             effects: Some(effects.effects),
             events,

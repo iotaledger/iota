@@ -39,7 +39,11 @@ To call the previous entry function, pass `0x6` as the address for the `Clock` p
 iota client call --package <EXAMPLE> --module 'clock' --function 'access' --args '0x6'
 ```
 
-**Note**: The `Clock` timestamp changes at the rate the network generates checkpoints, which is currently **every 0.2 to 0.25 seconds**.
+:::note Clock
+
+The `Clock` timestamp changes at the rate the network generates checkpoints, which is currently **every 0.2 to 0.25 seconds**.
+
+:::
 
 Successive calls to `iota::clock::timestamp_ms` within the same transaction will always produce the same result because transactions are considered to take effect instantly.
 However, timestamps from `Clock` are monotonic across transactions that touch the same shared objects, meaning successive transactions see a greater or equal timestamp compared to their predecessors.

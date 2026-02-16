@@ -80,9 +80,10 @@ macro_rules! create_batching_stream {
                         if current_size + item_size > $max_message_size && !current_batch.is_empty() {
                             // Current batch is full, yield it
                             has_yielded = true;
-                            yield $response_type {
-                                $items_field: current_batch,
-                                $has_next_field: true,
+                            yield paste::paste! {
+                                $response_type::default()
+                                    .[<with_ $items_field>](current_batch)
+                                    .[<with_ $has_next_field>](true)
                             };
                             // Start new batch with current item
                             current_batch = vec![result_item];
@@ -96,15 +97,17 @@ macro_rules! create_batching_stream {
                     None => {
                         // No more items
                         if !current_batch.is_empty() {
-                            yield $response_type {
-                                $items_field: current_batch,
-                                $has_next_field: false,
+                            yield paste::paste! {
+                                $response_type::default()
+                                    .[<with_ $items_field>](current_batch)
+                                    .[<with_ $has_next_field>](false)
                             };
                         } else if !has_yielded {
                             // Return empty response if we haven't yielded anything yet
-                            yield $response_type {
-                                $items_field: vec![],
-                                $has_next_field: false,
+                            yield paste::paste! {
+                                $response_type::default()
+                                    .[<with_ $items_field>](vec![])
+                                    .[<with_ $has_next_field>](false)
                             };
                         }
                         break;
