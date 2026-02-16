@@ -248,31 +248,26 @@ pub trait ReadStore: ObjectStore {
             .expect("storage access failed")
     }
 
-    fn try_get_events(&self, event_digest: &TransactionDigest)
-    -> Result<Option<TransactionEvents>>;
+    fn try_get_events(&self, digest: &TransactionDigest) -> Result<Option<TransactionEvents>>;
 
     /// Non-fallible version of `try_get_events`.
-    fn get_events(&self, event_digest: &TransactionDigest) -> Option<TransactionEvents> {
-        self.try_get_events(event_digest)
-            .expect("storage access failed")
+    fn get_events(&self, digest: &TransactionDigest) -> Option<TransactionEvents> {
+        self.try_get_events(digest).expect("storage access failed")
     }
 
     fn try_multi_get_events(
         &self,
-        event_digests: &[TransactionDigest],
+        digests: &[TransactionDigest],
     ) -> Result<Vec<Option<TransactionEvents>>> {
-        event_digests
+        digests
             .iter()
             .map(|digest| self.try_get_events(digest))
             .collect::<Result<Vec<_>, _>>()
     }
 
     /// Non-fallible version of `try_multi_get_events`.
-    fn multi_get_events(
-        &self,
-        event_digests: &[TransactionDigest],
-    ) -> Vec<Option<TransactionEvents>> {
-        self.try_multi_get_events(event_digests)
+    fn multi_get_events(&self, digests: &[TransactionDigest]) -> Vec<Option<TransactionEvents>> {
+        self.try_multi_get_events(digests)
             .expect("storage access failed")
     }
 
@@ -545,18 +540,15 @@ impl<T: ReadStore + ?Sized> ReadStore for &T {
         (*self).try_multi_get_transaction_effects(tx_digests)
     }
 
-    fn try_get_events(
-        &self,
-        event_digest: &TransactionDigest,
-    ) -> Result<Option<TransactionEvents>> {
-        (*self).try_get_events(event_digest)
+    fn try_get_events(&self, digest: &TransactionDigest) -> Result<Option<TransactionEvents>> {
+        (*self).try_get_events(digest)
     }
 
     fn try_multi_get_events(
         &self,
-        event_digests: &[TransactionDigest],
+        digests: &[TransactionDigest],
     ) -> Result<Vec<Option<TransactionEvents>>> {
-        (*self).try_multi_get_events(event_digests)
+        (*self).try_multi_get_events(digests)
     }
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
@@ -667,18 +659,15 @@ impl<T: ReadStore + ?Sized> ReadStore for Box<T> {
         (**self).try_multi_get_transaction_effects(tx_digests)
     }
 
-    fn try_get_events(
-        &self,
-        event_digest: &TransactionDigest,
-    ) -> Result<Option<TransactionEvents>> {
-        (**self).try_get_events(event_digest)
+    fn try_get_events(&self, digest: &TransactionDigest) -> Result<Option<TransactionEvents>> {
+        (**self).try_get_events(digest)
     }
 
     fn try_multi_get_events(
         &self,
-        event_digests: &[TransactionDigest],
+        digests: &[TransactionDigest],
     ) -> Result<Vec<Option<TransactionEvents>>> {
-        (**self).try_multi_get_events(event_digests)
+        (**self).try_multi_get_events(digests)
     }
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
@@ -789,18 +778,15 @@ impl<T: ReadStore + ?Sized> ReadStore for Arc<T> {
         (**self).try_multi_get_transaction_effects(tx_digests)
     }
 
-    fn try_get_events(
-        &self,
-        event_digest: &TransactionDigest,
-    ) -> Result<Option<TransactionEvents>> {
-        (**self).try_get_events(event_digest)
+    fn try_get_events(&self, digest: &TransactionDigest) -> Result<Option<TransactionEvents>> {
+        (**self).try_get_events(digest)
     }
 
     fn try_multi_get_events(
         &self,
-        event_digests: &[TransactionDigest],
+        digests: &[TransactionDigest],
     ) -> Result<Vec<Option<TransactionEvents>>> {
-        (**self).try_multi_get_events(event_digests)
+        (**self).try_multi_get_events(digests)
     }
 
     fn try_get_full_checkpoint_contents_by_sequence_number(

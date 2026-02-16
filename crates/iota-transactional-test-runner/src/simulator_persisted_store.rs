@@ -571,12 +571,12 @@ impl ReadStore for PersistedStore {
 
     fn try_get_events(
         &self,
-        event_digest: &TransactionDigest,
+        digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
         Ok(self
             .read_write
             .events
-            .get(event_digest)
+            .get(digest)
             .expect("Fatal: DB read failed"))
     }
 
@@ -745,14 +745,14 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
 
     fn try_get_events(
         &self,
-        event_digest: &TransactionDigest,
+        digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
         self.sync();
 
         Ok(self
             .inner
             .events
-            .get(event_digest)
+            .get(digest)
             .expect("Fatal: DB read failed"))
     }
 

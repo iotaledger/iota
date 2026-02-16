@@ -840,15 +840,12 @@ pub trait TransactionCacheRead: Send + Sync {
 
     fn try_multi_get_events(
         &self,
-        event_digests: &[TransactionDigest],
+        digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>>;
 
     /// Non-fallible version of `try_multi_get_events`.
-    fn multi_get_events(
-        &self,
-        event_digests: &[TransactionDigest],
-    ) -> Vec<Option<TransactionEvents>> {
-        self.try_multi_get_events(event_digests)
+    fn multi_get_events(&self, digests: &[TransactionDigest]) -> Vec<Option<TransactionEvents>> {
+        self.try_multi_get_events(digests)
             .expect("storage access failed")
     }
 

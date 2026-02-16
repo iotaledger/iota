@@ -475,9 +475,9 @@ impl ReadStore for InMemoryStore {
 
     fn try_get_events(
         &self,
-        event_digest: &iota_types::digests::TransactionDigest,
+        digest: &iota_types::digests::TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
-        Ok(self.get_transaction_events(event_digest).cloned())
+        Ok(self.get_transaction_events(digest).cloned())
     }
 
     fn try_get_full_checkpoint_contents_by_sequence_number(

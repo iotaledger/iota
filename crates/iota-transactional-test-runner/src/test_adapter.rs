@@ -2891,9 +2891,9 @@ impl ReadStore for IotaTestAdapter {
 
     fn try_get_events(
         &self,
-        event_digest: &TransactionDigest,
+        digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
-        self.executor.try_get_events(event_digest)
+        self.executor.try_get_events(digest)
     }
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
