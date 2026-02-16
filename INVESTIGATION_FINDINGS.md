@@ -59,15 +59,17 @@ The 7600 byte difference suggests that the BCS serialization of the `MovePackage
 ### The +7600 Byte Breakdown
 
 For the `concrete_multiple` test which publishes a module with 3 structs (`Wrapped`, `Wrapped2`, `Account<T,U>`):
-- The type_origin_table has 3 entries
-- The module_map has 1 module ("account")
-- If each entry gained ~2500 bytes of overhead, that would account for the difference
+- The type_origin_table has 3 entries (one for each struct)
+- The module_map has 1 module ("account")  
+- The linkage_table is empty (no dependencies)
 
-However, this is likely distributed across:
-- BCS map/vector length prefixes
-- String serialization overhead  
-- ObjectID/SequenceNumber field serialization
-- Additional metadata fields
+The 7600 byte increase is distributed across the entire package serialization:
+- BCS length prefixes for collections (maps, vectors)
+- String serialization overhead for module/struct names
+- ObjectID and SequenceNumber/Version field serialization
+- Potential differences in how the SDK types' internal representation is serialized
+
+Note: This is approximately 7600 bytes total for the entire package, not per entry. The exact distribution of overhead across different package components would require detailed BCS binary analysis.
 
 ## Conclusion
 
