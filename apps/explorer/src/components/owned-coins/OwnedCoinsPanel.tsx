@@ -44,7 +44,8 @@ export function CoinsPanel({ coinType, id, sortField, sortOrder }: CoinsPanelPro
         return allCoins.sort((a, b) => {
             if (sortField === SortField.Balance) {
                 const diff = BigInt(a.balance) - BigInt(b.balance);
-                return sortOrder === SortOrder.Asc ? Number(diff) : -Number(diff);
+                const diffComparison = diff === 0n ? 0 : diff > 0n ? 1 : -1;
+                return sortOrder === SortOrder.Asc ? diffComparison : -diffComparison;
             } else {
                 const comparison = a.coinObjectId.localeCompare(b.coinObjectId);
                 return sortOrder === SortOrder.Asc ? comparison : -comparison;
