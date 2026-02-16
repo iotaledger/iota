@@ -170,6 +170,7 @@ type ReadableDisplay =
     ::serde_with::As<::serde_with::IfIsHumanReadable<::serde_with::DisplayFromStr>>;
 
 #[derive(PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct BalanceChange {
     /// Owner of the balance change
     pub address: IotaAddress,
