@@ -357,9 +357,7 @@ impl MoveObjectType {
                 false
             }
             MoveObjectType_::Other(s) => {
-                AuthenticatorFunctionRefV1::is_authenticator_function_ref_v1(
-                    &struct_tag_sdk_to_core(s),
-                )
+                AuthenticatorFunctionRefV1::is_authenticator_function_ref_v1(s)
             }
         }
     }
