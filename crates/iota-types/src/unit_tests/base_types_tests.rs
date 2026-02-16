@@ -507,3 +507,17 @@ fn next_lexicographical_digest() {
         Some(Digest::from(output))
     );
 }
+
+#[test]
+fn test_objectid_bcs_serialization_size() {
+    use crate::base_types::ObjectID;
+    
+    let obj_id = ObjectID::ZERO;
+    let serialized = bcs::to_bytes(&obj_id).unwrap();
+    
+    println!("ObjectID BCS size: {} bytes", serialized.len());
+    println!("ObjectID::LENGTH: {}", ObjectID::LENGTH);
+    
+    // ObjectID should serialize to exactly 32 bytes (no BCS length prefix for fixed-size arrays)
+    assert_eq!(serialized.len(), 32, "ObjectID BCS size should match LENGTH constant");
+}
