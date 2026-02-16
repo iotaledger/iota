@@ -112,9 +112,7 @@ jobs:
           if [ "${{ inputs.testOnlyChangedCrates }}" = "true" ]; then
             ARGS="$ARGS --test-only-changed-crates"
           fi
-          if [ -n "${{ inputs.changedCrates }}" ]; then
-            ARGS="$ARGS --changed-crates '${{ inputs.changedCrates }}'"
-          fi
+          ARGS="$ARGS --changed-crates '${{ inputs.changedCrates }}'"
           if [ -n "${{ inputs.changedExternalCrates }}" ]; then
             ARGS="$ARGS --changed-crates-external '${{ inputs.changedExternalCrates }}'"
           fi
@@ -169,17 +167,13 @@ jobs:
           if [ "${{ inputs.testOnlyChangedCrates }}" = "true" ]; then
             ARGS="$ARGS --test-only-changed-crates"
           fi
-          if [ -n "${{ inputs.changedCrates }}" ]; then
-            ARGS="$ARGS --changed-crates '${{ inputs.changedCrates }}'"
-          fi
+          ARGS="$ARGS --changed-crates '${{ inputs.changedCrates }}'"
 
           eval "./scripts/ci_tests/rust_tests.sh $ARGS"
       - name: check new tests for flakiness
         run: |
           ARGS="--run-stress-new-tests-check-for-flakiness"
-          if [ -n "${{ inputs.changedCrates }}" ]; then
-            ARGS="$ARGS --changed-crates '${{ inputs.changedCrates }}'"
-          fi
+          ARGS="$ARGS --changed-crates '${{ inputs.changedCrates }}'"
 
           eval "./scripts/ci_tests/rust_tests.sh $ARGS"
 

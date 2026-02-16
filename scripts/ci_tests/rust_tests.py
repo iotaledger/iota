@@ -118,6 +118,21 @@ class RustTestOrchestrator:
                 return int(env_source.get(key, str(default)))
             except ValueError:
                 return default
+
+        def get_arg_with_default(attr_name: str, default_value):
+            """Helper to get argument attribute with proper default handling"""
+            if not self.args:
+                return default_value
+            
+            value = getattr(self.args, attr_name, None)
+            return value if value is not None else default_value
+
+        def get_arg_given(attr_name: str) -> bool:
+            """Helper to detect if an argument was passed to the script, regardless of its value"""
+            if not self.args:
+                return False
+            value = getattr(self.args, attr_name, None)
+            return value is not None
         
         return {
             # PostgreSQL configuration (infrastructure config - keep as env vars)
@@ -135,20 +150,20 @@ class RustTestOrchestrator:
 
             # CI will only test crates that have changed in the PR
             # For local tests, tests all crates by default. Override with TEST_ONLY_CHANGED_CRATES=true
-            'test_only_changed_crates': getattr(self.args, 'test_only_changed_crates', False) if self.args else False,
+            'test_only_changed_crates': get_arg_with_default('test_only_changed_crates', False),
             
             # Changed crates lists
-            'changed_crates': getattr(self.args, 'changed_crates', '') if self.args else '',
-            'changed_crates_given': bool(getattr(self.args, 'changed_crates', None)) if self.args else False,
-            'changed_crates_external': getattr(self.args, 'changed_crates_external', '') if self.args else '',
-            'changed_crates_external_given': bool(getattr(self.args, 'changed_crates_external', None)) if self.args else False,
+            'changed_crates': get_arg_with_default('changed_crates', ''),
+            'changed_crates_given': get_arg_given('changed_crates'),
+            'changed_crates_external': get_arg_with_default('changed_crates_external', ''),
+            'changed_crates_external_given': get_arg_given('changed_crates_external'),
             
             # Test execution settings
-            'manifest_path': getattr(self.args, 'manifest_path', './Cargo.toml') if self.args else './Cargo.toml',
-            'manifest_path_external': getattr(self.args, 'manifest_path_external', './external-crates/move/Cargo.toml') if self.args else './external-crates/move/Cargo.toml',
-            'no_capture': getattr(self.args, 'no_capture', False) if self.args else False,
-            'simtest_timeout': getattr(self.args, 'simtest_timeout', 180000) if self.args else 180000,
-            'base_branch': getattr(self.args, 'base_branch', 'origin/develop') if self.args else 'origin/develop',
+            'manifest_path': get_arg_with_default('manifest_path', './Cargo.toml'),
+            'manifest_path_external': get_arg_with_default('manifest_path_external', './external-crates/move/Cargo.toml'),
+            'no_capture': get_arg_with_default('no_capture', False),
+            'simtest_timeout': get_arg_with_default('simtest_timeout', 180000),
+            'base_branch': get_arg_with_default('base_branch', 'origin/develop'),
         }
     
     # parse the crates-filters.yml file using regex.
