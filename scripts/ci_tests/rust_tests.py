@@ -26,18 +26,12 @@ class RustTestOrchestrator:
     # valid test steps that can be run
     VALID_STEPS = [
         "run_tests",
-        "run_simtests", 
-        "rust_crates",
-        "external_crates",
-        "tests_using_postgres",
-        "simtests",
-        "stress_new_tests_check_for_flakiness",
-        "move_examples_rdeps_tests",
-        "move_examples_rdeps_simtests",
-        "test_extra",
-        "unused_deps",
-        "audit_deps",
-        "audit_deps_external"
+        "run_sim_tests",
+        "run_stress_new_tests_check_for_flakiness",
+        "run_tests_extra",
+        "run_unused_deps",
+        "run_audit_deps",
+        "run_audit_deps_external",
     ]
 
     TEST_TYPE_NEXTEST="nextest"
@@ -75,11 +69,12 @@ class RustTestOrchestrator:
         "(package(iota-rosetta) and test(test_publish_and_move_call))"
     ]
     
-    # initialize the orchestrator with environment configuration
-    def __init__(self):
+    # initialize the orchestrator with configuration
+    def __init__(self, args=None):
+        self.args = args
         self.setup_logging()
         self.root_dir = self._get_root_directory()
-        self.env_config = self._load_environment_config(os.environ)
+        self.config = self._load_config(os.environ)
         
     # setup_logging configures logging for the script.
     def setup_logging(self) -> None:
@@ -106,8 +101,8 @@ class RustTestOrchestrator:
             script_dir = Path(__file__).parent
             return script_dir.parent.parent
             
-    # load and validate environment configuration
-    def _load_environment_config(self, env_source: Dict[str, str]) -> Dict[str, str]:
+    # load and validate configuration from CLI arguments and environment
+    def _load_config(self, env_source: Dict[str, str]) -> Dict[str, str]:
         if env_source is None:
             env_source = os.environ
 
@@ -125,45 +120,35 @@ class RustTestOrchestrator:
                 return default
         
         return {
-            # Test execution control
-            
-            # CI will only test crates that have changed in the PR
-            # For local tests, tests all crates by default. Override with TEST_ONLY_CHANGED_CRATES=true
-            'test_only_changed_crates': get_env_bool('TEST_ONLY_CHANGED_CRATES', False),
-
-            # CI uses postgres provided via a github CI service. It needs to be able to not restart postgres.
-            # Locally, this script restarts postgres by default. Override by passing RESTART_POSTGRES=false
-            # only the tests that need postgres will automatically (re-)start it
-            'restart_postgres': get_env_bool('RESTART_POSTGRES', True),
-            
-            # Test type flags
-            'ci_is_rust': get_env_bool('CI_IS_RUST', False),
-            'ci_is_external_crates': get_env_bool('CI_IS_EXTERNAL_CRATES', False),
-            'ci_is_pg_integration': get_env_bool('CI_IS_PG_INTEGRATION', False),
-            'ci_is_move_example_used_by_others': get_env_bool('CI_IS_MOVE_EXAMPLE_USED_BY_OTHERS', False),
-            
-            # Changed crates lists
-            
-            # CI uses an action to detect changed_crates. It needs to be able to override changed crates with the ones detected by that action.
-            # Override with CHANGED_CRATES.
-            # Locally, you don't need to provide this variable, this script will detect changed crates.
-            # Format of CHANGED_CRATES: one string, space-separated: CHANGED_CRATES="crate1 crate2 crate3" ./this_script.sh
-            'ci_changed_crates': get_env_str('CI_CHANGED_CRATES'),
-            'changed_crates_rust_given': 'CI_CHANGED_CRATES' in env_source,
-            'ci_changed_external_crates': get_env_str('CI_CHANGED_EXTERNAL_CRATES'),
-            'changed_crates_external_given': 'CI_CHANGED_EXTERNAL_CRATES' in env_source,
-            
-            # PostgreSQL configuration
+            # PostgreSQL configuration (infrastructure config - keep as env vars)
             'postgres_password': get_env_str('POSTGRES_PASSWORD', 'postgrespw'),
             'postgres_user': get_env_str('POSTGRES_USER', 'postgres'),
             'postgres_db': get_env_str('POSTGRES_DB', 'iota_indexer'),
             'postgres_host': get_env_str('POSTGRES_HOST', 'postgres'),
             'postgres_port': get_env_int('POSTGRES_PORT', 5432),
+            # CI uses postgres provided via a github CI service. It needs to be able to not restart postgres.
+            # Locally, this script restarts postgres by default. Override by passing RESTART_POSTGRES=false
+            # only the tests that need postgres will automatically (re-)start it
+            'restart_postgres': get_env_bool('RESTART_POSTGRES', True),
+            
+            # Test execution control
+
+            # CI will only test crates that have changed in the PR
+            # For local tests, tests all crates by default. Override with TEST_ONLY_CHANGED_CRATES=true
+            'test_only_changed_crates': getattr(self.args, 'test_only_changed_crates', False) if self.args else False,
+            
+            # Changed crates lists
+            'changed_crates': getattr(self.args, 'changed_crates', '') if self.args else '',
+            'changed_crates_given': bool(getattr(self.args, 'changed_crates', None)) if self.args else False,
+            'changed_crates_external': getattr(self.args, 'changed_crates_external', '') if self.args else '',
+            'changed_crates_external_given': bool(getattr(self.args, 'changed_crates_external', None)) if self.args else False,
             
             # Test execution settings
-            'msim_watchdog_timeout_ms': get_env_int('MSIM_WATCHDOG_TIMEOUT_MS', 180000),
-            'enable_no_capture': get_env_bool('ENABLE_NO_CAPTURE', False),
-            'manifest_path': get_env_str('MANIFEST_PATH', './Cargo.toml'),
+            'manifest_path': getattr(self.args, 'manifest_path', './Cargo.toml') if self.args else './Cargo.toml',
+            'manifest_path_external': getattr(self.args, 'manifest_path_external', './external-crates/move/Cargo.toml') if self.args else './external-crates/move/Cargo.toml',
+            'no_capture': getattr(self.args, 'no_capture', False) if self.args else False,
+            'simtest_timeout': getattr(self.args, 'simtest_timeout', 180000) if self.args else 180000,
+            'base_branch': getattr(self.args, 'base_branch', 'origin/develop') if self.args else 'origin/develop',
         }
     
     # parse the crates-filters.yml file using regex.
@@ -200,15 +185,16 @@ class RustTestOrchestrator:
                 
         return crate_mappings
     
-    # find crates that have changed by comparing current branch with origin/develop.
+    # find crates that have changed by comparing current branch with the specified base branch.
     def search_changed_crates(self) -> List[str]:
         try:
+            base_branch = self.config['base_branch']
             # Log that we are using the fallback method to detect changed crates
-            self.logger.info("Detecting changed crates by comparing with origin/develop...")
+            self.logger.info(f"Detecting changed crates by comparing with {base_branch}...")
 
             # Get changed files
             result = subprocess.run(
-                ["git", "diff", "--name-only", "origin/develop..HEAD"],
+                ["git", "diff", "--name-only", f"{base_branch}..HEAD"],
                 capture_output=True,
                 text=True,
                 check=True,
@@ -339,34 +325,34 @@ class RustTestOrchestrator:
         return ""
     
     # build_filterset_tests builds a combined filter set for tests based on the given conditions
-    # run_rust_tests: run tests for rust crates
-    # run_tests_using_postgres: run tests that depend on Postgres
-    # run_move_examples_rdeps_tests: run tests that depend on the Move examples
+    # tests_crates_workspace: run tests for rust crates
+    # tests_pg_integration: run tests that depend on Postgres
+    # tests_move_example_used_by_others: run tests that depend on the Move examples
     # test_only_changed_crates: run tests only for the crates that have changed
-    # changed_crates_rust: the list of changed crates for rust
-    def build_filterset_tests(self, run_rust_tests: bool, run_tests_using_postgres: bool,
-                            run_move_examples_rdeps_tests: bool, test_only_changed_crates: bool,
-                            changed_crates_rust: str, changed_crates_rust_given: bool) -> str:
+    # changed_crates: the list of changed crates for rust
+    def build_filterset_tests(self, tests_crates_workspace: bool, tests_pg_integration: bool,
+                            tests_move_example_used_by_others: bool, test_only_changed_crates: bool,
+                            changed_crates: str, changed_crates_given: bool) -> str:
         filter_set = ""
         
         # we always exclude the following tests, because they need shared state and are incompatible with nextest.
         # they are run separately after the nextest tests via "cargo test"
         exclude_set = self.build_filterset_excluded(self.FILTERSET_TESTS_POSTGRES_SHARED_TEST_RUNTIME)
         
-        if run_rust_tests:
+        if tests_crates_workspace:
             changed_crates_rust_filter = self.build_filterset_changed_crates(
-                test_only_changed_crates, changed_crates_rust, changed_crates_rust_given
+                test_only_changed_crates, changed_crates, changed_crates_given
             )
             filter_set = self.append_filter_item_or(filter_set, changed_crates_rust_filter)
         
-        if run_tests_using_postgres:
+        if tests_pg_integration:
             postgres_tests_filter = self.build_filterset_included(self.FILTERSET_TESTS_POSTGRES_PG_INTEGRATION)
             filter_set = self.append_filter_item_or(filter_set, postgres_tests_filter)
         else:
             postgres_tests_exclude_filter = self.build_filterset_excluded(self.FILTERSET_TESTS_POSTGRES_PG_INTEGRATION)
             exclude_set = self.append_filter_item_and(exclude_set, postgres_tests_exclude_filter)
         
-        if run_move_examples_rdeps_tests:
+        if tests_move_example_used_by_others:
             move_examples_rdeps_tests_filter = self.build_filterset_included(self.FILTERSET_TESTS_MOVE_EXAMPLES_RDEPS)
             filter_set = self.append_filter_item_or(filter_set, move_examples_rdeps_tests_filter)
         
@@ -388,7 +374,7 @@ class RustTestOrchestrator:
     
     # await_postgres waits for the PostgreSQL service to be ready by repeatedly checking with pg_isready.
     def await_postgres(self) -> None:
-        port = self.env_config['postgres_port']
+        port = self.config['postgres_port']
         self.logger.info(f"Waiting for postgres on port {port}...")
         
         while True:
@@ -414,11 +400,11 @@ class RustTestOrchestrator:
         
         # Prepare environment variables
         postgres_env = {
-            'POSTGRES_PASSWORD': self.env_config['postgres_password'],
-            'POSTGRES_USER': self.env_config['postgres_user'],
-            'POSTGRES_DB': self.env_config['postgres_db'],
-            'POSTGRES_HOST': self.env_config['postgres_host'],
-            'PGPASSWORD': self.env_config['postgres_password']
+            'POSTGRES_PASSWORD': self.config['postgres_password'],
+            'POSTGRES_USER': self.config['postgres_user'],
+            'POSTGRES_DB': self.config['postgres_db'],
+            'POSTGRES_HOST': self.config['postgres_host'],
+            'PGPASSWORD': self.config['postgres_password']
         }
         
         # Remove existing postgres containers
@@ -442,8 +428,8 @@ class RustTestOrchestrator:
         self.await_postgres()
         
         # Create database and configure
-        db_name = self.env_config['postgres_db']
-        user = self.env_config['postgres_user']
+        db_name = self.config['postgres_db']
+        user = self.config['postgres_user']
         
         create_db_cmd = f'''echo "SELECT 'CREATE DATABASE {db_name}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{db_name}')\\gexec" | psql -h localhost -U {user}'''
         self.print_and_run_command(create_db_cmd, postgres_env)
@@ -481,7 +467,7 @@ class RustTestOrchestrator:
         
         parts.extend(["--no-tests=warn"])
         
-        if self.env_config['enable_no_capture']:
+        if self.config['no_capture']:
             parts.append("--nocapture")
         
         # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
@@ -503,47 +489,48 @@ class RustTestOrchestrator:
             
         parts.extend(["--no-tests=warn"])
         
-        if self.env_config['enable_no_capture']:
+        if self.config['no_capture']:
             parts.append("--nocapture")
         
         # Set simtest timeout
         test_env = {
-            'MSIM_WATCHDOG_TIMEOUT_MS': str(self.env_config['msim_watchdog_timeout_ms'])
+            'MSIM_WATCHDOG_TIMEOUT_MS': str(self.config['simtest_timeout'])
         }
         
         command = " ".join(parts)
         return self.print_and_run_command(command, test_env)
     
     # main test execution logic handling all test types
-    def filter_and_run_tests(self, test_type: str, env_overrides: Optional[Dict[str, str]] = None) -> int:
+    def filter_and_run_tests(self, 
+                             test_type: str,
+                             tests_crates_workspace=False,
+                             tests_crates_external=False,
+                             tests_pg_integration=False,
+                             tests_move_example_used_by_others=False,
+                             ) -> int:
+        
         if test_type not in [self.TEST_TYPE_NEXTEST, self.TEST_TYPE_SIMTEST]:
             self.logger.error(f"Invalid test type specified. Use 'nextest' or 'simtest'. Got: {test_type}")
             return 1
         
-        config = self.env_config
-        if env_overrides:
-            combined_env = dict(os.environ)
-            combined_env.update(env_overrides)
-            config = self._load_environment_config(combined_env)
+        # Use configuration from CLI arguments
+        config = self.config
         
-        run_rust_tests = config['ci_is_rust']
-        run_external_crates = config['ci_is_external_crates']
-        run_tests_using_postgres = config['ci_is_pg_integration']
-        run_move_examples_rdeps_tests = config['ci_is_move_example_used_by_others']
+        # Override test type flags with method parameters
         test_only_changed_crates = config['test_only_changed_crates']
-        changed_crates_rust = config['ci_changed_crates']
-        changed_crates_rust_given = config['changed_crates_rust_given']
-        changed_crates_external = config['ci_changed_external_crates']
+        changed_crates = config['changed_crates']
+        changed_crates_given = config['changed_crates_given']
+        changed_crates_external = config['changed_crates_external']
         changed_crates_external_given = config['changed_crates_external_given']
         restart_postgres = config['restart_postgres']
         
         # Early return if no conditions are set
-        if not any([run_rust_tests, run_external_crates, run_tests_using_postgres, run_move_examples_rdeps_tests]):
+        if not any([tests_crates_workspace, tests_crates_external, tests_pg_integration, tests_move_example_used_by_others]):
             self.logger.error("No conditions are set to run tests. Exiting.")
             return 1
         
         # check if external crates are set
-        if run_external_crates:
+        if tests_crates_external:
             external_filter = self.build_filterset_changed_crates(
                 test_only_changed_crates, changed_crates_external, changed_crates_external_given
             )
@@ -562,17 +549,17 @@ class RustTestOrchestrator:
                     return result
         
         # check again if any of the other conditions are set, in case only external crates were set
-        if not any([run_rust_tests, run_tests_using_postgres, run_move_examples_rdeps_tests]):
+        if not any([tests_crates_workspace, tests_pg_integration, tests_move_example_used_by_others]):
             return 0
         
         # Build main test filter set
         combined_set = self.build_filterset_tests(
-            run_rust_tests, run_tests_using_postgres, run_move_examples_rdeps_tests,
-            test_only_changed_crates, changed_crates_rust, changed_crates_rust_given
+            tests_crates_workspace, tests_pg_integration, tests_move_example_used_by_others,
+            test_only_changed_crates, changed_crates, changed_crates_given
         )
         
         # check if a restart of postgres is needed
-        if run_tests_using_postgres and restart_postgres:
+        if tests_pg_integration and restart_postgres:
             self.restart_postgres_docker()
         
         # Run tests based on type
@@ -582,7 +569,7 @@ class RustTestOrchestrator:
                 return result
                 
             # Run special postgres shared runtime tests with cargo test
-            if run_tests_using_postgres:
+            if tests_pg_integration:
                 # Iota-indexer's RPC tests, which depend on a shared runtime, are incompatible with nextest due to its process-per-test execution model.
                 # "cargo test", on the other hand, allows tests to share state and resources by default.
                 #
@@ -591,7 +578,7 @@ class RustTestOrchestrator:
                 # but since we filter by "rpc-tests", there are no "shared_test_runtime" tests in the scope and it is fine to run with "all-features" here,
                 # which reduces compilation time because we already run the nextest tests with "all-features" beforehand.
                 rpc_test_cmd = "cargo test --profile simulator --package iota-indexer --test rpc-tests --all-features"
-                if self.env_config['enable_no_capture']:
+                if self.config['no_capture']:
                     rpc_test_cmd += " --nocapture"
                 result = self.print_and_run_command(rpc_test_cmd)
                 if result != 0:
@@ -606,52 +593,48 @@ class RustTestOrchestrator:
     
     ### Step execution methods
 
-    # run nextest with current configuration
-    def run_tests(self, env_overrides: Optional[Dict[str, str]] = None) -> int:
-        return self.filter_and_run_tests(self.TEST_TYPE_NEXTEST, env_overrides)
+    # run tests with current configuration
+    def run_tests(self, 
+                  tests_crates_workspace=False,
+                  tests_crates_external=False,
+                  tests_pg_integration=False,
+                  tests_move_example_used_by_others=False) -> int:
+        return self.filter_and_run_tests(
+            self.TEST_TYPE_NEXTEST,
+            tests_crates_workspace,
+            tests_crates_external,
+            tests_pg_integration,
+            tests_move_example_used_by_others,
+        )
     
     # run simtest with current configuration
-    def run_simtests(self, env_overrides: Optional[Dict[str, str]] = None) -> int:
-        return self.filter_and_run_tests(self.TEST_TYPE_SIMTEST, env_overrides)
-    
-    # test only Rust workspace crates
-    def rust_crates(self) -> int:
-        return self.run_tests(env_overrides={'CI_IS_RUST': 'true'})
-    
-    # test only external/Move crates
-    def external_crates(self) -> int:
-        return self.run_tests(env_overrides={'CI_IS_EXTERNAL_CRATES': 'true'})
-    
-    # run simulation tests for Rust crates
-    def simtests(self) -> int:
-        return self.run_simtests(env_overrides={'CI_IS_RUST': 'true'})
-    
-    # test only PostgreSQL-dependent tests
-    def tests_using_postgres(self) -> int:
-        return self.run_tests(env_overrides={'CI_IS_PG_INTEGRATION': 'true'})
-    
-    # test crates dependent on Move examples
-    def move_examples_rdeps_tests(self) -> int:
-        return self.run_tests(env_overrides={'CI_IS_MOVE_EXAMPLE_USED_BY_OTHERS': 'true'})
-    
-    # simtest for Move example dependencies
-    def move_examples_rdeps_simtests(self) -> int:
-        return self.run_simtests(env_overrides={'CI_IS_MOVE_EXAMPLE_USED_BY_OTHERS': 'true'})
+    def run_sim_tests(self,
+                     tests_crates_workspace=False,
+                     tests_crates_external=False,
+                     tests_pg_integration=False,
+                     tests_move_example_used_by_others=False) -> int:
+        return self.filter_and_run_tests(
+            self.TEST_TYPE_SIMTEST,
+            tests_crates_workspace,
+            tests_crates_external,
+            tests_pg_integration,
+            tests_move_example_used_by_others
+        )
     
     # run stress tests for new tests to check for flakiness
-    def stress_new_tests_check_for_flakiness(self) -> int:
+    def run_stress_new_tests_check_for_flakiness(self) -> int:
         test_env = {
-            'MSIM_WATCHDOG_TIMEOUT_MS': str(self.env_config['msim_watchdog_timeout_ms'])
+            'MSIM_WATCHDOG_TIMEOUT_MS': str(self.config['simtest_timeout'])
         }
         
         cmd = "scripts/simtest/stress-new-tests.sh"
-        if self.env_config['enable_no_capture']:
+        if self.config['no_capture']:
             cmd += " --nocapture"
             
         return self.print_and_run_command(cmd, test_env)
     
     # run extra tests like stresstest, doc tests, doc generation, changed files, etc.
-    def test_extra(self) -> int:
+    def run_tests_extra(self) -> int:
         # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
         # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
         # non-deterministic `test` job.
@@ -673,7 +656,7 @@ class RustTestOrchestrator:
         return 0
     
     # check for unused dependencies with cargo-udeps.
-    def unused_deps(self) -> int:
+    def run_unused_deps(self) -> int:
         commands = [
             "cargo +nightly-2026-01-07 ci-udeps --all-features",
             "cargo +nightly-2026-01-07 ci-udeps --no-default-features"
@@ -687,8 +670,9 @@ class RustTestOrchestrator:
         return 0
     
     # audit dependencies for security/license issues
-    def audit_deps(self) -> int:
-        manifest_path = self.env_config['manifest_path']
+    def run_audit_deps(self, manifest_path: str = None) -> int:
+        if manifest_path is None:
+            manifest_path = self.config.get('manifest_path', "./Cargo.toml")
         
         commands = [
             f'cargo deny --manifest-path "{manifest_path}" check bans licenses sources',
@@ -703,50 +687,54 @@ class RustTestOrchestrator:
         return 0
     
     # audit external dependencies
-    def audit_deps_external(self) -> int:
-        external_manifest = "./external-crates/move/Cargo.toml"
-        
-        # Temporarily set manifest path and call audit_deps
-        try:
-            old_manifest = self.env_config['manifest_path']
-            self.env_config['manifest_path'] = external_manifest
-            
-            result = self.audit_deps()
-        finally:
-            # Restore original manifest path
-            self.env_config['manifest_path'] = old_manifest
-        
-        return result
+    def run_audit_deps_external(self) -> int:
+        manifest_path = self.config.get('manifest_path_external', "./external-crates/move/Cargo.toml")
+        return self.run_audit_deps(manifest_path=manifest_path)
 
 if __name__ == "__main__":    
     # Running all the tests will compile different sets of crates and take a lot of storage (>500GB)
     # If your machine has less storage, you can run only part of the tests (at a time),
-    # use the name of the function to run as a subcommand.
+    # use the individual flags to run specific test types.
 
     parser = argparse.ArgumentParser(
         description='Rust Test Orchestration Script',
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=f"""
-Valid steps: {', '.join(RustTestOrchestrator.VALID_STEPS)}
-
-Environment variables:
-  TEST_ONLY_CHANGED_CRATES: Only test changed crates (default: false)
-  CI_CHANGED_CRATES: Space-separated list of changed crates
-  RESTART_POSTGRES: Restart PostgreSQL (default: true)
-  CI_IS_RUST: Run Rust tests
-  CI_IS_EXTERNAL_CRATES: Run external crate tests
-  CI_IS_PG_INTEGRATION: Run PostgreSQL integration tests
-  CI_IS_MOVE_EXAMPLE_USED_BY_OTHERS: Run Move example dependent tests
+        epilog="""
+PostgreSQL Environment variables (infrastructure config):
+  POSTGRES_PASSWORD:  PostgreSQL password (default: postgrespw)
+  POSTGRES_USER:      PostgreSQL user (default: postgres)
+  POSTGRES_DB:        PostgreSQL database (default: iota_indexer)
+  POSTGRES_HOST:      PostgreSQL host (default: postgres)
+  POSTGRES_PORT:      PostgreSQL port (default: 5432)
+  RESTART_POSTGRES:   Whether to restart PostgreSQL before running tests that depend on it (default: true).
 """
     )
     
-    parser.add_argument(
-        'step',
-        nargs='?',
-        choices=RustTestOrchestrator.VALID_STEPS + [None],
-        help='Specific test step to run (if not provided, runs all steps)'
-    )
+    # Individual test step flags
+    parser.add_argument('--run-tests', action='store_true', help='Run rust tests via nextest and current configuration')
+    parser.add_argument('--run-sim-tests', action='store_true', help='Run sim tests with current configuration')
+    parser.add_argument('--run-stress-new-tests-check-for-flakiness', action='store_true', help='Run stress tests for new tests to check for flakiness')
+    parser.add_argument('--run-tests-extra', action='store_true', help='Run extra tests like stresstest, doc tests, doc generation, changed files, etc.')
+    parser.add_argument('--run-unused-deps', action='store_true', help='Check for unused dependencies with cargo-udeps')
+    parser.add_argument('--run-audit-deps', action='store_true', help='Run dependency audit for security/license issues with cargo-deny')
+    parser.add_argument('--run-audit-deps-external', action='store_true', help='Run dependency audit for external crates with cargo-deny')
+
+    # Specific test type flags for "run-tests" and "run-sim-tests"
+    parser.add_argument('--tests-crates-workspace', action='store_true', help='Run tests for internal Rust workspace crates (in combination with `--run-tests` or `--run-sim-tests`)')
+    parser.add_argument('--tests-crates-external', action='store_true', help='Run tests for external/Move crates (in combination with `--run-tests` or `--run-sim-tests`)')
+    parser.add_argument('--tests-pg-integration', action='store_true', help='Run PostgreSQL-dependent tests (in combination with `--run-tests` or `--run-sim-tests`)')
+    parser.add_argument('--tests-move-examples-rdeps', action='store_true', help='Run tests for crates dependent on Move examples (in combination with `--run-tests` or `--run-sim-tests`)')
     
+    # Configuration arguments
+    parser.add_argument('--test-only-changed-crates', action='store_true', help='Only test changed crates (default: test all crates)')
+    parser.add_argument('--changed-crates', type=str, help='Space-separated list of changed crates to test')
+    parser.add_argument('--changed-crates-external', type=str, help='Space-separated list of changed external crates to test')
+    parser.add_argument('--manifest-path', type=str, help='Path to Cargo.toml manifest file (default: ./Cargo.toml)')
+    parser.add_argument('--manifest-path-external', type=str, help='Path to Cargo.toml manifest file for external crates (default: ./Cargo.toml)')
+    parser.add_argument('--no-capture', action='store_true', help='Disable test output capture (show all output)')
+    parser.add_argument('--simtest-timeout', type=int, help='Timeout in milliseconds for simulation tests (default: 180000)')
+    parser.add_argument('--base-branch', type=str, help='Base branch to compare for changed crates detection if no changed crates are given (default: origin/develop)')
+
     parser.add_argument(
         '--verbose', '-v',
         action='store_true',
@@ -759,39 +747,78 @@ Environment variables:
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
     
+    # Verify if "run_tests" or "run_sim_tests" is requested, at least one of the specific test type flags should be set.
+    if (args.run_tests or args.run_sim_tests) and not any([
+        args.tests_crates_workspace, 
+        args.tests_crates_external, 
+        args.tests_pg_integration, 
+        args.tests_move_examples_rdeps
+    ]):
+        parser.error("When using --run-tests or --run-sim-tests, at least one of the specific test type flags must be set: --tests-crates-workspace, --tests-crates-external, --tests-pg-integration, --tests-move-examples-rdeps")
+
+    # Verify if any specific test type flag is set without "run_tests" or "run_sim_tests"
+    if any([
+        args.tests_crates_workspace, 
+        args.tests_crates_external, 
+        args.tests_pg_integration, 
+        args.tests_move_examples_rdeps
+    ]) and not (args.run_tests or args.run_sim_tests):
+        parser.error("Specific test type flags cannot be used without --run-tests or --run-sim-tests. Please specify which test type to run with the specific test type flags.")
+
     # Create orchestrator and run
-    orchestrator = RustTestOrchestrator()
+    orchestrator = RustTestOrchestrator(args)
+
+    # Map argument flags to method names
+    step_mapping = {
+        'run_tests': args.run_tests,
+        'run_sim_tests': args.run_sim_tests,
+        'run_stress_new_tests_check_for_flakiness': args.run_stress_new_tests_check_for_flakiness,
+        'run_tests_extra': args.run_tests_extra,
+        'run_unused_deps': args.run_unused_deps,
+        'run_audit_deps': args.run_audit_deps,
+        'run_audit_deps_external': args.run_audit_deps_external,
+    }
     
-    if args.step:
-        # Run specific step
-        step_method = getattr(orchestrator, args.step, None)
+    # Collect enabled steps
+    enabled_steps = [step for step, enabled in step_mapping.items() if enabled]
+    
+    # If no specific steps are requested, run all steps except run_tests and run_sim_tests
+    # because they are called by other steps in the CI
+    if not enabled_steps:
+        enabled_steps = [step for step in RustTestOrchestrator.VALID_STEPS 
+                        if step not in {"run_tests", "run_sim_tests"}]
+    
+    # Run the enabled steps
+    for step in enabled_steps:
+        orchestrator.logger.info(f"Running step: {step}")
+    
+        step_method = getattr(orchestrator, step, None)
         if step_method and callable(step_method):
             try:
-                result = step_method()
-                sys.exit(result if isinstance(result, int) else 0)
+                # if the step is "run_tests" or "run_sim_tests", 
+                # we need to pass the specific test type flags based on the CLI arguments
+                if step in {"run_tests", "run_sim_tests"}:
+                    result = step_method(
+                        tests_crates_workspace=args.tests_crates_workspace,
+                        tests_crates_external=args.tests_crates_external,
+                        tests_pg_integration=args.tests_pg_integration,
+                        tests_move_example_used_by_others=args.tests_move_examples_rdeps
+                    )
+                else:
+                    result = step_method()
+                
+                if isinstance(result, int) and result != 0:
+                    orchestrator.logger.error(f"Step '{step}' failed with exit code {result}")
+                    sys.exit(result)
             except Exception as e:
-                orchestrator.logger.error(f"Error running step '{args.step}': {e}")
+                orchestrator.logger.error(f"Error running step '{step}': {e}")
                 sys.exit(1)
         else:
-            orchestrator.logger.error(f"Unknown step: {args.step}")
+            orchestrator.logger.error(f"Unknown step: {step}")
             sys.exit(1)
-    else:
-        # Run all steps (excluding run_tests and run_simtests as they're called by other steps)
-        skip_steps = {"run_tests", "run_simtests"}
-        for step in RustTestOrchestrator.VALID_STEPS:
-            if step in skip_steps:
-                continue
-            
-            orchestrator.logger.info(f"Running step: {step}")
-            step_method = getattr(orchestrator, step, None)
-            if step_method and callable(step_method):
-                try:
-                    result = step_method()
-                    if isinstance(result, int) and result != 0:
-                        orchestrator.logger.error(f"Step '{step}' failed with exit code {result}")
-                        sys.exit(result)
-                except Exception as e:
-                    orchestrator.logger.error(f"Error running step '{step}': {e}")
-                    sys.exit(1)
-        
+
+    if enabled_steps:
         orchestrator.logger.info("All steps completed successfully")
+    else:
+        orchestrator.logger.error("No steps to run")
+        sys.exit(1)

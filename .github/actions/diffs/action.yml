@@ -52,6 +52,7 @@ runs:
             - ".github/workflows/_split_cluster.yml"
             - "scripts/cargo_sort/cargo_sort.py"
             - "scripts/ci_tests/rust_tests.sh"
+            - "scripts/ci_tests/rust_tests.py"
             - "Cargo.toml"
             - "Cargo.lock"
             - ".config/nextest.toml"

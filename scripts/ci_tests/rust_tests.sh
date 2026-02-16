@@ -11,4 +11,4 @@ else
 fi
 
 ROOT=$(git rev-parse --show-toplevel || realpath "$(dirname "$0")/../..")
-$PYTHON_CMD "$ROOT/scripts/ci_tests/rust_tests.py"
+$PYTHON_CMD "$ROOT/scripts/ci_tests/rust_tests.py" "$@"
