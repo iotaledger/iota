@@ -31,7 +31,9 @@ use iota_graphql_rpc::{
 #[cfg(feature = "indexer")]
 use iota_indexer::test_utils::{IndexerTypeConfig, start_test_indexer};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
-use iota_move::{self, execute_move_command, manage_package::resolve_lock_file_path};
+use iota_move::{
+    self, Command as MoveCommand, execute_move_command, manage_package::resolve_lock_file_path,
+};
 use iota_move_build::{
     BuildConfig as IotaBuildConfig, IotaPackageHooks, check_invalid_dependencies,
     check_unpublished_dependencies, implicit_deps,
@@ -146,7 +148,7 @@ impl IndexerFeatureArgs {
     }
 }
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[clap(rename_all = "kebab-case")]
 pub struct IotaEnvConfig {
     /// Sets the file storing the state of our user accounts (an empty one will
@@ -375,7 +377,7 @@ pub enum IotaCommand {
         build_config: BuildConfig,
         /// Subcommands.
         #[command(subcommand)]
-        cmd: iota_move::Command,
+        cmd: MoveCommand,
     },
     #[cfg(feature = "iota-names")]
     /// Manage names registered in IOTA-Names.
@@ -544,7 +546,7 @@ impl IotaCommand {
             IotaCommand::Move {
                 package_path,
                 build_config,
-                cmd,
+                mut cmd,
                 config: client_config,
             } => {
                 match cmd {
@@ -641,7 +643,35 @@ impl IotaCommand {
                         return Ok(());
                     }
                     _ => (),
-                };
+                }
+
+                // If a specific environment is specified for the build command we set the chain
+                // ID to the one that is specified.
+                if client_config.env.is_some() && matches!(cmd, MoveCommand::Build(_)) {
+                    // TODO replace with get_chain_id_and_client when https://github.com/iotaledger/iota/issues/10215 is done
+                    let mut context = WalletContext::new(
+                        &client_config
+                            .config
+                            .unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG)),
+                    )?;
+                    if let Some(env_override) = &client_config.env {
+                        context = context.with_env_override(env_override.clone());
+                    }
+                    let Ok(client) = context.get_client().await else {
+                        bail!(
+                            "`iota move build` requires a connection to the network. Current active network is {} but failed to connect to it.",
+                            context.active_env().as_ref().unwrap()
+                        );
+                    };
+                    let chain_id = client.read_api().get_chain_identifier().await.ok();
+
+                    let MoveCommand::Build(build_config) = &mut cmd else {
+                        unreachable!("We checked for Build above, so this should never happen");
+                    };
+
+                    build_config.chain_id = chain_id;
+                }
+
                 execute_move_command(package_path.as_deref(), build_config, cmd)
             }
             #[cfg(feature = "iota-names")]
