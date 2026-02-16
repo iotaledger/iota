@@ -199,11 +199,13 @@ pub async fn simulate_transaction(
 
     // Only include transaction if requested
     if let Some(tx_mask) = read_mask.subtree(SimulateTransactionResponse::TRANSACTION_FIELD.name) {
+        let transaction: iota_sdk_types::Transaction = transaction_data.try_into()?;
+
         // Create a source for the merge
         let source = TransactionReadSource {
             reader: reader.clone(),
             config,
-            transaction_data,
+            transaction: Some(transaction),
             signatures: None,
             effects: Some(effects),
             events,

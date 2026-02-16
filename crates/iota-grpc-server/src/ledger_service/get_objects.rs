@@ -8,7 +8,7 @@ use iota_grpc_types::{
     google::rpc::bad_request::FieldViolation,
     v0::{
         error_reason::ErrorReason,
-        ledger_service::{GetObjectsRequest, GetObjectsResponse, ObjectResult, object_result},
+        ledger_service::{GetObjectsRequest, GetObjectsResponse, ObjectResult},
         object::Object,
     },
 };
@@ -102,12 +102,8 @@ pub(crate) fn get_objects(
         {
             // Lazily fetch the object only when needed
             let object_result = match get_object_impl(&reader, object_id, version, &read_mask) {
-                Ok(object) => ObjectResult {
-                    result: Some(object_result::Result::Object(object)),
-                },
-                Err(error) => ObjectResult {
-                    result: Some(object_result::Result::Error(error.into_status_proto())),
-                },
+                Ok(object) => ObjectResult::default().with_object(object),
+                Err(error) => ObjectResult::default().with_error(error.into_status_proto()),
             };
 
             let object_size = object_result.encoded_len();
@@ -129,11 +125,11 @@ fn get_object_impl(
 ) -> Result<Object, RpcError> {
     let object = if let Some(version) = version {
         reader
-            .get_object_by_key(&object_id, version.into())
+            .get_object_by_key(&object_id, version.into())?
             .ok_or_else(|| ObjectNotFoundError::new_with_version(object_id, version))?
     } else {
         reader
-            .get_object(&object_id)
+            .get_object(&object_id)?
             .ok_or_else(|| ObjectNotFoundError::new(object_id))?
     };
 

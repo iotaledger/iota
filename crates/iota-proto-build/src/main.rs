@@ -16,8 +16,6 @@ mod generate_fields;
 mod ident;
 mod message_graph;
 
-const GENERATE_ACCESSORS: bool = false;
-
 fn main() {
     let root_dir = PathBuf::from(std::env!("CARGO_MANIFEST_DIR"));
 
@@ -52,18 +50,28 @@ fn main() {
         .collect::<Result<Vec<_>, walkdir::Error>>()
         .unwrap();
 
-    let mut fds = protox::Compiler::new(std::slice::from_ref(&proto_dir))
-        .unwrap()
+    let mut compiler_init = protox::Compiler::new(std::slice::from_ref(&proto_dir)).unwrap();
+    let compiler = compiler_init
         .include_source_info(true)
         .include_imports(true)
         .open_files(&proto_files)
-        .unwrap()
-        .file_descriptor_set();
+        .unwrap();
+
+    let descriptor_pool = compiler.descriptor_pool();
+    let mut fds = compiler.file_descriptor_set();
+
     // Sort files by name to have deterministic codegen output
     fds.file.sort_by(|a, b| a.name.cmp(&b.name));
 
     // Define boxing configuration for prost-build
-    let boxed_types_prost = vec![];
+    // These fields are boxed by prost in the generated structs
+    let boxed_types_prost = vec![
+        ".iota.grpc.v0.filter.EventFilter.negation".to_string(),
+        ".iota.grpc.v0.filter.TransactionFilter.negation".to_string(),
+        ".iota.grpc.v0.filter.NotEventFilter.filter".to_string(),
+        ".iota.grpc.v0.filter.NotTransactionFilter.filter".to_string(),
+        ".iota.grpc.v0.types.TypeTag.vector_tag".to_string(),
+    ];
 
     // for field info and accessor generation
     let boxed_types_field_info = vec![
@@ -76,14 +84,15 @@ fn main() {
         ".iota.grpc.v0.types.TypeTagVector.inner_type".to_string(),
     ];
 
-    // for accessor generation
-    let mut boxed_types_accessor = vec![
+    // for accessor generation - includes both boxed proto fields and fields where
+    // we want the accessor to accept boxed types for ergonomics
+    let boxed_types_accessor = vec![
         ".iota.grpc.v0.filter.EventFilter.negation".to_string(),
         ".iota.grpc.v0.filter.TransactionFilter.negation".to_string(),
-        ".iota.grpc.v0.ledger_service.TransactionResult.transaction".to_string(),
+        ".iota.grpc.v0.filter.NotEventFilter.filter".to_string(),
+        ".iota.grpc.v0.filter.NotTransactionFilter.filter".to_string(),
         ".iota.grpc.v0.types.TypeTag.vector_tag".to_string(),
     ];
-    boxed_types_accessor.extend(boxed_types_prost.clone());
 
     let mut tonic_prost_builder = tonic_prost_build::configure()
         .build_client(true)
@@ -96,8 +105,8 @@ fn main() {
     }
 
     tonic_prost_builder
-        .message_attribute(".iota.rpc", "#[non_exhaustive]")
-        .enum_attribute(".iota.rpc", "#[non_exhaustive]")
+        .message_attribute(".iota.grpc", "#[non_exhaustive]")
+        .enum_attribute(".iota.grpc", "#[non_exhaustive]")
         .btree_map(".")
         .out_dir(&out_dir)
         .compile_protos(&proto_files, std::slice::from_ref(&proto_dir))
@@ -142,19 +151,20 @@ fn main() {
     }
 
     // Setup for extended codegen
-    if GENERATE_ACCESSORS {
-        let extern_paths = context::extern_paths::ExternPaths::new(&[], true).unwrap();
-        let files = fds
-            .file
-            .clone()
-            .into_iter()
-            // Filter files, there should only be accessors for google.rpc package
-            .filter(|file| file.package().starts_with("google.rpc"))
-            .collect::<Vec<_>>();
-        let graph = DescriptorGraph::new(files.iter());
-        let context = context::Context::new(extern_paths, graph);
-        codegen::accessors::generate_accessors(&context, &out_dir, &boxed_types_accessor);
-    }
+    // Parse proto files to extract accessor annotations
+    let accessor_map = codegen::accessor_config::parse_proto_accessors_from_pool(&descriptor_pool);
+
+    let extern_paths = context::extern_paths::ExternPaths::new(&[], true).unwrap();
+    let files = fds.file.clone().into_iter().collect::<Vec<_>>();
+    let graph = DescriptorGraph::new(files.iter());
+    let context = context::Context::new(extern_paths, graph);
+    codegen::accessors::generate_accessors(
+        &context,
+        &out_dir,
+        &boxed_types_prost,
+        &boxed_types_accessor,
+        &accessor_map,
+    );
 
     // Group files by package for field info generation
     let mut packages: HashMap<String, FileDescriptorWithPackageVersion> = HashMap::new();
@@ -192,7 +202,10 @@ fn main() {
         .arg(out_dir)
         .status();
     match status {
-        Ok(status) if !status.success() => panic!("You should commit the protobuf files"),
+        Ok(status) if !status.success() => {
+            eprintln!("Generated protobuf files have uncommitted changes. Please commit them.");
+            std::process::exit(2); // Custom exit code for uncommitted changes
+        }
         Err(error) => panic!("failed to run `git diff`: {error}"),
         Ok(_) => {}
     }
