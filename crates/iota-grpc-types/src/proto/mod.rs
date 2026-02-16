@@ -82,6 +82,36 @@ impl TryFromProtoError {
     }
 }
 
+/// Macro to reduce boilerplate when accessing an optional field and calling
+/// an inner method that returns `Result<T, TryFromProtoError>`.
+///
+/// # Usage
+/// ```ignore
+/// get_inner_field!(self.transaction, Self::TRANSACTION_FIELD, digest)
+/// ```
+macro_rules! get_inner_field {
+    // Variant for try_into() that needs explicit TryFromProtoError type annotation
+    // This must come first to match before the general case
+    ($field:expr, $FIELD:expr, try_into) => {{
+        <_ as core::convert::TryInto<_>>::try_into(
+            $field
+                .as_ref()
+                .ok_or_else(|| $crate::proto::TryFromProtoError::missing($FIELD.name))?,
+        )
+        .map_err(|e: $crate::proto::TryFromProtoError| e.nested($FIELD.name))
+    }};
+    // Standard case: call a method on the inner value
+    ($field:expr, $FIELD:expr, $inner:ident) => {{
+        $field
+            .as_ref()
+            .ok_or_else(|| $crate::proto::TryFromProtoError::missing($FIELD.name))?
+            .$inner()
+            .map_err(|e| e.nested($FIELD.name))
+    }};
+}
+
+pub(crate) use get_inner_field;
+
 #[derive(Debug)]
 pub enum GrpcConversionError {
     UnsupportedArgumentType { arg_type: String },
@@ -137,4 +167,32 @@ pub fn proto_to_timestamp_ms(timestamp: prost_types::Timestamp) -> Result<u64, T
         .as_millis()
         .try_into()
         .map_err(|e| TryFromProtoError::invalid("seconds + nanos", e))
+}
+
+// prost_types::Value to serde_json::Value conversion
+//
+
+/// Converts a prost_types::Value to serde_json::Value.
+pub fn prost_to_json(value: &prost_types::Value) -> serde_json::Value {
+    use prost_types::value::Kind;
+
+    match &value.kind {
+        None => serde_json::Value::Null,
+        Some(Kind::NullValue(_)) => serde_json::Value::Null,
+        Some(Kind::NumberValue(n)) => serde_json::json!(*n),
+        Some(Kind::StringValue(s)) => serde_json::Value::String(s.clone()),
+        Some(Kind::BoolValue(b)) => serde_json::Value::Bool(*b),
+        Some(Kind::StructValue(s)) => {
+            let map: serde_json::Map<String, serde_json::Value> = s
+                .fields
+                .iter()
+                .map(|(k, v)| (k.clone(), prost_to_json(v)))
+                .collect();
+            serde_json::Value::Object(map)
+        }
+        Some(Kind::ListValue(l)) => {
+            let arr: Vec<serde_json::Value> = l.values.iter().map(prost_to_json).collect();
+            serde_json::Value::Array(arr)
+        }
+    }
 }

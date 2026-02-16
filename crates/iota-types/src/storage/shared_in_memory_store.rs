@@ -273,6 +273,7 @@ impl InMemoryStore {
             .and_then(|digest| self.get_checkpoint_by_digest(digest))
     }
 
+    /// Get checkpoint sequence number by contents digest.
     pub fn get_sequence_number_by_contents_digest(
         &self,
         digest: &CheckpointContentsDigest,
