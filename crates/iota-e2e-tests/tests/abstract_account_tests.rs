@@ -30,10 +30,11 @@ use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{PublicKey, SignatureScheme},
+    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     execution_status::{ExecutionFailureStatus, MoveLocation},
     messages_grpc::HandleCertificateRequestV1,
-    move_authenticator::MoveAuthenticator,
+    move_authenticator::{MoveAuthenticator, MoveAuthenticatorData, MoveAuthenticatorProof},
     move_package,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -149,7 +150,7 @@ async fn test_abstract_account_issues_sponsored_tx() -> Result<(), anyhow::Error
     )?);
 
     // AA signature
-    let aa_signature = test_env.create_move_authenticator_for_free_access()?;
+    let aa_signature = test_env.create_move_authenticator_for_free_access(tx_data.digest())?;
 
     // Create the TX envelope and execute it
     let aa_sponsored_tx =
@@ -220,7 +221,7 @@ async fn test_abstract_account_delayed_creation() -> Result<(), anyhow::Error> {
         .await?;
 
     // Create the MoveAuthenticator (free access - no signature needed)
-    let aa_sig = test_env.create_move_authenticator_for_free_access()?;
+    let aa_sig = test_env.create_move_authenticator_for_free_access(tx_data.digest())?;
     let tx = Transaction::from_generic_sig_data(tx_data, vec![aa_sig]);
 
     // Execute and verify the transaction succeeds
@@ -263,7 +264,7 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
         .await?;
 
     // Authenticator: free-access (no object args)
-    let aa_sig = test_env.create_move_authenticator_for_free_access()?;
+    let aa_sig = test_env.create_move_authenticator_for_free_access(tx_data.digest())?;
     let tx = Transaction::from_generic_sig_data(tx_data, vec![aa_sig]);
 
     // Should fail
@@ -468,7 +469,7 @@ async fn test_receiving_gas_executing_aa_tx_first() -> Result<(), anyhow::Error>
         .craft_tx_from_pt(pt1, conflict_coin_ref, aa_sender, None)
         .await?;
     // Create the MoveAuthenticator for the free access authenticator
-    let signatures = vec![test_env.create_move_authenticator_for_free_access()?];
+    let signatures = vec![test_env.create_move_authenticator_for_free_access(tx1_data.digest())?];
     // Create the TX envelope and send it for validators signing
     let tx1 = Transaction::from_generic_sig_data(tx1_data, signatures);
     let tx1_cert = test_env
@@ -600,7 +601,7 @@ async fn test_receiving_gas_executing_aa_tx_later() -> Result<(), anyhow::Error>
         .craft_tx_from_pt(pt2, second_gas_coin, aa_sender, None)
         .await?;
     // Create the MoveAuthenticator for the free access authenticator
-    let signatures = vec![test_env.create_move_authenticator_for_free_access()?];
+    let signatures = vec![test_env.create_move_authenticator_for_free_access(tx2_data.digest())?];
     // Create the TX envelope and send it for validators signing
     let tx2 = Transaction::from_generic_sig_data(tx2_data, signatures);
     let tx2_cert = test_env
@@ -730,7 +731,7 @@ async fn test_failing_receiving_gas_then_create_account() -> Result<(), anyhow::
         .craft_tx_from_pt(pt2, second_gas_coin, aa_sender, None)
         .await?;
     // Create the MoveAuthenticator for the free access authenticator
-    let signatures = vec![test_env.create_move_authenticator_for_free_access()?];
+    let signatures = vec![test_env.create_move_authenticator_for_free_access(tx2_data.digest())?];
     // Create the TX envelope and send it for validators signing
     let tx2 = Transaction::from_generic_sig_data(tx2_data, signatures);
     let tx2_cert = test_env
@@ -884,7 +885,7 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
         .craft_tx_from_pt(pt2, second_gas_coin, aa_sender, None)
         .await?;
     // Create the MoveAuthenticator for the free access authenticator
-    let signatures = vec![test_env.create_move_authenticator_for_free_access()?];
+    let signatures = vec![test_env.create_move_authenticator_for_free_access(tx2_data.digest())?];
     // Create the TX envelope and send it for validators signing
     let tx2 = Transaction::from_generic_sig_data(tx2_data, signatures);
     // Submit TX2 for execution and expect success
@@ -1290,9 +1291,13 @@ impl TestEnvironment {
         .collect();
         let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
         Ok(GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
-            vec![signature_call_arg],
-            vec![],
-            self_call_arg,
+            MoveAuthenticatorData::new(
+                vec![signature_call_arg],
+                vec![],
+                self_call_arg,
+                TransactionDigest::new(*tx_digest),
+            ),
+            MoveAuthenticatorProof::new(vec![]),
         )))
     }
 
@@ -1301,7 +1306,10 @@ impl TestEnvironment {
     //    self: &AbstractAccount,
     //    _: &AuthContext,
     //    ctx: &TxContext,
-    fn create_move_authenticator_for_free_access(&self) -> anyhow::Result<GenericSignature> {
+    fn create_move_authenticator_for_free_access(
+        &self,
+        tx_digest: TransactionDigest,
+    ) -> anyhow::Result<GenericSignature> {
         let Some(aa_ref) = self.aa_ref else {
             anyhow::bail!("Abstract account not created yet");
         };
@@ -1312,9 +1320,8 @@ impl TestEnvironment {
             mutable: false,
         });
         Ok(GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
-            vec![],
-            vec![],
-            self_call_arg,
+            MoveAuthenticatorData::new(vec![], vec![], self_call_arg, tx_digest),
+            MoveAuthenticatorProof::new(vec![]),
         )))
     }
 

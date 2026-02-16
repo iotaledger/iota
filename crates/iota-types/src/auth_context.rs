@@ -12,6 +12,7 @@ use serde::{
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
     digests::MoveAuthenticatorDigest,
+    move_authenticator::MoveAuthenticatorProof,
     transaction::{CallArg, Command, ProgrammableTransaction},
     type_input::TypeName,
 };
@@ -48,6 +49,8 @@ pub const AUTH_CONTEXT_STRUCT_NAME: &IdentStr = ident_str!("AuthContext");
 pub struct AuthContext {
     /// The digest of the MoveAuthenticator
     auth_digest: MoveAuthenticatorDigest,
+    /// The proof of the MoveAuthenticator
+    auth_proof: MoveAuthenticatorProof,
     /// The authentication input objects or primitive values
     tx_inputs: Vec<CallArg>,
     /// The authentication commands to be executed sequentially.
@@ -57,10 +60,12 @@ pub struct AuthContext {
 impl AuthContext {
     pub fn new_from_components(
         auth_digest: MoveAuthenticatorDigest,
+        auth_proof: MoveAuthenticatorProof,
         ptb: &ProgrammableTransaction,
     ) -> Self {
         Self {
             auth_digest,
+            auth_proof,
             tx_inputs: ptb.inputs.clone(),
             tx_commands: ptb.commands.clone(),
         }
@@ -68,6 +73,10 @@ impl AuthContext {
 
     pub fn digest(&self) -> &MoveAuthenticatorDigest {
         &self.auth_digest
+    }
+
+    pub fn proof(&self) -> &MoveAuthenticatorProof {
+        &self.auth_proof
     }
 
     pub fn tx_inputs(&self) -> &Vec<CallArg> {
@@ -119,6 +128,7 @@ impl Serialize for AuthContext {
     {
         let mut state = serializer.serialize_struct("AuthContext", 3)?;
         state.serialize_field("auth_digest", &self.auth_digest)?;
+        state.serialize_field("auth_proof", &self.auth_proof)?;
         state.serialize_field("tx_inputs", &self.tx_inputs)?;
 
         // Serialize tx_commands as a Vec of enums, matching the original logic

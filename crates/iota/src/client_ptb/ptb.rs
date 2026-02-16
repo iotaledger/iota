@@ -99,6 +99,8 @@ struct ExtractedAuthArgs {
     auth_call_args: Option<Vec<String>>,
     /// The auth type arguments (values for `--auth-type-args`).
     auth_type_args: Option<Vec<String>>,
+    /// The auth proof (value for `--auth-proof`).
+    auth_proof: Option<String>,
     /// The remaining args after auth arguments are removed.
     remaining_args: Vec<String>,
 }
@@ -107,12 +109,13 @@ struct ExtractedAuthArgs {
 fn extract_auth_args(args: &[String]) -> Result<ExtractedAuthArgs, Error> {
     let mut auth_call_args = None;
     let mut auth_type_args = None;
+    let mut auth_proof = None;
     let mut remaining_args = Vec::new();
     let mut iter = args.iter().peekable();
 
     while let Some(arg) = iter.next() {
         match arg.as_str() {
-            "--auth-call-args" | "--auth-type-args" => {
+            "--auth-call-args" | "--auth-type-args" | "--auth-proof" => {
                 let mut values = Vec::new();
                 while let Some(next) = iter.peek() {
                     if next.starts_with("--") {
@@ -126,11 +129,21 @@ fn extract_auth_args(args: &[String]) -> Result<ExtractedAuthArgs, Error> {
                         bail!("Duplicate --auth-call-args found");
                     }
                     auth_call_args = Some(values);
-                } else {
+                } else if arg == "--auth-type-args" {
                     if auth_type_args.is_some() {
                         bail!("Duplicate --auth-type-args found");
                     }
                     auth_type_args = Some(values);
+                } else if arg == "--auth-proof" {
+                    if auth_proof.is_some() {
+                        bail!("Duplicate --auth-proof found");
+                    }
+                    if values.len() != 1 {
+                        bail!("Expected exactly one value for --auth-proof");
+                    }
+                    auth_proof = Some(values.into_iter().next().unwrap());
+                } else {
+                    bail!("Unexpected auth argument: {}", arg);
                 }
             }
             _ => remaining_args.push(arg.clone()),
@@ -141,6 +154,7 @@ fn extract_auth_args(args: &[String]) -> Result<ExtractedAuthArgs, Error> {
         auth_call_args,
         auth_type_args,
         remaining_args,
+        auth_proof,
     })
 }
 
@@ -155,6 +169,7 @@ impl PTB {
         let extracted = extract_auth_args(&self.args)?;
         let auth_call_args = extracted.auth_call_args;
         let auth_type_args = extracted.auth_type_args;
+        let auth_proof = extracted.auth_proof;
 
         if extracted.remaining_args.is_empty() {
             return Ok(PTBCommandResult::Help { long: false });
@@ -271,6 +286,7 @@ impl PTB {
             display: self.display,
             auth_call_args,
             auth_type_args,
+            auth_proof,
         };
 
         let gas_payment = client.transaction_builder().input_refs(&gas).await?;

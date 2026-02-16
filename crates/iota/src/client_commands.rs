@@ -68,7 +68,7 @@ use iota_types::{
     iota_serde,
     message_envelope::Envelope,
     metrics::BytecodeVerifierMetrics,
-    move_authenticator::MoveAuthenticator,
+    move_authenticator::{MoveAuthenticator, MoveAuthenticatorData, MoveAuthenticatorProof},
     move_package::{MovePackage, UpgradeCap},
     object::Owner,
     parse_iota_type_tag,
@@ -247,6 +247,9 @@ pub enum IotaClientCommands {
         /// Auth type arguments for the Move authenticate function
         #[arg(long, num_args = 1..)]
         auth_type_args: Option<Vec<String>>,
+        /// Auth proof for the Move authenticator, as a Base64 encoded string.
+        #[arg(long)]
+        auth_proof: Option<String>,
     },
     /// Request gas coin from faucet. By default, it will use the active address
     /// and the active network.
@@ -760,6 +763,9 @@ pub struct TxProcessingArgs {
     /// Auth type arguments for the Move authenticate function
     #[arg(long, num_args = 1..)]
     pub auth_type_args: Option<Vec<String>>,
+    /// Auth proof for the Move authenticator, as a Base64 encoded string.
+    #[arg(long)]
+    pub auth_proof: Option<String>,
 }
 
 impl TxProcessingArgs {
@@ -2019,6 +2025,7 @@ impl IotaClientCommands {
                 intent,
                 auth_call_args,
                 auth_type_args,
+                auth_proof,
             } => {
                 let address = get_identity_address_from_keystore(
                     address,
@@ -2035,11 +2042,23 @@ impl IotaClientCommands {
                 hasher.update(bcs::to_bytes(&intent_msg)?);
                 let digest = hasher.finalize().digest;
 
-                let iota_signature = if auth_call_args.is_some() || auth_type_args.is_some() {
+                let iota_signature = if auth_call_args.is_some()
+                    || auth_type_args.is_some()
+                    || auth_proof.is_some()
+                {
+                    let auth_proof = auth_proof.ok_or_else(|| {
+                            anyhow!(
+                                "Authentication proof is required when auth call args or type args are provided."
+                            )
+                        })?;
+                    let auth_proof = MoveAuthenticatorProof::from_str(&auth_proof)?;
+
                     let client = context.get_client().await?;
                     create_move_authenticator_signature(
                         &client,
                         address,
+                        TransactionDigest::new(digest),
+                        auth_proof,
                         auth_call_args.as_ref(),
                         auth_type_args.as_ref(),
                     )
@@ -3477,6 +3496,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         display,
         auth_call_args,
         auth_type_args,
+        auth_proof,
     } = processing;
     ensure!(
         !serialize_unsigned_transaction || !serialize_signed_transaction,
@@ -3580,7 +3600,17 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     } else if tx_digest {
         Ok(IotaClientCommandResult::ComputeTransactionDigest(tx_data))
     } else {
-        let auth_args = if auth_call_args.is_some() || auth_type_args.is_some() {
+        let auth_args = if auth_call_args.is_some()
+            || auth_type_args.is_some()
+            || auth_proof.is_some()
+        {
+            let auth_proof = auth_proof.ok_or_else(|| {
+                            anyhow!(
+                                "Authentication proof is required when auth call args or type args are provided."
+                            )
+                        })?;
+            let auth_proof = MoveAuthenticatorProof::from_str(&auth_proof)?;
+
             let auth_info = fetch_auth_info(&client, signer).await?;
             let (type_args, json_args) =
                 process_auth_args(auth_call_args.as_ref(), auth_type_args.as_ref(), signer)?;
@@ -3596,6 +3626,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             Some((
                 call_args,
                 type_args.into_iter().map(TypeInput::from).collect(),
+                auth_proof,
             ))
         } else {
             None
@@ -3983,6 +4014,8 @@ pub(crate) fn process_auth_args(
 async fn create_move_authenticator_signature(
     client: &IotaClient,
     address: IotaAddress,
+    tx_digest: TransactionDigest,
+    auth_proof: MoveAuthenticatorProof,
     auth_call_args: Option<&Vec<String>>,
     auth_type_args: Option<&Vec<String>>,
 ) -> Result<GenericSignature, anyhow::Error> {
@@ -4003,12 +4036,16 @@ async fn create_move_authenticator_signature(
     let initial_shared_version = get_shared_object_version(client, &address).await?;
 
     Ok(GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
-        call_args,
-        type_args.into_iter().map(TypeInput::from).collect(),
-        CallArg::Object(iota_types::transaction::ObjectArg::SharedObject {
-            id: ObjectID::from(address),
-            initial_shared_version,
-            mutable: false,
-        }),
+        MoveAuthenticatorData::new(
+            call_args,
+            type_args.into_iter().map(TypeInput::from).collect(),
+            CallArg::Object(iota_types::transaction::ObjectArg::SharedObject {
+                id: ObjectID::from(address),
+                initial_shared_version,
+                mutable: false,
+            }),
+            tx_digest,
+        ),
+        auth_proof,
     )))
 }

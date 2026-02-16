@@ -1657,7 +1657,9 @@ impl AuthorityState {
                 auth_account_object_id,
                 auth_account_object_seq_number,
                 auth_account_object_digest,
-            ) = move_authenticator.object_to_authenticate_components()?;
+            ) = move_authenticator
+                .data()
+                .object_to_authenticate_components()?;
 
             // Since the `object_to_authenticate` components are provided, it is supposed
             // that the account object is loaded.
@@ -5437,7 +5439,9 @@ impl AuthorityState {
                 auth_account_object_id,
                 auth_account_object_seq_number,
                 auth_account_object_digest,
-            ) = move_authenticator.object_to_authenticate_components()?;
+            ) = move_authenticator
+                .data()
+                .object_to_authenticate_components()?;
 
             // Make sure the sender is a Move account.
             let AuthenticatorFunctionRefForExecution {

@@ -1480,7 +1480,7 @@ mod bcs_signable {
     impl BcsSignable for crate::effects::TransactionEffects {}
     impl BcsSignable for crate::effects::TransactionEvents {}
     impl BcsSignable for crate::transaction::TransactionData {}
-    impl BcsSignable for crate::move_authenticator::MoveAuthenticator {}
+    impl BcsSignable for crate::move_authenticator::MoveAuthenticatorData {}
     impl BcsSignable for crate::transaction::SenderSignedData {}
     impl BcsSignable for crate::object::ObjectInner {}
 

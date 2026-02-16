@@ -309,6 +309,8 @@ mod move_authenticator {
     pub use crate::move_authenticator::MoveAuthenticator;
     use crate::{
         base_types::IotaAddress,
+        digests::TransactionDigest,
+        move_authenticator::{MoveAuthenticatorData, MoveAuthenticatorProof},
         object::OBJECT_START_VERSION,
         signature::GenericSignature,
         transaction::{CallArg, ObjectArg, SenderSignedData, Transaction},
@@ -329,9 +331,8 @@ mod move_authenticator {
             mutable: false,
         });
         let authenticator = GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
-            vec![],
-            vec![],
-            self_call_arg,
+            MoveAuthenticatorData::new(vec![], vec![], self_call_arg, TransactionDigest::ZERO),
+            MoveAuthenticatorProof::new(vec![]),
         ));
 
         Transaction::new(SenderSignedData::new(data, vec![authenticator]))

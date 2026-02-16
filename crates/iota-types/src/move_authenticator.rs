@@ -3,11 +3,18 @@
 
 use std::{
     collections::HashSet,
+    fmt,
     hash::{Hash, Hasher},
     sync::Arc,
 };
 
-use fastcrypto::{error::FastCryptoError, traits::ToFromBytes};
+use anyhow::anyhow;
+use fastcrypto::{
+    encoding::{Base64, Encoding},
+    error::FastCryptoError,
+    hash::HashFunction,
+    traits::ToFromBytes,
+};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::crypto::IntentMessage;
 use once_cell::sync::OnceCell;
@@ -17,8 +24,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     committee::EpochId,
-    crypto::{SignatureScheme, default_hash},
-    digests::{MoveAuthenticatorDigest, ObjectDigest, ZKLoginInputsDigest},
+    crypto::{DefaultHash, SignatureScheme, default_hash},
+    digests::{MoveAuthenticatorDigest, ObjectDigest, TransactionDigest, ZKLoginInputsDigest},
     error::{IotaError, IotaResult, UserInputError, UserInputResult},
     signature::{AuthenticatorTrait, VerifyParams},
     signature_verification::VerifiedDigestCache,
@@ -32,18 +39,42 @@ use crate::{
 /// during the Account Abstraction authentication flow.
 #[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
 pub struct MoveAuthenticator {
-    /// Input objects or primitive values
-    call_args: Vec<CallArg>,
-    /// Type arguments for the Move authenticate function
-    #[schemars(with = "Vec<String>")]
-    type_arguments: Vec<TypeInput>,
-    /// The object that is authenticated. Represents the account being the
-    /// sender of the transaction.
-    object_to_authenticate: CallArg,
+    /// The data to be authenticated by the Move code.
+    data: MoveAuthenticatorData,
+    /// The proof provided by the user to be authenticated.
+    proof: MoveAuthenticatorProof,
     /// A bytes representation of [struct MoveAuthenticator]. This helps with
     /// implementing trait [AsRef](core::convert::AsRef).
     #[serde(skip)]
     bytes: OnceCell<Vec<u8>>,
+}
+
+impl MoveAuthenticator {
+    pub fn new(data: MoveAuthenticatorData, proof: MoveAuthenticatorProof) -> Self {
+        Self {
+            data,
+            proof,
+            bytes: OnceCell::new(),
+        }
+    }
+
+    /// Returns the data to be authenticated by the Move code.
+    pub fn data(&self) -> &MoveAuthenticatorData {
+        &self.data
+    }
+
+    /// Returns the proof provided by the user to be authenticated.
+    pub fn proof(&self) -> &MoveAuthenticatorProof {
+        &self.proof
+    }
+
+    /// Validity check for MoveAuthenticator.
+    pub fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
+        // Nothing to check for the proof, as it is opaque for Rust and is only used by
+        // Move.
+
+        self.data.validity_check(config)
+    }
 }
 
 /// Necessary trait for
@@ -54,17 +85,164 @@ impl Hash for MoveAuthenticator {
     }
 }
 
-impl MoveAuthenticator {
+/// Necessary trait for
+/// [SenderSignerData](crate::transaction::SenderSignedData).
+impl Eq for MoveAuthenticator {}
+
+impl AsRef<[u8]> for MoveAuthenticator {
+    fn as_ref(&self) -> &[u8] {
+        self.bytes
+            .get_or_try_init::<_, eyre::Report>(|| {
+                let as_bytes = bcs::to_bytes(self).expect("BCS serialization should not fail");
+                let mut bytes = Vec::with_capacity(1 + as_bytes.len());
+                bytes.push(SignatureScheme::MoveAuthenticator.flag());
+                bytes.extend_from_slice(as_bytes.as_slice());
+                Ok(bytes)
+            })
+            .expect("OnceCell invariant violated")
+    }
+}
+
+impl AuthenticatorTrait for MoveAuthenticator {
+    fn verify_user_authenticator_epoch(
+        &self,
+        _epoch: EpochId,
+        _max_epoch_upper_bound_delta: Option<u64>,
+    ) -> IotaResult {
+        Ok(())
+    }
+    // This function accepts all inputs, as signature verification is performed
+    // later on the Move side.
+    fn verify_claims<T>(
+        &self,
+        value: &IntentMessage<T>,
+        author: IotaAddress,
+        _aux_verify_data: &VerifyParams,
+        _zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
+    ) -> IotaResult
+    where
+        T: Serialize,
+    {
+        if author != self.data.address()? {
+            return Err(IotaError::InvalidSignature {
+                error: "Invalid author".to_string(),
+            });
+        };
+
+        let message = bcs::to_bytes(&value).expect("Message serialization should not fail");
+        let mut hasher = DefaultHash::default();
+        hasher.update(message);
+        let digest = hasher.finalize().digest;
+
+        if digest != self.data.transaction_digest().as_ref() {
+            return Err(IotaError::InvalidSignature {
+                error: "Invalid transaction digest".to_string(),
+            });
+        };
+
+        Ok(())
+    }
+}
+
+/// Necessary trait for
+/// [SenderSignerData](crate::transaction::SenderSignedData).
+impl PartialEq for MoveAuthenticator {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ref() == other.as_ref()
+    }
+}
+
+impl ToFromBytes for MoveAuthenticator {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        // The first byte matches the flag of MultiSig.
+        if bytes.first().ok_or(FastCryptoError::InvalidInput)?
+            != &SignatureScheme::MoveAuthenticator.flag()
+        {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        let move_auth: MoveAuthenticator =
+            bcs::from_bytes(&bytes[1..]).map_err(|_| FastCryptoError::InvalidSignature)?;
+        Ok(move_auth)
+    }
+}
+
+/// The proof provided by a user to be authenticated. This is an opaque byte
+/// array that can be used by the Move code to verify the authenticity of
+/// the transaction. The content and format of the proof is determined by the
+/// Move code and is not interpreted by the Rust code. It is simply passed to
+/// the Move code for verification.
+#[derive(Clone, PartialEq, Eq, JsonSchema, Serialize, Deserialize)]
+pub struct MoveAuthenticatorProof {
+    bytes: Vec<u8>,
+}
+
+impl MoveAuthenticatorProof {
+    pub fn new(bytes: Vec<u8>) -> Self {
+        Self { bytes }
+    }
+
+    pub fn bytes(&self) -> &Vec<u8> {
+        &self.bytes
+    }
+}
+
+impl AsRef<[u8]> for MoveAuthenticatorProof {
+    fn as_ref(&self) -> &[u8] {
+        self.bytes().as_ref()
+    }
+}
+
+impl fmt::Display for MoveAuthenticatorProof {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&Base64::encode(self.as_ref()))
+    }
+}
+
+impl fmt::Debug for MoveAuthenticatorProof {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl std::str::FromStr for MoveAuthenticatorProof {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let buffer = Base64::decode(s).map_err(|e| anyhow!(e))?;
+        Ok(MoveAuthenticatorProof::new(buffer))
+    }
+}
+
+/// The data to be authenticated by the Move code. This includes the inputs
+/// to the Move function, the object to authenticate and the transaction
+/// digest.
+#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+pub struct MoveAuthenticatorData {
+    /// Input objects or primitive values
+    call_args: Vec<CallArg>,
+    /// Type arguments for the Move authenticate function
+    #[schemars(with = "Vec<String>")]
+    type_arguments: Vec<TypeInput>,
+    /// The object that is authenticated. Represents the account being the
+    /// sender of the transaction.
+    object_to_authenticate: CallArg,
+    /// The related transaction digest. This is used to link the
+    /// MoveAuthenticator to a specific transaction.
+    transaction_digest: TransactionDigest,
+}
+
+impl MoveAuthenticatorData {
     pub fn new(
         call_args: Vec<CallArg>,
         type_arguments: Vec<TypeInput>,
         object_to_authenticate: CallArg,
+        transaction_digest: TransactionDigest,
     ) -> Self {
         Self {
             call_args,
             type_arguments,
             object_to_authenticate,
-            bytes: OnceCell::new(),
+            transaction_digest,
         }
     }
 
@@ -87,6 +265,10 @@ impl MoveAuthenticator {
 
     pub fn object_to_authenticate(&self) -> &CallArg {
         &self.object_to_authenticate
+    }
+
+    pub fn transaction_digest(&self) -> &TransactionDigest {
+        &self.transaction_digest
     }
 
     pub fn object_to_authenticate_components(
@@ -148,7 +330,7 @@ impl MoveAuthenticator {
             .collect()
     }
 
-    /// Validity check for MoveAuthenticator.
+    /// Validity check for MoveAuthenticatorData.
     pub fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
         // Check that the object to authenticate is valid.
         self.object_to_authenticate_components()?;
@@ -206,75 +388,5 @@ impl MoveAuthenticator {
         })?;
 
         Ok(())
-    }
-}
-
-impl AuthenticatorTrait for MoveAuthenticator {
-    fn verify_user_authenticator_epoch(
-        &self,
-        _epoch: EpochId,
-        _max_epoch_upper_bound_delta: Option<u64>,
-    ) -> IotaResult {
-        Ok(())
-    }
-    // This function accepts all inputs, as signature verification is performed
-    // later on the Move side.
-    fn verify_claims<T>(
-        &self,
-        _value: &IntentMessage<T>,
-        author: IotaAddress,
-        _aux_verify_data: &VerifyParams,
-        _zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
-    ) -> IotaResult
-    where
-        T: Serialize,
-    {
-        if author != self.address()? {
-            return Err(IotaError::InvalidSignature {
-                error: "Invalid author".to_string(),
-            });
-        };
-
-        Ok(())
-    }
-}
-
-/// Necessary trait for
-/// [SenderSignerData](crate::transaction::SenderSignedData).
-impl PartialEq for MoveAuthenticator {
-    fn eq(&self, other: &Self) -> bool {
-        self.as_ref() == other.as_ref()
-    }
-}
-
-impl ToFromBytes for MoveAuthenticator {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        // The first byte matches the flag of MultiSig.
-        if bytes.first().ok_or(FastCryptoError::InvalidInput)?
-            != &SignatureScheme::MoveAuthenticator.flag()
-        {
-            return Err(FastCryptoError::InvalidInput);
-        }
-        let move_auth: MoveAuthenticator =
-            bcs::from_bytes(&bytes[1..]).map_err(|_| FastCryptoError::InvalidSignature)?;
-        Ok(move_auth)
-    }
-}
-
-/// Necessary trait for
-/// [SenderSignerData](crate::transaction::SenderSignedData).
-impl Eq for MoveAuthenticator {}
-
-impl AsRef<[u8]> for MoveAuthenticator {
-    fn as_ref(&self) -> &[u8] {
-        self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| {
-                let as_bytes = bcs::to_bytes(self).expect("BCS serialization should not fail");
-                let mut bytes = Vec::with_capacity(1 + as_bytes.len());
-                bytes.push(SignatureScheme::MoveAuthenticator.flag());
-                bytes.extend_from_slice(as_bytes.as_slice());
-                Ok(bytes)
-            })
-            .expect("OnceCell invariant violated")
     }
 }

@@ -552,7 +552,7 @@ mod checked {
             "No mutable inputs are allowed"
         );
         debug_assert!(
-            authenticator.receiving_objects().is_empty(),
+            authenticator.data().receiving_objects().is_empty(),
             "No receiving inputs are allowed"
         );
 
@@ -564,7 +564,11 @@ mod checked {
             let TransactionKind::ProgrammableTransaction(ptb) = &transaction_kind else {
                 unreachable!("Only programmable transactions are allowed");
             };
-            AuthContext::new_from_components(authenticator.digest(), ptb)
+            AuthContext::new_from_components(
+                authenticator.data().digest(),
+                authenticator.proof().to_owned(),
+                ptb,
+            )
         };
 
         // Store the authentication context in the temporary store.
@@ -2003,12 +2007,14 @@ mod checked {
         authenticator: MoveAuthenticator,
         authenticator_function_ref: AuthenticatorFunctionRefV1,
     ) -> Result<ProgrammableTransaction, ExecutionError> {
+        let auth_data = authenticator.data();
+
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let mut args = vec![authenticator.object_to_authenticate().to_owned()];
-        args.extend(authenticator.call_args().to_owned());
+        let mut args = vec![auth_data.object_to_authenticate().to_owned()];
+        args.extend(auth_data.call_args().to_owned());
 
-        let type_arguments = authenticator
+        let type_arguments = auth_data
             .type_arguments()
             .iter()
             .map(|t| {

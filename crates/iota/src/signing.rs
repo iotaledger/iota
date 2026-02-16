@@ -13,7 +13,7 @@ use iota_sdk_types::crypto::Intent;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber},
     crypto::Signature,
-    move_authenticator::MoveAuthenticator,
+    move_authenticator::{MoveAuthenticator, MoveAuthenticatorData, MoveAuthenticatorProof},
     signature::GenericSignature,
     transaction::{CallArg, TransactionData},
     type_input::TypeInput,
@@ -72,22 +72,26 @@ pub(crate) async fn sign_transaction(
     context: &mut WalletContext,
     tx_data: &TransactionData,
     signer_address: &IotaAddress,
-    auth_args: Option<(Vec<CallArg>, Vec<TypeInput>)>,
+    auth_args: Option<(Vec<CallArg>, Vec<TypeInput>, MoveAuthenticatorProof)>,
 ) -> Result<GenericSignature> {
     let iota_client = context.get_client().await?;
 
-    if let Some((auth_call_args, auth_type_args)) = auth_args {
+    if let Some((auth_call_args, auth_type_args, auth_proof)) = auth_args {
         let initial_shared_version =
             get_shared_object_version(&iota_client, signer_address).await?;
 
         return Ok(GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
-            auth_call_args,
-            auth_type_args,
-            CallArg::Object(iota_types::transaction::ObjectArg::SharedObject {
-                id: ObjectID::from(*signer_address),
-                initial_shared_version,
-                mutable: false,
-            }),
+            MoveAuthenticatorData::new(
+                auth_call_args,
+                auth_type_args,
+                CallArg::Object(iota_types::transaction::ObjectArg::SharedObject {
+                    id: ObjectID::from(*signer_address),
+                    initial_shared_version,
+                    mutable: false,
+                }),
+                tx_data.digest(),
+            ),
+            auth_proof,
         )));
     }
 

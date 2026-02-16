@@ -54,7 +54,7 @@ use iota_types::{
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
     },
-    move_authenticator::MoveAuthenticator,
+    move_authenticator::{MoveAuthenticator, MoveAuthenticatorData, MoveAuthenticatorProof},
     move_package::{
         IotaAttribute, MovePackage, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper,
     },
@@ -63,8 +63,8 @@ use iota_types::{
     signature::GenericSignature,
     storage::{ObjectStore, ReadStore, RestStateReader},
     transaction::{
-        Argument, CallArg, Command, ProgrammableTransaction, Transaction, TransactionData,
-        TransactionKind, VerifiedTransaction,
+        Argument, CallArg, Command, ObjectArg, ProgrammableTransaction, Transaction,
+        TransactionData, TransactionKind, VerifiedTransaction,
     },
     utils::{
         to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
@@ -835,7 +835,6 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                         sender,
                         sponsor,
                         gas_payment.unwrap_or_default(),
-                        None,
                         |sender, sponsor, gas| {
                             TransactionData::new_programmable_allow_sponsor(
                                 sender,
@@ -1208,23 +1207,15 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let gas_price = gas_price.unwrap_or(self.gas_price);
 
-                // Parse and resolve auth inputs.
-                // Build MoveAuthenticator.
-                // Get Abstract Test Account
-                let (aa_id, move_authenticator) = self
-                    .prepare_move_authenticator_data(authenticator_inputs, account)
-                    .await?;
+                let account_arg = self.resolve_account_arg(account)?;
+                let account_id = account_arg.id();
 
-                let account = self.abstract_accounts.get(&aa_id).ok_or_else(|| {
-                    anyhow::anyhow!("Unbound abstract account @{aa_id} for MoveAuthenticator")
+                let account = self.abstract_accounts.get(&account_id).ok_or_else(|| {
+                    anyhow::anyhow!("Unbound abstract account @{account_id} for MoveAuthenticator")
                 })?;
 
-                let tx = self.sign_sponsor_txn(
-                    account,
-                    sponsor,
-                    gas_payment,
-                    Some(move_authenticator),
-                    |sender, sponsor, gas| {
+                let (sponsor, tx_data) =
+                    self.sponsor_txn(account, sponsor, gas_payment, |sender, sponsor, gas| {
                         TransactionData::new_programmable_allow_sponsor(
                             sender,
                             gas,
@@ -1236,7 +1227,24 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                             gas_price,
                             sponsor,
                         )
-                    },
+                    });
+
+                // Parse and resolve auth inputs.
+                // Build MoveAuthenticator.
+                // Get Abstract Test Account
+                let move_authenticator = self
+                    .prepare_move_authenticator_data(
+                        authenticator_inputs,
+                        account_arg,
+                        tx_data.digest(),
+                    )
+                    .await?;
+
+                let sponsor_keypair = sponsor.key_pair.as_ref().map(|v| v as &dyn Signer<_>);
+                let tx = to_sender_signed_transaction_with_optional_sponsor(
+                    tx_data,
+                    move_authenticator,
+                    sponsor_keypair,
                 );
 
                 let summary = self.execute_txn(tx).await?;
@@ -1398,22 +1406,12 @@ impl IotaTestAdapter {
         Ok((ptb_inputs, ptb_cmds))
     }
 
-    /// Build a MoveAuthenticator.
-    /// Returns the Abstract Test Account and MoveAuthenticator.
-    async fn prepare_move_authenticator_data(
-        &mut self,
-        authenticator_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+    fn resolve_account_arg(
+        &self,
         account: ParsedValue<IotaExtraValueArgs>,
-    ) -> anyhow::Result<(ObjectID, GenericSignature)> {
-        // Resolve authenticator inputs
-        let auth_inputs_resolved = self.compiled_state().resolve_args(authenticator_inputs)?;
-        let auth_inputs: Vec<CallArg> = auth_inputs_resolved
-            .into_iter()
-            .map(|arg| arg.into_call_arg(self))
-            .collect::<anyhow::Result<_>>()?;
-
+    ) -> anyhow::Result<ObjectArg> {
         let aa_arg = self
-            .compiled_state()
+            .compiled_state
             .resolve_args(vec![account])?
             .into_iter()
             .next()
@@ -1421,16 +1419,33 @@ impl IotaTestAdapter {
         let CallArg::Object(aa_arg) = aa_arg.into_call_arg(self)? else {
             anyhow::bail!("abstract: account must be an object representing the abstract account");
         };
-        let aa_id = aa_arg.id();
+        Ok(aa_arg)
+    }
 
-        Ok((
-            aa_id,
-            GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
+    /// Build a MoveAuthenticator.
+    /// Returns the Abstract Test Account and MoveAuthenticator.
+    async fn prepare_move_authenticator_data(
+        &self,
+        authenticator_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+        account_arg: ObjectArg,
+        tx_digest: TransactionDigest,
+    ) -> anyhow::Result<GenericSignature> {
+        // Resolve authenticator inputs
+        let auth_inputs_resolved = self.compiled_state.resolve_args(authenticator_inputs)?;
+        let auth_inputs: Vec<CallArg> = auth_inputs_resolved
+            .into_iter()
+            .map(|arg| arg.into_call_arg(self))
+            .collect::<anyhow::Result<_>>()?;
+
+        Ok(GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
+            MoveAuthenticatorData::new(
                 auth_inputs,
                 vec![],
-                CallArg::Object(aa_arg),
-            )),
-        ))
+                CallArg::Object(account_arg),
+                tx_digest,
+            ),
+            MoveAuthenticatorProof::new(vec![]),
+        )))
     }
 
     fn named_variables(&self) -> BTreeMap<String, String> {
@@ -1662,7 +1677,7 @@ impl IotaTestAdapter {
         ) -> TransactionData,
     ) -> Transaction {
         let sender = self.get_sender(sender);
-        self.sign_sponsor_txn(sender, None, vec![], None, move |sender, _, gas| {
+        self.sign_sponsor_txn(sender, None, vec![], move |sender, _, gas| {
             txn_data(sender, gas)
         })
     }
@@ -1690,12 +1705,34 @@ impl IotaTestAdapter {
             .collect()
     }
 
+    fn sponsor_txn<'a>(
+        &'a self,
+        sender: &'a TestAccount,
+        sponsor: Option<String>,
+        payment: Vec<FakeID>,
+        txn_data: impl FnOnce(
+            // sender
+            IotaAddress,
+            // sponsor
+            IotaAddress,
+            // gas
+            Vec<ObjectRef>,
+        ) -> TransactionData,
+    ) -> (&'a TestAccount, TransactionData) {
+        let sponsor = sponsor.map_or(sender, |a| self.get_sender(Some(a)));
+
+        let payment_refs = self.get_payments(sponsor, payment);
+
+        let data = txn_data(sender.address, sponsor.address, payment_refs);
+
+        (sponsor, data)
+    }
+
     fn sign_sponsor_txn(
         &self,
         sender: &TestAccount,
         sponsor: Option<String>,
         payment: Vec<FakeID>,
-        aa_sig: Option<GenericSignature>,
         txn_data: impl FnOnce(
             // sender
             IotaAddress,
@@ -1705,16 +1742,9 @@ impl IotaTestAdapter {
             Vec<ObjectRef>,
         ) -> TransactionData,
     ) -> Transaction {
-        let sponsor = sponsor.map_or(sender, |a| self.get_sender(Some(a)));
+        let (sponsor, data) = self.sponsor_txn(sender, sponsor, payment, txn_data);
 
-        let payment_refs = self.get_payments(sponsor, payment);
-
-        let data = txn_data(sender.address, sponsor.address, payment_refs);
-
-        if let Some(aa_sig) = aa_sig {
-            let sponsor_keypair = sponsor.key_pair.as_ref().map(|v| v as &dyn Signer<_>);
-            to_sender_signed_transaction_with_optional_sponsor(data, aa_sig, sponsor_keypair)
-        } else if sender.address == sponsor.address {
+        if sender.address == sponsor.address {
             to_sender_signed_transaction(
                 data,
                 sender.key_pair.as_ref().expect("Sender key pair missing"),

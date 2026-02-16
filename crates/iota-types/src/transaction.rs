@@ -2635,7 +2635,7 @@ impl SenderSignedData {
 
         self.move_authenticators()
             .into_iter()
-            .find(|a| match a.address() {
+            .find(|a| match a.data().address() {
                 Ok(addr) => addr == sender,
                 Err(_) => false,
             })
@@ -2656,7 +2656,7 @@ impl SenderSignedData {
             .collect::<HashSet<_>>();
 
         if let Some(move_authenticator) = self.sender_move_authenticator() {
-            input_objects_set.extend(move_authenticator.input_objects());
+            input_objects_set.extend(move_authenticator.data().input_objects());
         }
 
         Ok(input_objects_set.into_iter().collect::<Vec<_>>())
@@ -2692,7 +2692,9 @@ impl SenderSignedData {
 
         let (auth_input_objects, account_object) =
             if let Some(move_authenticator) = self.sender_move_authenticator() {
-                let auth_input_objects = move_authenticator
+                let auth_data = move_authenticator.data();
+
+                let auth_input_objects = auth_data
                     .input_objects()
                     .iter()
                     .map(|k| {
@@ -2704,7 +2706,7 @@ impl SenderSignedData {
                     .collect::<Vec<_>>()
                     .into();
 
-                let account_objects = move_authenticator
+                let account_objects = auth_data
                     .object_to_authenticate()
                     .input_objects()
                     .iter()
@@ -2750,7 +2752,7 @@ impl SenderSignedData {
 
         // Add the Move authenticator shared objects if any.
         if let Some(move_authenticator) = self.sender_move_authenticator() {
-            for auth_shared_object in move_authenticator.shared_objects() {
+            for auth_shared_object in move_authenticator.data().shared_objects() {
                 let entry = input_objects
                     .iter_mut()
                     .find(|o| o.id == auth_shared_object.id);
@@ -2785,7 +2787,7 @@ impl SenderSignedData {
 
         // Add the Move authenticator shared objects if any.
         if let Some(move_authenticator) = self.sender_move_authenticator() {
-            for auth_object in move_authenticator.input_objects() {
+            for auth_object in move_authenticator.data().input_objects() {
                 let entry = input_objects
                     .iter_mut()
                     .find(|o| o.object_id() == auth_object.object_id());
@@ -2872,6 +2874,7 @@ impl SenderSignedData {
 
         authenticators.iter().try_for_each(|authenticator| {
             authenticator
+                .data()
                 .input_objects()
                 .iter()
                 .try_for_each(|auth_input_object| {

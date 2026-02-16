@@ -375,6 +375,8 @@ pub enum DecodedSigOutput {
         call_arguments: Vec<String>,
         type_arguments: serde_json::Value,
         object_to_authenticate: serde_json::Value,
+        transaction_digest: String,
+        auth_proof: String,
     },
 }
 
@@ -658,20 +660,26 @@ impl KeyToolCommand {
                     GenericSignature::ZkLoginAuthenticator(zk) => DecodedSigOutput::ZkLogin(zk),
                     GenericSignature::PasskeyAuthenticator(passkey) => DecodedSigOutput::Passkey(passkey),
                     GenericSignature::MoveAuthenticator(move_auth) => {
-                        let call_arguments: Vec<String> = move_auth.call_args().iter().map(|arg| {
+                        let auth_data = move_auth.data();
+
+                        let call_arguments: Vec<String> = auth_data.call_args().iter().map(|arg| {
                             match arg {
                                 CallArg::Pure(bytes) => format!("0x{}", Hex::encode(bytes)),
                                 CallArg::Object(obj) => serde_json::to_string(obj).unwrap_or_else(|_| format!("{obj:?}")),
                             }
                         }).collect();
-                        let type_arguments = serde_json::to_value(move_auth.type_arguments())
+                        let type_arguments = serde_json::to_value(auth_data.type_arguments())
                             .map_err(|e| anyhow!("Failed to serialize type_arguments: {e}"))?;
-                        let object_to_authenticate = serde_json::to_value(move_auth.object_to_authenticate())
+                        let object_to_authenticate = serde_json::to_value(auth_data.object_to_authenticate())
                             .map_err(|e| anyhow!("Failed to serialize object_to_authenticate: {e}"))?;
+                        let transaction_digest = auth_data.transaction_digest().to_string();
+                        let auth_proof = move_auth.proof().to_string();
                         DecodedSigOutput::MoveAuthenticator {
                             call_arguments,
                             type_arguments,
                             object_to_authenticate,
+                            transaction_digest,
+                            auth_proof,
                         }
                     }
                 };
@@ -1570,6 +1578,8 @@ impl Display for CommandOutput {
                         call_arguments,
                         type_arguments,
                         object_to_authenticate,
+                        transaction_digest,
+                        auth_proof,
                     } => {
                         let call_args_str = serde_json::to_string(&call_arguments).unwrap();
                         let type_args_str = serde_json::to_string(&type_arguments).unwrap();
@@ -1580,7 +1590,9 @@ impl Display for CommandOutput {
                             .push_record(["type", "MoveAuthenticator"])
                             .push_record(["callArguments", &call_args_str])
                             .push_record(["typeArguments", type_args_str.as_str()])
-                            .push_record(["objectToAuthenticate", obj_str.as_str()]);
+                            .push_record(["objectToAuthenticate", obj_str.as_str()])
+                            .push_record(["transactionDigest", transaction_digest.as_str()])
+                            .push_record(["authProof", auth_proof.as_str()]);
                     }
                 }
                 let mut table = builder.build();
