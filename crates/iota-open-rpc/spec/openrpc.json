@@ -11148,9 +11148,9 @@
             "$ref": "#/components/schemas/ObjectId"
           },
           {
-            "description": "Radix-10 encoded 64-bit unsigned integer",
-            "type": "string",
-            "format": "u64"
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
           },
           {
             "$ref": "#/components/schemas/Digest"
