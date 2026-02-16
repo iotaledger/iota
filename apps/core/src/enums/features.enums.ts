@@ -11,7 +11,7 @@ export enum Feature {
     WalletBalanceRefetchInterval = 'wallet-balance-refetch-interval',
     WalletAppsBannerConfig = 'wallet-apps-banner-config',
     WalletInterstitialConfig = 'wallet-interstitial-config',
-    WalletPasskeys = 'wallet-passkeys',
+    WalletPasskeys = 'wallet-passkey-accounts',
     RecognizedPackages = 'recognized-packages',
     WalletSentryTracing = 'wallet-sentry-tracing',
     PollingTxnTable = 'polling-txn-table',
