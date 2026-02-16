@@ -196,6 +196,7 @@ class RustTestOrchestrator:
             'no_capture': get_arg_with_default('no_capture', False),
             'simtest_timeout': get_arg_with_default('simtest_timeout', 180000),
             'base_branch': get_arg_with_default('base_branch', 'origin/develop'),
+            'dry_run': get_arg_with_default('dry_run', False),
         }
     
     # parse the crates-filters.yml file using regex.
@@ -279,6 +280,14 @@ class RustTestOrchestrator:
     
     # print command and execute it, returning exit code
     def print_and_run_command(self, command: str, env: Optional[Dict[str, str]] = None) -> int:
+        if self.config['dry_run']:
+            self.logger.info(f"[DRY RUN]: {command}")
+            if env:
+                env_vars = ' '.join([f"{k}={v}" for k, v in env.items() if not k.lower().endswith('password')])
+                if env_vars:
+                    self.logger.info(f"[DRY RUN] With environment: {env_vars}")
+            return 0
+        
         self.logger.info(f"Running: {command}")
         
         # Prepare environment
@@ -430,6 +439,11 @@ class RustTestOrchestrator:
     # await_postgres waits for the PostgreSQL service to be ready by repeatedly checking with pg_isready.
     def await_postgres(self) -> None:
         port = self.config['postgres_port']
+        
+        if self.config['dry_run']:
+            self.logger.info(f"[DRY RUN] Would wait for postgres on port {port}...")
+            return
+            
         self.logger.info(f"Waiting for postgres on port {port}...")
         
         while True:
@@ -799,6 +813,7 @@ PostgreSQL Environment variables (infrastructure config):
     parser.add_argument('--no-capture', action='store_true', help='Disable test output capture (show all output)')
     parser.add_argument('--simtest-timeout', type=int, help='Timeout in milliseconds for simulation tests (default: 180000)')
     parser.add_argument('--base-branch', type=str, help='Base branch to compare for changed crates detection if no changed crates are given (default: origin/develop)')
+    parser.add_argument('--dry-run', action='store_true', help='Print commands that would be executed without actually running them')
 
     parser.add_argument(
         '--verbose', '-v',
