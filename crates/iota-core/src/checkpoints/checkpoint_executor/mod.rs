@@ -843,7 +843,7 @@ impl CheckpointExecutor {
                 if let TransactionKind::RandomnessStateUpdate(rsu) =
                     maybe_randomness_tx.data().transaction_data().kind()
                 {
-                    vec![rsu.randomness_round]
+                    vec![RandomnessRound(rsu.randomness_round)]
                 } else {
                     Vec::new()
                 }
