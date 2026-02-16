@@ -171,13 +171,6 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
                 .wallet
                 .config()
                 .keystore()
-                .export(&sender)
-                .unwrap()
-                .as_keypair()?,
-            test_cluster
-                .wallet
-                .config()
-                .keystore()
                 .export(&sponsor)
                 .unwrap()
                 .as_keypair()?,
