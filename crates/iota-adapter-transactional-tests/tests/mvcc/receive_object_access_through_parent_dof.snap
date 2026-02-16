@@ -20,7 +20,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 3, line 81:
 //# view-object 2,0
-Owner: Object ID: ( fake(2,5) )
+Owner: Object(fake(2,5))
 Version: 2
 Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, iota::object::ID> {
     id: iota::object::UID {
@@ -38,7 +38,7 @@ Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, i
 
 task 4, line 83:
 //# view-object 2,1
-Owner: Object ID: ( fake(2,4) )
+Owner: Object(fake(2,4))
 Version: 2
 Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, iota::object::ID> {
     id: iota::object::UID {
@@ -56,7 +56,7 @@ Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, i
 
 task 5, line 85:
 //# view-object 2,2
-Owner: Object ID: ( _ )
+Owner: Object(_)
 Version: 2
 Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, iota::object::ID> {
     id: iota::object::UID {
@@ -74,7 +74,7 @@ Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, i
 
 task 6, line 87:
 //# view-object 2,3
-Owner: Object ID: ( fake(2,4) )
+Owner: Object(fake(2,4))
 Version: 2
 Contents: iota::dynamic_field::Field<u64, tto::M1::A> {
     id: iota::object::UID {
@@ -112,7 +112,7 @@ Contents: iota::dynamic_field::Field<u64, tto::M1::A> {
 
 task 7, line 89:
 //# view-object 2,4
-Owner: Object ID: ( fake(2,0) )
+Owner: Object(fake(2,0))
 Version: 2
 Contents: tto::M1::A {
     id: iota::object::UID {
@@ -133,7 +133,7 @@ Contents: tto::M1::A {
 
 task 8, line 91:
 //# view-object 2,5
-Owner: Account Address ( fake(2,7) )
+Owner: Address(fake(2,7))
 Version: 2
 Contents: tto::M1::A {
     id: iota::object::UID {
@@ -155,7 +155,7 @@ Contents: tto::M1::A {
 
 task 9, line 93:
 //# view-object 2,6
-Owner: Object ID: ( fake(2,2) )
+Owner: Object(fake(2,2))
 Version: 2
 Contents: tto::M1::A {
     id: iota::object::UID {
@@ -179,7 +179,7 @@ Contents: tto::M1::A {
 
 task 10, line 95:
 //# view-object 2,7
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 2
 Contents: tto::M1::A {
     id: iota::object::UID {
@@ -201,7 +201,7 @@ Contents: tto::M1::A {
 
 task 11, line 97:
 //# view-object 2,8
-Owner: Object ID: ( fake(2,1) )
+Owner: Object(fake(2,1))
 Version: 2
 Contents: tto::M1::A {
     id: iota::object::UID {
@@ -228,7 +228,7 @@ Contents: tto::M1::A {
 
 task 12, lines 99-102:
 //# view-object 2,9
-Owner: Account Address ( fake(2,7) )
+Owner: Address(fake(2,7))
 Version: 2
 Contents: tto::M1::Wrapper<tto::M1::A> {
     id: iota::object::UID {

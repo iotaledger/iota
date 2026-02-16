@@ -25,7 +25,8 @@ use iota_types::{
     gas::GasCostSummary,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     iota_serde::{
-        BigInt, IotaTypeTag as AsIotaTypeTag, Readable, SequenceNumber as AsSequenceNumber,
+        BigInt, IotaOwner, IotaTypeTag as AsIotaTypeTag, Readable,
+        SequenceNumber as AsSequenceNumber,
     },
     layout_resolver::{LayoutResolver, get_layout_from_struct_tag},
     messages_checkpoint::CheckpointSequenceNumber,
@@ -420,7 +421,7 @@ pub fn get_new_package_upgrade_cap_from_response(
             .iter()
             .find(|change| {
                 matches!(change, ObjectChange::Created {
-                    owner: Owner::AddressOwner(_),
+                    owner: Owner::Address(_),
                     object_type,
                     ..
                 } if object_type.is_upgrade_cap())
@@ -990,7 +991,7 @@ impl IotaTransactionBlockEffects {
             transaction_digest,
             status,
             gas_object: OwnedObjectRef {
-                owner: Owner::AddressOwner(IotaAddress::random()),
+                owner: Owner::Address(IotaAddress::random()),
                 reference: iota_types::base_types::random_object_ref().into(),
             },
             executed_epoch: 0,
@@ -2464,9 +2465,12 @@ impl TransactionBlockBytes {
     }
 }
 
+#[serde_as]
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename = "OwnedObjectRef")]
 pub struct OwnedObjectRef {
+    #[schemars(with = "IotaOwner")]
+    #[serde_as(as = "IotaOwner")]
     pub owner: Owner,
     pub reference: IotaObjectRef,
 }
@@ -2698,7 +2702,7 @@ impl Filter<EffectsWithInput> for TransactionFilter {
             TransactionFilter::ToAddress(a) => {
                 let mutated: &[OwnedObjectRef] = item.effects.mutated();
                 mutated.iter().chain(item.effects.unwrapped().iter()).any(|oref: &OwnedObjectRef| {
-                    matches!(oref.owner, Owner::AddressOwner(owner) if owner == *a)
+                    matches!(oref.owner, Owner::Address(owner) if owner == *a)
                 })
             }
             TransactionFilter::FromAndToAddress { from, to } => {

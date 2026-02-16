@@ -10,7 +10,6 @@ use crate::{
     dynamic_field::get_dynamic_field_from_store,
     error::{IotaError, IotaResult},
     id::UID,
-    object::Owner,
     storage::ObjectStore,
 };
 
@@ -133,10 +132,9 @@ pub fn get_authenticator_state_obj_initial_shared_version(
 ) -> IotaResult<Option<SequenceNumber>> {
     Ok(object_store
         .try_get_object(&ObjectID::AUTHENTICATOR_STATE)?
-        .map(|obj| match obj.owner {
-            Owner::Shared {
-                initial_shared_version,
-            } => initial_shared_version,
-            _ => unreachable!("Authenticator state object must be shared"),
+        .map(|obj| {
+            obj.owner
+                .into_shared_opt()
+                .expect("Authenticator state object must be shared")
         }))
 }

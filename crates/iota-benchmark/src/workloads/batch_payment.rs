@@ -72,7 +72,7 @@ impl Payload for BatchPaymentTestPayload {
         self.state.update(effects);
         if self.num_payments == 0 {
             for (coin_obj, owner) in effects.created().into_iter().chain(effects.mutated()) {
-                if let Owner::AddressOwner(addr) = owner {
+                if let Owner::Address(addr) = owner {
                     self.state.account_mut(&addr).unwrap().gas = coin_obj;
                 } else {
                     unreachable!("Initial payment should only send to addresses")

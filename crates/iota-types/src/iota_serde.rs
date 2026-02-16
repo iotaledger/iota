@@ -23,6 +23,7 @@ use serde_with::{Bytes, DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 
 use crate::{
     base_types::{IotaAddress, StructTag, TypeTag},
+    object::Owner,
     parse_iota_struct_tag, parse_iota_type_tag,
 };
 
@@ -365,5 +366,69 @@ impl<'de> DeserializeAs<'de, ProtocolVersion> for AsProtocolVersion {
     {
         let b = BigInt::<u64>::deserialize(deserializer)?;
         Ok(ProtocolVersion::from(*b))
+    }
+}
+
+#[derive(Debug, Copy, Clone, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[schemars(rename = "Owner")]
+pub enum IotaOwner {
+    /// Object is exclusively owned by a single address, and is mutable.
+    AddressOwner(IotaAddress),
+    /// Object is exclusively owned by a single object, and is mutable.
+    /// The object ID is converted to IotaAddress as IotaAddress is universal.
+    ObjectOwner(IotaAddress),
+    /// Object is shared, can be used by any address, and is mutable.
+    Shared {
+        /// The version at which the object became shared
+        initial_shared_version: crate::SequenceNumber,
+    },
+    /// Object is immutable, and hence ownership doesn't matter.
+    Immutable,
+}
+
+impl SerializeAs<Owner> for IotaOwner {
+    fn serialize_as<S>(owner: &Owner, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let iota_owner = IotaOwner::from(*owner);
+        iota_owner.serialize(serializer)
+    }
+}
+
+impl<'de> DeserializeAs<'de, Owner> for IotaOwner {
+    fn deserialize_as<D>(deserializer: D) -> Result<Owner, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let iota_owner = IotaOwner::deserialize(deserializer)?;
+        Ok(iota_owner.into())
+    }
+}
+
+impl From<IotaOwner> for Owner {
+    fn from(value: IotaOwner) -> Self {
+        match value {
+            IotaOwner::AddressOwner(address) => Owner::Address(address),
+            IotaOwner::ObjectOwner(address) => Owner::Object(address.into()),
+            IotaOwner::Shared {
+                initial_shared_version,
+            } => Owner::Shared(initial_shared_version),
+            IotaOwner::Immutable => Owner::Immutable,
+        }
+    }
+}
+
+impl From<Owner> for IotaOwner {
+    fn from(value: Owner) -> Self {
+        match value {
+            Owner::Address(address) => IotaOwner::AddressOwner(address),
+            Owner::Object(object_id) => IotaOwner::ObjectOwner(object_id.into()),
+            Owner::Shared(initial_shared_version) => IotaOwner::Shared {
+                initial_shared_version,
+            },
+            Owner::Immutable => IotaOwner::Immutable,
+            _ => unimplemented!("a new enum variant was added and needs to be handled"),
+        }
     }
 }

@@ -68,9 +68,7 @@ impl SurferTask {
                                     .or_default()
                                     .push(obj_ref);
                             }
-                            Owner::Shared {
-                                initial_shared_version,
-                            } => {
+                            Owner::Shared(initial_shared_version) => {
                                 shared_objects
                                     .write()
                                     .await
@@ -78,7 +76,7 @@ impl SurferTask {
                                     .or_default()
                                     .push((obj_ref.object_id, initial_shared_version));
                             }
-                            Owner::AddressOwner(address) => {
+                            Owner::Address(address) => {
                                 if let Some((gas_object, owned_objects)) =
                                     accounts.get_mut(&address)
                                 {
@@ -92,7 +90,10 @@ impl SurferTask {
                                     }
                                 }
                             }
-                            Owner::ObjectOwner(_) => (),
+                            Owner::Object(_) => (),
+                            _ => unimplemented!(
+                                "a new enum variant was added and needs to be handled"
+                            ),
                         }
                     }
                 }

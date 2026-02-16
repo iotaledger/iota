@@ -23,7 +23,7 @@ use iota_types::{
         UserInputResult,
     },
     gas_coin::GasCoin,
-    iota_serde::{BigInt, IotaStructTag, SequenceNumber as AsSequenceNumber},
+    iota_serde::{BigInt, IotaOwner, IotaStructTag, SequenceNumber as AsSequenceNumber},
     messages_checkpoint::CheckpointSequenceNumber,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
     object::{Data, MoveObject, Object, ObjectInner, ObjectRead, Owner},
@@ -210,6 +210,8 @@ pub struct IotaObjectData {
     /// The owner of this object. Default to be None unless
     /// IotaObjectDataOptions.showOwner is set to true
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<IotaOwner>")]
+    #[serde_as(as = "Option<IotaOwner>")]
     pub owner: Option<Owner>,
     /// The digest of the transaction that created or last mutated this object.
     /// Default to be None unless IotaObjectDataOptions.
@@ -1212,10 +1214,10 @@ impl IotaObjectDataFilter {
                 matches!(&object.type_, ObjectType::Struct(s) if &ObjectID::from(s.address()) == p)
             }
             IotaObjectDataFilter::AddressOwner(a) => {
-                matches!(object.owner, Owner::AddressOwner(addr) if &addr == a)
+                matches!(object.owner, Owner::Address(addr) if &addr == a)
             }
             IotaObjectDataFilter::ObjectOwner(o) => {
-                matches!(object.owner, Owner::ObjectOwner(addr) if addr == IotaAddress::from(*o))
+                matches!(object.owner, Owner::Object(addr) if &addr == o)
             }
             IotaObjectDataFilter::ObjectId(id) => &object.object_id == id,
             IotaObjectDataFilter::ObjectIds(ids) => ids.contains(&object.object_id),
