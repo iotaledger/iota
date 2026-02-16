@@ -20,6 +20,9 @@ use crate::{
     },
     error::ConsensusResult,
 };
+
+const SCORING_METRICS_V2_KEY: u32 = 0;
+
 /// In-memory storage for testing.
 pub(crate) struct MemStore {
     inner: RwLock<Inner>,
@@ -84,7 +87,9 @@ impl Store for MemStore {
         }
 
         if let Some(metrics) = write_batch.scoring_metrics {
-            inner.scoring_metrics.insert(0u32, metrics);
+            inner
+                .scoring_metrics
+                .insert(SCORING_METRICS_V2_KEY, metrics);
         }
 
         Ok(())
@@ -138,7 +143,10 @@ impl Store for MemStore {
         _committee: &Committee,
     ) -> ConsensusResult<Option<VersionedScoringMetrics>> {
         let inner = self.inner.read();
-        Ok(inner.scoring_metrics.get(&0u32).map(|m| m.snapshot()))
+        Ok(inner
+            .scoring_metrics
+            .get(&SCORING_METRICS_V2_KEY)
+            .map(|m| m.snapshot()))
     }
 
     fn contains_block_at_slot(&self, slot: Slot) -> ConsensusResult<bool> {

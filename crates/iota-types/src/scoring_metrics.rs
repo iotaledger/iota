@@ -237,11 +237,7 @@ impl VersionedScoringMetrics {
                 "Metrics counts being updated according to a report with incompatible version, but report versions were already checked before this point!"
             );
         }
-        for (current_value, new_value) in self
-            .iter()
-            .flatten()
-            .zip(report.iter().flatten())
-        {
+        for (current_value, new_value) in self.iter().flatten().zip(report.iter().flatten()) {
             current_value.fetch_max(*new_value, Ordering::Relaxed);
         }
     }

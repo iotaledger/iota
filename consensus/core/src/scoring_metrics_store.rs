@@ -10,6 +10,7 @@ use consensus_config::AuthorityIndex;
 use iota_common::scoring_metrics::VersionedScoringMetrics;
 use iota_protocol_config::ProtocolConfig;
 use itertools::izip;
+use tracing::warn;
 
 use crate::{BlockRef, context::Context, error::ConsensusError, metrics::NodeMetrics};
 /// Struct that holds the scoring metrics for all authorities in the committee,
@@ -76,42 +77,43 @@ impl MysticetiScoringMetricsStore {
         eviction_rounds: &Vec<u32>,
         context: &Arc<Context>,
     ) {
-        let faulty_blocks_provable = recovered_scoring_metrics.load_faulty_blocks_provable();
-        let faulty_blocks_unprovable = recovered_scoring_metrics.load_faulty_blocks_unprovable();
-        let missing_proposals = recovered_scoring_metrics.load_missing_proposals();
-        let equivocations = recovered_scoring_metrics.load_equivocations();
+        let faulty_blocks_provable_vec = recovered_scoring_metrics.load_faulty_blocks_provable();
+        let faulty_blocks_unprovable_vec =
+            recovered_scoring_metrics.load_faulty_blocks_unprovable();
+        let missing_proposals_vec = recovered_scoring_metrics.load_missing_proposals();
+        let equivocations_vec = recovered_scoring_metrics.load_equivocations();
 
         for (
             (authority_index, authority),
             blocks_in_cache,
             &eviction_round,
-            &fbp,
-            &fbu,
-            &mp,
-            &eq,
+            &faulty_blocks_provable,
+            &faulty_blocks_unprovable,
+            &missing_proposals,
+            &equivocations,
         ) in izip!(
             context.committee.authorities(),
             blocks_in_cache_by_authority,
             eviction_rounds,
-            &faulty_blocks_provable,
-            &faulty_blocks_unprovable,
-            &missing_proposals,
-            &equivocations
+            &faulty_blocks_provable_vec,
+            &faulty_blocks_unprovable_vec,
+            &missing_proposals_vec,
+            &equivocations_vec
         ) {
             let hostname = authority.hostname.as_str();
 
             // Initialize the uncached scoring metrics according to
             // recovered_scoring_metrics
             self.initialize_faulty_blocks_metrics(
-                fbp,
-                fbu,
+                faulty_blocks_provable,
+                faulty_blocks_unprovable,
                 hostname,
                 authority_index,
                 &context.metrics.node_metrics,
             );
             self.update_missing_blocks_and_equivocations(
-                mp,
-                eq,
+                missing_proposals,
+                equivocations,
                 hostname,
                 authority_index,
                 StoreType::Uncached,
@@ -298,6 +300,7 @@ impl MysticetiScoringMetricsStore {
         let node_metrics = &context.metrics.node_metrics;
         // threshold_clock_round should be always at least 1.
         if threshold_clock_round == 0 {
+            warn!("update_scoring_metrics_on_eviction called with threshold clock round = 0.");
             return;
         }
 

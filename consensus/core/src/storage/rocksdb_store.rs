@@ -23,6 +23,8 @@ use crate::{
     storage::StorageScoringMetrics,
 };
 
+const SCORING_METRICS_V2_KEY: u32 = 0;
+
 /// Persistent storage with RocksDB.
 pub(crate) struct RocksDBStore {
     /// Stores SignedBlock by refs.
@@ -164,7 +166,10 @@ impl Store for RocksDBStore {
         }
         if let Some(metrics) = &write_batch.scoring_metrics {
             batch
-                .insert_batch(&self.scoring_metrics_v2, [(&0u32, metrics)])
+                .insert_batch(
+                    &self.scoring_metrics_v2,
+                    [(&SCORING_METRICS_V2_KEY, metrics)],
+                )
                 .map_err(ConsensusError::RocksDBFailure)?;
         }
 
@@ -249,7 +254,7 @@ impl Store for RocksDBStore {
         committee: &Committee,
     ) -> ConsensusResult<Option<VersionedScoringMetrics>> {
         // Try to read the single blob from the v2 CF first.
-        if let Some(metrics) = self.scoring_metrics_v2.get(&0u32)? {
+        if let Some(metrics) = self.scoring_metrics_v2.get(&SCORING_METRICS_V2_KEY)? {
             return Ok(Some(metrics));
         }
 
