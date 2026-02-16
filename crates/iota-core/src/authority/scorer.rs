@@ -85,8 +85,7 @@ pub struct Scorer {
     // Per-authority state tracking received reports and their validity.
     received_reports_state: ReceivedReportsState,
     // The current scores of the authorities, updated after each received report. This score is
-    // calculated based on the information in the received reports and the validity of the reports
-    // themselves.
+    // calculated based on the information in received_reports_state.
     pub(crate) current_scores: Scores,
     // The voting power of each authority in the committee.
     voting_power: Vec<u64>,
@@ -544,18 +543,33 @@ fn metric_to_score(value: u64, allowance: u64, max: u64, max_score: u64) -> u64 
     }
 }
 
-// NOTE: the tests below are going to be finalized in a different PR
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::Ordering;
+    use std::sync::{Arc, atomic::Ordering};
 
     use iota_protocol_config::{ConsensusChoice, ProtocolConfig};
     use iota_types::{
-        messages_consensus::VersionedMisbehaviorReport, misbehavior_counts::MisbehaviorsV1,
+        messages_consensus::{ConsensusTransaction, VersionedMisbehaviorReport},
+        misbehavior_counts::MisbehaviorsV1,
+        scoring_metrics::VersionedScoringMetrics,
     };
+    use prometheus::Registry;
+    use typed_store::Map;
 
-    use crate::authority::authority_per_epoch_store::scorer::{
-        MAX_SCORE, ParametersV1, SCALE_FACTOR, Scorer, calculate_median_report, calculate_scores_v1,
+    use crate::{
+        authority::{
+            AuthorityMetrics,
+            authority_per_epoch_store::{
+                consensus_quarantine::ConsensusCommitOutput,
+                scorer::{
+                    MAX_SCORE, ParametersV1, SCALE_FACTOR, Scorer, calculate_median_report,
+                    calculate_scores_v1,
+                },
+            },
+            test_authority_builder::TestAuthorityBuilder,
+        },
+        checkpoints::CheckpointServiceNoop,
+        consensus_handler::{SequencedConsensusTransaction, SequencedConsensusTransactionKind},
     };
 
     fn mock_protocol_config(consensus_choice: ConsensusChoice) -> ProtocolConfig {
@@ -574,32 +588,26 @@ mod tests {
             }
         }
 
-        fn invalid_reports_count_value(&self, authority: u32) -> u64 {
+        fn received_metrics_snapshot(&self, authority: u32) -> VersionedScoringMetrics {
             self.received_reports_state[authority as usize]
-                .invalid_reports_count
-                .load(Ordering::Relaxed)
+                .received_metrics
+                .snapshot()
         }
-    }
-    #[test]
-    fn test_scorer_initialization() {
-        let voting_power = vec![10, 20, 30];
-        let committee_size = voting_power.len();
-        let protocol_config = mock_protocol_config(ConsensusChoice::Mysticeti);
 
-        let scorer = Scorer::new(voting_power, &protocol_config);
+        fn invalid_reports_count_value(&self, authority: u32) -> u64 {
+            self.received_reports_state[authority as usize].invalid_reports_count_value()
+        }
 
-        assert_eq!(scorer.current_scores.len(), committee_size);
-        assert_eq!(scorer.received_reports_state.len(), committee_size);
+        fn has_not_sent_report_value(&self, authority: u32) -> bool {
+            self.received_reports_state[authority as usize].has_not_sent_report_value()
+        }
     }
 
     #[test]
     fn test_update_invalid_reports_count() {
         let voting_power = vec![10, 20, 30];
-
         let protocol_config = mock_protocol_config(ConsensusChoice::Mysticeti);
-
         let scorer = Scorer::new(voting_power, &protocol_config);
-
         let authority_index = 2;
 
         // Before update
@@ -814,5 +822,354 @@ mod tests {
 
         // Check that scores are calculated correctly
         assert_eq!(scores, vec![40142, 0, 0]);
+    }
+
+    // Test simulating the full persist/restore cycle:
+    //
+    // 1. Build a test authority with epoch store
+    // 2. Create a MisbehaviorReport consensus transaction
+    // 3. Process it through `process_consensus_transactions_for_tests` (verify →
+    //    process_consensus_transaction → push to quarantine)
+    // 4. Verify the scorer was updated by
+    // 5. Write the scorer state to DB via ConsensusCommitOutput.write_to_batch
+    // 6. Simulate crash: create a new scorer and restore from DB
+    // 7. Verify all state matches
+    #[tokio::test]
+    async fn test_scorer_persist_and_restore_via_consensus_commit_output() {
+        // Build a test authority to get an epoch store.
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let committee = epoch_store.committee();
+        let committee_size = committee.num_members();
+        let voting_power = committee.members().map(|(_, v)| *v).collect::<Vec<u64>>();
+
+        // Get the first authority's name and index from the committee.
+        let authority_name = *committee.names().next().unwrap();
+        let authority_index = committee
+            .authority_index(&authority_name)
+            .expect("authority should be in committee");
+
+        // Process a valid misbehavior report
+        let valid_report = VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+            vec![3; committee_size],  // faulty_blocks_provable
+            vec![0; committee_size],  // faulty_blocks_unprovable
+            vec![10; committee_size], // missing_proposals
+            vec![0; committee_size],  // equivocations
+        ));
+        let consensus_tx =
+            ConsensusTransaction::new_misbehavior_report(authority_name, &valid_report, 0);
+        let sequenced_tx = SequencedConsensusTransaction {
+            certificate_author_index: authority_index,
+            certificate_author: authority_name,
+            consensus_index: Default::default(),
+            transaction: SequencedConsensusTransactionKind::External(consensus_tx),
+        };
+        let authority_metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
+
+        epoch_store
+            .process_consensus_transactions_for_tests(
+                vec![sequenced_tx],
+                &Arc::new(CheckpointServiceNoop {}),
+                authority.get_object_cache_reader().as_ref(),
+                authority.get_transaction_cache_reader().as_ref(),
+                &authority_metrics,
+                true,
+            )
+            .await
+            .unwrap();
+
+        // Verify the scorer was updated.
+        assert_eq!(
+            epoch_store
+                .scorer
+                .received_metrics_snapshot(authority_index)
+                .load_faulty_blocks_provable(),
+            vec![3; committee_size],
+            "scorer should have been updated by process_consensus_transaction"
+        );
+        assert!(
+            !epoch_store
+                .scorer
+                .has_not_sent_report_value(authority_index),
+            "has_not_sent_report should be false after receiving a report"
+        );
+
+        // Persist scorer state to DB: build a ConsensusCommitOutput with the scorer's
+        // current state and write it to DB via write_to_batch
+        {
+            let mut output = ConsensusCommitOutput::new(99);
+            output.set_received_reports_state(epoch_store.scorer.received_reports_state_snapshot());
+            output.set_default_commit_stats_for_testing();
+            let mut batch = epoch_store.db_batch_for_test();
+            output.write_to_batch(&epoch_store, &mut batch).unwrap();
+            batch.write().unwrap();
+        }
+
+        // Verify data is now in the DB tables.
+        {
+            let tables = epoch_store.tables().unwrap();
+            let stored_state = tables.received_reports_state.get(&()).unwrap();
+            assert!(
+                stored_state.is_some(),
+                "received_reports_state should be persisted to DB"
+            );
+            let stored_state = stored_state.unwrap();
+            assert_eq!(
+                stored_state[authority_index as usize]
+                    .received_metrics
+                    .load_faulty_blocks_provable(),
+                vec![3; committee_size]
+            );
+        }
+
+        // Capture pre-crash state
+        let pre_crash_metrics: Vec<VersionedScoringMetrics> = (0..committee_size as u32)
+            .map(|i| epoch_store.scorer.received_metrics_snapshot(i))
+            .collect();
+        let pre_crash_invalid_counts: Vec<u64> = (0..committee_size)
+            .map(|i| epoch_store.scorer.received_reports_state[i].invalid_reports_count_value())
+            .collect();
+        let pre_crash_has_not_sent: Vec<bool> = epoch_store
+            .scorer
+            .received_reports_state
+            .iter()
+            .map(|s| s.has_not_sent_report_value())
+            .collect();
+
+        // Simulate crash recovery
+        let protocol_config = mock_protocol_config(ConsensusChoice::Mysticeti);
+        let restored_scorer = Scorer::new(voting_power, &protocol_config);
+        let tables = epoch_store.tables().unwrap();
+        restored_scorer
+            .restore_from_tables(&tables)
+            .expect("restore_from_tables should succeed");
+
+        // Verify restored state matches pre-crash state
+        for i in 0..committee_size as u32 {
+            let pre = &pre_crash_metrics[i as usize];
+            let post = restored_scorer.received_metrics_snapshot(i);
+            assert_eq!(
+                pre.load_faulty_blocks_provable(),
+                post.load_faulty_blocks_provable(),
+                "faulty_blocks_provable mismatch for authority {i}"
+            );
+            assert_eq!(
+                pre.load_faulty_blocks_unprovable(),
+                post.load_faulty_blocks_unprovable(),
+                "faulty_blocks_unprovable mismatch for authority {i}"
+            );
+            assert_eq!(
+                pre.load_missing_proposals(),
+                post.load_missing_proposals(),
+                "missing_proposals mismatch for authority {i}"
+            );
+            assert_eq!(
+                pre.load_equivocations(),
+                post.load_equivocations(),
+                "equivocations mismatch for authority {i}"
+            );
+        }
+
+        for i in 0..committee_size as u32 {
+            assert_eq!(
+                pre_crash_invalid_counts[i as usize],
+                restored_scorer.received_reports_state[i as usize].invalid_reports_count_value(),
+                "invalid_reports_count mismatch for authority {i}"
+            );
+        }
+
+        for i in 0..committee_size {
+            assert_eq!(
+                pre_crash_has_not_sent[i],
+                restored_scorer.received_reports_state[i].has_not_sent_report_value(),
+                "has_not_sent_report mismatch for authority {i}"
+            );
+        }
+    }
+
+    // Test simulating partial quarantine flush + resync recovery:
+    //
+    // 1. Process report 1 (commit 1)
+    // 2. Flush commit 1 to DB (quarantine flush)
+    // 3. Process report 2 with higher values (commit 2)
+    // 4. Do NOT flush commit 2 (still in quarantine at crash time)
+    // 5. Capture pre-crash state (scorer has both reports applied)
+    // 6. Simulate crash: create new scorer, restore from DB (only commit 1)
+    // 7. Replay report 2 (resync of unflushed commit)
+    // 8. Verify restored+replayed state matches pre-crash state
+    #[tokio::test]
+    async fn test_scorer_partial_flush_and_resync_recovery() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let committee = epoch_store.committee();
+        let committee_size = committee.num_members();
+        let voting_power = committee.members().map(|(_, v)| *v).collect::<Vec<u64>>();
+
+        let authority_name = *committee.names().next().unwrap();
+        let authority_index = committee
+            .authority_index(&authority_name)
+            .expect("authority should be in committee");
+
+        let authority_metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
+        let checkpoint_service = Arc::new(CheckpointServiceNoop {});
+
+        // Create reports
+        let report_1 = VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+            vec![3; committee_size],
+            vec![1; committee_size],
+            vec![10; committee_size],
+            vec![2; committee_size],
+        ));
+        let report_2 = VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+            vec![7; committee_size],
+            vec![4; committee_size],
+            vec![15; committee_size],
+            vec![5; committee_size],
+        ));
+        let consensus_tx_1 =
+            ConsensusTransaction::new_misbehavior_report(authority_name, &report_1, 0);
+        let consensus_tx_2 =
+            ConsensusTransaction::new_misbehavior_report(authority_name, &report_2, 0);
+        let seq_consensus_tx_1 = SequencedConsensusTransaction {
+            certificate_author_index: authority_index,
+            certificate_author: authority_name,
+            consensus_index: Default::default(),
+            transaction: SequencedConsensusTransactionKind::External(consensus_tx_1),
+        };
+        let seq_consensus_tx_2 = SequencedConsensusTransaction {
+            certificate_author_index: authority_index,
+            certificate_author: authority_name,
+            consensus_index: Default::default(),
+            transaction: SequencedConsensusTransactionKind::External(consensus_tx_2),
+        };
+
+        // Process report 1 and flush to DB
+        epoch_store
+            .process_consensus_transactions_for_tests(
+                vec![seq_consensus_tx_1],
+                &checkpoint_service,
+                authority.get_object_cache_reader().as_ref(),
+                authority.get_transaction_cache_reader().as_ref(),
+                &authority_metrics,
+                true,
+            )
+            .await
+            .unwrap();
+
+        // Simulate quarantine flushing commit 1 to DB.
+        {
+            let mut output = ConsensusCommitOutput::new(100);
+            output.set_received_reports_state(epoch_store.scorer.received_reports_state_snapshot());
+            output.set_default_commit_stats_for_testing();
+            let mut batch = epoch_store.db_batch_for_test();
+            output.write_to_batch(&epoch_store, &mut batch).unwrap();
+            batch.write().unwrap();
+        }
+
+        // Verify commit 1 state is in DB.
+        {
+            let tables = epoch_store.tables().unwrap();
+            let stored_state = tables.received_reports_state.get(&()).unwrap().unwrap();
+            assert_eq!(
+                stored_state[authority_index as usize]
+                    .received_metrics
+                    .load_faulty_blocks_provable(),
+                vec![3; committee_size]
+            );
+        }
+
+        // Process report 2 (higher values) but do NOT flush
+
+        epoch_store
+            .process_consensus_transactions_for_tests(
+                vec![seq_consensus_tx_2],
+                &checkpoint_service,
+                authority.get_object_cache_reader().as_ref(),
+                authority.get_transaction_cache_reader().as_ref(),
+                &authority_metrics,
+                true,
+            )
+            .await
+            .unwrap();
+
+        // Scorer now reflects both reports, but DB only has commit 1.
+        assert_eq!(
+            epoch_store
+                .scorer
+                .received_metrics_snapshot(authority_index)
+                .load_faulty_blocks_provable(),
+            vec![7; committee_size],
+            "scorer should have report 2 values after fetch_max"
+        );
+
+        // Capture pre-crash state
+        let pre_crash_metrics: Vec<VersionedScoringMetrics> = (0..committee_size as u32)
+            .map(|i| epoch_store.scorer.received_metrics_snapshot(i))
+            .collect();
+        let pre_crash_invalid_counts: Vec<u64> = (0..committee_size)
+            .map(|i| epoch_store.scorer.received_reports_state[i].invalid_reports_count_value())
+            .collect();
+
+        // Simulate crash: restore from DB (only has commit 1 state)
+        let protocol_config = mock_protocol_config(ConsensusChoice::Mysticeti);
+        let restored_scorer = Scorer::new(voting_power, &protocol_config);
+        let tables = epoch_store.tables().unwrap();
+        restored_scorer
+            .restore_from_tables(&tables)
+            .expect("restore_from_tables should succeed");
+
+        // After restore, scorer only has commit 1 values.
+        assert_eq!(
+            restored_scorer
+                .received_metrics_snapshot(authority_index)
+                .load_faulty_blocks_provable(),
+            vec![3; committee_size],
+            "restored scorer should only have commit 1 data from DB"
+        );
+
+        // Resync: replay report 2 (the unflushed commit). During consensus resync,
+        // unflushed commits are re-processed, which calls update_received_reports.
+        restored_scorer.update_received_reports(authority_index, &report_2);
+
+        // Verify restored+replayed state matches pre-crash state
+        for i in 0..committee_size as u32 {
+            let pre = &pre_crash_metrics[i as usize];
+            let post = restored_scorer.received_metrics_snapshot(i);
+            assert_eq!(
+                pre.load_faulty_blocks_provable(),
+                post.load_faulty_blocks_provable(),
+                "faulty_blocks_provable mismatch for authority {i}"
+            );
+            assert_eq!(
+                pre.load_faulty_blocks_unprovable(),
+                post.load_faulty_blocks_unprovable(),
+                "faulty_blocks_unprovable mismatch for authority {i}"
+            );
+            assert_eq!(
+                pre.load_missing_proposals(),
+                post.load_missing_proposals(),
+                "missing_proposals mismatch for authority {i}"
+            );
+            assert_eq!(
+                pre.load_equivocations(),
+                post.load_equivocations(),
+                "equivocations mismatch for authority {i}"
+            );
+        }
+
+        for i in 0..committee_size as u32 {
+            assert_eq!(
+                pre_crash_invalid_counts[i as usize],
+                restored_scorer.received_reports_state[i as usize].invalid_reports_count_value(),
+                "invalid_reports_count mismatch for authority {i}"
+            );
+        }
+
+        // has_not_sent_report should be false for the authority that sent reports.
+        assert!(
+            !restored_scorer.received_reports_state[authority_index as usize]
+                .has_not_sent_report_value(),
+            "has_not_sent_report should be false after restore + resync"
+        );
     }
 }
