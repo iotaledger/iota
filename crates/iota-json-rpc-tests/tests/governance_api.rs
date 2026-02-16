@@ -173,7 +173,13 @@ async fn get_stakes_with_new_validator() {
 
     // We just added the validator, it's not active yet, it will be on epoch change.
     let stakes = test_cluster.rpc_client().get_stakes(address).await.unwrap();
-    assert!(matches!(stakes[0].stakes[0].status, StakeStatus::Pending));
+    // Find the initial stake request, which should be pending now
+    let stake = stakes[0]
+        .stakes
+        .iter()
+        .find(|s| s.stake_request_epoch == 0)
+        .unwrap();
+    assert!(matches!(stake.status, StakeStatus::Pending));
 
     test_cluster.force_new_epoch().await;
 
@@ -205,8 +211,14 @@ async fn get_stakes_with_new_validator() {
     // after epoch change the new validator is active but not part of the committee
     // however, stake is marked as active
     let stakes = client.get_stakes(address).await.unwrap();
+    // Find the initial stake request, which should be active now
+    let stake = stakes[0]
+        .stakes
+        .iter()
+        .find(|s| s.stake_request_epoch == 0)
+        .unwrap();
     assert!(matches!(
-        stakes[0].stakes[0].status,
+        stake.status,
         StakeStatus::Active {
             estimated_reward: 0
         }
@@ -236,8 +248,15 @@ async fn get_stakes_with_new_validator() {
     // after epoch change the new validator is active and part of the committee
     // estimated reward is zero, as the validator just entered committee
     let stakes = client.get_stakes(address).await.unwrap();
+    // Find the initial stake request, which be active but with zero estimated
+    // reward as the validator just entered committee
+    let stake = stakes[0]
+        .stakes
+        .iter()
+        .find(|s| s.stake_request_epoch == 0)
+        .unwrap();
     assert!(matches!(
-        stakes[0].stakes[0].status,
+        stake.status,
         StakeStatus::Active {
             estimated_reward: 0
         }
@@ -246,7 +265,14 @@ async fn get_stakes_with_new_validator() {
     test_cluster.force_new_epoch().await;
 
     let stakes = client.get_stakes(address).await.unwrap();
-    assert!(matches!(stakes[0].stakes[0].status, StakeStatus::Active {
+    // Find the initial stake request, which should be active now with non-zero
+    // estimated reward after one epoch in committee
+    let stake = stakes[0]
+        .stakes
+        .iter()
+        .find(|s| s.stake_request_epoch == 0)
+        .unwrap();
+    assert!(matches!(stake.status, StakeStatus::Active {
         estimated_reward
     } if estimated_reward > 0));
 }

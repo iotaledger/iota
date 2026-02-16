@@ -2,7 +2,7 @@
 tags: [core-protocol]
 ---
 import Quiz from '@site/src/components/Quiz';
-import {questions} from '../../../site/static/json/about-iota/iota-architecture/transaction-lifecycle.json';
+import quizData from '../../../site/static/json/about-iota/iota-architecture/transaction-lifecycle.json';
 import ThemedImage from '@theme/ThemedImage';
 
 # Transaction Life Cycle
@@ -74,4 +74,4 @@ If your wallet app crashes during a transaction, it stores the signed transactio
 
 The wallet app can query the full node with the getTransactionBlock method to check if the transaction is finalized. If the response contains transaction details, it is finalized. If the response is None, the transaction may need to be resubmitted. This ensures that the coffee shop's full node will eventually recognize the transaction once it's included in a checkpoint and update the coffee shop's balance.
 
-<Quiz questions={questions} />
+<Quiz questions={quizData.questions} />
