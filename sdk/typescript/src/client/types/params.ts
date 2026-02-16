@@ -240,6 +240,7 @@ export interface GetAllCoinsParams {
 /** Address related metrics. Exclusively served by the indexer. */
 export interface GetAllEpochAddressMetricsParams {
     descendingOrder?: boolean | null | undefined;
+    signal?: AbortSignal;
 }
 /** Return the total coin balance for one coin type, owned by the address owner. */
 export interface GetBalanceParams {
@@ -255,9 +256,12 @@ export interface GetBalanceParams {
 /** Address related metrics. Exclusively served by the indexer. */
 export interface GetCheckpointAddressMetricsParams {
     checkpoint: string;
+    signal?: AbortSignal;
 }
 /** Return the circulating supply summary. */
-export interface GetCirculatingSupplyParams {}
+export interface GetCirculatingSupplyParams {
+    signal?: AbortSignal;
+}
 /** Return metadata (e.g., symbol, decimals) for a coin. */
 export interface GetCoinMetadataParams {
     /** type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC) */
@@ -286,7 +290,9 @@ export interface GetCommitteeInfoParams {
     signal?: AbortSignal;
 }
 /** Return current epoch info. Exclusively served by the indexer. */
-export interface GetCurrentEpochParams {}
+export interface GetCurrentEpochParams {
+    signal?: AbortSignal;
+}
 /** Return the dynamic field object information for a specified object */
 export interface GetDynamicFieldObjectParams {
     /** The ID of the queried parent object */
@@ -326,6 +332,7 @@ export interface GetEpochMetricsParams {
     limit?: number | null | undefined;
     /** Flag to return results in descending order */
     descendingOrder?: boolean | null | undefined;
+    signal?: AbortSignal;
 }
 /** Return a list of epoch info. Exclusively served by the indexer. */
 export interface GetEpochsParams {
@@ -335,9 +342,12 @@ export interface GetEpochsParams {
     limit?: number | null | undefined;
     /** Flag to return results in descending order */
     descendingOrder?: boolean | null | undefined;
+    signal?: AbortSignal;
 }
 /** Address related metrics. Exclusively served by the indexer. */
-export interface GetLatestAddressMetricsParams {}
+export interface GetLatestAddressMetricsParams {
+    signal?: AbortSignal;
+}
 /**
  * Return the latest IOTA system state object on networks supporting protocol version `< 5`. These are
  * networks with node software release version `< 0.11`.
@@ -349,11 +359,17 @@ export interface GetLatestIotaSystemStateParams {
  * Return the latest IOTA system state object on networks supporting protocol version `>= 5`. These are
  * networks with node software release version `>= 0.11`.
  */
-export interface GetLatestIotaSystemStateV2Params {}
+export interface GetLatestIotaSystemStateV2Params {
+    signal?: AbortSignal;
+}
 /** Return move call metrics. Exclusively served by the indexer. */
-export interface GetMoveCallMetricsParams {}
+export interface GetMoveCallMetricsParams {
+    signal?: AbortSignal;
+}
 /** Return Network metrics. Exclusively served by the indexer. */
-export interface GetNetworkMetricsParams {}
+export interface GetNetworkMetricsParams {
+    signal?: AbortSignal;
+}
 /**
  * Return the list of objects owned by an address. Note that if the address owns more than
  * `QUERY_MAX_RESULT_LIMIT` objects, the pagination is not accurate, because previous page may have
@@ -376,7 +392,9 @@ export type GetOwnedObjectsParams = {
  * that have delegated stake in the current epoch. Includes both staked and timelocked staked IOTA.
  * Exclusively served by the indexer.
  */
-export interface GetParticipationMetricsParams {}
+export interface GetParticipationMetricsParams {
+    signal?: AbortSignal;
+}
 /** Return the reference gas price for the network */
 export interface GetReferenceGasPriceParams {
     signal?: AbortSignal;
@@ -408,7 +426,9 @@ export interface GetTotalSupplyParams {
     signal?: AbortSignal;
 }
 /** Return the total number of transactions. Exclusively served by the indexer. */
-export interface GetTotalTransactionsParams {}
+export interface GetTotalTransactionsParams {
+    signal?: AbortSignal;
+}
 /** Return the validator APY */
 export interface GetValidatorsApyParams {
     signal?: AbortSignal;
@@ -660,6 +680,7 @@ export interface UnsafeRequestAddTimelockedStakeParams {
     gas: string;
     /** the gas budget, the transaction will fail if the gas cost exceed the budget */
     gasBudget: string;
+    signal?: AbortSignal;
 }
 /** Withdraw stake from a validator's staking pool. */
 export interface UnsafeRequestWithdrawStakeParams {
@@ -686,6 +707,7 @@ export interface UnsafeRequestWithdrawTimelockedStakeParams {
     gas: string;
     /** the gas budget, the transaction will fail if the gas cost exceed the budget */
     gasBudget: string;
+    signal?: AbortSignal;
 }
 /** Create an unsigned transaction to split a coin object into multiple coins. */
 export interface UnsafeSplitCoinParams {
