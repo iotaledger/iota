@@ -433,7 +433,7 @@ const developer = [
                         type: 'category',
                         label: 'Account Abstraction',
                         items: [
-                            'developer/move/how-tos/account-abstraction/place-holder',
+                            'developer/move/how-tos/account-abstraction/basic-account-authenticator',
                         ],
                     },
                     {
