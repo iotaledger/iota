@@ -3,7 +3,7 @@
 
 import * as amplitude from '@amplitude/analytics-browser';
 import { LogLevel, type UserSession } from '@amplitude/analytics-types';
-import { getAmplitudeConsentStatus, PersistableStorage } from '@iota/core';
+import { attachEnvironmentPlugin, getAmplitudeConsentStatus, PersistableStorage } from '@iota/core';
 
 import { ampli } from './ampli';
 import { getDefaultNetwork } from '../../config';
@@ -61,6 +61,9 @@ export async function initAmplitude() {
         amplitude.setTransport('beacon');
         amplitude.flush();
     });
+
+    // Add environment plugin to set prefix dev events
+    ampli.client.add(attachEnvironmentPlugin());
 }
 
 export function getUrlWithDeviceId(url: URL) {
