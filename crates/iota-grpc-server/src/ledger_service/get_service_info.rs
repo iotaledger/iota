@@ -76,11 +76,10 @@ pub fn get_service_info(
         );
     }
 
-    if read_mask.contains(GetServiceInfoResponse::SERVER_FIELD.name) {
-        if let Some(server) = service.reader.server_version() {
+    if read_mask.contains(GetServiceInfoResponse::SERVER_FIELD.name)
+        && let Some(server) = service.reader.server_version() {
             message = message.with_server(server);
         }
-    }
 
     Ok(message)
 }

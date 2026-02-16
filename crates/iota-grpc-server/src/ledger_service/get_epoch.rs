@@ -77,21 +77,19 @@ pub fn get_epoch(
             message = message.with_first_checkpoint(epoch_info.start_checkpoint);
         }
 
-        if read_mask.contains(Epoch::LAST_CHECKPOINT_FIELD.name) {
-            if let Some(end_checkpoint) = epoch_info.end_checkpoint {
+        if read_mask.contains(Epoch::LAST_CHECKPOINT_FIELD.name)
+            && let Some(end_checkpoint) = epoch_info.end_checkpoint {
                 message = message.with_last_checkpoint(end_checkpoint);
             }
-        }
 
         if read_mask.contains(Epoch::START_FIELD.name) {
             message = message.with_start(timestamp_ms_to_proto(epoch_info.start_timestamp_ms));
         }
 
-        if read_mask.contains(Epoch::END_FIELD.name) {
-            if let Some(end_timestamp_ms) = epoch_info.end_timestamp_ms {
+        if read_mask.contains(Epoch::END_FIELD.name)
+            && let Some(end_timestamp_ms) = epoch_info.end_timestamp_ms {
                 message = message.with_end(timestamp_ms_to_proto(end_timestamp_ms));
             }
-        }
 
         if read_mask.contains(Epoch::REFERENCE_GAS_PRICE_FIELD.name) {
             message = message.with_reference_gas_price(epoch_info.reference_gas_price);
@@ -114,14 +112,13 @@ pub fn get_epoch(
         }
     }
 
-    if let Some(system_state) = system_state {
-        if read_mask.contains(Epoch::BCS_SYSTEM_STATE_FIELD.name) {
+    if let Some(system_state) = system_state
+        && read_mask.contains(Epoch::BCS_SYSTEM_STATE_FIELD.name) {
             message =
                 message.with_bcs_system_state(BcsData::serialize(&system_state).map_err(|e| {
                     Status::internal(format!("Failed to serialize system state: {e}"))
                 })?);
         }
-    }
 
     if read_mask.contains(Epoch::COMMITTEE_FIELD.name) {
         let committee = service
