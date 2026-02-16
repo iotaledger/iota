@@ -35,8 +35,8 @@ impl AuthenticatorFunctionRefV1 {
     pub fn type_(type_param: StructTag) -> StructTag {
         StructTag::new(
             IotaAddress::FRAMEWORK,
-            AUTHENTICATOR_FUNCTION_MODULE_NAME.to_owned(),
-            AUTHENTICATOR_FUNCTION_REF_V1_STRUCT_NAME.to_owned(),
+            AUTHENTICATOR_FUNCTION_MODULE_NAME,
+            AUTHENTICATOR_FUNCTION_REF_V1_STRUCT_NAME,
             vec![TypeTag::Struct(Box::new(type_param))],
         )
     }
