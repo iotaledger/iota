@@ -4268,22 +4268,54 @@ impl AuthorityPerEpochStore {
                 kind: ConsensusTransactionKind::MisbehaviorReport(authority, report, _),
                 ..
             }) => {
-                let authority_index = self
-                    .committee
-                    .authority_index(authority)
-                    .expect("authority in committee");
-                // Check validity of the report and update scores depending on the result. We
-                // already have consensus on inclusion of this report in the DAG.
-                if !report.verify(self.committee.num_members()) {
-                    self.scorer.update_invalid_reports_count(authority_index);
+                if !self.protocol_config().calculate_validator_scores() {
                     warn!(
-                        "Received invalid misbehavior report from {:?}",
+                        "Received misbehavior report from {:?} but validator scores are disabled, so the report is ignored",
                         authority.concise()
                     );
-                } else {
-                    // Here we update all counts related to the information in the reports.
-                    self.scorer.update_received_reports(authority_index, report);
+                    return Ok(ConsensusCertificateResult::ConsensusMessage);
                 }
+                if self
+                    .get_reconfig_state_read_lock_guard()
+                    .should_accept_consensus_certs()
+                {
+                    let authority_index = self
+                        .committee
+                        .authority_index(authority)
+                        .expect("authority in committee");
+
+                    // Check validity of the report and update scores depending on the result. We
+                    // already have consensus on inclusion of this report in the DAG.
+                    match (report, self.protocol_config().scorer_version_as_option()) {
+                        (VersionedMisbehaviorReport::V1(..), Some(1))
+                        | (VersionedMisbehaviorReport::V1(..), None) => {
+                            if !report.verify(self.committee.num_members()) {
+                                self.scorer.update_invalid_reports_count(authority_index);
+                                warn!(
+                                    "Received invalid misbehavior report from {:?}",
+                                    authority.concise()
+                                );
+                            } else {
+                                // Here we update all counts related to the information in the
+                                // reports.
+                                self.scorer.update_received_reports(authority_index, report);
+                            }
+                        }
+                        _ => {
+                            self.scorer.update_invalid_reports_count(authority_index);
+                            warn!(
+                                "Received misbehavior report with unsupported version from {:?}",
+                                authority.concise()
+                            );
+                        }
+                    }
+                } else {
+                    debug!(
+                        "Ignoring misbehavior report from {:?} because of end of epoch",
+                        authority.concise()
+                    );
+                }
+
                 Ok(ConsensusCertificateResult::ConsensusMessage)
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
