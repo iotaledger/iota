@@ -18,7 +18,7 @@ to decide whether the transaction is allowed.
 
 The authenticator function is referenced on-chain via package metadata and attached to a shared account object.
 
-## What This Example Shows
+### What This Example Shows
 
 This how-to demonstrates the **minimum building blocks** required to use Account Abstraction:
 
@@ -36,14 +36,12 @@ The full package includes additional setup and comments, but this snippet highli
 
 ### Account creation and authenticator attachment
 
-```move reference
-https://github.com/iotaledger/iota/blob/develop/examples/move/account/sources/account.move#L4-L26
+```move file=<rootDir>/examples/move/account/sources/account.move#L4-L26
 ```
 
 ### Minimal authenticator function
 
-```move reference
-https://github.com/iotaledger/iota/blob/develop/examples/move/account/sources/account.move#L28-L46
+```move file=<rootDir>/examples/move/account/sources/account.move#L28-L46
 ```
 
 ### Code Outcome
@@ -62,8 +60,7 @@ The complete Move package, including comments and setup logic, is available here
 
 <TabItem value="move" label="Move">
 
-```move reference
-https://github.com/iotaledger/iota/blob/develop/examples/move/account/sources/account.move
+```move file=<rootDir>/examples/move/account/sources/account.move
 ```
 
 </TabItem>
@@ -73,7 +70,3 @@ https://github.com/iotaledger/iota/blob/develop/examples/move/account/sources/ac
 
 After publishing the package, anyone can call `link_auth` to attach the authenticator to the shared account. The
 example authenticator accepts a message string and succeeds only when the message equals `"hello"`.
-
-## For reference and setup instructions, see the full Readme:
-
-[Readme](https://github.com/iotaledger/iota/blob/develop/examples/move/account/README.md)
