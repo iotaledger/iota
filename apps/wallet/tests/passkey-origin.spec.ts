@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { expect, test } from './utils/fixtures';
-import { SHORT_TIMEOUT } from './constants/timeout.constants';
+import { createPasskeyWallet } from './utils/wallet';
 
 const username = 'Passkeys';
 const EXPECTED_RP_ID = 'iota.org';
@@ -11,40 +11,16 @@ test(`Passkey origin should be ${EXPECTED_RP_ID} and not other values`, async ({
     page,
     extensionUrl,
 }) => {
-    const client = await page.context().newCDPSession(page);
-    await client.send('WebAuthn.enable');
-
-    const { authenticatorId } = await client.send('WebAuthn.addVirtualAuthenticator', {
-        options: {
-            protocol: 'ctap2',
-            transport: 'internal',
-            hasResidentKey: true,
-            hasUserVerification: true,
-            isUserVerified: true,
-            automaticPresenceSimulation: true,
-        },
-    });
-
-    await page.goto(extensionUrl, { waitUntil: 'commit' });
-    await page.getByRole('button', { name: /Get Started/ }).click({ timeout: SHORT_TIMEOUT });
-    await page.getByText('Create a new wallet').click();
-    await page.getByText('Passkey', { exact: true }).click();
-
-    await page.getByTestId('username-input').fill(username);
-    await page.getByTestId('passkey-radio-platform').click();
-
     let capturedRpId: string | undefined;
+
+    const { client, authenticatorId } = await createPasskeyWallet(page, extensionUrl, {
+        username,
+        isCrossPlatform: false,
+    });
 
     client.on('WebAuthn.credentialAdded', (params) => {
         capturedRpId = params.credential.rpId;
     });
-
-    await page.getByRole('button', { name: /Continue/ }).click();
-
-    await page.getByTestId('password.input').fill('iotae2etests');
-    await page.getByTestId('password.confirmation').fill('iotae2etests');
-    await page.getByText('I read and agree').click();
-    await page.getByRole('button', { name: /Create Wallet/ }).click();
 
     const { credentials } = await client.send('WebAuthn.getCredentials', {
         authenticatorId,
@@ -68,35 +44,10 @@ test(`Passkey origin should be ${EXPECTED_RP_ID} and not other values`, async ({
 });
 
 test(`Passkey restoration should use ${EXPECTED_RP_ID} origin`, async ({ page, extensionUrl }) => {
-    const client = await page.context().newCDPSession(page);
-    await client.send('WebAuthn.enable');
-
-    const { authenticatorId } = await client.send('WebAuthn.addVirtualAuthenticator', {
-        options: {
-            protocol: 'ctap2',
-            transport: 'internal',
-            hasResidentKey: true,
-            hasUserVerification: true,
-            isUserVerified: true,
-            automaticPresenceSimulation: true,
-        },
+    const { client, authenticatorId } = await createPasskeyWallet(page, extensionUrl, {
+        username,
+        isCrossPlatform: false,
     });
-
-    await page.goto(extensionUrl, { waitUntil: 'commit' });
-    await page.getByRole('button', { name: /Get Started/ }).click({ timeout: SHORT_TIMEOUT });
-    await page.getByText('Create a new wallet').click();
-    await page.getByText('Passkey', { exact: true }).click();
-
-    await page.getByTestId('username-input').fill(username);
-    await page.getByTestId('passkey-radio-platform').click();
-    await page.getByRole('button', { name: /Continue/ }).click();
-
-    await page.getByTestId('password.input').fill('iotae2etests');
-    await page.getByTestId('password.confirmation').fill('iotae2etests');
-    await page.getByText('I read and agree').click();
-    await page.getByRole('button', { name: /Create Wallet/ }).click();
-
-    await expect(page.getByText(username)).toBeVisible({ timeout: 10_000 });
 
     const { credentials: createdCredentials } = await client.send('WebAuthn.getCredentials', {
         authenticatorId,
@@ -109,7 +60,8 @@ test(`Passkey restoration should use ${EXPECTED_RP_ID} origin`, async ({ page, e
     await page.getByText('Reset').click();
     await page.getByRole('button', { name: 'Reset' }).click();
 
-    await page.getByRole('button', { name: /Get Started/ }).click({ timeout: SHORT_TIMEOUT });
+    await page.goto(extensionUrl, { waitUntil: 'commit' });
+    await page.getByRole('button', { name: /Get Started/ }).click();
     await page.getByText('Add existing wallet').click();
     await page.getByText('Passkey', { exact: true }).click();
     await page.getByRole('button', { name: /Continue/ }).click();
