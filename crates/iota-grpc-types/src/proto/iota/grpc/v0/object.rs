@@ -17,8 +17,12 @@ impl TryFrom<&Object> for iota_sdk_types::Object {
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(Object::BCS_FIELD.name))?;
 
-        bcs.deserialize()
-            .map_err(|e| TryFromProtoError::invalid(Object::BCS_FIELD.name, e))
+        bcs.deserialize::<crate::v0::versioned::VersionedObject>()
+            .map_err(|e| TryFromProtoError::invalid(Object::BCS_FIELD.name, e))?
+            .try_into_v1()
+            .map_err(|_| {
+                TryFromProtoError::invalid(Object::BCS_FIELD.name, "unsupported Object version")
+            })
     }
 }
 
@@ -82,20 +86,13 @@ impl TryFrom<&Objects> for Vec<iota_sdk_types::Object> {
 
 // Convenience methods for Object (delegate to TryFrom)
 impl Object {
+    /// Get the object reference.
     pub fn object_reference(&self) -> Result<iota_sdk_types::ObjectReference, TryFromProtoError> {
         self.try_into()
     }
 
     /// Deserialize the object from BCS.
     pub fn object(&self) -> Result<iota_sdk_types::Object, TryFromProtoError> {
-        self.try_into()
-    }
-}
-
-// Convenience methods for Objects (delegate to TryFrom)
-impl Objects {
-    /// Deserialize all objects from BCS.
-    pub fn objects(&self) -> Result<Vec<iota_sdk_types::Object>, TryFromProtoError> {
         self.try_into()
     }
 }

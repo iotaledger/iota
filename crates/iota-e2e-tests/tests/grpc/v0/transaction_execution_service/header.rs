@@ -37,31 +37,25 @@ async fn test_response_headers() {
             make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount))
                 .await;
 
-        let transaction = ProtoTransaction {
-            bcs: Some(BcsData {
-                data: bcs::to_bytes(txn.transaction_data()).unwrap().into(),
-            }),
-            ..Default::default()
-        };
+        let transaction = ProtoTransaction::default()
+            .with_bcs(BcsData::default().with_data(bcs::to_bytes(txn.transaction_data()).unwrap()));
 
-        let signatures = UserSignatures {
-            signatures: txn
-                .tx_signatures()
+        let signatures = UserSignatures::default().with_signatures(
+            txn.tx_signatures()
                 .iter()
-                .map(|s| UserSignature {
-                    bcs: Some(BcsData {
-                        data: bcs::to_bytes(s).unwrap().into(),
-                    }),
+                .map(|s| {
+                    UserSignature::default()
+                        .with_bcs(BcsData::default().with_data(bcs::to_bytes(s).unwrap()))
                 })
                 .collect(),
-        };
+        );
 
         let response = exec_client
-            .execute_transaction(ExecuteTransactionRequest {
-                transaction: Some(transaction),
-                signatures: Some(signatures),
-                read_mask: None,
-            })
+            .execute_transaction(
+                ExecuteTransactionRequest::default()
+                    .with_transaction(transaction)
+                    .with_signatures(signatures),
+            )
             .await
             .unwrap();
 
@@ -93,19 +87,13 @@ async fn test_response_headers() {
         );
 
         // Create the simulation request with gas estimation enabled
-        let transaction = ProtoTransaction {
-            bcs: Some(BcsData {
-                data: bcs::to_bytes(&tx_data).unwrap().into(),
-            }),
-            ..Default::default()
-        };
+        let transaction = ProtoTransaction::default()
+            .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap()));
 
-        let request = SimulateTransactionRequest {
-            transaction: Some(transaction),
-            tx_checks: vec![],
-            estimate_gas_budget: Some(true),
-            read_mask: None,
-        };
+        let request = SimulateTransactionRequest::default()
+            .with_transaction(transaction)
+            .with_tx_checks(vec![])
+            .with_estimate_gas_budget(true);
 
         // Simulate the transaction
         let response = exec_client.simulate_transaction(request).await.unwrap();

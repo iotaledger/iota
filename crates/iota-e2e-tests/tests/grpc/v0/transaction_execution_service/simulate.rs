@@ -30,11 +30,14 @@ async fn assert_simulate_transaction_request(
     scenario: &str,
 ) -> SimulateTransactionResponse {
     let response = exec_client
-        .simulate_transaction(SimulateTransactionRequest {
-            transaction: Some(transaction),
-            tx_checks: vec![],
-            estimate_gas_budget: None,
-            read_mask,
+        .simulate_transaction({
+            let mut req = SimulateTransactionRequest::default()
+                .with_transaction(transaction)
+                .with_tx_checks(vec![]);
+            if let Some(mask) = read_mask {
+                req = req.with_read_mask(mask);
+            }
+            req
         })
         .await
         .unwrap()
@@ -68,19 +71,13 @@ async fn simulate_transaction_with_gas_estimation() {
     );
 
     // Create the simulation request with gas estimation enabled
-    let transaction = ProtoTransaction {
-        bcs: Some(BcsData {
-            data: bcs::to_bytes(&tx_data).unwrap().into(),
-        }),
-        ..Default::default()
-    };
+    let transaction = ProtoTransaction::default()
+        .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap()));
 
-    let request = SimulateTransactionRequest {
-        transaction: Some(transaction),
-        tx_checks: vec![],
-        estimate_gas_budget: Some(true),
-        read_mask: None,
-    };
+    let request = SimulateTransactionRequest::default()
+        .with_transaction(transaction)
+        .with_tx_checks(vec![])
+        .with_estimate_gas_budget(true);
 
     // Simulate the transaction
     let response = exec_client
@@ -135,11 +132,9 @@ async fn simulate_transaction_readmask_scenarios() {
         1000,      // gas price
     );
 
-    let create_transaction = || ProtoTransaction {
-        bcs: Some(BcsData {
-            data: bcs::to_bytes(&tx_data).unwrap().into(),
-        }),
-        ..Default::default()
+    let create_transaction = || {
+        ProtoTransaction::default()
+            .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap()))
     };
 
     // Tests for readmask scenarios
@@ -237,21 +232,17 @@ async fn simulate_transaction_invalid_bcs() {
     let mut exec_client = client.execution_service_client();
 
     // Create transaction with invalid BCS data
-    let transaction = ProtoTransaction {
-        bcs: Some(BcsData {
-            data: vec![0xff, 0xff, 0xff].into(), // Invalid BCS
-        }),
-        ..Default::default()
-    };
+    let transaction = ProtoTransaction::default().with_bcs(
+        BcsData::default().with_data(vec![0xff, 0xff, 0xff]), // Invalid BCS
+    );
 
     // Request should fail with invalid BCS
     let result = exec_client
-        .simulate_transaction(SimulateTransactionRequest {
-            transaction: Some(transaction),
-            tx_checks: vec![],
-            estimate_gas_budget: None,
-            read_mask: None,
-        })
+        .simulate_transaction(
+            SimulateTransactionRequest::default()
+                .with_transaction(transaction)
+                .with_tx_checks(vec![]),
+        )
         .await;
 
     assert!(
@@ -268,12 +259,7 @@ async fn simulate_transaction_empty_request() {
 
     // Test empty/missing transaction
     let result = exec_client
-        .simulate_transaction(SimulateTransactionRequest {
-            transaction: None,
-            tx_checks: vec![],
-            estimate_gas_budget: None,
-            read_mask: None,
-        })
+        .simulate_transaction(SimulateTransactionRequest::default().with_tx_checks(vec![]))
         .await;
 
     assert!(
@@ -323,11 +309,9 @@ async fn simulate_programmable_transaction_command_results() {
         1000,       // gas price
     );
 
-    let create_transaction = || ProtoTransaction {
-        bcs: Some(BcsData {
-            data: bcs::to_bytes(&tx_data).unwrap().into(),
-        }),
-        ..Default::default()
+    let create_transaction = || {
+        ProtoTransaction::default()
+            .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap()))
     };
 
     // Test cases for command_results field presence
