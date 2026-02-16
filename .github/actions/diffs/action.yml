@@ -7,6 +7,9 @@ outputs:
   isRust:
     description: True when changes happened to the Rust code
     value: "${{ steps.diff.outputs.isRust }}"
+  isRustWorkspaceConfig:
+    description: True when changes happened to workspace-level Rust configuration files that affect all tests
+    value: "${{ steps.diff.outputs.isRustWorkspaceConfig }}"
   isRustExample:
     description: True when changes happened to the Rust example code
     value: "${{ steps.diff.outputs.isRustExample }}"
@@ -56,6 +59,10 @@ runs:
             - "Cargo.toml"
             - "Cargo.lock"
             - ".config/nextest.toml"
+            - "rust-toolchain.toml"
+          isRustWorkspaceConfig:
+            - "Cargo.toml"
+            - "Cargo.lock"
             - "rust-toolchain.toml"
           isRustExample:
             - "examples/custom-indexer/rust/**"
