@@ -459,7 +459,6 @@ struct FeatureFlags {
     // Conflicts are resolved deterministically post-consensus using persistent locks.
     #[serde(skip_serializing_if = "is_false")]
     enable_white_flag_flow: bool,
-    // TODO: add getter function as well as set_enable_white_flag_flow_for_testing setter
 }
 
 fn is_true(b: &bool) -> bool {

@@ -46,7 +46,7 @@ use iota_types::{
     effects::TransactionEffects,
     error::{IotaError, IotaResult},
     executable_transaction::{
-        CertificateProof, ExecutableTransaction, TrustedExecutableTransaction,
+        CertificateProof, ExecutableTransaction,
         VerifiedExecutableTransaction,
     },
     iota_system_state::epoch_start_iota_system_state::{

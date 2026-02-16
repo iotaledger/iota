@@ -278,13 +278,6 @@ pub struct NodeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub validator_client_monitor_config:
         Option<crate::validator_client_monitor_config::ValidatorClientMonitorConfig>,
-
-    /// If true, use TransactionDriver instead of QuorumDriver for transaction
-    /// submission. TransactionDriver supports the white flag
-    /// (direct-to-consensus) flow. Defaults to false for backward
-    /// compatibility.
-    #[serde(default)]
-    pub use_transaction_driver: bool,
 }
 
 #[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]

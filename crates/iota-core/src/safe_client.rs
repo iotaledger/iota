@@ -15,10 +15,9 @@ use iota_types::{
     iota_system_state::IotaSystemState,
     messages_grpc::{
         HandleCertificateRequestV1, HandleCertificateResponseV1, ObjectInfoRequest,
-        ObjectInfoResponse, SubmitTransactionV1Response, SubmitTxRequest, SubmitTxResponse,
-        SystemStateRequest, TransactionInfoRequest, TransactionStatus, ValidatorHealthRequest,
-        ValidatorHealthResponse, VerifiedObjectInfoResponse, WaitForEffectsRequest,
-        WaitForEffectsResponse,
+        ObjectInfoResponse, SubmitTxRequest, SubmitTxResponse, SystemStateRequest,
+        TransactionInfoRequest, TransactionStatus, ValidatorHealthRequest, ValidatorHealthResponse,
+        VerifiedObjectInfoResponse, WaitForEffectsRequest, WaitForEffectsResponse,
     },
     messages_safe_client::PlainTransactionInfoResponse,
     transaction::*,
@@ -505,18 +504,6 @@ where
     pub async fn handle_system_state_object(&self) -> Result<IotaSystemState, IotaError> {
         self.authority_client
             .handle_system_state_object(SystemStateRequest { _unused: false })
-            .await
-    }
-
-    /// Submit a transaction via the existing white flag gRPC endpoint.
-    #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
-    pub async fn submit_transaction_v1(
-        &self,
-        transaction: Transaction,
-        client_addr: Option<SocketAddr>,
-    ) -> Result<SubmitTransactionV1Response, IotaError> {
-        self.authority_client
-            .submit_transaction_v1(transaction, client_addr)
             .await
     }
 

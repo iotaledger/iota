@@ -24,10 +24,10 @@ use iota_types::{
         HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
         HandleCertificateRequestV1, HandleCertificateResponseV1,
         HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
-        HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
-        SubmitTransactionV1Response, SubmitTxRequest, SubmitTxResponse, SystemStateRequest,
-        TransactionInfoRequest, TransactionInfoResponse, ValidatorHealthRequest,
-        ValidatorHealthResponse, WaitForEffectsRequest, WaitForEffectsResponse,
+        HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SubmitTxRequest,
+        SubmitTxResponse, SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
+        ValidatorHealthRequest, ValidatorHealthResponse, WaitForEffectsRequest,
+        WaitForEffectsResponse,
     },
     multiaddr::Multiaddr,
     transaction::*,
@@ -89,15 +89,7 @@ pub trait AuthorityAPI {
         request: HandleCapabilityNotificationRequestV1,
     ) -> Result<HandleCapabilityNotificationResponseV1, IotaError>;
 
-    /// Submit a transaction via the existing white flag gRPC endpoint.
-    async fn submit_transaction_v1(
-        &self,
-        transaction: Transaction,
-        client_addr: Option<SocketAddr>,
-    ) -> Result<SubmitTransactionV1Response, IotaError>;
-
-    /// Submit a transaction via the TransactionDriver protocol (wraps
-    /// submit_transaction_v1).
+    /// Submit a transaction via the TransactionDriver protocol.
     async fn submit_transaction(
         &self,
         request: SubmitTxRequest,
@@ -286,51 +278,42 @@ impl AuthorityAPI for NetworkAuthorityClient {
             .map_err(Into::into)
     }
 
-    async fn submit_transaction_v1(
+    async fn submit_transaction(
         &self,
-        transaction: Transaction,
+        request: SubmitTxRequest,
         client_addr: Option<SocketAddr>,
-    ) -> Result<SubmitTransactionV1Response, IotaError> {
-        let mut request = transaction.into_request();
-        insert_metadata(&mut request, client_addr);
+    ) -> Result<SubmitTxResponse, IotaError> {
+        let mut grpc_request = request.into_request();
+        insert_metadata(&mut grpc_request, client_addr);
 
         self.client()?
-            .submit_transaction_v1(request)
+            .submit_transaction(grpc_request)
             .await
             .map(tonic::Response::into_inner)
             .map_err(Into::into)
     }
 
-    async fn submit_transaction(
-        &self,
-        _request: SubmitTxRequest,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<SubmitTxResponse, IotaError> {
-        // TODO(Phase 4): implement dedicated TransactionDriver gRPC endpoint.
-        Err(IotaError::UnsupportedFeature {
-            error: "submit_transaction TransactionDriver endpoint not yet implemented".to_string(),
-        })
-    }
-
     async fn wait_for_effects(
         &self,
-        _request: WaitForEffectsRequest,
+        request: WaitForEffectsRequest,
         _client_addr: Option<SocketAddr>,
     ) -> Result<WaitForEffectsResponse, IotaError> {
-        // TODO: implement gRPC endpoint when TransactionDriver protocol is supported.
-        Err(IotaError::UnsupportedFeature {
-            error: "wait_for_effects not yet implemented".to_string(),
-        })
+        self.client()?
+            .wait_for_effects(request.into_request())
+            .await
+            .map(tonic::Response::into_inner)
+            .map_err(Into::into)
     }
 
     async fn validator_health(
         &self,
-        _request: ValidatorHealthRequest,
+        request: ValidatorHealthRequest,
     ) -> Result<ValidatorHealthResponse, IotaError> {
-        // TODO: implement gRPC endpoint when protocol supports it.
-        // For now, return a default response so the monitor can measure round-trip
-        // latency.
-        Ok(ValidatorHealthResponse::default())
+        self.client()?
+            .validator_health(request.into_request())
+            .await
+            .map(tonic::Response::into_inner)
+            .map_err(Into::into)
     }
 }
 

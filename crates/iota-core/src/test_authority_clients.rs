@@ -22,10 +22,10 @@ use iota_types::{
         HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
         HandleCertificateRequestV1, HandleCertificateResponseV1,
         HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
-        HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
-        SubmitTransactionV1Response, SubmitTxRequest, SubmitTxResponse, SystemStateRequest,
-        TransactionInfoRequest, TransactionInfoResponse, ValidatorHealthRequest,
-        ValidatorHealthResponse, WaitForEffectsRequest, WaitForEffectsResponse,
+        HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SubmitTxRequest,
+        SubmitTxResponse, SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
+        ValidatorHealthRequest, ValidatorHealthResponse, WaitForEffectsRequest,
+        WaitForEffectsResponse,
     },
     transaction::{Transaction, VerifiedTransaction},
 };
@@ -161,14 +161,6 @@ impl AuthorityAPI for LocalAuthorityClient {
         epoch_store.record_capabilities_v1(verified_authority_capabilities.data())?;
 
         Ok(HandleCapabilityNotificationResponseV1 { _unused: false })
-    }
-
-    async fn submit_transaction_v1(
-        &self,
-        _transaction: Transaction,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<SubmitTransactionV1Response, IotaError> {
-        unimplemented!("submit_transaction_v1 not used in tests")
     }
 
     async fn submit_transaction(
@@ -398,14 +390,6 @@ impl AuthorityAPI for MockAuthorityApi {
         }
     }
 
-    async fn submit_transaction_v1(
-        &self,
-        _transaction: Transaction,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<SubmitTransactionV1Response, IotaError> {
-        unimplemented!("submit_transaction_v1 not used in tests")
-    }
-
     async fn submit_transaction(
         &self,
         _request: SubmitTxRequest,
@@ -504,14 +488,6 @@ impl AuthorityAPI for HandleTransactionTestAuthorityClient {
         _request: HandleCapabilityNotificationRequestV1,
     ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
         unimplemented!()
-    }
-
-    async fn submit_transaction_v1(
-        &self,
-        _transaction: Transaction,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<SubmitTransactionV1Response, IotaError> {
-        unimplemented!("submit_transaction_v1 not used in tests")
     }
 
     async fn submit_transaction(

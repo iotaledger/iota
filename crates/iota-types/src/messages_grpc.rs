@@ -15,17 +15,17 @@ use crate::{
         VerifiedSignedTransactionEffects,
     },
     error::IotaError,
-    messages_consensus::{SignedAuthorityCapabilitiesV1},
+    messages_consensus::SignedAuthorityCapabilitiesV1,
     object::Object,
     transaction::{CertifiedTransaction, SenderSignedData, SignedTransaction, Transaction},
 };
 
 /// Request for validator health information.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ValidatorHealthRequest {}
 
 /// Response with validator health metrics.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ValidatorHealthResponse {
     /// Number of in-flight execution transactions from execution scheduler.
     pub num_inflight_execution_transactions: u64,
@@ -316,7 +316,7 @@ pub struct ExecutedData {
 }
 
 /// Contains either a transaction or the type of Ping request.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SubmitTxRequest {
     pub transaction: Option<Transaction>,
 }
@@ -373,12 +373,6 @@ impl std::fmt::Debug for SubmitTxResult {
     }
 }
 
-/// Response from the legacy submit_transaction_v1 gRPC endpoint.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SubmitTransactionV1Response {
-    pub digest: TransactionDigest,
-}
-
 /// Response from the TransactionDriver submit_transaction endpoint.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SubmitTxResponse {
@@ -386,7 +380,7 @@ pub struct SubmitTxResponse {
 }
 
 /// Request to wait for transaction effects from a validator.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WaitForEffectsRequest {
     pub transaction_digest: Option<TransactionDigest>,
     pub include_details: bool,
@@ -394,7 +388,7 @@ pub struct WaitForEffectsRequest {
 }
 
 /// Response from a validator to a wait for effects request.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum WaitForEffectsResponse {
     Executed {
         effects_digest: TransactionEffectsDigest,

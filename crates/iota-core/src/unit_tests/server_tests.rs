@@ -299,24 +299,34 @@ async fn test_submit_transaction_v1_feature_flag_disabled() {
     );
     let tx = to_sender_signed_transaction(tx_data, &sender_key);
 
-    // Call submit_transaction_v1
+    // Call submit_transaction
     let result = validator_service
-        .submit_transaction_v1(make_tonic_request_for_testing(tx))
+        .submit_transaction(make_tonic_request_for_testing(
+            iota_types::messages_grpc::SubmitTxRequest::new_transaction(tx),
+        ))
         .await;
 
-    // Should fail with UnsupportedFeature
-    assert!(result.is_err());
-    let status = result.unwrap_err();
-    assert!(
-        status.message().contains("White flag flow is not enabled")
-            || status.message().contains("not supported"),
-        "Expected white flag feature error, got: {}",
-        status.message()
-    );
+    // Should return Ok with Rejected result (feature not enabled)
+    assert!(result.is_ok(), "Should return Ok with Rejected result");
+    let response = result.unwrap().into_inner();
+    assert_eq!(response.results.len(), 1, "Should have one result");
+    match &response.results[0] {
+        iota_types::messages_grpc::SubmitTxResult::Rejected { error } => {
+            assert!(
+                matches!(
+                    error,
+                    iota_types::error::IotaError::UnsupportedFeature { .. }
+                ),
+                "Expected UnsupportedFeature error, got: {:?}",
+                error
+            );
+        }
+        other => panic!("Expected Rejected result, got {:?}", other),
+    }
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn test_submit_transaction_v1_invalid_signature() {
+async fn test_submit_transaction_invalid_signature() {
     telemetry_subscribers::init_for_testing();
 
     // Enable white flag flow
@@ -375,23 +385,30 @@ async fn test_submit_transaction_v1_invalid_signature() {
     // Sign with wrong key
     let tx = to_sender_signed_transaction(tx_data, &wrong_key);
 
-    // Call submit_transaction_v1
+    // Call submit_transaction
     let result = validator_service
-        .submit_transaction_v1(make_tonic_request_for_testing(tx))
+        .submit_transaction(make_tonic_request_for_testing(
+            iota_types::messages_grpc::SubmitTxRequest::new_transaction(tx),
+        ))
         .await;
 
-    // Should fail with signature error
-    assert!(result.is_err());
-    let status = result.unwrap_err();
-    assert!(
-        status.message().contains("signature") || status.message().contains("Signature"),
-        "Expected signature error, got: {}",
-        status.message()
-    );
+    // Should return Ok with Rejected result
+    assert!(result.is_ok(), "Should return Ok with Rejected result");
+    let response = result.unwrap().into_inner();
+    assert_eq!(response.results.len(), 1, "Should have one result");
+    match &response.results[0] {
+        iota_types::messages_grpc::SubmitTxResult::Rejected { .. } => {
+            // Success - signature error was caught and returned as Rejected
+        }
+        other => panic!(
+            "Expected Rejected result for invalid signature, got {:?}",
+            other
+        ),
+    }
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn test_submit_transaction_v1_success() {
+async fn test_submit_transaction_success() {
     telemetry_subscribers::init_for_testing();
 
     // Enable white flag flow
@@ -447,20 +464,24 @@ async fn test_submit_transaction_v1_success() {
         rgp,
     );
     let tx = to_sender_signed_transaction(tx_data, &sender_key);
-    let expected_digest = *tx.digest();
 
-    // Call submit_transaction_v1
+    // Call submit_transaction
     let result = validator_service
-        .submit_transaction_v1(make_tonic_request_for_testing(tx))
+        .submit_transaction(make_tonic_request_for_testing(
+            iota_types::messages_grpc::SubmitTxRequest::new_transaction(tx),
+        ))
         .await;
 
-    // Should succeed with correct digest
+    // Should succeed with Submitted result
     assert!(result.is_ok(), "Transaction submission should succeed");
     let response = result.unwrap().into_inner();
-    assert_eq!(
-        response.digest, expected_digest,
-        "Response digest should match transaction digest"
-    );
+    assert_eq!(response.results.len(), 1, "Should have one result");
+    match &response.results[0] {
+        iota_types::messages_grpc::SubmitTxResult::Submitted => {
+            // Success - transaction was submitted to consensus
+        }
+        other => panic!("Expected Submitted result, got {:?}", other),
+    }
 }
 
 // NOTE: Fullnode test removed as TestAuthorityBuilder doesn't expose

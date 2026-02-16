@@ -81,7 +81,7 @@ pub struct TransactionOrchestrator<A: Clone> {
     /// Optional TransactionDriver for the white flag direct-to-consensus flow.
     transaction_driver: Option<Arc<TransactionDriver<A>>>,
     validator_state: Arc<AuthorityState>,
-    _local_executor_handle: JoinHandle<()>,
+    _local_executor_handle: Option<JoinHandle<()>>,
     pending_tx_log: Arc<WritePathPendingTransactionLog>,
     notifier: Arc<NotifyRead<TransactionDigest, QuorumDriverResult>>,
     metrics: Arc<TransactionOrchestratorMetrics>,
@@ -96,34 +96,41 @@ impl TransactionOrchestrator<NetworkAuthorityClient> {
         prometheus_registry: &Registry,
         node_config: Option<&NodeConfig>,
     ) -> Self {
-        // TODO: this should create either QuorumDriverReconfigObserver or
-        // TransactionDriverReconfigObserver based on config, instead of always creating
-        // both and passing one as None.  config should be properly read instead
-        // of using node_config.is_some() as a proxy for whether TransactionDriver is
-        // enabled.
-        let td_reconfig_observer = node_config.map(|_| {
-            TdOnsiteReconfigObserver::new(
+        // Check protocol config to determine if white flag flow is enabled
+        let epoch_store = validator_state.load_epoch_store_one_call_per_task();
+        let use_transaction_driver = epoch_store.protocol_config().enable_white_flag_flow();
+
+        // Create TransactionDriver reconfig observer only if white flag is enabled
+        let td_reconfig_observer = if use_transaction_driver {
+            Some(TdOnsiteReconfigObserver::new(
                 reconfig_channel.resubscribe(),
                 validator_state.get_object_cache_reader().clone(),
                 validator_state.clone_committee_store(),
                 validators.safe_client_metrics_base.clone(),
-            )
-        });
+            ))
+        } else {
+            None
+        };
 
-        let observer = OnsiteReconfigObserver::new(
-            reconfig_channel,
-            validator_state.get_object_cache_reader().clone(),
-            validator_state.clone_committee_store(),
-            validators.safe_client_metrics_base.clone(),
-            validators.metrics.deref().clone(),
-        );
+        // Create QuorumDriver reconfig observer only if white flag is NOT enabled
+        let qd_reconfig_observer = if !use_transaction_driver {
+            Some(OnsiteReconfigObserver::new(
+                reconfig_channel.resubscribe(),
+                validator_state.get_object_cache_reader().clone(),
+                validator_state.clone_committee_store(),
+                validators.safe_client_metrics_base.clone(),
+                validators.metrics.deref().clone(),
+            ))
+        } else {
+            None
+        };
 
         TransactionOrchestrator::new(
             validators,
             validator_state,
             parent_path,
             prometheus_registry,
-            observer,
+            qd_reconfig_observer,
             td_reconfig_observer,
             node_config,
         )
@@ -141,33 +148,47 @@ where
         validator_state: Arc<AuthorityState>,
         parent_path: &Path,
         prometheus_registry: &Registry,
-        reconfig_observer: OnsiteReconfigObserver,
+        reconfig_observer: Option<OnsiteReconfigObserver>,
         td_reconfig_observer: Option<TdOnsiteReconfigObserver>,
         node_config: Option<&NodeConfig>,
     ) -> Self {
+        // Check protocol config to determine if white flag flow is enabled
+        let epoch_store = validator_state.load_epoch_store_one_call_per_task();
+        let use_transaction_driver = epoch_store.protocol_config().enable_white_flag_flow();
+
         let qd_metrics = Arc::new(QuorumDriverMetrics::new(prometheus_registry));
         let notifier = Arc::new(NotifyRead::new());
-        let reconfig_observer = Arc::new(reconfig_observer);
 
-        // TODO: quorum driver should not be created when TransactionDriver is enabled,
-        // but for now we create it anyway and just don't use it.
-        let quorum_driver_handler = Arc::new(
-            QuorumDriverHandlerBuilder::new(validators.clone(), qd_metrics.clone())
-                .with_notifier(notifier.clone())
-                .with_reconfig_observer(reconfig_observer.clone())
-                .start(),
-        );
+        // Create QuorumDriver only if white flag is NOT enabled
+        let (quorum_driver_handler, effects_receiver) = if !use_transaction_driver {
+            let reconfig_observer = Arc::new(
+                reconfig_observer
+                    .expect("QuorumDriver reconfig observer required when white flag is disabled"),
+            );
+            let handler = Arc::new(
+                QuorumDriverHandlerBuilder::new(validators.clone(), qd_metrics.clone())
+                    .with_notifier(notifier.clone())
+                    .with_reconfig_observer(reconfig_observer.clone())
+                    .start(),
+            );
+            let receiver = handler.subscribe_to_effects();
+            (handler, Some(receiver))
+        } else {
+            // Create a dummy handler for white flag mode (not used)
+            let handler = Arc::new(
+                QuorumDriverHandlerBuilder::new(validators.clone(), qd_metrics.clone())
+                    .with_notifier(notifier.clone())
+                    .start(),
+            );
+            (handler, None)
+        };
 
-        // Optionally create a TransactionDriver if configured.
-        let transaction_driver = if node_config
-            .map(|c| c.use_transaction_driver)
-            .unwrap_or(false)
-        {
+        // Create TransactionDriver only if white flag is enabled
+        let transaction_driver = if use_transaction_driver {
             let td_metrics = Arc::new(TransactionDriverMetrics::new(prometheus_registry));
             let client_metrics = Arc::new(ValidatorClientMetrics::new(prometheus_registry));
-            let observer = td_reconfig_observer.unwrap_or_else(|| {
-                panic!("td_reconfig_observer must be provided when use_transaction_driver is true")
-            });
+            let observer = td_reconfig_observer
+                .expect("TransactionDriver reconfig observer required when white flag is enabled");
             Some(TransactionDriver::new(
                 validators.clone(),
                 Arc::new(observer),
@@ -179,26 +200,29 @@ where
             None
         };
 
-        // TODO: I guess we don't need to subscribe here if the transaction driver is
-        // enabled.
-        let effects_receiver = quorum_driver_handler.subscribe_to_effects();
         let metrics = Arc::new(TransactionOrchestratorMetrics::new(prometheus_registry));
         let pending_tx_log = Arc::new(WritePathPendingTransactionLog::new(
             parent_path.join("fullnode_pending_transactions"),
         ));
-        let pending_tx_log_clone = pending_tx_log.clone();
 
-        // TODO: is this neede if effects receiver relies on QD? If TransactionDriver is
-        // enabled, we might need a different mechanism to know when to clean up pending
-        // transactions.
-        let _local_executor_handle = {
-            spawn_monitored_task!(async move {
-                Self::loop_pending_transaction_log(effects_receiver, pending_tx_log_clone).await;
-            })
+        // Start pending transaction log cleanup only if QuorumDriver is used
+        let _local_executor_handle = if let Some(receiver) = effects_receiver {
+            let pending_tx_log_clone = pending_tx_log.clone();
+            let res = Some(spawn_monitored_task!(async move {
+                Self::loop_pending_transaction_log(receiver, pending_tx_log_clone).await;
+            }));
+
+            // Schedule pending transactions recovery for both QuorumDriver and
+            // TransactionDriver
+            Self::schedule_txes_in_log(pending_tx_log.clone(), quorum_driver_handler.clone());
+
+            res
+        } else {
+            // TransactionDriver mode: no pending tx log cleanup needed
+            // (transactions go directly to consensus, no certificate tracking)
+            None
         };
 
-        // TODO: same here, adjust for TransactionDriver if needed.
-        Self::schedule_txes_in_log(pending_tx_log.clone(), quorum_driver_handler.clone());
         Self {
             quorum_driver_handler,
             transaction_driver,
@@ -303,6 +327,18 @@ where
             .map_err(QuorumDriverError::InvalidUserSignature)?;
         let tx_digest = *transaction.digest();
 
+        // TODO: add transaction to some struct to prevent sending the same transaction
+        // multiple times in case client sends it mulitple times if self
+        //     .pending_tx_log
+        //     .write_pending_transaction_maybe(&transaction)
+        //     .await
+        //     .map_err(|e| QuorumDriverError::QuorumDriverInternal(e))?
+        // {
+        //     debug!(?tx_digest, "no pending request in flight, submitting to
+        // TransactionDriver."); } else {
+        //     debug!(?tx_digest, "transaction already in flight, skipping duplicate
+        // submission."); }
+
         let td_response = td
             .drive_transaction(
                 SubmitTxRequest::new_transaction(request.transaction),
@@ -313,7 +349,7 @@ where
                 Some(WAIT_FOR_FINALITY_TIMEOUT),
             )
             .await
-            .map_err(|e| map_td_error_to_qd(e))?;
+            .map_err(map_td_error_to_qd)?;
 
         debug!(?tx_digest, "TransactionDriver submission succeeded");
 

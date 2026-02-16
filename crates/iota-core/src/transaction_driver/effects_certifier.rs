@@ -88,13 +88,7 @@ impl EffectsCertifier {
             SubmitTxResult::Executed {
                 effects_digest,
                 details,
-            } => match details {
-                Some(details) => Some((effects_digest, details)),
-                // Details should always be set in correct responses.
-                // But if it is not set, continuing to get full effects and certify the digest are
-                // still correct.
-                None => None,
-            },
+            } => details.map(|details| (effects_digest, details)),
             SubmitTxResult::Rejected { error } => {
                 return Err(TransactionDriverError::ClientInternal {
                     error: format!(
@@ -225,7 +219,7 @@ impl EffectsCertifier {
         }
     }
 
-    #[instrument(level = "debug", skip_all, err(level = "debug"), fields(tx_digest = ?tx_digest, consensus_position = ?consensus_position, ret_effects_digest = tracing::field::Empty
+    #[instrument(level = "debug", skip_all, err(level = "debug"), fields(tx_digest = ?tx_digest, ret_effects_digest = tracing::field::Empty
     ))]
     async fn get_full_effects<A>(
         &self,
@@ -363,8 +357,7 @@ impl EffectsCertifier {
         }
     }
 
-    #[instrument(level = "debug", skip_all, err(level = "debug"), ret, fields(consensus_position = ?consensus_position
-    ))]
+    #[instrument(level = "debug", skip_all, err(level = "debug"), ret)]
     async fn wait_for_acknowledgments<A>(
         &self,
         authority_aggregator: &Arc<AuthorityAggregator<A>>,
