@@ -76,6 +76,38 @@ class RustTestOrchestrator:
         self.root_dir = self._get_root_directory()
         self.config = self._load_config(os.environ)
         
+        # Log configuration for debugging
+        self.logger.info("Test orchestrating configuration loaded:")
+        for key, value in self.config.items():
+            # Don't log sensitive information like passwords
+            if 'password' in key.lower():
+                self.logger.info(f"  {key}: [REDACTED]")
+            else:
+                self.logger.info(f"  {key}: {value}")
+        
+        if self.args:
+            print_args = {
+                'run_tests',   
+                'run_sim_tests',
+                'run_stress_new_tests_check_for_flakiness',
+                'run_tests_extra',
+                'run_unused_deps',
+                'run_audit_deps',
+                'run_audit_deps_external',
+                'tests_crates_workspace',
+                'tests_crates_external',
+                'tests_pg_integration',
+                'tests_move_examples_rdeps',
+            }
+            
+            self.logger.info("Additional command line arguments:")
+            for attr in dir(self.args):
+                if attr in print_args:
+                    value = getattr(self.args, attr)
+                    self.logger.info(f"  {attr}: {value}")
+        else:
+            self.logger.info("No command line arguments provided")
+
     # setup_logging configures logging for the script.
     def setup_logging(self) -> None:
         logging.basicConfig(
