@@ -21,7 +21,6 @@ use fastcrypto::{
     hash::HashFunction,
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
-use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
@@ -32,7 +31,10 @@ use iota_json_rpc_types::{
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions,
 };
-use iota_keys::keystore::{AccountKeystore, StoredKey};
+use iota_keys::{
+    key_identity::KeyIdentity,
+    keystore::{AccountKeystore, StoredKey},
+};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::{
     BuildConfig, CompiledPackage, build_from_resolution_graph, check_invalid_dependencies,
@@ -825,9 +827,9 @@ impl IotaClientCommands {
                 context
                     .config_mut()
                     .keystore_mut()
-                    .add_key(alias, StoredKey::Account(address))?;
+                    .import(alias, StoredKey::Account(address))?;
 
-                let alias = context.config().keystore().get_alias_by_address(&address)?;
+                let alias = context.config().keystore().get_alias(&address)?;
 
                 IotaClientCommandResult::AddAccount(AddAccountOutput { address, alias })
             }
@@ -857,11 +859,9 @@ impl IotaClientCommands {
                 IotaClientCommandResult::NoOutput
             }
             IotaClientCommands::RemoveAddress { address } => {
-                let identity = KeyIdentity::from_str(&alias_or_address)
-                    .map_err(|e| anyhow!("Invalid address or alias: {}", e))?;
-                let address = context.config.keystore.get_by_identity(identity)?;
+                let address = context.config().keystore().get_by_identity(address)?;
 
-                if context.config().keystore().get_key(&address).is_ok() {
+                if context.config().keystore().export(&address).is_ok() {
                     context.config_mut().keystore_mut().remove(&address)?;
                     if context
                         .config()
@@ -946,7 +946,7 @@ impl IotaClientCommands {
                         let source = context
                             .config()
                             .keystore()
-                            .get_key(address)
+                            .export(address)
                             .unwrap()
                             .source()
                             .to_string();
@@ -1725,7 +1725,7 @@ impl IotaClientCommands {
                 let key = context
                     .config()
                     .keystore()
-                    .get_key(&address)
+                    .export(&address)
                     .map(Key::from)
                     .expect("missing generated key");
 
@@ -2017,10 +2017,7 @@ impl IotaClientCommands {
                 auth_call_args,
                 auth_type_args,
             } => {
-                let address = get_identity_address_from_keystore(
-                    address,
-                    context.config_mut().keystore_mut(),
-                )?;
+                let address = context.config().keystore().get_by_identity(address)?;
                 let intent = intent.unwrap_or_else(Intent::iota_transaction);
                 let msg: TransactionData =
                     bcs::from_bytes(&Base64::decode(&data).map_err(|e| {

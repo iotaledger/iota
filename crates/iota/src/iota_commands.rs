@@ -1022,7 +1022,7 @@ async fn start(
             let keystore_path = faucet_config_dir.join(IOTA_KEYSTORE_FILENAME);
             let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
             let address: IotaAddress = kp.public().into();
-            keystore.add_key(None, IotaKeyPair::Ed25519(kp)).unwrap();
+            keystore.import(None, IotaKeyPair::Ed25519(kp)).unwrap();
             IotaClientConfig::new(keystore)
                 .with_envs([IotaEnv::new("localnet", fullnode_url)])
                 .with_active_address(address)
@@ -1165,7 +1165,7 @@ async fn genesis(
                 let num_validators = ips.len();
                 let num_accounts = num_validators + num_additional_gas_accounts.unwrap_or(0);
                 for gas_key in GenesisConfig::benchmark_gas_keys(num_accounts) {
-                    keystore.add_key(None, gas_key)?;
+                    keystore.import(None, gas_key)?;
                 }
                 keystore.save()?;
 
@@ -1261,7 +1261,7 @@ async fn genesis(
     let network_config = tokio::task::spawn_blocking(move || builder.build()).await?;
     let mut keystore = FileBasedKeystore::new(&keystore_path)?;
     for key in &network_config.account_keys {
-        keystore.add_key(None, IotaKeyPair::Ed25519(key.copy()))?;
+        keystore.import(None, IotaKeyPair::Ed25519(key.copy()))?;
     }
     let active_address = keystore.addresses().pop();
 
@@ -1480,8 +1480,8 @@ fn prompt_if_no_config(
             };
             let (new_address, phrase, scheme) = config
                 .keystore_mut()
-                .generate_and_add_new_key(key_scheme, None, None, None)?;
-            let alias = config.keystore().get_alias_by_address(&new_address)?;
+                .generate(key_scheme, None, None, None)?;
+            let alias = config.keystore().get_alias(&new_address)?;
             println!(
                 "Generated new keypair and alias for address with scheme {:?}:\n[{alias}: {new_address}]",
                 scheme.to_string()

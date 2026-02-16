@@ -137,6 +137,7 @@ iota-names = [
   "dep:chrono",
   "dep:iota-graphql-rpc-client",
   "dep:iota-names",
+  "iota-keys/iota-names",
   "iota-sdk/iota-names",
 ]
 tracing = ["iota-types/tracing", "iota-execution/tracing", "iota-move/tracing"]

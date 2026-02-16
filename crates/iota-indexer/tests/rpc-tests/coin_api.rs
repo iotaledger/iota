@@ -420,12 +420,7 @@ fn indexer_get_coin_metadata_with_migrated_coin_manager_coins() {
         .await;
 
         let address = cluster.wallet.active_address().unwrap();
-        let address_kp = cluster
-            .wallet
-            .config()
-            .keystore()
-            .get_key(&address)
-            .unwrap();
+        let address_kp = cluster.wallet.config().keystore().export(&address).unwrap();
         let (coin_name, immutable_metadata_coin_name) = create_migrated_coin_manager_coins(
             cluster,
             client,
@@ -481,12 +476,7 @@ fn get_coin_metadata_with_native_coin_manager_coins() {
         .await;
 
         let address = cluster.wallet.active_address().unwrap();
-        let address_kp = cluster
-            .wallet
-            .config()
-            .keystore()
-            .get_key(&address)
-            .unwrap();
+        let address_kp = cluster.wallet.config().keystore().export(&address).unwrap();
         let (coin_name, immutable_metadata_coin_name) = create_native_coin_manager_coins(
             cluster,
             client,
@@ -568,12 +558,7 @@ fn indexer_get_total_supply_with_migrated_coin_manager_coins() {
         .await;
 
         let address = cluster.wallet.active_address().unwrap();
-        let address_kp = cluster
-            .wallet
-            .config()
-            .keystore()
-            .get_key(&address)
-            .unwrap();
+        let address_kp = cluster.wallet.config().keystore().export(&address).unwrap();
         let (coin_name, immutable_metadata_coin_name) = create_migrated_coin_manager_coins(
             cluster,
             client,
@@ -610,12 +595,7 @@ fn get_total_supply_with_native_coin_manager_coins() {
         .await;
 
         let address = cluster.wallet.active_address().unwrap();
-        let address_kp = cluster
-            .wallet
-            .config()
-            .keystore()
-            .get_key(&address)
-            .unwrap();
+        let address_kp = cluster.wallet.config().keystore().export(&address).unwrap();
         let (coin_name, immutable_metadata_coin_name) = create_native_coin_manager_coins(
             cluster,
             client,

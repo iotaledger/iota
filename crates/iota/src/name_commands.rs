@@ -17,6 +17,7 @@ use iota_json_rpc_types::{
     IotaData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse,
     IotaObjectResponseQuery, IotaTransactionBlockResponse,
 };
+use iota_keys::{key_identity::KeyIdentity, keystore::AccountKeystore};
 use iota_names::{
     IotaNamesNft, NameRegistration, SubnameRegistration,
     config::IotaNamesConfig,
@@ -55,7 +56,6 @@ use crate::{
         GasDataArgs, IotaClientCommandResult, IotaClientCommands, PaymentArgs, TxProcessingArgs,
     },
     client_ptb::ptb::PTB,
-    key_identity::{KeyIdentity, get_identity_address},
 };
 
 /// The overbid must be at least of 1 IOTA, which is 10^9 NANOs
@@ -374,7 +374,9 @@ impl NameCommand {
                 }
             }
             Self::List { address } => {
-                let address = get_identity_address(address, context).await?;
+                let address = address
+                    .map(|addr| context.config().keystore().get_by_identity(addr))
+                    .unwrap_or_else(|| context.active_address())?;
                 let mut nfts = get_owned_nfts::<NameRegistration>(address, context).await?;
                 let subname_nfts = get_owned_nfts::<SubnameRegistration>(address, context).await?;
                 nfts.extend(subname_nfts.into_iter().map(|nft| nft.into_inner()));
@@ -454,10 +456,15 @@ impl NameCommand {
                 ]);
 
                 if let Some(identity) = &set_target_address {
-                    let target_address =
-                        get_identity_address(identity.clone().or(sender.map(Into::into)), context)
-                            .await?;
-                    let sender = get_identity_address(sender.map(Into::into), context).await?;
+                    let target_address = identity
+                        .clone()
+                        .or(sender.map(Into::into))
+                        .map(|addr| context.config().keystore().get_by_identity(addr))
+                        .unwrap_or_else(|| context.active_address())?;
+                    let sender = sender
+                        .map(Into::into)
+                        .map(|addr| context.config().keystore().get_by_identity(addr))
+                        .unwrap_or_else(|| context.active_address())?;
                     if set_reverse_lookup && target_address != sender {
                         bail!("cannot set reverse lookup if target address is not the sender");
                     }
@@ -581,7 +588,9 @@ impl NameCommand {
                 .await?
             }
             Self::ReverseLookup { address } => {
-                let address = get_identity_address(address, context).await?;
+                let address = address
+                    .map(|addr| context.config().keystore().get_by_identity(addr))
+                    .unwrap_or_else(|| context.active_address())?;
                 let entry = get_reverse_registry_entry(address, &iota_client).await?;
 
                 NameCommandResult::ReverseLookup {
@@ -597,8 +606,11 @@ impl NameCommand {
                 processing,
             } => {
                 // Check ownership of the name off-chain to avoid potentially wasting gas
-                let sender =
-                    get_identity_address(processing.sender.map(Into::into), context).await?;
+                let sender = if let Some(addr) = processing.sender {
+                    addr
+                } else {
+                    context.active_address()?
+                };
                 get_proxy_nft_by_name(&name, Some(sender), context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
@@ -647,8 +659,10 @@ impl NameCommand {
                     );
                 }
                 let sender = processing.sender;
-                let new_address =
-                    get_identity_address(new_address.or(sender.map(Into::into)), context).await?;
+                let new_address = new_address
+                    .or(sender.map(Into::into))
+                    .map(|addr| context.config().keystore().get_by_identity(addr))
+                    .unwrap_or_else(|| context.active_address())?;
                 if entry
                     .name_record
                     .target_address
@@ -738,7 +752,7 @@ impl NameCommand {
                 gas_data,
                 processing,
             } => {
-                let address = get_identity_address(Some(address), context).await?;
+                let address = context.config().keystore().get_by_identity(address)?;
                 let sender = processing.sender;
                 let nft = get_proxy_nft_by_name(&name, sender, context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
@@ -775,8 +789,11 @@ impl NameCommand {
                 processing,
             } => {
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
-                let address =
-                    get_identity_address(processing.sender.map(Into::into), context).await?;
+                let address = processing
+                    .sender
+                    .map(Into::into)
+                    .map(|addr| context.config().keystore().get_by_identity(addr))
+                    .unwrap_or_else(|| context.active_address())?;
 
                 let res = IotaClientCommands::Call {
                     package: iota_names_config.package_address.into(),
@@ -1246,9 +1263,10 @@ impl SubnameCommand {
                 let package_id = parent.subname_package_id(&iota_client).await?;
                 let module_name = parent.subname_module_name();
 
-                let target_address =
-                    get_identity_address(target_address.or(sender.map(Into::into)), context)
-                        .await?;
+                let target_address = target_address
+                    .or(sender.map(Into::into))
+                    .map(|addr| context.config().keystore().get_by_identity(addr))
+                    .unwrap_or_else(|| context.active_address())?;
 
                 let res = IotaClientCommands::Call {
                     package: package_id,
@@ -2026,7 +2044,11 @@ async fn get_owned_nft_by_name<T: DeserializeOwned + IotaNamesNft>(
     context: &mut WalletContext,
 ) -> anyhow::Result<T> {
     let name = name.to_string();
-    let address = get_identity_address(sender.map(Into::into), context).await?;
+    let address = if let Some(addr) = sender {
+        addr
+    } else {
+        context.active_address()?
+    };
 
     for nft in get_owned_nfts::<T>(address, context).await? {
         if nft.name_str() == name {

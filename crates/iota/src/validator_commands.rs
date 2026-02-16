@@ -213,7 +213,7 @@ impl IotaValidatorCommand {
                 let dir = std::env::current_dir()?;
                 let authority_key_file_name = dir.join("authority.key");
 
-                let account_key = context.config().keystore().get_key(&iota_address)?;
+                let account_key = context.config().keystore().export(&iota_address)?;
 
                 if account_key.public().scheme() != SignatureScheme::ED25519 {
                     bail!("Only Ed25519 accounts are supported, please use Ed25519 keys for now.");

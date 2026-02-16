@@ -317,7 +317,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
     // Retrieve the keystore and setup an account for rotating owner key
     let keystore = test_env.test_cluster.wallet.config_mut().keystore_mut();
     let new_aa_owner = keystore
-        .generate_and_add_new_key(SignatureScheme::ED25519, None, None, None)
+        .generate(SignatureScheme::ED25519, None, None, None)
         .expect("ED25519 key generation should not fail")
         .0;
     assert!(new_aa_owner != test_env.owner.unwrap());
@@ -326,7 +326,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
         .wallet
         .config()
         .keystore()
-        .get_key(&new_aa_owner)?
+        .export(&new_aa_owner)?
         .public();
     let aa_sender = aa_ref.0.into();
 
@@ -445,7 +445,7 @@ async fn test_receiving_gas_executing_aa_tx_first() -> Result<(), anyhow::Error>
     let bob = {
         let keystore = test_env.test_cluster.wallet.config_mut().keystore_mut();
         keystore
-            .generate_and_add_new_key(SignatureScheme::ED25519, None, None, None)
+            .generate(SignatureScheme::ED25519, None, None, None)
             .expect("ED25519 key generation should not fail")
             .0
     };
@@ -553,7 +553,7 @@ async fn test_receiving_gas_executing_aa_tx_later() -> Result<(), anyhow::Error>
     let bob = {
         let keystore = test_env.test_cluster.wallet.config_mut().keystore_mut();
         keystore
-            .generate_and_add_new_key(SignatureScheme::ED25519, None, None, None)
+            .generate(SignatureScheme::ED25519, None, None, None)
             .expect("ED25519 key generation should not fail")
             .0
     };
@@ -676,7 +676,7 @@ async fn test_failing_receiving_gas_then_create_account() -> Result<(), anyhow::
     let bob = {
         let keystore = test_env.test_cluster.wallet.config_mut().keystore_mut();
         keystore
-            .generate_and_add_new_key(SignatureScheme::ED25519, None, None, None)
+            .generate(SignatureScheme::ED25519, None, None, None)
             .expect("ED25519 key generation should not fail")
             .0
     };
@@ -807,7 +807,7 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
     let bob = {
         let keystore = test_env.test_cluster.wallet.config_mut().keystore_mut();
         keystore
-            .generate_and_add_new_key(SignatureScheme::ED25519, None, None, None)
+            .generate(SignatureScheme::ED25519, None, None, None)
             .expect("ED25519 key generation should not fail")
             .0
     };
@@ -1159,7 +1159,7 @@ impl TestEnvironment {
             .wallet
             .config()
             .keystore()
-            .get_key(&owner)?
+            .export(&owner)?
             .public();
 
         let pt = {
@@ -1453,7 +1453,7 @@ impl TestEnvironment {
             .wallet
             .config()
             .keystore()
-            .get_key(&owner)?
+            .export(&owner)?
             .public();
 
         let pt = {

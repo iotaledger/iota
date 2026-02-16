@@ -10,7 +10,10 @@ use fastcrypto::{
     encoding::{Base64, Encoding, Hex},
     traits::{ToFromBytes, VerifyingKey},
 };
-use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
+use iota_keys::{
+    key_identity::KeyIdentity,
+    keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey},
+};
 use iota_sdk_types::crypto::{Intent, IntentScope};
 use iota_types::{
     base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
@@ -28,7 +31,6 @@ use tokio::test;
 
 use super::{KeyToolCommand, write_keypair_to_file};
 use crate::{
-    key_identity::KeyIdentity,
     keytool::{CommandOutput, read_authority_keypair_from_file, read_keypair_from_file},
     signing::sign_secure,
 };
@@ -42,7 +44,7 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
 
     // Add another 3 Secp256k1 KeyPairs
     for _ in 0..3 {
-        keystore.add_key(None, IotaKeyPair::Secp256k1(get_key_pair().1))?;
+        keystore.import(None, IotaKeyPair::Secp256k1(get_key_pair().1))?;
     }
 
     // List all addresses with flag
@@ -59,11 +61,11 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
 async fn test_flag_in_signature_and_keypair() -> Result<(), anyhow::Error> {
     let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
 
-    keystore.add_key(None, IotaKeyPair::Secp256k1(get_key_pair().1))?;
-    keystore.add_key(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
+    keystore.import(None, IotaKeyPair::Secp256k1(get_key_pair().1))?;
+    keystore.import(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
 
     for key in keystore
-        .keys()
+        .entries()
         .into_iter()
         .filter(|k| matches!(k, StoredKey::KeyPair(_)))
     {
@@ -580,7 +582,7 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(1));
     let addresses = keystore.addresses();
     let sender = addresses.first().unwrap();
-    let alias = keystore.get_alias_by_address(sender).unwrap();
+    let alias = keystore.get_alias(sender).unwrap();
 
     // Create a dummy TransactionData
     let gas = (
@@ -638,7 +640,7 @@ async fn test_sign_raw_command() -> Result<(), anyhow::Error> {
     let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(1));
     let addresses = keystore.addresses();
     let sender = addresses.first().unwrap();
-    let alias = keystore.get_alias_by_address(sender).unwrap();
+    let alias = keystore.get_alias(sender).unwrap();
 
     let raw_data = Hex::encode_with_format("IOTA");
 

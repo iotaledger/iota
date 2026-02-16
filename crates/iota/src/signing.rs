@@ -91,7 +91,7 @@ pub(crate) async fn sign_transaction(
         )));
     }
 
-    let key = context.config().keystore().get_key(signer_address)?;
+    let key = context.config().keystore().export(signer_address)?;
 
     match key {
         StoredKey::KeyPair(_) => Ok(context
@@ -144,7 +144,7 @@ pub(crate) fn sign_secure<T>(
 where
     T: Serialize,
 {
-    let key = keystore.get_key(address)?;
+    let key = keystore.export(address)?;
     match key {
         StoredKey::KeyPair(_) => Ok(keystore.sign_secure(address, &msg, intent)?),
         StoredKey::Account(_) => {

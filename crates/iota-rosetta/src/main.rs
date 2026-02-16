@@ -206,7 +206,7 @@ fn read_prefunded_account(path: &PathBuf) -> Result<Vec<PrefundedAccount>, anyho
         .addresses_with_alias()
         .into_iter()
         .filter_map(|(address, _)| {
-            let keypair = key_store.get_key(address).ok()?.as_keypair().ok()?;
+            let keypair = key_store.export(address).ok()?.as_keypair().ok()?;
             let (privkey, curve_type) = match keypair.clone() {
                 IotaKeyPair::Ed25519(k) => {
                     (Hex::encode(k.private().as_bytes()), CurveType::Edwards25519)

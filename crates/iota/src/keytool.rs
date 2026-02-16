@@ -704,13 +704,13 @@ impl KeyToolCommand {
                 }
             }
             KeyToolCommand::Export { key_identity } => {
-                let address = get_identity_address_from_keystore(key_identity, keystore)?;
-                let stored = keystore.get_key(&address)?;
+                let address = keystore.get_by_identity(key_identity)?;
+                let stored = keystore.export(&address)?;
 
                 match stored {
                     StoredKey::KeyPair(keypair) => {
                         let mut key = Key::from(stored);
-                        key.alias = keystore.get_alias_by_address(&address).ok();
+                        key.alias = keystore.get_alias(&address).ok();
 
                         let key = ExportedKey {
                             exported_private_key: keypair
@@ -776,8 +776,8 @@ impl KeyToolCommand {
                     let stored = ikp.into();
                     let mut key = Key::from(&stored);
 
-                    keystore.add_key(alias, stored)?;
-                    key.alias = Some(keystore.get_alias_by_address(&key.iota_address)?);
+                    keystore.import(alias, stored)?;
+                    key.alias = Some(keystore.get_alias(&key.iota_address)?);
 
                     CommandOutput::Import(key)
                 }
@@ -804,10 +804,10 @@ impl KeyToolCommand {
                         }
                     };
 
-                    let ikp = keystore.get_key(&iota_address)?;
+                    let ikp = keystore.export(&iota_address)?;
                     let mut key = Key::from(ikp);
 
-                    key.alias = Some(keystore.get_alias_by_address(&key.iota_address)?);
+                    key.alias = Some(keystore.get_alias(&key.iota_address)?);
 
                     CommandOutput::Import(key)
                 }
@@ -826,20 +826,20 @@ impl KeyToolCommand {
                     Some(derivation_path),
                     alias,
                 )?;
-                let ikp = keystore.get_key(&response.address)?;
+                let ikp = keystore.export(&response.address)?;
                 let mut key = Key::from(ikp);
 
-                key.alias = Some(keystore.get_alias_by_address(&key.iota_address)?);
+                key.alias = Some(keystore.get_alias(&key.iota_address)?);
 
                 CommandOutput::Import(key)
             }
             KeyToolCommand::List { sort_by_alias } => {
                 let mut keys = keystore
-                    .keys()
+                    .entries()
                     .into_iter()
                     .map(|pk| {
                         let mut key = Key::from(pk);
-                        key.alias = keystore.get_alias_by_address(&key.iota_address).ok();
+                        key.alias = keystore.get_alias(&key.iota_address).ok();
                         key
                     })
                     .collect::<Vec<Key>>();
@@ -924,7 +924,7 @@ impl KeyToolCommand {
                 data,
                 intent,
             } => {
-                let address = get_identity_address_from_keystore(address, keystore)?;
+                let address = keystore.get_by_identity(address)?;
                 let intent = intent.unwrap_or_else(Intent::iota_transaction);
                 let msg: TransactionData =
                     bcs::from_bytes(&Base64::decode(&data).map_err(|e| {
@@ -952,9 +952,9 @@ impl KeyToolCommand {
                 address,
                 data,
             } => {
-                let address = get_identity_address_from_keystore(address, keystore)?;
+                let address = keystore.get_by_identity(address)?;
                 let bytes = Hex::decode(&data).map_err(|e| anyhow!("Invalid hex data: {e:?}"))?;
-                let stored = keystore.get_key(&address)?;
+                let stored = keystore.export(&address)?;
                 let ikp = match stored {
                     StoredKey::KeyPair(kp) => kp,
                     _ => bail!("Not a keypair"),
@@ -1052,7 +1052,7 @@ impl KeyToolCommand {
                 key_identity,
                 new_alias,
             } => {
-                let old_alias = get_identity_alias_from_keystore(key_identity, keystore)?;
+                let old_alias = keystore.get_alias(&keystore.get_by_identity(key_identity)?)?;
                 let new_alias = keystore.update_alias(&old_alias, new_alias.as_deref())?;
                 CommandOutput::UpdateAlias(AliasUpdate {
                     old_alias,

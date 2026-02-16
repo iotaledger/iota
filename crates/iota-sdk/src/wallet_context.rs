@@ -110,6 +110,8 @@ impl WalletContext {
         self.env_override.clone()
     }
 
+    /// Get the IotaAddress corresponding to this key identity.
+    /// If no string is provided, then the current active address is returned.
     pub fn get_identity_address(
         &self,
         input: Option<KeyIdentity>,
