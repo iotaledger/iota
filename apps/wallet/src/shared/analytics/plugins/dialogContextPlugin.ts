@@ -5,9 +5,9 @@ import type { BrowserClient, EnrichmentPlugin, Event } from '@amplitude/analytic
 import type { ContextSnapshot } from './contextSnapshotCache';
 import { contextSnapshotCache } from './contextSnapshotCache';
 
-const DIALOG_CONTAINER_SELECTOR = 'div#overlay-portal-container';
+const DIALOG_CONTAINER_SELECTOR = 'div[role="dialog"]';
 const DIALOG_CONTAINER_INNER_DIV = `${DIALOG_CONTAINER_SELECTOR} > div`;
-const DIALOG_TITLE_SELECTOR = "span[data-testid='overlay-title']";
+const DIALOG_TITLE_SELECTOR = '.header-bg-color span.text-title-lg';
 
 /** Extract the title of the currently open dialog from the DOM. */
 function extractDialogTitle(): string | null {
@@ -57,11 +57,8 @@ function setupDialogTracking(client: BrowserClient): () => void {
                         // Wait a tick for dialog content to render
                         setTimeout(() => {
                             const dialogTitle = extractDialogTitle();
-                            const eventName = dialogTitle
-                                ? `${dialogTitle} Dialog Opened`
-                                : 'Dialog Opened';
-                            client.track(eventName, {
-                                dialog_title: dialogTitle || 'Untitled',
+                            client.track('Dialog Opened', {
+                                dialog_title: dialogTitle,
                             });
                         }, 50);
                     }
