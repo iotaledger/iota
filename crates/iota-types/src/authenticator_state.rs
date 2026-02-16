@@ -3,11 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub(crate) use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
-use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS,
     base_types::{Identifier, ObjectID, SequenceNumber},
     dynamic_field::get_dynamic_field_from_store,
     error::{IotaError, IotaResult},
@@ -21,11 +19,6 @@ pub const AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME: Identifier =
 pub const AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME: Identifier = Identifier::from_static("create");
 pub const AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME: Identifier =
     Identifier::from_static("expire_jwks");
-pub const RESOLVED_IOTA_AUTHENTICATOR_STATE: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &IOTA_FRAMEWORK_ADDRESS,
-    ident_str!("authenticator_state"),
-    ident_str!("AuthenticatorState"),
-);
 
 /// Current latest version of the authenticator state object.
 pub const AUTHENTICATOR_STATE_VERSION: u64 = 1;

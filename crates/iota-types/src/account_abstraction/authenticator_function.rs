@@ -1,24 +1,21 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{
-    ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
-};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS,
-    base_types::{ObjectID, ObjectRef, TransactionDigest},
+    base_types::{
+        Identifier, IotaAddress, ObjectID, ObjectRef, StructTag, TransactionDigest, TypeTag,
+    },
     error::IotaError,
     execution::DynamicallyLoadedObjectMetadata,
     object::{Data, Object, Owner},
 };
 
-pub const AUTHENTICATOR_FUNCTION_MODULE_NAME: &IdentStr = ident_str!("authenticator_function");
-pub const AUTHENTICATOR_FUNCTION_REF_V1_STRUCT_NAME: &IdentStr =
-    ident_str!("AuthenticatorFunctionRefV1");
+pub const AUTHENTICATOR_FUNCTION_MODULE_NAME: Identifier =
+    Identifier::from_static("authenticator_function");
+pub const AUTHENTICATOR_FUNCTION_REF_V1_STRUCT_NAME: Identifier =
+    Identifier::from_static("AuthenticatorFunctionRefV1");
 
 /// An enum representing different versions of AuthenticatorFunctionRef. This is
 /// used to represent the reference to an authenticator function in Move.
@@ -36,12 +33,12 @@ pub struct AuthenticatorFunctionRefV1 {
 
 impl AuthenticatorFunctionRefV1 {
     pub fn type_(type_param: StructTag) -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: AUTHENTICATOR_FUNCTION_MODULE_NAME.to_owned(),
-            name: AUTHENTICATOR_FUNCTION_REF_V1_STRUCT_NAME.to_owned(),
-            type_params: vec![TypeTag::Struct(Box::new(type_param))],
-        }
+        StructTag::new(
+            IotaAddress::FRAMEWORK,
+            AUTHENTICATOR_FUNCTION_MODULE_NAME,
+            AUTHENTICATOR_FUNCTION_REF_V1_STRUCT_NAME,
+            vec![TypeTag::Struct(Box::new(type_param))],
+        )
     }
 
     pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
@@ -51,9 +48,9 @@ impl AuthenticatorFunctionRefV1 {
     }
 
     pub fn is_authenticator_function_ref_v1(tag: &StructTag) -> bool {
-        tag.address == IOTA_FRAMEWORK_ADDRESS
-            && tag.module.as_ident_str() == AUTHENTICATOR_FUNCTION_MODULE_NAME
-            && tag.name.as_ident_str() == AUTHENTICATOR_FUNCTION_REF_V1_STRUCT_NAME
+        tag.address() == IotaAddress::FRAMEWORK
+            && tag.module() == &AUTHENTICATOR_FUNCTION_MODULE_NAME
+            && tag.name() == &AUTHENTICATOR_FUNCTION_REF_V1_STRUCT_NAME
     }
 }
 
