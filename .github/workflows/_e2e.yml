@@ -106,8 +106,8 @@ jobs:
 
       - name: Set environment variables
         run: |
-          echo "VITE_IOTA_BIN=$PWD/target/debug/iota" >> $GITHUB_ENV
-          echo "E2E_RUN_LOCAL_NET_CMD=(RUST_BACKTRACE=1 $(echo $PWD/target/debug/iota) start --with-faucet --force-regenesis --with-indexer --with-graphql)" >> $GITHUB_ENV
+          echo "VITE_IOTA_BIN=$PWD/target/release/iota" >> $GITHUB_ENV
+          echo "E2E_RUN_LOCAL_NET_CMD=(RUST_BACKTRACE=1 $(echo $PWD/target/release/iota) start --with-faucet --force-regenesis --with-indexer --with-graphql)" >> $GITHUB_ENV
 
       - name: Run TS SDK e2e tests
         if: (!cancelled()) && steps.conditions.outputs.runTsSdk == 'true'
