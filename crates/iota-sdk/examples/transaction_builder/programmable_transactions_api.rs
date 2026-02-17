@@ -47,7 +47,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // The amount we want in the new coin, 1000 NANOS
     let split_coin_amount = ptb.pure(1000u64)?; // note that we need to specify the u64 type
     ptb.command(Command::SplitCoins(
-        Argument::GasCoin,
+        Argument::Gas,
         vec![split_coin_amount],
     ));
 

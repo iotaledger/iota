@@ -2392,7 +2392,7 @@ impl IotaTestAdapter {
         // Fund the abstract account with gas
         let gas_amount = builder.pure(GAS_FOR_ABSTRACT_ACCOUNT)?;
         let new_coin_arg =
-            builder.command(Command::SplitCoins(Argument::GasCoin, vec![gas_amount]));
+            builder.command(Command::SplitCoins(Argument::Gas, vec![gas_amount]));
         builder.command(Command::TransferObjects(vec![new_coin_arg], aa_addr));
 
         Ok(builder.finish())

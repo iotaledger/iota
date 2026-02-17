@@ -655,7 +655,7 @@ impl<'a> PTBBuilder<'a> {
             | PTBArg::String(_)
             | PTBArg::Option(_)
             | PTBArg::Vector(_)) => ctx.pure(self, arg_loc, a).await,
-            PTBArg::Gas => Ok(Tx::Argument::GasCoin),
+            PTBArg::Gas => Ok(Tx::Argument::Gas),
             // NB: the ordering of these lines is important so that shadowing is properly
             // supported.
             // If we encounter an identifier that we have not already resolved, then we resolve the
@@ -722,7 +722,7 @@ impl<'a> PTBBuilder<'a> {
                             Some(
                                 x @ (Tx::Argument::NestedResult(..)
                                 | Tx::Argument::Input(..)
-                                | Tx::Argument::GasCoin),
+                                | Tx::Argument::Gas),
                             ) => {
                                 error!(
                                     arg_loc,
@@ -760,6 +760,7 @@ impl<'a> PTBBuilder<'a> {
                                 )
                                 .await
                             }
+                            _ => unimplemented!("a new enum variant was added and needs to be handled"),
                         }
                     }
                 }

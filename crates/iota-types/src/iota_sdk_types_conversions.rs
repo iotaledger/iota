@@ -36,7 +36,7 @@ use iota_sdk_types::{
     },
     object_id::ObjectId,
     transaction::{
-        ActiveJwk, Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1,
+        ActiveJwk, AuthenticatorStateExpire, AuthenticatorStateUpdateV1,
         CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
         ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
         EndOfEpochTransactionKind, GasPayment, GenesisTransaction, Input, MakeMoveVector,
@@ -1777,31 +1777,6 @@ impl TryFrom<Command> for crate::transaction::Command {
             _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
         .pipe(Ok)
-    }
-}
-
-impl From<crate::transaction::Argument> for Argument {
-    fn from(value: crate::transaction::Argument) -> Self {
-        match value {
-            crate::transaction::Argument::GasCoin => Self::Gas,
-            crate::transaction::Argument::Input(idx) => Self::Input(idx),
-            crate::transaction::Argument::Result(idx) => Self::Result(idx),
-            crate::transaction::Argument::NestedResult(idx1, idx2) => {
-                Self::NestedResult(idx1, idx2)
-            }
-        }
-    }
-}
-
-impl From<Argument> for crate::transaction::Argument {
-    fn from(value: Argument) -> Self {
-        match value {
-            Argument::Gas => Self::GasCoin,
-            Argument::Input(idx) => Self::Input(idx),
-            Argument::Result(idx) => Self::Result(idx),
-            Argument::NestedResult(idx1, idx2) => Self::NestedResult(idx1, idx2),
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
-        }
     }
 }
 
