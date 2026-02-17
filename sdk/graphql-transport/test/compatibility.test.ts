@@ -60,8 +60,7 @@ describe('GraphQL IotaClient compatibility', () => {
 
         // create another transaction
         const anotherTx = new Transaction();
-        const [coins] = anotherTx.splitCoins(anotherTx.gas, [1]);
-        anotherTx.transferObjects([coins], toolbox.address());
+        anotherTx.transferObjects([coin], toolbox.address());
         const anotherResult = await toolbox.client.signAndExecuteTransaction({
             transaction: anotherTx as never,
             signer: toolbox.keypair,
