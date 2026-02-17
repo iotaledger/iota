@@ -98,13 +98,13 @@ impl ReadApi {
                         .map_err(internal_error)?,
                 ))
             }
-            ObjectRead::Deleted((object_id, version, digest)) => Ok(
-                IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
-                    object_id,
-                    version,
-                    digest,
-                }),
-            ),
+            ObjectRead::Deleted(object_ref) => Ok(IotaObjectResponse::new_with_error(
+                IotaObjectResponseError::Deleted {
+                    object_id: object_ref.object_id,
+                    version: object_ref.version,
+                    digest: object_ref.digest,
+                },
+            )),
         }
     }
 

@@ -95,7 +95,7 @@ impl HistoricalFallbackReader {
         let output_object_keys = transaction_effects
             .all_changed_objects()
             .into_iter()
-            .map(|((object_id, version, _object_digest), _owner, _kind)| (object_id, version))
+            .map(|(object_ref, _owner, _kind)| (object_ref.object_id, object_ref.version))
             .collect::<Vec<(ObjectID, SequenceNumber)>>();
 
         let (raw_input_objects, raw_output_objects) = tokio::try_join!(

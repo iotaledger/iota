@@ -61,7 +61,7 @@ async fn test_response_headers() {
         test_cluster.wait_for_epoch(Some(3)).await;
 
         let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
-        gas.sort_by_key(|object_ref| object_ref.0);
+        gas.sort_by_key(|object_ref| object_ref.object_id);
         let obj_to_send = gas.first().unwrap();
         let gas_obj = gas.last().unwrap();
 

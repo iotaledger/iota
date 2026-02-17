@@ -30,24 +30,24 @@ pub struct IotaAccount {
 
 impl IotaAccount {
     pub fn new(key: Arc<AccountKeyPair>, gas: ObjectRef, objs: Vec<ObjectRef>) -> Self {
-        let owned = objs.into_iter().map(|obj| (obj.0, obj)).collect();
+        let owned = objs.into_iter().map(|obj| (obj.object_id, obj)).collect();
         IotaAccount { key, gas, owned }
     }
 
     /// Update the state associated with `obj`, adding it if it doesn't exist
     pub fn add_or_update(&mut self, obj: ObjectRef) -> Option<ObjectRef> {
-        if self.gas.0 == obj.0 {
+        if self.gas.object_id == obj.object_id {
             let old_gas = self.gas;
             self.gas = obj;
             Some(old_gas)
         } else {
-            self.owned.insert(obj.0, obj)
+            self.owned.insert(obj.object_id, obj)
         }
     }
 
     /// Delete `id` and return the old value
     pub fn delete(&mut self, id: &ObjectID) -> Option<ObjectRef> {
-        debug_assert!(self.gas.0 != *id, "Deleting gas object");
+        debug_assert!(self.gas.object_id != *id, "Deleting gas object");
 
         self.owned.remove(id)
     }
@@ -104,7 +104,7 @@ impl InMemoryWallet {
                 // 3. is shared (though we do not yet support deletion of shared objects)
                 // so, we just try to delete everything from the sender's account here, though
                 // it's worth noting that (2) and (3) are possible.
-                sender_account.delete(&obj.0);
+                sender_account.delete(&obj.object_id);
             }
         } // else, tx sender is not an account we can spend from, we don't care
     }

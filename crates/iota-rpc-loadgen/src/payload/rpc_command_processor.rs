@@ -117,7 +117,7 @@ impl RpcCommandProcessor {
             let current = object_ref_cache.get_mut(&id);
             match current {
                 Some(mut c) => {
-                    if c.1 < owned_object_ref.version() {
+                    if c.version < owned_object_ref.version() {
                         *c = owned_object_ref.reference.to_object_ref();
                     }
                 }

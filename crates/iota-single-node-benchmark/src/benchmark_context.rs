@@ -140,7 +140,7 @@ impl BenchmarkContext {
                 .unwrap();
             root_objects.insert(owner, root_object);
             let gas_object = effects.gas_object().0;
-            new_gas_objects.insert(gas_object.0, gas_object);
+            new_gas_objects.insert(gas_object.object_id, gas_object);
         }
         self.refresh_gas_objects(new_gas_objects);
         info!("Finished preparing root object with dynamic fields");
@@ -178,7 +178,7 @@ impl BenchmarkContext {
                 .into_iter()
                 .filter_map(|(oref, owner)| {
                     if owner.is_shared() {
-                        Some((oref.0, oref.1))
+                        Some((oref.object_id, oref.version))
                     } else {
                         None
                     }
@@ -187,7 +187,7 @@ impl BenchmarkContext {
                 .unwrap();
             shared_objects.push(shared_object);
             let gas_object = effects.gas_object().0;
-            new_gas_objects.insert(gas_object.0, gas_object);
+            new_gas_objects.insert(gas_object.object_id, gas_object);
             // Make sure to commit them to DB. This is needed by both the execution-only
             // mode and the checkpoint-executor mode. For execution-only mode,
             // we iterate through all live objects to construct the in memory
@@ -496,7 +496,7 @@ impl BenchmarkContext {
                 .gas_objects
                 .iter()
                 .map(|oref| {
-                    if let Some(new_oref) = new_gas_objects.remove(&oref.0) {
+                    if let Some(new_oref) = new_gas_objects.remove(&oref.object_id) {
                         new_oref
                     } else {
                         *oref

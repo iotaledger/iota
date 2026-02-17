@@ -948,7 +948,7 @@ fn get_newly_indexed_optimistic_transaction() -> Result<(), anyhow::Error> {
                 sender,
             )
             .await;
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
         let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
         let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
@@ -1038,7 +1038,7 @@ fn get_newly_created_optimistically_indexed_event() -> Result<(), anyhow::Error>
                 sender,
             )
             .await;
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
         let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
         let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
@@ -1526,16 +1526,16 @@ fn try_get_past_object_version_found() {
         wait_for_objects_history(tx_digest, store, client).await;
 
         let result = client
-            .try_get_past_object(gas_ref.0, gas_ref.1, None)
+            .try_get_past_object(gas_ref.object_id, gas_ref.version, None)
             .await
             .expect("rpc call should succeed");
 
         match result {
             IotaPastObjectResponse::VersionFound(ref data) => {
                 assert_eq!(
-                    data.version, gas_ref.1,
+                    data.version, gas_ref.version,
                     "expected object version {:?} but got {:?}",
-                    gas_ref.1, data.version
+                    gas_ref.version, data.version
                 );
             }
             _ => panic!("expected VersionFound response, got: {result:?}"),
@@ -1567,16 +1567,16 @@ fn try_get_past_object_version_not_found() {
 
         wait_for_objects_history(tx_digest, store, client).await;
 
-        let missing_version = gas_ref.1.previous().unwrap();
+        let missing_version = gas_ref.version.previous().unwrap();
 
         let result = client
-            .try_get_past_object(gas_ref.0, missing_version, None)
+            .try_get_past_object(gas_ref.object_id, missing_version, None)
             .await
             .expect("rpc call should succeed");
 
         assert_eq!(
             result,
-            IotaPastObjectResponse::VersionNotFound(gas_ref.0, missing_version),
+            IotaPastObjectResponse::VersionNotFound(gas_ref.object_id, missing_version),
             "mismatch in VersionNotFound response"
         );
     });
@@ -1606,18 +1606,18 @@ fn try_get_past_object_version_too_high() {
 
         wait_for_objects_history(tx_digest, store, client).await;
 
-        let latest_version = gas_ref.1;
+        let latest_version = gas_ref.version;
         let asked_version = latest_version.next().unwrap();
 
         let result = client
-            .try_get_past_object(gas_ref.0, asked_version, None)
+            .try_get_past_object(gas_ref.object_id, asked_version, None)
             .await
             .expect("rpc call should succeed");
 
         assert_eq!(
             result,
             IotaPastObjectResponse::VersionTooHigh {
-                object_id: gas_ref.0,
+                object_id: gas_ref.object_id,
                 asked_version,
                 latest_version,
             },
@@ -1651,7 +1651,7 @@ fn try_get_past_object_object_deleted() {
         let delete_nft_tx = delete_nft(context, sender, package_id, nft_object_ref).await;
         wait_for_objects_history(delete_nft_tx.digest, store, client).await;
 
-        let deleted_version = nft_object_ref.1.next().unwrap();
+        let deleted_version = nft_object_ref.version.next().unwrap();
 
         let result = client
             .try_get_object_before_version(nft_object_id, SequenceNumber::MAX_VALID_EXCL)
@@ -1661,7 +1661,7 @@ fn try_get_past_object_object_deleted() {
         assert_eq!(
             result,
             IotaPastObjectResponse::ObjectDeleted(IotaObjectRef {
-                object_id: nft_object_ref.0,
+                object_id: nft_object_ref.object_id,
                 version: deleted_version,
                 digest: ObjectDigest::OBJECT_DELETED,
             }),
@@ -1677,7 +1677,7 @@ fn try_get_past_object_object_deleted() {
         assert_eq!(
             result,
             IotaPastObjectResponse::ObjectDeleted(IotaObjectRef {
-                object_id: nft_object_ref.0,
+                object_id: nft_object_ref.object_id,
                 version: deleted_version,
                 digest: ObjectDigest::OBJECT_DELETED,
             }),
@@ -1693,9 +1693,9 @@ fn try_get_past_object_object_deleted() {
         match result {
             IotaPastObjectResponse::VersionFound(ref data) => {
                 assert_eq!(
-                    data.version, nft_object_ref.1,
+                    data.version, nft_object_ref.version,
                     "expected object version {:?} but got {:?}",
-                    nft_object_ref.1, data.version
+                    nft_object_ref.version, data.version
                 );
             }
             _ => panic!("expected VersionFound response, got: {result:?}"),
@@ -1778,12 +1778,12 @@ fn try_multi_get_past_objects() {
 
         let requests = vec![
             IotaGetPastObjectRequest {
-                object_id: gas_ref_1.0,
-                version: gas_ref_1.1,
+                object_id: gas_ref_1.object_id,
+                version: gas_ref_1.version,
             },
             IotaGetPastObjectRequest {
-                object_id: gas_ref_2.0,
-                version: gas_ref_2.1,
+                object_id: gas_ref_2.object_id,
+                version: gas_ref_2.version,
             },
             IotaGetPastObjectRequest {
                 object_id: object_3,
@@ -1797,21 +1797,21 @@ fn try_multi_get_past_objects() {
             .expect("rpc call should succeed");
 
         let past_object_response_1 = client
-            .try_get_past_object(gas_ref_1.0, gas_ref_1.1, None)
+            .try_get_past_object(gas_ref_1.object_id, gas_ref_1.version, None)
             .await
             .expect("rpc call should succeed");
 
         let past_object_response_2 = client
-            .try_get_past_object(gas_ref_2.0, gas_ref_2.1, None)
+            .try_get_past_object(gas_ref_2.object_id, gas_ref_2.version, None)
             .await
             .expect("rpc call should succeed");
 
         match past_object_response_1 {
             IotaPastObjectResponse::VersionFound(ref data) => {
                 assert_eq!(
-                    data.version, gas_ref_1.1,
+                    data.version, gas_ref_1.version,
                     "expected object version {:?} but got {:?}",
-                    gas_ref_1.1, data.version
+                    gas_ref_1.version, data.version
                 );
             }
             _ => panic!("expected VersionFound response, got: {past_object_response_1:?}"),
@@ -1820,9 +1820,9 @@ fn try_multi_get_past_objects() {
         match past_object_response_2 {
             IotaPastObjectResponse::VersionFound(ref data) => {
                 assert_eq!(
-                    data.version, gas_ref_2.1,
+                    data.version, gas_ref_2.version,
                     "expected object version {:?} but got {:?}",
-                    gas_ref_2.1, data.version
+                    gas_ref_2.version, data.version
                 );
             }
             _ => panic!("expected VersionFound response, got: {past_object_response_2:?}"),
@@ -1863,7 +1863,7 @@ fn try_get_object_before_version() {
                 sender,
             )
             .await;
-        let (object_id, object_version, _) = cluster
+        let object_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
                 Some(10_000_000_000),
@@ -1872,13 +1872,13 @@ fn try_get_object_before_version() {
             .await;
         // we need the object to be indexed before we can
         // create a transaction that uses it as an input
-        indexer_wait_for_object(client, object_id, object_version).await;
+        indexer_wait_for_object(client, object_ref.object_id, object_ref.version).await;
 
         let tx_bytes = client
             .transfer_object(
                 sender,
-                object_id,
-                Some(gas_ref.0),
+                object_ref.object_id,
+                Some(gas_ref.object_id),
                 100_000_000.into(),
                 receiver,
             )
@@ -1886,28 +1886,28 @@ fn try_get_object_before_version() {
             .expect("transfer should succeed");
         execute_tx_and_wait_for_indexer_checkpoint(client, store, tx_bytes, &keypair).await;
 
-        let (latest_object, latest_version, _) = cluster.get_latest_object_ref(&gas_ref.0).await;
+        let object_ref = cluster.get_latest_object_ref(&gas_ref.object_id).await;
 
         assert_eq!(
-            latest_object, gas_ref.0,
-            "latest object should match gas_ref.0"
+            object_ref.object_id, gas_ref.object_id,
+            "latest object should match gas_ref.object_id"
         );
         assert!(
-            latest_version > gas_ref.1,
+            object_ref.version > gas_ref.version,
             "latest version should be greater than initial version"
         );
 
         let result = client
-            .try_get_object_before_version(gas_ref.0, latest_version)
+            .try_get_object_before_version(gas_ref.object_id, object_ref.version)
             .await
             .expect("rpc call should succeed");
 
         match result {
             IotaPastObjectResponse::VersionFound(ref data) => {
                 assert_eq!(
-                    data.version, gas_ref.1,
+                    data.version, gas_ref.version,
                     "expected object version {:?} but got {:?}",
-                    gas_ref.1, data.version
+                    gas_ref.version, data.version
                 );
             }
             _ => panic!("expected VersionFound response, got: {result:?}"),
@@ -2035,8 +2035,8 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
                 address,
             )
             .await;
-        let gas_object_id = gas.0;
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        let gas_object_id = gas.object_id;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
         // 2) Publish the `Warrior` package
         let (package_id, tx_digest) =
@@ -2369,8 +2369,8 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
                 address,
             )
             .await;
-        let gas_object_id = gas.0;
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        let gas_object_id = gas.object_id;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
         // 2) Publish the `Warrior` package
         let (package_id, tx_digest) =
@@ -2599,10 +2599,10 @@ fn get_transaction_block_with_unwrapped_object_changes() -> Result<(), anyhow::E
                 address,
             )
             .await;
-        let gas_object_id = gas.0;
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        let gas_object_id = gas.object_id;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
-        let ((package_id, _, _), publish_tx_response) =
+        let (object_ref, publish_tx_response) =
             publish_test_move_package(client, address, &keypair, "wrap_unwrap").await?;
         indexer_wait_for_transaction(publish_tx_response.digest, store, client).await;
 
@@ -2610,7 +2610,7 @@ fn get_transaction_block_with_unwrapped_object_changes() -> Result<(), anyhow::E
             client,
             address,
             &keypair,
-            package_id,
+            object_ref.object_id,
             "wrap_unwrap".to_string(),
             "create_and_wrap".to_string(),
             vec![],
@@ -2633,7 +2633,7 @@ fn get_transaction_block_with_unwrapped_object_changes() -> Result<(), anyhow::E
             client,
             address,
             &keypair,
-            package_id,
+            object_ref.object_id,
             "wrap_unwrap".to_string(),
             "unwrap".to_string(),
             vec![],

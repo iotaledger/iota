@@ -110,7 +110,7 @@ pub async fn publish_example_package(
         .created()
         .iter()
         .find(|obj| obj.1.is_immutable())
-        .map(|obj| obj.0.0)
+        .map(|obj| obj.0.object_id)
         .unwrap_or_else(|| panic!("Should have created '{package_name}' package"))
 }
 

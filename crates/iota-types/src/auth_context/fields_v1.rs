@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
-    base_types::{ObjectDigest, ObjectID, SequenceNumber},
+    base_types::{ObjectID, ObjectRef, SequenceNumber},
     transaction::{Argument, CallArg, Command, ObjectArg},
     type_input::TypeName,
 };
@@ -121,13 +121,13 @@ impl MoveCommand {
 /// by the Move-side `ptb_call_arg::ObjectArg`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MoveObjectArg {
-    ImmOrOwnedObject((ObjectID, SequenceNumber, ObjectDigest)),
+    ImmOrOwnedObject(ObjectRef),
     SharedObject {
         id: ObjectID,
         initial_shared_version: SequenceNumber,
         mutable: bool,
     },
-    Receiving((ObjectID, SequenceNumber, ObjectDigest)),
+    Receiving(ObjectRef),
 }
 
 impl From<&ObjectArg> for MoveObjectArg {
@@ -189,6 +189,8 @@ impl MoveCallArg {
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_types::ObjectReference;
+
     use super::*;
     use crate::{
         base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
@@ -202,12 +204,12 @@ mod tests {
         ObjectID::from_prefixed_short_hex("0x0000000000000000000000000000000000000001").unwrap()
     }
 
-    fn obj_ref() -> (ObjectID, SequenceNumber, ObjectDigest) {
-        (
-            obj_id(),
-            SequenceNumber::from(1),
-            ObjectDigest::new([1u8; 32]),
-        )
+    fn obj_ref() -> ObjectReference {
+        ObjectReference {
+            object_id: obj_id(),
+            version: SequenceNumber::from(1),
+            digest: ObjectDigest::new([1u8; 32]),
+        }
     }
 
     /// BCS round-trip helper.

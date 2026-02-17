@@ -59,7 +59,7 @@ async fn request_gas_internal(
             for (obj_ref, _) in effects.created().iter() {
                 sent_coins.push(CoinInfo {
                     amount,
-                    id: obj_ref.0, // Extract ObjectID from ObjectRef tuple
+                    id: obj_ref.object_id,
                     transfer_tx_digest: *effects.transaction_digest(),
                 });
             }

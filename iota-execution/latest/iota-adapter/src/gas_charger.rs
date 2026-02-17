@@ -125,13 +125,14 @@ pub mod checked {
         // are correct.
         pub fn smash_gas(&mut self, temporary_store: &mut TemporaryStore<'_>) {
             let gas_coin_count = self.gas_coins.len();
-            if gas_coin_count == 0 || (gas_coin_count == 1 && self.gas_coins[0].0 == ObjectID::ZERO)
+            if gas_coin_count == 0
+                || (gas_coin_count == 1 && self.gas_coins[0].object_id == ObjectID::ZERO)
             {
                 return; // self.smashed_gas_coin is None
             }
             // set the first coin to be the transaction only gas coin.
             // All others will be smashed into this one.
-            let gas_coin_id = self.gas_coins[0].0;
+            let gas_coin_id = self.gas_coins[0].object_id;
             self.smashed_gas_coin = Some(gas_coin_id);
             if gas_coin_count == 1 {
                 return;
@@ -142,7 +143,7 @@ pub mod checked {
                 .gas_coins
                 .iter()
                 .map(|obj_ref| {
-                    let obj = temporary_store.objects().get(&obj_ref.0).unwrap();
+                    let obj = temporary_store.objects().get(&obj_ref.object_id).unwrap();
                     let Data::Move(move_obj) = &obj.data else {
                         return Err(ExecutionError::invariant_violation(
                             "Provided non-gas coin object as input for gas!",
@@ -179,9 +180,9 @@ pub mod checked {
                 })
                 .clone();
             // delete all gas objects except the primary_gas_object
-            for (id, _version, _digest) in &self.gas_coins[1..] {
-                debug_assert_ne!(*id, primary_gas_object.id());
-                temporary_store.delete_input_object(id);
+            for gas_coin in &self.gas_coins[1..] {
+                debug_assert_ne!(gas_coin.object_id, primary_gas_object.id());
+                temporary_store.delete_input_object(&gas_coin.object_id);
             }
             primary_gas_object
                 .data

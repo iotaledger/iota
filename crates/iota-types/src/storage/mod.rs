@@ -501,7 +501,7 @@ impl From<ObjectRef> for ObjectKey {
 
 impl From<&ObjectRef> for ObjectKey {
     fn from(object_ref: &ObjectRef) -> Self {
-        Self(object_ref.0, object_ref.1)
+        Self(object_ref.object_id, object_ref.version)
     }
 }
 

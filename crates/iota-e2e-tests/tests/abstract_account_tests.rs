@@ -80,7 +80,7 @@ async fn test_abstract_account_creation_and_issue_tx() -> Result<(), anyhow::Err
     let aa_ref = test_env.aa_ref.unwrap();
 
     // Retrieve the sender
-    let aa_sender = aa_ref.0.into();
+    let aa_sender = aa_ref.object_id.into();
 
     // Request faucet coins for the AbstractAccount
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
@@ -135,7 +135,7 @@ async fn test_abstract_account_issues_sponsored_tx() -> Result<(), anyhow::Error
 
     // Create a simple transaction from the IOTA account
     let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
-    let aa_sender = aa_ref.0.into();
+    let aa_sender = aa_ref.object_id.into();
     let tx_data = test_env
         .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor))
         .await?;
@@ -203,7 +203,7 @@ async fn test_abstract_account_delayed_creation() -> Result<(), anyhow::Error> {
         effects.status()
     );
     // The AA account address is the same as the delayed object ID
-    let aa_sender: IotaAddress = delayed_aa_ref.0.into();
+    let aa_sender: IotaAddress = delayed_aa_ref.object_id.into();
 
     // Fund the AA account with gas
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
@@ -238,7 +238,7 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
         .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
-    let aa_sender: IotaAddress = aa_ref.0.into();
+    let aa_sender: IotaAddress = aa_ref.object_id.into();
 
     // Fund AA
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
@@ -327,7 +327,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
         .keystore()
         .get_key(&new_aa_owner)?
         .public();
-    let aa_sender = aa_ref.0.into();
+    let aa_sender = aa_ref.object_id.into();
 
     // Step 1: create an AA TX and ask the validators to sign it
     // Create a simple transaction from the IOTA account
@@ -438,7 +438,7 @@ async fn test_receiving_gas_executing_aa_tx_first() -> Result<(), anyhow::Error>
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
 
     // AA account address
-    let aa_sender: IotaAddress = aa_ref.0.into();
+    let aa_sender: IotaAddress = aa_ref.object_id.into();
 
     // Retrieve the keystore and setup secondary random account (Bob)
     let bob = {
@@ -546,7 +546,7 @@ async fn test_receiving_gas_executing_aa_tx_later() -> Result<(), anyhow::Error>
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
 
     // AA account address
-    let aa_sender: IotaAddress = aa_ref.0.into();
+    let aa_sender: IotaAddress = aa_ref.object_id.into();
 
     // Retrieve the keystore and setup secondary random account (Bob)
     let bob = {
@@ -669,7 +669,7 @@ async fn test_failing_receiving_gas_then_create_account() -> Result<(), anyhow::
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
 
     // AA account address
-    let aa_sender: IotaAddress = aa_ref.0.into();
+    let aa_sender: IotaAddress = aa_ref.object_id.into();
 
     // Retrieve the keystore and setup secondary random account (Bob)
     let bob = {
@@ -800,7 +800,7 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
 
     // AA account address
-    let aa_sender: IotaAddress = aa_ref.0.into();
+    let aa_sender: IotaAddress = aa_ref.object_id.into();
 
     // Retrieve the keystore and setup secondary random account (Bob)
     let bob = {
@@ -865,7 +865,7 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
     let conflict_coin_ref = effects_cert
         .all_changed_objects()
         .iter()
-        .find(|obj| obj.0.0 == conflict_coin_ref.0)
+        .find(|obj| obj.0.object_id == conflict_coin_ref.object_id)
         .expect("Expected to find the updated conflict coin object")
         .0;
 
@@ -1046,7 +1046,9 @@ impl TestEnvironment {
         let path = [env!("CARGO_MANIFEST_DIR"), AA_PACKAGE_PATH]
             .iter()
             .collect();
-        let aa_package_id = publish_package(self.test_cluster.wallet(), path).await.0;
+        let aa_package_id = publish_package(self.test_cluster.wallet(), path)
+            .await
+            .object_id;
 
         let aa_package_metadata_id = move_package::derive_package_metadata_id(aa_package_id);
         let aa_package_metadata_ref = self
@@ -1180,8 +1182,8 @@ impl TestEnvironment {
                 // Create the delayed abstract account.
                 let arguments = vec![
                     builder.obj(ObjectArg::SharedObject {
-                        id: delayed_aa_ref.0,
-                        initial_shared_version: delayed_aa_ref.1,
+                        id: delayed_aa_ref.object_id,
+                        initial_shared_version: delayed_aa_ref.version,
                         mutable: true,
                     })?,
                     builder.pure(aa_owner_pk.as_ref())?,
@@ -1271,8 +1273,8 @@ impl TestEnvironment {
             anyhow::bail!("Abstract account not created yet");
         };
         let self_call_arg = CallArg::Object(ObjectArg::SharedObject {
-            id: aa_ref.0,
-            initial_shared_version: aa_ref.1,
+            id: aa_ref.object_id,
+            initial_shared_version: aa_ref.version,
             mutable: false,
         });
         // Sign the tx data with the owner key
@@ -1304,8 +1306,8 @@ impl TestEnvironment {
         };
 
         let self_call_arg = CallArg::Object(ObjectArg::SharedObject {
-            id: aa_ref.0,
-            initial_shared_version: aa_ref.1,
+            id: aa_ref.object_id,
+            initial_shared_version: aa_ref.version,
             mutable: false,
         });
         Ok(GenericSignature::MoveAuthenticator(
@@ -1326,8 +1328,8 @@ impl TestEnvironment {
         // Random IOTA account command.
         let arguments = vec![
             builder.obj(ObjectArg::SharedObject {
-                id: aa_ref.0,
-                initial_shared_version: aa_ref.1,
+                id: aa_ref.object_id,
+                initial_shared_version: aa_ref.version,
                 mutable: true,
             })?,
             builder.pure(1_u8)?,
@@ -1396,8 +1398,8 @@ impl TestEnvironment {
             // rotate the key in the abstract account.
             let arguments = vec![
                 builder.obj(ObjectArg::SharedObject {
-                    id: aa_ref.0,
-                    initial_shared_version: aa_ref.1,
+                    id: aa_ref.object_id,
+                    initial_shared_version: aa_ref.version,
                     mutable: true,
                 })?,
                 builder.pure(new_aa_owner_pk.as_ref())?,
@@ -1511,8 +1513,8 @@ impl TestEnvironment {
 
         let args = vec![
             b.obj(ObjectArg::SharedObject {
-                id: aa_ref.0,
-                initial_shared_version: aa_ref.1,
+                id: aa_ref.object_id,
+                initial_shared_version: aa_ref.version,
                 mutable: true,
             })?,
             // IMPORTANT: passing an object ref *in the position of* `Receiving<T>`

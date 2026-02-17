@@ -408,7 +408,7 @@ async fn test_execution_with_dependencies() {
         let shared_tx = TestTransactionBuilder::new(*source_addr, gas_ref, rgp)
             .call_counter_increment(
                 package,
-                shared_counter_ref.0,
+                shared_counter_ref.object_id,
                 shared_counter_initial_version,
             )
             .build_and_sign(source_key);
@@ -558,7 +558,7 @@ async fn test_per_object_overload() {
         let shared_txn = TestTransactionBuilder::new(addr, gas_ref, rgp)
             .call_counter_increment(
                 package,
-                shared_counter_ref.0,
+                shared_counter_ref.object_id,
                 shared_counter_initial_version,
             )
             .build_and_sign(&key);
@@ -580,7 +580,7 @@ async fn test_per_object_overload() {
     let shared_txn = TestTransactionBuilder::new(addr, gas_ref, rgp)
         .call_counter_increment(
             package,
-            shared_counter_ref.0,
+            shared_counter_ref.object_id,
             shared_counter_initial_version,
         )
         .build_and_sign(&key);
@@ -682,7 +682,7 @@ async fn test_txn_age_overload() {
         let shared_txn = TestTransactionBuilder::new(addr, gas_ref, rgp)
             .call_counter_increment(
                 package,
-                shared_counter_ref.0,
+                shared_counter_ref.object_id,
                 shared_counter_initial_version,
             )
             .build_and_sign(&key);
@@ -708,7 +708,7 @@ async fn test_txn_age_overload() {
     let shared_txn = TestTransactionBuilder::new(addr, gas_ref, rgp)
         .call_counter_increment(
             package,
-            shared_counter_ref.0,
+            shared_counter_ref.object_id,
             shared_counter_initial_version,
         )
         .build_and_sign(&key);

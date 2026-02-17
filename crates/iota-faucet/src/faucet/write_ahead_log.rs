@@ -149,11 +149,11 @@ mod tests {
         let coin = random_object_ref();
         let (recv, tx) = random_request(coin);
 
-        assert!(wal.reserve(uuid, coin.0, recv, tx.clone()).is_ok());
+        assert!(wal.reserve(uuid, coin.object_id, recv, tx.clone()).is_ok());
 
         // Reclaim once
-        let Some(entry) = wal.reclaim(coin.0).unwrap() else {
-            panic!("entry not found for {}", coin.0);
+        let Some(entry) = wal.reclaim(coin.object_id).unwrap() else {
+            panic!("entry not found for {}", coin.object_id);
         };
 
         assert_eq!(uuid, Uuid::from_bytes(entry.uuid));
@@ -161,8 +161,8 @@ mod tests {
         assert_eq!(tx, entry.tx);
 
         // Reclaim again, should still be there.
-        let Some(entry) = wal.reclaim(coin.0).unwrap() else {
-            panic!("entry not found for {}", coin.0);
+        let Some(entry) = wal.reclaim(coin.object_id).unwrap() else {
+            panic!("entry not found for {}", coin.object_id);
         };
 
         assert_eq!(uuid, Uuid::from_bytes(entry.uuid));
@@ -179,10 +179,10 @@ mod tests {
         let (recv0, tx0) = random_request(coin);
 
         // First write goes through
-        wal.reserve(uuid, coin.0, recv0, tx0).unwrap();
-        wal.increment_retry_count(coin.0).unwrap();
+        wal.reserve(uuid, coin.object_id, recv0, tx0).unwrap();
+        wal.increment_retry_count(coin.object_id).unwrap();
 
-        let entry = wal.reclaim(coin.0).unwrap().unwrap();
+        let entry = wal.reclaim(coin.object_id).unwrap().unwrap();
         assert_eq!(entry.retry_count, 1);
     }
 
@@ -197,11 +197,11 @@ mod tests {
         let (recv1, tx1) = random_request(coin);
 
         // First write goes through
-        wal.reserve(uuid, coin.0, recv0, tx0).unwrap();
+        wal.reserve(uuid, coin.object_id, recv0, tx0).unwrap();
 
         // Second write fails because it tries to write to the same coin
         assert!(matches!(
-            wal.reserve(uuid, coin.0, recv1, tx1),
+            wal.reserve(uuid, coin.object_id, recv1, tx1),
             Err(TypedStoreError::Serialization(_)),
         ));
     }
@@ -215,11 +215,11 @@ mod tests {
         let coin = random_object_ref();
         let (recv, tx) = random_request(coin);
 
-        wal.reserve(uuid, coin.0, recv, tx.clone()).unwrap();
+        wal.reserve(uuid, coin.object_id, recv, tx.clone()).unwrap();
 
         // Reclaim to show that the entry is there
-        let Some(entry) = wal.reclaim(coin.0).unwrap() else {
-            panic!("entry not found for {}", coin.0);
+        let Some(entry) = wal.reclaim(coin.object_id).unwrap() else {
+            panic!("entry not found for {}", coin.object_id);
         };
 
         assert_eq!(uuid, Uuid::from_bytes(entry.uuid));
@@ -227,10 +227,10 @@ mod tests {
         assert_eq!(tx, entry.tx);
 
         // Commit the transaction, which removes it from the log.
-        wal.commit(coin.0).unwrap();
+        wal.commit(coin.object_id).unwrap();
 
         // Expect it to now be gone
-        assert_eq!(Ok(None), wal.reclaim(coin.0));
+        assert_eq!(Ok(None), wal.reclaim(coin.object_id));
     }
 
     #[tokio::test]
@@ -244,13 +244,13 @@ mod tests {
         let (recv1, tx1) = random_request(coin);
 
         // Write the transaction
-        wal.reserve(uuid, coin.0, recv0, tx0).unwrap();
+        wal.reserve(uuid, coin.object_id, recv0, tx0).unwrap();
 
         // Commit the transaction, which removes it from the log.
-        wal.commit(coin.0).unwrap();
+        wal.commit(coin.object_id).unwrap();
 
         // Write a fresh transaction, which should now pass
-        wal.reserve(uuid, coin.0, recv1, tx1).unwrap();
+        wal.reserve(uuid, coin.object_id, recv1, tx1).unwrap();
     }
 
     fn random_request(coin: ObjectRef) -> (IotaAddress, TransactionData) {

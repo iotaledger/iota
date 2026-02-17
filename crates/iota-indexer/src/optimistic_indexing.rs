@@ -535,8 +535,8 @@ impl<'a> TransactionExtractor<'a> {
             .full_tx_data
             .removed_object_refs_post_version()
             .map(|obj_ref| IndexedDeletedObject {
-                object_id: obj_ref.0,
-                object_version: obj_ref.1.as_u64(),
+                object_id: obj_ref.object_id,
+                object_version: obj_ref.version.as_u64(),
                 checkpoint_sequence_number: 0,
             })
             .collect::<Vec<_>>();

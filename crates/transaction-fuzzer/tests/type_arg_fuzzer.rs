@@ -28,11 +28,15 @@ fn _all_valid_type_tag_fuzzing(add_sub: isize) {
     let mut runner = proptest::test_runner::TestRunner::deterministic();
     let mut account = AccountCurrent::new(AccountData::new_random());
     let package_id = publish_type_factory(&mut exec, &mut account);
-    let strategy = vec(generate_valid_type_factory_tags(package_id.0), 1..10);
+    let strategy = vec(
+        generate_valid_type_factory_tags(package_id.object_id),
+        1..10,
+    );
     for _ in 0..500 {
         let tys = strategy.new_tree(&mut runner).unwrap().current();
         let len = tys.len();
-        let pt = type_factory_pt_for_tags(package_id.0, tys, (len as isize + add_sub) as usize);
+        let pt =
+            type_factory_pt_for_tags(package_id.object_id, tys, (len as isize + add_sub) as usize);
         run_pt(&mut account, &mut exec, pt)
     }
 }
@@ -71,13 +75,13 @@ fn interesting_invalid_type_tags_fuzzing() {
     let mut account = AccountCurrent::new(AccountData::new_random());
     let package_id = publish_type_factory(&mut exec, &mut account);
     let strategy = vec(
-        generate_valid_and_invalid_type_factory_tags(package_id.0),
+        generate_valid_and_invalid_type_factory_tags(package_id.object_id),
         1..10,
     );
     for _ in 0..500 {
         let tys = strategy.new_tree(&mut runner).unwrap().current();
         let len = tys.len();
-        let pt = type_factory_pt_for_tags(package_id.0, tys, len);
+        let pt = type_factory_pt_for_tags(package_id.object_id, tys, len);
         run_pt(&mut account, &mut exec, pt)
     }
 }

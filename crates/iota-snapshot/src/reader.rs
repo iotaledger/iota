@@ -279,7 +279,7 @@ impl StateSnapshotReaderV1 {
                         .context(format!("No part exists for bucket: {bucket}, part: {part}"))?;
 
                     for object_ref in ref_iter {
-                        hasher.update(object_ref.2.inner());
+                        hasher.update(object_ref.digest.inner());
                         empty = false;
                     }
 
@@ -385,7 +385,7 @@ impl StateSnapshotReaderV1 {
                             )
                             .expect("Failed to create object ref iter")
                         }
-                        .map(|obj_ref| obj_ref.2)
+                        .map(|obj_ref| obj_ref.digest)
                         .collect::<Vec<ObjectDigest>>();
 
                         // Spawns a task to accumulate the sha3 digests and send the accumulator
@@ -638,7 +638,7 @@ impl ObjectRefIter {
             .reader()
             .read_u64::<BigEndian>()?;
         let sha3_digest = &buf[OBJECT_ID_BYTES + SEQUENCE_NUM_BYTES..OBJECT_REF_BYTES];
-        let object_ref: ObjectRef = (
+        let object_ref = ObjectRef::new(
             ObjectID::from_bytes(object_id)?,
             SequenceNumber::from_u64(*sequence_number),
             ObjectDigest::from_bytes(sha3_digest)?,
