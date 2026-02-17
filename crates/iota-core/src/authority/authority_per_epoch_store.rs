@@ -1537,8 +1537,8 @@ impl AuthorityPerEpochStore {
                     }
                     InputObjectKind::MovePackage(id) => InputKey::Package { id: *id },
                     InputObjectKind::ImmOrOwnedMoveObject(objref) => InputKey::VersionedObject {
-                        id: objref.0,
-                        version: objref.1,
+                        id: objref.object_id,
+                        version: objref.version,
                     },
                 })
             })

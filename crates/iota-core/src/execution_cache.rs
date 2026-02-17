@@ -434,16 +434,16 @@ pub trait ObjectCacheRead: Send + Sync {
         for (object_opt, object_ref) in objects.into_iter().zip(object_refs) {
             match object_opt {
                 None => {
-                    let live_objref = self._try_get_live_objref(object_ref.0)?;
-                    let error = if live_objref.1 >= object_ref.1 {
+                    let live_objref = self._try_get_live_objref(object_ref.object_id)?;
+                    let error = if live_objref.version >= object_ref.version {
                         UserInputError::ObjectVersionUnavailableForConsumption {
                             provided_obj_ref: *object_ref,
-                            current_version: live_objref.1,
+                            current_version: live_objref.version,
                         }
                     } else {
                         UserInputError::ObjectNotFound {
-                            object_id: object_ref.0,
-                            version: Some(object_ref.1),
+                            object_id: object_ref.object_id,
+                            version: Some(object_ref.version),
                         }
                     };
                     return Err(IotaError::UserInput { error });
@@ -543,7 +543,7 @@ pub trait ObjectCacheRead: Send + Sync {
                     .expect("read cannot fail")
                 {
                     None => false,
-                    Some(entry) => entry.2.is_object_alive(),
+                    Some(entry) => entry.digest.is_object_alive(),
                 },
             )
         });

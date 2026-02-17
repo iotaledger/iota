@@ -98,8 +98,8 @@ async fn create_txes(
     // function.
     let (counter_package, counter) =
         publish_basics_package_and_make_counter(&test_cluster.wallet).await;
-    let counter_package_id = counter_package.0;
-    let (counter_id, counter_initial_shared_version) = (counter.0, counter.1);
+    let counter_package_id = counter_package.object_id;
+    let (counter_id, counter_initial_shared_version) = (counter.object_id, counter.version);
 
     let mut ret = BTreeMap::new();
     let (sender, mut gas_objects) = test_cluster.wallet.get_one_account().await.unwrap();

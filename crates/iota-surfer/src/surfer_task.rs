@@ -76,7 +76,7 @@ impl SurferTask {
                                     .await
                                     .entry(struct_tag)
                                     .or_default()
-                                    .push((obj_ref.0, initial_shared_version));
+                                    .push((obj_ref.object_id, initial_shared_version));
                             }
                             Owner::AddressOwner(address) => {
                                 if let Some((gas_object, owned_objects)) =

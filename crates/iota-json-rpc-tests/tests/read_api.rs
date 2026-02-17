@@ -18,7 +18,7 @@ use iota_json_rpc_types::{
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     digests::TransactionDigest,
     error::IotaObjectResponseError,
     messages_checkpoint::CheckpointSequenceNumber,
@@ -278,7 +278,11 @@ async fn try_get_past_object_with_options(options: IotaObjectDataOptions) {
 
     assert_eq!(transaction.status_ok(), Some(true));
 
-    let (mutated_obj_id, mutated_obj_version, _) = transaction.mutated_objects().next().unwrap();
+    let ObjectRef {
+        object_id: mutated_obj_id,
+        version: mutated_obj_version,
+        ..
+    } = transaction.mutated_objects().next().unwrap();
 
     let rpc_past_obj = http_client
         .try_get_past_object(mutated_obj_id, mutated_obj_version, Some(options.clone()))
@@ -339,7 +343,10 @@ async fn try_multi_get_past_objects_with_options(options: IotaObjectDataOptions)
         .flat_map(|tx| {
             assert_eq!(tx.status_ok(), Some(true));
             tx.mutated_objects()
-                .map(|(object_id, version, _)| IotaGetPastObjectRequest { object_id, version })
+                .map(|object_ref| IotaGetPastObjectRequest {
+                    object_id: object_ref.object_id,
+                    version: object_ref.version,
+                })
                 .collect::<Vec<IotaGetPastObjectRequest>>()
         })
         .collect::<Vec<_>>();
@@ -1494,8 +1501,8 @@ async fn try_get_past_object_version_not_found() {
         .flat_map(|tx| {
             assert_eq!(tx.status_ok(), Some(true));
             tx.mutated_objects()
-                .filter(|(_, seq_num, _)| seq_num > &SequenceNumber::from_u64(2))
-                .map(|(object_id, _, _)| object_id)
+                .filter(|object_ref| object_ref.version > SequenceNumber::from_u64(2))
+                .map(|object_ref| object_ref.object_id)
                 .collect::<Vec<ObjectID>>()
         })
         .collect::<Vec<_>>();
@@ -1599,11 +1606,13 @@ async fn try_get_past_object_deleted() {
         .data
         .unwrap();
 
-    let arg = CallArg::Object(iota_types::transaction::ObjectArg::ImmOrOwnedObject((
-        created_object.object_id,
-        created_object.version,
-        created_object.digest,
-    )));
+    let arg = CallArg::Object(iota_types::transaction::ObjectArg::ImmOrOwnedObject(
+        ObjectRef::new(
+            created_object.object_id,
+            created_object.version,
+            created_object.digest,
+        ),
+    ));
 
     let tx_block_response = cluster
         .sign_and_execute_transaction(
@@ -1627,7 +1636,7 @@ async fn try_get_past_object_deleted() {
         .unwrap();
 
     assert!(
-        matches!(rpc_past_obj, IotaPastObjectResponse::ObjectDeleted(obj) if obj.0 == created_object_id && obj.1 == seq_num)
+        matches!(rpc_past_obj, IotaPastObjectResponse::ObjectDeleted(obj) if obj.object_id == created_object_id && obj.version == seq_num)
     );
 }
 
@@ -1673,7 +1682,11 @@ async fn try_get_object_before_version() {
 
     assert_eq!(transaction.status_ok(), Some(true));
 
-    let (mutated_obj_id, mutated_obj_version, _) = transaction.mutated_objects().next().unwrap();
+    let ObjectRef {
+        object_id: mutated_obj_id,
+        version: mutated_obj_version,
+        ..
+    } = transaction.mutated_objects().next().unwrap();
 
     let rpc_obj_before_ver = http_client
         .try_get_object_before_version(mutated_obj_id, mutated_obj_version)

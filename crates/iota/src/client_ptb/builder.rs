@@ -137,7 +137,7 @@ impl<'a> Resolver<'a> for ToObject {
             Owner::Shared {
                 initial_shared_version,
             } => ObjectArg::SharedObject {
-                id: object_ref.0,
+                id: object_ref.object_id,
                 initial_shared_version,
                 mutable: self.is_mut,
             },

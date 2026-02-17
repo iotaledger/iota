@@ -480,8 +480,8 @@ impl TransactionManager {
                         cert.data().intent_message().value.receiving_objects();
                     for entry in receiving_object_entries {
                         let key = InputKey::VersionedObject {
-                            id: entry.0,
-                            version: entry.1,
+                            id: entry.object_id,
+                            version: entry.version,
                         };
                         receiving_objects.insert(key);
                         input_object_keys.insert(key);

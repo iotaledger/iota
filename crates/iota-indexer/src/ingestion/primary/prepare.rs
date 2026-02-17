@@ -432,7 +432,7 @@ impl PrimaryWorker {
         let changed_objects = fx
             .all_changed_objects()
             .into_iter()
-            .map(|(object_ref, _owner, _write_kind)| object_ref.0)
+            .map(|(object_ref, _owner, _write_kind)| object_ref.object_id)
             .collect::<Vec<_>>();
 
         // Wrapped or deleted objects
@@ -558,8 +558,8 @@ impl PrimaryWorker {
         let indexed_eventually_removed_objects = eventually_removed_object_refs_post_version
             .into_iter()
             .map(|obj_ref| IndexedDeletedObject {
-                object_id: obj_ref.0,
-                object_version: obj_ref.1.as_u64(),
+                object_id: obj_ref.object_id,
+                object_version: obj_ref.version.as_u64(),
                 checkpoint_sequence_number: checkpoint_seq,
             })
             .collect();
@@ -591,8 +591,8 @@ impl PrimaryWorker {
         let indexed_deleted_objects: Vec<IndexedDeletedObject> = deleted_objects
             .into_iter()
             .map(|obj_ref| IndexedDeletedObject {
-                object_id: obj_ref.0,
-                object_version: obj_ref.1.as_u64(),
+                object_id: obj_ref.object_id,
+                object_version: obj_ref.version.as_u64(),
                 checkpoint_sequence_number: checkpoint_seq,
             })
             .collect();

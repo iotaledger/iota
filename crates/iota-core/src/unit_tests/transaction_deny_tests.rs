@@ -191,7 +191,7 @@ async fn test_object_denied() {
         &network_config,
         state,
         TransactionDenyConfigBuilder::new()
-            .add_denied_object(obj_ref.0)
+            .add_denied_object(obj_ref.object_id)
             .build(),
     )
     .await;

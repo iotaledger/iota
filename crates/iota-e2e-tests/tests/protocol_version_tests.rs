@@ -87,7 +87,6 @@ mod sim_only_tests {
         },
     };
     use move_binary_format::CompiledModule;
-    use move_core_types::ident_str;
     use test_cluster::TestCluster;
     use tokio::time::{Duration, sleep};
     use tracing::info;
@@ -428,8 +427,8 @@ mod sim_only_tests {
                         ObjectID::AUTHENTICATOR_STATE,
                         ObjectID::RANDOMNESS_STATE,
                     ]
-                    .contains(&obj.0);
-                    (!is_framework_obj).then_some(obj.0)
+                    .contains(&obj.object_id);
+                    (!is_framework_obj).then_some(obj.object_id)
                 } else {
                     None
                 }
@@ -540,7 +539,7 @@ mod sim_only_tests {
         .await
         .mutated()
         .iter()
-        .find(|oref| oref.reference.0 == obj.0)
+        .find(|oref| oref.reference.object_id == obj.object_id)
         .unwrap()
         .reference
     }
@@ -629,10 +628,9 @@ mod sim_only_tests {
             .iter()
             .find_map(|(id, v)| (id == &ObjectID::SYSTEM).then_some(*v));
 
-        let mutated_to = effects
-            .mutated()
-            .iter()
-            .find_map(|((id, v, _), _)| (id == &ObjectID::SYSTEM).then_some(*v));
+        let mutated_to = effects.mutated().iter().find_map(|(object_ref, _)| {
+            (object_ref.object_id == ObjectID::SYSTEM).then_some(object_ref.version)
+        });
 
         (modified_at, mutated_to)
     }

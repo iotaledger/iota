@@ -262,7 +262,7 @@ mod tests {
 
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::{IotaAddress, ObjectID, SequenceNumber},
+        base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
         crypto::RandomnessRound,
         digests::ObjectDigest,
         effects::TestEffectsBuilder,
@@ -676,7 +676,7 @@ mod tests {
         }
         let tx_data = TestTransactionBuilder::new(
             IotaAddress::ZERO,
-            (
+            ObjectRef::new(
                 ObjectID::random(),
                 SequenceNumber::from_u64(gas_object_version),
                 ObjectDigest::random(),

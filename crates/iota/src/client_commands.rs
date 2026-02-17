@@ -3195,7 +3195,10 @@ pub async fn execute_dry_run(
                 let gas_coins = client
                     .read_api()
                     .multi_get_object_with_options(
-                        gas_payment.iter().map(|object_ref| object_ref.0).collect(),
+                        gas_payment
+                            .iter()
+                            .map(|object_ref| object_ref.object_id)
+                            .collect(),
                         IotaObjectDataOptions::bcs_lossless(),
                     )
                     .await?;
@@ -3392,7 +3395,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             .input_objects()?
             .iter()
             .filter_map(|o| match o {
-                InputObjectKind::ImmOrOwnedMoveObject((id, _, _)) => Some(*id),
+                InputObjectKind::ImmOrOwnedMoveObject(object_ref) => Some(object_ref.object_id),
                 _ => None,
             })
             .collect();

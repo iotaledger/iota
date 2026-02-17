@@ -847,7 +847,7 @@ async fn test_handle_soft_bundle_certificates() {
             &gas_object_ids[0],
             &senders[0].0,
             &senders[0].1,
-            &package.0,
+            &package.object_id,
             "object_basics",
             "share",
             vec![],
@@ -857,7 +857,7 @@ async fn test_handle_soft_bundle_certificates() {
         .await
         .unwrap();
         effects.status().unwrap();
-        let shared_object_id = effects.created()[0].0.0;
+        let shared_object_id = effects.created()[0].0.object_id;
         authority.get_object(&shared_object_id).await.unwrap()
     };
     let initial_shared_version = shared_object.version();
@@ -913,7 +913,7 @@ async fn test_handle_soft_bundle_certificates() {
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
                 senders[i].0,
-                package.0,
+                package.object_id,
                 Identifier::from_static("object_basics"),
                 Identifier::from_static("set_value"),
                 // type_args
@@ -1011,7 +1011,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             &gas_objects[3].id(),
             &senders[3].0,
             &senders[3].1,
-            &package.0,
+            &package.object_id,
             "object_basics",
             "share",
             vec![],
@@ -1021,7 +1021,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         .await
         .unwrap();
         effects.status().unwrap();
-        let shared_object_id = effects.created()[0].0.0;
+        let shared_object_id = effects.created()[0].0.object_id;
         authority.get_object(&shared_object_id).await.unwrap()
     };
     let initial_shared_version = shared_object.version();
@@ -1188,7 +1188,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
                 senders[6].0,
-                package.0,
+                package.object_id,
                 Identifier::from_static("object_basics"),
                 Identifier::from_static("set_value"),
                 // type_args
@@ -1218,7 +1218,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
                 senders[7].0,
-                package.0,
+                package.object_id,
                 Identifier::from_static("object_basics"),
                 Identifier::from_static("set_value"),
                 // type_args
@@ -1274,7 +1274,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
                 senders[8].0,
-                package.0,
+                package.object_id,
                 Identifier::from_static("object_basics"),
                 Identifier::from_static("set_value"),
                 // type_args
@@ -1304,7 +1304,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
                 senders[9].0,
-                package.0,
+                package.object_id,
                 Identifier::from_static("object_basics"),
                 Identifier::from_static("set_value"),
                 // type_args
