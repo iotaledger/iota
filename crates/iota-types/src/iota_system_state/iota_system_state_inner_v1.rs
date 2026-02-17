@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::ops::RangeInclusive;
+
 use anyhow::Result;
 use fastcrypto::traits::ToFromBytes;
 use move_core_types::{
@@ -437,38 +439,32 @@ impl ValidatorV1 {
         }
     }
 
-    pub fn get_score_per_epoch<S>(
+    pub fn get_recorded_score_for_epoch_range<S>(
         &self,
         object_store: &S,
-        epochs: &[u64],
-    ) -> Result<Vec<u64>, IotaError>
+        epochs: RangeInclusive<u64>,
+    ) -> Vec<Option<u64>>
     where
         S: ObjectStore + ?Sized,
     {
         // The score table is stored as a dynamic field under the validator's
         // `extra_fields` Bag with key `ScoreRecordKey`.
-        // If no table is stored, then the dynamic field get will fail.
-        let bag_id = *self.extra_fields.id.object_id();
-        let score_table: Table =
-            get_dynamic_field_from_store(&object_store, bag_id, &ScoreRecordKey::default())?;
-
-        // Now we have acceess to the table ID and can query the score for each epoch
-        // from the table.
-        // It will fail as well if the table does not contain an entry for a given
-        // epoch.
-        let mut scores = vec![];
-        for i in 0..epochs.len() {
-            let score: u64 =
-                get_dynamic_field_from_store(&object_store, score_table.id, &epochs[i]).map_err(
-                    |err| {
-                        IotaError::IotaSystemStateRead(format!(
-                            "Failed to load epoch score from table: {err:?}"
-                        ))
-                    },
-                )?;
-            scores.push(score);
+        if let Ok(score_table) = get_dynamic_field_from_store::<_, Table>(
+            &object_store,
+            *self.extra_fields.id.object_id(),
+            &ScoreRecordKey::default(),
+        ) {
+            // Now we have access to the table id and can query the score for each
+            // epoch. If a particular epoch has no entry, store None.
+            epochs
+                .map(|epoch| {
+                    get_dynamic_field_from_store(&object_store, score_table.id, &epoch).ok()
+                })
+                .collect()
+        } else {
+            // If no table is stored, return None for every epoch in the range.
+            epochs.map(|_| None).collect()
         }
-        Ok(scores)
     }
 }
 
