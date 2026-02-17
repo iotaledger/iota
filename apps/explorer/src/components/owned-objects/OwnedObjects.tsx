@@ -37,7 +37,7 @@ import { ObjectViewMode } from '~/lib/enums';
 import { Pagination } from '~/components/ui';
 import { PAGE_SIZES_RANGE_10_50 } from '~/lib/constants';
 import { getNameRegistrationType, getSubnameRegistrationType } from '@iota/iota-names-sdk';
-import type { IotaObjectResponse } from '@iota/iota-sdk/src/client';
+import type { IotaObjectResponse } from '@iota/iota-sdk/client';
 
 const SHOW_PAGINATION_MAX_ITEMS = 9;
 const OWNED_OBJECTS_LOCAL_STORAGE_VIEW_MODE = 'owned-objects/viewMode';
