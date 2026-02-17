@@ -119,8 +119,10 @@ jobs:
           echo "extension=$(echo ".exe")" >> $GITHUB_ENV
 
       - name: Setup caching
-        # Fork of 'Swatinem/rust-cache' which allows caching additional paths
-        uses: bmwill/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # v1.4.0
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+        with:
+          cache-on-failure: true
+          cache-bin: "false"
 
       - name: Install postgres (Windows)
         if: ${{ matrix.os_type == 'windows-x86_64' }}
