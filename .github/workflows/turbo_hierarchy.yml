@@ -145,20 +145,20 @@ jobs:
     uses: ./.github/workflows/_e2e.yml
     with:
       isRpc: ${{ needs.diff.outputs.isRpc }}
-      isWallet: ${{ needs.diff.outputs.isWallet == 'true' }}
-      isExplorer: ${{ needs.diff.outputs.isExplorer == 'true' }}
-      isAppsBackend: ${{ needs.diff.outputs.isAppsBackend == 'true' }}
-      isTypescriptSDK: ${{ needs.diff.outputs.isTypescriptSDK == 'true' }}
-      isGraphQlTransport: ${{ needs.diff.outputs.isGraphQlTransport == 'true' }}
-      isWalletDashboard: ${{ needs.diff.outputs.isWalletDashboard == 'true' }}
-      isEvmBridge: ${{ needs.diff.outputs.isEvmBridge == 'true' }}
-      isIscSDK: ${{ needs.diff.outputs.isIscSDK == 'true' }}
+      isWallet: ${{ needs.diff.outputs.isWallet }}
+      isExplorer: ${{ needs.diff.outputs.isExplorer }}
+      isAppsBackend: ${{ needs.diff.outputs.isAppsBackend }}
+      isTypescriptSDK: ${{ needs.diff.outputs.isTypescriptSDK }}
+      isGraphQlTransport: ${{ needs.diff.outputs.isGraphQlTransport }}
+      isWalletDashboard: ${{ needs.diff.outputs.isWalletDashboard }}
+      isEvmBridge: ${{ needs.diff.outputs.isEvmBridge }}
+      isIscSDK: ${{ needs.diff.outputs.isIscSDK }}
     secrets:
       EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK: ${{ secrets.EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK }}
       EVM_BRIDGE_CONFIG: ${{ secrets.EVM_BRIDGE_CONFIG }}
 
   ledgernano:
-    if: (!cancelled() && !failure() && needs.diff.outputs.isLedgerjs == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (!cancelled() && !failure() && needs.diff.outputs.isLedgerjs && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     needs: diff
     uses: ./.github/workflows/_ledgernano.yml
     secrets: inherit

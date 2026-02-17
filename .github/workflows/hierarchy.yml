@@ -19,16 +19,16 @@ jobs:
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
     if: (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
     outputs:
-      isRust: ${{ steps.diff.outputs.isRust }}
-      isRustWorkspaceConfig: ${{ steps.diff.outputs.isRustWorkspaceConfig }}
-      isRustExample: ${{ steps.diff.outputs.isRustExample }}
-      isRpc: ${{ steps.diff.outputs.isRpc }}
-      isPgIntegration: ${{ steps.diff.outputs.isPgIntegration }}
-      isMoveExampleUsedByOthers: ${{ steps.diff.outputs.isMoveExampleUsedByOthers }}
-      isRosetta: ${{ steps.diff.outputs.isRosetta }}
-      isDoc: ${{ steps.diff.outputs.isDoc }}
-      isReleaseNotesEligible: ${{ steps.diff.outputs.isReleaseNotesEligible }}
-      isExternalCrates: ${{ steps.diff.outputs.isExternalCrates }}
+      isRust: ${{ steps.diff.outputs.isRust == 'true' }}
+      isRustWorkspaceConfig: ${{ steps.diff.outputs.isRustWorkspaceConfig == 'true' }}
+      isRustExample: ${{ steps.diff.outputs.isRustExample == 'true' }}
+      isRpc: ${{ steps.diff.outputs.isRpc == 'true' }}
+      isPgIntegration: ${{ steps.diff.outputs.isPgIntegration == 'true' }}
+      isMoveExampleUsedByOthers: ${{ steps.diff.outputs.isMoveExampleUsedByOthers == 'true' }}
+      isRosetta: ${{ steps.diff.outputs.isRosetta == 'true' }}
+      isDoc: ${{ steps.diff.outputs.isDoc == 'true' }}
+      isReleaseNotesEligible: ${{ steps.diff.outputs.isReleaseNotesEligible == 'true' }}
+      isExternalCrates: ${{ steps.diff.outputs.isExternalCrates == 'true' }}
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - name: Detect Changes (diff)
@@ -68,7 +68,7 @@ jobs:
       group: license-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
     needs: diff
-    if: (!cancelled() && needs.diff.outputs.isRust == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (!cancelled() && needs.diff.outputs.isRust && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     runs-on: [self-hosted-x64]
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
@@ -77,12 +77,12 @@ jobs:
 
   docusaurus:
     needs: diff
-    if: (!cancelled() && needs.diff.outputs.isDoc == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (!cancelled() && needs.diff.outputs.isDoc && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     uses: ./.github/workflows/_docusaurus.yml
 
   docs-lint:
     needs: diff
-    if: (!cancelled() && needs.diff.outputs.isDoc == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (!cancelled() && needs.diff.outputs.isDoc && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     uses: ./.github/workflows/_docs_lint.yml
 
   rust:
@@ -95,18 +95,18 @@ jobs:
     uses: ./.github/workflows/_rust.yml
     secrets: inherit
     with:
-      isRust: ${{ needs.diff.outputs.isRust == 'true' }}
-      isRustWorkspaceConfig: ${{ needs.diff.outputs.isRustWorkspaceConfig == 'true' }}
-      isRustExample: ${{ needs.diff.outputs.isRustExample == 'true' }}
-      isPgIntegration: ${{ needs.diff.outputs.isPgIntegration == 'true' }}
-      isMoveExampleUsedByOthers: ${{ needs.diff.outputs.isMoveExampleUsedByOthers == 'true' }}
+      isRust: ${{ needs.diff.outputs.isRust }}
+      isRustWorkspaceConfig: ${{ needs.diff.outputs.isRustWorkspaceConfig }}
+      isRustExample: ${{ needs.diff.outputs.isRustExample }}
+      isPgIntegration: ${{ needs.diff.outputs.isPgIntegration }}
+      isMoveExampleUsedByOthers: ${{ needs.diff.outputs.isMoveExampleUsedByOthers }}
 
   rosetta:
     needs:
       - diff
       - dprint-format
       - typos
-    if: (!cancelled() && !failure() && needs.diff.outputs.isRosetta == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (!cancelled() && !failure() && needs.diff.outputs.isRosetta && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     uses: ./.github/workflows/_rosetta.yml
 
   move-ide:
@@ -115,12 +115,12 @@ jobs:
       - dprint-format
       - license-check
       - typos
-    if: (!cancelled() && !failure() && needs.diff.outputs.isExternalCrates == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (!cancelled() && !failure() && needs.diff.outputs.isExternalCrates && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     uses: ./.github/workflows/_move_ide.yml
 
   split-cluster:
     needs:
       - diff
       - rust
-    if: (!cancelled() && !failure() && needs.diff.outputs.isRust == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (!cancelled() && !failure() && needs.diff.outputs.isRust && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     uses: ./.github/workflows/_split_cluster.yml
