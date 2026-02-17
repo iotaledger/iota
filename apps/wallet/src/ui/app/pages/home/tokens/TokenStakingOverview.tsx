@@ -54,7 +54,7 @@ export function TokenStakingOverview({
             navigate('/stake');
         }
 
-        ampli.clickedStakeIota({
+        ampli.stakeClicked({
             isCurrentlyStaking: totalDelegatedStake > 0,
             sourceFlow: 'Home page',
         });
