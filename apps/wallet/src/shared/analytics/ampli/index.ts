@@ -607,7 +607,7 @@ export class AccountKeysExported implements BaseEvent {
     event_type = 'account keys exported';
 
     constructor(public event_properties?: AccountKeysExportedProperties) {
-             this.event_properties = event_properties;
+        this.event_properties = event_properties;
     }
 }
 export class AccountsAdded implements BaseEvent {
