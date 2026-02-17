@@ -12,6 +12,8 @@ const IS_ENABLED =
     import.meta.env.VITE_BUILD_ENV === 'production' &&
     import.meta.env.VITE_AMPLITUDE_ENABLED === 'true';
 
+const IS_DEV = import.meta.env.VITE_BUILD_ENV !== 'production';
+
 export async function initAmplitude() {
     // Check consent status to determine initial opt-out state
     const consentStatus = getAmplitudeConsentStatus();
@@ -56,5 +58,5 @@ export async function initAmplitude() {
     }, 1000);
 
     // Add environment plugin to set prefix dev events
-    ampli.client.add(attachEnvironmentPlugin());
+    ampli.client.add(attachEnvironmentPlugin(IS_DEV));
 }
