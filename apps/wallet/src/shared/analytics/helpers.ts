@@ -1,4 +1,4 @@
-// Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { type AddedAccountsProperties } from '_src/shared/analytics/ampli';
 import { AccountType } from '_src/background/accounts/account';
