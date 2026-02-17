@@ -55,7 +55,6 @@ env:
 jobs:
   localnet:
     name: Localnet
-    if: inputs.isNightly || inputs.isRpc || inputs.isExplorer || inputs.isAppsBackend || inputs.isTypescriptSDK || inputs.isWallet || inputs.isGraphQlTransport || inputs.isWalletDashboard || inputs.isEvmBridge || inputs.isIscSDK
     runs-on: self-hosted-x64
     services:
       postgres:
