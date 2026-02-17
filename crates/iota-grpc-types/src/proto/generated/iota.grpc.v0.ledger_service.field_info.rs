@@ -134,7 +134,7 @@ mod _field_impls {
             json_name: "chainId",
             number: 1i32,
             is_optional: true,
-            message_fields: None,
+            message_fields: Some(Digest::FIELDS),
         };
         pub const CHAIN_FIELD: &'static MessageField = &MessageField {
             name: "chain",
@@ -218,9 +218,9 @@ mod _field_impls {
         pub fn finish(self) -> String {
             self.path.join(".")
         }
-        pub fn chain_id(mut self) -> String {
+        pub fn chain_id(mut self) -> DigestFieldPathBuilder {
             self.path.push(GetServiceInfoResponse::CHAIN_ID_FIELD.name);
-            self.finish()
+            DigestFieldPathBuilder::new_with_base(self.path)
         }
         pub fn chain(mut self) -> String {
             self.path.push(GetServiceInfoResponse::CHAIN_FIELD.name);

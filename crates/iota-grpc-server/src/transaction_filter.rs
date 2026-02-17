@@ -80,6 +80,7 @@ impl TryFrom<proto_filter::TransactionKind> for TransactionKind {
             proto_filter::TransactionKind::RandomnessStateUpdate => {
                 Ok(TransactionKind::RandomnessStateUpdate)
             }
+            _ => Err("Unsupported transaction kind".to_string()),
         }
     }
 }
@@ -208,6 +209,7 @@ impl TryFrom<proto_filter::TransactionFilter> for TransactionFilter {
                 let internal_event_filter = EventFilter::try_from(event_filter)?;
                 Ok(TransactionFilter::Events(internal_event_filter))
             }
+            _ => Err("Unsupported transaction filter type".to_string()),
         }
     }
 }
