@@ -20,7 +20,13 @@ async fn assert_service_info_request(
     scenario: &str,
 ) -> GetServiceInfoResponse {
     let response = ledger_client
-        .get_service_info(GetServiceInfoRequest { read_mask })
+        .get_service_info({
+            let mut req = GetServiceInfoRequest::default();
+            if let Some(mask) = read_mask {
+                req = req.with_read_mask(mask);
+            }
+            req
+        })
         .await
         .unwrap()
         .into_inner();

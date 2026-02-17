@@ -161,11 +161,11 @@ export class FeaturesController {
                 },
                 [Feature.WalletPasskeys]: {
                     defaultValue: {
-                        [Network.Mainnet]: false,
-                        [Network.Devnet]: false,
-                        [Network.Testnet]: false,
-                        [Network.Localnet]: false,
-                        [Network.Custom]: false,
+                        [Network.Mainnet]: true,
+                        [Network.Devnet]: true,
+                        [Network.Testnet]: true,
+                        [Network.Localnet]: true,
+                        [Network.Custom]: true,
                     },
                 },
                 [Feature.PollingTxnTable]: {

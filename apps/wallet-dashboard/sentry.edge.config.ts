@@ -3,10 +3,10 @@
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 
 import * as Sentry from '@sentry/nextjs';
-import { IS_PROD, SENTRY_DSN } from './sentry.common.config.mjs';
+import { IS_SENTRY_ENABLED, SENTRY_DSN } from './sentry.common.config.mjs';
 
 Sentry.init({
-    enabled: IS_PROD,
+    enabled: IS_SENTRY_ENABLED && Boolean(SENTRY_DSN),
     dsn: SENTRY_DSN,
 
     // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.

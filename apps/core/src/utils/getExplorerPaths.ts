@@ -15,7 +15,10 @@ function getExplorerUrl(
 
     const url = getUrlWithDeviceId(new URL(path, explorer));
     if (explorer) {
-        url.searchParams.append('network', network);
+        url.searchParams.append(
+            'network',
+            network === Network.Custom ? networkConfig?.url : network,
+        );
     }
 
     return url.href;

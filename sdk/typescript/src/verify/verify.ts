@@ -12,6 +12,7 @@ import { Secp256r1PublicKey } from '../keypairs/secp256r1/publickey.js';
 // eslint-disable-next-line import/no-cycle
 import { MultiSigPublicKey } from '../multisig/publickey.js';
 import { PasskeyPublicKey } from '../keypairs/passkey/publickey.js';
+import { MoveAuthenticatorPublicKey } from '../keypairs/move-authenticator/publickey.js';
 
 export async function verifySignature(
     bytes: Uint8Array,
@@ -89,6 +90,23 @@ function parseSignature(signature: string) {
         };
     }
 
+    if (parsedSignature.signatureScheme === 'MoveAuthenticator') {
+        const authenticatedObjectId =
+            parsedSignature.moveAuthenticator.objectToAuthenticate.Object?.$kind ===
+            'ImmOrOwnedObject'
+                ? parsedSignature.moveAuthenticator.objectToAuthenticate.Object.ImmOrOwnedObject
+                      .objectId
+                : parsedSignature.moveAuthenticator.objectToAuthenticate.Object?.$kind ===
+                    'Receiving'
+                  ? parsedSignature.moveAuthenticator.objectToAuthenticate.Object.Receiving.objectId
+                  : parsedSignature.moveAuthenticator.objectToAuthenticate.Object?.SharedObject
+                        ?.objectId;
+        return {
+            ...parsedSignature,
+            publicKey: new MoveAuthenticatorPublicKey(authenticatedObjectId!),
+        };
+    }
+
     const publicKey = publicKeyFromRawBytes(
         parsedSignature.signatureScheme,
         parsedSignature.publicKey,
@@ -114,6 +132,8 @@ export function publicKeyFromRawBytes(
             return new MultiSigPublicKey(bytes);
         case 'Passkey':
             return new PasskeyPublicKey(bytes);
+        case 'MoveAuthenticator':
+            return new MoveAuthenticatorPublicKey(bytes);
         default:
             throw new Error(`Unsupported signature scheme ${signatureScheme}`);
     }

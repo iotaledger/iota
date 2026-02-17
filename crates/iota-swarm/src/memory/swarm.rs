@@ -53,6 +53,7 @@ pub struct SwarmBuilder<R = OsRng> {
     chain_override: Option<Chain>,
     additional_objects: Vec<Object>,
     fullnode_count: usize,
+    fullnode_db_path: Option<PathBuf>,
     fullnode_rpc_port: Option<u16>,
     fullnode_rpc_addr: Option<SocketAddr>,
     supported_protocol_versions_config: ProtocolVersionsConfig,
@@ -90,6 +91,7 @@ impl SwarmBuilder {
             chain_override: None,
             additional_objects: vec![],
             fullnode_count: 0,
+            fullnode_db_path: None,
             fullnode_rpc_port: None,
             fullnode_rpc_addr: None,
             supported_protocol_versions_config: ProtocolVersionsConfig::Default,
@@ -127,6 +129,7 @@ impl<R> SwarmBuilder<R> {
             chain_override: self.chain_override,
             additional_objects: self.additional_objects,
             fullnode_count: self.fullnode_count,
+            fullnode_db_path: self.fullnode_db_path,
             fullnode_rpc_port: self.fullnode_rpc_port,
             fullnode_rpc_addr: self.fullnode_rpc_addr,
             supported_protocol_versions_config: self.supported_protocol_versions_config,
@@ -219,6 +222,11 @@ impl<R> SwarmBuilder<R> {
 
     pub fn with_fullnode_count(mut self, fullnode_count: usize) -> Self {
         self.fullnode_count = fullnode_count;
+        self
+    }
+
+    pub fn with_fullnode_db_path(mut self, fullnode_db_path: PathBuf) -> Self {
+        self.fullnode_db_path = Some(fullnode_db_path);
         self
     }
 
@@ -493,6 +501,9 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
             .with_fw_config(self.fullnode_fw_config)
             .with_disable_pruning(self.disable_fullnode_pruning)
             .with_iota_names_config(self.iota_names_config);
+        if let Some(fullnode_db_path) = self.fullnode_db_path {
+            fullnode_config_builder = fullnode_config_builder.with_db_path(fullnode_db_path);
+        }
 
         if self.disable_address_verification_cooldown {
             let discovery_config = DiscoveryConfig {
