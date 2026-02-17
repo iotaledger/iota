@@ -87,6 +87,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Explorer Playwright Browsers
+        if: (!cancelled()) && (inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRpc || github.ref_name == 'develop')
         run: pnpm --filter iota-explorer playwright install --with-deps chromium
 
       - name: Set environment variables
@@ -122,7 +123,7 @@ jobs:
 
       - name: Upload Explorer test reports
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        if: (!cancelled())
+        if: (!cancelled()) && (inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRpc || github.ref_name == 'develop')
         with:
           name: playwright-report-explorer
           path: apps/explorer/playwright-report/
@@ -137,6 +138,7 @@ jobs:
         run: pnpm turbo --filter wallet-dashboard build
 
       - name: Install Dashboard Playwright Browsers
+        if: (!cancelled()) && (inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop')
         run: pnpm --filter wallet-dashboard playwright install --with-deps  --only-shell
 
       - name: Run Dashboard e2e tests
@@ -145,7 +147,7 @@ jobs:
 
       - name: Upload Dashboard test reports
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        if: (!cancelled())
+        if: (!cancelled()) && (inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop')
         with:
           name: playwright-report-wallet-dashboard
           path: apps/wallet-dashboard/playwright-report/
@@ -169,7 +171,7 @@ jobs:
 
       - name: Upload Wallet test reports
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        if: (!cancelled())
+        if: (!cancelled()) && (inputs.isWallet || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop')
         with:
           name: playwright-report-wallet
           path: apps/wallet/playwright-report/
@@ -194,7 +196,7 @@ jobs:
         run: DEBUG=pw:webserver xvfb-run --auto-servernum pnpm run test:e2e
 
       - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        if: (!cancelled())
+        if: (!cancelled()) && (inputs.isEvmBridge || inputs.isIscSDK || inputs.isTypescriptSDK || github.ref_name == 'develop')
         with:
           name: playwright-report-evm-bridge
           path: apps/evm-bridge/playwright-report/
