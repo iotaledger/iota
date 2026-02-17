@@ -60,7 +60,6 @@ test(`Passkey restoration should use ${EXPECTED_RP_ID} origin`, async ({ page, e
     await page.getByText('Reset').click();
     await page.getByRole('button', { name: 'Reset' }).click();
 
-    await page.goto(extensionUrl, { waitUntil: 'commit' });
     await page.getByRole('button', { name: /Get Started/ }).click();
     await page.getByText('Add existing wallet').click();
     await page.getByText('Passkey', { exact: true }).click();
