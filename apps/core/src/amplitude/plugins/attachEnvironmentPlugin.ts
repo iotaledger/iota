@@ -10,25 +10,19 @@ import { BrowserClient, BrowserConfig, EnrichmentPlugin, Event } from '@amplitud
  * This allows developers to test and debug events without polluting production analytics data.
  *
  */
-export function attachEnvironmentPlugin(): EnrichmentPlugin<BrowserClient, BrowserConfig> {
+export function attachEnvironmentPlugin(
+    isDev: boolean,
+): EnrichmentPlugin<BrowserClient, BrowserConfig> {
+    const DEV_EVENT_PREFIX = 'dev_';
+
     return {
         name: 'environment-plugin',
         type: 'enrichment' as const,
         setup: async () => {},
-        execute: async (context: Event) => {
-            // Prefix event name for development
-            const IS_DEVELOPMENT = process.env.NEXT_PUBLIC_BUILD_ENV !== 'production';
-            const DEV_EVENT_PREFIX = 'dev_';
-
-            if (
-                IS_DEVELOPMENT &&
-                context.event_type &&
-                !context.event_type.startsWith(DEV_EVENT_PREFIX)
-            ) {
-                context.event_type = DEV_EVENT_PREFIX + context.event_type;
-            }
-
-            return context;
+        execute: async (event: Event) => {
+            const type = event.event_type;
+            if (!isDev || !type || type.startsWith(DEV_EVENT_PREFIX)) return event;
+            return { ...event, event_type: DEV_EVENT_PREFIX + type };
         },
     };
 }
