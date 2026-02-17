@@ -21,17 +21,9 @@ interface AccountProps {
      */
     onOptionsClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
     /**
-     * Handler for the lock account icon click.
-     */
-    onLockAccountClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
-    /**
-     * Handle for the unlock account icon click.
-     */
-    onUnlockAccountClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
-    /**
      * Function to render avatar content.
      */
-    avatarContent: ({ isLocked }: { isLocked?: boolean }) => React.JSX.Element;
+    avatarContent: () => React.JSX.Element;
     /**
      * The onCopy event of the Address  (optional).
      */

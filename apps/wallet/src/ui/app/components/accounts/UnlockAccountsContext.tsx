@@ -12,14 +12,13 @@ import {
     useRef,
 } from 'react';
 import { toast } from '@iota/core';
-import { useUnlockMutation, useBackgroundClient, useActiveAccount } from '_hooks';
+import { useBackgroundClient, useActiveAccount } from '_hooks';
 import { UnlockAccountModal } from './UnlockAccountModal';
 
 interface UnlockAccountsContextType {
     isUnlockModalOpen: boolean;
     unlockAccounts: () => void;
     lockAccounts: () => void;
-    isPending: boolean;
     hideUnlockModal: () => void;
 }
 
@@ -31,7 +30,6 @@ interface UnlockAccountsProviderProps {
 
 export function UnlockAccountsProvider({ children }: UnlockAccountsProviderProps) {
     const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
-    const unlockAccountMutation = useUnlockMutation();
     const backgroundClient = useBackgroundClient();
     const activeAccount = useActiveAccount();
     const isUnlockingRef = useRef(false);
@@ -80,7 +78,6 @@ export function UnlockAccountsProvider({ children }: UnlockAccountsProviderProps
                 unlockAccounts,
                 hideUnlockModal,
                 lockAccounts,
-                isPending: unlockAccountMutation.isPending,
             }}
         >
             {children}
