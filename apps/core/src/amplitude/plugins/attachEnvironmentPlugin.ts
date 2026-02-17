@@ -3,7 +3,7 @@
 
 import { BrowserClient, BrowserConfig, EnrichmentPlugin, Event } from '@amplitude/analytics-types';
 
-const EXCLUDE_DEFAULT_EVENTS = ['$identify'];
+const DEFAULT_EVENT_PREFIX = '$';
 
 /**
  * Amplitude Environment Plugin
@@ -27,7 +27,7 @@ export function attachEnvironmentPlugin(
                 !isDev ||
                 !type ||
                 type.startsWith(DEV_EVENT_PREFIX) ||
-                EXCLUDE_DEFAULT_EVENTS.includes(type)
+                type.startsWith(DEFAULT_EVENT_PREFIX)
             ) {
                 return event;
             }
