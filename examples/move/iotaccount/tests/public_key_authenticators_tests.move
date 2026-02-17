@@ -2,15 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module iotaccount::keyed_iotaccount_tests;
+module iotaccount::public_key_authenticators_tests;
 
 use iota::authenticator_function;
 use iota::ecdsa_k1;
-use iota::hex;
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{assert_eq, assert_ref_eq};
 use iotaccount::iotaccount::{Self, IOTAccount};
-use iotaccount::keyed_iotaccount::{Self, borrow_public_key};
+use iotaccount::public_key_authenticators::{Self, borrow_public_key};
 use iotaccount::test_utils::create_authenticator_function_ref_v1_for_testing;
 use std::ascii;
 
@@ -25,7 +24,7 @@ fun account_created() {
     let public_key = b"42";
     let authenticator = create_authenticator_function_ref_v1_for_testing();
 
-    keyed_iotaccount::create(public_key, authenticator, ctx);
+    public_key_authenticators::create(public_key, authenticator, ctx);
 
     scenario.next_tx(@0x0);
     {
@@ -47,7 +46,7 @@ fun account_created() {
 // --------------------------------------- Ed25519 Authentication ---------------------------------------
 
 #[test]
-fun test_authenticate_ed25519() {
+fun test_ed25519_IOTAccount_authenticator() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
     let public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
@@ -64,9 +63,9 @@ fun test_authenticate_ed25519() {
         let signature =
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
 
-        keyed_iotaccount::authenticate_ed25519(
+        public_key_authenticators::ed25519_IOTAccount_authenticator(
             &account,
-            hex::encode(signature),
+            signature,
             &auth_ctx,
             &ctx,
         );
@@ -78,42 +77,8 @@ fun test_authenticate_ed25519() {
 }
 
 #[test]
-#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccount)]
-fun test_authenticate_ed25519_wrong_sender() {
-    let sender = @0x1;
-    let mut scenario_val = test_scenario::begin(sender);
-    let scenario = &mut scenario_val;
-    let public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
-
-    create_iotaccount_with_pk_for_testing(scenario, public_key);
-
-    scenario.next_tx(sender);
-    {
-        let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
-
-        let account = scenario.take_shared<IOTAccount>();
-        let ctx = create_tx_context_for_testing(sender, digest);
-        let auth_ctx = create_auth_context_for_testing();
-
-        let signature =
-            x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
-
-        keyed_iotaccount::authenticate_ed25519(
-            &account,
-            hex::encode(signature),
-            &auth_ctx,
-            &ctx,
-        );
-
-        test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
-}
-
-#[test]
-#[expected_failure(abort_code = keyed_iotaccount::EEd25519VerificationFailed)]
-fun test_authenticate_ed25519_wrong_signature() {
+#[expected_failure(abort_code = public_key_authenticators::EEd25519VerificationFailed)]
+fun test_ed25519_IOTAccount_authenticator_wrong_signature() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
     let public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
@@ -130,9 +95,9 @@ fun test_authenticate_ed25519_wrong_signature() {
         let signature =
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc40561aa";
 
-        keyed_iotaccount::authenticate_ed25519(
+        public_key_authenticators::ed25519_IOTAccount_authenticator(
             &account,
-            hex::encode(signature),
+            signature,
             &auth_ctx,
             &ctx,
         );
@@ -146,7 +111,7 @@ fun test_authenticate_ed25519_wrong_signature() {
 // --------------------------------------- Secp256k1 Authentication ---------------------------------------
 
 #[test]
-fun test_authenticate_secp256k1() {
+fun test_secp256k1_IOTAccount_authenticator() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
     let public_key = x"02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c";
@@ -163,9 +128,9 @@ fun test_authenticate_secp256k1() {
 
         let signature = ecdsa_k1::secp256k1_sign(&secret_key, &digest, 0, false);
 
-        keyed_iotaccount::authenticate_secp256k1(
+        public_key_authenticators::secp256k1_IOTAccount_authenticator(
             &account,
-            hex::encode(signature),
+            signature,
             &auth_ctx,
             &ctx,
         );
@@ -177,42 +142,8 @@ fun test_authenticate_secp256k1() {
 }
 
 #[test]
-#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccount)]
-fun test_authenticate_secp256k1_wrong_sender() {
-    let sender = @0x1;
-    let mut scenario_val = test_scenario::begin(sender);
-    let scenario = &mut scenario_val;
-    let public_key = x"02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c";
-
-    create_iotaccount_with_pk_for_testing(scenario, public_key);
-
-    scenario.next_tx(sender);
-    {
-        let secret_key = x"42258dcda14cf111c602b8971b8cc843e91e46ca905151c02744a6b017e69316";
-        let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
-
-        let account = scenario.take_shared<IOTAccount>();
-        let ctx = create_tx_context_for_testing(sender, digest);
-        let auth_ctx = create_auth_context_for_testing();
-
-        let signature = ecdsa_k1::secp256k1_sign(&secret_key, &digest, 0, false);
-
-        keyed_iotaccount::authenticate_secp256k1(
-            &account,
-            hex::encode(signature),
-            &auth_ctx,
-            &ctx,
-        );
-
-        test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
-}
-
-#[test]
-#[expected_failure(abort_code = keyed_iotaccount::ESecp256k1VerificationFailed)]
-fun test_authenticate_secp256k1_wrong_signature() {
+#[expected_failure(abort_code = public_key_authenticators::ESecp256k1VerificationFailed)]
+fun test_secp256k1_IOTAccount_authenticator_wrong_signature() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
     let public_key = x"02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c";
@@ -229,9 +160,9 @@ fun test_authenticate_secp256k1_wrong_signature() {
         let signature =
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
 
-        keyed_iotaccount::authenticate_secp256k1(
+        public_key_authenticators::secp256k1_IOTAccount_authenticator(
             &account,
-            hex::encode(signature),
+            signature,
             &auth_ctx,
             &ctx,
         );
@@ -245,7 +176,7 @@ fun test_authenticate_secp256k1_wrong_signature() {
 // --------------------------------------- Secp256r1 Authentication ---------------------------------------
 
 #[test]
-fun test_authenticate_secp256r1() {
+fun test_secp256r1_IOTAccount_authenticator() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
     let public_key = x"0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a";
@@ -262,9 +193,9 @@ fun test_authenticate_secp256r1() {
         let signature =
             x"310d0ab3a8870f6ab3d775f3cdf0a60059293e431f3ded9d1f6efe2c70f12da5628c7853ae18464b4d426d8ff6d31ae50fe31e47886b13733ba2aae508541bcd";
 
-        keyed_iotaccount::authenticate_secp256r1(
+        public_key_authenticators::secp256r1_IOTAccount_authenticator(
             &account,
-            hex::encode(signature),
+            signature,
             &auth_ctx,
             &ctx,
         );
@@ -276,42 +207,8 @@ fun test_authenticate_secp256r1() {
 }
 
 #[test]
-#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccount)]
-fun test_authenticate_secp256r1_wrong_sender() {
-    let sender = @0x1;
-    let mut scenario_val = test_scenario::begin(sender);
-    let scenario = &mut scenario_val;
-    let public_key = x"0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a";
-
-    create_iotaccount_with_pk_for_testing(scenario, public_key);
-
-    scenario.next_tx(sender);
-    {
-        let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
-
-        let account = scenario.take_shared<IOTAccount>();
-        let ctx = create_tx_context_for_testing(sender, digest);
-        let auth_ctx = create_auth_context_for_testing();
-
-        let signature =
-            x"310d0ab3a8870f6ab3d775f3cdf0a60059293e431f3ded9d1f6efe2c70f12da5628c7853ae18464b4d426d8ff6d31ae50fe31e47886b13733ba2aae508541bcd";
-
-        keyed_iotaccount::authenticate_secp256r1(
-            &account,
-            hex::encode(signature),
-            &auth_ctx,
-            &ctx,
-        );
-
-        test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
-}
-
-#[test]
-#[expected_failure(abort_code = keyed_iotaccount::ESecp256r1VerificationFailed)]
-fun test_authenticate_secp256r1_wrong_signature() {
+#[expected_failure(abort_code = public_key_authenticators::ESecp256r1VerificationFailed)]
+fun test_secp256r1_IOTAccount_authenticator_wrong_signature() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
     let public_key = x"0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a";
@@ -328,9 +225,9 @@ fun test_authenticate_secp256r1_wrong_signature() {
         let signature =
             x"310d0ab3a8870f6ab3d775f3cdf0a60059293e431f3ded9d1f6efe2c70f12da5628c7853ae18464b4d426d8ff6d31ae50fe31e47886b13733ba2aae508541baa";
 
-        keyed_iotaccount::authenticate_secp256r1(
+        public_key_authenticators::secp256r1_IOTAccount_authenticator(
             &account,
-            hex::encode(signature),
+            signature,
             &auth_ctx,
             &ctx,
         );
@@ -362,7 +259,7 @@ fun test_rotate_account_public_key() {
         );
         let ctx = test_scenario::ctx(scenario);
 
-        keyed_iotaccount::rotate_public_key(&mut account, public_key, authenticator, ctx);
+        public_key_authenticators::rotate_public_key(&mut account, public_key, authenticator, ctx);
 
         assert_eq(*borrow_public_key(&account), public_key);
         assert_ref_eq(account.borrow_auth_function_ref_v1(), &authenticator);
@@ -374,7 +271,7 @@ fun test_rotate_account_public_key() {
 }
 
 #[test]
-#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccountOrAdmin)]
 fun test_rotate_account_public_key_wrong_sender() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
@@ -394,7 +291,7 @@ fun test_rotate_account_public_key_wrong_sender() {
         );
         let ctx = test_scenario::ctx(scenario);
 
-        keyed_iotaccount::rotate_public_key(&mut account, public_key, authenticator, ctx);
+        public_key_authenticators::rotate_public_key(&mut account, public_key, authenticator, ctx);
 
         test_scenario::return_shared(account);
     };
@@ -412,7 +309,7 @@ fun create_iotaccount_with_pk_for_testing(
 
     let authenticator = create_authenticator_function_ref_v1_for_testing();
 
-    keyed_iotaccount::create(public_key, authenticator, ctx);
+    public_key_authenticators::create(public_key, authenticator, ctx);
 
     scenario.next_tx(@0x0);
 

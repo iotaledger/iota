@@ -248,7 +248,7 @@ fun non_account_can_query_dynamic_field_existence() {
 // ---------------------------------- Rotate reserved field -------------------------------------
 
 #[test]
-#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccountOrAdmin)]
 fun non_account_cant_rotate_auth_function_ref_v1() {
     non_account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
@@ -264,7 +264,7 @@ fun non_account_cant_rotate_auth_function_ref_v1() {
 }
 
 #[test]
-#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccountOrAdmin)]
 fun non_account_cant_rotate_dynamic_field() {
     non_account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();

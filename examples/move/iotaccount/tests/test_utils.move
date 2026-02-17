@@ -12,13 +12,13 @@ public fun create_iotaccount_for_testing(scenario: &mut iota::test_scenario::Sce
 
     let authenticator = create_authenticator_function_ref_v1_for_testing();
 
-    builder(authenticator, ctx).add_dynamic_field(b"SomeData".to_ascii_string(), 3u8).build()
+    builder(authenticator, ctx).with_field(b"SomeData".to_ascii_string(), 3u8).build()
 }
 
 public fun create_authenticator_function_ref_v1_for_testing(): AuthenticatorFunctionRefV1<
     IOTAccount,
 > {
-    // The exact values don't matter in these tests.
+    // The exact values doesn't matter in these tests.
     authenticator_function::create_auth_function_ref_v1_for_testing(
         @0x1,
         std::ascii::string(b"iotaccount"),

@@ -26,7 +26,7 @@ fun builder_all_mandatory_fields_set() {
     let authenticator = create_authenticator_function_ref_v1_for_testing();
     // Any field value can be set as a dynamic field, and for the purposes of this test
     // the exact value doesn't matter.
-    iotaccount::builder(authenticator, ctx).add_dynamic_field(dynamic_field_key, 6).build();
+    iotaccount::builder(authenticator, ctx).with_field(dynamic_field_key, 6).build();
 
     scenario.next_tx(@0x0);
     {
@@ -60,8 +60,8 @@ fun attempting_to_add_same_dynamic_field_twice() {
 
     let field_name = b"SomeData".to_ascii_string();
     iotaccount::builder(authenticator, ctx)
-        .add_dynamic_field(field_name, 3)
-        .add_dynamic_field(
+        .with_field(field_name, 3)
+        .with_field(
             field_name,
             3,
         )
@@ -84,11 +84,11 @@ fun dynamic_fields_observe_the_value_not_just_the_type() {
     let field_name = b"SomeData".to_ascii_string();
     let another_name = b"DifferentData".to_ascii_string();
     iotaccount::builder(authenticator, ctx)
-        .add_dynamic_field(
+        .with_field(
             field_name,
             3,
         )
-        .add_dynamic_field(
+        .with_field(
             another_name,
             3,
         )
