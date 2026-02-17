@@ -24,12 +24,10 @@ export function externalLinkOpenedPrivacyPlugin(): EnrichmentPlugin {
                     ? (props.visibility as 'public' | 'private')
                     : 'private';
 
-            // only allow public for documentation/application
             if (!PUBLIC_TYPES.has(type)) {
                 visibility = 'private';
             }
 
-            // address, digest and object always private
             if (PRIVATE_TYPES.has(type)) {
                 visibility = 'private';
             }
