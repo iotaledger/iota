@@ -87,7 +87,6 @@ mod sim_only_tests {
         },
     };
     use move_binary_format::CompiledModule;
-    use move_core_types::ident_str;
     use test_cluster::TestCluster;
     use tokio::time::{Duration, sleep};
     use tracing::info;
@@ -633,7 +632,7 @@ mod sim_only_tests {
         let mutated_to = effects
             .mutated()
             .iter()
-            .find_map(|((id, v, _), _)| (id == &ObjectID::SYSTEM).then_some(*v));
+            .find_map(|(object_ref, _)| (object_ref.object_id == ObjectID::SYSTEM).then_some(object_ref.version));
 
         (modified_at, mutated_to)
     }
