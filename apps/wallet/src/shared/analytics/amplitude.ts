@@ -12,6 +12,8 @@ import { elementCopiedPrivacyPlugin } from './plugins';
 
 const IS_ENABLED = process.env.BUILD_ENV === 'production';
 
+const IS_DEV = process.env.BUILD_ENV !== 'production';
+
 export async function initAmplitude() {
     ampli.load({
         environment: 'iotawallet',
@@ -53,7 +55,7 @@ export async function initAmplitude() {
     });
 
     // Add environment plugin to set prefix dev events
-    ampli.client.add(attachEnvironmentPlugin());
+    ampli.client.add(attachEnvironmentPlugin(IS_DEV));
 
     ampli.client.add(elementCopiedPrivacyPlugin());
 }

@@ -35,8 +35,8 @@ use iota_move::{
     self, Command as MoveCommand, execute_move_command, manage_package::resolve_lock_file_path,
 };
 use iota_move_build::{
-    BuildConfig as IotaBuildConfig, IotaPackageHooks, check_invalid_dependencies,
-    check_unpublished_dependencies, implicit_deps,
+    BuildConfig as IotaBuildConfig, IotaPackageHooks, check_conflicting_addresses,
+    check_invalid_dependencies, check_unpublished_dependencies, implicit_deps,
 };
 use iota_package_management::system_package_versions::latest_system_packages;
 use iota_sdk::{
@@ -625,7 +625,9 @@ impl IotaCommand {
 
                         let with_unpublished_deps = build.with_unpublished_dependencies;
 
+                        check_conflicting_addresses(&pkg.dependency_ids.conflicting, true)?;
                         check_invalid_dependencies(&pkg.dependency_ids.invalid)?;
+
                         if !with_unpublished_deps {
                             check_unpublished_dependencies(&pkg.dependency_ids.unpublished)?;
                         }
