@@ -58,11 +58,6 @@ describe('GraphQL IotaClient compatibility', () => {
 
         transactionBlockDigest = result.digest;
 
-        await graphQLClient.waitForTransaction({
-            digest: transactionBlockDigest,
-            waitMode: 'checkpoint',
-        });
-
         // create another transaction
         const anotherTx = new Transaction();
         const [coins] = anotherTx.splitCoins(anotherTx.gas, [1]);
