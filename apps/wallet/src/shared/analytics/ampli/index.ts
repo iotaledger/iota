@@ -223,6 +223,16 @@ export interface DisconnectedApplicationProperties {
     sourceFlow?: string;
 }
 
+export interface ExternalLinkOpenedProperties {
+    type: string;
+    value?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Enum Values | private, public |
+     */
+    visibility?: 'private' | 'public';
+}
 export interface OpenedApplicationProperties {
     applicationName?: string;
 }
@@ -499,6 +509,13 @@ export class DisconnectedApplication implements BaseEvent {
     }
 }
 
+export class ExternalLinkOpened implements BaseEvent {
+    event_type = 'external link opened';
+
+    constructor(public event_properties: ExternalLinkOpenedProperties) {
+        this.event_properties = event_properties;
+    }
+}
 export class OpenedApplication implements BaseEvent {
     event_type = 'opened application';
 
@@ -986,6 +1003,22 @@ export class Ampli {
     return this.track(new DisconnectedApplication(properties), options);
   }
 
+  /**
+   * external link opened
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/external%20link%20opened)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. type)
+   * @param options Amplitude event options.
+   */
+  externalLinkOpened(
+    properties: ExternalLinkOpenedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ExternalLinkOpened(properties), options);
+  }
   /**
    * opened application
    *
