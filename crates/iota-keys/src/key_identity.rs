@@ -7,9 +7,10 @@ use std::{fmt::Display, str::FromStr};
 use iota_types::base_types::IotaAddress;
 use serde::Serialize;
 
-/// An address or an alias associated with a key in the wallet
+/// An address or an alias associated with a key in the wallet.
 /// This is used to distinguish between an address or an alias,
 /// enabling a user to use an alias for any command that requires an address.
+/// When `iota-names` feature is enabled, it can also be a name.
 #[derive(Debug, Serialize, Clone)]
 pub enum KeyIdentity {
     Address(IotaAddress),
