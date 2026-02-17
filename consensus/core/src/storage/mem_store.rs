@@ -19,7 +19,6 @@ use crate::{
         TrustedCommit,
     },
     error::ConsensusResult,
-    storage::rocksdb_store::SCORING_METRICS_V2_KEY,
 };
 
 /// In-memory storage for testing.
@@ -33,7 +32,7 @@ struct Inner {
     commits: BTreeMap<(CommitIndex, CommitDigest), TrustedCommit>,
     commit_votes: BTreeSet<(CommitIndex, CommitDigest, BlockRef)>,
     commit_info: BTreeMap<(CommitIndex, CommitDigest), CommitInfo>,
-    scoring_metrics: BTreeMap<u32, VersionedScoringMetrics>,
+    scoring_metrics: BTreeMap<(), VersionedScoringMetrics>,
 }
 
 impl MemStore {
@@ -86,9 +85,7 @@ impl Store for MemStore {
         }
 
         if let Some(metrics) = write_batch.scoring_metrics {
-            inner
-                .scoring_metrics
-                .insert(SCORING_METRICS_V2_KEY, metrics);
+            inner.scoring_metrics.insert((), metrics);
         }
 
         Ok(())
@@ -142,10 +139,7 @@ impl Store for MemStore {
         _committee: &Committee,
     ) -> ConsensusResult<Option<VersionedScoringMetrics>> {
         let inner = self.inner.read();
-        Ok(inner
-            .scoring_metrics
-            .get(&SCORING_METRICS_V2_KEY)
-            .map(|m| m.snapshot()))
+        Ok(inner.scoring_metrics.get(&()).map(|m| m.snapshot()))
     }
 
     fn contains_block_at_slot(&self, slot: Slot) -> ConsensusResult<bool> {

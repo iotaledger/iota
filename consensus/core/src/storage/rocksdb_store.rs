@@ -23,8 +23,6 @@ use crate::{
     storage::StorageScoringMetrics,
 };
 
-pub(crate) const SCORING_METRICS_V2_KEY: u32 = 0;
-
 /// Persistent storage with RocksDB.
 pub(crate) struct RocksDBStore {
     /// Stores SignedBlock by refs.
@@ -40,9 +38,10 @@ pub(crate) struct RocksDBStore {
     commit_info: DBMap<(CommitIndex, CommitDigest), CommitInfo>,
     /// Legacy scoring metrics (read-only).
     /// TODO: remove this field after migration is done.
+    #[deprecated]
     scoring_metrics: DBMap<AuthorityIndex, StorageScoringMetrics>,
     /// Stores versioned scoring metrics as a single blob under key 0.
-    scoring_metrics_v2: DBMap<u32, VersionedScoringMetrics>,
+    scoring_metrics_v2: DBMap<(), VersionedScoringMetrics>,
 }
 
 impl RocksDBStore {
@@ -101,7 +100,7 @@ impl RocksDBStore {
             Self::COMMIT_VOTES_CF;<(CommitIndex, CommitDigest, BlockRef), ()>,
             Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>,
             Self::SCORING_METRICS_CF;<AuthorityIndex, StorageScoringMetrics>,
-            Self::SCORING_METRICS_V2_CF;<u32, VersionedScoringMetrics>
+            Self::SCORING_METRICS_V2_CF;<(), VersionedScoringMetrics>
         );
 
         Self {
@@ -110,6 +109,7 @@ impl RocksDBStore {
             commits,
             commit_votes,
             commit_info,
+            #[allow(deprecated)]
             scoring_metrics,
             scoring_metrics_v2,
         }
@@ -167,10 +167,7 @@ impl Store for RocksDBStore {
         }
         if let Some(metrics) = &write_batch.scoring_metrics {
             batch
-                .insert_batch(
-                    &self.scoring_metrics_v2,
-                    [(&SCORING_METRICS_V2_KEY, metrics)],
-                )
+                .insert_batch(&self.scoring_metrics_v2, [(&(), metrics)])
                 .map_err(ConsensusError::RocksDBFailure)?;
         }
 
@@ -255,12 +252,13 @@ impl Store for RocksDBStore {
         committee: &Committee,
     ) -> ConsensusResult<Option<VersionedScoringMetrics>> {
         // Try to read the single blob from the v2 CF first.
-        if let Some(metrics) = self.scoring_metrics_v2.get(&SCORING_METRICS_V2_KEY)? {
+        if let Some(metrics) = self.scoring_metrics_v2.get(&())? {
             return Ok(Some(metrics));
         }
 
         // Fall back to v1 (per-authority) CF.
         let mut legacy_entries = vec![];
+        #[allow(deprecated)]
         for kv in self.scoring_metrics.safe_iter() {
             legacy_entries.push(kv?);
         }
@@ -437,6 +435,7 @@ impl RocksDBStore {
         &self,
         entries: Vec<(AuthorityIndex, [u64; 4])>,
     ) -> ConsensusResult<()> {
+        #[allow(deprecated)]
         let mut batch = self.scoring_metrics.batch();
         for (authority, [fbp, fbu, missing, equiv]) in entries {
             let legacy = StorageScoringMetrics {
@@ -445,6 +444,7 @@ impl RocksDBStore {
                 missing_proposals: missing,
                 equivocations: equiv,
             };
+            #[allow(deprecated)]
             batch
                 .insert_batch(&self.scoring_metrics, [(authority, legacy)])
                 .map_err(ConsensusError::RocksDBFailure)?;
