@@ -5,7 +5,7 @@
 import { getCoinSymbol, useGetAllBalances, useRecognizedPackages } from '@iota/core';
 import { type CoinBalance } from '@iota/iota-sdk/client';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
-import { FilterList, Warning } from '@iota/apps-ui-icons';
+import { FilterList, Warning, SortByDown, SortByUp, SortByDefault } from '@iota/apps-ui-icons';
 import { useMemo, useState } from 'react';
 import { OwnedCoinView } from './OwnedCoinView';
 import {
@@ -35,13 +35,27 @@ enum CoinFilter {
     Unrecognized = 'unrecognizedBalances',
 }
 
+export enum SortField {
+    Id = 'id',
+    Balance = 'balance',
+}
+
+export enum SortOrder {
+    Asc = 'asc',
+    Desc = 'desc',
+}
+
 interface OwnerCoinsProps {
     id: string;
 }
+
 export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
     const [currentSlice, setCurrentSlice] = useState(1);
     const [limit, setLimit] = useState(20);
     const [filterValue, setFilterValue] = useState(CoinFilter.All);
+    const [sortField, setSortField] = useState(SortField.Id);
+    const [sortOrder, setSortOrder] = useState(SortOrder.Desc);
+
     const owner = normalizeIotaAddress(id);
     const { isPending, data, isError } = useGetAllBalances(owner);
     const recognizedPackages = useRecognizedPackages();
@@ -96,6 +110,11 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
     function handleFilterClick(filterValue: CoinFilter) {
         setFilterValue(filterValue);
         setCurrentSlice(1);
+    }
+
+    function handleSortChange(field: SortField, order: SortOrder) {
+        setSortField(field);
+        setSortOrder(order);
     }
 
     const filterOptions: FilterOption[] = useMemo(
@@ -154,7 +173,16 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                         <Title
                             title={coinBalanceHeader}
                             trailingElement={
-                                hasCoinsBalance && <CoinsFilter filterOptions={filterOptions} />
+                                hasCoinsBalance && (
+                                    <div className="flex items-center gap-xs">
+                                        <SortDropdown
+                                            sortField={sortField}
+                                            sortOrder={sortOrder}
+                                            onSortChange={handleSortChange}
+                                        />
+                                        <CoinsFilter filterOptions={filterOptions} />
+                                    </div>
+                                )
                             }
                         />
                     </div>
@@ -171,7 +199,12 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                                         />
                                     </div>
                                 )}
-                                <CoinList coins={visibleCoins} id={id} />
+                                <CoinList
+                                    coins={visibleCoins}
+                                    id={id}
+                                    sortField={sortField}
+                                    sortOrder={sortOrder}
+                                />
                             </div>
 
                             {displayedBalances.length > limit && (
@@ -284,16 +317,105 @@ function CoinsFilter({ filterOptions }: CoinsFilterProps) {
     );
 }
 
+interface SortDropdownProps {
+    sortField: SortField;
+    sortOrder: SortOrder;
+    onSortChange: (field: SortField, order: SortOrder) => void;
+}
+
+function SortDropdown({ sortField, sortOrder, onSortChange }: SortDropdownProps) {
+    const [isSortVisible, setIsSortVisible] = useState<boolean>(false);
+
+    function toggleSortDropdown() {
+        setIsSortVisible(!isSortVisible);
+    }
+
+    function handleSortClick(field: SortField) {
+        if (field === sortField) {
+            onSortChange(field, sortOrder === SortOrder.Asc ? SortOrder.Desc : SortOrder.Asc);
+        } else {
+            const defaultOrder = field === SortField.Balance ? SortOrder.Desc : SortOrder.Asc;
+            onSortChange(field, defaultOrder);
+        }
+        toggleSortDropdown();
+    }
+
+    const sortOptions = [
+        { field: SortField.Id, label: 'Object ID' },
+        { field: SortField.Balance, label: 'Balance' },
+    ];
+
+    return (
+        <div className="relative z-10">
+            <Button
+                type={ButtonType.Ghost}
+                onClick={toggleSortDropdown}
+                icon={<SortByDefault />}
+                text="Sort by"
+                iconAfterText
+            />
+            {isSortVisible && (
+                <div className="absolute right-0 min-w-[150px]">
+                    <Dropdown>
+                        {sortOptions.map(({ field, label }, index) => {
+                            const isActive = sortField === field;
+                            let currentIcon = null;
+
+                            if (isActive) {
+                                const isDefaultSorting =
+                                    (field === SortField.Id && sortOrder === SortOrder.Asc) ||
+                                    (field === SortField.Balance && sortOrder === SortOrder.Desc);
+                                currentIcon = isDefaultSorting ? <SortByUp /> : <SortByDown />;
+                            }
+
+                            return (
+                                <div
+                                    key={index}
+                                    className={
+                                        isActive
+                                            ? 'bg-iota-neutral-100 dark:bg-iota-neutral-10'
+                                            : ''
+                                    }
+                                >
+                                    <ListItem
+                                        onClick={() => handleSortClick(field)}
+                                        hideBottomBorder
+                                    >
+                                        <div className="flex w-full flex-row items-center justify-between gap-x-md">
+                                            <span>{label}</span>
+                                            {currentIcon && (
+                                                <span className="ml-auto">{currentIcon}</span>
+                                            )}
+                                        </div>
+                                    </ListItem>
+                                </div>
+                            );
+                        })}
+                    </Dropdown>
+                </div>
+            )}
+        </div>
+    );
+}
+
 interface CoinListProps {
     coins: CoinBalanceVerified[];
     id: string;
+    sortField: SortField;
+    sortOrder: SortOrder;
 }
 
-function CoinList({ coins, id }: CoinListProps) {
+function CoinList({ coins, id, sortField, sortOrder }: CoinListProps) {
     return (
         <div className="flex max-h-[400px] w-full flex-col gap-xxs md:max-h-[650px]">
             {coins.map((coin, index) => (
-                <OwnedCoinView key={`${coin.coinType}-${index}`} coin={coin} id={id} />
+                <OwnedCoinView
+                    key={`${coin.coinType}-${index}`}
+                    coin={coin}
+                    id={id}
+                    sortField={sortField}
+                    sortOrder={sortOrder}
+                />
             ))}
         </div>
     );
