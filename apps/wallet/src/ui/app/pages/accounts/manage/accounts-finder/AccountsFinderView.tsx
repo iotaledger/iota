@@ -42,7 +42,7 @@ import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAcco
 import { MigrationDialog } from '../../../home/tokens/MigrationDialog';
 import { SupplyIncreaseVestingStakingDialog } from '../../../home/tokens/SupplyIncreaseVestingStakingDialog';
 import { ampli } from '_src/shared/analytics/ampli';
-import { ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE } from '_src/shared/analytics/helpers';
+import { ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE } from '_src/shared/analytics';
 
 function getAccountSourceType(
     accountSource?: AccountSourceSerializedUI,
