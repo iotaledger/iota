@@ -3592,130 +3592,82 @@
             "description": "A move value serialized as BCS.\n\nFor normal operations this is required to be a move primitive type and not contain structs or objects.",
             "type": "object",
             "required": [
-              "type",
-              "value"
+              "pure"
             ],
             "properties": {
-              "type": {
-                "type": "string",
-                "enum": [
-                  "pure"
-                ]
-              },
-              "value": {
-                "description": "Base64 encoded data",
-                "type": "string",
-                "format": "base64"
+              "pure": {
+                "type": "object",
+                "required": [
+                  "value"
+                ],
+                "properties": {
+                  "value": {
+                    "description": "Base64 encoded data",
+                    "type": "string",
+                    "format": "base64"
+                  }
+                }
               }
-            }
+            },
+            "additionalProperties": false
           },
           {
             "description": "A move object that is either immutable or address owned",
             "type": "object",
             "required": [
-              "digest",
-              "objectId",
-              "type",
-              "version"
+              "immutable_or_owned"
             ],
             "properties": {
-              "digest": {
-                "description": "The digest of this object.",
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/Digest"
-                  }
-                ]
-              },
-              "objectId": {
-                "description": "The object id of this object.",
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/ObjectId"
-                  }
-                ]
-              },
-              "type": {
-                "type": "string",
-                "enum": [
-                  "immutable_or_owned"
-                ]
-              },
-              "version": {
-                "description": "The version of this object.",
-                "type": "string",
-                "format": "u64"
+              "immutable_or_owned": {
+                "$ref": "#/components/schemas/ObjectReference"
               }
-            }
+            },
+            "additionalProperties": false
           },
           {
             "description": "A move object whose owner is \"Shared\"",
             "type": "object",
             "required": [
-              "initialSharedVersion",
-              "mutable",
-              "objectId",
-              "type"
+              "shared"
             ],
             "properties": {
-              "initialSharedVersion": {
-                "description": "Radix-10 encoded 64-bit unsigned integer",
-                "type": "string",
-                "format": "u64"
-              },
-              "mutable": {
-                "description": "Controls whether the caller asks for a mutable reference to the shared object.",
-                "type": "boolean"
-              },
-              "objectId": {
-                "$ref": "#/components/schemas/ObjectId"
-              },
-              "type": {
-                "type": "string",
-                "enum": [
-                  "shared"
-                ]
+              "shared": {
+                "type": "object",
+                "required": [
+                  "initialSharedVersion",
+                  "mutable",
+                  "objectId"
+                ],
+                "properties": {
+                  "initialSharedVersion": {
+                    "description": "Radix-10 encoded 64-bit unsigned integer",
+                    "type": "string",
+                    "format": "u64"
+                  },
+                  "mutable": {
+                    "description": "Controls whether the caller asks for a mutable reference to the shared object.",
+                    "type": "boolean"
+                  },
+                  "objectId": {
+                    "$ref": "#/components/schemas/ObjectId"
+                  }
+                }
               }
-            }
+            },
+            "additionalProperties": false
           },
           {
             "description": "A move object that is attempted to be received in this transaction.",
             "type": "object",
             "required": [
-              "digest",
-              "objectId",
-              "type",
-              "version"
+              "receiving"
             ],
             "properties": {
-              "digest": {
-                "description": "The digest of this object.",
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/Digest"
-                  }
-                ]
-              },
-              "objectId": {
-                "description": "The object id of this object.",
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/ObjectId"
-                  }
-                ]
-              },
-              "type": {
-                "type": "string",
-                "enum": [
-                  "receiving"
-                ]
-              },
-              "version": {
-                "description": "The version of this object.",
-                "type": "string",
-                "format": "u64"
+              "receiving": {
+                "$ref": "#/components/schemas/ObjectReference"
               }
-            }
+            },
+            "additionalProperties": false
           }
         ]
       },
@@ -4267,36 +4219,22 @@
         ]
       },
       "ObjectReference": {
-        "description": "Reference to an object\n\nContains sufficient information to uniquely identify a specific object.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text object-ref = object-id u64 digest ```",
-        "type": "object",
-        "required": [
-          "digest",
-          "objectId",
-          "version"
-        ],
-        "properties": {
-          "digest": {
-            "description": "The digest of this object.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Digest"
-              }
-            ]
+        "type": "array",
+        "items": [
+          {
+            "$ref": "#/components/schemas/ObjectId"
           },
-          "objectId": {
-            "description": "The object id of this object.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ObjectId"
-              }
-            ]
+          {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
           },
-          "version": {
-            "description": "The version of this object.",
-            "type": "string",
-            "format": "u64"
+          {
+            "$ref": "#/components/schemas/Digest"
           }
-        }
+        ],
+        "maxItems": 3,
+        "minItems": 3
       },
       "Owner": {
         "description": "Enum of different types of ownership for an object.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text owner = owner-address / owner-object / owner-shared / owner-immutable\n\nowner-address   = %x00 address owner-object    = %x01 object-id owner-shared    = %x02 u64 owner-immutable = %x03 ```",

@@ -181,7 +181,7 @@ impl Workload<dyn Payload> for RandomnessWorkload {
             self.basics_package_id = Some(
                 publish_basics_package(gas.0, proxy.clone(), gas.1, &gas.2, gas_price)
                     .await
-                    .0,
+                    .object_id,
             );
             info!("Basics package id {:?}", self.basics_package_id);
         }

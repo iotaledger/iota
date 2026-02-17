@@ -237,13 +237,13 @@ impl LiveObjectSetWriterV1 {
     /// Writes an object reference to the reference file.
     fn write_object_ref(&mut self, object_ref: &ObjectRef) -> Result<()> {
         let mut buf = [0u8; OBJECT_REF_BYTES];
-        buf[0..ObjectID::LENGTH].copy_from_slice(object_ref.0.as_ref());
+        buf[0..ObjectID::LENGTH].copy_from_slice(object_ref.object_id.as_ref());
         BigEndian::write_u64(
             &mut buf[ObjectID::LENGTH..OBJECT_REF_BYTES],
-            object_ref.1.as_u64(),
+            object_ref.version.as_u64(),
         );
         buf[ObjectID::LENGTH + SEQUENCE_NUM_BYTES..OBJECT_REF_BYTES]
-            .copy_from_slice(object_ref.2.as_ref());
+            .copy_from_slice(object_ref.digest.as_ref());
         self.ref_wbuf.write_all(&buf)?;
         Ok(())
     }

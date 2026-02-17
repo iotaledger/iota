@@ -39,11 +39,11 @@ const PRIMARY_COIN_VALUE: u64 = 100 * NANOS_PER_IOTA;
 /// Number of nanos sent to each address on each batch transfer
 const BATCH_TRANSFER_AMOUNT: u64 = 1;
 
-const DUMMY_GAS: ObjectRef = (
-    ObjectID::ZERO,
-    SequenceNumber::MIN_VALID_INCL,
-    ObjectDigest::MIN,
-);
+const DUMMY_GAS: ObjectRef = ObjectRef {
+    object_id: ObjectID::ZERO,
+    version: SequenceNumber::MIN_VALID_INCL,
+    digest: ObjectDigest::MIN,
+};
 
 #[derive(Debug)]
 pub struct BatchPaymentTestPayload {

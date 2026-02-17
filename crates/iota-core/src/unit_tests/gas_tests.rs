@@ -128,7 +128,7 @@ async fn publish_move_random_package(
         .find(|(_, owner)| matches!(owner, Owner::Immutable))
         .unwrap()
         .0
-        .0
+        .object_id
 }
 
 async fn check_oog_transaction<F>(
@@ -213,7 +213,7 @@ where
         ExecutionFailureStatus::InsufficientGas
     );
     // gas object in effects is first coin in vector of coins
-    assert_eq!(gas_coin_ids[0], effects.gas_object().0.0);
+    assert_eq!(gas_coin_ids[0], effects.gas_object().0.object_id);
     //  gas at position 0 mutated
     assert_eq!(effects.mutated().len(), 1);
     // extra coins are deleted
@@ -223,11 +223,14 @@ where
             effects
                 .deleted()
                 .iter()
-                .any(|deleted| deleted.0 == *gas_coin_id)
+                .any(|deleted| deleted.object_id == *gas_coin_id)
         );
     }
     let gas_ref = effects.gas_object().0;
-    let gas_object = authority_state.get_object(&gas_ref.0).await.unwrap();
+    let gas_object = authority_state
+        .get_object(&gas_ref.object_id)
+        .await
+        .unwrap();
     let final_value = GasCoin::try_from(&gas_object)?.value();
     let summary = effects.gas_cost_summary();
 
@@ -617,7 +620,7 @@ async fn test_invalid_gas_owners() {
     let immutable_object = init_object(Object::immutable_for_testing()).await;
     let id_owned_object = init_object(Object::with_object_owner_for_testing(
         ObjectID::random(),
-        gas_object3.0,
+        gas_object3.object_id,
     ))
     .await;
     let non_sender_owned_object =
@@ -688,7 +691,7 @@ async fn test_invalid_gas_owners() {
         )
         .await,
         UserInputError::GasObjectNotOwnedObject {
-            owner: Owner::ObjectOwner(gas_object3.0.into())
+            owner: Owner::ObjectOwner(gas_object3.object_id.into())
         }
     );
     assert!(matches!(
@@ -757,8 +760,8 @@ async fn test_native_transfer_insufficient_gas_execution() {
     assert_eq!(gas_coin.value(), 0);
     // After a failed transfer, the version should have been incremented,
     // but the owner of the object should remain the same, unchanged.
-    let ((_, version, _), owner) = effects.mutated_excluding_gas()[0];
-    assert_eq!(version, gas_object.version());
+    let (object_ref, owner) = effects.mutated_excluding_gas()[0];
+    assert_eq!(object_ref.version, gas_object.version());
     assert_eq!(owner, gas_object.owner);
 
     assert_eq!(
@@ -857,7 +860,7 @@ async fn test_move_call_gas() -> IotaResult {
     ];
     let data = TransactionData::new_move_call(
         sender,
-        package_object_ref.0,
+        package_object_ref.object_id,
         module.clone(),
         function.clone(),
         Vec::new(),
@@ -890,7 +893,7 @@ async fn test_move_call_gas() -> IotaResult {
     // Execute object deletion, and make sure we have storage rebate.
     let data = TransactionData::new_move_call(
         sender,
-        package_object_ref.0,
+        package_object_ref.object_id,
         module.clone(),
         Identifier::from_static("delete"),
         vec![],

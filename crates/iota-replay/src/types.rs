@@ -49,7 +49,7 @@ pub struct OnChainTransactionInfo {
     pub kind: TransactionKind,
     pub modified_at_versions: Vec<(ObjectID, SequenceNumber)>,
     pub shared_object_refs: Vec<ObjectRef>,
-    pub gas: Vec<(ObjectID, SequenceNumber, ObjectDigest)>,
+    pub gas: Vec<ObjectRef>,
     pub gas_budget: u64,
     pub gas_price: u64,
     pub executed_epoch: u64,

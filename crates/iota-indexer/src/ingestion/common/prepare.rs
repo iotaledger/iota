@@ -37,7 +37,7 @@ impl<'chk> Extractor<'chk> {
                 latest_live_objects.insert(obj.id(), obj);
             }
             for obj_ref in tx.removed_object_refs_post_version() {
-                latest_live_objects.remove(&(obj_ref.0));
+                latest_live_objects.remove(&(obj_ref.object_id));
             }
         }
         latest_live_objects.into_values()
@@ -50,7 +50,7 @@ impl<'chk> Extractor<'chk> {
         for tx in self.checkpoint.transactions.iter() {
             let digest = tx.transaction.digest();
             for obj_ref in tx.removed_object_refs_post_version() {
-                eventually_removed_object_refs.insert(obj_ref.0, (obj_ref, *digest));
+                eventually_removed_object_refs.insert(obj_ref.object_id, (obj_ref, *digest));
             }
             for obj in tx.output_objects.iter() {
                 eventually_removed_object_refs.remove(&(obj.id()));
@@ -141,11 +141,10 @@ impl RemovedObject {
         transaction_digest: TransactionDigest,
         object_ref: ObjectRef,
     ) -> Self {
-        let (object_id, object_version, _) = object_ref;
         let indexed_object = IndexedDeletedObject {
             checkpoint_sequence_number,
-            object_id,
-            object_version: object_version.as_u64(),
+            object_id: object_ref.object_id,
+            object_version: object_ref.version.as_u64(),
         };
         Self {
             indexed_object,
