@@ -921,7 +921,7 @@ export class IotaClient {
         signal,
         timeout = 60 * 1000,
         pollInterval = 2 * 1000,
-        waitMode,
+        waitMode = 'checkpoint',
         ...input
     }: {
         /** An optional abort signal that can be used to cancel */
@@ -932,6 +932,7 @@ export class IotaClient {
         pollInterval?: number;
         /** Whether to wait the transaction to have been checkpointed or indexed on the node.
          * A transaction might be indexed but not checkpointed yet, but a checkpointed transaction is guaranteed to be indexed.
+         * The default is 'checkpoint'.
          */
         waitMode?: 'checkpoint' | 'indexed-on-node';
     } & Parameters<IotaClient['getTransactionBlock']>[0]): Promise<IotaTransactionBlockResponse> {
