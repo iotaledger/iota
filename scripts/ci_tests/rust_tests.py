@@ -234,11 +234,14 @@ class RustTestOrchestrator:
         return crate_mappings
     
     # find crates that have changed by comparing current branch with the specified base branch.
-    def search_changed_crates(self) -> List[str]:
+    # subfolder_filter: if specified, only look for changes in files that start with this path
+    # crates_filter_file: path to the crates filter YAML file to use (default: .github/crates-filters.yml)
+    def search_changed_crates(self, subfolder_filter: str = None, crates_filter_file: str = None) -> List[str]:
         try:
             base_branch = self.config['base_branch']
             # Log that we are using the fallback method to detect changed crates
-            self.logger.info(f"Detecting changed crates by comparing with {base_branch}...")
+            filter_msg = f" in {subfolder_filter}" if subfolder_filter else ""
+            self.logger.info(f"Detecting changed crates{filter_msg} by comparing with {base_branch}...")
 
             # Get changed files
             result = subprocess.run(
@@ -250,8 +253,14 @@ class RustTestOrchestrator:
             )
             changed_files = [f.strip() for f in result.stdout.split('\n') if f.strip()]
             
+            # Filter changed files to subfolder if specified
+            if subfolder_filter:
+                changed_files = [f for f in changed_files if f.startswith(subfolder_filter)]
+            
             # Load crate mappings
-            crates_filters_path = self.root_dir / '.github' / 'crates-filters.yml'
+            if crates_filter_file is None:
+                crates_filter_file = '.github/crates-filters.yml'
+            crates_filters_path = self.root_dir / crates_filter_file
             crate_mappings = self.parse_crates_filters(crates_filters_path)
             
             # Find matching crates
@@ -259,15 +268,16 @@ class RustTestOrchestrator:
             for crate_name, paths in crate_mappings.items():
                 for path_prefix in paths:
                     for changed_file in changed_files:
-                        if changed_file.startswith(path_prefix):
+                        # Ensure we match complete directory paths, not just prefixes
+                        if changed_file.startswith(path_prefix+'/'):
                             matching_crates.add(crate_name)
                             break
             
             # Log detected changed crates
             if matching_crates:
-                self.logger.info(f"Detected changed crates: {', '.join(sorted(matching_crates))}")
+                self.logger.info(f"Detected changed crates{filter_msg}: {', '.join(sorted(matching_crates))}")
             else:
-                self.logger.info("No changed crates detected.")
+                self.logger.info(f"No changed crates detected{filter_msg}.")
             
             return sorted(list(matching_crates))
             
@@ -359,8 +369,11 @@ class RustTestOrchestrator:
     # build_filterset_changed_crates builds a filter set for tests that should be included
     # based on the crates that have changed, either given or searched if the variable is unset.
     # If no crates have changed, an empty filter set is returned, because we want to run all tests in that case.
+    # subfolder_filter: if specified, only look for changes in files that start with this path
+    # crates_filter_file: path to the crates filter YAML file to use (default: .github/crates-filters.yml)
     def build_filterset_changed_crates(self, test_only_changed_crates: bool, 
-                                     changed_crates: str, changed_crates_given: bool) -> str:
+                                     changed_crates: str, changed_crates_given: bool,
+                                     subfolder_filter: str = None, crates_filter_file: str = None) -> str:
         if not test_only_changed_crates:
             # test all crates (return empty filter_set)
             return ""
@@ -368,7 +381,7 @@ class RustTestOrchestrator:
         # detected changed crates if "changed_crates" variable is empty,
         # and the changed crates were not given.
         if not changed_crates and not changed_crates_given:
-            detected_crates = self.search_changed_crates()
+            detected_crates = self.search_changed_crates(subfolder_filter, crates_filter_file)
             changed_crates = " ".join(detected_crates)
         
         if changed_crates:
@@ -601,7 +614,8 @@ class RustTestOrchestrator:
         # check if external crates are set
         if tests_crates_external:
             external_filter = self.build_filterset_changed_crates(
-                test_only_changed_crates, changed_crates_external, changed_crates_external_given
+                test_only_changed_crates, changed_crates_external, changed_crates_external_given,
+                "external-crates/move/crates/", ".github/external-crates-filters.yml"
             )
             
             # If external_filter is None, it means no external crates changed,
