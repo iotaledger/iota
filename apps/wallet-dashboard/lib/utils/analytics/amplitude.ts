@@ -12,6 +12,8 @@ const IS_ENABLED =
     process.env.NEXT_PUBLIC_BUILD_ENV === 'production' &&
     process.env.NEXT_PUBLIC_AMPLITUDE_ENABLED === 'true';
 
+const IS_DEV = process.env.NEXT_PUBLIC_BUILD_ENV !== 'production';
+
 export async function initAmplitude() {
     // Check consent status to determine initial opt-out state
     const consentStatus = getAmplitudeConsentStatus();
@@ -47,5 +49,5 @@ export async function initAmplitude() {
     });
 
     // Add environment plugin to set prefix dev events
-    ampli.client.add(attachEnvironmentPlugin());
+    ampli.client.add(attachEnvironmentPlugin(IS_DEV));
 }
