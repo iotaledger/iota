@@ -2,7 +2,7 @@
 tags: [core-protocol]
 ---
 import Quiz from '@site/src/components/Quiz';
-import {questions} from '../../../site/static/json/about-iota/iota-architecture/iota-security.json';
+import quizData from '../../../site/static/json/about-iota/iota-architecture/iota-security.json';
 
 # Security
 
@@ -71,4 +71,4 @@ IOTA full nodes provide access to asset balances and transaction histories. Vali
 
 All transactions and assets on IOTA are publicly viewable, ensuring auditability. However, users can maintain pseudonymity by utilizing multiple addresses. Third-party custodial services can further enhance privacy by managing assets on behalf of users. Additionally, privacy-preserving smart contracts can be developed to add extra confidentiality layers.
 
-<Quiz questions={questions} />
+<Quiz questions={quizData.questions} />

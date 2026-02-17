@@ -152,13 +152,16 @@ pub struct CheckpointStoreTables {
     /// Maps checkpoint contents digest to checkpoint contents
     pub(crate) checkpoint_content: DBMap<CheckpointContentsDigest, CheckpointContents>,
 
-    /// Maps checkpoint contents digest to checkpoint sequence number
+    /// Maps checkpoint contents digest to checkpoint sequence number.
+    /// Entries from this table are deleted after state accumulation has
+    /// completed together with the corresponding full_checkpoint_content.
     pub(crate) checkpoint_sequence_by_contents_digest:
         DBMap<CheckpointContentsDigest, CheckpointSequenceNumber>,
 
     /// Stores entire checkpoint contents from state sync, indexed by sequence
     /// number, for efficient reads of full checkpoints. Entries from this
-    /// table are deleted after state accumulation has completed.
+    /// table are deleted after state accumulation has completed. See
+    /// NUM_SAVED_FULL_CHECKPOINT_CONTENTS.
     full_checkpoint_content: DBMap<CheckpointSequenceNumber, FullCheckpointContents>,
 
     /// Stores certified checkpoints
@@ -299,6 +302,10 @@ impl CheckpointStore {
             .get(&sequence_number)
     }
 
+    /// Get checkpoint sequence number by contents digest.
+    ///
+    /// Entries from this table are deleted after state accumulation has
+    /// completed together with the corresponding full_checkpoint_content.
     pub fn get_sequence_number_by_contents_digest(
         &self,
         digest: &CheckpointContentsDigest,
@@ -750,6 +757,12 @@ impl CheckpointStore {
             .insert(contents.digest(), &contents)
     }
 
+    /// Inserts the full checkpoint contents along with the mapping from
+    /// contents digest to sequence number, and the checkpoint contents.
+    ///
+    /// The entries for mapping the contents digest to sequence number,
+    /// and the full_checkpoint_content are deleted after state accumulation has
+    /// completed. See NUM_SAVED_FULL_CHECKPOINT_CONTENTS.
     pub fn insert_verified_checkpoint_contents(
         &self,
         checkpoint: &VerifiedCheckpoint,

@@ -22,7 +22,7 @@ use iota_kvstore::{
     proto::bigtable::v2::{RowFilter, row_filter::Filter},
 };
 use iota_storage::http_key_value_store::Key;
-use iota_types::storage::ObjectKey;
+use iota_types::{effects::TransactionEvents, storage::ObjectKey};
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
@@ -235,13 +235,25 @@ impl KvStoreClient {
 
                 let keys = digests.iter().map(|tx| Some(tx.inner().to_vec())).collect();
 
-                multi_get_cell(
+                let response = multi_get_cell(
                     &mut client,
                     TRANSACTIONS_TABLE,
                     keys,
                     EVENTS_COLUMN_QUALIFIER,
                 )
-                .await
+                .await?;
+
+                Ok(response
+                    .into_iter()
+                    .map(|cell| {
+                        cell.and_then(|bytes| {
+                            match bcs::from_bytes::<Option<TransactionEvents>>(&bytes) {
+                                Ok(None) | Err(_) => None,
+                                Ok(Some(events)) => bcs::to_bytes(&events).map(Bytes::from).ok(),
+                            }
+                        })
+                    })
+                    .collect())
             }
         }
         .map_err(Into::into)
