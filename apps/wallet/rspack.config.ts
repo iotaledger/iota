@@ -7,7 +7,7 @@ import type { Configuration } from '@rspack/core';
 import configDev from './configs/rspack/rspack.config.dev';
 import configProd from './configs/rspack/rspack.config.prod';
 
-const configMap: Record<string, () => Promise<Configuration>> = {
+const configMap: Record<string, Configuration> = {
     development: configDev,
     production: configProd,
     nightly: configProd,

@@ -1059,9 +1059,6 @@ importers:
       web-ext:
         specifier: ^8.3.0
         version: 8.3.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      webpack-merge:
-        specifier: ^5.8.0
-        version: 5.10.0
 
   apps/wallet-dashboard:
     dependencies:

@@ -3,11 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Configuration } from '@rspack/core';
-import { merge } from 'webpack-merge';
-
-import configCommon from './rspack.config.common';
 
 const configDev: Configuration = {
+    extends: './configs/rspack/rspack.config.common.ts',
     mode: 'development',
     devtool: 'cheap-source-map',
     watchOptions: {
@@ -15,8 +13,4 @@ const configDev: Configuration = {
     },
 };
 
-async function getConfig() {
-    return merge(await configCommon(), configDev);
-}
-
-export default getConfig;
+export default configDev;
