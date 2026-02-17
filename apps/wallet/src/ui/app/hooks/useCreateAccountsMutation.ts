@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ampli, type AddedAccountsProperties } from '_src/shared/analytics/ampli';
+import { ampli, ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE } from '_src/shared/analytics';
 import { useMutation } from '@tanstack/react-query';
 
 import { useAccountsFormContext, AccountsFormType, type AccountsFormValues } from '_components';
@@ -32,34 +32,11 @@ function validateAccountFormValues<T extends AccountsFormType>(
     return true;
 }
 
-enum AmpliAccountType {
-    Derived = 'Derived',
-    ImportPrivateKey = 'Private Key',
-    Passkey = 'Passkey',
-    Ledger = 'Ledger',
-    Keystone = 'Keystone',
-}
-
 export function useCreateAccountsMutation() {
     const backgroundClient = useBackgroundClient();
     const [accountsFormValuesRef, setAccountFormValues] = useAccountsFormContext();
     const { createPasskeyAccount } = useCreatePasskeyAccount();
 
-    const CREATE_TYPE_TO_AMPLI_ACCOUNT: Record<
-        AccountsFormType,
-        AddedAccountsProperties['accountType']
-    > = {
-        [AccountsFormType.NewMnemonic]: AmpliAccountType.Derived,
-        [AccountsFormType.ImportMnemonic]: AmpliAccountType.Derived,
-        [AccountsFormType.ImportSeed]: AmpliAccountType.Derived,
-        [AccountsFormType.MnemonicSource]: AmpliAccountType.Derived,
-        [AccountsFormType.SeedSource]: AmpliAccountType.Derived,
-        [AccountsFormType.ImportPrivateKey]: AmpliAccountType.ImportPrivateKey,
-        [AccountsFormType.Passkey]: AmpliAccountType.Passkey,
-        [AccountsFormType.ImportPasskey]: AmpliAccountType.Passkey,
-        [AccountsFormType.ImportLedger]: AmpliAccountType.Ledger,
-        [AccountsFormType.ImportKeystone]: AmpliAccountType.Keystone,
-    };
     return useMutation({
         mutationKey: ['create accounts'],
         mutationFn: async ({ type, password }: { type: AccountsFormType; password?: string }) => {
@@ -217,7 +194,7 @@ export function useCreateAccountsMutation() {
                 });
             }
             ampli.addedAccounts({
-                accountType: CREATE_TYPE_TO_AMPLI_ACCOUNT[type],
+                accountType: ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE[type],
                 numberOfAccounts: createdAccounts.length,
             });
             setAccountFormValues(null);

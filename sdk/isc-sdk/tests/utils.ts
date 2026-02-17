@@ -5,6 +5,7 @@ import { Transaction } from '@iota/iota-sdk/transactions';
 import type { AssetsResponse } from '../src/index.js';
 import { EvmRpcClient } from '../src/index.js';
 import { CONFIG } from './config.js';
+import { NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 
 const { L2 } = CONFIG;
 
@@ -22,7 +23,7 @@ export async function requestFunds(
     });
 
     const transaction = new Transaction();
-    const [coin] = transaction.splitCoins(transaction.gas, [9]);
+    const [coin] = transaction.splitCoins(transaction.gas, [1n * NANOS_PER_IOTA]);
     transaction.transferObjects([coin], recipientAddress);
     transaction.setSender(address);
 

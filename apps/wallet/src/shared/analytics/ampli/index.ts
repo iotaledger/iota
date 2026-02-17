@@ -68,6 +68,15 @@ export type LoadOptions =
     | LoadOptionsWithApiKey
     | LoadOptionsWithClientInstance;
 
+export interface AccountDeletedProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    accountType?: string;
+}
+
 export interface AddedAccountsProperties {
     /**
      * | Rule | Value |
@@ -81,6 +90,16 @@ export interface AddedAccountsProperties {
      * | Type | number |
      */
     numberOfAccounts?: number;
+}
+
+export interface AutoLockUpdatedProperties {
+    autoLock: boolean;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    lockTimeSeconds: number;
 }
 
 export interface ClickedAppsBannerCtaProperties {
@@ -383,10 +402,30 @@ export interface UnstakedIotaProperties {
     validatorAddress?: string;
 }
 
+export class AccountDeleted implements BaseEvent {
+    event_type = 'account deleted';
+
+    constructor(public event_properties?: AccountDeletedProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class AccountRenamed implements BaseEvent {
+    event_type = 'account renamed';
+}
+
 export class AddedAccounts implements BaseEvent {
     event_type = 'added accounts';
 
     constructor(public event_properties?: AddedAccountsProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class AutoLockUpdated implements BaseEvent {
+    event_type = 'auto lock updated';
+
+    constructor(public event_properties: AutoLockUpdatedProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -729,6 +768,38 @@ export class Ampli {
   }
 
   /**
+   * account deleted
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/account%20deleted)
+   *
+   * Fires when the user clicks on the “Delete” option on one of his accounts.
+   *
+   * @param properties The event's properties (e.g. accountType)
+   * @param options Amplitude event options.
+   */
+  accountDeleted(
+    properties?: AccountDeletedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new AccountDeleted(properties), options);
+  }
+
+  /**
+   * account renamed
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/account%20renamed)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param options Amplitude event options.
+   */
+  accountRenamed(
+    options?: EventOptions,
+  ) {
+    return this.track(new AccountRenamed(), options);
+  }
+
+  /**
    * added accounts
    *
    * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/added%20accounts)
@@ -743,6 +814,23 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new AddedAccounts(properties), options);
+  }
+
+  /**
+   * auto lock updated
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/auto%20lock%20updated)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. autolock)
+   * @param options Amplitude event options.
+   */
+  autoLockUpdated(
+    properties: AutoLockUpdatedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new AutoLockUpdated(properties), options);
   }
 
   /**

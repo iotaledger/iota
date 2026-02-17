@@ -36,6 +36,7 @@ import {
     TransactionKind,
     TypeTag,
     PasskeyAuthenticator,
+    MoveAuthenticator,
 } from './bcs.js';
 import { TransactionEffects } from './effects.js';
 
@@ -93,6 +94,7 @@ const iotaBcs = {
     TypeTag,
     TransactionEffects,
     PasskeyAuthenticator,
+    MoveAuthenticator,
 };
 
 export { iotaBcs as bcs };
