@@ -9,6 +9,7 @@ import {
     KNOWN_ADDRESSES_ALIASES,
     RECOGNIZED_PACKAGES,
 } from './features.constants';
+import { RECOGNIZED_DAPPS } from './dapps.constants';
 
 @Controller('/api/features')
 export class FeaturesController {
@@ -24,44 +25,7 @@ export class FeaturesController {
                     defaultValue: 0.0025,
                 },
                 [Feature.WalletDapps]: {
-                    defaultValue: [
-                        {
-                            name: 'Wallet Dashboard',
-                            link: 'https://wallet-dashboard.iota.org/',
-                            icon: 'https://iota.org/logo.png',
-                            tags: ['Wallet', 'Dashboard'],
-                        },
-                        {
-                            name: 'IOTA Names',
-                            link: 'https://iotanames.com/',
-                            icon: 'https://files.iota.org/media/tooling/dapps/iotanames-logo.png',
-                            tags: ['Names'],
-                        },
-                        {
-                            name: 'EVM Bridge',
-                            link: 'https://evm-bridge.iota.org/',
-                            icon: 'https://iota.org/logo.png',
-                            tags: ['EVM', 'Bridge'],
-                        },
-                        {
-                            name: 'Virtue',
-                            link: 'https://virtue.money/',
-                            icon: 'https://files.iota.org/media/tooling/dapps/virtue-logo.png',
-                            tags: ['DeFi'],
-                        },
-                        {
-                            name: 'Pools',
-                            link: 'https://www.pools.finance/',
-                            icon: 'https://files.iota.org/media/tooling/dapps/pools-logo.png',
-                            tags: ['DeFi'],
-                        },
-                        {
-                            name: 'LiquidLink',
-                            link: 'https://iota.liquidlink.io/',
-                            icon: 'https://files.iota.org/media/tooling/dapps/liquidlink-logo.png',
-                            tags: ['DeFi'],
-                        },
-                    ],
+                    defaultValue: RECOGNIZED_DAPPS,
                 },
                 [Feature.WalletBalanceRefetchInterval]: {
                     defaultValue: 1000,
@@ -148,46 +112,8 @@ export class FeaturesController {
                 [Feature.WalletSentryTracing]: {
                     defaultValue: 0.0025,
                 },
-                // Note: we'll add wallet dapps when evm will be ready
                 [Feature.WalletDapps]: {
-                    defaultValue: [
-                        {
-                            name: 'Wallet Dashboard',
-                            link: 'https://wallet-dashboard.iota.org/',
-                            icon: 'https://iota.org/logo.png',
-                            tags: ['Wallet', 'Dashboard'],
-                        },
-                        {
-                            name: 'IOTA Names',
-                            link: 'https://iotanames.com/',
-                            icon: 'https://files.iota.org/media/tooling/dapps/iotanames-logo.png',
-                            tags: ['Names'],
-                        },
-                        {
-                            name: 'EVM Bridge',
-                            link: 'https://evm-bridge.iota.org/',
-                            icon: 'https://iota.org/logo.png',
-                            tags: ['EVM', 'Bridge'],
-                        },
-                        {
-                            name: 'Virtue',
-                            link: 'https://virtue.money/',
-                            icon: 'https://files.iota.org/media/tooling/dapps/virtue-logo.png',
-                            tags: ['DeFi'],
-                        },
-                        {
-                            name: 'Pools',
-                            link: 'https://www.pools.finance/',
-                            icon: 'https://files.iota.org/media/tooling/dapps/pools-logo.png',
-                            tags: ['DeFi'],
-                        },
-                        {
-                            name: 'LiquidLink',
-                            link: 'https://iota.liquidlink.io/',
-                            icon: 'https://files.iota.org/media/tooling/dapps/liquidlink-logo.png',
-                            tags: ['DeFi'],
-                        },
-                    ],
+                    defaultValue: RECOGNIZED_DAPPS,
                 },
                 [Feature.WalletBalanceRefetchInterval]: {
                     defaultValue: 1000,
