@@ -121,9 +121,6 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
         undefined,
     );
 
-    const [ownedObjectsContainerHeight, setOwnedObjectsContainerHeight] =
-        useState<OwnedObjectsContainerHeight>(OwnedObjectsContainerHeight.Small);
-
     const [viewMode, setViewMode] = useLocalStorage(
         OWNED_OBJECTS_LOCAL_STORAGE_VIEW_MODE,
         ObjectViewMode.Thumbnail,
@@ -192,12 +189,6 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
         }
     }, [filter, availableFilters, isPending, setFilter]);
 
-    useEffect(() => {
-        if (filter === FilterValue.Other && viewMode !== ObjectViewMode.List) {
-            setViewMode(ObjectViewMode.List);
-        }
-    }, [filter, viewMode, setViewMode]);
-
     const effectiveViewMode = filter === FilterValue.Other ? ObjectViewMode.List : viewMode;
 
     const availableViewModes = useMemo(
@@ -229,7 +220,6 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
         () => getItemsRangeFromCurrentPage(pagination.currentPage, limit, filteredData?.length),
         [filteredData?.length, pagination.currentPage],
     );
-
     const sortedDataByDisplayImages = useMemo(() => {
         if (!filteredData) {
             return [];
@@ -251,6 +241,19 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
         return [...hasImageUrl, ...noImageUrl];
     }, [filteredData]);
 
+    const ownedObjectsContainerHeight = useMemo(() => {
+        const ownedObjectsCount = sortedDataByDisplayImages.length;
+        let nextHeight = OwnedObjectsContainerHeight.Small;
+
+        Object.keys(MIN_OBJECT_COUNT_TO_HEIGHT_MAP).forEach((minObjectCount) => {
+            if (ownedObjectsCount >= Number(minObjectCount)) {
+                nextHeight = MIN_OBJECT_COUNT_TO_HEIGHT_MAP[Number(minObjectCount)];
+            }
+        });
+
+        return nextHeight;
+    }, [sortedDataByDisplayImages.length]);
+
     const showPagination = getShowPagination(
         filter,
         filteredData?.length || 0,
@@ -261,21 +264,6 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
     const hasVisualAssets = sortedDataByDisplayImages.length > 0;
 
     const noVisualAssets = !hasVisualAssets && !isPending;
-
-    useEffect(() => {
-        const ownedObjectsCount = sortedDataByDisplayImages.length;
-        let nextHeight = OwnedObjectsContainerHeight.Small;
-
-        Object.keys(MIN_OBJECT_COUNT_TO_HEIGHT_MAP).forEach((minObjectCount) => {
-            if (ownedObjectsCount >= Number(minObjectCount)) {
-                nextHeight = MIN_OBJECT_COUNT_TO_HEIGHT_MAP[Number(minObjectCount)];
-            }
-        });
-
-        if (nextHeight !== ownedObjectsContainerHeight) {
-            setOwnedObjectsContainerHeight(nextHeight);
-        }
-    }, [sortedDataByDisplayImages.length, ownedObjectsContainerHeight]);
 
     if (isError) {
         return (
@@ -305,7 +293,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                             <div className="flex flex-col gap-sm px-md--rs sm:flex-row sm:gap-0">
                                 <div className="flex items-center gap-sm">
                                     {availableViewModes.map((mode) => {
-                                        const selected = mode.value === effectiveViewMode;
+                                        const selected = mode.value === viewMode;
                                         return (
                                             <div
                                                 key={mode.value}
