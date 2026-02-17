@@ -20,14 +20,9 @@ export function attachEnvironmentPlugin(
         type: 'enrichment' as const,
         setup: async () => {},
         execute: async (event: Event) => {
-            try {
-                if (isDev && event.event_type && !event.event_type.startsWith(DEV_EVENT_PREFIX)) {
-                    return { ...event, event_type: DEV_EVENT_PREFIX + event.event_type };
-                }
-                return event;
-            } catch {
-                return event;
-            }
+            const type = event.event_type;
+            if (!isDev || !type || type.startsWith(DEV_EVENT_PREFIX)) return event;
+            return { ...event, event_type: DEV_EVENT_PREFIX + type };
         },
     };
 }
