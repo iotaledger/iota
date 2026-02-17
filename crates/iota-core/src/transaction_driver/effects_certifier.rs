@@ -24,7 +24,7 @@ use tokio::{
     sync::mpsc::{Receiver, Sender, channel},
     time::{sleep, timeout},
 };
-use tracing::{info, instrument};
+use tracing::instrument;
 
 use crate::{
     authority_aggregator::AuthorityAggregator,

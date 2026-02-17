@@ -23,7 +23,6 @@ use iota_types::{
     base_types::TransactionDigest,
     error::{IotaError, IotaResult},
     iota_system_state::IotaSystemState,
-    message_envelope::Message,
     messages_grpc::SubmitTxRequest,
     quorum_driver_types::{
         EffectsFinalityInfo, ExecuteTransactionRequestType, ExecuteTransactionRequestV1,
@@ -601,8 +600,7 @@ where
     }
 
     pub fn quorum_driver(&self) -> &Arc<QuorumDriverHandler<A>> {
-        &self
-            .quorum_driver_handler
+        self.quorum_driver_handler
             .as_ref()
             .expect("QuorumDriverHandler is not initialized.")
     }

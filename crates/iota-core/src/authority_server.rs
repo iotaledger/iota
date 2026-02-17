@@ -1631,7 +1631,7 @@ impl Validator for ValidatorService {
     async fn submit_transaction(
         &self,
         request: tonic::Request<iota_types::messages_grpc::SubmitTxRequest>,
-    ) -> Result<tonic::Response<iota_types::messages_grpc::SubmitTxResponse>, tonic::Status> {
+    ) -> Result<tonic::Response<SubmitTxResponse>, tonic::Status> {
         let validator_service = self.clone();
         spawn_monitored_task!(async move {
             handle_with_decoration!(validator_service, submit_transaction_impl, request)

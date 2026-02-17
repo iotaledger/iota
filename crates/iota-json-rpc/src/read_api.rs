@@ -37,7 +37,6 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{IotaError, IotaObjectResponseError},
     iota_serde::BigInt,
-    message_envelope::Message,
     messages_checkpoint::{
         CheckpointContents, CheckpointSequenceNumber, CheckpointSummary, CheckpointTimestamp,
     },
