@@ -16,10 +16,7 @@ async fn get_epoch() {
 
     // Get current epoch (no epoch specified means current epoch)
     let latest_epoch_response = ledger_client
-        .get_epoch(GetEpochRequest {
-            epoch: None,
-            read_mask: None,
-        })
+        .get_epoch(GetEpochRequest::default())
         .await
         .unwrap()
         .into_inner();
@@ -28,10 +25,7 @@ async fn get_epoch() {
 
     // Get epoch 0
     let epoch_0_response = ledger_client
-        .get_epoch(GetEpochRequest {
-            epoch: Some(0),
-            read_mask: None,
-        })
+        .get_epoch(GetEpochRequest::default().with_epoch(0))
         .await
         .unwrap()
         .into_inner();
@@ -45,12 +39,9 @@ async fn get_epoch() {
 
     // Ensure that fetching the system state for the epoch works (using field mask)
     let epoch_with_bcs = ledger_client
-        .get_epoch(GetEpochRequest {
-            epoch: None,
-            read_mask: Some(FieldMask {
-                paths: vec!["bcs_system_state".to_string()],
-            }),
-        })
+        .get_epoch(GetEpochRequest::default().with_read_mask(FieldMask {
+            paths: vec!["bcs_system_state".to_string()],
+        }))
         .await
         .unwrap()
         .into_inner()

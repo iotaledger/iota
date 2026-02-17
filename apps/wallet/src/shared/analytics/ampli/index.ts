@@ -400,6 +400,10 @@ export class AccountDeleted implements BaseEvent {
     }
 }
 
+export class AccountRenamed implements BaseEvent {
+    event_type = 'account renamed';
+}
+
 export class AddedAccounts implements BaseEvent {
     event_type = 'added accounts';
 
@@ -743,6 +747,22 @@ export class Ampli {
     }
 
     return this.amplitude!.track(event, undefined, options);
+  }
+
+
+  /**
+   * account renamed
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/account%20renamed)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param options Amplitude event options.
+   */
+  accountRenamed(
+    options?: EventOptions,
+  ) {
+    return this.track(new AccountRenamed(), options);
   }
 
   /**

@@ -1,8 +1,6 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::panic;
-
 use iota_macros::sim_test;
 use iota_sdk_types::Digest;
 
@@ -31,8 +29,10 @@ async fn get_transactions_scenarios() {
     assert_eq!(transactions.len(), 1, "Expected exactly one transaction");
     assert_eq!(
         transactions[0]
+            .transaction()
+            .expect("Failed to get transaction from executed transaction")
             .digest()
-            .unwrap_or_else(|_| panic!("Failed to get digest from transaction")),
+            .expect("Failed to get digest from transaction"),
         digest1,
         "Transaction digest should match requested digest"
     );
@@ -40,6 +40,7 @@ async fn get_transactions_scenarios() {
         !transactions[0]
             .signatures()
             .expect("Failed to get signatures from transaction")
+            .signatures
             .is_empty(),
         "Signatures should be present"
     );
@@ -52,6 +53,8 @@ async fn get_transactions_scenarios() {
     assert_eq!(transactions.len(), 2, "Expected exactly two transactions");
     assert_eq!(
         transactions[0]
+            .transaction()
+            .expect("Failed to get transaction from executed transaction")
             .digest()
             .expect("Failed to get digest from first transaction"),
         digest1,
@@ -59,6 +62,8 @@ async fn get_transactions_scenarios() {
     );
     assert_eq!(
         transactions[1]
+            .transaction()
+            .expect("Failed to get transaction from executed transaction")
             .digest()
             .expect("Failed to get digest from second transaction"),
         digest2,
@@ -95,13 +100,17 @@ async fn get_transactions_scenarios() {
         .expect("Failed to get transaction");
     let tx = &transactions[0];
     assert_eq!(
-        tx.digest().expect("Failed to get digest from transaction"),
+        tx.transaction()
+            .expect("Failed to get transaction from executed transaction")
+            .digest()
+            .expect("Failed to get digest from transaction"),
         digest1,
         "Digest should match"
     );
     assert!(
         !tx.signatures()
             .expect("Failed to get signatures from transaction")
+            .signatures
             .is_empty(),
         "Signatures should be present"
     );
@@ -109,6 +118,8 @@ async fn get_transactions_scenarios() {
         is_success(
             tx.effects()
                 .expect("Failed to get effects from transaction")
+                .effects()
+                .expect("Failed to get inner effects from effects")
                 .status()
         ),
         "Transaction should have succeeded"
@@ -120,7 +131,7 @@ async fn get_transactions_scenarios() {
     assert!(
         tx.timestamp_ms()
             .expect("Failed to get timestamp from transaction")
-            .is_some(),
+            > 0,
         "Timestamp should be present after finalization"
     );
 
@@ -129,7 +140,10 @@ async fn get_transactions_scenarios() {
         .get_transactions(&[digest1], Some("transaction.digest"))
         .await;
 
-    let conversion_result = result.expect("request should work")[0]
+    let transactions = result.expect("request should work");
+    let conversion_result = transactions[0]
+        .transaction()
+        .expect("Failed to get transaction from executed transaction")
         .transaction()
         .map_err(Into::into);
 

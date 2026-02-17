@@ -39,3 +39,48 @@ Generated files are written to `crates/iota-grpc-types/src/proto/generated/`:
 ## Proto Files Location
 
 Source proto files: `crates/iota-grpc-types/proto/iota/grpc/v0/`
+
+## Selective Accessor Generation
+
+iota-protoc-build supports selective accessor generation via custom proto options at both the message and field level.
+
+You can annotate individual fields using the `field_accessors` option:
+
+```protobuf
+import "iota/grpc/options.proto";
+
+message ObjectRequest {
+  optional ObjectReference object_ref = 1 [(iota.grpc.field_accessors) = "set,with"];
+}
+```
+
+Or set default accessors for all fields in a message using the `message_accessors` option:
+
+```protobuf
+message Transaction {
+  option (iota.grpc.message_accessors) = "with";
+
+  optional Digest digest = 1;  // Gets with_digest() from message default
+  optional BcsData bcs = 2 [(iota.grpc.field_accessors) = "with,set"];  // Overrides: gets both with_bcs() and set_bcs()
+}
+```
+
+Both options accept a comma-separated list of accessor types:
+
+**Individual Accessor Types:**
+
+- `getter` - `field()` returns value or default (see limitations below)
+- `getter_opt` - `field_opt()` returns `Option<&T>`
+- `set` - `set_field()` setter method (mutable, modifies in place)
+- `with` - `with_field()` builder-pattern setter (consumes self, returns modified self)
+- `mut` - `field_mut()` returns `&mut T`
+- `mut_opt` - `field_opt_mut()` returns `Option<&mut T>`
+
+**Special Keywords:**
+
+- `all` - Generates all accessor types (getter, getter_opt, set, with, mut, mut_opt)
+  - **Note:** Cannot be combined with other accessor types
+  - **Note:** Automatically includes default helpers when getter methods are generated
+- `default` - Generates only `const_default()` and `default_instance()` helper functions
+  - **Note:** Cannot be combined with `getter` or `all` (redundant, since getter includes defaults)
+  - **Use case:** For fields that need default helpers but don't want getter methods (e.g., `"set,with,default"`)
