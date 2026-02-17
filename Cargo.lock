@@ -8110,11 +8110,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-<<<<<<< HEAD
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fa43f106d7866b2f0fd5603ceab17a3b6f641776#fa43f106d7866b2f0fd5603ceab17a3b6f641776"
-=======
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=f94e5d521833f4d313bbc2f33e7b93a3c63afc8c#f94e5d521833f4d313bbc2f33e7b93a3c63afc8c"
->>>>>>> dev-tools/replace-move-core-types
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e42877c8d37699e15f1439ec6b99b848a7a04f11#e42877c8d37699e15f1439ec6b99b848a7a04f11"
 dependencies = [
  "bip32",
  "bip39",
@@ -8129,11 +8125,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-<<<<<<< HEAD
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fa43f106d7866b2f0fd5603ceab17a3b6f641776#fa43f106d7866b2f0fd5603ceab17a3b6f641776"
-=======
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=f94e5d521833f4d313bbc2f33e7b93a3c63afc8c#f94e5d521833f4d313bbc2f33e7b93a3c63afc8c"
->>>>>>> dev-tools/replace-move-core-types
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e42877c8d37699e15f1439ec6b99b848a7a04f11#e42877c8d37699e15f1439ec6b99b848a7a04f11"
 dependencies = [
  "base64ct",
  "bcs",
