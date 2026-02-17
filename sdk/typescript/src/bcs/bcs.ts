@@ -319,3 +319,13 @@ export const PasskeyAuthenticator = bcs.struct('PasskeyAuthenticator', {
     clientDataJson: bcs.string(),
     userSignature: bcs.vector(bcs.u8()),
 });
+
+/**
+ * MoveAuthenticator allows authenticating transactions via a Move function call
+ * as part of Account Abstraction.
+ */
+export const MoveAuthenticator = bcs.struct('MoveAuthenticator', {
+    callArgs: bcs.vector(CallArg),
+    typeArgs: bcs.vector(TypeTag),
+    objectToAuthenticate: CallArg,
+});
