@@ -24,7 +24,7 @@ import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAcco
 import { useFeature } from '@growthbook/growthbook-react';
 import { Feature, toast } from '@iota/core';
 import { isPasskeyAccountSerializedUI } from '_src/background/accounts/passkeyAccount';
-import { trackAutoLockUpdated } from '_src/shared/analytics/helpers/trackAutoLockUpdated';
+import { trackAutoLockUpdated } from '_src/shared/analytics/helpers';
 
 const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
     AccountsFormType.NewMnemonic,
