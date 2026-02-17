@@ -95,7 +95,7 @@ impl TransactionBuilder {
                 .input_objects()?
                 .iter()
                 .flat_map(|obj| match obj {
-                    InputObjectKind::ImmOrOwnedMoveObject((id, _, _)) => Some(*id),
+                    InputObjectKind::ImmOrOwnedMoveObject(object_ref) => Some(object_ref.object_id),
                     _ => None,
                 })
                 .collect();
@@ -440,7 +440,7 @@ impl TransactionBuilder {
             .input_objects()?
             .iter()
             .flat_map(|obj| match obj {
-                InputObjectKind::ImmOrOwnedMoveObject((id, _, _)) => Some(*id),
+                InputObjectKind::ImmOrOwnedMoveObject(object_ref) => Some(object_ref.object_id),
                 _ => None,
             })
             .collect();
@@ -804,7 +804,7 @@ impl TransactionBuilder {
         let inputs = all_inputs
             .iter()
             .flat_map(|obj| match obj {
-                InputObjectKind::ImmOrOwnedMoveObject((id, _, _)) => Some(*id),
+                InputObjectKind::ImmOrOwnedMoveObject(object_ref) => Some(object_ref.object_id),
                 _ => None,
             })
             .collect();

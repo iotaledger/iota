@@ -88,7 +88,7 @@ impl TransactionBuilder {
                 Owner::Shared {
                     initial_shared_version,
                 } => ObjectArg::SharedObject {
-                    id: upgrade_capability.object_ref().0,
+                    id: upgrade_capability.object_ref().object_id,
                     initial_shared_version,
                     mutable: true,
                 },

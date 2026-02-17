@@ -584,7 +584,7 @@ pub async fn publish_basics_package_and_make_counter(
     let gas_price = context.get_reference_gas_price().await.unwrap();
     let counter_creation_txn = context.sign_transaction(
         &TestTransactionBuilder::new(sender, gas_object, gas_price)
-            .call_counter_create(package_ref.0)
+            .call_counter_create(package_ref.object_id)
             .build(),
     );
     let resp = context
@@ -692,7 +692,7 @@ pub async fn publish_example_package(
     );
 
     let resp = context.execute_transaction_must_succeed(tx).await;
-    let package_id = get_new_package_obj_from_response(&resp).unwrap().0;
+    let package_id = get_new_package_obj_from_response(&resp).unwrap().object_id;
     (package_id, resp.digest)
 }
 
@@ -702,7 +702,7 @@ pub async fn publish_nfts_package(
     context: &WalletContext,
 ) -> (ObjectID, ObjectID, TransactionDigest) {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
-    let gas_id = gas_object.0;
+    let gas_id = gas_object.object_id;
     let gas_price = context.get_reference_gas_price().await.unwrap();
     let txn = context.sign_transaction(
         &TestTransactionBuilder::new(sender, gas_object, gas_price)
@@ -710,7 +710,7 @@ pub async fn publish_nfts_package(
             .build(),
     );
     let resp = context.execute_transaction_must_succeed(txn).await;
-    let package_id = get_new_package_obj_from_response(&resp).unwrap().0;
+    let package_id = get_new_package_obj_from_response(&resp).unwrap().object_id;
     (package_id, gas_id, resp.digest)
 }
 

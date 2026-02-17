@@ -32,13 +32,29 @@ async fn per_epoch_config_stress_test() {
     let handle1 = {
         let test_env = test_env.clone();
         tokio::spawn(async move {
-            run_thread(1, test_env, target_epoch, gas1.0, create_transfer_tx, true).await
+            run_thread(
+                1,
+                test_env,
+                target_epoch,
+                gas1.object_id,
+                create_transfer_tx,
+                true,
+            )
+            .await
         })
     };
     let handle2 = {
         let test_env = test_env.clone();
         tokio::spawn(async move {
-            run_thread(2, test_env, target_epoch, gas2.0, create_deny_tx, false).await
+            run_thread(
+                2,
+                test_env,
+                target_epoch,
+                gas2.object_id,
+                create_deny_tx,
+                false,
+            )
+            .await
         })
     };
     tokio::time::timeout(Duration::from_secs(600), async {

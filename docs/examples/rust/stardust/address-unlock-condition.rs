@@ -101,7 +101,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .await?
         .data
         .ok_or(anyhow!("alias not found"))?;
-    let alias_object_address = alias_object.object_ref().0;
+    let alias_object_address = alias_object.object_ref().object_id;
 
     // Some objects are owned by the Alias object. In this case we filter them by
     // type using the NftOutput type.

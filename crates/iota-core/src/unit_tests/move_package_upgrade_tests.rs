@@ -241,7 +241,7 @@ impl UpgradeStateRunner {
         dep_ids: Vec<ObjectID>,
     ) -> TransactionEffects {
         let pt = {
-            let package_id = self.package.0;
+            let package_id = self.package.object_id;
             let mut builder = ProgrammableTransactionBuilder::new();
 
             let cap = builder
@@ -287,7 +287,7 @@ impl UpgradeStateRunner {
         if let Some(updated_cap) = effects
             .mutated()
             .into_iter()
-            .find_map(|(cap, _)| (cap.0 == self.upgrade_cap.0).then_some(cap))
+            .find_map(|(cap, _)| (cap.object_id == self.upgrade_cap.object_id).then_some(cap))
         {
             self.upgrade_cap = updated_cap;
         }
@@ -305,7 +305,7 @@ async fn test_upgrade_package_happy_path() {
             let mut builder = ProgrammableTransactionBuilder::new();
             move_call! {
                 builder,
-                (runner.package.0)::base::return_0()
+                (runner.package.object_id)::base::return_0()
             };
 
             builder.finish()
@@ -325,7 +325,7 @@ async fn test_upgrade_package_happy_path() {
     let package = runner
         .authority_state
         .get_object_cache_reader()
-        .get_package_object(&runner.package.0)
+        .get_package_object(&runner.package.object_id)
         .unwrap();
     let config = ProtocolConfig::get_for_max_version_UNSAFE();
     let binary_config = to_binary_config(&config);
@@ -354,7 +354,7 @@ async fn test_upgrade_package_happy_path() {
             let mut builder = ProgrammableTransactionBuilder::new();
             move_call! {
                 builder,
-                (runner.package.0)::base::return_0()
+                (runner.package.object_id)::base::return_0()
             };
 
             builder.finish()
@@ -379,7 +379,7 @@ async fn test_upgrade_introduces_type_then_uses_it() {
         .await;
 
     assert!(effects.status().is_ok(), "{:#?}", effects.status());
-    let package_v2 = runner.package.0;
+    let package_v2 = runner.package.object_id;
 
     // Second upgrade introduces an entry function that creates `B`s.
     let (digest, modules) = build_upgrade_test_modules("makes_new_object");
@@ -393,7 +393,7 @@ async fn test_upgrade_introduces_type_then_uses_it() {
         .await;
 
     assert!(effects.status().is_ok(), "{:#?}", effects.status());
-    let package_v3 = runner.package.0;
+    let package_v3 = runner.package.object_id;
 
     // Create an instance of the type introduced at version 2, with the function
     // introduced at version 3.
@@ -415,7 +415,7 @@ async fn test_upgrade_introduces_type_then_uses_it() {
     let b = runner
         .authority_state
         .get_object_store()
-        .get_object_by_key(&created.0, created.1)
+        .get_object_by_key(&created.object_id, created.version)
         .unwrap();
 
     assert_eq!(
@@ -741,7 +741,7 @@ async fn test_upgrade_package_not_a_ticket() {
     let mut runner = UpgradeStateRunner::new("move_upgrade/base").await;
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        let current_package_id = runner.package.0;
+        let current_package_id = runner.package.object_id;
         let (_, modules) = build_upgrade_test_modules("stage1_basic_compatibility_valid");
 
         // We take as input the upgrade runner.upgrade_cap
@@ -831,7 +831,7 @@ async fn test_multiple_upgrades(
         .find(|(_, owner)| matches!(owner, Owner::Immutable))
         .unwrap()
         .0
-        .0;
+        .object_id;
 
     // Second upgrade: May also adds a dep on the iota framework and stdlib.
     let (digest, modules) = build_upgrade_test_modules("stage2_basic_compatibility_valid");
@@ -858,15 +858,15 @@ async fn test_interleaved_upgrades() {
     // package.
     let (_, module_bytes, dep_ids) = build_upgrade_test_modules_with_dep_addr(
         "dep_on_upgrading_package",
-        [("base_addr", runner.package.0)],
-        [("package_upgrade_base", runner.package.0)],
+        [("base_addr", runner.package.object_id)],
+        [("package_upgrade_base", runner.package.object_id)],
     );
     let (depender_package, depender_cap) = runner.publish(module_bytes, dep_ids).await;
 
     // publish dependency at version 2
     let pt1 = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        let current_package_id = runner.package.0;
+        let current_package_id = runner.package.object_id;
         let (digest, modules) = build_upgrade_test_modules("stage1_basic_compatibility_valid");
 
         // We take as input the upgrade cap
@@ -901,12 +901,12 @@ async fn test_interleaved_upgrades() {
 
     let pt2 = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        let current_package_id = depender_package.0;
+        let current_package_id = depender_package.object_id;
         // Now recompile the depending package with the upgraded dependency
         let (digest, modules, dep_ids) = build_upgrade_test_modules_with_dep_addr(
             "dep_on_upgrading_package",
-            [("base_addr", runner.package.0)],
-            [("package_upgrade_base", dep_v2_package.0)],
+            [("base_addr", runner.package.object_id)],
+            [("package_upgrade_base", dep_v2_package.object_id)],
         );
 
         // We take as input the upgrade cap
@@ -941,8 +941,8 @@ async fn test_publish_override_happy_path() {
     // base package.
     let (_, module_bytes, dep_ids) = build_upgrade_test_modules_with_dep_addr(
         "dep_on_upgrading_package",
-        [("base_addr", runner.package.0)],
-        [("package_upgrade_base", runner.package.0)],
+        [("base_addr", runner.package.object_id)],
+        [("package_upgrade_base", runner.package.object_id)],
     );
     // Dependency graph: base <-- dep_on_upgrading_package
     let (depender_package, _) = runner.publish(module_bytes, dep_ids).await;
@@ -951,7 +951,7 @@ async fn test_publish_override_happy_path() {
     // Dependency graph: base(v1) <-- dep_on_upgrading_package
     //                   base(v2)
     let pt1 = build_upgrade_txn(
-        runner.package.0,
+        runner.package.object_id,
         "stage1_basic_compatibility_valid",
         runner.upgrade_cap,
     );
@@ -973,12 +973,12 @@ async fn test_publish_override_happy_path() {
     let (_, modules, dep_ids) = build_upgrade_test_modules_with_dep_addr(
         "dep_on_dep",
         [
-            ("base_addr", dep_v2_package.0),
-            ("dep_on_upgrading_package", depender_package.0),
+            ("base_addr", dep_v2_package.object_id),
+            ("dep_on_upgrading_package", depender_package.object_id),
         ],
         [
-            ("package_upgrade_base", dep_v2_package.0),
-            ("dep_on_upgrading_package", depender_package.0),
+            ("package_upgrade_base", dep_v2_package.object_id),
+            ("dep_on_upgrading_package", depender_package.object_id),
         ],
     );
 
@@ -987,7 +987,7 @@ async fn test_publish_override_happy_path() {
     let package = runner
         .authority_state
         .get_object_cache_reader()
-        .get_package_object(&new_package.0)
+        .get_package_object(&new_package.object_id)
         .unwrap();
 
     // Make sure the linkage table points to the correct versions!
@@ -997,8 +997,8 @@ async fn test_publish_override_happy_path() {
         .values()
         .map(|up| up.upgraded_id)
         .collect();
-    assert!(dep_ids_in_linkage_table.contains(&dep_v2_package.0));
-    assert!(dep_ids_in_linkage_table.contains(&depender_package.0));
+    assert!(dep_ids_in_linkage_table.contains(&dep_v2_package.object_id));
+    assert!(dep_ids_in_linkage_table.contains(&depender_package.object_id));
 }
 
 #[tokio::test]
@@ -1010,10 +1010,10 @@ async fn test_publish_transitive_happy_path() {
     let (_, module_bytes, dep_ids) = build_upgrade_test_modules_with_dep_addr(
         "dep_on_upgrading_package_upgradeable",
         [
-            ("base_addr", runner.package.0),
+            ("base_addr", runner.package.object_id),
             ("dep_on_upgrading_package", ObjectID::ZERO),
         ],
-        [("package_upgrade_base", runner.package.0)],
+        [("package_upgrade_base", runner.package.object_id)],
     );
     // Dependency graph: base <-- dep_on_upgrading_package
     let (depender_package, _) = runner.publish(module_bytes, dep_ids).await;
@@ -1024,12 +1024,12 @@ async fn test_publish_transitive_happy_path() {
     let (_, root_module_bytes, root_dep_ids) = build_upgrade_test_modules_with_dep_addr(
         "dep_on_upgrading_package_transitive",
         [
-            ("base_addr", runner.package.0),
-            ("dep_on_upgrading_package", depender_package.0),
+            ("base_addr", runner.package.object_id),
+            ("dep_on_upgrading_package", depender_package.object_id),
         ],
         [
-            ("package_upgrade_base", runner.package.0),
-            ("dep_on_upgrading_package", depender_package.0),
+            ("package_upgrade_base", runner.package.object_id),
+            ("dep_on_upgrading_package", depender_package.object_id),
         ],
     );
     // Dependency graph: base(v1)  <-- dep_on_upgrading_package
@@ -1040,7 +1040,7 @@ async fn test_publish_transitive_happy_path() {
     let root_move_package = runner
         .authority_state
         .get_object_cache_reader()
-        .get_package_object(&root_package.0)
+        .get_package_object(&root_package.object_id)
         .unwrap();
 
     // Make sure the linkage table points to the correct versions!
@@ -1050,8 +1050,8 @@ async fn test_publish_transitive_happy_path() {
         .values()
         .map(|up| up.upgraded_id)
         .collect();
-    assert!(dep_ids_in_linkage_table.contains(&runner.package.0));
-    assert!(dep_ids_in_linkage_table.contains(&depender_package.0));
+    assert!(dep_ids_in_linkage_table.contains(&runner.package.object_id));
+    assert!(dep_ids_in_linkage_table.contains(&depender_package.object_id));
 
     // Call into the root module to call base module's function (should abort due to
     // base module's call_return_0 aborting with code 42)
@@ -1060,7 +1060,7 @@ async fn test_publish_transitive_happy_path() {
             let mut builder = ProgrammableTransactionBuilder::new();
             move_call! {
                 builder,
-                (root_package.0)::my_module::call_return_0()
+                (root_package.object_id)::my_module::call_return_0()
             };
 
             builder.finish()
@@ -1082,17 +1082,17 @@ async fn test_publish_transitive_override_happy_path() {
     let (_, module_bytes, dep_ids) = build_upgrade_test_modules_with_dep_addr(
         "dep_on_upgrading_package_upgradeable",
         [
-            ("base_addr", runner.package.0),
+            ("base_addr", runner.package.object_id),
             ("dep_on_upgrading_package", ObjectID::ZERO),
         ],
-        [("package_upgrade_base", runner.package.0)],
+        [("package_upgrade_base", runner.package.object_id)],
     );
     // Dependency graph: base <-- dep_on_upgrading_package
     let (depender_package, _) = runner.publish(module_bytes, dep_ids).await;
 
     // publish base package at version 2
     let pt1 = build_upgrade_txn(
-        runner.package.0,
+        runner.package.object_id,
         "stage1_basic_compatibility_valid",
         runner.upgrade_cap,
     );
@@ -1115,12 +1115,12 @@ async fn test_publish_transitive_override_happy_path() {
     let (_, root_module_bytes, root_dep_ids) = build_upgrade_test_modules_with_dep_addr(
         "dep_on_upgrading_package_transitive",
         [
-            ("base_addr", runner.package.0),
-            ("dep_on_upgrading_package", depender_package.0),
+            ("base_addr", runner.package.object_id),
+            ("dep_on_upgrading_package", depender_package.object_id),
         ],
         [
-            ("package_upgrade_base", base_v2_package.0),
-            ("dep_on_upgrading_package", depender_package.0),
+            ("package_upgrade_base", base_v2_package.object_id),
+            ("dep_on_upgrading_package", depender_package.object_id),
         ],
     );
     // Dependency graph: base(v1)  <-- dep_on_upgrading_package
@@ -1131,7 +1131,7 @@ async fn test_publish_transitive_override_happy_path() {
     let root_move_package = runner
         .authority_state
         .get_object_cache_reader()
-        .get_package_object(&root_package.0)
+        .get_package_object(&root_package.object_id)
         .unwrap();
 
     // Make sure the linkage table points to the correct versions!
@@ -1141,8 +1141,8 @@ async fn test_publish_transitive_override_happy_path() {
         .values()
         .map(|up| up.upgraded_id)
         .collect();
-    assert!(dep_ids_in_linkage_table.contains(&base_v2_package.0));
-    assert!(dep_ids_in_linkage_table.contains(&depender_package.0));
+    assert!(dep_ids_in_linkage_table.contains(&base_v2_package.object_id));
+    assert!(dep_ids_in_linkage_table.contains(&depender_package.object_id));
 
     // Call into the root module to call upgraded base module's function (should
     // succeed due to base module's call_return_0 no longer aborting)
@@ -1151,7 +1151,7 @@ async fn test_publish_transitive_override_happy_path() {
             let mut builder = ProgrammableTransactionBuilder::new();
             move_call! {
                 builder,
-                (root_package.0)::my_module::call_return_0()
+                (root_package.object_id)::my_module::call_return_0()
             };
 
             builder.finish()
@@ -1181,7 +1181,7 @@ async fn test_upgraded_types_in_one_txn() {
         .await;
 
     assert!(effects.status().is_ok(), "{:#?}", effects.status());
-    let package_v2 = runner.package.0;
+    let package_v2 = runner.package.object_id;
 
     // Second upgrade (version 3) introduces a new type, C.
     let (digest, modules) = build_upgrade_test_modules("makes_another_object");
@@ -1195,7 +1195,7 @@ async fn test_upgraded_types_in_one_txn() {
         .await;
 
     assert!(effects.status().is_ok(), "{:#?}", effects.status());
-    let package_v3 = runner.package.0;
+    let package_v3 = runner.package.object_id;
 
     // Create an instance of the type introduced at version 2 using function from
     // version 2.
@@ -1276,7 +1276,7 @@ async fn test_different_versions_across_calls() {
         .find(|(_, owner)| matches!(owner, Owner::Immutable))
         .unwrap()
         .0
-        .0;
+        .object_id;
 
     // call the same function twice within the same block but from two different
     // module versions
@@ -1302,16 +1302,16 @@ async fn test_conflicting_versions_across_calls() {
     let (_, module_bytes, dep_ids) = build_upgrade_test_modules_with_dep_addr(
         "dep_on_upgrading_package_upgradeable",
         [
-            ("base_addr", runner.package.0),
+            ("base_addr", runner.package.object_id),
             ("dep_on_upgrading_package", ObjectID::ZERO),
         ],
-        [("package_upgrade_base", runner.package.0)],
+        [("package_upgrade_base", runner.package.object_id)],
     );
     let (depender_package, depender_cap) = runner.publish(module_bytes, dep_ids).await;
 
     // publish base package at version 2
     let pt1 = build_upgrade_txn(
-        runner.package.0,
+        runner.package.object_id,
         "stage1_basic_compatibility_valid",
         runner.upgrade_cap,
     );
@@ -1330,15 +1330,15 @@ async fn test_conflicting_versions_across_calls() {
     // version 2
     let pt2 = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        let current_package_id = depender_package.0;
+        let current_package_id = depender_package.object_id;
         // Now recompile the depending package with the upgraded dependency
         let (digest, modules, dep_ids) = build_upgrade_test_modules_with_dep_addr(
             "dep_on_upgrading_package_upgradeable",
             [
-                ("base_addr", runner.package.0),
+                ("base_addr", runner.package.object_id),
                 ("dep_on_upgrading_package", ObjectID::ZERO),
             ],
-            [("package_upgrade_base", base_v2_package.0)],
+            [("package_upgrade_base", base_v2_package.object_id)],
         );
 
         // We take as input the upgrade cap
@@ -1378,10 +1378,10 @@ async fn test_conflicting_versions_across_calls() {
         .run({
             let mut builder = ProgrammableTransactionBuilder::new();
             // call from upgraded package - should succeed
-            move_call! { builder, (dependent_v2_package.0)::my_module::call_return_0() };
+            move_call! { builder, (dependent_v2_package.object_id)::my_module::call_return_0() };
             // call from original package - should abort (check later that the second
             // command aborts)
-            move_call! { builder, (depender_package.0)::my_module::call_return_0() };
+            move_call! { builder, (depender_package.object_id)::my_module::call_return_0() };
             builder.finish()
         })
         .await;
@@ -1401,7 +1401,7 @@ async fn test_conflicting_versions_across_calls() {
 #[tokio::test]
 async fn test_upgrade_cross_module_refs() {
     let mut runner = UpgradeStateRunner::new("move_upgrade/object_cross_module_ref").await;
-    let package_v1 = runner.package.0;
+    let package_v1 = runner.package.object_id;
 
     // create instances of objects within module and cross module
     let effects = runner
@@ -1427,7 +1427,7 @@ async fn test_upgrade_cross_module_refs() {
         .await;
 
     assert!(effects.status().is_ok(), "{:#?}", effects.status());
-    let package_v2 = runner.package.0;
+    let package_v2 = runner.package.object_id;
 
     // create instances of objects within module and cross module for v2
     let effects = runner
@@ -1454,7 +1454,7 @@ async fn test_upgrade_cross_module_refs() {
         .await;
 
     assert!(effects.status().is_ok(), "{:#?}", effects.status());
-    let package_v2 = runner.package.0;
+    let package_v2 = runner.package.object_id;
 
     // create instances of objects within module and cross module for v2
     let effects = runner

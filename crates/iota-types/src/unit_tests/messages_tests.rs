@@ -1138,8 +1138,8 @@ fn test_move_input_objects() {
             .unwrap(),
         builder
             .input(CallArg::Object(ObjectArg::SharedObject {
-                id: shared.0,
-                initial_shared_version: shared.1,
+                id: shared.object_id,
+                initial_shared_version: shared.version,
                 mutable: true,
             }))
             .unwrap(),
@@ -1181,8 +1181,8 @@ fn test_move_input_objects() {
     rem!(InputObjectKind::ImmOrOwnedMoveObject(o2));
     rem!(InputObjectKind::ImmOrOwnedMoveObject(o3));
     rem!(InputObjectKind::SharedMoveObject {
-        id: shared.0,
-        initial_shared_version: shared.1,
+        id: shared.object_id,
+        initial_shared_version: shared.version,
         mutable: true,
     });
     rem!(InputObjectKind::ImmOrOwnedMoveObject(gas_object_ref));
@@ -1229,8 +1229,8 @@ fn test_unique_input_objects() {
     let args_2 = vec![
         builder
             .input(CallArg::Object(ObjectArg::SharedObject {
-                id: shared.0,
-                initial_shared_version: shared.1,
+                id: shared.object_id,
+                initial_shared_version: shared.version,
                 mutable: true,
             }))
             .unwrap(),

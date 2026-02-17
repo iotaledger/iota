@@ -182,7 +182,7 @@ impl TransactionEffects {
             .into_iter()
             .chain(self.unwrapped_then_deleted())
             .chain(self.wrapped())
-            .map(|obj_ref| (obj_ref.0, obj_ref.1))
+            .map(|obj_ref| (obj_ref.object_id, obj_ref.version))
             .collect()
     }
 
@@ -262,7 +262,7 @@ pub enum InputSharedObject {
 impl InputSharedObject {
     pub fn id_and_version(&self) -> (ObjectID, SequenceNumber) {
         let oref = self.object_ref();
-        (oref.0, oref.1)
+        (oref.object_id, oref.version)
     }
 
     pub fn object_ref(&self) -> ObjectRef {
@@ -270,10 +270,10 @@ impl InputSharedObject {
             InputSharedObject::Mutate(oref) | InputSharedObject::ReadOnly(oref) => *oref,
             InputSharedObject::ReadDeleted(id, version)
             | InputSharedObject::MutateDeleted(id, version) => {
-                (*id, *version, ObjectDigest::OBJECT_DELETED)
+                ObjectRef::new(*id, *version, ObjectDigest::OBJECT_DELETED)
             }
             InputSharedObject::Cancelled(id, version) => {
-                (*id, *version, ObjectDigest::OBJECT_CANCELLED)
+                ObjectRef::new(*id, *version, ObjectDigest::OBJECT_CANCELLED)
             }
         }
     }

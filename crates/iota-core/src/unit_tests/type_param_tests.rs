@@ -38,7 +38,7 @@ async fn test_same_module_type_param() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "m1",
         "create_and_transfer",
         vec![],
@@ -50,15 +50,16 @@ async fn test_same_module_type_param() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0.0;
-    let type_param = TypeTag::from_str(format!("{}::m1::Object", package.0).as_str()).unwrap();
+    let created_object_id = effects.created()[0].0.object_id;
+    let type_param =
+        TypeTag::from_str(format!("{}::m1::Object", package.object_id).as_str()).unwrap();
 
     let effects = call_move(
         &authority,
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "m1",
         "transfer_object",
         vec![type_param],
@@ -96,7 +97,7 @@ async fn test_different_module_type_param() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "m2",
         "create_and_transfer",
         vec![],
@@ -108,16 +109,16 @@ async fn test_different_module_type_param() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0.0;
+    let created_object_id = effects.created()[0].0.object_id;
     let type_param =
-        TypeTag::from_str(format!("{}::m2::AnotherObject", package.0).as_str()).unwrap();
+        TypeTag::from_str(format!("{}::m2::AnotherObject", package.object_id).as_str()).unwrap();
 
     let effects = call_move(
         &authority,
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         // a different module than the one where the type was defined
         "m1",
         "transfer_object",
@@ -156,7 +157,7 @@ async fn test_nested_type_param() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "m1",
         "create_and_transfer_gen",
         vec![],
@@ -168,11 +169,11 @@ async fn test_nested_type_param() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0.0;
+    let created_object_id = effects.created()[0].0.object_id;
     let type_param = TypeTag::from_str(
         format!(
             "{}::m1::GenObject<{}::m2::AnotherObject>",
-            package.0, package.0
+            package.object_id, package.object_id
         )
         .as_str(),
     )
@@ -183,7 +184,7 @@ async fn test_nested_type_param() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "m1",
         "transfer_object",
         // outer type comes from the same module but nested one from a different module
@@ -222,7 +223,7 @@ async fn test_nested_type_param_different_module() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "m1",
         "create_and_transfer_gen",
         vec![],
@@ -234,11 +235,11 @@ async fn test_nested_type_param_different_module() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0.0;
+    let created_object_id = effects.created()[0].0.object_id;
     let type_param = TypeTag::from_str(
         format!(
             "{}::m1::GenObject<{}::m2::AnotherObject>",
-            package.0, package.0
+            package.object_id, package.object_id
         )
         .as_str(),
     )
@@ -249,7 +250,7 @@ async fn test_nested_type_param_different_module() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         // a different module than those where types where defined
         "m3",
         "transfer_object",
@@ -299,7 +300,7 @@ async fn test_different_package_type_param() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "m2",
         "create_and_transfer",
         vec![],
@@ -311,9 +312,9 @@ async fn test_different_package_type_param() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0.0;
+    let created_object_id = effects.created()[0].0.object_id;
     let type_param =
-        TypeTag::from_str(format!("{}::m2::AnotherObject", package.0).as_str()).unwrap();
+        TypeTag::from_str(format!("{}::m2::AnotherObject", package.object_id).as_str()).unwrap();
 
     let effects = call_move(
         &authority,
@@ -321,7 +322,7 @@ async fn test_different_package_type_param() {
         &sender,
         &sender_key,
         // a different package than the one where the type was defined
-        &package_extra.0,
+        &package_extra.object_id,
         "m1",
         "transfer_object",
         vec![type_param],
@@ -370,7 +371,7 @@ async fn test_nested_type_param_different_package() {
         &gas,
         &sender,
         &sender_key,
-        &package.0,
+        &package.object_id,
         "m1",
         "create_and_transfer_gen",
         vec![],
@@ -382,11 +383,11 @@ async fn test_nested_type_param_different_package() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0.0;
+    let created_object_id = effects.created()[0].0.object_id;
     let type_param = TypeTag::from_str(
         format!(
             "{}::m1::GenObject<{}::m2::AnotherObject>",
-            package.0, package.0
+            package.object_id, package.object_id
         )
         .as_str(),
     )
@@ -398,7 +399,7 @@ async fn test_nested_type_param_different_package() {
         &sender,
         &sender_key,
         // a different package than those where types where defined
-        &package_extra.0,
+        &package_extra.object_id,
         "m1",
         "transfer_object",
         vec![type_param],

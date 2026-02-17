@@ -90,7 +90,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let alias_owned_objects_page = iota_client
         .read_api()
         .get_owned_objects(
-            alias_object_ref.0.into(),
+            alias_object_ref.object_id.into(),
             Some(IotaObjectResponseQuery::new_with_options(
                 IotaObjectDataOptions::new().with_bcs().with_type(),
             )),

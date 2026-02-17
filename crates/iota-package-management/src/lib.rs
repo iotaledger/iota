@@ -60,7 +60,7 @@ pub async fn update_lock_file(
     lock_file: Option<PathBuf>,
     response: &IotaTransactionBlockResponse,
 ) -> Result<(), anyhow::Error> {
-    let (original_id, version, _) = get_new_package_obj_from_response(response).context(
+    let object_ref = get_new_package_obj_from_response(response).context(
         "Expected a valid published package response but didn't see \
          one when attempting to update the `Move.lock`.",
     )?;
@@ -69,8 +69,8 @@ pub async fn update_lock_file(
         command,
         install_dir,
         lock_file,
-        original_id,
-        version.as_u64(),
+        object_ref.object_id,
+        object_ref.version.as_u64(),
     )
     .await
 }

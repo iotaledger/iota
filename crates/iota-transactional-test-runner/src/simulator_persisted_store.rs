@@ -9,10 +9,10 @@ use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::ProtocolVersion;
 use iota_swarm_config::{genesis_config::AccountConfig, network_config_builder::ConfigBuilder};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, VersionNumber},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, StructTag, VersionNumber},
     committee::{Committee, EpochId},
     crypto::AccountKeyPair,
-    digests::{ObjectDigest, TransactionDigest},
+    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{IotaError, UserInputError},
     messages_checkpoint::{
@@ -305,12 +305,12 @@ impl SimulatorStore for PersistedStore {
     fn update_objects(
         &mut self,
         written_objects: BTreeMap<ObjectID, Object>,
-        deleted_objects: Vec<(ObjectID, SequenceNumber, ObjectDigest)>,
+        deleted_objects: Vec<ObjectRef>,
     ) {
-        for (object_id, _, _) in deleted_objects {
+        for object_ref in deleted_objects {
             self.read_write
                 .live_objects
-                .remove(&object_id)
+                .remove(&object_ref.object_id)
                 .expect("Fatal: DB write failed");
         }
 

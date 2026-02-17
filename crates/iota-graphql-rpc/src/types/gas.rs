@@ -161,11 +161,11 @@ impl GasEffects {
     /// `GasEffects` so that when viewing that entity's state, it will be as
     /// if it was read at the same checkpoint.
     pub(crate) fn from(effects: &NativeTransactionEffects, checkpoint_viewed_at: u64) -> Self {
-        let ((id, version, _digest), _owner) = effects.gas_object();
+        let (object_ref, _owner) = effects.gas_object();
         Self {
             summary: GasCostSummary::from(effects.gas_cost_summary()),
-            object_id: IotaAddress::from(id),
-            object_version: version.as_u64(),
+            object_id: IotaAddress::from(object_ref.object_id),
+            object_version: object_ref.version.as_u64(),
             checkpoint_viewed_at,
         }
     }
@@ -185,8 +185,8 @@ impl GasInput {
                 .payment
                 .iter()
                 .map(|o| ObjectKey {
-                    object_id: o.0.into(),
-                    version: o.1.as_u64().into(),
+                    object_id: o.object_id.into(),
+                    version: o.version.as_u64().into(),
                 })
                 .collect(),
             checkpoint_viewed_at,

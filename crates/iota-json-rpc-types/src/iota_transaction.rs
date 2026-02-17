@@ -2435,11 +2435,11 @@ impl IotaCallArg {
                 value_type: layout.map(|l| type_tag_core_to_sdk(&l.into())),
                 value: IotaJsonValue::from_bcs_bytes(layout, &p)?,
             }),
-            CallArg::Object(ObjectArg::ImmOrOwnedObject((id, version, digest))) => {
+            CallArg::Object(ObjectArg::ImmOrOwnedObject(object_ref)) => {
                 IotaCallArg::Object(IotaObjectArg::ImmOrOwnedObject {
-                    object_id: id,
-                    version,
-                    digest,
+                    object_id: object_ref.object_id,
+                    version: object_ref.version,
+                    digest: object_ref.digest,
                 })
             }
             CallArg::Object(ObjectArg::SharedObject {
@@ -2451,11 +2451,11 @@ impl IotaCallArg {
                 initial_shared_version,
                 mutable,
             }),
-            CallArg::Object(ObjectArg::Receiving((object_id, version, digest))) => {
+            CallArg::Object(ObjectArg::Receiving(object_ref)) => {
                 IotaCallArg::Object(IotaObjectArg::Receiving {
-                    object_id,
-                    version,
-                    digest,
+                    object_id: object_ref.object_id,
+                    version: object_ref.version,
+                    digest: object_ref.digest,
                 })
             }
         })

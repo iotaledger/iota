@@ -71,7 +71,7 @@ impl PackagePublishTxGenerator {
             let package_id = ctx
                 .publish_package(PublishData::ModuleBytes(module_bytes))
                 .await
-                .0;
+                .object_id;
             info!("Published dependent package {}", package_id);
             dep_map.insert(Symbol::from(name), package_id);
         }

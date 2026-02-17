@@ -1529,7 +1529,7 @@ mod checked {
         obj_arg: ObjectArg,
     ) -> Result<InputValue, ExecutionError> {
         match obj_arg {
-            ObjectArg::ImmOrOwnedObject((id, _, _)) => load_object(
+            ObjectArg::ImmOrOwnedObject(object_ref) => load_object(
                 vm,
                 state_view,
                 linkage_view,
@@ -1537,7 +1537,7 @@ mod checked {
                 input_object_map,
                 // imm override
                 false,
-                id,
+                object_ref.object_id,
             ),
             ObjectArg::SharedObject { id, mutable, .. } => load_object(
                 vm,
@@ -1549,9 +1549,10 @@ mod checked {
                 !mutable,
                 id,
             ),
-            ObjectArg::Receiving((id, version, _)) => {
-                Ok(InputValue::new_receiving_object(id, version))
-            }
+            ObjectArg::Receiving(object_ref) => Ok(InputValue::new_receiving_object(
+                object_ref.object_id,
+                object_ref.version,
+            )),
         }
     }
 

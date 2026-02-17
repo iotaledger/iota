@@ -2550,7 +2550,7 @@ impl DataReader for IndexerReader {
             // Here the cursor is the last object id in the previous page
             stored_objects.pop().unwrap();
             next_cursor = Some(if let Some(last_object) = stored_objects.last() {
-                last_object.get_object_ref()?.0
+                last_object.get_object_ref()?.object_id
             } else {
                 ObjectID::ZERO
             });
