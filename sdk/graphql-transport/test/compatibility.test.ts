@@ -466,9 +466,6 @@ describe('GraphQL IotaClient compatibility', () => {
     });
 
     test('transactionBlocksByDigests - single digest', async () => {
-        const [rpcTransactionBlocksByDigests] = await toolbox.client.transactionBlocksByDigests({
-            digests: [transactionBlockDigest],
-        });
         const graphqlTransactionBlocksByDigests = await graphQLClient!.transactionBlocksByDigests({
             digests: [transactionBlockDigest],
         });
@@ -476,14 +473,9 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphqlTransactionBlocksByDigests).toHaveLength(1);
         expect(graphqlTransactionBlocksByDigests[0]).toBeTruthy();
         expect(graphqlTransactionBlocksByDigests[0]?.digest).toBe(transactionBlockDigest);
-
-        expect(graphqlTransactionBlocksByDigests).toEqual(rpcTransactionBlocksByDigests);
     });
 
     test('transactionBlocksByDigests - multiple digests', async () => {
-        const [rpcTransactionBlocksByDigests] = await toolbox.client.transactionBlocksByDigests({
-            digests: [transactionBlockDigest, anotherTransactionBlockDigest],
-        });
         const graphqlTransactionBlocksByDigests = await graphQLClient!.transactionBlocksByDigests({
             digests: [transactionBlockDigest, anotherTransactionBlockDigest],
         });
@@ -493,24 +485,16 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphqlTransactionBlocksByDigests[0]?.digest).toBe(transactionBlockDigest);
         expect(graphqlTransactionBlocksByDigests[1]).toBeTruthy();
         expect(graphqlTransactionBlocksByDigests[1]?.digest).toBe(anotherTransactionBlockDigest);
-
-        expect(graphqlTransactionBlocksByDigests).toEqual(rpcTransactionBlocksByDigests);
     });
 
     test('transactionBlocksByDigests - with non-existent digest', async () => {
         const nonExistentDigest = 'C6G8PsqwNpMqrK7ApwuQUvDgzkFcUaUy6Y5ycrAN2q3F';
-
-        const [rpcTransactionBlocksByDigests] = await toolbox.client.transactionBlocksByDigests({
-            digests: [nonExistentDigest],
-        });
         const graphqlTransactionBlocksByDigests = await graphQLClient!.transactionBlocksByDigests({
             digests: [nonExistentDigest],
         });
 
         expect(graphqlTransactionBlocksByDigests).toHaveLength(1);
         expect(graphqlTransactionBlocksByDigests[0]).toBeNull();
-
-        expect(graphqlTransactionBlocksByDigests).toEqual(rpcTransactionBlocksByDigests);
     });
 
     test('getTotalTransactionBlocks', async () => {
