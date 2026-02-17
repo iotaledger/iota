@@ -8,6 +8,7 @@ package iota.grpc.v0.transaction;
 
 import "google/protobuf/timestamp.proto";
 
+import "iota/grpc/options.proto";
 import "iota/grpc/v0/bcs.proto";
 import "iota/grpc/v0/event.proto";
 import "iota/grpc/v0/object.proto";
@@ -16,6 +17,8 @@ import "iota/grpc/v0/types.proto";
 
 // A transaction.
 message Transaction {
+  option (iota.grpc.message_accessors) = "with";
+
   // The digest of this Transaction.
   optional iota.grpc.v0.types.Digest digest = 1;
 
@@ -25,6 +28,8 @@ message Transaction {
 
 // The effects of executing a transaction.
 message TransactionEffects {
+  option (iota.grpc.message_accessors) = "with";
+
   // The digest of this TransactionEffects.
   optional iota.grpc.v0.types.Digest digest = 1;
 
@@ -34,6 +39,8 @@ message TransactionEffects {
 
 // iota.grpc.v0.event.Events emitted during the successful execution of a transaction.
 message TransactionEvents {
+  option (iota.grpc.message_accessors) = "with";
+
   // The digest of this TransactionEvents.
   optional iota.grpc.v0.types.Digest digest = 1;
 
@@ -43,6 +50,8 @@ message TransactionEvents {
 
 // A transaction that has been executed, along with its signatures, effects, events and objects.
 message ExecutedTransaction {
+  option (iota.grpc.message_accessors) = "with";
+
   // The transaction itself.
   optional Transaction transaction = 1;
 
@@ -75,5 +84,7 @@ message ExecutedTransaction {
 }
 
 message ExecutedTransactions {
+  option (iota.grpc.message_accessors) = "with";
+
   repeated ExecutedTransaction transactions = 1;
 }

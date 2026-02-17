@@ -916,7 +916,9 @@ async fn test_chunked_checkpoint_streaming() {
     assert_eq!(individual_checkpoint.sequence_number(), 0);
     let summary = individual_checkpoint
         .summary()
-        .expect("should have summary");
+        .expect("should have summary")
+        .summary()
+        .expect("should have checkpoint summary");
     assert_eq!(summary.epoch, 0);
 
     // Test streaming checkpoints - this should also work with small chunks
@@ -935,7 +937,11 @@ async fn test_chunked_checkpoint_streaming() {
 
     // Verify the streamed checkpoint data matches
     assert_eq!(streamed_checkpoint.sequence_number(), 0);
-    let streamed_summary = streamed_checkpoint.summary().expect("should have summary");
+    let streamed_summary = streamed_checkpoint
+        .summary()
+        .expect("should have summary")
+        .summary()
+        .expect("should have checkpoint summary");
     assert_eq!(streamed_summary.epoch, 0);
 
     // Clean up

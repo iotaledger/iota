@@ -3,7 +3,7 @@
 
 import * as amplitude from '@amplitude/analytics-browser';
 import { LogLevel, type UserSession } from '@amplitude/analytics-types';
-import { getAmplitudeConsentStatus, PersistableStorage } from '@iota/core';
+import { attachEnvironmentPlugin, getAmplitudeConsentStatus, PersistableStorage } from '@iota/core';
 
 import { ampli } from './ampli';
 import { getDefaultNetwork } from '../../config';
@@ -11,6 +11,8 @@ import { getDefaultNetwork } from '../../config';
 const IS_ENABLED =
     import.meta.env.VITE_BUILD_ENV === 'production' &&
     import.meta.env.VITE_AMPLITUDE_ENABLED === 'true';
+
+const IS_DEV = import.meta.env.VITE_BUILD_ENV !== 'production';
 
 export const persistableStorage = new PersistableStorage<UserSession>();
 
@@ -61,6 +63,9 @@ export async function initAmplitude() {
         amplitude.setTransport('beacon');
         amplitude.flush();
     });
+
+    // Add environment plugin to set prefix dev events
+    ampli.client.add(attachEnvironmentPlugin(IS_DEV));
 }
 
 export function getUrlWithDeviceId(url: URL) {

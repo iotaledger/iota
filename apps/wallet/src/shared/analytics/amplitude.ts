@@ -4,12 +4,14 @@
 
 import * as amplitude from '@amplitude/analytics-browser';
 import { LogLevel } from '@amplitude/analytics-types';
-import { getCustomNetwork } from '@iota/core';
+import { attachEnvironmentPlugin, getCustomNetwork } from '@iota/core';
 import { getNetwork, type Network } from '@iota/iota-sdk/client';
 
 import { ampli } from './ampli';
 
 const IS_ENABLED = process.env.BUILD_ENV === 'production';
+
+const IS_DEV = process.env.BUILD_ENV !== 'production';
 
 export async function initAmplitude() {
     ampli.load({
@@ -50,6 +52,9 @@ export async function initAmplitude() {
             amplitude.flush();
         }
     });
+
+    // Add environment plugin to set prefix dev events
+    ampli.client.add(attachEnvironmentPlugin(IS_DEV));
 }
 
 export function getUrlWithDeviceId(url: URL) {
