@@ -577,6 +577,14 @@ export class AccountCreationStarted implements BaseEvent {
     }
 }
 
+export class AccountDeleted implements BaseEvent {
+    event_type = 'account deleted';
+
+    constructor(public event_properties?: AccountDeletedProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
 export class AccountsAdded implements BaseEvent {
     event_type = 'accounts added';
 
@@ -1037,6 +1045,22 @@ export class Ampli {
     return this.amplitude!.track(event, undefined, options);
   }
 
+  /**
+   * account deleted
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/account%20deleted)
+   *
+   * Fires when the user clicks on the “Delete” option on one of his accounts.
+   *
+   * @param properties The event's properties (e.g. accountType)
+   * @param options Amplitude event options.
+   */
+  accountDeleted(
+    properties?: AccountDeletedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new AccountDeleted(properties), options);
+  }
 
   /**
    * account renamed
