@@ -5,6 +5,9 @@ on:
     inputs:
       isRust:
         type: boolean
+      isRustWorkspaceConfig:
+        type: boolean
+        default: false
       isRustExample:
         type: boolean
       isPgIntegration:
@@ -83,7 +86,9 @@ jobs:
       isPgIntegration: ${{ inputs.isPgIntegration }}
       isMoveExampleUsedByOthers: ${{ inputs.isMoveExampleUsedByOthers }}
       runSimtest: true
-      testOnlyChangedCrates: true
+      # Only test changed crates and their dependent crates if there were no workspace-level config changes,
+      # otherwise test all crates since workspace-level config changes can affect all crates.
+      testOnlyChangedCrates: ${{ !inputs.isRustWorkspaceConfig }}
       changedCrates: ${{ join(fromJson(needs.crates-changes.outputs.components || '[]'), ' ') }}
       changedExternalCrates: ${{ join(fromJson(needs.external-changes.outputs.components || '[]'), ' ') }}
 
