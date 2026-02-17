@@ -269,7 +269,7 @@ impl TransactionFilter {
                 .effects
                 .all_affected_objects()
                 .iter()
-                .any(|obj_ref| &obj_ref.0 == o),
+                .any(|obj_ref| &obj_ref.object_id == o),
 
             TransactionFilter::MoveCall {
                 package,

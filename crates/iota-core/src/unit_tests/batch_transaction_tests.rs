@@ -47,7 +47,7 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
     for _ in 0..N {
         builder
             .move_call(
-                package.0,
+                package.object_id,
                 Identifier::from_static("object_basics"),
                 Identifier::from_static("create"),
                 vec![],
@@ -131,7 +131,7 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
     }
     builder
         .move_call(
-            package.0,
+            package.object_id,
             Identifier::from_static("object_basics"),
             Identifier::from_static("create"),
             vec![],
@@ -187,7 +187,7 @@ async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
     for _ in 0..N {
         builder
             .move_call(
-                package.0,
+                package.object_id,
                 Identifier::from_static("object_basics"),
                 Identifier::from_static("create"),
                 vec![],

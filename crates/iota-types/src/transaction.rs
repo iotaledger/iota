@@ -837,9 +837,10 @@ impl ObjectArg {
 
     pub fn id(&self) -> ObjectID {
         match self {
-            ObjectArg::Receiving((id, _, _))
-            | ObjectArg::ImmOrOwnedObject((id, _, _))
-            | ObjectArg::SharedObject { id, .. } => *id,
+            ObjectArg::Receiving(object_ref) | ObjectArg::ImmOrOwnedObject(object_ref) => {
+                object_ref.object_id
+            }
+            ObjectArg::SharedObject { id, .. } => *id,
         }
     }
 }
@@ -1735,7 +1736,11 @@ impl TransactionData {
             gas_data: GasData {
                 price: GAS_PRICE_FOR_SYSTEM_TX,
                 owner: sender,
-                payment: vec![(ObjectID::ZERO, SequenceNumber::default(), ObjectDigest::MIN)],
+                payment: vec![ObjectRef::new(
+                    ObjectID::ZERO,
+                    SequenceNumber::default(),
+                    ObjectDigest::MIN,
+                )],
                 budget: 0,
             },
             expiration: TransactionExpiration::None,
@@ -2033,7 +2038,7 @@ impl TransactionData {
                 Owner::Shared {
                     initial_shared_version,
                 } => ObjectArg::SharedObject {
-                    id: upgrade_capability.0,
+                    id: upgrade_capability.object_id,
                     initial_shared_version,
                     mutable: true,
                 },
@@ -3228,7 +3233,7 @@ impl InputObjectKind {
     pub fn object_id(&self) -> ObjectID {
         match self {
             Self::MovePackage(id) => *id,
-            Self::ImmOrOwnedMoveObject((id, _, _)) => *id,
+            Self::ImmOrOwnedMoveObject(object_ref) => object_ref.object_id,
             Self::SharedMoveObject { id, .. } => *id,
         }
     }
@@ -3236,7 +3241,7 @@ impl InputObjectKind {
     pub fn version(&self) -> Option<SequenceNumber> {
         match self {
             Self::MovePackage(..) => None,
-            Self::ImmOrOwnedMoveObject((_, version, _)) => Some(*version),
+            Self::ImmOrOwnedMoveObject(object_ref) => Some(object_ref.version),
             Self::SharedMoveObject { .. } => None,
         }
     }
@@ -3246,9 +3251,9 @@ impl InputObjectKind {
             Self::MovePackage(package_id) => {
                 UserInputError::DependentPackageNotFound { package_id }
             }
-            Self::ImmOrOwnedMoveObject((object_id, version, _)) => UserInputError::ObjectNotFound {
-                object_id,
-                version: Some(version),
+            Self::ImmOrOwnedMoveObject(object_ref) => UserInputError::ObjectNotFound {
+                object_id: object_ref.object_id,
+                version: Some(object_ref.version),
             },
             Self::SharedMoveObject { id, .. } => UserInputError::ObjectNotFound {
                 object_id: id,
@@ -3264,7 +3269,7 @@ impl InputObjectKind {
     pub fn is_mutable(&self) -> bool {
         match self {
             Self::MovePackage(..) => false,
-            Self::ImmOrOwnedMoveObject((_, _, _)) => true,
+            Self::ImmOrOwnedMoveObject(_) => true,
             Self::SharedMoveObject { mutable, .. } => *mutable,
         }
     }
@@ -3685,7 +3690,10 @@ impl InputObjects {
                         if object.is_immutable() {
                             None
                         } else {
-                            Some((object_ref.0, ((object_ref.1, object_ref.2), object.owner)))
+                            Some((
+                                object_ref.object_id,
+                                ((object_ref.version, object_ref.digest), object.owner),
+                            ))
                         }
                     }
                     (
@@ -3704,7 +3712,7 @@ impl InputObjects {
                     ) => {
                         if *mutable {
                             let oref = object.compute_object_reference();
-                            Some((oref.0, ((oref.1, oref.2), object.owner)))
+                            Some((oref.object_id, ((oref.version, oref.digest), object.owner)))
                         } else {
                             None
                         }
@@ -3738,7 +3746,11 @@ impl InputObjects {
                 ObjectReadResultKind::DeletedSharedObject(v, _) => Some(*v),
                 ObjectReadResultKind::CancelledTransactionSharedObject(_) => None,
             })
-            .chain(receiving_objects.iter().map(|object_ref| object_ref.1));
+            .chain(
+                receiving_objects
+                    .iter()
+                    .map(|object_ref| object_ref.version),
+            );
 
         SequenceNumber::lamport_increment(input_versions).unwrap()
     }

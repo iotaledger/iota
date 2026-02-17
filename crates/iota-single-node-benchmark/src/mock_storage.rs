@@ -63,7 +63,7 @@ impl InMemoryObjectStore {
             let obj: Option<Object> = match kind {
                 InputObjectKind::MovePackage(id) => self.get_package_object(id)?.map(|o| o.into()),
                 InputObjectKind::ImmOrOwnedMoveObject(objref) => {
-                    self.try_get_object_by_key(&objref.0, objref.1)?
+                    self.try_get_object_by_key(&objref.object_id, objref.version)?
                 }
 
                 InputObjectKind::SharedMoveObject { id, .. } => {

@@ -286,8 +286,11 @@ fn test_coin_id_serde() {
 }
 
 impl From<ObjectRef> for CoinID {
-    fn from((id, version, _): ObjectRef) -> Self {
-        Self { id, version }
+    fn from(object_ref: ObjectRef) -> Self {
+        Self {
+            id: object_ref.object_id,
+            version: object_ref.version,
+        }
     }
 }
 

@@ -4,7 +4,7 @@
 
 use iota_json_rpc_types::IotaCallArg;
 use iota_types::{
-    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData},
 };
@@ -14,7 +14,7 @@ use crate::{operations::Operations, types::ConstructionMetadata};
 
 #[tokio::test]
 async fn test_operation_data_parsing() -> Result<(), anyhow::Error> {
-    let gas = (
+    let gas = ObjectRef::new(
         ObjectID::random(),
         SequenceNumber::default(),
         ObjectDigest::random(),

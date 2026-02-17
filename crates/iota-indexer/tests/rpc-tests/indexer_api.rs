@@ -131,7 +131,7 @@ fn query_events_by_sender() -> Result<(), IndexerError> {
                 sender,
             )
             .await;
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
         let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
         let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id)
@@ -206,7 +206,7 @@ fn query_events_by_tx_digest() -> Result<(), IndexerError> {
                 sender,
             )
             .await;
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
         let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
         let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id)
@@ -282,7 +282,7 @@ fn query_events_by_package() -> Result<(), IndexerError> {
                 sender,
             )
             .await;
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
         let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
         let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id)
@@ -556,7 +556,7 @@ fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error> {
                 address,
             )
             .await;
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
         let coin_to_split = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -564,13 +564,19 @@ fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error> {
                 address,
             )
             .await;
-        indexer_wait_for_object(client, coin_to_split.0, coin_to_split.1).await;
+        indexer_wait_for_object(client, coin_to_split.object_id, coin_to_split.version).await;
         let iota_client = cluster.wallet.get_client().await.unwrap();
 
         for _ in 0..5 {
             let tx_data = iota_client
                 .transaction_builder()
-                .split_coin_equal(address, coin_to_split.0, 2, Some(gas_ref.0), 10_000_000)
+                .split_coin_equal(
+                    address,
+                    coin_to_split.object_id,
+                    2,
+                    Some(gas_ref.object_id),
+                    10_000_000,
+                )
                 .await?;
 
             let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
@@ -665,7 +671,7 @@ async fn test_query_transaction_blocks_pagination_with_partial_global_order()
             address,
         )
         .await;
-    indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+    indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
     let coin_to_split = cluster
         .fund_address_and_return_gas(
             cluster.get_reference_gas_price().await,
@@ -673,14 +679,20 @@ async fn test_query_transaction_blocks_pagination_with_partial_global_order()
             address,
         )
         .await;
-    indexer_wait_for_object(client, coin_to_split.0, coin_to_split.1).await;
+    indexer_wait_for_object(client, coin_to_split.object_id, coin_to_split.version).await;
     let iota_client = cluster.wallet.get_client().await.unwrap();
     let mut expected_tx_digests = vec![];
 
     for _ in 0..5 {
         let tx_data = iota_client
             .transaction_builder()
-            .split_coin_equal(address, coin_to_split.0, 2, Some(gas_ref.0), 10_000_000)
+            .split_coin_equal(
+                address,
+                coin_to_split.object_id,
+                2,
+                Some(gas_ref.object_id),
+                10_000_000,
+            )
             .await?;
         let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
         let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
@@ -701,7 +713,13 @@ async fn test_query_transaction_blocks_pagination_with_partial_global_order()
     for _ in 0..5 {
         let tx_data = iota_client
             .transaction_builder()
-            .split_coin_equal(address, coin_to_split.0, 2, Some(gas_ref.0), 10_000_000)
+            .split_coin_equal(
+                address,
+                coin_to_split.object_id,
+                2,
+                Some(gas_ref.object_id),
+                10_000_000,
+            )
             .await?;
         let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
         let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
@@ -764,9 +782,9 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
             .await;
         let iota_client = cluster.wallet.get_client().await.unwrap();
 
-        indexer_wait_for_object(client, gas.0, gas.1).await;
-        indexer_wait_for_object(client, coin_1.0, coin_1.1).await;
-        indexer_wait_for_object(client, coin_2.0, coin_2.1).await;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
+        indexer_wait_for_object(client, coin_1.object_id, coin_1.version).await;
+        indexer_wait_for_object(client, coin_2.object_id, coin_2.version).await;
 
         let objects = client
             .get_owned_objects(
@@ -802,7 +820,7 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
             .map(|ty| ty.try_into())
             .collect::<Result<Vec<_>, _>>()?;
 
-        let iota_call_args_1 = call_args!(coin_1.0, 10)?;
+        let iota_call_args_1 = call_args!(coin_1.object_id, 10)?;
         let call_args_1 = tx_builder
             .resolve_and_checks_json_args(
                 &mut pt_builder,
@@ -821,7 +839,7 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
             call_args_1.clone(),
         );
 
-        let iota_call_args_2 = call_args!(coin_2.0, 10)?;
+        let iota_call_args_2 = call_args!(coin_2.object_id, 10)?;
         let call_args_2 = tx_builder
             .resolve_and_checks_json_args(
                 &mut pt_builder,
@@ -895,12 +913,12 @@ fn test_query_transaction_blocks_from_and_to_address() -> Result<(), anyhow::Err
                 address,
             )
             .await;
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
         let transfer_request = client
             .transfer_iota(
                 address,
-                gas.0,
+                gas.object_id,
                 5_000_000.into(),
                 recipient_1,
                 Some(100_000_000.into()),
@@ -911,7 +929,7 @@ fn test_query_transaction_blocks_from_and_to_address() -> Result<(), anyhow::Err
         let transfer_request = client
             .transfer_iota(
                 address,
-                gas.0,
+                gas.object_id,
                 5_000_000.into(),
                 recipient_2,
                 Some(100_000_000.into()),
@@ -956,14 +974,14 @@ fn test_query_by_recently_executed_tx_cursor() -> Result<(), anyhow::Error> {
                 address,
             )
             .await;
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
         let filter = TransactionFilter::FromOrToAddress { addr: recipient };
 
         let transfer_request = client
             .transfer_iota(
                 address,
-                gas.0,
+                gas.object_id,
                 5_000_000.into(),
                 recipient,
                 Some(100_000_000.into()),
@@ -975,7 +993,7 @@ fn test_query_by_recently_executed_tx_cursor() -> Result<(), anyhow::Error> {
         let transfer_request = client
             .transfer_iota(
                 address,
-                gas.0,
+                gas.object_id,
                 5_000_000.into(),
                 recipient,
                 Some(150_000_000.into()),
@@ -987,7 +1005,7 @@ fn test_query_by_recently_executed_tx_cursor() -> Result<(), anyhow::Error> {
         let transfer_request = client
             .transfer_iota(
                 address,
-                gas.0,
+                gas.object_id,
                 5_000_000.into(),
                 recipient,
                 Some(160_000_000.into()),
@@ -1037,12 +1055,12 @@ fn test_query_transaction_blocks_from_or_to_address() -> Result<(), anyhow::Erro
                 address,
             )
             .await;
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
         let transfer_request = client
             .transfer_iota(
                 address,
-                gas.0,
+                gas.object_id,
                 5_000_000.into(),
                 recipient_1,
                 Some(100_000_000.into()),
@@ -1053,7 +1071,7 @@ fn test_query_transaction_blocks_from_or_to_address() -> Result<(), anyhow::Erro
         let transfer_request = client
             .transfer_iota(
                 address,
-                gas.0,
+                gas.object_id,
                 5_000_000.into(),
                 recipient_2,
                 Some(100_000_000.into()),
@@ -1234,7 +1252,7 @@ fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
                 address,
             )
             .await;
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
         // Create a bag object
         let pt = {
@@ -1297,7 +1315,7 @@ fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
 
         // Verify that the dynamic field was successfully added
         let dynamic_fields = client
-            .get_dynamic_fields(bag_object_ref.0, None, None)
+            .get_dynamic_fields(bag_object_ref.object_id, None, None)
             .await
             .expect("failed to get dynamic fields");
 
@@ -1347,7 +1365,7 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
                 address,
             )
             .await;
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
         let child_object = cluster
             .fund_address_and_return_gas(
@@ -1428,7 +1446,7 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
 
         // Verify that the dynamic field was successfully added
         let dynamic_fields = client
-            .get_dynamic_field_object(bag_object_ref.0, name)
+            .get_dynamic_field_object(bag_object_ref.object_id, name)
             .await
             .expect("failed to get dynamic field object");
 
@@ -1462,7 +1480,7 @@ fn test_query_transaction_blocks_tx_kind_filter() -> Result<(), anyhow::Error> {
             .await;
         let iota_client = cluster.wallet.get_client().await.unwrap();
 
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
         let objects = client
             .get_owned_objects(
