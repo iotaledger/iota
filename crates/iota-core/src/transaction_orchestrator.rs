@@ -210,8 +210,8 @@ where
                     Self::loop_pending_transaction_log(receiver, pending_tx_log_clone).await;
                 }));
 
-                // Schedule pending transactions recovery for both QuorumDriver and
-                // TransactionDriver
+                // Schedule pending transaction recovery (QuorumDriver mode only;
+                // TransactionDriver does not track pending certificates)
                 Self::schedule_txes_in_log(pending_tx_log.clone(), handler.clone());
 
                 res
