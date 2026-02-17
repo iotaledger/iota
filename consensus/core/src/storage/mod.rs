@@ -133,14 +133,3 @@ pub(crate) struct StorageScoringMetrics {
     pub(crate) equivocations: u64,
     pub(crate) missing_proposals: u64,
 }
-
-impl StorageScoringMetrics {
-    fn new_zeroed() -> Self {
-        StorageScoringMetrics {
-            faulty_blocks_provable: 0,
-            faulty_blocks_unprovable: 0,
-            equivocations: 0,
-            missing_proposals: 0,
-        }
-    }
-}

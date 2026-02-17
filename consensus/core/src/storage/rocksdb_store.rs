@@ -370,26 +370,10 @@ impl Store for RocksDBStore {
 // TODO: delete this function after the migration is done and the legacy
 // `StorageScoringMetrics` field is removed.
 fn migrate_stored_metrics(
-    mut legacy_entries: Vec<(AuthorityIndex, StorageScoringMetrics)>,
+    legacy_entries: Vec<(AuthorityIndex, StorageScoringMetrics)>,
     committee: &Committee,
 ) -> VersionedScoringMetrics {
-    // The legacy data does not always contain entries for all authorities. This can
-    // happen in case no misbehaviors were observed for some authorities, so no
-    // entry was written for them. Thus, we add zeroed entries for missing
-    // authorities to reconstruct the full vectors.
     let committee_size = committee.size();
-    if legacy_entries.len() < committee_size {
-        for (i, _) in committee.authorities() {
-            if !legacy_entries.iter().any(|(index, _)| *index == i) {
-                // We add a component with zeroed metrics for the authority with index i.
-                // This will ensure that every authority has an entry here.
-                // They are initialized as zero because if an authority does not have any
-                // recovered metrics, it means that it never misbehaved in a way that was
-                // detected by the node.
-                legacy_entries.insert(i.value(), (i, StorageScoringMetrics::new_zeroed()));
-            }
-        }
-    }
 
     // Reconstruct vectors from per-authority entries.
     let mut faulty_blocks_provable = vec![0u64; committee_size];
