@@ -24,6 +24,7 @@ import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAcco
 import { useFeature } from '@growthbook/growthbook-react';
 import { Feature, toast } from '@iota/core';
 import { isPasskeyAccountSerializedUI } from '_src/background/accounts/passkeyAccount';
+import { trackAutoLockUpdated } from '_src/shared/analytics/helpers';
 
 const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
     AccountsFormType.NewMnemonic,
@@ -74,12 +75,19 @@ export function ProtectAccountPage() {
     const featureAccountFinderEnabled = useFeature<boolean>(Feature.AccountFinder).value;
 
     const createAccountCallback = useCallback(
-        async (password: string, type: AccountsFormType) => {
+        async (
+            password: string,
+            type: AccountsFormType,
+            autoLockToTrack?: ProtectAccountFormValues['autoLock'],
+        ) => {
             try {
                 const createdAccounts = await createMutation.mutateAsync({
                     type,
                     password,
                 });
+                if (autoLockToTrack) {
+                    trackAutoLockUpdated(autoLockToTrack);
+                }
                 if (
                     type === AccountsFormType.NewMnemonic &&
                     isMnemonicSerializedUiAccount(createdAccounts[0])
@@ -138,12 +146,21 @@ export function ProtectAccountPage() {
     if (!isAllowedAccountType(accountsFormType)) {
         return <Navigate to="/" replace />;
     }
+
     async function handleOnSubmit({ password, autoLock }: ProtectAccountFormValues) {
         try {
-            await autoLockMutation.mutateAsync({
-                minutes: autoLockDataToMinutes(autoLock),
-            });
-            await createAccountCallback(password.input, accountsFormType as AccountsFormType);
+            const minutes = autoLockDataToMinutes(autoLock);
+            const hasAutoLock = typeof minutes === 'number' && minutes > 0;
+
+            if (hasAutoLock) {
+                await autoLockMutation.mutateAsync({ minutes });
+            }
+
+            await createAccountCallback(
+                password.input,
+                accountsFormType as AccountsFormType,
+                hasAutoLock ? autoLock : undefined,
+            );
         } catch (e) {
             toast.error((e as Error)?.message || 'Something went wrong');
         }
