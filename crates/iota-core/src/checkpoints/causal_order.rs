@@ -226,7 +226,7 @@ impl InsertState {
 #[cfg(test)]
 mod tests {
     use iota_types::{
-        base_types::{ObjectDigest, ObjectID, SequenceNumber},
+        base_types::{ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
         effects::TransactionEffects,
     };
 
@@ -260,17 +260,17 @@ mod tests {
         let mut e2 = e(d(2), vec![]);
         let mut e3 = e(d(3), vec![]);
         let obj_digest = ObjectDigest::new(Default::default());
-        e5.unsafe_add_input_shared_object_for_testing(InputSharedObject::ReadOnly((
+        e5.unsafe_add_input_shared_object_for_testing(InputSharedObject::ReadOnly(ObjectRef::new(
             o(1),
             SequenceNumber::from_u64(1),
             obj_digest,
         )));
-        e2.unsafe_add_input_shared_object_for_testing(InputSharedObject::ReadOnly((
+        e2.unsafe_add_input_shared_object_for_testing(InputSharedObject::ReadOnly(ObjectRef::new(
             o(1),
             SequenceNumber::from_u64(1),
             obj_digest,
         )));
-        e3.unsafe_add_input_shared_object_for_testing(InputSharedObject::Mutate((
+        e3.unsafe_add_input_shared_object_for_testing(InputSharedObject::Mutate(ObjectRef::new(
             o(1),
             SequenceNumber::from_u64(1),
             obj_digest,

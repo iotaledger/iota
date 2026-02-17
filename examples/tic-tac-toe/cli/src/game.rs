@@ -51,7 +51,7 @@ pub(crate) enum Winner {
 
 impl Game {
     pub(crate) fn object_ref(&self) -> ObjectRef {
-        (self.kind.board().id, self.version, self.digest)
+        ObjectRef::new(self.kind.board().id, self.version, self.digest)
     }
 }
 

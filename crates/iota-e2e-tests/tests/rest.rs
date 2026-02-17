@@ -73,8 +73,8 @@ async fn resolve_transaction_simple_transfer() {
     let recipient = IotaAddress::random();
 
     let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
-    gas.sort_by_key(|object_ref| object_ref.0);
-    let obj_to_send = gas.first().unwrap().0;
+    gas.sort_by_key(|object_ref| object_ref.object_id);
+    let obj_to_send = gas.first().unwrap().object_id;
 
     let unresolved_transaction = UnresolvedTransaction {
         ptb: UnresolvedProgrammableTransaction {
@@ -138,7 +138,7 @@ async fn resolve_transaction_transfer_with_sponsor() {
     let recipient = IotaAddress::random();
 
     let (sender, gas) = test_cluster.wallet.get_one_account().await.unwrap();
-    let obj_to_send = gas.first().unwrap().0;
+    let obj_to_send = gas.first().unwrap().object_id;
     let sponsor = test_cluster.wallet.get_addresses()[1];
 
     let unresolved_transaction = UnresolvedTransaction {
@@ -278,8 +278,8 @@ async fn resolve_transaction_mutable_shared_object() {
     let client = Client::new(test_cluster.rpc_url());
 
     let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
-    gas.sort_by_key(|object_ref| object_ref.0);
-    let obj_to_stake = gas.first().unwrap().0;
+    gas.sort_by_key(|object_ref| object_ref.object_id);
+    let obj_to_stake = gas.first().unwrap().object_id;
     let validator_address = client
         .inner()
         .get_system_state_summary()

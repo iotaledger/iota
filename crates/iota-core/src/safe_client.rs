@@ -376,13 +376,13 @@ where
             let expected: HashMap<_, _> = signed_effects
                 .old_object_metadata()
                 .into_iter()
-                .map(|(object_ref, _owner)| (object_ref.0, object_ref))
+                .map(|(object_ref, _owner)| (object_ref.object_id, object_ref))
                 .collect();
 
             for object in input_objects {
                 let object_ref = object.compute_object_reference();
                 if expected
-                    .get(&object_ref.0)
+                    .get(&object_ref.object_id)
                     .is_none_or(|expect| &object_ref != expect)
                 {
                     return Err(IotaError::ByzantineAuthoritySuspicion {
@@ -399,13 +399,13 @@ where
             let expected: HashMap<_, _> = signed_effects
                 .all_changed_objects()
                 .into_iter()
-                .map(|(object_ref, _, _)| (object_ref.0, object_ref))
+                .map(|(object_ref, _, _)| (object_ref.object_id, object_ref))
                 .collect();
 
             for object in output_objects {
                 let object_ref = object.compute_object_reference();
                 if expected
-                    .get(&object_ref.0)
+                    .get(&object_ref.object_id)
                     .is_none_or(|expect| &object_ref != expect)
                 {
                     return Err(IotaError::ByzantineAuthoritySuspicion {

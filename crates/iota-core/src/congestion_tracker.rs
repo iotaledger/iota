@@ -179,7 +179,7 @@ impl CongestionTracker {
                         .input_shared_objects()
                         .into_iter()
                         .filter_map(|object| match object {
-                            InputSharedObject::Mutate((id, _, _)) => Some(id),
+                            InputSharedObject::Mutate(object_ref) => Some(object_ref.object_id),
                             InputSharedObject::Cancelled(_, _)
                             | InputSharedObject::ReadOnly(_)
                             | InputSharedObject::ReadDeleted(_, _)

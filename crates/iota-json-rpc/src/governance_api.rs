@@ -331,15 +331,18 @@ impl GovernanceReadApi {
         for stake in iter {
             match stake {
                 ObjectRead::Exists(_, o, _) => stakes.push((o, true)),
-                ObjectRead::Deleted((object_id, version, _)) => {
+                ObjectRead::Deleted(object_ref) => {
                     let Some(o) = self
                         .state
-                        .find_object_lt_or_eq_version(&object_id, &version.previous().unwrap())
+                        .find_object_lt_or_eq_version(
+                            &object_ref.object_id,
+                            &object_ref.version.previous().unwrap(),
+                        )
                         .await?
                     else {
                         Err(IotaRpcInputError::UserInput(
                             UserInputError::ObjectNotFound {
-                                object_id,
+                                object_id: object_ref.object_id,
                                 version: None,
                             },
                         ))?

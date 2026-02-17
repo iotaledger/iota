@@ -111,7 +111,7 @@ async fn execute_add_validator_transactions(
         .object_ref();
     let gas = test_cluster
         .wallet
-        .gas_for_owner_budget(address, 0, BTreeSet::from([stake_coin.0]))
+        .gas_for_owner_budget(address, 0, BTreeSet::from([stake_coin.object_id]))
         .await
         .unwrap()
         .1
@@ -123,7 +123,11 @@ async fn execute_add_validator_transactions(
         .build_and_sign(&new_validator.account_key_pair);
     test_cluster.execute_transaction(stake_tx).await;
 
-    let gas = test_cluster.wallet.get_object_ref(gas.0).await.unwrap();
+    let gas = test_cluster
+        .wallet
+        .get_object_ref(gas.object_id)
+        .await
+        .unwrap();
     let tx = TestTransactionBuilder::new(address, gas, rgp)
         .call_request_add_validator()
         .build_and_sign(&new_validator.account_key_pair);

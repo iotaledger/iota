@@ -154,7 +154,9 @@ impl Client {
                 mutable: false,
             })?
         } else {
-            builder.obj(ObjectArg::ImmOrOwnedObject((object_id, version, digest)))?
+            builder.obj(ObjectArg::ImmOrOwnedObject(ObjectRef::new(
+                object_id, version, digest,
+            )))?
         };
 
         builder.programmable_move_call(
@@ -216,7 +218,7 @@ impl Client {
     pub(crate) async fn turn_cap(&mut self, game: &Game) -> Result<ObjectRef> {
         let player = self.wallet.active_address()?;
         let client = self.client().await?;
-        let (game_id, _, _) = game.object_ref();
+        let game_id = game.object_ref().object_id;
 
         let turn_cap_type = StructTag::new(
             self.package,
@@ -266,7 +268,7 @@ impl Client {
                     .context("INTERNAL ERROR: Failed to deserialize TurnCap.")?;
 
                 if turn_cap.game == game_id {
-                    return Ok((object_id, version, digest));
+                    return Ok(ObjectRef::new(object_id, version, digest));
                 }
             }
 
@@ -518,7 +520,7 @@ impl Client {
                 return None;
             }
 
-            Some((object_id, version, digest))
+            Some(ObjectRef::new(object_id, version, digest))
         }) else {
             bail!("Can't find Mark");
         };
@@ -695,7 +697,7 @@ impl Client {
             .input_objects()?
             .into_iter()
             .filter_map(|input| match input {
-                InputObjectKind::ImmOrOwnedMoveObject((id, _, _)) => Some(id),
+                InputObjectKind::ImmOrOwnedMoveObject(object_ref) => Some(object_ref.object_id),
                 InputObjectKind::MovePackage(_) => None,
                 InputObjectKind::SharedMoveObject { .. } => None,
             })

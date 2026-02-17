@@ -150,6 +150,8 @@ impl AuthContextCallArg {
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_types::ObjectReference;
+
     use super::*;
     use crate::{
         base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
@@ -163,12 +165,12 @@ mod tests {
         ObjectID::from_prefixed_short_hex("0x0000000000000000000000000000000000000001").unwrap()
     }
 
-    fn obj_ref() -> (ObjectID, SequenceNumber, ObjectDigest) {
-        (
-            obj_id(),
-            SequenceNumber::from(1),
-            ObjectDigest::new([1u8; 32]),
-        )
+    fn obj_ref() -> ObjectReference {
+        ObjectReference {
+            object_id: obj_id(),
+            version: SequenceNumber::from(1),
+            digest: ObjectDigest::new([1u8; 32]),
+        }
     }
 
     /// BCS round-trip helper.
