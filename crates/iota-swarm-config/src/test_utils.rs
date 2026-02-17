@@ -2,11 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
+use iota_config::genesis::Genesis;
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_types::{
-    base_types::AuthorityName,
+    base_types::{AuthorityName, ExecutionData},
     committee::{Committee, EpochId, StakeUnit},
     crypto::{
         AuthorityKeyPair, AuthoritySignInfo, AuthoritySignature, IotaAuthoritySignature,
@@ -25,6 +26,7 @@ pub struct CommitteeFixture {
     epoch: EpochId,
     validators: HashMap<AuthorityName, (AuthorityKeyPair, StakeUnit)>,
     committee: Committee,
+    genesis: Option<Arc<Genesis>>,
 }
 
 type MakeCheckpointResults = (
@@ -57,6 +59,7 @@ impl CommitteeFixture {
             epoch,
             validators,
             committee,
+            genesis: None,
         }
     }
 
@@ -83,6 +86,7 @@ impl CommitteeFixture {
                 })
                 .collect(),
             committee,
+            genesis: Some(Arc::new(network_config.genesis.clone())),
         }
     }
 
@@ -92,14 +96,33 @@ impl CommitteeFixture {
 
     fn create_root_checkpoint(&self) -> (VerifiedCheckpoint, VerifiedCheckpointContents) {
         assert_eq!(self.epoch, 0, "root checkpoint must be epoch 0");
+
+        let mut contents = empty_contents();
+        if let Some(genesis) = &self.genesis {
+            // if genesis is provided, create checkpoint contents with the genesis
+            // transaction
+            let tx = genesis.transaction().clone();
+            let effects = genesis.effects().clone();
+            let execution_data = ExecutionData::new(tx, effects);
+
+            contents = VerifiedCheckpointContents::new_unchecked(
+                FullCheckpointContents::new_with_causally_ordered_transactions(std::iter::once(
+                    execution_data,
+                )),
+            );
+        }
+
+        let content_digest = *contents
+            .clone()
+            .into_inner()
+            .into_checkpoint_contents()
+            .digest();
+
         let checkpoint = CheckpointSummary {
             epoch: 0,
             sequence_number: 0,
-            network_total_transactions: 0,
-            content_digest: *empty_contents()
-                .into_inner()
-                .into_checkpoint_contents()
-                .digest(),
+            network_total_transactions: contents.num_of_transactions() as u64,
+            content_digest,
             previous_digest: None,
             epoch_rolling_gas_cost_summary: Default::default(),
             end_of_epoch_data: None,
@@ -109,10 +132,7 @@ impl CommitteeFixture {
             checkpoint_commitments: Default::default(),
         };
 
-        (
-            self.create_certified_checkpoint(checkpoint),
-            empty_contents(),
-        )
+        (self.create_certified_checkpoint(checkpoint), contents)
     }
 
     fn create_certified_checkpoint(&self, checkpoint: CheckpointSummary) -> VerifiedCheckpoint {
