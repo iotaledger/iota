@@ -15,27 +15,42 @@ use iota_types::{
 pub(crate) const MAX_SCORE: u64 = u16::MAX as u64 + 1; // Note: must be consistent with MAX_SCORE in validator_set.move in iota-framework.
 const SCALE_FACTOR: u64 = 2_u64.pow(16);
 
+pub type ReceivedReportsState = Vec<ReceivedReportsStatePerAuthority>;
+
+// Tracks the state of the received reports for each authority in the committee,
+// which includes the received metrics and the count of invalid reports. This is
+// used to calculate the scores of the authorities based on the reports they
+// have sent and their validity.
+pub struct ReceivedReportsStatePerAuthority {
+    // The metrics counts received from the authority, i.e., the information contained in the
+    // MisbehaviourReports received. If the authority has not sent a report, received_metrics will
+    // be all zeroed.
+    received_metrics: VersionedScoringMetrics,
+    // Indicates whether the authority did not send any misbehavior reports in the epoch. We use
+    // this to differentiate an authority that did not send a report from another one who sent
+    // zeroed reports.
+    has_not_sent_report: AtomicBool,
+    // The count of invalid reports received from the authority. Validity here must be checked in
+    // a deterministic way, since this information will not be propagated again to the rest of the
+    // committee.
+    invalid_reports_count: AtomicU64,
+}
+
 /// Holds all information related to scoring of authorities in the committee.
 pub struct Scorer {
     // The current metrics counts collected by the authority, i.e., the local view of the node
-    // about the behaviour of the rest of the committee, according to the blocks received.
+    // about the behaviour of the rest of the committee, according to the blocks received. Note
+    // that these counts are updated by the consensus module asynchronously with respect to the
+    // rest of the scorer, and they are not necessarily related to the reports received from the
+    // authorities. They are used to create the MisbehaviourReport that the authority sends to the
+    // rest of the committee.
     pub(crate) current_local_metrics_count: Arc<VersionedScoringMetrics>,
-    // The metrics counts received from other authorities, i.e., the information contained in the
-    // MisbehaviourReports received by the authority. If an authority has not sent a report, its
-    // entry in this vector will be all zeroed.
-    received_metrics: Vec<VersionedScoringMetrics>,
-    // Indicates whether an authority did not send any misbehavior reports in the epoch. We use
-    // this to differentiate an authority that did not send a report from another one who sent
-    // zeroed reports.
-    has_not_sent_report: Vec<AtomicBool>,
+    // Per-authority state tracking received reports and their validity.
+    received_reports_state: ReceivedReportsState,
     // The current scores of the authorities, updated after each received report. This score is
     // calculated based on the information in the received reports and the validity of the reports
     // themselves.
     pub(crate) current_scores: Scores,
-    // The count of invalid reports received from each authority. Validity here must be checked in
-    // a deterministic way, since this information will not be propagated again to the rest of the
-    // committee.
-    invalid_reports_count: Vec<AtomicU64>,
     // The voting power of each authority in the committee.
     voting_power: Vec<u64>,
     // The version of the scorer being used with its parameters.
@@ -52,21 +67,22 @@ impl Scorer {
                     committee_size,
                     protocol_config,
                 ));
-                let (received_metrics, has_not_sent_report, current_scores, invalid_reports_count) =
-                    (0..committee_size)
-                        .map(|_| {
-                            (
-                                // Received metrics initialized to zero.
-                                VersionedScoringMetrics::new(committee_size, protocol_config),
-                                // Initially, none of the authorities had sent any valid report.
-                                AtomicBool::new(true),
-                                // Current scores initialized to max score.
-                                AtomicU64::new(MAX_SCORE),
-                                // Invalid reports count initialized to zero.
-                                AtomicU64::new(0),
-                            )
-                        })
-                        .collect();
+                let (received_reports_state, current_scores): (ReceivedReportsState, Scores) = (0
+                    ..committee_size)
+                    .map(|_| {
+                        (
+                            ReceivedReportsStatePerAuthority {
+                                received_metrics: VersionedScoringMetrics::new(
+                                    committee_size,
+                                    protocol_config,
+                                ),
+                                has_not_sent_report: AtomicBool::new(true),
+                                invalid_reports_count: AtomicU64::new(0),
+                            },
+                            AtomicU64::new(MAX_SCORE),
+                        )
+                    })
+                    .collect();
                 let parameters = ParametersV1 {
                     allowances: MisbehaviorsV1::new(
                         1,      // faulty_blocks_provable
@@ -125,10 +141,8 @@ impl Scorer {
 
                 Self {
                     current_local_metrics_count,
-                    received_metrics,
-                    has_not_sent_report,
+                    received_reports_state,
                     current_scores,
-                    invalid_reports_count,
                     voting_power,
                     version: ScorerVersion::V1(parameters),
                 }
@@ -146,7 +160,9 @@ impl Scorer {
     // Boundary checks for this functions are done at a higher level. `authority``
     // should always be derived from a valid AuthorityIndex
     pub(crate) fn update_invalid_reports_count(&self, authority: u32) {
-        self.invalid_reports_count[authority as usize].fetch_add(1, Ordering::Relaxed);
+        self.received_reports_state[authority as usize]
+            .invalid_reports_count
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     pub(crate) fn update_scores(&self) {
@@ -160,10 +176,9 @@ impl Scorer {
         authority: u32,
         report: &VersionedMisbehaviorReport,
     ) {
-        // Update the received metrics for the authority, and mark that we have received
-        // metrics from them. Then, update the scores accordingly.
-        self.received_metrics[authority as usize].update_from_report(report);
-        self.has_not_sent_report[authority as usize].store(false, Ordering::Relaxed);
+        let state = &self.received_reports_state[authority as usize];
+        state.received_metrics.update_from_report(report);
+        state.has_not_sent_report.store(false, Ordering::Relaxed);
     }
 }
 
@@ -173,12 +188,11 @@ impl Scorer {
         // Vector with the highest received reports from each authority and their voting
         // power. Authorities that did not send reports are filtered out.
         let highest_received_reports_from_authority = self
-            .received_metrics
+            .received_reports_state
             .iter()
             .zip(self.voting_power.iter())
-            .zip(self.has_not_sent_report.iter())
-            .filter(|((_, _), is_missing)| !is_missing.load(Ordering::Relaxed))
-            .map(|((metrics, voting_power), _)| (metrics.to_report(), *voting_power))
+            .filter(|(state, _)| !state.has_not_sent_report.load(Ordering::Relaxed))
+            .map(|(state, voting_power)| (state.received_metrics.to_report(), *voting_power))
             .collect::<Vec<(VersionedMisbehaviorReport, VotingPower)>>();
         // Ensure that we have at least one report to calculate the scores, otherwise we
         // do nothing.
@@ -468,6 +482,12 @@ mod tests {
                 self.update_received_reports(*authority, report);
             }
         }
+
+        pub(crate) fn invalid_reports_count_value(&self, authority: u32) -> u64 {
+            self.received_reports_state[authority as usize]
+                .invalid_reports_count
+                .load(Ordering::Relaxed)
+        }
     }
     #[test]
     fn test_scorer_initialization() {
@@ -478,9 +498,7 @@ mod tests {
         let scorer = Scorer::new(voting_power, &protocol_config);
 
         assert_eq!(scorer.current_scores.len(), committee_size);
-        assert_eq!(scorer.invalid_reports_count.len(), committee_size);
-        assert_eq!(scorer.received_metrics.len(), committee_size);
-        assert_eq!(scorer.has_not_sent_report.len(), committee_size);
+        assert_eq!(scorer.received_reports_state.len(), committee_size);
     }
 
     #[test]
@@ -494,27 +512,15 @@ mod tests {
         let authority_index = 2;
 
         // Before update
-        assert_eq!(
-            scorer.invalid_reports_count[authority_index as usize].load(Ordering::Relaxed),
-            0
-        );
+        assert_eq!(scorer.invalid_reports_count_value(authority_index), 0);
 
         // Call the method
         scorer.update_invalid_reports_count(authority_index);
 
         // After update
-        assert_eq!(
-            scorer.invalid_reports_count[0_usize].load(Ordering::Relaxed),
-            0
-        );
-        assert_eq!(
-            scorer.invalid_reports_count[1_usize].load(Ordering::Relaxed),
-            0
-        );
-        assert_eq!(
-            scorer.invalid_reports_count[2_usize].load(Ordering::Relaxed),
-            1
-        );
+        assert_eq!(scorer.invalid_reports_count_value(0), 0);
+        assert_eq!(scorer.invalid_reports_count_value(1), 0);
+        assert_eq!(scorer.invalid_reports_count_value(2), 1);
 
         let authority_index = 1;
         // Call the method twice
@@ -522,18 +528,9 @@ mod tests {
         scorer.update_invalid_reports_count(authority_index);
 
         // After update
-        assert_eq!(
-            scorer.invalid_reports_count[0_usize].load(Ordering::Relaxed),
-            0
-        );
-        assert_eq!(
-            scorer.invalid_reports_count[1_usize].load(Ordering::Relaxed),
-            2
-        );
-        assert_eq!(
-            scorer.invalid_reports_count[2_usize].load(Ordering::Relaxed),
-            1
-        );
+        assert_eq!(scorer.invalid_reports_count_value(0), 0);
+        assert_eq!(scorer.invalid_reports_count_value(1), 2);
+        assert_eq!(scorer.invalid_reports_count_value(2), 1);
     }
 
     #[test]
