@@ -10,7 +10,6 @@ import dotenv from 'dotenv';
 import gitRevSync from 'git-rev-sync';
 import { rspack } from '@rspack/core';
 import type { Configuration } from '@rspack/core';
-import { merge } from 'webpack-merge';
 
 import packageJson from '../../package.json';
 
