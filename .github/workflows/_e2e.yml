@@ -4,33 +4,36 @@ on:
   workflow_dispatch:
   workflow_call:
     inputs:
+      isNightly:
+        type: boolean
+        required: true
       isRpc:
         type: boolean
-        required: false
+        required: true
       isExplorer:
         type: boolean
-        required: false
+        required: true
       isAppsBackend:
         type: boolean
-        required: false
+        required: true
       isTypescriptSDK:
         type: boolean
-        required: false
+        required: true
       isWallet:
         type: boolean
-        required: false
+        required: true
       isGraphQlTransport:
         type: boolean
-        required: false
+        required: true
       isWalletDashboard:
         type: boolean
-        required: false
+        required: true
       isEvmBridge:
         type: boolean
-        required: false
+        required: true
       isIscSDK:
         type: boolean
-        required: false
+        required: true
     secrets:
       EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK:
         required: true
@@ -47,10 +50,9 @@ env:
   VITE_EVM_BRIDGE_CONFIG: ${{ secrets.EVM_BRIDGE_CONFIG }}
 
 jobs:
-  # Run e2e test against localnet built on the develop branch
   localnet:
     name: Localnet
-    if: inputs.isExplorer || inputs.isTypescriptSDK || inputs.isWallet || inputs.isWalletDashboard || inputs.isEvmBridge || inputs.isRpc || github.ref_name == 'develop'
+    if: inputs.isNightly || inputs.isRpc || inputs.isExplorer || inputs.isAppsBackend || inputs.isTypescriptSDK || inputs.isWallet || inputs.isGraphQlTransport || inputs.isWalletDashboard || inputs.isEvmBridge || inputs.isIscSDK
     runs-on: self-hosted-x64
     services:
       postgres:

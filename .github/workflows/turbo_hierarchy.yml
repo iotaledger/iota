@@ -140,10 +140,11 @@ jobs:
           retention-days: 7
 
   e2e:
-    if: (!cancelled() && !failure() && github.ref_name != 'develop' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (!cancelled() && !failure() && (github.ref_name == 'develop' || github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     needs: diff
     uses: ./.github/workflows/_e2e.yml
     with:
+      isNightly: false
       isRpc: ${{ needs.diff.outputs.isRpc }}
       isWallet: ${{ needs.diff.outputs.isWallet }}
       isExplorer: ${{ needs.diff.outputs.isExplorer }}
