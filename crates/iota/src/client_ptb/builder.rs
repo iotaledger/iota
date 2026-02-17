@@ -760,7 +760,9 @@ impl<'a> PTBBuilder<'a> {
                                 )
                                 .await
                             }
-                            _ => unimplemented!("a new enum variant was added and needs to be handled"),
+                            _ => unimplemented!(
+                                "a new enum variant was added and needs to be handled"
+                            ),
                         }
                     }
                 }

@@ -36,8 +36,8 @@ use iota_sdk_types::{
     },
     object_id::ObjectId,
     transaction::{
-        ActiveJwk, AuthenticatorStateExpire, AuthenticatorStateUpdateV1,
-        CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
+        ActiveJwk, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, CancelledTransaction,
+        ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
         ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
         EndOfEpochTransactionKind, GasPayment, GenesisTransaction, Input, MakeMoveVector,
         MergeCoins, MoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate,

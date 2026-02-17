@@ -436,7 +436,7 @@ mod checked {
                     }
                     res.extend((0..len).map(|j| Arg(Arg_::V2(NormalizedArg::Result(i, j)))))
                 }
-                _ => unimplemented!("a new enum variant was added and needs to be handled")
+                _ => unimplemented!("a new enum variant was added and needs to be handled"),
             }
             Ok(())
         }
@@ -1078,7 +1078,7 @@ mod checked {
                     };
                     (None, result_value)
                 }
-                _ => unimplemented!("a new enum variant was added and needs to be handled")
+                _ => unimplemented!("a new enum variant was added and needs to be handled"),
             };
             if let Some(usage) = update_last_usage {
                 result_value.last_usage_kind = Some(usage);

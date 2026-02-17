@@ -237,7 +237,7 @@ impl Display for Pretty<'_, Argument> {
             Argument::Input(i) => format!("Input  {i}"),
             Argument::Result(i) => format!("Result {i}"),
             Argument::NestedResult(j, k) => format!("Result {j}: {k}"),
-            _ => unimplemented!("a new enum variant was added and needs to be handled")
+            _ => unimplemented!("a new enum variant was added and needs to be handled"),
         };
         write!(f, "{output}")
     }
