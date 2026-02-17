@@ -7,8 +7,6 @@ pub use iota_sdk_types::{
     PackageUpgradeError, TypeArgumentError,
 };
 
-// pub type MoveLocationOpt = iota_sdk_types::MoveLocationOpt;
-
 #[cfg(test)]
 #[path = "unit_tests/execution_status_tests.rs"]
 mod execution_status_tests;

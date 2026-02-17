@@ -2864,6 +2864,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -2874,6 +2875,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "rand 0.8.5",
  "serde",
 ]
@@ -2901,6 +2905,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -2911,6 +2916,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "iota-tls",
  "itertools 0.13.0",
  "lru 0.12.5",
@@ -6338,6 +6346,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -6348,6 +6357,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "iota-simulator",
  "iota-source-validation",
  "iota-swarm",
@@ -6699,6 +6711,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -6709,6 +6722,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "iota-swarm",
  "iota-swarm-config",
  "iota-test-transaction-builder",
@@ -6835,6 +6851,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -6845,6 +6862,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "iota-simulator",
  "iota-storage",
  "iota-swarm-config",
@@ -7052,6 +7072,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -7062,6 +7083,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "iota-simulator",
  "iota-storage",
  "iota-swarm",
@@ -7165,6 +7189,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -7175,6 +7200,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "iota-types",
  "parking_lot 0.12.5",
  "prometheus",
@@ -7305,6 +7333,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -7315,6 +7344,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "iota-simulator",
  "iota-stardust-types",
  "iota-swarm-config",
@@ -7441,6 +7473,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -7451,6 +7484,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "iota-swarm-config",
  "iota-test-transaction-builder",
  "iota-types",
@@ -7526,10 +7562,14 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "serde",
  "thiserror 1.0.69",
  "tonic 0.14.4",
@@ -7565,6 +7605,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
  "iota-test-transaction-builder",
  "iota-types",
@@ -7585,6 +7626,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "iota-test-transaction-builder",
  "iota-types",
  "move-core-types",
@@ -7613,6 +7657,7 @@ dependencies = [
  "bcs",
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
 >>>>>>> d735805ba8 (some fixes)
 =======
@@ -7621,6 +7666,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "prost 0.14.3",
  "prost-types 0.14.3",
  "serde",
@@ -7835,6 +7883,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -7845,6 +7894,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "iota-storage",
  "iota-transaction-builder",
  "iota-types",
@@ -7988,6 +8040,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -7998,6 +8051,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "iota-types",
  "rand 0.8.5",
  "regex",
@@ -8052,6 +8108,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -8062,6 +8119,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "iota-types",
  "ledger-transport",
  "ledger-transport-hid",
@@ -8088,6 +8148,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -8098,6 +8159,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "thiserror 1.0.69",
  "tokio",
  "tracing",
@@ -8375,6 +8439,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -8385,6 +8450,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "iota-simulator",
  "iota-storage",
  "iota-swarm-config",
@@ -8483,6 +8551,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -8493,6 +8562,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "iota-simulator",
  "iota-snapshot",
  "iota-storage",
@@ -8837,6 +8909,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -8847,6 +8920,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "iota-types",
  "itertools 0.13.0",
  "mime",
@@ -8926,6 +9002,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -8936,6 +9013,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "iota-swarm-config",
  "iota-types",
  "move-core-types",
@@ -8976,6 +9056,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -8986,6 +9067,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "iota-types",
  "itertools 0.13.0",
  "serde",
@@ -9025,6 +9109,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -9035,6 +9120,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "iota-transaction-builder",
  "iota-types",
  "jsonrpsee",
@@ -9082,6 +9170,7 @@ version = "0.0.1-alpha.1"
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b788e641030664a1cbdac71c08d0771f307d977f#b788e641030664a1cbdac71c08d0771f307d977f"
 =======
 source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=d8cdab6ab3f2fd9ba8059ba56e80ba950badc88d#d8cdab6ab3f2fd9ba8059ba56e80ba950badc88d"
@@ -9115,6 +9204,9 @@ source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0f5ab383dd7f47
 =======
 source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51#b32dccf605835bd0d0d6d1f54bddb31673636d51"
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8#b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8"
+>>>>>>> 320ec48526 (remove comment)
 dependencies = [
  "base64ct",
  "bcs",
@@ -9501,6 +9593,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -9511,6 +9604,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "iota-simulator",
  "iota-types",
  "prometheus",
@@ -9558,6 +9654,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -9568,6 +9665,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "iota-types",
  "move-core-types",
 ]
@@ -9772,6 +9872,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -9782,6 +9883,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "itertools 0.13.0",
  "lru 0.12.5",
  "move-binary-format",
@@ -15941,6 +16045,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -15951,6 +16056,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "rand 0.8.5",
  "rs_merkle",
  "serde",
@@ -15982,6 +16090,7 @@ dependencies = [
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  "iota-sdk-types",
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=dc9e05947b185b2b1348509b5a97167d49852a6c)",
@@ -15992,6 +16101,9 @@ dependencies = [
 =======
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b32dccf605835bd0d0d6d1f54bddb31673636d51)",
 >>>>>>> 0b2d5847e0 (some fixes)
+=======
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b23293acaf1dc1dc5fcf12b8233a8e3466deb2d8)",
+>>>>>>> 320ec48526 (remove comment)
  "iota-tls",
  "itertools 0.13.0",
  "lru 0.12.5",
