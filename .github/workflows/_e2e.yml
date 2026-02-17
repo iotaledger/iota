@@ -74,6 +74,18 @@ jobs:
 
       - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
 
+      - name: Calculate common conditions
+        id: conditions
+        run: |
+          echo "runExplorer=${{ inputs.isNightly || inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRpc }}" >> $GITHUB_OUTPUT
+          echo "runDashboard=${{ inputs.isNightly || inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK }}" >> $GITHUB_OUTPUT
+          echo "runWallet=${{ inputs.isNightly || inputs.isWallet || inputs.isRpc || inputs.isTypescriptSDK }}" >> $GITHUB_OUTPUT
+          echo "runEvmBridge=${{ inputs.isNightly || inputs.isEvmBridge || inputs.isIscSDK || inputs.isTypescriptSDK }}" >> $GITHUB_OUTPUT
+          echo "runKiosk=${{ inputs.isNightly || inputs.isRpc || inputs.isTypescriptSDK }}" >> $GITHUB_OUTPUT
+          echo "runAppsBackend=${{ inputs.isNightly || inputs.isAppsBackend }}" >> $GITHUB_OUTPUT
+          echo "runGraphql=${{ inputs.isNightly || inputs.isGraphQlTransport || inputs.isRpc }}" >> $GITHUB_OUTPUT
+          echo "runTsSdk=${{ inputs.isNightly || inputs.isTypescriptSDK || inputs.isRpc }}" >> $GITHUB_OUTPUT
+
       - name: Build Iota binary
         run: cargo build --bin iota --features indexer --profile dev
 
@@ -87,7 +99,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Explorer Playwright Browsers
-        if: (!cancelled()) && (inputs.isNightly || inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRpc)
+        if: (!cancelled()) && steps.conditions.outputs.runExplorer == 'true'
         run: pnpm --filter iota-explorer playwright install --with-deps chromium
 
       - name: Set environment variables
@@ -96,69 +108,69 @@ jobs:
           echo "E2E_RUN_LOCAL_NET_CMD=(RUST_BACKTRACE=1 $(echo $PWD/target/debug/iota) start --with-faucet --force-regenesis --with-indexer --with-graphql)" >> $GITHUB_ENV
 
       - name: Run TS SDK e2e tests
-        if: (!cancelled()) && (inputs.isNightly || inputs.isTypescriptSDK || inputs.isRpc)
+        if: (!cancelled()) && steps.conditions.outputs.runTsSdk == 'true'
         run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter @iota/iota-sdk test:e2e'
 
       - name: Run RPC/GraphQL compatibility e2e tests
-        if: (!cancelled()) && (inputs.isNightly || inputs.isGraphQlTransport || inputs.isRpc)
+        if: (!cancelled()) && steps.conditions.outputs.runGraphql == 'true'
         run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter @iota/graphql-transport test:e2e'
 
       - name: Build apps-backend
-        if: (!cancelled()) && (inputs.isNightly || inputs.isAppsBackend)
+        if: (!cancelled()) && steps.conditions.outputs.runAppsBackend == 'true'
         run: pnpm turbo --filter apps-backend build
 
       - name: Run apps-backend e2e tests
-        if: (!cancelled()) && (inputs.isNightly || inputs.isAppsBackend)
+        if: (!cancelled()) && steps.conditions.outputs.runAppsBackend == 'true'
         run: pnpm --filter apps-backend test:e2e
 
       - name: Build explorer
-        if: (!cancelled()) && (inputs.isNightly || inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRpc)
+        if: (!cancelled()) && steps.conditions.outputs.runExplorer == 'true'
         env:
           IOTA_NETWORKS: '{ "localnet": { "id": "localnet", "name": "Localnet", "url": "http://localhost:9124", "explorer": "http://localhost:3000", "chain": "iota:local", "faucet": "http://localhost:9123" } }'
         run: pnpm turbo --filter=iota-explorer build
 
       - name: Run Explorer e2e tests
-        if: (!cancelled()) && (inputs.isNightly || inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRpc)
+        if: (!cancelled()) && steps.conditions.outputs.runExplorer == 'true'
         run: pnpm --filter iota-explorer playwright test
 
       - name: Upload Explorer test reports
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        if: (!cancelled()) && (inputs.isNightly || inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRpc)
+        if: (!cancelled()) && steps.conditions.outputs.runExplorer == 'true'
         with:
           name: playwright-report-explorer
           path: apps/explorer/playwright-report/
           retention-days: 30
 
       - name: Build Wallet
-        if: (!cancelled()) && (inputs.isNightly || inputs.isWalletDashboard || inputs.isWallet || inputs.isRpc || inputs.isTypescriptSDK)
+        if: (!cancelled()) && (steps.conditions.outputs.runDashboard == 'true' || steps.conditions.outputs.runWallet == 'true')
         run: pnpm wallet build:rc
 
       - name: Build Dashboard
-        if: (!cancelled()) && (inputs.isNightly || inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK)
+        if: (!cancelled()) && steps.conditions.outputs.runDashboard == 'true'
         run: pnpm turbo --filter wallet-dashboard build
 
       - name: Install Dashboard Playwright Browsers
-        if: (!cancelled()) && (inputs.isNightly || inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK)
+        if: (!cancelled()) && steps.conditions.outputs.runDashboard == 'true'
         run: pnpm --filter wallet-dashboard playwright install --with-deps  --only-shell
 
       - name: Run Dashboard e2e tests
-        if: (!cancelled()) && (inputs.isNightly || inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK)
+        if: (!cancelled()) && steps.conditions.outputs.runDashboard == 'true'
         run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- pnpm --filter wallet-dashboard playwright test
 
       - name: Upload Dashboard test reports
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        if: (!cancelled()) && (inputs.isNightly || inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK)
+        if: (!cancelled()) && steps.conditions.outputs.runDashboard == 'true'
         with:
           name: playwright-report-wallet-dashboard
           path: apps/wallet-dashboard/playwright-report/
           retention-days: 30
 
       - name: Build Kiosk
-        if: (!cancelled()) && (inputs.isNightly || inputs.isRpc || inputs.isTypescriptSDK)
+        if: (!cancelled()) && steps.conditions.outputs.runKiosk == 'true'
         run: pnpm turbo --filter=@iota/kiosk build
 
       - name: Run Kiosk e2e tests
-        if: (!cancelled()) && (inputs.isNightly || inputs.isRpc || inputs.isTypescriptSDK)
+        if: (!cancelled()) && steps.conditions.outputs.runKiosk == 'true'
         run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter=@iota/kiosk test:e2e'
 
       - name: Run Local net
@@ -166,37 +178,37 @@ jobs:
         run: cargo run --bin iota start --force-regenesis --with-faucet --epoch-duration-ms 10000 &
 
       - name: Run Wallet e2e tests
-        if: (!cancelled()) && (inputs.isNightly || inputs.isWallet || inputs.isRpc || inputs.isTypescriptSDK)
+        if: (!cancelled()) && steps.conditions.outputs.runWallet == 'true'
         run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- pnpm --filter iota-wallet playwright test
 
       - name: Upload Wallet test reports
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        if: (!cancelled()) && (inputs.isNightly || inputs.isWallet || inputs.isRpc || inputs.isTypescriptSDK)
+        if: (!cancelled()) && steps.conditions.outputs.runWallet == 'true'
         with:
           name: playwright-report-wallet
           path: apps/wallet/playwright-report/
           retention-days: 30
 
       - name: Build Evm-bridge
-        if: (!cancelled()) && (inputs.isNightly || inputs.isEvmBridge || inputs.isIscSDK || inputs.isTypescriptSDK)
+        if: (!cancelled()) && steps.conditions.outputs.runEvmBridge == 'true'
         run: pnpm evm-bridge build
 
       - name: Install Playwright Browsers for Evm-bridge
-        if: (!cancelled()) && (inputs.isNightly || inputs.isEvmBridge || inputs.isIscSDK || inputs.isTypescriptSDK)
+        if: (!cancelled()) && steps.conditions.outputs.runEvmBridge == 'true'
         run: pnpm --filter ./apps/evm-bridge playwright install --with-deps chromium
 
       - name: Prepare evm-bridge e2e tests (downloads wallet artifact dist)
-        if: (!cancelled()) && (inputs.isNightly || inputs.isEvmBridge || inputs.isIscSDK || inputs.isTypescriptSDK)
+        if: (!cancelled()) && steps.conditions.outputs.runEvmBridge == 'true'
         working-directory: ./apps/evm-bridge
         run: pnpm run test:prepare
 
       - name: Run evm-bridge tests
-        if: (!cancelled()) && (inputs.isNightly || inputs.isEvmBridge || inputs.isIscSDK || inputs.isTypescriptSDK)
+        if: (!cancelled()) && steps.conditions.outputs.runEvmBridge == 'true'
         working-directory: ./apps/evm-bridge
         run: DEBUG=pw:webserver xvfb-run --auto-servernum pnpm run test:e2e
 
       - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        if: (!cancelled()) && (inputs.isNightly || inputs.isEvmBridge || inputs.isIscSDK || inputs.isTypescriptSDK)
+        if: (!cancelled()) && steps.conditions.outputs.runEvmBridge == 'true'
         with:
           name: playwright-report-evm-bridge
           path: apps/evm-bridge/playwright-report/
