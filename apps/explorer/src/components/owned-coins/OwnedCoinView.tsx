@@ -6,7 +6,7 @@ import { useFormatCoin, ImageIconSize, CoinIcon } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import clsx from 'clsx';
 import { useState } from 'react';
-import { type CoinBalanceVerified } from './OwnedCoins';
+import { type CoinBalanceVerified, type SortField, type SortOrder } from './OwnedCoins';
 import { CoinsPanel } from './OwnedCoinsPanel';
 import {
     Card,
@@ -22,9 +22,11 @@ import { ArrowUp, RecognizedBadge } from '@iota/apps-ui-icons';
 type OwnedCoinViewProps = {
     coin: CoinBalanceVerified;
     id: string;
+    sortField: SortField;
+    sortOrder: SortOrder;
 };
 
-export function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Element {
+export function OwnedCoinView({ coin, id, sortField, sortOrder }: OwnedCoinViewProps): JSX.Element {
     const isIotaCoin = coin.coinType === IOTA_TYPE_ARG;
     const [areCoinDetailsOpen, setAreCoinDetailsOpen] = useState<boolean>(isIotaCoin);
     const [formattedTotalBalance, symbol] = useFormatCoin({
@@ -68,7 +70,12 @@ export function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Element {
                         </div>
                     </div>
                     <div className="flex flex-col gap-xs px-md--rs pb-md--rs pt-sm--rs">
-                        <CoinsPanel id={id} coinType={coin.coinType} />
+                        <CoinsPanel
+                            id={id}
+                            coinType={coin.coinType}
+                            sortField={sortField}
+                            sortOrder={sortOrder}
+                        />
                     </div>
                 </>
             )}

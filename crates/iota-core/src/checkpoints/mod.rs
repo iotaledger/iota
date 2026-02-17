@@ -71,7 +71,10 @@ pub use crate::checkpoints::{
     metrics::CheckpointMetrics,
 };
 use crate::{
-    authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
+    authority::{
+        AuthorityState,
+        authority_per_epoch_store::{AuthorityPerEpochStore, scorer::MAX_SCORE},
+    },
     authority_client::{AuthorityAPI, make_network_authority_clients_with_network_config},
     checkpoints::{
         causal_order::CausalOrder,
@@ -149,13 +152,16 @@ pub struct CheckpointStoreTables {
     /// Maps checkpoint contents digest to checkpoint contents
     pub(crate) checkpoint_content: DBMap<CheckpointContentsDigest, CheckpointContents>,
 
-    /// Maps checkpoint contents digest to checkpoint sequence number
+    /// Maps checkpoint contents digest to checkpoint sequence number.
+    /// Entries from this table are deleted after state accumulation has
+    /// completed together with the corresponding full_checkpoint_content.
     pub(crate) checkpoint_sequence_by_contents_digest:
         DBMap<CheckpointContentsDigest, CheckpointSequenceNumber>,
 
     /// Stores entire checkpoint contents from state sync, indexed by sequence
     /// number, for efficient reads of full checkpoints. Entries from this
-    /// table are deleted after state accumulation has completed.
+    /// table are deleted after state accumulation has completed. See
+    /// NUM_SAVED_FULL_CHECKPOINT_CONTENTS.
     full_checkpoint_content: DBMap<CheckpointSequenceNumber, FullCheckpointContents>,
 
     /// Stores certified checkpoints
@@ -296,6 +302,10 @@ impl CheckpointStore {
             .get(&sequence_number)
     }
 
+    /// Get checkpoint sequence number by contents digest.
+    ///
+    /// Entries from this table are deleted after state accumulation has
+    /// completed together with the corresponding full_checkpoint_content.
     pub fn get_sequence_number_by_contents_digest(
         &self,
         digest: &CheckpointContentsDigest,
@@ -435,13 +445,11 @@ impl CheckpointStore {
 
     pub fn get_highest_pruned_checkpoint_seq_number(
         &self,
-    ) -> Result<CheckpointSequenceNumber, TypedStoreError> {
-        Ok(self
-            .tables
+    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+        self.tables
             .watermarks
-            .get(&CheckpointWatermark::HighestPruned)?
-            .unwrap_or_default()
-            .0)
+            .get(&CheckpointWatermark::HighestPruned)
+            .map(|watermark| watermark.map(|w| w.0))
     }
 
     pub fn get_checkpoint_contents(
@@ -749,6 +757,12 @@ impl CheckpointStore {
             .insert(contents.digest(), &contents)
     }
 
+    /// Inserts the full checkpoint contents along with the mapping from
+    /// contents digest to sequence number, and the checkpoint contents.
+    ///
+    /// The entries for mapping the contents digest to sequence number,
+    /// and the full_checkpoint_content are deleted after state accumulation has
+    /// completed. See NUM_SAVED_FULL_CHECKPOINT_CONTENTS.
     pub fn insert_verified_checkpoint_contents(
         &self,
         checkpoint: &VerifiedCheckpoint,
@@ -1262,7 +1276,8 @@ impl CheckpointBuilder {
 
         batch.write()?;
 
-        // Send all checkpoint sigs to consensus.
+        // Send all checkpoint sigs to consensus. The messages including
+        // MisbehaviorReports are also sent in this step.
         for (summary, contents) in &new_checkpoints {
             self.output
                 .checkpoint_created(summary, contents, &self.epoch_store, &self.store)
@@ -1496,11 +1511,41 @@ impl CheckpointBuilder {
                 }
             }
 
+            if self
+                .epoch_store
+                .protocol_config()
+                .calculate_validator_scores()
+            {
+                // We update the validator scores based on the information contained in the
+                // Scorer. We choose this point in time to do so because we must guarantee that
+                // scores are up to date right before the epoch changes. It also provides a good
+                // update periodicity: updating scores each time a report is received could be
+                // too frequent and not needed, since scores are not used during the epoch
+                // (except for monitoring purposes, which does not need to be 100% exact)
+                self.epoch_store.scorer.update_scores();
+            }
+
             let (mut effects, mut signatures): (Vec<_>, Vec<_>) = transactions.into_iter().unzip();
             let epoch_rolling_gas_cost_summary =
                 self.get_epoch_total_gas_cost(last_checkpoint.as_ref().map(|(_, c)| c), &effects);
 
             let end_of_epoch_data = if last_checkpoint_of_epoch {
+                let scores: Vec<u64> = if self
+                    .epoch_store
+                    .protocol_config()
+                    .pass_calculated_validator_scores_to_advance_epoch()
+                {
+                    self.epoch_store
+                        .scorer
+                        .current_scores
+                        .iter()
+                        .map(|x| x.load(std::sync::atomic::Ordering::Relaxed))
+                        .collect()
+                } else {
+                    // Give everyone in the committee the max score
+                    vec![MAX_SCORE; self.epoch_store.committee().num_members()]
+                };
+
                 let (system_state_obj, system_epoch_info_event) = self
                     .augment_epoch_last_checkpoint(
                         &epoch_rolling_gas_cost_summary,
@@ -1508,6 +1553,7 @@ impl CheckpointBuilder {
                         &mut effects,
                         &mut signatures,
                         sequence_number,
+                        scores,
                     )
                     .await?;
 
@@ -1653,6 +1699,7 @@ impl CheckpointBuilder {
         checkpoint_effects: &mut Vec<TransactionEffects>,
         signatures: &mut Vec<Vec<GenericSignature>>,
         checkpoint: CheckpointSequenceNumber,
+        scores: Vec<u64>,
     ) -> anyhow::Result<(IotaSystemState, Option<SystemEpochInfoEvent>)> {
         let (system_state, system_epoch_info_event, effects) = self
             .state
@@ -1661,6 +1708,7 @@ impl CheckpointBuilder {
                 epoch_total_gas_cost,
                 checkpoint,
                 epoch_start_timestamp_ms,
+                scores,
             )
             .await?;
         checkpoint_effects.push(effects);

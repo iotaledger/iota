@@ -154,11 +154,12 @@ impl TransactionHandler {
             is_sponsored_tx,
             transaction_count: txn_data.kind().num_commands() as u64,
             execution_success: effects.status().is_ok(),
-            input: txn_data
+            // Calculate all objects(transaction + authenticators) amount.
+            input: transaction
                 .input_objects()
                 .expect("input objects must be valid")
                 .len() as u64,
-            shared_input: txn_data.shared_input_objects().len() as u64,
+            shared_input: transaction.shared_input_objects().len() as u64,
             gas_coins: txn_data.gas().len() as u64,
             created: effects.created().len() as u64,
             mutated: (effects.mutated().len() + effects.unwrapped().len()) as u64,
@@ -212,7 +213,7 @@ mod tests {
 
     #[tokio::test]
     pub async fn test_transaction_handler() -> anyhow::Result<()> {
-        let mut sim = Simulacrum::new();
+        let sim = Simulacrum::new();
 
         // Execute a simple transaction.
         let transfer_recipient = IotaAddress::random_for_testing_only();

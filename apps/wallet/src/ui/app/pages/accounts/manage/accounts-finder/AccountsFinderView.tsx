@@ -34,7 +34,7 @@ import {
     TIMELOCK_STAKED_TYPE,
     toast,
 } from '@iota/core';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { parseDerivationPath } from '_src/background/account-sources/bip44Path';
 import { isMnemonicSerializedUiAccount } from '_src/background/accounts/mnemonicAccount';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
@@ -64,6 +64,8 @@ enum SearchPhase {
 export function AccountsFinderView(): JSX.Element {
     const navigate = useNavigate();
     const { accountSourceId } = useParams();
+    const [searchParams] = useSearchParams();
+    const mainPublicKey = searchParams.get('mainPublicKey');
     const { data: accountSources } = useAccountSources();
     const { data: accounts } = useAccounts();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceId);
@@ -116,7 +118,15 @@ export function AccountsFinderView(): JSX.Element {
         }
     }
 
-    const persistedAccounts = accounts?.filter((acc) => getSourceId(acc) === accountSourceId);
+    function filterAccounts(acc: SerializedUIAccount): boolean {
+        if (accountSourceType === AllowedAccountSourceTypes.LedgerDerived && mainPublicKey) {
+            return isLedgerAccountSerializedUI(acc) && acc.mainPublicKey === mainPublicKey;
+        } else {
+            return getSourceId(acc) === accountSourceId;
+        }
+    }
+
+    const persistedAccounts = accounts?.filter(filterAccounts);
     const isLocked =
         accountSource?.isLocked || (accountSourceId === AccountType.LedgerDerived && !password);
     const isLedgerLocked =

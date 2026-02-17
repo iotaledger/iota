@@ -1,0 +1,41 @@
+[package]
+name = "simulacrum-server"
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[[bin]]
+name = "simulacrum-server"
+path = "src/main.rs"
+
+[dependencies]
+# external dependencies
+anyhow.workspace = true
+async-trait.workspace = true
+axum.workspace = true
+clap.workspace = true
+futures.workspace = true
+http.workspace = true
+rand.workspace = true
+serde.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+
+# internal dependencies
+iota-config.workspace = true
+iota-execution.workspace = true
+iota-faucet.workspace = true
+iota-grpc-server.workspace = true
+iota-json-rpc-types.workspace = true
+iota-protocol-config.workspace = true
+iota-swarm-config.workspace = true
+iota-types.workspace = true
+move-core-types.workspace = true
+simulacrum.workspace = true

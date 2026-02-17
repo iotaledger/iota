@@ -7,7 +7,10 @@ use std::{ops::Range, path::PathBuf, sync::Arc};
 use anyhow::{Result, anyhow, bail};
 use arrow_array::Int32Array;
 use clap::*;
-use gcp_bigquery_client::{Client, model::query_request::QueryRequest};
+use gcp_bigquery_client::{
+    Client,
+    model::{query_request::QueryRequest, query_response::ResultSet},
+};
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_data_ingestion_core::Worker;
 use iota_storage::object_store::util::{
@@ -241,11 +244,12 @@ impl BQMaxCheckpointReader {
 #[async_trait::async_trait]
 impl MaxCheckpointReader for BQMaxCheckpointReader {
     async fn max_checkpoint(&self) -> Result<i64> {
-        let mut result = self
+        let query_response = self
             .client
             .job()
             .query(&self.project_id, QueryRequest::new(&self.query))
             .await?;
+        let mut result = ResultSet::new_from_query_response(query_response);
         if result.next_row() {
             let max_checkpoint = result.get_i64(0)?.ok_or(anyhow!("no rows returned"))?;
             Ok(max_checkpoint)

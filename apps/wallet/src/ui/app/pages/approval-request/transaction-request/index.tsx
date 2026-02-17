@@ -29,6 +29,7 @@ import { ConfirmationModal } from '../../../shared/ConfirmationModal';
 import { TransactionDetails } from './transaction-details';
 import { Warning } from '@iota/apps-ui-icons';
 import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
+import { LedgerSigner } from '../../../ledgerSigner';
 
 export interface TransactionRequestProps {
     txRequest: TransactionApprovalRequest;
@@ -140,7 +141,9 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
                         isLoading={isDryRunLoading}
                         isError={isDryRunError}
                         summary={summary}
+                        chain={chain}
                         renderExplorerLink={ExplorerLinkHelper}
+                        transaction={signer instanceof LedgerSigner ? transaction : undefined}
                     />
                     <GasFees
                         sender={addressForTransaction}

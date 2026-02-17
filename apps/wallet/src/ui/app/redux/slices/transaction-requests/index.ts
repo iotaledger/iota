@@ -96,6 +96,9 @@ const slice = createSlice({
         initialized: false,
     }),
     reducers: {
+        clearTransactionRequests: (state) => {
+            state.initialized = false;
+        },
         setTransactionRequests: (state, { payload }: PayloadAction<ApprovalRequest[]>) => {
             // eslint-disable-next-line @typescript-eslint/ban-ts-comment
             // @ts-ignore
@@ -119,7 +122,7 @@ const slice = createSlice({
 
 export default slice.reducer;
 
-export const { setTransactionRequests } = slice.actions;
+export const { clearTransactionRequests, setTransactionRequests } = slice.actions;
 
 export const txRequestsSelectors = txRequestsAdapter.getSelectors(
     (state: RootState) => state.transactionRequests,

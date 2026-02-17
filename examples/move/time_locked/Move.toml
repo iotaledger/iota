@@ -1,0 +1,17 @@
+[package]
+name = "time_locked"
+edition = "2024"
+# license = ""           # e.g., "MIT", "GPL", "Apache 2.0"
+# authors = ["..."]      # e.g., ["Joe Smith (joesmith@noemail.com)", "John Snow (johnsnow@noemail.com)"]
+
+[dependencies]
+Iota = { local = "../../../crates/iota-framework/packages/iota-framework" }
+iotaccount = { local = "../iotaccount" }
+generic_keyed_authentication = { local = "../generic_keyed_authentication" }
+
+[addresses]
+time_locked = "0x0"
+
+[dev-dependencies]
+
+[dev-addresses]

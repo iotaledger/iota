@@ -15,7 +15,7 @@ mod checked {
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
-        IOTA_FRAMEWORK_ADDRESS,
+        IOTA_FRAMEWORK_ADDRESS, auth_context,
         base_types::{
             IotaAddress, MoveObjectType, ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION,
             RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME, TxContext,
@@ -28,24 +28,31 @@ mod checked {
         id::RESOLVED_IOTA_ID,
         metrics::LimitsMetrics,
         move_package::{
-            MovePackage, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
+            IotaAttribute, MovePackage, PackageMetadata, RuntimeModuleMetadata,
+            RuntimeModuleMetadataWrapper, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
             normalize_deserialized_modules,
         },
+        object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
         transaction::{Command, ProgrammableMoveCall, ProgrammableTransaction},
         transfer::RESOLVED_RECEIVING_STRUCT,
-        type_input::TypeInput,
+        type_input::{TypeInput, TypeName},
     };
     use iota_verifier::{
         INIT_FN_NAME,
-        private_generics::{EVENT_MODULE, PRIVATE_TRANSFER_FUNCTIONS, TRANSFER_MODULE},
+        private_generics::{
+            ACCOUNT_MODULE, EVENT_MODULE, PRIVATE_ACCOUNT_FUNCTIONS, PRIVATE_TRANSFER_FUNCTIONS,
+            TRANSFER_MODULE,
+        },
     };
     use move_binary_format::{
         CompiledModule,
         compatibility::{Compatibility, InclusionCheck},
         errors::{Location, PartialVMResult, VMResult},
-        file_format::{AbilitySet, CodeOffset, FunctionDefinitionIndex, LocalIndex, Visibility},
-        file_format_common::VERSION_6,
+        file_format::{
+            AbilitySet, CodeOffset, FunctionDefinitionIndex, LocalIndex, SignatureToken, Visibility,
+        },
+        file_format_common::{IOTA_METADATA_KEY, VERSION_6},
         normalized,
     };
     use move_core_types::{
@@ -417,7 +424,7 @@ mod checked {
             is_init,
         )?;
         // build the arguments, storing meta data about by-mut-ref args
-        let (tx_context_kind, by_mut_ref, serialized_arguments) =
+        let (tx_context_kind, has_auth_context, by_mut_ref, serialized_arguments) =
             build_move_args::<Mode>(context, runtime_id, function, kind, &signature, &arguments)?;
         // invoke the VM
         let SerializedReturnValues {
@@ -429,6 +436,7 @@ mod checked {
             function,
             type_arguments,
             tx_context_kind,
+            has_auth_context,
             serialized_arguments,
             trace_builder_opt,
         )?;
@@ -589,6 +597,18 @@ mod checked {
             // no upgrade cap for genesis modules
             vec![]
         } else {
+            // Package metadata creation
+            if context.protocol_config.publish_package_metadata() {
+                create_and_freeze_package_metadata_if_present(
+                    context,
+                    &modules,
+                    storage_id,
+                    runtime_id,
+                    OBJECT_START_VERSION.into(),
+                )?;
+            }
+
+            // Upgrade cap creation
             let cap = &UpgradeCap::new(context.fresh_id()?, storage_id);
             vec![Value::Object(context.make_object_value(
                 UpgradeCap::type_().into(),
@@ -699,7 +719,21 @@ mod checked {
             upgrade_ticket.policy,
         )?;
 
+        let package_version = package.version().value();
+
         context.write_package(package);
+
+        // Package metadata creation
+        if context.protocol_config.publish_package_metadata() {
+            create_and_freeze_package_metadata_if_present(
+                context,
+                &modules,
+                storage_id,
+                runtime_id,
+                package_version,
+            )?;
+        }
+
         Ok(vec![Value::Raw(
             RawValueType::Loaded {
                 ty: upgrade_receipt_type,
@@ -861,6 +895,141 @@ mod checked {
         }
     }
 
+    /// Creates package metadata for a Move package by extracting module
+    /// metadata and wrapping it in a `PackageMetadata`. The function iterates
+    /// through the provided modules, collecting metadata associated with
+    /// the IOTA_METADATA_KEY key. It then constructs the package metadata
+    /// wrapper using the collected module metadata, storage ID, runtime ID,
+    /// and package version and finally freezes it. If no relevant metadata
+    /// is found, the function exits without creating any package metadata.
+    fn create_and_freeze_package_metadata_if_present(
+        context: &mut ExecutionContext<'_, '_, '_>,
+        modules: &[CompiledModule],
+        storage_id: ObjectID,
+        runtime_id: ObjectID,
+        package_version: u64,
+    ) -> Result<(), ExecutionError> {
+        let mut modules_metadata_map = BTreeMap::new();
+        // Extract metadata for each module
+        for module in modules {
+            if let Some(md) = module
+                .metadata
+                .iter()
+                .find(|md| md.key == IOTA_METADATA_KEY.to_vec())
+            {
+                // At this point, if the metadata is present, it should have been already
+                // validated by the iota-verifier during package verification (in
+                // `publish_and_verify_modules`).
+                let runtime_module_metadata: RuntimeModuleMetadata =
+                    bcs::from_bytes::<RuntimeModuleMetadataWrapper>(&md.value)
+                        .map_err(|_| {
+                            ExecutionError::from_kind(
+                                ExecutionErrorKind::VMVerificationOrDeserializationError,
+                            )
+                        })?
+                        .try_into()
+                        .map_err(|_| {
+                            ExecutionError::from_kind(
+                                ExecutionErrorKind::VMVerificationOrDeserializationError,
+                            )
+                        })?;
+
+                // PackageMetadataV1 specific:
+                // - Process functions for each module in order to create function metadata:
+                //    - Authenticator attributes, if present, are extracted to create
+                //      AuthenticatorMetadata to insert into the PackageMetadata
+                let mut module_metadata_map = BTreeMap::new();
+                for (fn_name, fn_attributes) in runtime_module_metadata.fun_attributes_iter() {
+                    // Check attributes
+                    for attribute in fn_attributes {
+                        match attribute {
+                            IotaAttribute::Authenticator(attribute) if attribute.version == 1 => {
+                                let contains = module_metadata_map.insert(
+                                    fn_name.to_string(),
+                                    TypeName::from(&get_authenticator_first_param_type_tag(
+                                        module, &fn_name,
+                                    )?),
+                                );
+                                debug_assert!(
+                                    contains.is_none(),
+                                    "Duplicate function metadata for authenticator"
+                                );
+                            }
+                            _ => { /* Other attributes are ignored for PackageMetadataV1 */ }
+                        }
+                    }
+                }
+                // Fill the package metadata with a module handle (and its related function
+                // metadata) only if there is at least one function with
+                // relevant metadata
+                if !module_metadata_map.is_empty() {
+                    modules_metadata_map.insert(module.name().to_string(), module_metadata_map);
+                }
+                // End of PackageMetadataV1 specific
+            }
+        }
+
+        // Only publish package metadata if there is at least one module with
+        // relevant metadata
+        if !modules_metadata_map.is_empty() {
+            // Create the package metadata "special" object UID
+            let metadata_uid = context.package_derived_metadata_id(storage_id)?;
+            // Create the package metadata object content
+            let metadata = PackageMetadata::new_v1(
+                metadata_uid,
+                storage_id,
+                runtime_id,
+                package_version,
+                modules_metadata_map,
+            );
+            // Turn the content into an object
+            let package_metadata = context.make_object_value(
+                metadata.type_().into(),
+                // used_in_non_entry_move_call
+                false,
+                &metadata.to_bcs_bytes(),
+            )?;
+            // Freeze the package metadata object
+            context.freeze_object(package_metadata)?
+        }
+        Ok(())
+    }
+
+    fn get_authenticator_first_param_type_tag(
+        module: &CompiledModule,
+        authenticate_fn_name: &impl AsRef<str>,
+    ) -> Result<TypeTag, ExecutionError> {
+        // Entering into this function, the verifier must have already been run,
+        // so we can assume the function exists and has the correct signature.
+        let Some((_, fn_definition)) = module.find_function_def_by_name(authenticate_fn_name)
+        else {
+            return Err(ExecutionError::from_kind(
+                ExecutionErrorKind::VMInvariantViolation,
+            ));
+        };
+        let fn_handle = module.function_handle_at(fn_definition.function);
+        let fn_signature = module.signature_at(fn_handle.parameters);
+        // We need the first parameter to be a reference type so we can extract the
+        // inner as the type tag.
+        match &fn_signature.0[0] {
+            SignatureToken::Reference(ref_param) => {
+                let pool = &mut normalized::RcPool::new();
+                if let Some(type_tag) =
+                    normalized::Type::new(pool, module, ref_param).to_type_tag(pool)
+                {
+                    Ok(type_tag)
+                } else {
+                    Err(ExecutionError::from_kind(
+                        ExecutionErrorKind::VMVerificationOrDeserializationError,
+                    ))
+                }
+            }
+            _ => Err(ExecutionError::from_kind(
+                ExecutionErrorKind::VMVerificationOrDeserializationError,
+            )),
+        }
+    }
+
     // ************************************************************************
     // **** ********************* Move execution
     // ************************************************************************
@@ -877,9 +1046,18 @@ mod checked {
         function: &IdentStr,
         type_arguments: Vec<Type>,
         tx_context_kind: TxContextKind,
+        has_auth_context: bool,
         mut serialized_arguments: Vec<Vec<u8>>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<SerializedReturnValues, ExecutionError> {
+        if has_auth_context {
+            let auth_context = context.state_view.read_auth_context();
+            assert_invariant!(
+                auth_context.is_some(),
+                "The `iota::auth_context::AuthContext` value is expected to be read from the storage"
+            );
+            serialized_arguments.push(auth_context.unwrap().to_bcs_bytes());
+        }
         match tx_context_kind {
             TxContextKind::None => (),
             TxContextKind::Mutable | TxContextKind::Immutable => {
@@ -1295,11 +1473,22 @@ mod checked {
             ));
         }
 
+        if module_ident == (&IOTA_FRAMEWORK_ADDRESS, ACCOUNT_MODULE)
+            && PRIVATE_ACCOUNT_FUNCTIONS.contains(&function)
+        {
+            let msg = format!("Cannot directly call iota::{ACCOUNT_MODULE}::{function}.");
+            return Err(ExecutionError::new_with_source(
+                ExecutionErrorKind::NonEntryFunctionInvoked,
+                msg,
+            ));
+        }
+
         Ok(())
     }
 
     type ArgInfo = (
         TxContextKind,
+        bool,
         // mut ref
         Vec<(LocalIndex, ValueKind)>,
         Vec<Vec<u8>>,
@@ -1321,13 +1510,37 @@ mod checked {
             Some(t) => is_tx_context(context, t)?,
             None => TxContextKind::None,
         };
+        // Check if the second last parameter is an auth context.
+        // According to the current design, authenticators must contain `TxContext` as
+        // the last parameter and `AuthContext` as the second last.
+        let has_auth_context = match parameters.iter().rev().nth(1) {
+            Some(t) => is_auth_context(context, t)?,
+            None => false,
+        };
+        if has_auth_context {
+            if !context.protocol_config.enable_move_authentication() {
+                return Err(ExecutionError::new_with_source(
+                    ExecutionErrorKind::VMInvariantViolation,
+                    "`iota::auth_context::AuthContext` can't be used as a parameter if the `move_authentication` feature is disabled",
+                ));
+            }
+            if !Mode::allow_auth_context() {
+                return Err(ExecutionError::new_with_source(
+                    ExecutionErrorKind::VMInvariantViolation,
+                    "`iota::auth_context::AuthContext` can't be used as a parameter in this execution mode",
+                ));
+            }
+        }
         // an init function can have one or two arguments, with the last one always
         // being of type &mut TxContext and the additional (first) one
         // representing a one time witness type (see one_time_witness verifier
         // pass for additional explanation)
         let has_one_time_witness = function_kind == FunctionKind::Init && parameters.len() == 2;
         let has_tx_context = tx_ctx_kind != TxContextKind::None;
-        let num_args = args.len() + (has_one_time_witness as usize) + (has_tx_context as usize);
+        let num_args = args.len()
+            + (has_one_time_witness as usize)
+            + (has_auth_context as usize)
+            + (has_tx_context as usize);
         if num_args != parameters.len() {
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::ArityMismatch,
@@ -1409,7 +1622,7 @@ mod checked {
             };
             serialized_args.push(bytes);
         }
-        Ok((tx_ctx_kind, by_mut_ref, serialized_args))
+        Ok((tx_ctx_kind, has_auth_context, by_mut_ref, serialized_args))
     }
 
     /// checks that the value is compatible with the specified type
@@ -1582,6 +1795,35 @@ mod checked {
         } else {
             TxContextKind::None
         })
+    }
+
+    // Returns `true` if the type is a Datatype with identifier matching
+    // `AuthContext`.
+    // Returns `false` for all other types or identifiers not matching.
+    pub fn is_auth_context(
+        context: &ExecutionContext<'_, '_, '_>,
+        t: &Type,
+    ) -> Result<bool, ExecutionError> {
+        let inner = match t {
+            Type::Reference(inner) => inner,
+            _ => return Ok(false),
+        };
+
+        let Type::Datatype(idx) = &**inner else {
+            return Ok(false);
+        };
+
+        let Some(s) = context.vm.get_runtime().get_type(*idx) else {
+            invariant_violation!("Loaded struct not found")
+        };
+
+        let (module_addr, module_name, struct_name) = get_datatype_ident(&s);
+
+        Ok(auth_context::is_auth_context(
+            module_addr,
+            module_name,
+            struct_name,
+        ))
     }
 
     /// Returns Some(layout) iff it is a primitive, an ID, a String, or an

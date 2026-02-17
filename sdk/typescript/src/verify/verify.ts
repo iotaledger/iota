@@ -12,12 +12,23 @@ import { Secp256r1PublicKey } from '../keypairs/secp256r1/publickey.js';
 // eslint-disable-next-line import/no-cycle
 import { MultiSigPublicKey } from '../multisig/publickey.js';
 import { PasskeyPublicKey } from '../keypairs/passkey/publickey.js';
+import { MoveAuthenticatorPublicKey } from '../keypairs/move-authenticator/publickey.js';
 
-export async function verifySignature(bytes: Uint8Array, signature: string): Promise<PublicKey> {
+export async function verifySignature(
+    bytes: Uint8Array,
+    signature: string,
+    options?: {
+        address?: string;
+    },
+): Promise<PublicKey> {
     const parsedSignature = parseSignature(signature);
 
     if (!(await parsedSignature.publicKey.verify(bytes, parsedSignature.serializedSignature))) {
         throw new Error(`Signature is not valid for the provided data`);
+    }
+
+    if (options?.address && !parsedSignature.publicKey.verifyAddress(options.address)) {
+        throw new Error(`Signature is not valid for the provided address`);
     }
 
     return parsedSignature.publicKey;
@@ -26,6 +37,7 @@ export async function verifySignature(bytes: Uint8Array, signature: string): Pro
 export async function verifyPersonalMessageSignature(
     message: Uint8Array,
     signature: string,
+    options: { address?: string } = {},
 ): Promise<PublicKey> {
     const parsedSignature = parseSignature(signature);
 
@@ -38,12 +50,17 @@ export async function verifyPersonalMessageSignature(
         throw new Error(`Signature is not valid for the provided message`);
     }
 
+    if (options?.address && !parsedSignature.publicKey.verifyAddress(options.address)) {
+        throw new Error(`Signature is not valid for the provided address`);
+    }
+
     return parsedSignature.publicKey;
 }
 
 export async function verifyTransactionSignature(
     transaction: Uint8Array,
     signature: string,
+    options: { address?: string } = {},
 ): Promise<PublicKey> {
     const parsedSignature = parseSignature(signature);
 
@@ -56,6 +73,10 @@ export async function verifyTransactionSignature(
         throw new Error(`Signature is not valid for the provided Transaction`);
     }
 
+    if (options?.address && !parsedSignature.publicKey.verifyAddress(options.address)) {
+        throw new Error(`Signature is not valid for the provided address`);
+    }
+
     return parsedSignature.publicKey;
 }
 
@@ -66,6 +87,23 @@ function parseSignature(signature: string) {
         return {
             ...parsedSignature,
             publicKey: new MultiSigPublicKey(parsedSignature.multisig.multisig_pk),
+        };
+    }
+
+    if (parsedSignature.signatureScheme === 'MoveAuthenticator') {
+        const authenticatedObjectId =
+            parsedSignature.moveAuthenticator.objectToAuthenticate.Object?.$kind ===
+            'ImmOrOwnedObject'
+                ? parsedSignature.moveAuthenticator.objectToAuthenticate.Object.ImmOrOwnedObject
+                      .objectId
+                : parsedSignature.moveAuthenticator.objectToAuthenticate.Object?.$kind ===
+                    'Receiving'
+                  ? parsedSignature.moveAuthenticator.objectToAuthenticate.Object.Receiving.objectId
+                  : parsedSignature.moveAuthenticator.objectToAuthenticate.Object?.SharedObject
+                        ?.objectId;
+        return {
+            ...parsedSignature,
+            publicKey: new MoveAuthenticatorPublicKey(authenticatedObjectId!),
         };
     }
 
@@ -94,6 +132,8 @@ export function publicKeyFromRawBytes(
             return new MultiSigPublicKey(bytes);
         case 'Passkey':
             return new PasskeyPublicKey(bytes);
+        case 'MoveAuthenticator':
+            return new MoveAuthenticatorPublicKey(bytes);
         default:
             throw new Error(`Unsupported signature scheme ${signatureScheme}`);
     }

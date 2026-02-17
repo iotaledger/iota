@@ -78,7 +78,7 @@ impl ReadApi {
                         Err(e) => {
                             return Ok(IotaObjectResponse::new(
                                 Some(
-                                    IotaObjectData::new(object_ref, o, layout, options, None)
+                                    IotaObjectData::new(object_ref, o, layout, &options, None)
                                         .map_err(internal_error)?,
                                 ),
                                 Some(IotaObjectResponseError::Display {
@@ -89,7 +89,7 @@ impl ReadApi {
                     }
                 }
                 Ok(IotaObjectResponse::new_with_data(
-                    IotaObjectData::new(object_ref, o, layout, options, display_fields)
+                    IotaObjectData::new(object_ref, o, layout, &options, display_fields)
                         .map_err(internal_error)?,
                 ))
             }
@@ -131,7 +131,7 @@ impl ReadApi {
                 };
 
                 Ok(IotaPastObjectResponse::VersionFound(
-                    IotaObjectData::new(object_ref, object, layout, options, display_fields)
+                    IotaObjectData::new(object_ref, object, layout, &options, display_fields)
                         .map_err(internal_error)?,
                 ))
             }
@@ -207,7 +207,6 @@ impl ReadApiServer for ReadApi {
         // Create a future for each requested object id
         let futures = object_ids.into_iter().map(|object_id| {
             let options = options.clone();
-            let resolver = resolver.clone();
             let maybe_stored = object_map.get(&object_id).cloned();
             async move {
                 match maybe_stored {
