@@ -8484,7 +8484,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fb18390709d14fc3a3e94fa9ca7660840ccd684c#fb18390709d14fc3a3e94fa9ca7660840ccd684c"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=84aba421bf7912d6c326efac0fd05498be9615ff#84aba421bf7912d6c326efac0fd05498be9615ff"
 dependencies = [
  "bip32",
  "bip39",
@@ -8499,6 +8499,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -8531,6 +8532,8 @@ source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e7dde3b255e303
 >>>>>>> 2f24ae5754 (update openrpc)
 =======
 >>>>>>> 0f8f31e821 (update locks)
+=======
+>>>>>>> be95f896d7 (update rev)
 <<<<<<< HEAD
 source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=3eaf79d7efdc1c4d05f2c2454d0b361cea292142#3eaf79d7efdc1c4d05f2c2454d0b361cea292142"
 =======
@@ -8548,7 +8551,13 @@ source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=607bf5aea7c44b
 =======
 source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=fb18390709d14fc3a3e94fa9ca7660840ccd684c#fb18390709d14fc3a3e94fa9ca7660840ccd684c"
 >>>>>>> d47f05266a (update locks)
+<<<<<<< HEAD
 >>>>>>> 0f8f31e821 (update locks)
+=======
+=======
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=84aba421bf7912d6c326efac0fd05498be9615ff#84aba421bf7912d6c326efac0fd05498be9615ff"
+>>>>>>> bd4c7f637d (update rev)
+>>>>>>> be95f896d7 (update rev)
 dependencies = [
  "base64ct",
  "bcs",
