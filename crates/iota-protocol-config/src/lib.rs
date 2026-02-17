@@ -209,7 +209,15 @@ pub struct Error(pub String);
 // TODO: There are quite a few non boolean values in the feature flags. We
 // should move them out.
 /// Records on/off feature flags that may vary at each protocol version.
-#[derive(Default, Clone, Serialize, Deserialize, Debug, ProtocolConfigFeatureFlagsGetters)]
+#[derive(
+    Default,
+    Clone,
+    Serialize,
+    Deserialize,
+    Debug,
+    ProtocolConfigFeatureFlagsGetters,
+    ProtocolConfigOverride,
+)]
 struct FeatureFlags {
     // Add feature flags here, e.g.:
     // new_protocol_feature: bool,
@@ -1679,10 +1687,19 @@ impl ProtocolConfig {
             warn!(
                 "overriding ProtocolConfig settings with custom settings; this may break non-local networks"
             );
+
+            // First, deserialize the top-level ProtocolConfig fields
             let overrides: ProtocolConfigOptional =
                 serde_env::from_env_with_prefix("IOTA_PROTOCOL_CONFIG_OVERRIDE")
                     .expect("failed to parse ProtocolConfig override env variables");
             overrides.apply_to(&mut ret);
+
+            // Then, separately deserialize FeatureFlags fields
+            let feature_flag_overrides: FeatureFlagsOptional =
+                serde_env::from_env_with_prefix("IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE")
+                    .expect("failed to parse ProtocolConfig feature flags override env variables");
+
+            feature_flag_overrides.apply_to(&mut ret.feature_flags);
         }
 
         ret
