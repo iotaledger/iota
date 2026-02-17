@@ -629,10 +629,9 @@ mod sim_only_tests {
             .iter()
             .find_map(|(id, v)| (id == &ObjectID::SYSTEM).then_some(*v));
 
-        let mutated_to = effects
-            .mutated()
-            .iter()
-            .find_map(|(object_ref, _)| (object_ref.object_id == ObjectID::SYSTEM).then_some(object_ref.version));
+        let mutated_to = effects.mutated().iter().find_map(|(object_ref, _)| {
+            (object_ref.object_id == ObjectID::SYSTEM).then_some(object_ref.version)
+        });
 
         (modified_at, mutated_to)
     }
