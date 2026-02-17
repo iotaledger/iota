@@ -298,6 +298,12 @@ export interface CoinsSentProperties {
     /**
      * | Rule | Value |
      * |---|---|
+     * | Type | number |
+     */
+    amount?: number;
+    /**
+     * | Rule | Value |
+     * |---|---|
      * | Regex |  |
      */
     coinType?: string;
