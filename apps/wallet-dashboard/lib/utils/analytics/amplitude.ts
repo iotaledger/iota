@@ -4,13 +4,15 @@
 
 import * as amplitude from '@amplitude/analytics-browser';
 import { LogLevel } from '@amplitude/analytics-types';
-import { getAmplitudeConsentStatus } from '@iota/core';
+import { attachEnvironmentPlugin, getAmplitudeConsentStatus } from '@iota/core';
 
 import { ampli } from './ampli';
 
 const IS_ENABLED =
     process.env.NEXT_PUBLIC_BUILD_ENV === 'production' &&
     process.env.NEXT_PUBLIC_AMPLITUDE_ENABLED === 'true';
+
+const IS_DEV = process.env.NEXT_PUBLIC_BUILD_ENV !== 'production';
 
 export async function initAmplitude() {
     // Check consent status to determine initial opt-out state
@@ -45,4 +47,7 @@ export async function initAmplitude() {
         amplitude.setTransport('beacon');
         amplitude.flush();
     });
+
+    // Add environment plugin to set prefix dev events
+    ampli.client.add(attachEnvironmentPlugin(IS_DEV));
 }

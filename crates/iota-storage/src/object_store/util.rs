@@ -12,7 +12,7 @@ use bytes::Bytes;
 use futures::{StreamExt, TryStreamExt};
 use indicatif::ProgressBar;
 use itertools::Itertools;
-use object_store::{DynObjectStore, Error, ObjectStore, path::Path};
+use object_store::{DynObjectStore, Error, ObjectStore, ObjectStoreExt, path::Path};
 use serde::{Deserialize, Serialize};
 use tokio::time::Instant;
 use tracing::{error, warn};

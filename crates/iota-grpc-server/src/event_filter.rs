@@ -131,6 +131,7 @@ impl TryFrom<iota_grpc_types::v0::filter::EventFilter> for EventFilter {
                     .map_err(|e| format!("invalid struct tag: {}", e))?;
                 Ok(EventFilter::MoveEventType(tag))
             }
+            _ => Err("Unsupported event filter type".to_string()),
         }
     }
 }

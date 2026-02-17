@@ -20,6 +20,7 @@ jobs:
     if: (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
+      isRustWorkspaceConfig: ${{ steps.diff.outputs.isRustWorkspaceConfig }}
       isRustExample: ${{ steps.diff.outputs.isRustExample }}
       isRpc: ${{ steps.diff.outputs.isRpc }}
       isPgIntegration: ${{ steps.diff.outputs.isPgIntegration }}
@@ -95,6 +96,7 @@ jobs:
     secrets: inherit
     with:
       isRust: ${{ needs.diff.outputs.isRust == 'true' }}
+      isRustWorkspaceConfig: ${{ needs.diff.outputs.isRustWorkspaceConfig == 'true' }}
       isRustExample: ${{ needs.diff.outputs.isRustExample == 'true' }}
       isPgIntegration: ${{ needs.diff.outputs.isPgIntegration == 'true' }}
       isMoveExampleUsedByOthers: ${{ needs.diff.outputs.isMoveExampleUsedByOthers == 'true' }}

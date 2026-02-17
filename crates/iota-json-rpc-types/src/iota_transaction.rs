@@ -5,11 +5,11 @@
 use std::fmt::{self, Display, Formatter, Write};
 
 use enum_dispatch::enum_dispatch;
-use fastcrypto::encoding::Base64;
+use fastcrypto::encoding::{Base64, Encoding};
 use futures::{Stream, StreamExt, stream::FuturesOrdered};
 use iota_json::{IotaJsonValue, primitive_type};
 use iota_metrics::monitored_scope;
-use iota_package_resolver::{PackageStore, Resolver};
+use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS,
     authenticator_state::ActiveJwk,
@@ -19,7 +19,7 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     event::EventID,
-    execution_status::ExecutionStatus,
+    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     gas::GasCostSummary,
     iota_serde::{
         BigInt, IotaTypeTag as AsIotaTypeTag, Readable, SequenceNumber as AsSequenceNumber,
@@ -1011,51 +1011,74 @@ impl IotaTransactionBlockEffects {
             dependencies: vec![],
         })
     }
+
+    /// Construct the RPC view of the transaction effects.
+    ///
+    /// This differs from the `TryFrom<TransactionEffects>` implementation
+    /// in that it tries to convert Move abort errors into human-readable form.
+    /// This is referred to as clever error.
+    pub async fn from_native_with_clever_error<S: PackageStore>(
+        native: TransactionEffects,
+        resolver: &Resolver<S>,
+    ) -> Self {
+        let clever_status =
+            IotaExecutionStatus::from_native_with_clever_error(native.status().clone(), resolver)
+                .await;
+        match native {
+            TransactionEffects::V1(inner) => {
+                let mut inner = IotaTransactionBlockEffectsV1::from(inner);
+                inner.status = clever_status;
+                inner.into()
+            }
+        }
+    }
 }
 
 impl TryFrom<TransactionEffects> for IotaTransactionBlockEffects {
     type Error = IotaError;
 
-    fn try_from(effect: TransactionEffects) -> Result<Self, Self::Error> {
-        Ok(IotaTransactionBlockEffects::V1(
-            IotaTransactionBlockEffectsV1 {
-                status: effect.status().clone().into(),
-                executed_epoch: effect.executed_epoch(),
-                modified_at_versions: effect
-                    .modified_at_versions()
+    fn try_from(native: TransactionEffects) -> Result<Self, Self::Error> {
+        Ok(IotaTransactionBlockEffects::V1(native.into()))
+    }
+}
+
+impl<T: TransactionEffectsAPI> From<T> for IotaTransactionBlockEffectsV1 {
+    fn from(native: T) -> Self {
+        Self {
+            status: native.status().clone().into(),
+            executed_epoch: native.executed_epoch(),
+            modified_at_versions: native
+                .modified_at_versions()
+                .into_iter()
+                .map(
+                    |(object_id, sequence_number)| IotaTransactionBlockEffectsModifiedAtVersions {
+                        object_id,
+                        sequence_number,
+                    },
+                )
+                .collect(),
+            gas_used: native.gas_cost_summary().clone(),
+            shared_objects: to_iota_object_ref(
+                native
+                    .input_shared_objects()
                     .into_iter()
-                    .map(|(object_id, sequence_number)| {
-                        IotaTransactionBlockEffectsModifiedAtVersions {
-                            object_id,
-                            sequence_number,
-                        }
-                    })
+                    .map(|kind| kind.object_ref())
                     .collect(),
-                gas_used: effect.gas_cost_summary().clone(),
-                shared_objects: to_iota_object_ref(
-                    effect
-                        .input_shared_objects()
-                        .into_iter()
-                        .map(|kind| kind.object_ref())
-                        .collect(),
-                ),
-                transaction_digest: *effect.transaction_digest(),
-                created: to_owned_ref(effect.created()),
-                mutated: to_owned_ref(effect.mutated().to_vec()),
-                unwrapped: to_owned_ref(effect.unwrapped().to_vec()),
-                deleted: to_iota_object_ref(effect.deleted().to_vec()),
-                unwrapped_then_deleted: to_iota_object_ref(
-                    effect.unwrapped_then_deleted().to_vec(),
-                ),
-                wrapped: to_iota_object_ref(effect.wrapped().to_vec()),
-                gas_object: OwnedObjectRef {
-                    owner: effect.gas_object().1,
-                    reference: effect.gas_object().0.into(),
-                },
-                events_digest: effect.events_digest().copied(),
-                dependencies: effect.dependencies().to_vec(),
+            ),
+            transaction_digest: *native.transaction_digest(),
+            created: to_owned_ref(native.created()),
+            mutated: to_owned_ref(native.mutated().to_vec()),
+            unwrapped: to_owned_ref(native.unwrapped().to_vec()),
+            deleted: to_iota_object_ref(native.deleted().to_vec()),
+            unwrapped_then_deleted: to_iota_object_ref(native.unwrapped_then_deleted().to_vec()),
+            wrapped: to_iota_object_ref(native.wrapped().to_vec()),
+            gas_object: OwnedObjectRef {
+                owner: native.gas_object().1,
+                reference: native.gas_object().0.into(),
             },
-        ))
+            events_digest: native.events_digest().copied(),
+            dependencies: native.dependencies().to_vec(),
+        }
     }
 }
 
@@ -1462,6 +1485,88 @@ pub enum IotaExecutionStatus {
     Failure { error: String },
 }
 
+impl IotaExecutionStatus {
+    /// Construct the RPC view of the execution status.
+    ///
+    /// This differs from the `From<ExecutionStatus>` implementation
+    /// in that it tries to convert Move abort errors into human-readable form.
+    /// This is referred to as clever error.
+    pub async fn from_native_with_clever_error<S: PackageStore>(
+        native: ExecutionStatus,
+        resolver: &Resolver<S>,
+    ) -> Self {
+        match native {
+            ExecutionStatus::Failure {
+                error,
+                command: Some(mut command_index),
+            } => {
+                let error = 'error: {
+                    let ExecutionFailureStatus::MoveAbort(loc, code) = &error else {
+                        break 'error error.to_string();
+                    };
+                    let fname_string = if let Some(fname) = &loc.function_name {
+                        format!("::{fname}'")
+                    } else {
+                        "'".to_string()
+                    };
+
+                    let Some(CleverError {
+                        module_id,
+                        source_line_number,
+                        error_info,
+                    }) = resolver
+                        .resolve_clever_error(loc.module.clone(), *code)
+                        .await
+                    else {
+                        break 'error format!(
+                            "from '{}{fname_string} (instruction {}), abort code: {code}",
+                            loc.module.to_canonical_display(true),
+                            loc.instruction,
+                        );
+                    };
+
+                    match error_info {
+                        ErrorConstants::Rendered {
+                            identifier,
+                            constant,
+                        } => {
+                            format!(
+                                "from '{}{fname_string} (line {source_line_number}), abort '{identifier}': {constant}",
+                                module_id.to_canonical_display(true)
+                            )
+                        }
+                        ErrorConstants::Raw { identifier, bytes } => {
+                            let const_str = Base64::encode(bytes);
+                            format!(
+                                "from '{}{fname_string} (line {source_line_number}), abort '{identifier}': {const_str}",
+                                module_id.to_canonical_display(true)
+                            )
+                        }
+                        ErrorConstants::None => {
+                            format!(
+                                "from '{}{fname_string} (line {source_line_number})",
+                                module_id.to_canonical_display(true)
+                            )
+                        }
+                    }
+                };
+                // Convert the command index into an ordinal.
+                command_index += 1;
+                let suffix = match command_index % 10 {
+                    1 => "st",
+                    2 => "nd",
+                    3 => "rd",
+                    _ => "th",
+                };
+                IotaExecutionStatus::Failure {
+                    error: format!("Error in {command_index}{suffix} command, {error}"),
+                }
+            }
+            _ => native.into(),
+        }
+    }
+}
+
 impl Display for IotaExecutionStatus {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
@@ -1488,13 +1593,13 @@ impl From<ExecutionStatus> for IotaExecutionStatus {
                 error,
                 command: None,
             } => Self::Failure {
-                error: format!("{error:?}"),
+                error: error.to_string(),
             },
             ExecutionStatus::Failure {
                 error,
                 command: Some(idx),
             } => Self::Failure {
-                error: format!("{error:?} in command {idx}"),
+                error: format!("{error} in command {idx}"),
             },
         }
     }
