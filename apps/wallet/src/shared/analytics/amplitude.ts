@@ -6,8 +6,8 @@ import * as amplitude from '@amplitude/analytics-browser';
 import { LogLevel } from '@amplitude/analytics-types';
 import { attachEnvironmentPlugin, getCustomNetwork } from '@iota/core';
 import { getNetwork, type Network } from '@iota/iota-sdk/client';
-
 import { ampli } from './ampli';
+import { externalLinkOpenedPrivacyPlugin } from './plugins';
 
 const IS_ENABLED = process.env.BUILD_ENV === 'production';
 
@@ -53,6 +53,8 @@ export async function initAmplitude() {
 
     // Add environment plugin to set prefix dev events
     ampli.client.add(attachEnvironmentPlugin());
+
+    ampli.client.add(externalLinkOpenedPrivacyPlugin());
 }
 
 export function getUrlWithDeviceId(url: URL) {

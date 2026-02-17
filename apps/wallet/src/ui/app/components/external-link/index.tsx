@@ -11,11 +11,33 @@ export interface ExternalLinkProps {
     children: ReactNode;
     title?: string;
     onClick?(): void;
+    type?: string; // e.g. 'documentation' | 'application' | 'address' | 'digest' | ...
+    isPublic?: boolean;
+    trackEvent?: boolean;
 }
 
-export function ExternalLink({ href, className, children, title, onClick }: ExternalLinkProps) {
+const DO_NOT_TRACK_TYPES = new Set<string>(['address', 'digest']);
+
+export function ExternalLink({
+    href,
+    className,
+    children,
+    title,
+    onClick,
+    type,
+    isPublic = false,
+    trackEvent = true,
+}: ExternalLinkProps) {
     const handleClick = () => {
-        ampli.openedLink({ url: href });
+        if (trackEvent && type && !DO_NOT_TRACK_TYPES.has(type)) {
+            const visibility: 'private' | 'public' = isPublic ? 'public' : 'private';
+
+            ampli.externalLinkOpened({
+                type,
+                visibility,
+                ...(visibility === 'public' ? { value: href } : {}),
+            });
+        }
         onClick?.();
     };
 
