@@ -8,6 +8,7 @@
     "type": "module",
     "private": true,
     "exports": {
+        "./custom-signer.js": "./dist/esm/custom-signer.js",
         "./get-balance.js": "./dist/esm/get-balance.js",
         "./transfer-iota.js": "./dist/esm/transfer-iota.js",
         "./tx-with-graphql.js": "./dist/esm/tx-with-graphql.js"
@@ -30,7 +31,8 @@
     },
     "dependencies": {
         "@iota/graphql-transport": "workspace:*",
-        "@iota/iota-sdk": "workspace:*"
+        "@iota/iota-sdk": "workspace:*",
+        "@noble/curves": "^1.4.2"
     },
     "devDependencies": {
         "@types/node": "^20.14.10",

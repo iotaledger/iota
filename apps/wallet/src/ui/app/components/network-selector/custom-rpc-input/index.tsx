@@ -44,7 +44,7 @@ export function CustomRPCInput() {
                     }),
                 ).unwrap();
                 setNetworkGroup(Network.Custom, rpcInput);
-                ampli.switchedNetwork({
+                ampli.networkSwitched({
                     toNetwork: rpcInput,
                 });
             } catch (e) {

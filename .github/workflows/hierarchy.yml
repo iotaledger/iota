@@ -77,12 +77,12 @@ jobs:
 
   docusaurus:
     needs: diff
-    if: (!cancelled() && needs.diff.outputs.isDoc == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (!cancelled() && !failure() && needs.diff.outputs.isDoc == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     uses: ./.github/workflows/_docusaurus.yml
 
   docs-lint:
     needs: diff
-    if: (!cancelled() && needs.diff.outputs.isDoc == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (!cancelled() && !failure() && needs.diff.outputs.isDoc == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     uses: ./.github/workflows/_docs_lint.yml
 
   rust:
