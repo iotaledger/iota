@@ -134,7 +134,7 @@ async fn test_event_filtering() {
         .created()
         .iter()
         .find(|obj| obj.1.is_immutable())
-        .map(|obj| obj.0.0)
+        .map(|obj| obj.0.object_id)
         .expect("Should have created NFT package");
 
     // Publish basics package
@@ -154,7 +154,7 @@ async fn test_event_filtering() {
         .created()
         .iter()
         .find(|obj| obj.1.is_immutable())
-        .map(|obj| obj.0.0)
+        .map(|obj| obj.0.object_id)
         .expect("Should have created basics package");
 
     // Define event filters for later use

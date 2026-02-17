@@ -109,7 +109,7 @@ impl<'backing> TemporaryStore<'backing> {
                     .intersection(
                         &receiving_objects
                             .iter()
-                            .map(|oref| &oref.0)
+                            .map(|oref| &oref.object_id)
                             .collect::<HashSet<_>>()
                     )
                     .next()
@@ -231,17 +231,17 @@ impl<'backing> TemporaryStore<'backing> {
         // Regardless of execution status (including aborts), we insert the previous
         // transaction for any successfully received objects during the
         // transaction.
-        for (id, expected_version, expected_digest) in &self.receiving_objects {
+        for receiving_object in &self.receiving_objects {
             // If the receiving object is in the loaded runtime objects, then that means
             // that it was actually successfully loaded (so existed, and there
             // was authenticated mutable access to it). So we insert the
             // previous transaction as a dependency.
-            if let Some(obj_meta) = self.loaded_runtime_objects.get(id) {
+            if let Some(obj_meta) = self.loaded_runtime_objects.get(&receiving_object.object_id) {
                 // Check that the expected version, digest, and owner match the loaded version,
                 // digest, and owner. If they don't then don't register a dependency.
                 // This is because this could be "spoofed" by loading a dynamic object field.
-                let loaded_via_receive = obj_meta.version == *expected_version
-                    && obj_meta.digest == *expected_digest
+                let loaded_via_receive = obj_meta.version == receiving_object.version
+                    && obj_meta.digest == receiving_object.digest
                     && obj_meta.owner.is_address_owned();
                 if loaded_via_receive {
                     transaction_dependencies.insert(obj_meta.previous_transaction);
@@ -337,12 +337,12 @@ impl<'backing> TemporaryStore<'backing> {
     pub fn mutate_child_object(&mut self, old_object: Object, new_object: Object) {
         let id = new_object.id();
         let old_ref = old_object.compute_object_reference();
-        debug_assert_eq!(old_ref.0, id);
+        debug_assert_eq!(old_ref.object_id, id);
         self.loaded_runtime_objects.insert(
             id,
             DynamicallyLoadedObjectMetadata {
-                version: old_ref.1,
-                digest: old_ref.2,
+                version: old_ref.version,
+                digest: old_ref.digest,
                 owner: old_object.owner,
                 storage_rebate: old_object.storage_rebate,
                 previous_transaction: old_object.previous_transaction,
@@ -549,7 +549,11 @@ impl TemporaryStore<'_> {
         mutable_inputs: &HashSet<ObjectID>,
         is_epoch_change: bool,
     ) -> IotaResult<()> {
-        let gas_objs: HashSet<&ObjectID> = gas_charger.gas_coins().iter().map(|g| &g.0).collect();
+        let gas_objs: HashSet<&ObjectID> = gas_charger
+            .gas_coins()
+            .iter()
+            .map(|g| &g.object_id)
+            .collect();
         // mark input objects as authenticated
         let mut authenticated_for_mutation: HashSet<_> = self
             .input_objects

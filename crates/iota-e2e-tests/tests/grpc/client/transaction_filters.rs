@@ -62,7 +62,7 @@ async fn test_transaction_filter_scenarios() {
         .created()
         .iter()
         .find(|obj| obj.1.is_immutable())
-        .map(|obj| obj.0.0)
+        .map(|obj| obj.0.object_id)
         .expect("Should have created NFT package");
 
     // 2. Publish Basics package (sender_1)
@@ -80,7 +80,7 @@ async fn test_transaction_filter_scenarios() {
         .created()
         .iter()
         .find(|obj| obj.1.is_immutable())
-        .map(|obj| obj.0.0)
+        .map(|obj| obj.0.object_id)
         .expect("Should have created basics package");
 
     // 3. Mint NFT (sender_1) — MoveCall to nft_package

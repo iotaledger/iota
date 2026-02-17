@@ -116,7 +116,7 @@ async fn simulate_transaction_with_gas_estimation() {
     let recipient = iota_types::base_types::IotaAddress::random();
 
     let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
-    gas.sort_by_key(|object_ref| object_ref.0);
+    gas.sort_by_key(|object_ref| object_ref.object_id);
     let obj_to_send = gas.first().unwrap();
     let gas_obj = gas.last().unwrap();
 
@@ -176,7 +176,7 @@ async fn simulate_transaction_readmask_scenarios() {
     let mut exec_client = client.execution_service_client();
 
     let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
-    gas.sort_by_key(|object_ref| object_ref.0);
+    gas.sort_by_key(|object_ref| object_ref.object_id);
     let gas_obj = gas.last().unwrap();
     let obj_to_split = gas.first().unwrap();
 

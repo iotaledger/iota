@@ -45,7 +45,7 @@ use iota_sdk_types::StructTag;
 use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{
         AccountKeyPair, Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner,
         Secp256k1IotaSignature, SignatureScheme, get_key_pair,
@@ -151,7 +151,7 @@ impl TreeShakingTest {
         )
         .await;
 
-        obj_ref.0
+        obj_ref.object_id
     }
 
     async fn upgrade_package(
@@ -1302,17 +1302,20 @@ async fn test_package_management_on_publish_command() -> Result<(), anyhow::Erro
     .await?;
 
     // Get Package ID and version
-    let (expect_original_id, expect_version, _) =
-        if let IotaClientCommandResult::TransactionBlock(response) = resp {
-            assert_eq!(
-                response.effects.as_ref().unwrap().gas_object().object_id(),
-                gas_obj_id
-            );
-            get_new_package_obj_from_response(&response)
-                .ok_or_else(|| anyhow::anyhow!("No package object response"))?
-        } else {
-            unreachable!("Invalid response");
-        };
+    let ObjectRef {
+        object_id: expect_original_id,
+        version: expect_version,
+        ..
+    } = if let IotaClientCommandResult::TransactionBlock(response) = resp {
+        assert_eq!(
+            response.effects.as_ref().unwrap().gas_object().object_id(),
+            gas_obj_id
+        );
+        get_new_package_obj_from_response(&response)
+            .ok_or_else(|| anyhow::anyhow!("No package object response"))?
+    } else {
+        unreachable!("Invalid response");
+    };
 
     // Get lock file that recorded Package ID and version
     let lock_file = build_config.lock_file.expect("Lock file for testing");
@@ -2575,21 +2578,27 @@ async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Erro
     .await?;
 
     // Get Original Package ID and version
-    let (expect_original_id, _, _) = get_new_package_obj_from_response(&publish_response)
+    let ObjectRef {
+        object_id: expect_original_id,
+        ..
+    } = get_new_package_obj_from_response(&publish_response)
         .ok_or_else(|| anyhow::anyhow!("No package object response"))?;
 
     // Get Upgraded Package ID and version
-    let (expect_upgrade_latest_id, expect_upgrade_version, _) =
-        if let IotaClientCommandResult::TransactionBlock(response) = upgrade_response {
-            assert_eq!(
-                response.effects.as_ref().unwrap().gas_object().object_id(),
-                gas_obj_id
-            );
-            get_new_package_obj_from_response(&response)
-                .ok_or_else(|| anyhow::anyhow!("No package object response"))?
-        } else {
-            unreachable!("Invalid response");
-        };
+    let ObjectRef {
+        object_id: expect_upgrade_latest_id,
+        version: expect_upgrade_version,
+        ..
+    } = if let IotaClientCommandResult::TransactionBlock(response) = upgrade_response {
+        assert_eq!(
+            response.effects.as_ref().unwrap().gas_object().object_id(),
+            gas_obj_id
+        );
+        get_new_package_obj_from_response(&response)
+            .ok_or_else(|| anyhow::anyhow!("No package object response"))?
+    } else {
+        unreachable!("Invalid response");
+    };
 
     // Get lock file that recorded Package ID and version
     let lock_file = build_config.lock_file.expect("Lock file for testing");

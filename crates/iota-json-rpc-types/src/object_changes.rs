@@ -119,7 +119,7 @@ impl ObjectChange {
                 version,
                 digest,
                 ..
-            } => (*package_id, *version, *digest),
+            } => ObjectRef::new(*package_id, *version, *digest),
             ObjectChange::Transferred {
                 object_id,
                 version,
@@ -137,13 +137,13 @@ impl ObjectChange {
                 version,
                 digest,
                 ..
-            } => (*object_id, *version, *digest),
+            } => ObjectRef::new(*object_id, *version, *digest),
             ObjectChange::Deleted {
                 object_id, version, ..
-            } => (*object_id, *version, ObjectDigest::OBJECT_DELETED),
+            } => ObjectRef::new(*object_id, *version, ObjectDigest::OBJECT_DELETED),
             ObjectChange::Wrapped {
                 object_id, version, ..
-            } => (*object_id, *version, ObjectDigest::OBJECT_WRAPPED),
+            } => ObjectRef::new(*object_id, *version, ObjectDigest::OBJECT_WRAPPED),
         }
     }
 

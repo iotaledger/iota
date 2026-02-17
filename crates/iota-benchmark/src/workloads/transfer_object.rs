@@ -63,7 +63,7 @@ impl Payload for TransferObjectTestPayload {
         self.transfer_object = effects
             .mutated()
             .iter()
-            .find(|(object_ref, _)| object_ref.0 == self.transfer_object.0)
+            .find(|(object_ref, _)| object_ref.object_id == self.transfer_object.object_id)
             .map(|x| x.0)
             .unwrap();
         self.transfer_from = self.transfer_to;

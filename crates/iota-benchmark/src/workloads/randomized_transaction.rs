@@ -131,8 +131,9 @@ impl RandomizedTransactionPayload {
                         Identifier::from_static("increment"),
                         vec![],
                         vec![CallArg::Object(ObjectArg::SharedObject {
-                            id: self.shared_objects[next_shared_input_index].0,
-                            initial_shared_version: self.shared_objects[next_shared_input_index].1,
+                            id: self.shared_objects[next_shared_input_index].object_id,
+                            initial_shared_version: self.shared_objects[next_shared_input_index]
+                                .version,
                             mutable: true,
                         })],
                     )
@@ -147,10 +148,10 @@ impl RandomizedTransactionPayload {
                         vec![],
                         vec![
                             CallArg::Object(ObjectArg::SharedObject {
-                                id: self.shared_objects[next_shared_input_index].0,
+                                id: self.shared_objects[next_shared_input_index].object_id,
                                 initial_shared_version: self.shared_objects
                                     [next_shared_input_index]
-                                    .1,
+                                    .version,
                                 mutable: true,
                             }),
                             CallArg::Pure((10_u64).to_le_bytes().to_vec()),
@@ -166,8 +167,9 @@ impl RandomizedTransactionPayload {
                         Identifier::from_static("value"),
                         vec![],
                         vec![CallArg::Object(ObjectArg::SharedObject {
-                            id: self.shared_objects[next_shared_input_index].0,
-                            initial_shared_version: self.shared_objects[next_shared_input_index].1,
+                            id: self.shared_objects[next_shared_input_index].object_id,
+                            initial_shared_version: self.shared_objects[next_shared_input_index]
+                                .version,
                             mutable: false,
                         })],
                     )
@@ -217,7 +219,7 @@ impl Payload for RandomizedTransactionPayload {
         if let Some(owned_in_effects) = effects
             .mutated()
             .iter()
-            .find(|(object_ref, _)| object_ref.0 == self.owned_object.0)
+            .find(|(object_ref, _)| object_ref.object_id == self.owned_object.object_id)
             .map(|x| x.0)
         {
             tracing::debug!("Owned object mutated: {:?}", owned_in_effects);
@@ -245,8 +247,8 @@ impl Payload for RandomizedTransactionPayload {
         for i in 0..config.num_shared_inputs {
             builder
                 .obj(ObjectArg::SharedObject {
-                    id: self.shared_objects[i as usize].0,
-                    initial_shared_version: self.shared_objects[i as usize].1,
+                    id: self.shared_objects[i as usize].object_id,
+                    initial_shared_version: self.shared_objects[i as usize].version,
                     mutable: rand::thread_rng().gen_bool(0.5),
                 })
                 .unwrap();
@@ -435,7 +437,7 @@ impl Workload<dyn Payload> for RandomizedTransactionWorkload {
         self.basics_package_id = Some(
             publish_basics_package(head.0, proxy.clone(), head.1, &head.2, gas_price)
                 .await
-                .0,
+                .object_id,
         );
 
         // Create a transfer address

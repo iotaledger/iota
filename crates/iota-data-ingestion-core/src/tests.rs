@@ -17,7 +17,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_rest_api::CheckpointTransaction;
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     committee::EpochId,
     crypto::{KeypairTraits, RandomnessRound},
     digests::ObjectDigest,
@@ -412,7 +412,7 @@ async fn basic_flow_with_custom_callback() {
             randomness_obj_initial_shared_version: SequenceNumber::default(),
         }),
         IotaAddress::random(),
-        (ObjectID::ZERO, SequenceNumber::default(), ObjectDigest::MIN),
+        ObjectRef::new(ObjectID::ZERO, SequenceNumber::default(), ObjectDigest::MIN),
         0,
         0,
     );

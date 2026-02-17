@@ -45,13 +45,13 @@ fn object_ids_from_transaction(
         .gas_data()
         .payment
         .iter()
-        .map(|payment| payment.0);
+        .map(|payment| payment.object_id);
 
     let input_objects = transaction
         .input_objects()?
         .into_iter()
         .filter_map(|input| match input {
-            InputObjectKind::ImmOrOwnedMoveObject(id) => Some(id.0),
+            InputObjectKind::ImmOrOwnedMoveObject(id) => Some(id.object_id),
             _ => None,
         });
 

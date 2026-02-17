@@ -309,7 +309,7 @@ impl Scenario {
             let mut object_ref = object.compute_object_reference();
             self.outputs.live_object_markers_to_delete.push(object_ref);
             // in the authority this would be set to the lamport version of the tx
-            object_ref.1.increment().unwrap();
+            object_ref.version.increment().unwrap();
             self.outputs.deleted.push(object_ref.into());
         }
     }
@@ -323,7 +323,7 @@ impl Scenario {
             let mut object_ref = object.compute_object_reference();
             self.outputs.live_object_markers_to_delete.push(object_ref);
             // in the authority this would be set to the lamport version of the tx
-            object_ref.1.increment().unwrap();
+            object_ref.version.increment().unwrap();
             self.outputs.wrapped.push(object_ref.into());
         }
     }
@@ -1025,16 +1025,16 @@ async fn test_concurrent_readers() {
 
                 println!("parent: {parent_ref:?}");
                 loop {
-                    let parent = cache.get_object_by_key(&parent_ref.0, parent_ref.1);
+                    let parent = cache.get_object_by_key(&parent_ref.object_id, parent_ref.version);
                     if parent.is_none() {
                         tokio::task::yield_now().await;
                         continue;
                     }
-                    assert_eq!(parent.unwrap().version(), parent_ref.1);
+                    assert_eq!(parent.unwrap().version(), parent_ref.version);
                     break;
                 }
                 let child = cache
-                    .read_child_object(&parent_ref.0, &child_id, parent_ref.1)
+                    .read_child_object(&parent_ref.object_id, &child_id, parent_ref.version)
                     .unwrap();
                 assert!(child.is_none(), "Inconsistent child read detected");
             }

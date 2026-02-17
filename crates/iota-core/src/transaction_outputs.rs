@@ -58,7 +58,7 @@ impl TransactionOutputs {
         let possible_to_receive = transaction.transaction_data().receiving_objects();
         let received_objects = possible_to_receive
             .into_iter()
-            .filter(|obj_ref| modified_at.contains(&(obj_ref.0, obj_ref.1)));
+            .filter(|obj_ref| modified_at.contains(&(obj_ref.object_id, obj_ref.version)));
 
         // We record any received or deleted objects since they could be pruned, and
         // smear shared object deletions in the marker table. For deleted
@@ -99,7 +99,9 @@ impl TransactionOutputs {
         let live_object_markers_to_delete: Vec<_> = mutable_inputs
             .into_iter()
             .filter_map(|(id, ((version, digest), owner))| {
-                owner.is_address_owned().then_some((id, version, digest))
+                owner
+                    .is_address_owned()
+                    .then_some(ObjectRef::new(id, version, digest))
             })
             .chain(received_objects)
             .collect();

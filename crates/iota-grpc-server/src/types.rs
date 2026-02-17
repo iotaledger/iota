@@ -1297,13 +1297,16 @@ impl GrpcReader {
             // Get output objects only if requested
             let output_objects = if fields.include_output_objects {
                 let mut objects = Vec::new();
-                for ((object_id, version, _digest), _owner) in effects
+                for (object_ref, _owner) in effects
                     .created()
                     .into_iter()
                     .chain(effects.mutated())
                     .chain(effects.unwrapped())
                 {
-                    if let Some(obj) = self.state_reader.get_object_by_key(&object_id, version)? {
+                    if let Some(obj) = self
+                        .state_reader
+                        .get_object_by_key(&object_ref.object_id, object_ref.version)?
+                    {
                         objects.push(obj);
                     }
                 }

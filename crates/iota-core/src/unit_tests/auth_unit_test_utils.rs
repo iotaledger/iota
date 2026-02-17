@@ -100,7 +100,7 @@ pub async fn publish_package_on_single_authority(
         .find(|c| c.1 == Owner::Immutable)
         .unwrap()
         .0
-        .0;
+        .object_id;
     let cap_object = effects
         .data()
         .created()
@@ -152,6 +152,6 @@ pub async fn upgrade_package_on_single_authority(
         .find(|c| c.1 == Owner::Immutable)
         .unwrap()
         .0
-        .0;
+        .object_id;
     Ok((*effects.transaction_digest(), package_id))
 }

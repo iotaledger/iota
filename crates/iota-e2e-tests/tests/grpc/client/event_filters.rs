@@ -68,7 +68,7 @@ async fn test_event_filter_scenarios() {
         .created()
         .iter()
         .find(|obj| obj.1.is_immutable())
-        .map(|obj| obj.0.0)
+        .map(|obj| obj.0.object_id)
         .expect("Should have created NFT package");
 
     // 2. Publish Basics package
@@ -86,7 +86,7 @@ async fn test_event_filter_scenarios() {
         .created()
         .iter()
         .find(|obj| obj.1.is_immutable())
-        .map(|obj| obj.0.0)
+        .map(|obj| obj.0.object_id)
         .expect("Should have created basics package");
 
     // 3. Mint 2 NFTs from sender_1
