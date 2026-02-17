@@ -1807,25 +1807,33 @@ impl IotaTestAdapter {
         let mut created_ids: Vec<_> = effects
             .created()
             .iter()
-            .map(|((id, _, _), _)| *id)
+            .map(|(object_ref, _)| object_ref.object_id)
             .collect();
         let mut mutated_ids: Vec<_> = effects
             .mutated()
             .iter()
-            .map(|((id, _, _), _)| *id)
+            .map(|(object_ref, _)| object_ref.object_id)
             .collect();
         let mut unwrapped_ids: Vec<_> = effects
             .unwrapped()
             .iter()
-            .map(|((id, _, _), _)| *id)
+            .map(|(object_ref, _)| object_ref.object_id)
             .collect();
-        let mut deleted_ids: Vec<_> = effects.deleted().iter().map(|(id, _, _)| *id).collect();
+        let mut deleted_ids: Vec<_> = effects
+            .deleted()
+            .iter()
+            .map(|object_ref| object_ref.object_id)
+            .collect();
         let mut unwrapped_then_deleted_ids: Vec<_> = effects
             .unwrapped_then_deleted()
             .iter()
-            .map(|(id, _, _)| *id)
+            .map(|object_ref| object_ref.object_id)
             .collect();
-        let mut wrapped_ids: Vec<_> = effects.wrapped().iter().map(|(id, _, _)| *id).collect();
+        let mut wrapped_ids: Vec<_> = effects
+            .wrapped()
+            .iter()
+            .map(|object_ref| object_ref.object_id)
+            .collect();
         let gas_summary = effects.gas_cost_summary();
 
         // make sure objects that have previously not been in storage get assigned a
@@ -1933,13 +1941,13 @@ impl IotaTestAdapter {
         let mut created_ids: Vec<_> = effects.created().iter().map(|o| o.object_id()).collect();
         let mut mutated_ids: Vec<_> = effects.mutated().iter().map(|o| o.object_id()).collect();
         let mut unwrapped_ids: Vec<_> = effects.unwrapped().iter().map(|o| o.object_id()).collect();
-        let mut deleted_ids: Vec<_> = effects.deleted().iter().map(|o| o.0).collect();
+        let mut deleted_ids: Vec<_> = effects.deleted().iter().map(|o| o.object_id).collect();
         let mut unwrapped_then_deleted_ids: Vec<_> = effects
             .unwrapped_then_deleted()
             .iter()
-            .map(|o| o.0)
+            .map(|o| o.object_id)
             .collect();
-        let mut wrapped_ids: Vec<_> = effects.wrapped().iter().map(|o| o.0).collect();
+        let mut wrapped_ids: Vec<_> = effects.wrapped().iter().map(|o| o.object_id).collect();
         let gas_summary = effects.gas_cost_summary();
 
         // make sure objects that have previously not been in storage get assigned a
@@ -2286,7 +2294,7 @@ impl IotaTestAdapter {
         let abstract_account = TestAccount {
             address: IotaAddress::from(created_abstract_account_id),
             key_pair: None,
-            gas: created_abstract_account_coin.0,
+            gas: created_abstract_account_coin.object_id,
         };
 
         // Store the created abstract account

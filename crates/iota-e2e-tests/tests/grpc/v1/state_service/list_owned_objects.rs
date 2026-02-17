@@ -504,7 +504,7 @@ async fn list_owned_objects_tto_indexing() {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/move_test_code"),
     )
     .await;
-    let package_id = package_ref.0;
+    let package_id = package_ref.object_id;
 
     // The sender owns several gas coins by default; pick one that is not the
     // gas-payment coin so we can pass it as the `Coin<IOTA>` argument to
@@ -551,13 +551,13 @@ async fn list_owned_objects_tto_indexing() {
             _ => None,
         })
         .expect("start should create an `A` object owned by the sender");
-    let parent_addr = IotaAddress::from(parent_ref.0);
+    let parent_addr = IotaAddress::from(parent_ref.object_id);
 
     // The coin is now owned by `parent_addr` via TTO; grab its post-start ref.
     let coin_after_start = start_effects
         .mutated_excluding_gas()
         .iter()
-        .find_map(|(obj_ref, _)| (obj_ref.0 == coin_ref.0).then_some(*obj_ref))
+        .find_map(|(obj_ref, _)| (obj_ref.object_id == coin_ref.object_id).then_some(*obj_ref))
         .expect("coin must appear in mutated set after start");
 
     // Parent starts with 1 coin (TTO'd in by `start`).
@@ -663,7 +663,7 @@ async fn list_owned_objects_filter_by_type() {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/grpc/data/trusted_coin"),
     )
     .await;
-    let package_id = package_ref.0;
+    let package_id = package_ref.object_id;
 
     // Wait for the publish tx to land in a checkpoint so the owner index
     // reflects the newly-created TreasuryCap.

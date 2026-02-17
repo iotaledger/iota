@@ -95,7 +95,11 @@ impl InputObjectTracker {
             .map(|shared_io| shared_io.id())
             .collect();
         let tx_data = txn.transaction_data();
-        let coins: BTreeSet<ObjectID> = tx_data.gas().iter().map(|obj_ref| obj_ref.0).collect();
+        let coins: BTreeSet<ObjectID> = tx_data
+            .gas()
+            .iter()
+            .map(|obj_ref| obj_ref.object_id)
+            .collect();
         // All input objects (transaction + authenticators) are collected here, just
         // like the shared objects previously.
         let input: BTreeSet<ObjectID> = txn
@@ -138,13 +142,13 @@ impl ObjectStatusTracker {
         let created: BTreeSet<ObjectID> = effects
             .created()
             .iter()
-            .map(|(obj_ref, _)| obj_ref.0)
+            .map(|(obj_ref, _)| obj_ref.object_id)
             .collect();
         let mutated: BTreeSet<ObjectID> = effects
             .mutated()
             .iter()
             .chain(effects.unwrapped().iter())
-            .map(|(obj_ref, _)| obj_ref.0)
+            .map(|(obj_ref, _)| obj_ref.object_id)
             .collect();
         let deleted: BTreeSet<ObjectID> = effects
             .all_tombstones()

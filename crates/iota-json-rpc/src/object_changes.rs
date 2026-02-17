@@ -25,7 +25,10 @@ pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
 
     let modify_at_version = modified_at_versions.into_iter().collect::<BTreeMap<_, _>>();
 
-    for ((object_id, version, digest), owner, kind) in all_changed_objects {
+    for (changed_object, owner, kind) in all_changed_objects {
+        let object_id = changed_object.object_id;
+        let version = changed_object.version;
+        let digest = changed_object.digest;
         let o = object_provider.get_object(&object_id, &version).await?;
         if let Some(type_) = o.type_() {
             let object_type = type_.clone().into();
@@ -73,7 +76,9 @@ pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
         };
     }
 
-    for ((id, version, _), kind) in all_removed_objects {
+    for (removed_object, kind) in all_removed_objects {
+        let id = removed_object.object_id;
+        let version = removed_object.version;
         let o = object_provider
             .find_object_lt_or_eq_version(&id, &version)
             .await?;

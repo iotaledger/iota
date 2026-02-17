@@ -805,8 +805,8 @@ async fn create_coins_and_wait_for_indexer(
                 address,
             )
             .await;
-        indexer_wait_for_object(indexer_client, coin.0, coin.1).await;
-        coins.push(coin.0);
+        indexer_wait_for_object(indexer_client, coin.object_id, coin.version).await;
+        coins.push(coin.object_id);
     }
     coins
 }

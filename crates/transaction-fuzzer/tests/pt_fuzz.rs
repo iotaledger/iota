@@ -52,7 +52,7 @@ fn publish_coin_factory(
         .find(|(obj_ref, _)| {
             if let Some(stag) = exec
                 .rt
-                .block_on(exec.state.get_object(&obj_ref.0))
+                .block_on(exec.state.get_object(&obj_ref.object_id))
                 .unwrap()
                 .data
                 .struct_tag()
@@ -80,7 +80,7 @@ pub fn run_pt_success(
 ) -> ObjectRef {
     for i in 0..pt.inputs.len() {
         if let CallArg::Object(ObjectArg::ImmOrOwnedObject(obj_ref)) = pt.inputs[i] {
-            if obj_ref.0 == cap.0 {
+            if obj_ref.object_id == cap.object_id {
                 pt.inputs[i] = CallArg::Object(ObjectArg::ImmOrOwnedObject(cap));
             }
         }
@@ -109,7 +109,7 @@ pub fn run_pt_success(
         .find(|(obj_ref, _)| {
             if let Some(stag) = exec
                 .rt
-                .block_on(exec.state.get_object(&obj_ref.0))
+                .block_on(exec.state.get_object(&obj_ref.object_id))
                 .unwrap()
                 .data
                 .struct_tag()
@@ -132,7 +132,8 @@ fn pt_fuzz_input_match() {
     let mut account = AccountCurrent::new(AccountData::new_random());
     let (package, cap) = publish_coin_factory(&mut exec, &mut account);
 
-    let strategy = gen_many_input_match(account.initial_data.account.address, package.0, cap);
+    let strategy =
+        gen_many_input_match(account.initial_data.account.address, package.object_id, cap);
     let mut new_cap = cap;
     for _ in 0..MAX_ITERATIONS_INPUT_MATCH {
         let pt = strategy.new_tree(&mut runner).unwrap().current();

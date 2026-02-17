@@ -289,7 +289,7 @@ mod tests {
     use super::*;
 
     fn test_object_ref() -> ObjectRef {
-        (
+        ObjectRef::new(
             ObjectID::ZERO,
             SequenceNumber::from_u64(0),
             ObjectDigest::new([0; 32]),
@@ -474,7 +474,7 @@ mod tests {
                     (
                         IotaError::UserInput {
                             error: UserInputError::ObjectNotFound {
-                                object_id: test_object_ref().0,
+                                object_id: test_object_ref().object_id,
                                 version: None,
                             },
                         },

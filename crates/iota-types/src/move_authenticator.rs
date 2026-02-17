@@ -351,9 +351,11 @@ impl MoveAuthenticatorV1 {
                 ));
             }
             CallArg::Object(object_arg) => match object_arg {
-                ObjectArg::ImmOrOwnedObject((id, sequence_number, digest)) => {
-                    (*id, Some(*sequence_number), Some(*digest))
-                }
+                ObjectArg::ImmOrOwnedObject(object_ref) => (
+                    object_ref.object_id,
+                    Some(object_ref.version),
+                    Some(object_ref.digest),
+                ),
                 ObjectArg::SharedObject { id, mutable, .. } => {
                     if *mutable {
                         return Err(UserInputError::Unsupported(
@@ -489,17 +491,17 @@ mod tests {
 
     use super::*;
     use crate::{
-        base_types::{ObjectID, SequenceNumber},
+        base_types::{ObjectID, ObjectRef, SequenceNumber},
         digests::ObjectDigest,
         transaction::{CallArg, ObjectArg},
     };
 
     fn make_simple_authenticator() -> MoveAuthenticator {
-        let object_to_authenticate = CallArg::Object(ObjectArg::ImmOrOwnedObject((
-            ObjectID::ZERO,
-            SequenceNumber::default(),
-            ObjectDigest::MIN,
-        )));
+        let object_to_authenticate = CallArg::Object(ObjectArg::ImmOrOwnedObject(ObjectRef {
+            object_id: ObjectID::ZERO,
+            version: SequenceNumber::default(),
+            digest: ObjectDigest::MIN,
+        }));
         MoveAuthenticator::new_v1(vec![], vec![], object_to_authenticate)
     }
 

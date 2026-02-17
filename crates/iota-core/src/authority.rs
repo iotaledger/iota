@@ -2030,9 +2030,9 @@ impl AuthorityState {
                     .map(|(oref, _)| (oref, WriteKind::Mutate)),
             )
             .map(|(oref, kind)| {
-                let obj = inner_temp_store.written.get(&oref.0).unwrap();
+                let obj = inner_temp_store.written.get(&oref.object_id).unwrap();
                 // TODO: Avoid clones.
-                (oref.0, (oref, obj.clone(), kind))
+                (oref.object_id, (oref, obj.clone(), kind))
             })
             .collect();
 
@@ -2554,16 +2554,16 @@ impl AuthorityState {
         let tx_digest = effects.transaction_digest();
         let mut deleted_owners = vec![];
         let mut deleted_dynamic_fields = vec![];
-        for (id, _, _) in effects.deleted().into_iter().chain(effects.wrapped()) {
-            let old_version = modified_at_version.get(&id).unwrap();
+        for object_ref in effects.deleted().into_iter().chain(effects.wrapped()) {
+            let old_version = modified_at_version.get(&object_ref.object_id).unwrap();
             // When we process the index, the latest object hasn't been written yet so
             // the old object must be present.
-            match self.get_owner_at_version(&id, *old_version).unwrap_or_else(
-                |e| panic!("tx_digest={tx_digest:?}, error processing object owner index, cannot find owner for object {id:?} at version {old_version:?}. Err: {e:?}"),
+            match self.get_owner_at_version(&object_ref.object_id, *old_version).unwrap_or_else(
+                |e| panic!("tx_digest={tx_digest:?}, error processing object owner index, cannot find owner for object {:?} at version {old_version:?}. Err: {e:?}",object_ref.object_id)
             ) {
-                Owner::AddressOwner(addr) => deleted_owners.push((addr, id)),
+                Owner::AddressOwner(addr) => deleted_owners.push((addr, object_ref.object_id)),
                 Owner::ObjectOwner(object_id) => {
-                    deleted_dynamic_fields.push((ObjectID::from(object_id), id))
+                    deleted_dynamic_fields.push((ObjectID::from(object_id), object_ref.object_id))
                 }
                 _ => {}
             }
@@ -2573,7 +2573,7 @@ impl AuthorityState {
         let mut new_dynamic_fields = vec![];
 
         for (oref, owner, kind) in effects.all_changed_objects() {
-            let id = &oref.0;
+            let id = &oref.object_id;
             // For mutated objects, retrieve old owner and delete old index if there is a
             // owner change.
             if let WriteKind::Mutate = kind {
@@ -2614,12 +2614,12 @@ impl AuthorityState {
                     );
                     assert_eq!(
                         new_object.version(),
-                        oref.1,
+                        oref.version,
                         "tx_digest={:?} error processing object owner index, object {:?} from written has mismatched version. Actual: {}, expected: {}",
                         tx_digest,
                         id,
                         new_object.version(),
-                        oref.1
+                        oref.version
                     );
 
                     let type_ = new_object
@@ -2631,8 +2631,8 @@ impl AuthorityState {
                         (addr, *id),
                         ObjectInfo {
                             object_id: *id,
-                            version: oref.1,
-                            digest: oref.2,
+                            version: oref.version,
+                            digest: oref.digest,
                             type_,
                             owner,
                             previous_transaction: *effects.transaction_digest(),
@@ -2645,12 +2645,12 @@ impl AuthorityState {
                     );
                     assert_eq!(
                         new_object.version(),
-                        oref.1,
+                        oref.version,
                         "tx_digest={:?} error processing object owner index, object {:?} from written has mismatched version. Actual: {}, expected: {}",
                         tx_digest,
                         id,
                         new_object.version(),
-                        oref.1
+                        oref.version
                     );
 
                     let Some(df_info) = self
@@ -2908,7 +2908,7 @@ impl AuthorityState {
 
         let requested_object_seq = match request.request_kind {
             ObjectInfoRequestKind::LatestObjectInfo => {
-                let (_, seq, _) = self
+                let seq = self
                     .try_get_object_or_tombstone(request.object_id)
                     .await?
                     .ok_or_else(|| {
@@ -2916,7 +2916,8 @@ impl AuthorityState {
                             object_id: request.object_id,
                             version: None,
                         })
-                    })?;
+                    })?
+                    .version;
                 seq
             }
             ObjectInfoRequestKind::PastObjectInfoDebug(seq) => seq,
@@ -3777,15 +3778,15 @@ impl AuthorityState {
             return Ok(PastObjectRead::ObjectNotExists(*object_id));
         };
 
-        if version > obj_ref.1 {
+        if version > obj_ref.version {
             return Ok(PastObjectRead::VersionTooHigh {
                 object_id: *object_id,
                 asked_version: version,
-                latest_version: obj_ref.1,
+                latest_version: obj_ref.version,
             });
         }
 
-        if version < obj_ref.1 {
+        if version < obj_ref.version {
             // Read past objects
             return Ok(match self.read_object_at_version(object_id, version)? {
                 Some((object, layout)) => {
@@ -3797,11 +3798,11 @@ impl AuthorityState {
             });
         }
 
-        if !obj_ref.2.is_object_alive() {
+        if !obj_ref.digest.is_object_alive() {
             return Ok(PastObjectRead::ObjectDeleted(obj_ref));
         }
 
-        match self.read_object_at_version(object_id, obj_ref.1)? {
+        match self.read_object_at_version(object_id, obj_ref.version)? {
             Some((object, layout)) => Ok(PastObjectRead::VersionFound(obj_ref, object, layout)),
             None => {
                 error!(
@@ -3810,7 +3811,7 @@ impl AuthorityState {
                 );
                 Err(UserInputError::ObjectNotFound {
                     object_id: *object_id,
-                    version: Some(obj_ref.1),
+                    version: Some(obj_ref.version),
                 }
                 .into())
             }
@@ -4632,7 +4633,7 @@ impl AuthorityState {
             ObjectLockStatus::LockedAtDifferentVersion { locked_ref } => {
                 return Err(UserInputError::ObjectVersionUnavailableForConsumption {
                     provided_obj_ref: *object_ref,
-                    current_version: locked_ref.1,
+                    current_version: locked_ref.version,
                 }
                 .into());
             }
@@ -4775,7 +4776,10 @@ impl AuthorityState {
         system_packages: Vec<ObjectRef>,
         binary_config: &BinaryConfig,
     ) -> Option<Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>> {
-        let ids: Vec<_> = system_packages.iter().map(|(id, _, _)| *id).collect();
+        let ids: Vec<_> = system_packages
+            .iter()
+            .map(|object_ref| object_ref.object_id)
+            .collect();
         let objects = self.get_objects(&ids).await;
 
         let mut res = Vec::with_capacity(system_packages.len());
@@ -4783,7 +4787,10 @@ impl AuthorityState {
             let prev_transaction = match object {
                 Some(cur_object) if cur_object.compute_object_reference() == system_package_ref => {
                     // Skip this one because it doesn't need to be upgraded.
-                    info!("Framework {} does not need updating", system_package_ref.0);
+                    info!(
+                        "Framework {} does not need updating",
+                        system_package_ref.object_id
+                    );
                     continue;
                 }
 
@@ -4796,17 +4803,20 @@ impl AuthorityState {
                 id: _,
                 bytes,
                 dependencies,
-            } = framework_injection::get_override_system_package(&system_package_ref.0, self.name)
-                .unwrap_or_else(|| {
-                    BuiltInFramework::get_package_by_id(&system_package_ref.0).clone()
-                });
+            } = framework_injection::get_override_system_package(
+                &system_package_ref.object_id,
+                self.name,
+            )
+            .unwrap_or_else(|| {
+                BuiltInFramework::get_package_by_id(&system_package_ref.object_id).clone()
+            });
 
             #[cfg(not(msim))]
             let SystemPackage {
                 id: _,
                 bytes,
                 dependencies,
-            } = BuiltInFramework::get_package_by_id(&system_package_ref.0).clone();
+            } = BuiltInFramework::get_package_by_id(&system_package_ref.object_id).clone();
 
             let modules: Vec<_> = bytes
                 .iter()
@@ -4815,7 +4825,7 @@ impl AuthorityState {
 
             let new_object = Object::new_system_package(
                 &modules,
-                system_package_ref.1,
+                system_package_ref.version,
                 dependencies.clone(),
                 prev_transaction,
             );
@@ -4828,7 +4838,7 @@ impl AuthorityState {
                 return None;
             }
 
-            res.push((system_package_ref.1, bytes, dependencies));
+            res.push((system_package_ref.version, bytes, dependencies));
         }
 
         Some(res)
@@ -5998,9 +6008,9 @@ impl ObjDumpFormat {
     fn new(object: Object) -> Self {
         let oref = object.compute_object_reference();
         Self {
-            id: oref.0,
-            version: oref.1,
-            digest: oref.2,
+            id: oref.object_id,
+            version: oref.version,
+            digest: oref.digest,
             object,
         }
     }
@@ -6054,7 +6064,9 @@ impl NodeStateDump {
         for kind in effects.input_shared_objects() {
             match kind {
                 InputSharedObject::Mutate(obj_ref) | InputSharedObject::ReadOnly(obj_ref) => {
-                    if let Some(w) = object_store.try_get_object_by_key(&obj_ref.0, obj_ref.1)? {
+                    if let Some(w) =
+                        object_store.try_get_object_by_key(&obj_ref.object_id, obj_ref.version)?
+                    {
                         shared_objects.push(ObjDumpFormat::new(w))
                     }
                 }

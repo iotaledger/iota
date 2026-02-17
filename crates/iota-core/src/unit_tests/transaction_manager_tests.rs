@@ -790,7 +790,7 @@ async fn transaction_manager_with_cancelled_transactions() {
     // available later.
     let owned_version = 2000.into();
     let mut owned_ref = owned_object.compute_object_reference();
-    owned_ref.1 = owned_version;
+    owned_ref.version = owned_version;
     let owned_object_arg = ObjectArg::ImmOrOwnedObject(owned_ref);
 
     let cancelled_transaction = make_transaction(

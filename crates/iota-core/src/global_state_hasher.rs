@@ -131,7 +131,7 @@ fn accumulate_effects(effects: &[TransactionEffects]) -> GlobalStateHash {
             .flat_map(|fx| {
                 fx.all_changed_objects()
                     .into_iter()
-                    .map(|(object_ref, _, _)| object_ref.2)
+                    .map(|(object_ref, _, _)| object_ref.digest)
             })
             .collect::<Vec<ObjectDigest>>(),
     );
@@ -143,7 +143,7 @@ fn accumulate_effects(effects: &[TransactionEffects]) -> GlobalStateHash {
             .flat_map(|fx| {
                 fx.old_object_metadata()
                     .into_iter()
-                    .map(|(object_ref, _owner)| object_ref.2)
+                    .map(|(object_ref, _owner)| object_ref.digest)
             })
             .collect::<Vec<ObjectDigest>>(),
     );
@@ -216,7 +216,7 @@ impl GlobalStateHasher {
     pub fn accumulate_live_object(acc: &mut GlobalStateHash, live_object: &LiveObject) {
         match live_object {
             LiveObject::Normal(object) => {
-                acc.insert(object.compute_object_reference().2);
+                acc.insert(object.compute_object_reference().digest);
             }
             LiveObject::Wrapped(key) => {
                 acc.insert(

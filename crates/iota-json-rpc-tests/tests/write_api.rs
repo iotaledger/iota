@@ -69,7 +69,7 @@ async fn test_dev_inspect_transaction_block() -> Result<(), anyhow::Error> {
         .effects
         .mutated()
         .iter()
-        .find(|o| o.reference.0 == obj.0)
+        .find(|o| o.reference.object_id == obj.object_id)
         .unwrap();
     assert_eq!(
         tx_effect_obj_reassigned.owner,
@@ -78,7 +78,7 @@ async fn test_dev_inspect_transaction_block() -> Result<(), anyhow::Error> {
 
     let actual_object_info = http_client
         .get_object(
-            obj.0,
+            obj.object_id,
             Some(IotaObjectDataOptions {
                 show_owner: true,
                 ..Default::default()

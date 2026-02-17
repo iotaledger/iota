@@ -8,7 +8,7 @@ use iota_config::genesis;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     committee::{Committee, EpochId},
-    digests::{ObjectDigest, TransactionDigest},
+    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{IotaResult, UserInputError},
     messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},
@@ -92,7 +92,7 @@ pub trait SimulatorStore:
     fn update_objects(
         &mut self,
         written_objects: BTreeMap<ObjectID, Object>,
-        deleted_objects: Vec<(ObjectID, SequenceNumber, ObjectDigest)>,
+        deleted_objects: Vec<ObjectRef>,
     );
 
     fn backing_store(&self) -> &dyn BackingStore;
@@ -121,7 +121,7 @@ pub trait SimulatorStore:
                     crate::store::SimulatorStore::get_object(self, id)
                 }
                 InputObjectKind::ImmOrOwnedMoveObject(objref) => {
-                    self.try_get_object_by_key(&objref.0, objref.1)?
+                    self.try_get_object_by_key(&objref.object_id, objref.version)?
                 }
 
                 InputObjectKind::SharedMoveObject { id, .. } => {
@@ -138,10 +138,11 @@ pub trait SimulatorStore:
         let mut receiving_objects = Vec::new();
         for objref in receiving_object_refs {
             // no need for marker table check in simulacrum
-            let Some(obj) = crate::store::SimulatorStore::get_object(self, &objref.0) else {
+            let Some(obj) = crate::store::SimulatorStore::get_object(self, &objref.object_id)
+            else {
                 return Err(UserInputError::ObjectNotFound {
-                    object_id: objref.0,
-                    version: Some(objref.1),
+                    object_id: objref.object_id,
+                    version: Some(objref.version),
                 }
                 .into());
             };

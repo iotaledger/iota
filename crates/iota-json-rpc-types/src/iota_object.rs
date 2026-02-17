@@ -86,13 +86,13 @@ impl IotaObjectResponse {
             ObjectRead::Exists(object_ref, o, layout) => Ok(IotaObjectResponse::new_with_data(
                 IotaObjectData::new(object_ref, o, layout, options, None)?,
             )),
-            ObjectRead::Deleted((object_id, version, digest)) => Ok(
-                IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
-                    object_id,
-                    version,
-                    digest,
-                }),
-            ),
+            ObjectRead::Deleted(object_ref) => Ok(IotaObjectResponse::new_with_error(
+                IotaObjectResponseError::Deleted {
+                    object_id: object_ref.object_id,
+                    version: object_ref.version,
+                    digest: object_ref.digest,
+                },
+            )),
         }
     }
 }
@@ -276,7 +276,11 @@ impl IotaObjectData {
             ..
         } = options;
 
-        let (object_id, version, digest) = object_ref;
+        let ObjectRef {
+            object_id,
+            version,
+            digest,
+        } = object_ref;
         let type_ = if *show_type {
             Some(Into::<ObjectType>::into(&obj))
         } else {
@@ -339,7 +343,7 @@ impl IotaObjectData {
     }
 
     pub fn object_ref(&self) -> ObjectRef {
-        (self.object_id, self.version, self.digest)
+        ObjectRef::new(self.object_id, self.version, self.digest)
     }
 
     pub fn object_type(&self) -> anyhow::Result<ObjectType> {
@@ -675,16 +679,16 @@ impl<'de> DeserializeAs<'de, ObjectRef> for ObjectRefSchema {
 impl From<ObjectRef> for ObjectRefSchema {
     fn from(oref: ObjectRef) -> Self {
         Self {
-            object_id: oref.0,
-            version: oref.1,
-            digest: oref.2,
+            object_id: oref.object_id,
+            version: oref.version,
+            digest: oref.digest,
         }
     }
 }
 
 impl From<ObjectRefSchema> for ObjectRef {
     fn from(oref: ObjectRefSchema) -> Self {
-        (oref.object_id, oref.version, oref.digest)
+        ObjectRef::new(oref.object_id, oref.version, oref.digest)
     }
 }
 
@@ -863,8 +867,11 @@ impl IotaParsedData {
                 };
                 Ok(data)
             }
-            ObjectRead::Deleted((object_id, version, digest)) => Err(anyhow::anyhow!(
-                "Object {object_id} was deleted at version {version} with digest {digest}"
+            ObjectRead::Deleted(object_ref) => Err(anyhow::anyhow!(
+                "Object {} was deleted at version {} with digest {}",
+                object_ref.object_id,
+                object_ref.version,
+                object_ref.digest
             )),
         }
     }

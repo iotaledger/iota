@@ -1657,11 +1657,11 @@ fn destroy_staked_migration_objects(
     // were added to the token distribution schedule, because they will be
     // created on the Move side during genesis. That means we need to prevent
     // cloning value by evicting these here.
-    for (id, _, _) in genesis_stake.take_gas_coins_to_destroy() {
-        intermediate_store.remove(&id);
+    for gas_coin in genesis_stake.take_gas_coins_to_destroy() {
+        intermediate_store.remove(&gas_coin.object_id);
     }
-    for (id, _, _) in genesis_stake.take_timelocks_to_destroy() {
-        intermediate_store.remove(&id);
+    for timelock in genesis_stake.take_timelocks_to_destroy() {
+        intermediate_store.remove(&timelock.object_id);
     }
 
     // Clean the intermediate store from objects already present in genesis_objects
@@ -1696,7 +1696,11 @@ pub fn split_timelocks(
         for (timelock, surplus_amount, recipient) in timelocks_to_split {
             timelock_split_input_objects.push(ObjectReadResult::new(
                 InputObjectKind::ImmOrOwnedMoveObject(*timelock),
-                store.get_object(&timelock.0).unwrap().clone().into(),
+                store
+                    .get_object(&timelock.object_id)
+                    .unwrap()
+                    .clone()
+                    .into(),
             ));
             let arguments = vec![
                 builder.obj(ObjectArg::ImmOrOwnedObject(*timelock))?,
@@ -1738,8 +1742,8 @@ pub fn split_timelocks(
 
     // Finally, we can destroy the timelocks that were split, keeping in the store
     // only the newly created timelocks
-    for ((id, _, _), _, _) in timelocks_to_split {
-        store.remove_object(*id);
+    for (timelock, _, _) in timelocks_to_split {
+        store.remove_object(timelock.object_id);
     }
 
     Ok(())

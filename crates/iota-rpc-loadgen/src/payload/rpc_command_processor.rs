@@ -117,7 +117,7 @@ impl RpcCommandProcessor {
             let current = object_ref_cache.get_mut(&id);
             match current {
                 Some(mut c) => {
-                    if c.1 < owned_object_ref.version() {
+                    if c.version < owned_object_ref.version() {
                         *c = owned_object_ref.reference;
                     }
                 }
@@ -773,7 +773,7 @@ async fn split_coins(
     .unwrap()
     .created()
     .iter()
-    .map(|owned_object_ref| owned_object_ref.reference.0)
+    .map(|owned_object_ref| owned_object_ref.reference.object_id)
     .chain(std::iter::once(coin_to_split))
     .collect::<Vec<_>>()
 }

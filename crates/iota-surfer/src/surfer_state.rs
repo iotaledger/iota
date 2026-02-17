@@ -225,7 +225,7 @@ impl SurferState {
             let obj_ref = owned_ref.reference;
             let object = self
                 .cluster
-                .get_object_from_fullnode_store(&obj_ref.0)
+                .get_object_from_fullnode_store(&obj_ref.object_id)
                 .await
                 .unwrap();
             if object.is_package() {
@@ -260,14 +260,14 @@ impl SurferState {
                             .await
                             .entry(struct_tag)
                             .or_default()
-                            .push((obj_ref.0, initial_shared_version));
+                            .push((obj_ref.object_id, initial_shared_version));
                     }
                     // We do not need to insert it if it's a Mutate, because it
                     // means we should already have it in
                     // the inventory.
                 }
             }
-            if obj_ref.0 == self.gas_object.0 {
+            if obj_ref.object_id == self.gas_object.object_id {
                 self.gas_object = obj_ref;
             }
         }

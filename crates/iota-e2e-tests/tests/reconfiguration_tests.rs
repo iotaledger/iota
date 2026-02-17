@@ -207,7 +207,7 @@ async fn reconfig_with_revert_end_to_end_test() {
         .with_async(|node| async {
             let object = node
                 .state()
-                .get_objects(&[gas2.0])
+                .get_objects(&[gas2.object_id])
                 .await
                 .into_iter()
                 .next()
@@ -240,7 +240,7 @@ async fn reconfig_with_revert_end_to_end_test() {
             .with_async(|node| async {
                 let object = node
                     .state()
-                    .get_objects(&[gas1.0])
+                    .get_objects(&[gas1.object_id])
                     .await
                     .into_iter()
                     .next()
@@ -255,7 +255,7 @@ async fn reconfig_with_revert_end_to_end_test() {
                 // Note that previously test checked that object version == 2 on authority 0
                 let object = node
                     .state()
-                    .get_objects(&[gas2.0])
+                    .get_objects(&[gas2.object_id])
                     .await
                     .into_iter()
                     .next()
@@ -1421,7 +1421,7 @@ async fn execute_add_validator_transactions(
         .object_ref();
     let gas = test_cluster
         .wallet
-        .gas_for_owner_budget(address, 0, BTreeSet::from([stake_coin.0]))
+        .gas_for_owner_budget(address, 0, BTreeSet::from([stake_coin.object_id]))
         .await
         .unwrap()
         .1
@@ -1433,7 +1433,11 @@ async fn execute_add_validator_transactions(
         .build_and_sign(&new_validator.account_key_pair);
     test_cluster.execute_transaction(stake_tx).await;
 
-    let gas = test_cluster.wallet.get_object_ref(gas.0).await.unwrap();
+    let gas = test_cluster
+        .wallet
+        .get_object_ref(gas.object_id)
+        .await
+        .unwrap();
     let tx = TestTransactionBuilder::new(address, gas, rgp)
         .call_request_add_validator()
         .build_and_sign(&new_validator.account_key_pair);

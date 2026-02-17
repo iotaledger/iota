@@ -95,10 +95,10 @@ impl AuthenticatorFunctionRefForExecution {
     ) -> Self {
         Self {
             authenticator_function_ref: AuthenticatorFunctionRef::V1(authenticator_function_ref),
-            loaded_object_id: loaded_object_ref.0,
+            loaded_object_id: loaded_object_ref.object_id,
             loaded_object_metadata: DynamicallyLoadedObjectMetadata {
-                version: loaded_object_ref.1,
-                digest: loaded_object_ref.2,
+                version: loaded_object_ref.version,
+                digest: loaded_object_ref.digest,
                 owner,
                 storage_rebate,
                 previous_transaction,

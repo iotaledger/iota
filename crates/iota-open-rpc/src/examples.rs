@@ -29,7 +29,7 @@ use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_types::{
     balance::Supply,
     base_types::{
-        Identifier, IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectType,
+        Identifier, IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectRef, ObjectType,
         SequenceNumber, StructTag, TransactionDigest, TypeTag, random_object_ref,
     },
     committee::Committee,
@@ -147,7 +147,7 @@ impl RpcExampleProvider {
                 function: "split".to_string(),
                 type_arguments: vec![IotaTypeTag::new("0x2::iota::IOTA".to_string())],
                 arguments: vec![
-                    IotaJsonValue::new(json!(coin_ref.0)).unwrap(),
+                    IotaJsonValue::new(json!(coin_ref.object_id)).unwrap(),
                     IotaJsonValue::new(json!(random_amount)).unwrap(),
                 ]
                 .into_iter()
@@ -177,7 +177,7 @@ impl RpcExampleProvider {
             builder
                 .transfer_object(
                     recipient,
-                    (
+                    ObjectRef::new(
                         object_id,
                         SequenceNumber::from_u64(1),
                         ObjectDigest::new(self.rng.gen()),
@@ -189,7 +189,7 @@ impl RpcExampleProvider {
         let gas_price = 10;
         let data = TransactionData::new_programmable(
             signer,
-            vec![(
+            vec![ObjectRef::new(
                 gas_id,
                 SequenceNumber::from_u64(1),
                 ObjectDigest::new(self.rng.gen()),
@@ -673,12 +673,12 @@ impl RpcExampleProvider {
         let (signer, kp): (_, AccountKeyPair) = get_key_pair_from_rng(&mut self.rng);
         let recipient = IotaAddress::from(ObjectID::new(self.rng.gen()));
         let obj_id = ObjectID::new(self.rng.gen());
-        let gas_ref = (
+        let gas_ref = ObjectRef::new(
             ObjectID::new(self.rng.gen()),
             SequenceNumber::from_u64(2),
             ObjectDigest::new(self.rng.gen()),
         );
-        let object_ref = (
+        let object_ref = ObjectRef::new(
             obj_id,
             SequenceNumber::from_u64(2),
             ObjectDigest::new(self.rng.gen()),
@@ -704,8 +704,8 @@ impl RpcExampleProvider {
             sender: signer,
             recipient: Owner::AddressOwner(recipient),
             object_type: parse_iota_struct_tag("0x2::example::Object").unwrap(),
-            object_id: object_ref.0,
-            version: object_ref.1,
+            object_id: object_ref.object_id,
+            version: object_ref.version,
             digest: ObjectDigest::new(self.rng.gen()),
         };
         struct NoOpsModuleResolver;

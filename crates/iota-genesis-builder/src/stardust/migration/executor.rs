@@ -176,7 +176,7 @@ impl Executor {
         object_refs.into_iter().filter_map(|object_ref| {
             Some(ObjectReadResult::new(
                 InputObjectKind::ImmOrOwnedMoveObject(object_ref),
-                self.store.get_object(&object_ref.0)?.clone().into(),
+                self.store.get_object(&object_ref.object_id)?.clone().into(),
             ))
         })
     }

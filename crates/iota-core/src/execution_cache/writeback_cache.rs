@@ -150,9 +150,9 @@ impl From<ObjectOrTombstone> for ObjectEntry {
         match object {
             ObjectOrTombstone::Object(o) => o.into(),
             ObjectOrTombstone::Tombstone(obj_ref) => {
-                if obj_ref.2.is_object_deleted() {
+                if obj_ref.digest.is_object_deleted() {
                     ObjectEntry::Deleted
-                } else if obj_ref.2.is_object_wrapped() {
+                } else if obj_ref.digest.is_object_wrapped() {
                     ObjectEntry::Wrapped
                 } else {
                     panic!("tombstone digest must either be deleted or wrapped");
@@ -1496,8 +1496,12 @@ impl ObjectCacheRead for WritebackCache {
         match self.get_object_entry_by_id_cache_only("latest_objref_or_tombstone", &object_id) {
             CacheResult::Hit((version, entry)) => Ok(Some(match entry {
                 ObjectEntry::Object(object) => object.compute_object_reference(),
-                ObjectEntry::Deleted => (object_id, version, ObjectDigest::OBJECT_DELETED),
-                ObjectEntry::Wrapped => (object_id, version, ObjectDigest::OBJECT_WRAPPED),
+                ObjectEntry::Deleted => {
+                    ObjectRef::new(object_id, version, ObjectDigest::OBJECT_DELETED)
+                }
+                ObjectEntry::Wrapped => {
+                    ObjectRef::new(object_id, version, ObjectDigest::OBJECT_WRAPPED)
+                }
             })),
             CacheResult::NegativeHit => Ok(None),
             CacheResult::Miss => self
@@ -1518,7 +1522,7 @@ impl ObjectCacheRead for WritebackCache {
                     ObjectEntry::Object(object) => (key, object.into()),
                     ObjectEntry::Deleted => (
                         key,
-                        ObjectOrTombstone::Tombstone((
+                        ObjectOrTombstone::Tombstone(ObjectRef::new(
                             object_id,
                             version,
                             ObjectDigest::OBJECT_DELETED,
@@ -1526,7 +1530,7 @@ impl ObjectCacheRead for WritebackCache {
                     ),
                     ObjectEntry::Wrapped => (
                         key,
-                        ObjectOrTombstone::Tombstone((
+                        ObjectOrTombstone::Tombstone(ObjectRef::new(
                             object_id,
                             version,
                             ObjectDigest::OBJECT_WRAPPED,
@@ -1755,7 +1759,7 @@ impl ObjectCacheRead for WritebackCache {
         obj_ref: ObjectRef,
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaLockResult {
-        match self.get_object_by_id_cache_only("lock", &obj_ref.0) {
+        match self.get_object_by_id_cache_only("lock", &obj_ref.object_id) {
             CacheResult::Hit((_, obj)) => {
                 let actual_objref = obj.compute_object_reference();
                 if obj_ref != actual_objref {
@@ -1779,7 +1783,7 @@ impl ObjectCacheRead for WritebackCache {
             }
             CacheResult::NegativeHit => {
                 Err(IotaError::from(UserInputError::ObjectNotFound {
-                    object_id: obj_ref.0,
+                    object_id: obj_ref.object_id,
                     // even though we know the requested version, we leave it as None to indicate
                     // that the object does not exist at any version
                     version: None,
@@ -1802,7 +1806,7 @@ impl ObjectCacheRead for WritebackCache {
     fn try_check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
         try_do_fallback_lookup(
             owned_object_refs,
-            |obj_ref| match self.get_object_by_id_cache_only("object_is_live", &obj_ref.0) {
+            |obj_ref| match self.get_object_by_id_cache_only("object_is_live", &obj_ref.object_id) {
                 CacheResult::Hit((version, obj)) => {
                     if obj.compute_object_reference() != *obj_ref {
                         Err(UserInputError::ObjectVersionUnavailableForConsumption {
@@ -1815,7 +1819,7 @@ impl ObjectCacheRead for WritebackCache {
                     }
                 }
                 CacheResult::NegativeHit => Err(UserInputError::ObjectNotFound {
-                    object_id: obj_ref.0,
+                    object_id: obj_ref.object_id,
                     version: None,
                 }
                 .into()),

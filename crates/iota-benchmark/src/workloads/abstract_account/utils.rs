@@ -86,9 +86,9 @@ pub async fn publish_aa_package_and_find_metadata(
         owner: iota_types::object::Owner,
     ) -> Result<(bool, String, String)> {
         let obj = proxy
-            .get_object(r.0)
+            .get_object(r.object_id)
             .await
-            .with_context(|| format!("get_object({:?})", r.0))?;
+            .with_context(|| format!("get_object({:?})", r.object_id))?;
 
         let (is_package, ty) = match &obj.data {
             iota_types::object::Data::Package(_) => (true, "<package>".to_string()),
@@ -98,7 +98,7 @@ pub async fn publish_aa_package_and_find_metadata(
         Ok((
             is_package,
             ty.clone(),
-            format!("id={:?} owner={:?} type={}", r.0, owner, ty),
+            format!("id={:?} owner={:?} type={}", r.object_id, owner, ty),
         ))
     }
 
@@ -136,7 +136,7 @@ pub async fn publish_aa_package_and_find_metadata(
             diag.join("\n")
         )
     })?;
-    let package_id = package_ref.0;
+    let package_id = package_ref.object_id;
 
     let metadata_ref = metadata_ref.ok_or_else(|| {
         anyhow!(
@@ -227,7 +227,7 @@ pub async fn create_abstract_account(
     }
 
     for r in abstract_account_ref.iter().copied() {
-        let obj = proxy.get_object(r.0).await?;
+        let obj = proxy.get_object(r.object_id).await?;
         let ty = object_type_string(&obj).unwrap_or_default();
         if ty.contains(&format!(
             "::{}::{}",
@@ -371,7 +371,7 @@ pub fn update_gas_from_effects(current: &Gas, effects: &ExecutionEffects) -> Res
     let updated = effects
         .mutated()
         .into_iter()
-        .find(|(r, _)| r.0 == current.0.0)
+        .find(|(r, _)| r.object_id == current.0.object_id)
         .ok_or_else(|| anyhow::anyhow!("init coin not found in mutated effects"))?;
 
     Ok((updated.0, updated.1.get_owner_address()?, current.2.clone()))

@@ -142,7 +142,7 @@ mod sim_only_tests {
                 .join("../iota-surfer/tests/move_building_blocks"),
         )
         .await
-        .0;
+        .object_id;
 
         let object_id = test_cluster
             .sign_and_execute_transaction(
@@ -208,7 +208,7 @@ mod sim_only_tests {
             test_cluster
                 .get_object_or_tombstone_from_fullnode_store(child_id)
                 .await
-                .2
+                .digest
                 .is_object_wrapped()
         );
         effects

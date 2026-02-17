@@ -157,7 +157,7 @@ mod ingestion_tests {
 
         indexer_wait_for_checkpoint(&pg_store, 1).await;
 
-        let obj_id = transaction.gas()[0].0;
+        let obj_id = transaction.gas()[0].object_id;
 
         // Read the transaction from the database directly.
         let db_object: StoredObject = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
@@ -235,7 +235,7 @@ mod ingestion_tests {
 
         // Get the object state at max_expected_checkpoint_sequence_number and assert.
         let last_tx = last_transaction.unwrap();
-        let obj_id = last_tx.gas()[0].0;
+        let obj_id = last_tx.gas()[0].object_id;
         let gas_owner_id = last_tx.sender_address();
 
         let snapshot_object = read_only_blocking!(&pg_store.blocking_cp(), |conn| {

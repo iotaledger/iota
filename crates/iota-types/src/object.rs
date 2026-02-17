@@ -745,7 +745,7 @@ impl ObjectInner {
     }
 
     pub fn compute_object_reference(&self) -> ObjectRef {
-        (self.id(), self.version(), self.digest())
+        ObjectRef::new(self.id(), self.version(), self.digest())
     }
 
     pub fn digest(&self) -> ObjectDigest {
@@ -1089,9 +1089,9 @@ impl ObjectRead {
 
     pub fn object_id(&self) -> ObjectID {
         match self {
-            Self::Deleted(oref) => oref.0,
+            Self::Deleted(oref) => oref.object_id,
             Self::NotExists(id) => *id,
-            Self::Exists(oref, _, _) => oref.0,
+            Self::Exists(oref, _, _) => oref.object_id,
         }
     }
 }
@@ -1221,10 +1221,13 @@ mod tests {
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ]
         );
-        let objref = format!("{:?}", o.compute_object_reference());
+        let objref = o.compute_object_reference();
+
+        assert_eq!(objref.object_id, ObjectID::ZERO);
+        assert_eq!(objref.version, 1);
         assert_eq!(
-            objref,
-            "(ObjectId(\"0x0000000000000000000000000000000000000000000000000000000000000000\"), Version(1), Digest(\"Ba4YyVBcpc9jgX4PMLRoyt9dKLftYVSDvuKbtMr9f4NM\"))"
+            objref.digest.to_string(),
+            "Ba4YyVBcpc9jgX4PMLRoyt9dKLftYVSDvuKbtMr9f4NM"
         );
     }
 

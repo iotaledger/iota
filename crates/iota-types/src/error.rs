@@ -101,7 +101,7 @@ pub enum UserInputError {
     },
     #[error(
         "Object ID {} Version {} Digest {} is not available for consumption, current version: {current_version}",
-        .provided_obj_ref.0, .provided_obj_ref.1, .provided_obj_ref.2
+        .provided_obj_ref.object_id, .provided_obj_ref.version, .provided_obj_ref.digest
     )]
     ObjectVersionUnavailableForConsumption {
         provided_obj_ref: ObjectRef,

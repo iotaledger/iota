@@ -908,13 +908,13 @@ async fn test_handle_transaction_response() {
     ));
     let package_not_found_error = IotaError::UserInput {
         error: UserInputError::DependentPackageNotFound {
-            package_id: gas_object.0,
+            package_id: gas_object.object_id,
         },
     };
     let object_not_found_error = IotaError::UserInput {
         error: UserInputError::ObjectNotFound {
-            object_id: gas_object.0,
-            version: Some(gas_object.1),
+            object_id: gas_object.object_id,
+            version: Some(gas_object.version),
         },
     };
 
@@ -1529,8 +1529,8 @@ async fn test_handle_conflicting_transaction_response() {
     };
     let object_not_found_error = IotaError::UserInput {
         error: UserInputError::ObjectNotFound {
-            object_id: conflicting_object.0,
-            version: Some(conflicting_object.1),
+            object_id: conflicting_object.object_id,
+            version: Some(conflicting_object.version),
         },
     };
 

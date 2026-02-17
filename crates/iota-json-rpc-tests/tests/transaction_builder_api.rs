@@ -18,7 +18,7 @@ use iota_json_rpc_types::{
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, StructTag},
+    base_types::{ObjectID, ObjectRef, SequenceNumber, StructTag},
     digests::ObjectDigest,
     gas_coin::GAS,
     object::Owner,
@@ -107,7 +107,7 @@ async fn test_transfer_iota() -> Result<(), anyhow::Error> {
     let address = cluster.get_address_0();
     let other_address = cluster.get_address_1();
 
-    let (gas, _, _) = cluster
+    let ObjectRef { object_id: gas, .. } = cluster
         .wallet
         .get_one_gas_object_owned_by_address(address)
         .await?
@@ -157,8 +157,14 @@ async fn test_pay() -> Result<(), anyhow::Error> {
         .wallet
         .get_gas_objects_owned_by_address(address, Some(2))
         .await?;
-    let (gas_to_send, _, _) = gas_objs[0];
-    let (gas_to_pay_for_tx, _, _) = gas_objs[1];
+    let ObjectRef {
+        object_id: gas_to_send,
+        ..
+    } = gas_objs[0];
+    let ObjectRef {
+        object_id: gas_to_pay_for_tx,
+        ..
+    } = gas_objs[1];
 
     let amount_to_transfer: i128 = 123;
     let transaction_bytes: TransactionBlockBytes = http_client
@@ -216,7 +222,10 @@ async fn test_pay_iota() -> Result<(), anyhow::Error> {
     let transaction_bytes: TransactionBlockBytes = http_client
         .pay_iota(
             address,
-            coins.iter().map(|coin| coin.object_ref().0).collect(),
+            coins
+                .iter()
+                .map(|coin| coin.object_ref().object_id)
+                .collect(),
             vec![recipient_1, recipient_2],
             vec![recipient_1_amount.into(), recipient_2_amount.into()],
             budget.into(),
@@ -271,7 +280,10 @@ async fn test_pay_all_iota() -> Result<(), anyhow::Error> {
     let transaction_bytes: TransactionBlockBytes = http_client
         .pay_all_iota(
             address,
-            coins.iter().map(|coin| coin.object_ref().0).collect(),
+            coins
+                .iter()
+                .map(|coin| coin.object_ref().object_id)
+                .collect(),
             recipient,
             budget.into(),
         )
@@ -521,7 +533,7 @@ async fn test_merge_coin() -> Result<(), anyhow::Error> {
         .unwrap()
         .deleted()
         .iter()
-        .map(|coin| coin.0)
+        .map(|coin| coin.object_id)
         .collect();
     let coins = http_client
         .get_coins(address, None, None, Some(100))

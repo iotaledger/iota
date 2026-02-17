@@ -31,8 +31,7 @@ use iota_sdk_types::{
     gas::GasCostSummary,
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
     object::{
-        GenesisObject, MovePackage, MoveStruct, Object, ObjectData, ObjectReference, Owner,
-        TypeOrigin, UpgradeInfo,
+        GenesisObject, MovePackage, MoveStruct, Object, ObjectData, Owner, TypeOrigin, UpgradeInfo,
     },
     object_id::ObjectId,
     transaction::{
@@ -289,11 +288,7 @@ impl TryFrom<crate::transaction::TransactionDataV1> for TransactionV1 {
         Self {
             sender: value.sender(),
             gas_payment: GasPayment {
-                objects: value
-                    .gas()
-                    .iter()
-                    .map(|(id, seq, digest)| ObjectReference::new(*id, *seq, *digest))
-                    .collect(),
+                objects: value.gas().to_vec(),
                 owner: value.gas_data().owner,
                 price: value.gas_data().price,
                 budget: value.gas_data().budget,
@@ -318,12 +313,7 @@ impl TryFrom<TransactionV1> for crate::transaction::TransactionDataV1 {
             kind: value.kind.try_into()?,
             sender: value.sender,
             gas_data: crate::transaction::GasData {
-                payment: value
-                    .gas_payment
-                    .objects
-                    .into_iter()
-                    .map(ObjectReference::into_parts)
-                    .collect(),
+                payment: value.gas_payment.objects.into_iter().collect(),
                 owner: value.gas_payment.owner,
                 price: value.gas_payment.price,
                 budget: value.gas_payment.budget,
@@ -703,7 +693,7 @@ impl From<crate::transaction::CallArg> for Input {
             crate::transaction::CallArg::Pure(vec) => Self::Pure { value: vec },
             crate::transaction::CallArg::Object(object_arg) => match object_arg {
                 crate::transaction::ObjectArg::ImmOrOwnedObject(obj_ref) => {
-                    Self::ImmutableOrOwned(core_obj_ref_to_sdk(obj_ref))
+                    Self::ImmutableOrOwned(obj_ref)
                 }
                 crate::transaction::ObjectArg::SharedObject {
                     id,
@@ -714,9 +704,7 @@ impl From<crate::transaction::CallArg> for Input {
                     initial_shared_version,
                     mutable,
                 },
-                crate::transaction::ObjectArg::Receiving(obj_ref) => {
-                    Self::Receiving(core_obj_ref_to_sdk(obj_ref))
-                }
+                crate::transaction::ObjectArg::Receiving(obj_ref) => Self::Receiving(obj_ref),
             },
         }
     }
@@ -727,9 +715,9 @@ impl From<Input> for crate::transaction::CallArg {
         use crate::transaction::ObjectArg;
         match value {
             Input::Pure { value } => Self::Pure(value),
-            Input::ImmutableOrOwned(object_reference) => Self::Object(ObjectArg::ImmOrOwnedObject(
-                sdk_obj_ref_to_core(object_reference),
-            )),
+            Input::ImmutableOrOwned(object_reference) => {
+                Self::Object(ObjectArg::ImmOrOwnedObject(object_reference))
+            }
             Input::Shared {
                 object_id,
                 initial_shared_version,
@@ -740,20 +728,11 @@ impl From<Input> for crate::transaction::CallArg {
                 mutable,
             }),
             Input::Receiving(object_reference) => {
-                Self::Object(ObjectArg::Receiving(sdk_obj_ref_to_core(object_reference)))
+                Self::Object(ObjectArg::Receiving(object_reference))
             }
             _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
     }
-}
-
-fn core_obj_ref_to_sdk(obj_ref: crate::base_types::ObjectRef) -> ObjectReference {
-    ObjectReference::new(obj_ref.0, obj_ref.1, obj_ref.2)
-}
-
-fn sdk_obj_ref_to_core(obj_ref: ObjectReference) -> crate::base_types::ObjectRef {
-    let (id, seq, digest) = obj_ref.into_parts();
-    (id, seq, digest)
 }
 
 impl TryFrom<crate::effects::TransactionEffects> for TransactionEffects {

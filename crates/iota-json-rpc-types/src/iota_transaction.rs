@@ -1080,14 +1080,14 @@ impl<T: TransactionEffectsAPI> From<T> for IotaTransactionBlockEffectsV1 {
 fn owned_objref_string(obj: &OwnedObjectRef) -> String {
     format!(
         " ┌──\n │ ID: {} \n │ Owner: {} \n │ Version: {} \n │ Digest: {}\n └──",
-        obj.reference.0, obj.owner, obj.reference.1, obj.reference.2
+        obj.reference.object_id, obj.owner, obj.reference.version, obj.reference.digest
     )
 }
 
 fn objref_string(obj: &ObjectRef) -> String {
     format!(
         " ┌──\n │ ID: {} \n │ Version: {} \n │ Digest: {}\n └──",
-        obj.0, obj.1, obj.2
+        obj.object_id, obj.version, obj.digest
     )
 }
 
@@ -2475,10 +2475,10 @@ pub struct OwnedObjectRef {
 
 impl OwnedObjectRef {
     pub fn object_id(&self) -> ObjectID {
-        self.reference.0
+        self.reference.object_id
     }
     pub fn version(&self) -> SequenceNumber {
-        self.reference.1
+        self.reference.version
     }
 }
 
@@ -2501,11 +2501,11 @@ impl IotaCallArg {
                 value_type: layout.map(|l| type_tag_core_to_sdk(&l.into())),
                 value: IotaJsonValue::from_bcs_bytes(layout, &p)?,
             }),
-            CallArg::Object(ObjectArg::ImmOrOwnedObject((id, version, digest))) => {
+            CallArg::Object(ObjectArg::ImmOrOwnedObject(object_ref)) => {
                 IotaCallArg::Object(IotaObjectArg::ImmOrOwnedObject {
-                    object_id: id,
-                    version,
-                    digest,
+                    object_id: object_ref.object_id,
+                    version: object_ref.version,
+                    digest: object_ref.digest,
                 })
             }
             CallArg::Object(ObjectArg::SharedObject {
@@ -2517,11 +2517,11 @@ impl IotaCallArg {
                 initial_shared_version,
                 mutable,
             }),
-            CallArg::Object(ObjectArg::Receiving((object_id, version, digest))) => {
+            CallArg::Object(ObjectArg::Receiving(object_ref)) => {
                 IotaCallArg::Object(IotaObjectArg::Receiving {
-                    object_id,
-                    version,
-                    digest,
+                    object_id: object_ref.object_id,
+                    version: object_ref.version,
+                    digest: object_ref.digest,
                 })
             }
         })
@@ -2709,7 +2709,7 @@ impl Filter<EffectsWithInput> for TransactionFilter {
                 .effects
                 .mutated()
                 .iter()
-                .any(|oref: &OwnedObjectRef| &oref.reference.0 == o),
+                .any(|oref: &OwnedObjectRef| &oref.reference.object_id == o),
             TransactionFilter::FromAddress(a) => &item.input.sender() == a,
             TransactionFilter::ToAddress(a) => {
                 let mutated: &[OwnedObjectRef] = item.effects.mutated();
@@ -2846,7 +2846,7 @@ impl Filter<EffectsWithInput> for TransactionFilterV2 {
                 .iter()
                 .chain(item.effects.deleted())
                 .chain(item.effects.unwrapped_then_deleted())
-                .any(|oref| &oref.0 == o),
+                .any(|oref| &oref.object_id == o),
 
             _ => false,
         }

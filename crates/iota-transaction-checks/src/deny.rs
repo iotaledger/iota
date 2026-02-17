@@ -56,10 +56,15 @@ fn check_receiving_objects(
         filter_config.receiving_objects_disabled() && !receiving_objects.is_empty(),
         "Receiving objects is temporarily disabled".to_string()
     );
-    for (id, _, _) in receiving_objects {
+    for receiving_object in receiving_objects {
         deny_if_true!(
-            filter_config.get_object_deny_set().contains(id),
-            format!("Access to object {:?} is temporarily disabled", id)
+            filter_config
+                .get_object_deny_set()
+                .contains(&receiving_object.object_id),
+            format!(
+                "Access to object {:?} is temporarily disabled",
+                receiving_object.object_id
+            )
         );
     }
     Ok(())

@@ -608,7 +608,7 @@ impl AuthorityStore {
     /// to avoid deadlocks).
     fn acquire_locks(&self, input_objects: &[ObjectRef]) -> Vec<MutexGuard> {
         self.mutex_table
-            .acquire_locks(input_objects.iter().map(|(_, _, digest)| *digest))
+            .acquire_locks(input_objects.iter().map(|object_ref| object_ref.digest))
     }
 
     pub fn object_exists_by_key(
@@ -765,7 +765,7 @@ impl AuthorityStore {
         let mut hasher = Sha3_256::default();
         let mut batch = perpetual_db.objects.batch();
         for object in live_objects {
-            hasher.update(object.object_reference().2.inner());
+            hasher.update(object.object_reference().digest.inner());
             match object {
                 LiveObject::Normal(object) => {
                     let store_object_wrapper = get_store_object(object.clone());
@@ -996,11 +996,12 @@ impl AuthorityStore {
         ) {
             if live_marker.is_none() {
                 // object at that version does not exist
-                let latest_live_version = self.get_latest_live_version_for_object_id(obj_ref.0)?;
+                let latest_live_version =
+                    self.get_latest_live_version_for_object_id(obj_ref.object_id)?;
                 fp_bail!(
                     UserInputError::ObjectVersionUnavailableForConsumption {
                         provided_obj_ref: *obj_ref,
-                        current_version: latest_live_version.1
+                        current_version: latest_live_version.version
                     }
                     .into()
                 );
@@ -1049,7 +1050,7 @@ impl AuthorityStore {
         {
             // object at that version does not exist
             return Ok(ObjectLockStatus::LockedAtDifferentVersion {
-                locked_ref: self.get_latest_live_version_for_object_id(obj_ref.0)?,
+                locked_ref: self.get_latest_live_version_for_object_id(obj_ref.object_id)?,
             });
         }
 
@@ -1074,13 +1075,17 @@ impl AuthorityStore {
             .live_owned_object_markers
             .reversed_safe_iter_with_bounds(
                 None,
-                Some((object_id, SequenceNumber::MAX_VALID_EXCL, ObjectDigest::MAX)),
+                Some(ObjectRef::new(
+                    object_id,
+                    SequenceNumber::MAX_VALID_EXCL,
+                    ObjectDigest::MAX,
+                )),
             )?;
         Ok(iterator
             .next()
             .transpose()?
             .and_then(|value| {
-                if value.0.0 == object_id {
+                if value.0.object_id == object_id {
                     Some(value)
                 } else {
                     None
@@ -1108,11 +1113,12 @@ impl AuthorityStore {
         for (live_marker, obj_ref) in live_markers.into_iter().zip(objects) {
             if live_marker.is_none() {
                 // object at that version does not exist
-                let latest_live_version = self.get_latest_live_version_for_object_id(obj_ref.0)?;
+                let latest_live_version =
+                    self.get_latest_live_version_for_object_id(obj_ref.object_id)?;
                 fp_bail!(
                     UserInputError::ObjectVersionUnavailableForConsumption {
                         provided_obj_ref: *obj_ref,
-                        current_version: latest_live_version.1
+                        current_version: latest_live_version.version
                     }
                     .into()
                 );
@@ -1236,7 +1242,7 @@ impl AuthorityStore {
         let all_new_object_keys = effects
             .all_changed_objects()
             .into_iter()
-            .map(|((id, version, _), _, _)| ObjectKey(id, version));
+            .map(|(object_ref, _, _)| ObjectKey(object_ref.object_id, object_ref.version));
         write_batch.delete_batch(&self.perpetual_tables.objects, all_new_object_keys.clone())?;
 
         let modified_object_keys = effects
@@ -1330,7 +1336,7 @@ impl AuthorityStore {
         object_id: ObjectID,
     ) -> Result<Option<ObjectRef>, IotaError> {
         match self.get_latest_object_ref_or_tombstone(object_id)? {
-            Some(objref) if objref.2.is_object_alive() => Ok(Some(objref)),
+            Some(objref) if objref.digest.is_object_alive() => Ok(Some(objref)),
             _ => Ok(None),
         }
     }

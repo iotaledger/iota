@@ -5,7 +5,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
-    base_types::{ObjectID, SequenceNumber},
+    base_types::{ObjectID, ObjectRef, SequenceNumber},
     digests::{ObjectDigest, TransactionEventsDigest},
     effects::{EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects},
     execution::SharedInput,
@@ -124,7 +124,9 @@ impl TestEffectsBuilder {
         let shared_objects = self
             .shared_input_versions
             .iter()
-            .map(|(id, version)| SharedInput::Existing((*id, *version, ObjectDigest::MIN)))
+            .map(|(id, version)| {
+                SharedInput::Existing(ObjectRef::new(*id, *version, ObjectDigest::MIN))
+            })
             .collect();
         let executed_epoch = 0;
         let sender = self.transaction.transaction_data().sender();
@@ -136,17 +138,17 @@ impl TestEffectsBuilder {
             .unwrap()
             .iter()
             .filter_map(|kind| match kind {
-                InputObjectKind::ImmOrOwnedMoveObject((id, _, _))
-                    if self.frozen_objects.contains(id) =>
+                InputObjectKind::ImmOrOwnedMoveObject(object_ref)
+                    if self.frozen_objects.contains(&object_ref.object_id) =>
                 {
                     None
                 }
                 InputObjectKind::ImmOrOwnedMoveObject(oref) => {
                     Some((
-                        oref.0,
+                        oref.object_id,
                         EffectsObjectChange {
                             input_state: ObjectIn::Exist((
-                                (oref.1, oref.2),
+                                (oref.version, oref.digest),
                                 Owner::AddressOwner(sender),
                             )),
                             output_state: ObjectOut::ObjectWrite((
@@ -256,7 +258,7 @@ impl TestEffectsBuilder {
                 )
             }))
             .collect();
-        let gas_object_id = self.transaction.transaction_data().gas()[0].0;
+        let gas_object_id = self.transaction.transaction_data().gas()[0].object_id;
         let event_digest = self.events_digest;
         let dependencies = vec![];
         TransactionEffects::new_from_execution_v1(
@@ -287,7 +289,7 @@ impl TestEffectsBuilder {
                         .transaction_data()
                         .receiving_objects()
                         .iter()
-                        .map(|oref| oref.1),
+                        .map(|oref| oref.version),
                 )
                 .chain(self.shared_input_versions.values().copied())
                 .chain(self.mutated_objects.iter().map(|(_, v, _)| *v))

@@ -21,7 +21,7 @@ use iota_light_client::{
 use iota_package_resolver::Resolver;
 use iota_sdk::IotaClientBuilder;
 use iota_types::{
-    base_types::ObjectID,
+    base_types::{ObjectID, ObjectRef},
     committee::Committee,
     digests::{CheckpointDigest, TransactionDigest},
     event::EventID,
@@ -155,7 +155,11 @@ pub async fn main() -> Result<()> {
                     BoundedVisitor::deserialize_value(move_object.contents(), &type_layout)
                         .context("Failed to deserialize object")?;
 
-                let (object_id, version, hash) = object.compute_object_reference();
+                let ObjectRef {
+                    object_id,
+                    version,
+                    digest: hash,
+                } = object.compute_object_reference();
                 println!(
                     "ObjectID: {object_id}\n - Version: {version}\n - Hash: {hash}\n - Owner: {}\n - Type: {object_type}\n{}",
                     object.owner,
@@ -250,7 +254,7 @@ pub async fn main() -> Result<()> {
                 for obj in &tx.output_objects {
                     if object_ids.contains(&obj.id()) {
                         let obj_ref = obj.compute_object_reference();
-                        object_ids_map.remove(&obj_ref.0);
+                        object_ids_map.remove(&obj_ref.object_id);
                         objects.push((obj_ref, obj.clone()));
                     }
                 }

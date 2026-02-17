@@ -43,7 +43,7 @@ fn test_staking() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
         let iota_coin_ref = cluster
             .fund_address_and_return_gas(
@@ -53,7 +53,7 @@ fn test_staking() {
             )
             .await;
 
-        indexer_wait_for_object(client, iota_coin_ref.0, iota_coin_ref.1).await;
+        indexer_wait_for_object(client, iota_coin_ref.object_id, iota_coin_ref.version).await;
 
         // Check StakedIota object before test
         let staked_iota: Vec<DelegatedStake> = client.get_stakes(sender).await.unwrap();
@@ -74,10 +74,10 @@ fn test_staking() {
         let transaction_bytes: TransactionBlockBytes = client
             .request_add_stake(
                 sender,
-                vec![iota_coin_ref.0],
+                vec![iota_coin_ref.object_id],
                 Some(1000000000.into()),
                 validator,
-                Some(gas.0),
+                Some(gas.object_id),
                 100_000_000.into(),
             )
             .await
@@ -124,7 +124,7 @@ fn test_unstaking() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
         let iota_coin_ref = cluster
             .fund_address_and_return_gas(
@@ -134,7 +134,7 @@ fn test_unstaking() {
             )
             .await;
 
-        indexer_wait_for_object(client, iota_coin_ref.0, iota_coin_ref.1).await;
+        indexer_wait_for_object(client, iota_coin_ref.object_id, iota_coin_ref.version).await;
 
         // Check StakedIota object before test
         let staked_iota: Vec<DelegatedStake> = client.get_stakes(sender).await.unwrap();
@@ -155,10 +155,10 @@ fn test_unstaking() {
         let transaction_bytes: TransactionBlockBytes = client
             .request_add_stake(
                 sender,
-                vec![iota_coin_ref.0],
+                vec![iota_coin_ref.object_id],
                 Some(1000000000.into()),
                 validator,
-                Some(gas.0),
+                Some(gas.object_id),
                 100_000_000.into(),
             )
             .await
@@ -187,7 +187,7 @@ fn test_unstaking() {
             .request_withdraw_stake(
                 sender,
                 staked_iota[0].stakes[0].staked_iota_id,
-                Some(gas.0),
+                Some(gas.object_id),
                 100_000_000.into(),
             )
             .await
@@ -236,7 +236,7 @@ fn test_timelocked_staking() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
         let iota_coin_ref = cluster
             .fund_address_and_return_gas(
@@ -246,7 +246,7 @@ fn test_timelocked_staking() {
             )
             .await;
 
-        indexer_wait_for_object(client, iota_coin_ref.0, iota_coin_ref.1).await;
+        indexer_wait_for_object(client, iota_coin_ref.object_id, iota_coin_ref.version).await;
 
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -354,7 +354,7 @@ fn test_timelocked_unstaking() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas.0, gas.1).await;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
         let iota_coin_ref = cluster
             .fund_address_and_return_gas(
@@ -364,7 +364,7 @@ fn test_timelocked_unstaking() {
             )
             .await;
 
-        indexer_wait_for_object(client, iota_coin_ref.0, iota_coin_ref.1).await;
+        indexer_wait_for_object(client, iota_coin_ref.object_id, iota_coin_ref.version).await;
 
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -474,7 +474,7 @@ fn test_timelocked_unstaking() {
             builder.finish()
         };
 
-        let gas = cluster.wallet.get_object_ref(gas.0).await.unwrap();
+        let gas = cluster.wallet.get_object_ref(gas.object_id).await.unwrap();
         let tx_builder = TestTransactionBuilder::new(sender, gas, gas_price);
         let txn = to_sender_signed_transaction(tx_builder.programmable(pt).build(), &keypair);
 

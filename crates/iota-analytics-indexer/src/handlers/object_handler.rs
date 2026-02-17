@@ -129,9 +129,9 @@ impl ObjectHandler {
         }
         for (object_ref, _) in effects.all_removed_objects().iter() {
             let entry = ObjectEntry {
-                object_id: object_ref.0.to_string(),
-                digest: object_ref.2.to_string(),
-                version: object_ref.1.as_u64(),
+                object_id: object_ref.object_id.to_string(),
+                digest: object_ref.digest.to_string(),
+                version: object_ref.version.as_u64(),
                 type_: None,
                 checkpoint,
                 epoch,

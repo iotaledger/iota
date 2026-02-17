@@ -609,7 +609,7 @@ async fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
 
     // Verify that the dynamic field was successfully added
     let dynamic_fields = rpc_client
-        .get_dynamic_fields(bag_object_ref.0, None, None)
+        .get_dynamic_fields(bag_object_ref.object_id, None, None)
         .await
         .expect("failed to get dynamic fields");
 
@@ -704,7 +704,7 @@ async fn test_get_dynamic_field_object() -> Result<(), anyhow::Error> {
 
     // Verify that the dynamic field was successfully added
     let dynamic_fields = rpc_client
-        .get_dynamic_field_object(bag_object_ref.0, name)
+        .get_dynamic_field_object(bag_object_ref.object_id, name)
         .await
         .expect("failed to get dynamic field object");
 

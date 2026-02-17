@@ -57,7 +57,9 @@ pub use crate::{
 #[path = "unit_tests/base_types_tests.rs"]
 mod base_types_tests;
 
-pub use iota_sdk_types::Version as SequenceNumber;
+pub use iota_sdk_types::{
+    ObjectId as ObjectID, ObjectReference as ObjectRef, Version as SequenceNumber,
+};
 
 pub type TxSequenceNumber = u64;
 
@@ -76,14 +78,10 @@ pub trait ConciseableName<'a> {
     fn concise_owned(&self) -> Self::ConciseType;
 }
 
-pub use iota_sdk_types::ObjectId as ObjectID;
-
 pub type VersionDigest = (SequenceNumber, ObjectDigest);
 
-pub type ObjectRef = (ObjectID, SequenceNumber, ObjectDigest);
-
 pub fn random_object_ref() -> ObjectRef {
-    (
+    ObjectRef::new(
         ObjectID::random(),
         SequenceNumber::default(),
         ObjectDigest::new([0; 32]),
@@ -550,11 +548,10 @@ pub struct ObjectInfo {
 
 impl ObjectInfo {
     pub fn new(oref: &ObjectRef, o: &Object) -> Self {
-        let (object_id, version, digest) = *oref;
         Self {
-            object_id,
-            version,
-            digest,
+            object_id: oref.object_id,
+            version: oref.version,
+            digest: oref.digest,
             type_: o.into(),
             owner: o.owner,
             previous_transaction: o.previous_transaction,
@@ -594,13 +591,13 @@ impl ObjectType {
 
 impl From<ObjectInfo> for ObjectRef {
     fn from(info: ObjectInfo) -> Self {
-        (info.object_id, info.version, info.digest)
+        ObjectRef::new(info.object_id, info.version, info.digest)
     }
 }
 
 impl From<&ObjectInfo> for ObjectRef {
     fn from(info: &ObjectInfo) -> Self {
-        (info.object_id, info.version, info.digest)
+        ObjectRef::new(info.object_id, info.version, info.digest)
     }
 }
 

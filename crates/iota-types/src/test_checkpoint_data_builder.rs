@@ -486,7 +486,11 @@ impl TestCheckpointDataBuilder {
             .with_wrapped_objects(wrapped_objects.iter().map(|o| (o.id(), o.version())))
             .with_unwrapped_objects(unwrapped_objects.iter().map(|o| (o.id(), *o.owner())))
             .with_deleted_objects(deleted_objects.iter().map(|o| (o.id(), o.version())))
-            .with_frozen_objects(frozen_objects.into_iter().map(|(id, _, _)| id))
+            .with_frozen_objects(
+                frozen_objects
+                    .into_iter()
+                    .map(|object_ref| object_ref.object_id),
+            )
             .with_shared_input_versions(
                 shared_inputs
                     .iter()
@@ -512,7 +516,7 @@ impl TestCheckpointDataBuilder {
             .chain(deleted_objects)
             .chain(wrapped_objects.clone())
             .chain(std::iter::once(
-                self.live_objects.get(&gas.0).unwrap().clone(),
+                self.live_objects.get(&gas.object_id).unwrap().clone(),
             ))
             .collect();
         let output_objects: Vec<_> = created_objects
@@ -527,7 +531,7 @@ impl TestCheckpointDataBuilder {
             )
             .chain(unwrapped_objects)
             .chain(std::iter::once(
-                self.live_objects.get(&gas.0).cloned().unwrap(),
+                self.live_objects.get(&gas.object_id).cloned().unwrap(),
             ))
             .map(|mut o| {
                 o.data
@@ -792,7 +796,7 @@ mod tests {
             tx.effects
                 .created()
                 .iter()
-                .any(|((id, ..), owner)| *id == created_obj_id
+                .any(|(object_ref, owner)| object_ref.object_id == created_obj_id
                     && owner.get_owner_address().unwrap()
                         == TestCheckpointDataBuilder::derive_address(0))
         );
@@ -821,7 +825,7 @@ mod tests {
             tx.effects
                 .mutated()
                 .iter()
-                .any(|((id, ..), _)| *id == obj_id)
+                .any(|(object_ref, _)| object_ref.object_id == obj_id)
         );
     }
 
@@ -844,7 +848,12 @@ mod tests {
         assert!(!tx.output_objects.iter().any(|obj| obj.id() == obj_id));
 
         // Verify effects show object deletion
-        assert!(tx.effects.deleted().iter().any(|(id, ..)| *id == obj_id));
+        assert!(
+            tx.effects
+                .deleted()
+                .iter()
+                .any(|object_ref| object_ref.object_id == obj_id)
+        );
     }
 
     #[test]
@@ -869,7 +878,12 @@ mod tests {
         assert!(!tx.output_objects.iter().any(|obj| obj.id() == obj_id));
 
         // Verify effects show object wrapping
-        assert!(tx.effects.wrapped().iter().any(|(id, ..)| *id == obj_id));
+        assert!(
+            tx.effects
+                .wrapped()
+                .iter()
+                .any(|object_ref| object_ref.object_id == obj_id)
+        );
 
         let tx = &checkpoint.transactions[2];
 
@@ -882,7 +896,7 @@ mod tests {
             tx.effects
                 .unwrapped()
                 .iter()
-                .any(|((id, ..), _)| *id == obj_id)
+                .any(|(object_ref, _owner)| object_ref.object_id == obj_id)
         );
     }
 
@@ -909,7 +923,7 @@ mod tests {
             tx.effects
                 .mutated()
                 .iter()
-                .any(|((id, ..), owner)| *id == obj_id
+                .any(|(object_ref, owner)| object_ref.object_id == obj_id
                     && owner.get_owner_address().unwrap()
                         == TestCheckpointDataBuilder::derive_address(1))
         );
