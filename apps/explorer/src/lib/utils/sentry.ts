@@ -11,17 +11,22 @@ import {
     useNavigationType,
 } from 'react-router-dom';
 
-const SENTRY_ENABLED = import.meta.env.VITE_BUILD_ENV === 'production';
+const IS_PROD = import.meta.env.VITE_BUILD_ENV === 'production';
+const IS_SENTRY_ENABLED = import.meta.env.VITE_SENTRY_ENABLED === 'true';
+const SENTRY_DSN = IS_SENTRY_ENABLED
+    ? IS_PROD
+        ? 'https://ce107602e4d122f0639332c7c43fdc08@o4508279186718720.ingest.de.sentry.io/4508279962140752'
+        : 'https://c8085701fa2650fb2a090ed6aba6bc62@o4508279186718720.ingest.de.sentry.io/4508279963320400'
+    : undefined;
+
 const SENTRY_SAMPLE_RATE = import.meta.env.VITE_SENTRY_SAMPLE_RATE
     ? parseFloat(import.meta.env.VITE_SENTRY_SAMPLE_RATE)
     : 0;
 
 export function initSentry() {
     Sentry.init({
-        enabled: SENTRY_ENABLED,
-        dsn: SENTRY_ENABLED
-            ? 'https://ce107602e4d122f0639332c7c43fdc08@o4508279186718720.ingest.de.sentry.io/4508279962140752'
-            : 'https://c8085701fa2650fb2a090ed6aba6bc62@o4508279186718720.ingest.de.sentry.io/4508279963320400',
+        enabled: IS_SENTRY_ENABLED && Boolean(SENTRY_DSN),
+        dsn: SENTRY_DSN,
         environment: import.meta.env.VITE_VERCEL_ENV,
         integrations: [
             Sentry.reactRouterV6BrowserTracingIntegration({

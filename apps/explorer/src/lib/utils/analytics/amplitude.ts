@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as amplitude from '@amplitude/analytics-browser';
-import { getAmplitudeConsentStatus } from '@iota/core';
+import { attachEnvironmentPlugin, getAmplitudeConsentStatus } from '@iota/core';
 
 import { ampli } from './ampli';
 import { LogLevel } from '@amplitude/analytics-types';
@@ -54,4 +54,7 @@ export async function initAmplitude() {
             amplitude.flush();
         });
     }, 1000);
+
+    // Add environment plugin to set prefix dev events
+    ampli.client.add(attachEnvironmentPlugin());
 }

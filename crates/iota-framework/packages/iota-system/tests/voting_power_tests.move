@@ -14,7 +14,11 @@ use iota_system::voting_power;
 const TOTAL_VOTING_POWER: u64 = 10_000;
 
 fun check(stakes: vector<u64>, voting_power: vector<u64>, ctx: &mut TxContext) {
-    let (committee_members, mut validators) = gtu::create_validators_with_stakes(stakes, ctx);
+    let commission_rates = vector::tabulate!(stakes.length(), |_| 0);
+    let (
+        committee_members,
+        mut validators,
+    ) = gtu::create_validators_with_stakes_and_commission_rates(stakes, commission_rates, ctx);
     voting_power::set_voting_power(&committee_members, &mut validators);
     test_utils::assert_eq(get_voting_power(&validators), voting_power);
     test_utils::destroy(validators);
