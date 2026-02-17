@@ -7,6 +7,9 @@ outputs:
   isRust:
     description: True when changes happened to the Rust code
     value: "${{ steps.diff.outputs.isRust }}"
+  isRustWorkspaceConfig:
+    description: True when changes happened to workspace-level Rust configuration files that affect all tests
+    value: "${{ steps.diff.outputs.isRustWorkspaceConfig }}"
   isRustExample:
     description: True when changes happened to the Rust example code
     value: "${{ steps.diff.outputs.isRustExample }}"
@@ -28,6 +31,9 @@ outputs:
   isReleaseNotesEligible:
     description: True when changes happened in Release Notes eligible paths
     value: "${{ steps.diff.outputs.isReleaseNotesEligible }}"
+  isTypeScriptCodegenSync:
+    description: True when changes happened that affect TypeScript codegen synchronization
+    value: "${{ steps.diff.outputs.isTypeScriptCodegenSync }}"
 
 runs:
   using: composite
@@ -52,62 +58,62 @@ runs:
             - ".github/workflows/_split_cluster.yml"
             - "scripts/cargo_sort/cargo_sort.py"
             - "scripts/ci_tests/rust_tests.sh"
+            - "scripts/ci_tests/rust_tests.py"
             - "Cargo.toml"
             - "Cargo.lock"
+            - "rust-toolchain.toml"
             - ".config/nextest.toml"
+          isRustWorkspaceConfig:
+            - "Cargo.toml"
+            - "Cargo.lock"
             - "rust-toolchain.toml"
           isRustExample:
             - "examples/custom-indexer/rust/**"
             - "examples/tic-tac-toe/cli/**"
             - "docs/examples/rust/**"
+            - "rust-toolchain.toml"
           isRpc:
-            - "crates/iota-json-rpc/**"
-            - "crates/iota-json-rpc-types/**"
-            - "crates/iota-json-rpc-api/**"
             - "crates/iota-graphql-rpc/**"
-            - "crates/iota-grpc-client/**"
-            - "crates/iota-grpc-server/**"
-            - "crates/iota-grpc-types/**"
-            - "crates/iota-proto-build/**"
-            - ".github/workflows/hierarchy.yml"
-            - ".github/workflows/_e2e.yml"
-            - "Cargo.toml"
-            - "Cargo.lock"
-            - ".config/nextest.toml"
+            - "crates/iota-json-rpc/**"
+            - "crates/iota-json-rpc-api/**"
+            - "crates/iota-json-rpc-types/**"
             - "rust-toolchain.toml"
           isPgIntegration:
-            - "crates/iota-indexer/**"
+            - "crates/iota-framework/**"
             - "crates/iota-graphql-rpc/**"
             - "crates/iota-graphql-e2e-tests/**"
-            - "crates/iota-framework/**"
-            - "crates/iota-json-rpc-types/**"
+            - "crates/iota-indexer/**"
             - "crates/iota-json-rpc-api/**"
+            - "crates/iota-json-rpc-types/**"
             - ".github/workflows/hierarchy.yml"
             - ".github/workflows/_rust.yml"
             - ".github/workflows/_rust_tests.yml"
             - "Cargo.toml"
             - "Cargo.lock"
-            - ".config/nextest.toml"
             - "rust-toolchain.toml"
+            - ".config/nextest.toml"
           isDoc:
             - "docs/content/**"
             - "docs/site/**"
-            - "*.mdx"
             - ".github/workflows/_docs_lint.yml"
             - ".github/workflows/_docusaurus.yml"
           isMoveExampleUsedByOthers:
             - "examples/move/basics/**"
             - "examples/move/coin/**"
             - "examples/move/nft/**"
-            - "Cargo.toml"
             - ".github/workflows/hierarchy.yml"
             - ".github/workflows/_rust.yml"
             - ".github/workflows/_rust_tests.yml"
+            - "Cargo.toml"
+            - "Cargo.lock"
+            - "rust-toolchain.toml"
           isRosetta:
             - ".github/scripts/rosetta/**"
             - "crates/iota-rosetta/**"
+            - "rust-toolchain.toml"
           isExternalCrates:
             - "external-crates/move/crates/**"
+            - "rust-toolchain.toml"
           isReleaseNotesEligible:
             - "consensus/**"
             - "crates/**"
@@ -119,3 +125,25 @@ runs:
             - "external-crates/**"
             - "kiosk/**"
             - "iota-execution/**"
+          isTypeScriptCodegenSync:
+            # Generated schema files from Rust (inputs to TypeScript codegen)
+            - "crates/iota-graphql-rpc/schema.graphql"
+            - "crates/iota-open-rpc/spec/openrpc.json"
+            # Generated TypeScript output files
+            - "sdk/typescript/src/graphql/generated/**"
+            - "sdk/typescript/src/graphql/schemas/**"
+            - "sdk/typescript/src/client/types/generated.ts"
+            - "sdk/typescript/src/client/types/params.ts"
+            - "sdk/graphql-transport/src/generated/**"
+            # Configuration files that affect codegen
+            - "package.json"
+            - "pnpm-workspace.yaml"
+            - "turbo.json"
+            - "sdk/typescript/package.json"
+            - "sdk/graphql-transport/package.json"
+            - "sdk/typescript/scripts/**"
+            - "sdk/graphql-transport/codegen.ts"
+            - "sdk/graphql-transport/src/queries/**"
+            - "sdk/typescript/genversion.mjs"
+            # Turbo hierarchy workflow and related scripts
+            - ".github/workflows/turbo_hierarchy.yml"

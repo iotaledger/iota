@@ -35,8 +35,9 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::{
-    BuildConfig, CompiledPackage, build_from_resolution_graph, check_invalid_dependencies,
-    check_unpublished_dependencies, gather_published_ids, implicit_deps,
+    BuildConfig, CompiledPackage, build_from_resolution_graph, check_conflicting_addresses,
+    check_invalid_dependencies, check_unpublished_dependencies, gather_published_ids,
+    implicit_deps,
 };
 use iota_package_management::{
     LockCommand, PublishedAtError,
@@ -2254,11 +2255,10 @@ pub(crate) async fn upgrade_package(
                 "Conflicting published package address: `Move.toml` contains published-at address \
                  {id_manifest} but `Move.lock` file contains published-at address {id_lock}. \
                  You may want to:
-
-                 - delete the published-at address in the `Move.toml` if the `Move.lock` address is correct; OR
-                 - update the `Move.lock` address using the `iota manage-package` command to be the same as the `Move.toml`; OR
-                 - check that your `iota active-env` {env_alias} corresponds to the chain on which the package is published (i.e., devnet, testnet, mainnet); OR
-                 - contact the maintainer if this package is a dependency and request resolving the conflict."
+ - delete the published-at address in the `Move.toml` if the `Move.lock` address is correct; OR
+ - update the `Move.lock` address using the `iota manage-package` command to be the same as the `Move.toml`; OR
+ - check that your `iota active-env` {env_alias} corresponds to the chain on which the package is published (i.e., devnet, testnet, mainnet); OR
+ - contact the maintainer if this package is a dependency and request resolving the conflict."
             )
         }
     })?;
@@ -2311,7 +2311,10 @@ pub(crate) async fn compile_package(
     };
     let resolution_graph = config.resolution_graph(package_path, chain_id.clone())?;
     let (_, dependencies) = gather_published_ids(&resolution_graph, chain_id.clone());
+
+    check_conflicting_addresses(&dependencies.conflicting, false)?;
     check_invalid_dependencies(&dependencies.invalid)?;
+
     if !with_unpublished_dependencies {
         check_unpublished_dependencies(&dependencies.unpublished)?;
     };
