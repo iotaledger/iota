@@ -66,6 +66,10 @@
             "import": "./dist/esm/keypairs/passkey/index.js",
             "require": "./dist/cjs/keypairs/passkey/index.js"
         },
+        "./keypairs/move-authenticator": {
+            "import": "./dist/esm/keypairs/move-authenticator/index.js",
+            "require": "./dist/cjs/keypairs/move-authenticator/index.js"
+        },
         "./multisig": {
             "import": "./dist/esm/multisig/index.js",
             "require": "./dist/cjs/multisig/index.js"
