@@ -19,9 +19,8 @@ use crate::{
         TrustedCommit,
     },
     error::ConsensusResult,
+    storage::rocksdb_store::SCORING_METRICS_V2_KEY,
 };
-
-const SCORING_METRICS_V2_KEY: u32 = 0;
 
 /// In-memory storage for testing.
 pub(crate) struct MemStore {

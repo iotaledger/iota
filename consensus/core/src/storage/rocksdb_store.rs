@@ -23,7 +23,7 @@ use crate::{
     storage::StorageScoringMetrics,
 };
 
-const SCORING_METRICS_V2_KEY: u32 = 0;
+pub(crate) const SCORING_METRICS_V2_KEY: u32 = 0;
 
 /// Persistent storage with RocksDB.
 pub(crate) struct RocksDBStore {
@@ -39,6 +39,7 @@ pub(crate) struct RocksDBStore {
     /// Stores info related to Commit that helps recovery.
     commit_info: DBMap<(CommitIndex, CommitDigest), CommitInfo>,
     /// Legacy scoring metrics (read-only).
+    /// TODO: remove this field after migration is done.
     scoring_metrics: DBMap<AuthorityIndex, StorageScoringMetrics>,
     /// Stores versioned scoring metrics as a single blob under key 0.
     scoring_metrics_v2: DBMap<u32, VersionedScoringMetrics>,
@@ -271,7 +272,7 @@ impl Store for RocksDBStore {
         // If v1 (per-authority) CF is not empty, return the data migrated to v2 format.
         // Note that we do not write the migrated data to the v2 CF here, since the data
         // will be added to the v2 CF after the first write.
-        let scoring_metrics_v2 = migrate_stored_metrics_v1_to_v2(legacy_entries, committee);
+        let scoring_metrics_v2 = migrate_stored_metrics(legacy_entries, committee);
 
         Ok(Some(scoring_metrics_v2))
     }
@@ -368,7 +369,9 @@ impl Store for RocksDBStore {
     }
 }
 
-fn migrate_stored_metrics_v1_to_v2(
+// TODO: delete this function after the migration is done and the legacy
+// `StorageScoringMetrics` field is removed.
+fn migrate_stored_metrics(
     mut legacy_entries: Vec<(AuthorityIndex, StorageScoringMetrics)>,
     committee: &Committee,
 ) -> VersionedScoringMetrics {

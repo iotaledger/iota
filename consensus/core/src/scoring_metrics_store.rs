@@ -371,16 +371,15 @@ impl MysticetiScoringMetricsStore {
     // panic. This check is not performed here, as it is assumed that the caller has
     // already checked it.
     pub(crate) fn update_current_local_metrics_count(&self, authority_index: AuthorityIndex) {
-        let uncached_metrics = &self
+        let uncached_metrics = self
             .uncached_metrics
             .iter()
-            .map(|metric_vec| metric_vec[authority_index].load(Ordering::Relaxed))
-            .collect::<Vec<u64>>();
+            .map(|metric_vec| metric_vec[authority_index].load(Ordering::Relaxed));
         self.current_local_metrics_count
             .iter()
             .zip(uncached_metrics)
             .for_each(|(local_metric_vec, uncached_metric)| {
-                local_metric_vec[authority_index].store(*uncached_metric, Ordering::Relaxed);
+                local_metric_vec[authority_index].store(uncached_metric, Ordering::Relaxed);
             });
     }
 }
