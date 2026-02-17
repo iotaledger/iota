@@ -88,8 +88,9 @@ type AmplitudeIdentityOptions = {
 };
 
 /**
- * Update the user's network group in Amplitude.
- * This allows filtering events by network in Amplitude analytics.
+ * Set the Amplitude user identity with current app context.
+ * Updates user properties: network, walletAppMode, and walletVersion.
+ * This allows filtering and segmenting analytics events by these dimensions.
  */
 export function setAmplitudeIdentity(options?: AmplitudeIdentityOptions): void {
     if (!ampli.isLoaded) {

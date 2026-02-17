@@ -6,14 +6,9 @@ import type { RootState } from '_src/ui/app/redux/rootReducer';
 import type { Middleware } from '@reduxjs/toolkit';
 
 /**
- * Redux middleware that keeps the Amplitude user identity in sync with the
- * Redux `app` slice.  It runs synchronously as part of every dispatch, *after*
- * the reducer has committed the new state.  This guarantees that any
- * Amplitude event fired later in the same tick (e.g. `ampli.switchedNetwork`
- * after an `await dispatch(…).unwrap()`) already carries the updated identity.
- *
- * Only the fields that are reflected in the Amplitude identity are compared;
- * unrelated dispatches are a no-op.
+ * Redux middleware that keeps the Amplitude user identity in sync with Redux state.
+ * Automatically updates identity when network, customRpc, or appType changes,
+ * ensuring all subsequent events include the latest user context.
  */
 export const amplitudeMiddleware: Middleware<{}, RootState> = (storeAPI) => (next) => (action) => {
     const { network, customRpc, appType } = storeAPI.getState().app;
