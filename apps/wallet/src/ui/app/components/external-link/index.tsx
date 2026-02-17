@@ -16,8 +16,6 @@ export interface ExternalLinkProps {
     trackEvent?: boolean;
 }
 
-const DO_NOT_TRACK_TYPES = new Set<string>(['address', 'digest']);
-
 export function ExternalLink({
     href,
     className,
@@ -29,7 +27,7 @@ export function ExternalLink({
     trackEvent = true,
 }: ExternalLinkProps) {
     const handleClick = () => {
-        if (trackEvent && type && !DO_NOT_TRACK_TYPES.has(type)) {
+        if (trackEvent && type) {
             const visibility: 'private' | 'public' = isPublic ? 'public' : 'private';
 
             ampli.externalLinkOpened({

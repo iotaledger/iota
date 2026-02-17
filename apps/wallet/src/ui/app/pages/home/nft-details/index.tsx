@@ -36,14 +36,14 @@ export function NFTDetailsPage() {
 
     function handleMoreAboutKiosk() {
         const url = 'https://docs.iota.org/developer/ts-sdk/kiosk/';
-        ampli.openedLink({ url });
+        ampli.externalLinkOpened({ value: url, type: 'documentation' });
         window.open(url, '_blank', 'noopener noreferrer');
     }
 
     function handleMarketplace() {
         // TODO: https://github.com/iotaledger/iota/issues/4024
         const url = 'https://docs.iota.org/developer/ts-sdk/kiosk/';
-        ampli.openedLink({ url });
+        ampli.externalLinkOpened({ value: url, type: 'documentation' });
         window.open(url, '_blank', 'noopener noreferrer');
     }
 
@@ -79,6 +79,7 @@ export function NFTDetailsPage() {
                                             <ExplorerLink
                                                 objectID={nftId}
                                                 type={ExplorerLinkType.Object}
+                                                eventType="object"
                                             >
                                                 <Button
                                                     type={ButtonType.Ghost}
@@ -128,6 +129,7 @@ export function NFTDetailsPage() {
                                                             <ExplorerLink
                                                                 type={ExplorerLinkType.Address}
                                                                 address={ownerAddress}
+                                                                eventType="address"
                                                             >
                                                                 {formatAddress(ownerAddress)}
                                                             </ExplorerLink>

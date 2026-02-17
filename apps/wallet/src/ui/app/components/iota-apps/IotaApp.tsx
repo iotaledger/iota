@@ -133,6 +133,8 @@ export function IotaApp({
             onClick={() => {
                 ampli.openedApplication({ applicationName: name });
             }}
+            type="application"
+            isPublic
         >
             {AppDetails}
         </ExternalLink>
