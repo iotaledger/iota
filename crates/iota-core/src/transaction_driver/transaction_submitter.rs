@@ -14,7 +14,7 @@ use iota_types::{
     messages_grpc::{SubmitTxRequest, SubmitTxResult},
 };
 use tokio::time::timeout;
-use tracing::instrument;
+use tracing::{info, instrument};
 
 use crate::{
     authority_aggregator::AuthorityAggregator,

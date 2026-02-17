@@ -29,12 +29,12 @@ use iota_types::{
     messages_checkpoint::{CheckpointRequest, CheckpointResponse},
     messages_consensus::ConsensusTransaction,
     messages_grpc::{
-        HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
-        HandleCertificateRequestV1, HandleCertificateResponseV1,
-        HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
-        HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
-        SubmitCertificateResponse, SubmitTxResponse, SubmitTxResult, SystemStateRequest,
-        TransactionInfoRequest, TransactionInfoResponse,
+        ExecutedData, HandleCapabilityNotificationRequestV1,
+        HandleCapabilityNotificationResponseV1, HandleCertificateRequestV1,
+        HandleCertificateResponseV1, HandleSoftBundleCertificatesRequestV1,
+        HandleSoftBundleCertificatesResponseV1, HandleTransactionResponse, ObjectInfoRequest,
+        ObjectInfoResponse, SubmitCertificateResponse, SubmitTxResponse, SubmitTxResult,
+        SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
     },
     multiaddr::Multiaddr,
     traffic_control::{ClientIdSource, PolicyConfig, RemoteFirewallConfig, Weight},
@@ -1417,10 +1417,32 @@ impl ValidatorService {
             .await;
 
         if let Some(effects_digest) = effects_digests.into_iter().next() {
-            // Optionally include detailed execution data
+            // Fetch detailed execution data if requested
             let details = if wait_request.include_details {
-                // TODO: Fetch full execution details (objects, events, etc.)
-                None
+                // Get the full transaction effects from cache
+                if let Some(effects) = cache.get_executed_effects(&tx_digest) {
+                    // Get events if they exist (same as certificate flow at line ~691)
+                    let events = if let Some(digest) = effects.events_digest() {
+                        self.state.get_transaction_events(digest).ok()
+                    } else {
+                        None
+                    };
+
+                    // Get input objects using the same helper as certificate flow (line ~693)
+                    let input_objects = self.state.get_transaction_input_objects(&effects).ok();
+
+                    // Get output objects using the same helper as certificate flow (line ~696)
+                    let output_objects = self.state.get_transaction_output_objects(&effects).ok();
+
+                    Some(Box::new(ExecutedData {
+                        effects,
+                        events,
+                        input_objects: input_objects.unwrap_or_default(),
+                        output_objects: output_objects.unwrap_or_default(),
+                    }))
+                } else {
+                    None
+                }
             } else {
                 None
             };

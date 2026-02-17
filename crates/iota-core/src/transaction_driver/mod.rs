@@ -31,7 +31,7 @@ use tokio::{
     task::JoinSet,
     time::{interval, sleep},
 };
-use tracing::instrument;
+use tracing::{info, instrument};
 use transaction_submitter::*;
 
 use crate::{

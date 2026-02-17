@@ -4361,9 +4361,9 @@ impl AuthorityPerEpochStore {
                     );
                     return Ok(ConsensusCertificateResult::Ignored);
                 }
-                // TODO: verify that all the same actions are performed as for a Certificate.
-                // Possibly extract common code to a separate function to avoid code
-                // duplication.
+                // TODO: verify that all the same validation actions are performed as for a
+                // Certificate. Possibly extract common code to a separate
+                // function to avoid code duplication.
 
                 // Create VerifiedExecutableTransaction with ConsensusOrdered proof
                 // Similar to how new_from_quorum_execution works, but using ConsensusOrdered

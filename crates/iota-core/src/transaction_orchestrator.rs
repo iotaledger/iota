@@ -23,6 +23,7 @@ use iota_types::{
     base_types::TransactionDigest,
     error::{IotaError, IotaResult},
     iota_system_state::IotaSystemState,
+    message_envelope::Message,
     messages_grpc::SubmitTxRequest,
     quorum_driver_types::{
         EffectsFinalityInfo, ExecuteTransactionRequestType, ExecuteTransactionRequestV1,
@@ -77,7 +78,9 @@ const WAIT_FOR_FINALITY_TIMEOUT: Duration = Duration::from_secs(30);
 /// finality. It adds inflight deduplication, waiting for local execution,
 /// recovery, and epoch change handling.
 pub struct TransactionOrchestrator<A: Clone> {
-    quorum_driver_handler: Arc<QuorumDriverHandler<A>>,
+    // QuorumDriverHandler for the normal flow. Always present if white flag flow is disabled, and
+    // None if white flag flow is enabled.
+    quorum_driver_handler: Option<Arc<QuorumDriverHandler<A>>>,
     /// Optional TransactionDriver for the white flag direct-to-consensus flow.
     transaction_driver: Option<Arc<TransactionDriver<A>>>,
     validator_state: Arc<AuthorityState>,
@@ -172,15 +175,9 @@ where
                     .start(),
             );
             let receiver = handler.subscribe_to_effects();
-            (handler, Some(receiver))
+            (Some(handler), Some(receiver))
         } else {
-            // Create a dummy handler for white flag mode (not used)
-            let handler = Arc::new(
-                QuorumDriverHandlerBuilder::new(validators.clone(), qd_metrics.clone())
-                    .with_notifier(notifier.clone())
-                    .start(),
-            );
-            (handler, None)
+            (None, None)
         };
 
         // Create TransactionDriver only if white flag is enabled
@@ -206,22 +203,23 @@ where
         ));
 
         // Start pending transaction log cleanup only if QuorumDriver is used
-        let _local_executor_handle = if let Some(receiver) = effects_receiver {
-            let pending_tx_log_clone = pending_tx_log.clone();
-            let res = Some(spawn_monitored_task!(async move {
-                Self::loop_pending_transaction_log(receiver, pending_tx_log_clone).await;
-            }));
+        let _local_executor_handle =
+            if let (Some(handler), Some(receiver)) = (&quorum_driver_handler, effects_receiver) {
+                let pending_tx_log_clone = pending_tx_log.clone();
+                let res = Some(spawn_monitored_task!(async move {
+                    Self::loop_pending_transaction_log(receiver, pending_tx_log_clone).await;
+                }));
 
-            // Schedule pending transactions recovery for both QuorumDriver and
-            // TransactionDriver
-            Self::schedule_txes_in_log(pending_tx_log.clone(), quorum_driver_handler.clone());
+                // Schedule pending transactions recovery for both QuorumDriver and
+                // TransactionDriver
+                Self::schedule_txes_in_log(pending_tx_log.clone(), handler.clone());
 
-            res
-        } else {
-            // TransactionDriver mode: no pending tx log cleanup needed
-            // (transactions go directly to consensus, no certificate tracking)
-            None
-        };
+                res
+            } else {
+                // TransactionDriver mode: no pending tx log cleanup needed
+                // (transactions go directly to consensus, no certificate tracking)
+                None
+            };
 
         Self {
             quorum_driver_handler,
@@ -351,7 +349,10 @@ where
             .await
             .map_err(map_td_error_to_qd)?;
 
-        debug!(?tx_digest, "TransactionDriver submission succeeded");
+        debug!(
+            "TransactionOrchestrator: TransactionDriver submission succeeded for transaction {}",
+            tx_digest
+        );
 
         let QuorumTransactionResponse {
             effects: td_effects,
@@ -600,11 +601,16 @@ where
     }
 
     pub fn quorum_driver(&self) -> &Arc<QuorumDriverHandler<A>> {
-        &self.quorum_driver_handler
+        &self
+            .quorum_driver_handler
+            .as_ref()
+            .expect("QuorumDriverHandler is not initialized.")
     }
 
     pub fn clone_quorum_driver(&self) -> Arc<QuorumDriverHandler<A>> {
-        self.quorum_driver_handler.clone()
+        self.quorum_driver_handler
+            .clone()
+            .expect("QuorumDriverHandler is not initialized.")
     }
 
     pub fn transaction_driver(&self) -> Option<&Arc<TransactionDriver<A>>> {
@@ -616,7 +622,11 @@ where
     }
 
     pub fn subscribe_to_effects_queue(&self) -> Receiver<QuorumDriverEffectsQueueResult> {
-        self.quorum_driver_handler.subscribe_to_effects()
+        if let Some(handler) = &self.quorum_driver_handler {
+            handler.subscribe_to_effects()
+        } else {
+            panic!("QuorumDriverHandler is not initialized, cannot subscribe to effects queue.");
+        }
     }
 
     fn update_metrics(
