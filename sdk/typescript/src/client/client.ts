@@ -642,7 +642,7 @@ export class IotaClient {
     async getLatestIotaSystemState({
         signal,
     }: { signal?: AbortSignal } = {}): Promise<LatestIotaSystemStateSummary> {
-        const protocolConfig = await this.getProtocolConfig();
+        const protocolConfig = await this.getProtocolConfig({ signal });
         const isV2Supported = Number(protocolConfig.maxSupportedProtocolVersion) >= 5;
 
         const iotaSystemStateSummary: IotaSystemStateSummary = isV2Supported
@@ -700,6 +700,7 @@ export class IotaClient {
             unsubscribe: 'iotax_unsubscribeEvent',
             params: [input.filter],
             onMessage: input.onMessage,
+            signal: input.signal,
         });
     }
 
@@ -717,6 +718,7 @@ export class IotaClient {
             unsubscribe: 'iotax_unsubscribeTransaction',
             params: [input.filter],
             onMessage: input.onMessage,
+            signal: input.signal,
         });
     }
 
@@ -838,7 +840,11 @@ export class IotaClient {
      * Returns information about a given checkpoint
      */
     async getCheckpoint(input: GetCheckpointParams): Promise<Checkpoint> {
-        return await this.transport.request({ method: 'iota_getCheckpoint', params: [input.id] });
+        return await this.transport.request({
+            method: 'iota_getCheckpoint',
+            params: [input.id],
+            signal: input.signal,
+        });
     }
 
     /**
@@ -1048,17 +1054,18 @@ export class IotaClient {
                 if (waitMode === 'indexed-on-node') {
                     const isIndexedOnNode = await this.isTransactionIndexedOnNode({
                         digest: input.digest,
+                        signal,
                     });
                     if (isIndexedOnNode) {
-                        return await this.getTransactionBlock(input);
+                        return await this.getTransactionBlock({ ...input, signal });
                     }
                 } else if (waitMode === 'checkpoint') {
-                    const transaction = await this.getTransactionBlock(input);
+                    const transaction = await this.getTransactionBlock({ ...input, signal });
                     if (transaction.checkpoint) {
                         return transaction;
                     }
                 } else {
-                    return await this.getTransactionBlock(input);
+                    return await this.getTransactionBlock({ ...input, signal });
                 }
                 await wait();
             } catch (e) {
