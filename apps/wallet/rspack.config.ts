@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { Configuration } from 'webpack';
+import type { Configuration } from '@rspack/core';
 
-import configDev from './configs/webpack/webpack.config.dev';
-import configProd from './configs/webpack/webpack.config.prod';
+import configDev from './configs/rspack/rspack.config.dev';
+import configProd from './configs/rspack/rspack.config.prod';
 
 const configMap: Record<string, () => Promise<Configuration>> = {
     development: configDev,

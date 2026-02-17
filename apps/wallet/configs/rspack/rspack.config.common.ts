@@ -6,13 +6,11 @@ import { exec } from 'child_process';
 import { resolve } from 'path';
 import { randomBytes } from '@noble/hashes/utils';
 import SentryWebpackPlugin from '@sentry/webpack-plugin';
-import CopyPlugin from 'copy-webpack-plugin';
 import dotenv from 'dotenv';
 import gitRevSync from 'git-rev-sync';
-import HtmlWebpackPlugin from 'html-webpack-plugin';
-import MiniCssExtractPlugin from 'mini-css-extract-plugin';
-import { DefinePlugin, ProvidePlugin } from 'webpack';
-import type { Configuration } from 'webpack';
+import { rspack } from '@rspack/core';
+import type { Configuration } from '@rspack/core';
+import { merge } from 'webpack-merge';
 
 import packageJson from '../../package.json';
 
@@ -145,16 +143,31 @@ const commonConfig: () => Promise<Configuration> = async () => {
             rules: [
                 {
                     test: /\.(t|j)sx?$/,
-                    loader: 'ts-loader',
-                    options: {
-                        configFile: TS_CONFIG_FILE,
-                    },
                     exclude: /node_modules/,
+                    loader: 'builtin:swc-loader',
+                    options: {
+                        jsc: {
+                            parser: {
+                                syntax: 'typescript',
+                                tsx: true,
+                            },
+                            transform: {
+                                react: {
+                                    runtime: 'automatic',
+                                    development: IS_DEV,
+                                },
+                            },
+                        },
+                        env: {
+                            targets: 'chrome >= 88',
+                        },
+                    },
+                    type: 'javascript/auto',
                 },
                 {
                     test: /\.(s)?css$/i,
                     use: [
-                        MiniCssExtractPlugin.loader,
+                        rspack.CssExtractRspackPlugin.loader,
                         {
                             loader: 'css-loader',
                             options: {
@@ -168,8 +181,14 @@ const commonConfig: () => Promise<Configuration> = async () => {
                             },
                         },
                         'postcss-loader',
-                        'sass-loader',
+                        {
+                            loader: 'sass-loader',
+                            options: {
+                                api: 'modern-compiler',
+                            },
+                        },
                     ],
+                    type: 'javascript/auto',
                 },
                 {
                     test: /\.(png|jpg|jpeg|gif)$/,
@@ -184,14 +203,14 @@ const commonConfig: () => Promise<Configuration> = async () => {
             ],
         },
         plugins: [
-            new MiniCssExtractPlugin(),
-            new HtmlWebpackPlugin({
+            new rspack.CssExtractRspackPlugin(),
+            new rspack.HtmlRspackPlugin({
                 chunks: ['ui'],
                 filename: 'ui.html',
                 template: resolve(SRC_ROOT, 'ui', 'index.template.html'),
                 title: APP_NAME,
             }),
-            new CopyPlugin({
+            new rspack.CopyRspackPlugin({
                 patterns: [
                     {
                         from: resolve(SRC_ROOT, 'manifest', 'icons', '**', '*'),
@@ -233,7 +252,7 @@ const commonConfig: () => Promise<Configuration> = async () => {
                     },
                 ],
             }),
-            new DefinePlugin({
+            new rspack.DefinePlugin({
                 // This brakes bg service, js-sha3 checks if window is defined,
                 // but it's not defined in background service.
                 // TODO: check if this is worth investigating a fix and maybe do a separate build for UI and bg?
@@ -250,7 +269,7 @@ const commonConfig: () => Promise<Configuration> = async () => {
                 'process.env.SENTRY_AUTH_TOKEN': JSON.stringify(process.env.SENTRY_AUTH_TOKEN),
                 'process.env.BUILD_ENV': JSON.stringify(BUILD_ENV),
             }),
-            new ProvidePlugin({
+            new rspack.ProvidePlugin({
                 Buffer: ['buffer', 'Buffer'],
             }),
             new SentryWebpackPlugin({
