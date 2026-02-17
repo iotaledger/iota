@@ -79,7 +79,7 @@ export function ValidatorsCard() {
     const [totalDelegatedRewardsFormatted] = useFormatCoin({ balance: totalDelegatedRewards });
 
     const handleNewStake = () => {
-        ampli.clickedStakeIota({
+        ampli.stakeClicked({
             isCurrentlyStaking: true,
             sourceFlow: 'Validator card',
         });
