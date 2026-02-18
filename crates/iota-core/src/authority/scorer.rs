@@ -8,10 +8,14 @@ use std::sync::{
 
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    messages_consensus::VersionedMisbehaviorReport, misbehavior_counts::MisbehaviorsV1,
-    scoring_metrics::VersionedScoringMetrics,
+    error::IotaResult, messages_consensus::VersionedMisbehaviorReport,
+    misbehavior_counts::MisbehaviorsV1, scoring_metrics::VersionedScoringMetrics,
 };
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use tracing::warn;
+use typed_store::Map;
+
+use super::AuthorityEpochTables;
 
 pub(crate) const MAX_SCORE: u64 = u16::MAX as u64 + 1; // Note: must be consistent with MAX_SCORE in validator_set.move in iota-framework.
 const SCALE_FACTOR: u64 = 2_u64.pow(16);
@@ -227,6 +231,45 @@ impl Scorer {
                 ),
             })
             .collect()
+    }
+
+    pub(crate) fn restore_from_tables(&self, tables: &AuthorityEpochTables) -> IotaResult<()> {
+        if let Some(persisted_state) = tables.received_reports_state.get(&())? {
+            let received_reports_state_in_scorer = &self.received_reports_state;
+            if received_reports_state_in_scorer.len() != persisted_state.len() {
+                warn!(
+                    "Received reports state length in scorer ({}) does not match persisted state length ({}).",
+                    received_reports_state_in_scorer.len(),
+                    persisted_state.len()
+                );
+            }
+            received_reports_state_in_scorer
+                .iter()
+                .zip(persisted_state.iter())
+                .for_each(
+                    |(scorer_state_for_authority, persisted_state_for_authority)| {
+                        scorer_state_for_authority
+                            .received_metrics
+                            .update_from_snapshot(&persisted_state_for_authority.received_metrics);
+                        scorer_state_for_authority.has_not_sent_report.store(
+                            persisted_state_for_authority
+                                .has_not_sent_report
+                                .load(Ordering::Relaxed),
+                            Ordering::Relaxed,
+                        );
+                        scorer_state_for_authority.invalid_reports_count.store(
+                            persisted_state_for_authority
+                                .invalid_reports_count
+                                .load(Ordering::Relaxed),
+                            Ordering::Relaxed,
+                        );
+                    },
+                );
+        };
+
+        // Recalculate scores from the restored state
+        self.update_scores();
+        Ok(())
     }
 }
 

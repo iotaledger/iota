@@ -283,4 +283,11 @@ impl VersionedScoringMetrics {
             }
         }
     }
+
+    // Restores metrics from a persisted snapshot.
+    pub fn update_from_snapshot(&self, other: &VersionedScoringMetrics) {
+        for (current, new) in self.iter().flatten().zip(other.iter().flatten()) {
+            current.store(new.load(Ordering::Relaxed), Ordering::Relaxed);
+        }
+    }
 }

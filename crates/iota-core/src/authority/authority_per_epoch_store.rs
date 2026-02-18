@@ -1164,6 +1164,11 @@ impl AuthorityPerEpochStore {
 
         let voting_power = committee.members().map(|(_, v)| *v).collect::<Vec<u64>>();
 
+        let scorer = Arc::new(Scorer::new(voting_power, &protocol_config));
+        scorer
+            .restore_from_tables(&tables)
+            .expect("Failed to restore scorer state from tables");
+
         let s = Arc::new(Self {
             name,
             committee,
@@ -1199,7 +1204,7 @@ impl AuthorityPerEpochStore {
             jwk_aggregator,
             randomness_manager: OnceCell::new(),
             randomness_reporter: OnceCell::new(),
-            scorer: Arc::new(Scorer::new(voting_power, &protocol_config)),
+            scorer,
         });
 
         s.update_buffer_stake_metric();
