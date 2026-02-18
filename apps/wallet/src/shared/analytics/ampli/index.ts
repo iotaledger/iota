@@ -397,6 +397,18 @@ export interface IotaStakedProperties {
      * | Regex |  |
      */
     validatorAddress?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    validatorAPY?: number;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    validatorName?: string;
 }
 
 export interface IotaUnstakedProperties {
