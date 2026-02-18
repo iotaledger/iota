@@ -31,6 +31,7 @@ mod checked {
             IotaAttribute, MovePackage, PackageMetadata, RuntimeModuleMetadata,
             RuntimeModuleMetadataWrapper, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
             move_package_original_package_id, normalize_deserialized_modules,
+            normalize_move_package,
         },
         object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
@@ -768,9 +769,13 @@ mod checked {
 
         let pool = &mut normalized::RcPool::new();
         let binary_config = to_binary_config(context.protocol_config);
-        let Ok(current_normalized) =
-            existing_package.normalize(pool, &binary_config, /* include code */ true)
-        else {
+        let Ok(current_normalized) = normalize_move_package(
+            existing_package,
+            pool,
+            &binary_config,
+            // include code
+            true,
+        ) else {
             invariant_violation!("Tried to normalize modules in existing package but failed")
         };
 

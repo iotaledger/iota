@@ -409,7 +409,7 @@ pub fn move_package_original_package_id(move_package: &MovePackage) -> ObjectID 
     ObjectID::new(module.address().into_bytes())
 }
 
-pub(crate) fn deserialize_move_package_module(
+pub fn deserialize_move_package_module(
     move_package: &MovePackage,
     module: &Identifier,
     binary_config: &BinaryConfig,
