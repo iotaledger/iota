@@ -161,8 +161,7 @@ impl RocksDBStore {
             Self::COMMIT_VOTES_CF;<(CommitIndex, CommitDigest, BlockRef), ()>,
             Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>,
             Self::VOTING_BLOCK_HEADERS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
-            Self::FAST_COMMIT_SYNC_FLAG_CF;<(), ()>
-            Self::VOTING_BLOCK_HEADERS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
+            Self::FAST_COMMIT_SYNC_FLAG_CF;<(), ()>,
             Self::TX_REF_TO_BLOCK_DIGEST_CF;<(AuthorityIndex, Round, TransactionsCommitment), BlockHeaderDigest>
         );
 

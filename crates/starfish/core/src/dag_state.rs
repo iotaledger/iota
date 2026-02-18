@@ -562,10 +562,7 @@ impl DagState {
             .insert(gen_transaction_ref, shard.serialized_shard)
             .is_none()
         {
-            debug!(
-                "Adding shard for block ref: {}",
-                gen_transaction_ref.to_block_ref()
-            );
+            debug!("Adding shard for block ref: {}", gen_transaction_ref);
             if let Some((sender, _)) = &self.cordial_knowledge_senders {
                 let cordial_message = CordialKnowledgeMessage::NewShard(gen_transaction_ref);
                 if let Err(TrySendError::Closed(_)) = sender.try_send(cordial_message) {
@@ -970,6 +967,7 @@ impl DagState {
     /// Checks if verified block headers exist for the given transaction refs.
     /// Checks in-memory data (genesis and recent_block_headers) first, then
     /// falls back to storage for blocks not found in memory.
+    #[cfg_attr(test, expect(dead_code))]
     pub(crate) fn contains_verified_block_headers_for_transaction_refs(
         &self,
         tx_refs: &[TransactionRef],
