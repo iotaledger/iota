@@ -335,6 +335,15 @@ export interface CollectibleCardClickedProperties {
     objectId?: string;
 }
 
+export interface CollectibleHiddenProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    collectibleType?: string;
+}
+
 export interface ConnectedHardwareWalletProperties {
     /**
      * | Rule | Value |
@@ -806,6 +815,14 @@ export class CollectibleCardClicked implements BaseEvent {
     event_type = 'collectible card clicked';
 
     constructor(public event_properties?: CollectibleCardClickedProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class CollectibleHidden implements BaseEvent {
+    event_type = 'collectible hidden';
+
+    constructor(public event_properties?: CollectibleHiddenProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -1562,6 +1579,23 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new CollectibleCardClicked(properties), options);
+  }
+
+  /**
+   * collectible hidden
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/collectible%20hidden)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. collectibleType)
+   * @param options Amplitude event options.
+   */
+  collectibleHidden(
+    properties?: CollectibleHiddenProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new CollectibleHidden(properties), options);
   }
 
   /**
