@@ -31,10 +31,17 @@ use crate::{
 /// method of authentication through Move code.
 /// This function represents the data received by the Move authenticate function
 /// during the Account Abstraction authentication flow.
-#[enum_dispatch(AuthenticatorTrait)]
 #[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
-pub enum MoveAuthenticator {
-    V1(MoveAuthenticatorV1),
+// The `transparent` attribute allows us to get rid of one level of nesting in the serialized form,
+// which is reasonable since `MoveAuthenticator` will not be extended with more fields in the
+// future, and it simplifies the serialization logic.
+#[serde(transparent)]
+pub struct MoveAuthenticator {
+    inner: MoveAuthenticatorKind,
+    /// A bytes representation of [struct MoveAuthenticator]. This helps with
+    /// implementing trait [AsRef](core::convert::AsRef).
+    #[serde(skip)]
+    bytes: OnceCell<Vec<u8>>,
 }
 
 impl MoveAuthenticator {
@@ -44,17 +51,9 @@ impl MoveAuthenticator {
         type_arguments: Vec<TypeInput>,
         object_to_authenticate: CallArg,
     ) -> Self {
-        Self::V1(MoveAuthenticatorV1::new(
-            call_args,
-            type_arguments,
-            object_to_authenticate,
-        ))
-    }
-
-    /// Returns the version of the MoveAuthenticator.
-    pub fn version(&self) -> u64 {
-        match self {
-            MoveAuthenticator::V1(_) => 1,
+        Self {
+            inner: MoveAuthenticatorKind::new_v1(call_args, type_arguments, object_to_authenticate),
+            bytes: OnceCell::new(),
         }
     }
 
@@ -63,71 +62,84 @@ impl MoveAuthenticator {
         MoveAuthenticatorDigest::new(default_hash(self))
     }
 
+    /// Returns the version of the MoveAuthenticator.
+    pub fn version(&self) -> u64 {
+        self.inner.version()
+    }
+
     /// Returns the address of the MoveAuthenticator.
     pub fn address(&self) -> IotaResult<IotaAddress> {
-        match self {
-            MoveAuthenticator::V1(v1) => v1.address(),
-        }
+        self.inner.address()
     }
 
     /// Returns the call arguments of the MoveAuthenticator.
     pub fn call_args(&self) -> &Vec<CallArg> {
-        match self {
-            MoveAuthenticator::V1(v1) => v1.call_args(),
-        }
+        self.inner.call_args()
     }
 
     /// Returns the type arguments of the MoveAuthenticator.
     pub fn type_arguments(&self) -> &Vec<TypeInput> {
-        match self {
-            MoveAuthenticator::V1(v1) => v1.type_arguments(),
-        }
+        self.inner.type_arguments()
     }
 
     /// Returns the object to authenticate of the MoveAuthenticator.
     pub fn object_to_authenticate(&self) -> &CallArg {
-        match self {
-            MoveAuthenticator::V1(v1) => v1.object_to_authenticate(),
-        }
+        self.inner.object_to_authenticate()
     }
 
     /// Returns the components of the object to authenticate.
     pub fn object_to_authenticate_components(
         &self,
     ) -> UserInputResult<(ObjectID, Option<SequenceNumber>, Option<ObjectDigest>)> {
-        match self {
-            MoveAuthenticator::V1(v1) => v1.object_to_authenticate_components(),
-        }
+        self.inner.object_to_authenticate_components()
     }
 
     /// Returns all input objects used by the MoveAuthenticator,
     /// including those from the object to authenticate.
     pub fn input_objects(&self) -> Vec<InputObjectKind> {
-        match self {
-            MoveAuthenticator::V1(v1) => v1.input_objects(),
-        }
+        self.inner.input_objects()
     }
 
     /// Returns all receiving objects used by the MoveAuthenticator.
     pub fn receiving_objects(&self) -> Vec<ObjectRef> {
-        match self {
-            MoveAuthenticator::V1(v1) => v1.receiving_objects(),
-        }
+        self.inner.receiving_objects()
     }
 
     /// Returns all shared input objects used by the MoveAuthenticator,
     /// including those from the object to authenticate.
     pub fn shared_objects(&self) -> Vec<SharedInputObject> {
-        match self {
-            MoveAuthenticator::V1(v1) => v1.shared_objects(),
-        }
+        self.inner.shared_objects()
     }
 
     /// Validity check for MoveAuthenticator.
     pub fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
-        match self {
-            MoveAuthenticator::V1(v1) => v1.validity_check(config),
-        }
+        self.inner.validity_check(config)
+    }
+}
+
+impl AuthenticatorTrait for MoveAuthenticator {
+    fn verify_user_authenticator_epoch(
+        &self,
+        epoch: EpochId,
+        max_epoch_upper_bound_delta: Option<u64>,
+    ) -> IotaResult {
+        self.inner
+            .verify_user_authenticator_epoch(epoch, max_epoch_upper_bound_delta)
+    }
+    // This function accepts all inputs, as signature verification is performed
+    // later on the Move side.
+    fn verify_claims<T>(
+        &self,
+        value: &IntentMessage<T>,
+        author: IotaAddress,
+        aux_verify_data: &VerifyParams,
+        zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
+    ) -> IotaResult
+    where
+        T: Serialize,
+    {
+        self.inner
+            .verify_claims(value, author, aux_verify_data, zklogin_inputs_cache)
     }
 }
 
@@ -148,7 +160,7 @@ impl ToFromBytes for MoveAuthenticator {
             return Err(FastCryptoError::InvalidInput);
         }
 
-        let move_auth: MoveAuthenticator =
+        let move_auth =
             bcs::from_bytes(&bytes[1..]).map_err(|_| FastCryptoError::InvalidSignature)?;
         Ok(move_auth)
     }
@@ -156,17 +168,13 @@ impl ToFromBytes for MoveAuthenticator {
 
 impl AsRef<[u8]> for MoveAuthenticator {
     fn as_ref(&self) -> &[u8] {
-        let to_bytes = || -> Vec<u8> {
+        self.bytes.get_or_init(|| {
             let as_bytes = bcs::to_bytes(self).expect("BCS serialization should not fail");
             let mut bytes = Vec::with_capacity(1 + as_bytes.len());
             bytes.push(SignatureScheme::MoveAuthenticator.flag());
             bytes.extend_from_slice(as_bytes.as_slice());
             bytes
-        };
-
-        match self {
-            MoveAuthenticator::V1(v1) => v1.bytes.get_or_init(to_bytes),
-        }
+        })
     }
 }
 
@@ -182,6 +190,90 @@ impl PartialEq for MoveAuthenticator {
 /// [SenderSignerData](crate::transaction::SenderSignedData).
 impl Eq for MoveAuthenticator {}
 
+/// MoveAuthenticatorKind is an enum that represents the different versions of
+/// MoveAuthenticator.
+#[enum_dispatch(AuthenticatorTrait)]
+#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+pub enum MoveAuthenticatorKind {
+    V1(MoveAuthenticatorV1),
+}
+
+impl MoveAuthenticatorKind {
+    pub fn new_v1(
+        call_args: Vec<CallArg>,
+        type_arguments: Vec<TypeInput>,
+        object_to_authenticate: CallArg,
+    ) -> Self {
+        MoveAuthenticatorKind::V1(MoveAuthenticatorV1::new(
+            call_args,
+            type_arguments,
+            object_to_authenticate,
+        ))
+    }
+
+    pub fn version(&self) -> u64 {
+        match self {
+            MoveAuthenticatorKind::V1(_) => 1,
+        }
+    }
+
+    pub fn address(&self) -> IotaResult<IotaAddress> {
+        match self {
+            MoveAuthenticatorKind::V1(v1) => v1.address(),
+        }
+    }
+
+    pub fn call_args(&self) -> &Vec<CallArg> {
+        match self {
+            MoveAuthenticatorKind::V1(v1) => v1.call_args(),
+        }
+    }
+
+    pub fn type_arguments(&self) -> &Vec<TypeInput> {
+        match self {
+            MoveAuthenticatorKind::V1(v1) => v1.type_arguments(),
+        }
+    }
+
+    pub fn object_to_authenticate(&self) -> &CallArg {
+        match self {
+            MoveAuthenticatorKind::V1(v1) => v1.object_to_authenticate(),
+        }
+    }
+
+    pub fn object_to_authenticate_components(
+        &self,
+    ) -> UserInputResult<(ObjectID, Option<SequenceNumber>, Option<ObjectDigest>)> {
+        match self {
+            MoveAuthenticatorKind::V1(v1) => v1.object_to_authenticate_components(),
+        }
+    }
+
+    pub fn input_objects(&self) -> Vec<InputObjectKind> {
+        match self {
+            MoveAuthenticatorKind::V1(v1) => v1.input_objects(),
+        }
+    }
+
+    pub fn receiving_objects(&self) -> Vec<ObjectRef> {
+        match self {
+            MoveAuthenticatorKind::V1(v1) => v1.receiving_objects(),
+        }
+    }
+
+    pub fn shared_objects(&self) -> Vec<SharedInputObject> {
+        match self {
+            MoveAuthenticatorKind::V1(v1) => v1.shared_objects(),
+        }
+    }
+
+    pub fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
+        match self {
+            MoveAuthenticatorKind::V1(v1) => v1.validity_check(config),
+        }
+    }
+}
+
 /// MoveAuthenticatorV1 is the first version of MoveAuthenticator.
 #[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
 pub struct MoveAuthenticatorV1 {
@@ -193,10 +285,6 @@ pub struct MoveAuthenticatorV1 {
     /// The object that is authenticated. Represents the account being the
     /// sender of the transaction.
     object_to_authenticate: CallArg,
-    /// A bytes representation of [struct MoveAuthenticator]. This helps with
-    /// implementing trait [AsRef](core::convert::AsRef).
-    #[serde(skip)]
-    bytes: OnceCell<Vec<u8>>,
 }
 
 impl MoveAuthenticatorV1 {
@@ -209,7 +297,6 @@ impl MoveAuthenticatorV1 {
             call_args,
             type_arguments,
             object_to_authenticate,
-            bytes: OnceCell::new(),
         }
     }
 
