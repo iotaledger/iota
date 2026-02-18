@@ -150,6 +150,12 @@ pub(crate) struct DagState {
     /// Vec position corresponds to the authority index.
     recent_headers_refs_by_authority: Vec<BTreeSet<BlockRef>>,
 
+    /// Maps (round, transactions_commitment) -> BlockHeaderDigest per
+    /// authority. Used to look up block digests from TransactionRef
+    /// components. Evicted based on solid commits, same as transactions.
+    tx_ref_to_block_digest_by_authority:
+        Vec<BTreeMap<(Round, TransactionsCommitment), BlockHeaderDigest>>,
+
     /// Keeps track of the threshold clock for proposing blocks.
     threshold_clock: ThresholdClock,
 
@@ -302,6 +308,7 @@ impl DagState {
             recent_transactions_by_authority: vec![BTreeMap::new(); num_authorities],
             recent_shards_by_authority: vec![BTreeMap::new(); num_authorities],
             recent_headers_refs_by_authority: vec![BTreeSet::new(); num_authorities],
+            tx_ref_to_block_digest_by_authority: vec![BTreeMap::new(); num_authorities],
             threshold_clock,
             highest_accepted_round: 0,
             last_commit: last_commit.clone(),
@@ -400,6 +407,7 @@ impl DagState {
         self.recent_transactions_by_authority = vec![BTreeMap::new(); num_authorities];
         self.recent_shards_by_authority = vec![BTreeMap::new(); num_authorities];
         self.recent_headers_refs_by_authority = vec![BTreeSet::new(); num_authorities];
+        self.tx_ref_to_block_digest_by_authority = vec![BTreeMap::new(); num_authorities];
         self.pending_commit_votes.clear();
         self.pending_acknowledgments.clear();
 
@@ -637,6 +645,10 @@ impl DagState {
         self.recent_block_headers
             .insert(block_ref, block_header.clone());
         self.recent_headers_refs_by_authority[block_ref.author].insert(block_ref);
+        self.tx_ref_to_block_digest_by_authority[block_ref.author].insert(
+            (block_ref.round, block_header.transactions_commitment()),
+            block_ref.digest,
+        );
         self.threshold_clock.add_block_header(block_ref);
         self.highest_accepted_round = max(self.highest_accepted_round, block_header.round());
         self.context
@@ -1004,33 +1016,18 @@ impl DagState {
             .collect();
 
         if !missing.is_empty() {
-            let missing_refs: Vec<_> = missing.iter().map(|(_, tx)| *tx).collect();
-
-            // Batch 1: Look up block digests
-            let digests = self
-                .store
-                .lookup_block_digests_by_tx_refs(&missing_refs)
-                .unwrap_or_else(|e| {
-                    warn!("Failed to lookup block digests: {e:?}");
-                    vec![None; missing_refs.len()]
-                });
-
-            // Build BlockRefs for found digests
+            // Look up block digests from in-memory map
             let refs_with_indices: Vec<_> = missing
                 .iter()
-                .zip(digests.iter())
-                .filter_map(
-                    |((idx, tx), digest_opt): (
-                        &(usize, TransactionRef),
-                        &Option<BlockHeaderDigest>,
-                    )| {
-                        digest_opt.map(|d| (*idx, BlockRef::new(tx.round, tx.author, d)))
-                    },
-                )
+                .filter_map(|(idx, tx)| {
+                    self.tx_ref_to_block_digest_by_authority[tx.author]
+                        .get(&(tx.round, tx.transactions_commitment))
+                        .map(|&d| (*idx, BlockRef::new(tx.round, tx.author, d)))
+                })
                 .collect();
 
             if !refs_with_indices.is_empty() {
-                // Batch 2: Check block headers exist
+                // Batch: Check block headers exist in storage
                 let block_refs: Vec<_> = refs_with_indices.iter().map(|(_, br)| *br).collect();
                 let headers_exist = self
                     .store
@@ -1952,6 +1949,17 @@ impl DagState {
         }
     }
 
+    pub(crate) fn evict_tx_ref_to_block_digests(&mut self) {
+        let transaction_gc_round = self.gc_round_for_last_solid_commit();
+        for (authority_index, _) in self.context.committee.authorities() {
+            let eviction_round = self.calculate_authority_eviction_round(authority_index);
+            let eviction_round = min(transaction_gc_round, eviction_round + 1);
+            let split_key = (eviction_round, TransactionsCommitment::MIN);
+            self.tx_ref_to_block_digest_by_authority[authority_index] =
+                self.tx_ref_to_block_digest_by_authority[authority_index].split_off(&split_key);
+        }
+    }
+
     /// Return the garbage collection round with respect to the last solid
     /// commit's leader round. Transactions of blocks at or below this round
     /// can be evicted from memory
@@ -2190,6 +2198,9 @@ impl DagState {
 
         // Clean up old transactions depending on the last solid leader round.
         self.evict_transactions();
+
+        // Evict tx_ref_to_block_digest entries aligned with transaction eviction.
+        self.evict_tx_ref_to_block_digests();
 
         // Clean up old acknowledgments.
         self.evict_pending_acknowledgments();

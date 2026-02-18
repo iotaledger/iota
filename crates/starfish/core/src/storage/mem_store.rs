@@ -53,9 +53,6 @@ struct Inner {
     voting_block_headers: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedBlockHeader>,
     /// Flag indicating fast commit sync is ongoing.
     fast_sync_ongoing: bool,
-    /// Maps transaction ref components to block digest for quick lookups.
-    tx_ref_to_block_digest:
-        BTreeMap<(AuthorityIndex, Round, TransactionsCommitment), BlockHeaderDigest>,
 }
 
 impl MemStore {
@@ -72,7 +69,6 @@ impl MemStore {
                 commit_info: BTreeMap::new(),
                 voting_block_headers: BTreeMap::new(),
                 fast_sync_ongoing: false,
-                tx_ref_to_block_digest: BTreeMap::new(),
             }),
             context,
         }
@@ -95,15 +91,6 @@ impl Store for MemStore {
                 block_ref.round,
                 block_ref.digest,
             ));
-            // Store tx_ref -> block_digest mapping for fast lookups
-            inner.tx_ref_to_block_digest.insert(
-                (
-                    block_ref.author,
-                    block_ref.round,
-                    block_header.transactions_commitment(),
-                ),
-                block_ref.digest,
-            );
             for vote in block_header.commit_votes() {
                 inner
                     .commit_votes
@@ -522,22 +509,6 @@ impl Store for MemStore {
             })
             .collect();
         Ok(exist)
-    }
-
-    fn lookup_block_digests_by_tx_refs(
-        &self,
-        tx_refs: &[TransactionRef],
-    ) -> ConsensusResult<Vec<Option<BlockHeaderDigest>>> {
-        let inner = self.inner.read();
-        Ok(tx_refs
-            .iter()
-            .map(|tx| {
-                inner
-                    .tx_ref_to_block_digest
-                    .get(&(tx.author, tx.round, tx.transactions_commitment))
-                    .copied()
-            })
-            .collect())
     }
 
     fn read_voting_block_headers(
