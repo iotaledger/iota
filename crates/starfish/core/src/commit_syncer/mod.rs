@@ -62,7 +62,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     network::NetworkClient,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
-    transaction_ref::GenericTransactionRef,
+    transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 pub(crate) enum CommitSyncType {
     Fast,
@@ -319,8 +319,7 @@ pub(crate) fn verify_transactions_with_headers(
         // Step 3: Create a VerifiedTransactions instance and insert into map
         let verified_transactions = VerifiedTransactions::new(
             transactions,
-            block_ref,
-            block_header.transactions_commitment(),
+            TransactionRef::new(block_ref, block_header.transactions_commitment()),
             inner_serialized_transactions,
         );
 
@@ -353,11 +352,6 @@ pub(crate) fn verify_transactions_with_transactions_refs(
                 });
             }
         };
-        let block_ref = BlockRef {
-            round: transaction_ref.round,
-            author: transaction_ref.author,
-            digest: transaction_ref.block_digest,
-        };
         // Step 1: Verify that the transaction commitment matches.
         if transaction_ref.transactions_commitment
             != TransactionsCommitment::compute_transactions_commitment(
@@ -379,12 +373,8 @@ pub(crate) fn verify_transactions_with_transactions_refs(
             .map_err(ConsensusError::MalformedTransactions)?;
 
         // Step 3: Create a VerifiedTransactions instance and insert into map
-        let verified_transactions = VerifiedTransactions::new(
-            transactions,
-            block_ref,
-            transaction_ref.transactions_commitment,
-            inner_serialized_transactions,
-        );
+        let verified_transactions =
+            VerifiedTransactions::new(transactions, transaction_ref, inner_serialized_transactions);
 
         verified_transactions_map.insert(
             GenericTransactionRef::TransactionRef(transaction_ref),

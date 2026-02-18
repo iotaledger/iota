@@ -1003,18 +1003,12 @@ impl PartialEq for VerifiedTransactions {
 impl VerifiedTransactions {
     pub(crate) fn new(
         transactions: Vec<Transaction>,
-        block_ref: BlockRef,
-        transactions_commitment: TransactionsCommitment,
+        transaction_ref: TransactionRef,
         serialized: Bytes,
     ) -> Self {
         Self {
             transactions,
-            transaction_ref: TransactionRef {
-                round: block_ref.round,
-                author: block_ref.author,
-                transactions_commitment,
-                block_digest: block_ref.digest,
-            },
+            transaction_ref,
             serialized,
         }
     }
@@ -1084,12 +1078,7 @@ impl VerifiedBlock {
         let verified_block_header = VerifiedBlockHeader::new_for_test(block_header);
         let verified_transactions = VerifiedTransactions::new(
             vec![],
-            BlockRef::new(
-                verified_block_header.round(),
-                verified_block_header.author(),
-                verified_block_header.digest(),
-            ),
-            verified_block_header.transactions_commitment(),
+            verified_block_header.transaction_ref(),
             Bytes::from(bcs::to_bytes::<Vec<Transaction>>(&vec![]).unwrap()),
         );
         Self {
@@ -1103,12 +1092,7 @@ impl VerifiedBlock {
         let verified_block_header = VerifiedBlockHeader::new_for_test(block_header);
         let verified_transactions = VerifiedTransactions::new(
             vec![],
-            BlockRef::new(
-                verified_block_header.round(),
-                verified_block_header.author(),
-                verified_block_header.digest(),
-            ),
-            verified_block_header.transactions_commitment(),
+            verified_block_header.transaction_ref(),
             Bytes::from(
                 bcs::to_bytes::<Vec<Transaction>>(
                     &vec![vec![tx; 16]]
@@ -1164,8 +1148,7 @@ pub(crate) fn genesis_blocks(context: &Context) -> Vec<VerifiedBlock> {
                 verified_block_header: verified_block_header.clone(),
                 verified_transactions: VerifiedTransactions::new(
                     vec![],
-                    verified_block_header.reference(),
-                    verified_block_header.transactions_commitment(),
+                    verified_block_header.transaction_ref(),
                     Bytes::from(bcs::to_bytes::<Vec<Transaction>>(&vec![]).unwrap()),
                 ),
             }

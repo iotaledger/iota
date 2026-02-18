@@ -28,6 +28,17 @@ pub struct TransactionRef {
     pub block_digest: BlockHeaderDigest,
 }
 
+impl TransactionRef {
+    pub fn new(block_ref: BlockRef, transactions_commitment: TransactionsCommitment) -> Self {
+        Self {
+            round: block_ref.round,
+            author: block_ref.author,
+            transactions_commitment,
+            block_digest: block_ref.digest,
+        }
+    }
+}
+
 impl Ord for TransactionRef {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.round

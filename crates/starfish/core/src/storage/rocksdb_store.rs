@@ -416,18 +416,13 @@ impl Store for RocksDBStore {
                 let GenericTransactionRef::TransactionRef(tx_ref) = gen_tx_ref else {
                     return Err(ConsensusError::InconsistentTransactionRefVariants);
                 };
-                let block_ref = BlockRef::from(*tx_ref);
                 if let Some(serialized_transactions) = serialized_transactions {
                     let transactions: Vec<Transaction> = bcs::from_bytes(&serialized_transactions)
                         .map_err(ConsensusError::MalformedTransactions)?;
                     // We don't check the transactions commitment from the header as it's loaded
                     // from storage. Assemble verified transactions
-                    let verified_transactions = VerifiedTransactions::new(
-                        transactions,
-                        block_ref,
-                        tx_ref.transactions_commitment,
-                        serialized_transactions,
-                    );
+                    let verified_transactions =
+                        VerifiedTransactions::new(transactions, *tx_ref, serialized_transactions);
                     result.push(Some(verified_transactions));
                 } else {
                     result.push(None);
@@ -465,8 +460,10 @@ impl Store for RocksDBStore {
                     // from storage. Assemble verified transactions
                     let verified_transactions = VerifiedTransactions::new(
                         transactions,
-                        *block_ref,
-                        signed_block_header.transactions_commitment(),
+                        TransactionRef::new(
+                            *block_ref,
+                            signed_block_header.transactions_commitment(),
+                        ),
                         serialized_transactions,
                     );
                     result.push(Some(verified_transactions));

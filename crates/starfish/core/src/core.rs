@@ -944,8 +944,7 @@ impl Core {
         // Construct verified transactions to be used for storing and broadcasting
         let verified_transactions = VerifiedTransactions::new(
             transactions,
-            verified_block_header.reference(),
-            transactions_commitment,
+            verified_block_header.transaction_ref(),
             serialized_transactions,
         );
         let verified_block = VerifiedBlock {

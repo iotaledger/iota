@@ -210,8 +210,7 @@ impl ShardAccumulator {
 
         Ok(VerifiedTransactions::new(
             transactions,
-            self.block_ref,
-            self.transactions_commitment,
+            TransactionRef::new(self.block_ref, self.transactions_commitment),
             serialized,
         ))
     }
