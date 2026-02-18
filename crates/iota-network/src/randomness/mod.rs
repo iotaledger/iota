@@ -368,7 +368,7 @@ impl RandomnessEventLoop {
         self.highest_requested_round = self.highest_requested_round.split_off(&new_epoch);
         self.round_request_time = self
             .round_request_time
-            .split_off(&(new_epoch, RandomnessRound(0)));
+            .split_off(&(new_epoch, RandomnessRound::new(0)));
         self.received_partial_sigs.clear();
         self.completed_sigs.clear();
         self.highest_completed_round = self.highest_completed_round.split_off(&new_epoch);
@@ -443,7 +443,7 @@ impl RandomnessEventLoop {
 
         if epoch == self.epoch {
             self.remove_partial_sigs_in_range((
-                Bound::Included((RandomnessRound(0), PeerId([0; 32]))),
+                Bound::Included((RandomnessRound::new(0), PeerId([0; 32]))),
                 Bound::Excluded((round + 1, PeerId([0; 32]))),
             ));
             self.completed_sigs = self.completed_sigs.split_off(&(round + 1));
@@ -495,7 +495,7 @@ impl RandomnessEventLoop {
         // If sigs are for a future epoch, we can't fully verify them without DKG
         // output. Save them for later use.
         if epoch != self.epoch || self.peer_share_ids.is_none() {
-            if round.0 >= self.config.max_partial_sigs_rounds_ahead() {
+            if round.value() >= self.config.max_partial_sigs_rounds_ahead() {
                 debug!("skipping received partial sigs for future epoch, round too far ahead",);
                 return;
             }
@@ -528,10 +528,10 @@ impl RandomnessEventLoop {
         // round, whichever is greater.
         let last_completed_signature = self.completed_sigs.last_key_value().map(|(r, _)| *r);
         let last_completed_round = std::cmp::max(last_completed_signature, highest_completed_round)
-            .unwrap_or(RandomnessRound(0));
-        if round.0
+            .unwrap_or(RandomnessRound::new(0));
+        if round.value()
             >= last_completed_round
-                .0
+                .value()
                 .saturating_add(self.config.max_partial_sigs_rounds_ahead())
         {
             debug!(
@@ -856,17 +856,17 @@ impl RandomnessEventLoop {
             if let Some(highest_completed_round) = self.highest_completed_round.get(&self.epoch) {
                 highest_completed_round.checked_add(1).unwrap()
             } else {
-                RandomnessRound(0)
+                RandomnessRound::new(0)
             },
             self.send_tasks
                 .last_key_value()
                 .map(|(r, _)| r.checked_add(1).unwrap())
-                .unwrap_or(RandomnessRound(0)),
+                .unwrap_or(RandomnessRound::new(0)),
         );
 
         let mut rounds_to_aggregate = Vec::new();
-        for round in start_round.0..=highest_requested_round.0 {
-            let round = RandomnessRound(round);
+        for round in start_round.value()..=highest_requested_round.value() {
+            let round = RandomnessRound::new(round);
 
             if self.send_tasks.len() >= self.config.max_partial_sigs_concurrent_sends() {
                 break; // limit concurrent tasks
@@ -1024,12 +1024,12 @@ impl RandomnessEventLoop {
         let highest_requested_round = self
             .highest_requested_round
             .get(&self.epoch)
-            .map(|r| r.0)
+            .map(|r| r.value())
             .unwrap_or(0);
         let highest_completed_round = self
             .highest_completed_round
             .get(&self.epoch)
-            .map(|r| r.0)
+            .map(|r| r.value())
             .unwrap_or(0);
         let num_rounds_pending =
             highest_requested_round.saturating_sub(highest_completed_round) as i64;
