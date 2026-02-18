@@ -563,7 +563,7 @@ impl IotaTransactionBlockKind {
             TransactionKind::RandomnessStateUpdate(update) => {
                 Ok(Self::RandomnessStateUpdate(IotaRandomnessStateUpdate {
                     epoch: update.epoch,
-                    randomness_round: update.randomness_round.0,
+                    randomness_round: update.randomness_round.value(),
                     random_bytes: update.random_bytes,
                 }))
             }
