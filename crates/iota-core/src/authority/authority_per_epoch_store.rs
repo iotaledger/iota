@@ -97,8 +97,9 @@ use crate::{
     authority::{
         AuthorityMetrics, ResolverWrapper,
         authority_per_epoch_store::{
-            misbehavior_config::MisbehaviorConfig, misbehavior_monitor::MisbehaviorMonitor,
-            report_aggregator::ReportAggregator,
+            misbehavior_config::MisbehaviorConfig,
+            misbehavior_monitor::MisbehaviorMonitor,
+            report_aggregator::{DBReceivedReportsStatePerAuthority, ReportAggregator},
         },
         epoch_start_configuration::EpochStartConfiguration,
         shared_object_congestion_tracker::CongestionPerObjectDebt,
@@ -853,6 +854,9 @@ pub struct AuthorityEpochTables {
 
     /// Accumulated per-object debts for randomness congestion control.
     congestion_control_randomness_object_debts: DBMap<ObjectID, CongestionPerObjectDebt>,
+
+    /// Full snapshot of the scorer's received reports state by authority
+    pub(crate) received_reports_state: DBMap<u32, DBReceivedReportsStatePerAuthority>,
 }
 
 fn signed_transactions_table_default_config() -> DBOptions {
