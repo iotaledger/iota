@@ -160,6 +160,15 @@ export interface AutoLockUpdatedProperties {
     lockTimeSeconds: number;
 }
 
+export interface BalanceFinderUsedProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    accountType?: string;
+}
+
 export interface ClickedAppsBannerCtaProperties {
     /**
      * | Rule | Value |
@@ -661,6 +670,14 @@ export class AutoLockUpdated implements BaseEvent {
     event_type = 'auto lock updated';
 
     constructor(public event_properties: AutoLockUpdatedProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class BalanceFinderUsed implements BaseEvent {
+    event_type = 'balance finder used';
+
+    constructor(public event_properties?: BalanceFinderUsedProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -1256,6 +1273,23 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new AutoLockUpdated(properties), options);
+  }
+
+  /**
+   * balance finder used
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/balance%20finder%20used)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. accountType)
+   * @param options Amplitude event options.
+   */
+  balanceFinderUsed(
+    properties?: BalanceFinderUsedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new BalanceFinderUsed(properties), options);
   }
 
   /**
