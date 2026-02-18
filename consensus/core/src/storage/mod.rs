@@ -9,8 +9,8 @@ pub(crate) mod rocksdb_store;
 #[cfg(test)]
 mod store_tests;
 
-use consensus_config::AuthorityIndex;
-use iota_common::scoring_metrics::VersionedStorageScoringMetrics;
+use consensus_config::{AuthorityIndex, Committee};
+use iota_common::scoring_metrics::VersionedScoringMetrics;
 
 use crate::{
     CommitIndex,
@@ -45,7 +45,8 @@ pub(crate) trait Store: Send + Sync {
     /// metrics in case of DagState initialization from storage
     fn scan_scoring_metrics(
         &self,
-    ) -> ConsensusResult<Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>>;
+        committee: &Committee,
+    ) -> ConsensusResult<Option<VersionedScoringMetrics>>;
 
     /// Returns the last `num_of_rounds` rounds blocks by author in round
     /// ascending order. When a `before_round` is defined then the blocks of
@@ -78,7 +79,7 @@ pub(crate) struct WriteBatch {
     pub(crate) blocks: Vec<VerifiedBlock>,
     pub(crate) commits: Vec<TrustedCommit>,
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
-    pub(crate) scoring_metrics: Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>,
+    pub(crate) scoring_metrics: Option<VersionedScoringMetrics>,
 }
 
 impl WriteBatch {
@@ -86,13 +87,13 @@ impl WriteBatch {
         blocks: Vec<VerifiedBlock>,
         commits: Vec<TrustedCommit>,
         commit_info: Vec<(CommitRef, CommitInfo)>,
-        scoring_metrics: Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>,
+        scoring_metrics: VersionedScoringMetrics,
     ) -> Self {
         WriteBatch {
             blocks,
             commits,
             commit_info,
-            scoring_metrics,
+            scoring_metrics: Some(scoring_metrics),
         }
     }
 
@@ -117,19 +118,14 @@ impl WriteBatch {
     }
 
     #[cfg(test)]
-    pub(crate) fn scoring_metrics(
-        mut self,
-        scoring_metrics: Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>,
-    ) -> Self {
-        self.scoring_metrics = scoring_metrics;
+    pub(crate) fn scoring_metrics(mut self, scoring_metrics: VersionedScoringMetrics) -> Self {
+        self.scoring_metrics = Some(scoring_metrics);
         self
     }
 }
 
-// This struct is used in storage. It holds the same data as
-// `UncachedScoringMetrics`, but uses `u64` instead of `AtomicU64`.
-// NOTE: This type is deprecated and should be removed once the metrics are
-// migrated to VersionedStorageScoringMetrics type.
+// Legacy storage type for scoring metrics. Kept only for migration from
+// the old per-authority format to the new single-blob VersionedScoringMetrics.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
 pub(crate) struct StorageScoringMetrics {
     pub(crate) faulty_blocks_provable: u64,

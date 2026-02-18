@@ -4,7 +4,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use iota_protocol_config::ProtocolConfig;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tracing::warn;
 
 use crate::{messages_consensus::VersionedMisbehaviorReport, misbehavior_counts::MisbehaviorsV1};
@@ -13,9 +13,41 @@ use crate::{messages_consensus::VersionedMisbehaviorReport, misbehavior_counts::
 // Each field is a `Vec<AtomicU64>` with one entry per authority.
 type ScoringMetricsV1 = MisbehaviorsV1<Vec<AtomicU64>>;
 
+// We can't serialize VersionedScoringMetrics directly because it contains
+// atomic types. This type is only introduces to enable this serialization.
+// Converts between atomic (in-memory) and non-atomic (serialized)
+// representations.
+#[derive(Serialize, Deserialize)]
+enum SerializableScoringMetrics {
+    V1(MisbehaviorsV1<Vec<u64>>),
+}
+
 // Versioned container for scoring metrics using atomic counters.
+#[derive(Debug)]
 pub enum VersionedScoringMetrics {
     V1(ScoringMetricsV1),
+}
+
+impl Serialize for VersionedScoringMetrics {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let serializable = match self {
+            VersionedScoringMetrics::V1(metrics) => {
+                SerializableScoringMetrics::V1(metrics.as_non_atomic())
+            }
+        };
+        serializable.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for VersionedScoringMetrics {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let serializable = SerializableScoringMetrics::deserialize(deserializer)?;
+        Ok(match serializable {
+            SerializableScoringMetrics::V1(non_atomic) => {
+                VersionedScoringMetrics::V1(non_atomic.as_atomic())
+            }
+        })
+    }
 }
 
 // Basic getters, setters and increments for the metrics. We also introduce
@@ -180,25 +212,12 @@ impl VersionedScoringMetrics {
     }
 
     pub fn reset(&self) {
-        match self {
-            VersionedScoringMetrics::V1(metrics) => {
-                for metric in metrics.faulty_blocks_provable() {
-                    metric.store(0, Ordering::Relaxed);
-                }
-                for metric in metrics.faulty_blocks_unprovable() {
-                    metric.store(0, Ordering::Relaxed);
-                }
-                for metric in metrics.equivocations() {
-                    metric.store(0, Ordering::Relaxed);
-                }
-                for metric in metrics.missing_proposals() {
-                    metric.store(0, Ordering::Relaxed);
-                }
-            }
+        for metric in self.iter().flatten() {
+            metric.store(0, Ordering::Relaxed);
         }
     }
 
-    pub fn iterate_over_metrics(&self) -> std::vec::IntoIter<&Vec<AtomicU64>> {
+    pub fn iter(&self) -> std::vec::IntoIter<&Vec<AtomicU64>> {
         match self {
             VersionedScoringMetrics::V1(metrics) => metrics.iter(),
         }
@@ -218,11 +237,7 @@ impl VersionedScoringMetrics {
                 "Metrics counts being updated according to a report with incompatible version, but report versions were already checked before this point!"
             );
         }
-        for (current_value, new_value) in self
-            .iterate_over_metrics()
-            .flatten()
-            .zip(report.iterate_over_metrics().flatten())
-        {
+        for (current_value, new_value) in self.iter().flatten().zip(report.iter().flatten()) {
             current_value.fetch_max(*new_value, Ordering::Relaxed);
         }
     }
@@ -258,55 +273,14 @@ impl VersionedScoringMetrics {
             (VersionedScoringMetrics::V1(_), VersionedMisbehaviorReport::V1(_, _)) => true,
         }
     }
-}
 
-// Misbehavior counts using u64, used for storage. Given an authority, each
-// field of this type is a u64 with the metric value for that specific
-// authority.
-type StorageScoringMetricsV1 = MisbehaviorsV1<u64>;
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub enum VersionedStorageScoringMetrics {
-    V1(StorageScoringMetricsV1),
-}
-
-impl VersionedStorageScoringMetrics {
-    pub fn new_zeroed(protocol_config: &ProtocolConfig) -> Self {
-        match protocol_config.scorer_version_as_option() {
-            None | Some(1) => {
-                VersionedStorageScoringMetrics::V1(StorageScoringMetricsV1::new_zeroed())
-            }
-            _ => panic!("Unsupported scorer version"),
-        }
-    }
-
-    pub fn new_from(scoring_metrics: &VersionedScoringMetrics, authority_index: usize) -> Self {
-        match scoring_metrics {
-            VersionedScoringMetrics::V1(misbehavior_vectors) => {
-                let inner = misbehavior_vectors.misbehaviors_from_authority(authority_index);
-                VersionedStorageScoringMetrics::V1(inner)
-            }
-        }
-    }
-
-    // Returns an iterator over references to the metric values.
-    pub fn iterate_over_metrics(&self) -> std::vec::IntoIter<&u64> {
+    // Creates an independent snapshot by reading all atomic values and creating
+    // new atomics. Used to produce an owned copy for storage writes.
+    pub fn snapshot(&self) -> Self {
         match self {
-            VersionedStorageScoringMetrics::V1(inner) => inner.iter(),
+            VersionedScoringMetrics::V1(metrics) => {
+                VersionedScoringMetrics::V1(metrics.as_non_atomic().as_atomic())
+            }
         }
-    }
-
-    pub fn new_v1_for_test(
-        faulty_blocks_provable: u64,
-        faulty_blocks_unprovable: u64,
-        missing_proposals: u64,
-        equivocations: u64,
-    ) -> Self {
-        VersionedStorageScoringMetrics::V1(StorageScoringMetricsV1::new(
-            faulty_blocks_provable,
-            faulty_blocks_unprovable,
-            missing_proposals,
-            equivocations,
-        ))
     }
 }

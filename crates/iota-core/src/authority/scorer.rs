@@ -227,7 +227,7 @@ fn calculate_median_report(
     // process.
     assert!(!reports_and_voting_power.is_empty());
 
-    let number_of_metrics = reports_and_voting_power[0].0.iterate_over_metrics().len();
+    let number_of_metrics = reports_and_voting_power[0].0.iter().len();
 
     // In the case of the example in the method documentation,
     // reports_and_voting_power_per_metric should be
@@ -238,7 +238,7 @@ fn calculate_median_report(
     let mut reports_and_voting_power_per_metric: Vec<Vec<(MetricVec, VotingPower)>> =
         vec![vec![]; number_of_metrics];
     for (versioned_report, voting_power) in reports_and_voting_power.iter() {
-        for (i, metric) in versioned_report.iterate_over_metrics().enumerate() {
+        for (i, metric) in versioned_report.iter().enumerate() {
             reports_and_voting_power_per_metric[i].push((metric.clone(), *voting_power));
         }
     }

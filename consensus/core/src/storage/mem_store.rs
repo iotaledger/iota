@@ -7,8 +7,8 @@ use std::{
     ops::Bound::Included,
 };
 
-use consensus_config::AuthorityIndex;
-use iota_common::scoring_metrics::VersionedStorageScoringMetrics;
+use consensus_config::{AuthorityIndex, Committee};
+use iota_common::scoring_metrics::VersionedScoringMetrics;
 use parking_lot::RwLock;
 
 use super::{Store, WriteBatch};
@@ -20,6 +20,7 @@ use crate::{
     },
     error::ConsensusResult,
 };
+
 /// In-memory storage for testing.
 pub(crate) struct MemStore {
     inner: RwLock<Inner>,
@@ -31,7 +32,7 @@ struct Inner {
     commits: BTreeMap<(CommitIndex, CommitDigest), TrustedCommit>,
     commit_votes: BTreeSet<(CommitIndex, CommitDigest, BlockRef)>,
     commit_info: BTreeMap<(CommitIndex, CommitDigest), CommitInfo>,
-    scoring_metrics: BTreeMap<AuthorityIndex, VersionedStorageScoringMetrics>,
+    scoring_metrics: Option<VersionedScoringMetrics>,
 }
 
 impl MemStore {
@@ -43,7 +44,7 @@ impl MemStore {
                 commits: BTreeMap::new(),
                 commit_votes: BTreeSet::new(),
                 commit_info: BTreeMap::new(),
-                scoring_metrics: BTreeMap::new(),
+                scoring_metrics: None,
             }),
         }
     }
@@ -83,9 +84,10 @@ impl Store for MemStore {
                 .insert((commit_ref.index, commit_ref.digest), commit_info);
         }
 
-        for (authority, metrics) in write_batch.scoring_metrics {
-            inner.scoring_metrics.insert(authority, metrics);
+        if let Some(metrics) = write_batch.scoring_metrics {
+            inner.scoring_metrics = Some(metrics);
         }
+
         Ok(())
     }
 
@@ -134,14 +136,12 @@ impl Store for MemStore {
 
     fn scan_scoring_metrics(
         &self,
-    ) -> ConsensusResult<Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>> {
-        let inner = self.inner.read();
-        let metrics_by_author = inner
-            .scoring_metrics
-            .iter()
-            .map(|(&authority_index, metrics)| (authority_index, metrics.clone()))
-            .collect::<Vec<_>>();
-        Ok(metrics_by_author)
+        _committee: &Committee,
+    ) -> ConsensusResult<Option<VersionedScoringMetrics>> {
+        match &self.inner.read().scoring_metrics {
+            Some(metrics) => Ok(Some(metrics.snapshot())),
+            None => Ok(None),
+        }
     }
 
     fn contains_block_at_slot(&self, slot: Slot) -> ConsensusResult<bool> {

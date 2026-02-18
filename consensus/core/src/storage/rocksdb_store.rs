@@ -5,10 +5,8 @@
 use std::{ops::Bound::Included, time::Duration};
 
 use bytes::Bytes;
-use consensus_config::AuthorityIndex;
-use iota_common::{
-    misbehavior_counts::MisbehaviorsV1, scoring_metrics::VersionedStorageScoringMetrics,
-};
+use consensus_config::{AuthorityIndex, Committee};
+use iota_common::{misbehavior_counts::MisbehaviorsV1, scoring_metrics::VersionedScoringMetrics};
 use iota_macros::fail_point;
 use typed_store::{
     Map as _,
@@ -39,9 +37,11 @@ pub(crate) struct RocksDBStore {
     /// Stores info related to Commit that helps recovery.
     commit_info: DBMap<(CommitIndex, CommitDigest), CommitInfo>,
     /// Legacy scoring metrics (read-only).
+    /// TODO: remove this field after migration is done.
+    #[deprecated]
     scoring_metrics: DBMap<AuthorityIndex, StorageScoringMetrics>,
-    /// Stores versioned scoring metrics for each authority.
-    scoring_metrics_v2: DBMap<AuthorityIndex, VersionedStorageScoringMetrics>,
+    /// Stores versioned scoring metrics as a single blob under key `()`.
+    scoring_metrics_v2: DBMap<(), VersionedScoringMetrics>,
 }
 
 impl RocksDBStore {
@@ -100,7 +100,7 @@ impl RocksDBStore {
             Self::COMMIT_VOTES_CF;<(CommitIndex, CommitDigest, BlockRef), ()>,
             Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>,
             Self::SCORING_METRICS_CF;<AuthorityIndex, StorageScoringMetrics>,
-            Self::SCORING_METRICS_V2_CF;<AuthorityIndex, VersionedStorageScoringMetrics>
+            Self::SCORING_METRICS_V2_CF;<(), VersionedScoringMetrics>
         );
 
         Self {
@@ -109,6 +109,7 @@ impl RocksDBStore {
             commits,
             commit_votes,
             commit_info,
+            #[allow(deprecated)]
             scoring_metrics,
             scoring_metrics_v2,
         }
@@ -164,11 +165,12 @@ impl Store for RocksDBStore {
                 )
                 .map_err(ConsensusError::RocksDBFailure)?;
         }
-        for (authority, metrics) in write_batch.scoring_metrics {
+        if let Some(metrics) = &write_batch.scoring_metrics {
             batch
-                .insert_batch(&self.scoring_metrics_v2, [(authority, metrics)])
+                .insert_batch(&self.scoring_metrics_v2, [(&(), metrics)])
                 .map_err(ConsensusError::RocksDBFailure)?;
         }
+
         batch.write()?;
         fail_point!("consensus-store-after-write");
         Ok(())
@@ -241,52 +243,37 @@ impl Store for RocksDBStore {
         Ok(blocks)
     }
 
-    // This method is currently not only a scan, but it also performs migration from
-    // the legacy `StorageScoringMetrics` type to the new
-    // `VersionedStorageScoringMetrics`. This migration logic should be deleted
-    // after `StorageScoringMetrics` is removed. The writes in this method are
-    // only triggered once (for a one-time migration).
+    // Reads scoring metrics from the v2 CF (single blob under key `()`). If not
+    // found, falls back to the legacy per-authority `StorageScoringMetrics` CF,
+    // and reconstructs a single `VersionedScoringMetrics` blob. The legacy
+    // migration logic should be deleted after `StorageScoringMetrics` is
+    // removed.
     fn scan_scoring_metrics(
         &self,
-    ) -> ConsensusResult<Vec<(AuthorityIndex, VersionedStorageScoringMetrics)>> {
-        // Check the new scoring metrics field first. If it is not empty, it means the
-        // migration has been done and we can ignore the legacy field entirely. If
-        // the new scoring metrics field is empty, then we read from the legacy field,
-        // convert the data to the new format, and write them to the new field for
-        // future reads.
-        let mut metrics_by_author = vec![];
-        for kv in self.scoring_metrics_v2.safe_iter() {
-            metrics_by_author.push(kv?);
+        committee: &Committee,
+    ) -> ConsensusResult<Option<VersionedScoringMetrics>> {
+        // Try to read the single blob from the v2 CF first.
+        if let Some(metrics) = self.scoring_metrics_v2.get(&())? {
+            return Ok(Some(metrics));
         }
 
-        if metrics_by_author.is_empty() {
-            for kv in self.scoring_metrics.safe_iter() {
-                let (authority, old) = kv?;
-                let converted = VersionedStorageScoringMetrics::V1(MisbehaviorsV1::new(
-                    old.faulty_blocks_provable,
-                    old.faulty_blocks_unprovable,
-                    old.missing_proposals,
-                    old.equivocations,
-                ));
-                metrics_by_author.push((authority, converted));
-            }
-
-            if !metrics_by_author.is_empty() {
-                tracing::info!(
-                    "Migrating {} legacy scoring metrics entries to new type",
-                    metrics_by_author.len()
-                );
-                let mut batch = self.scoring_metrics_v2.batch();
-                for (authority, metrics) in &metrics_by_author {
-                    batch
-                        .insert_batch(&self.scoring_metrics_v2, [(*authority, metrics.clone())])
-                        .map_err(ConsensusError::RocksDBFailure)?;
-                }
-                batch.write()?;
-            }
+        // Fall back to v1 (per-authority) CF.
+        let mut legacy_entries = vec![];
+        #[allow(deprecated)]
+        for kv in self.scoring_metrics.safe_iter() {
+            legacy_entries.push(kv?);
         }
 
-        Ok(metrics_by_author)
+        if legacy_entries.is_empty() {
+            return Ok(None);
+        }
+
+        // If v1 (per-authority) CF is not empty, return the data migrated to v2 format.
+        // Note that we do not write the migrated data to the v2 CF here, since the data
+        // will be added to the v2 CF after the first write.
+        let scoring_metrics_v2 = migrate_stored_metrics(legacy_entries, committee);
+
+        Ok(Some(scoring_metrics_v2))
     }
 
     // The method returns the last `num_of_rounds` rounds blocks by author in round
@@ -381,6 +368,46 @@ impl Store for RocksDBStore {
     }
 }
 
+// TODO: delete this function after the migration is done and the legacy
+// `StorageScoringMetrics` field is removed.
+fn migrate_stored_metrics(
+    legacy_entries: Vec<(AuthorityIndex, StorageScoringMetrics)>,
+    committee: &Committee,
+) -> VersionedScoringMetrics {
+    let committee_size = committee.size();
+
+    // Reconstruct vectors from per-authority entries.
+    let mut faulty_blocks_provable = vec![0u64; committee_size];
+    let mut faulty_blocks_unprovable = vec![0u64; committee_size];
+    let mut missing_proposals = vec![0u64; committee_size];
+    let mut equivocations = vec![0u64; committee_size];
+
+    for (authority_index, old) in &legacy_entries {
+        let idx = authority_index.value();
+        faulty_blocks_provable[idx] = old.faulty_blocks_provable;
+        faulty_blocks_unprovable[idx] = old.faulty_blocks_unprovable;
+        missing_proposals[idx] = old.missing_proposals;
+        equivocations[idx] = old.equivocations;
+    }
+
+    let blob = VersionedScoringMetrics::V1(
+        MisbehaviorsV1::new(
+            faulty_blocks_provable,
+            faulty_blocks_unprovable,
+            missing_proposals,
+            equivocations,
+        )
+        .as_atomic(),
+    );
+
+    tracing::info!(
+        "Migrating {} legacy scoring metrics entries to single-blob format",
+        legacy_entries.len()
+    );
+
+    blob
+}
+
 // The following method is only used for testing and simulates the existence of
 // legacy-format scoring metrics in the old `StorageScoringMetrics` field. It
 // should be removed after the migration is done and the legacy field is
@@ -393,14 +420,16 @@ impl RocksDBStore {
         &self,
         entries: Vec<(AuthorityIndex, [u64; 4])>,
     ) -> ConsensusResult<()> {
+        #[allow(deprecated)]
         let mut batch = self.scoring_metrics.batch();
-        for (authority, [fbp, fbu, equiv, missing]) in entries {
+        for (authority, [fbp, fbu, missing, equiv]) in entries {
             let legacy = StorageScoringMetrics {
                 faulty_blocks_provable: fbp,
                 faulty_blocks_unprovable: fbu,
-                equivocations: equiv,
                 missing_proposals: missing,
+                equivocations: equiv,
             };
+            #[allow(deprecated)]
             batch
                 .insert_batch(&self.scoring_metrics, [(authority, legacy)])
                 .map_err(ConsensusError::RocksDBFailure)?;
@@ -410,92 +439,95 @@ impl RocksDBStore {
     }
 }
 
-/// Verifies that legacy `StorageScoringMetrics` written to store are correctly
-/// read, converted, and ported to the new `VersionedStorageScoringMetrics`
-/// field by `scan_scoring_metrics()`.
+/// Tests all scan_scoring_metrics scenarios: empty store, legacy-only,
+/// legacy updates, v2-only, v2 updates, and v2 taking priority over legacy.
 #[tokio::test]
 async fn scan_scoring_metrics_legacy_migration() {
+    use consensus_config::{AuthorityIndex, Stake, local_committee_and_keys};
     use tempfile::TempDir;
 
     let temp_dir = TempDir::new().unwrap();
     let store = RocksDBStore::new(temp_dir.path().to_str().unwrap());
+    let epoch = 100;
+    let authority_stakes = (1..=2).map(|s| s as Stake).collect();
+    let (committee, _) = local_committee_and_keys(epoch, authority_stakes);
 
-    let authorities = [
-        AuthorityIndex::new_for_test(0),
-        AuthorityIndex::new_for_test(1),
-    ];
+    // Case 1: Empty store — no legacy, no v2. Should return None.
+    let result = store.scan_scoring_metrics(&committee).unwrap();
+    assert!(result.is_none());
 
-    // Write legacy-format data: [faulty_blocks_provable, faulty_blocks_unprovable,
-    // equivocations, missing_proposals] — note the old struct has equivocations
-    // before missing_proposals.
+    // Case 2: Only legacy data — falls back to legacy CF and returns migrated data.
+    // Array order: [faulty_blocks_provable, faulty_blocks_unprovable,
+    // missing_proposals, equivocations].
     store
         .write_legacy_scoring_metrics(vec![
-            (authorities[0], [10, 20, 40, 30]),
-            (authorities[1], [0, 0, 0, 0]),
+            (AuthorityIndex::new_for_test(0), [10, 20, 30, 40]),
+            (AuthorityIndex::new_for_test(1), [0, 0, 0, 0]),
         ])
         .unwrap();
 
-    let expected = vec![
-        (
-            authorities[0],
-            VersionedStorageScoringMetrics::V1(MisbehaviorsV1::new(10, 20, 30, 40)),
-        ),
-        (
-            authorities[1],
-            VersionedStorageScoringMetrics::V1(MisbehaviorsV1::new(0, 0, 0, 0)),
-        ),
-    ];
+    let scanned = store.scan_scoring_metrics(&committee).unwrap().unwrap();
+    assert_eq!(scanned.load_faulty_blocks_provable(), vec![10, 0]);
+    assert_eq!(scanned.load_faulty_blocks_unprovable(), vec![20, 0]);
+    assert_eq!(scanned.load_missing_proposals(), vec![30, 0]);
+    assert_eq!(scanned.load_equivocations(), vec![40, 0]);
 
-    // First scan: new CF is empty, falls back to legacy and ports data.
-    let scanned = store
-        .scan_scoring_metrics()
-        .expect("scan_scoring_metrics should not fail");
-    assert_eq!(scanned, expected);
-
-    // Update legacy-format data: [faulty_blocks_provable, faulty_blocks_unprovable,
-    // equivocations, missing_proposals].
+    // Case 3: Legacy data updated — scan does not cache to v2, so the updated
+    // legacy values are returned.
     store
         .write_legacy_scoring_metrics(vec![
-            (authorities[0], [40, 50, 60, 70]),
-            (authorities[1], [0, 0, 0, 0]),
+            (AuthorityIndex::new_for_test(0), [50, 60, 70, 80]),
+            (AuthorityIndex::new_for_test(1), [0, 0, 0, 0]),
         ])
         .unwrap();
 
-    // Second scan: data was ported to the new CF by the first scan, so this
-    // reads from the new CF directly (the legacy fallback path is not taken
-    // because the new CF is no longer empty). The legacy updates should not affect
-    // the scanned data, which should be the same as after the first scan.
-    let scanned = store
-        .scan_scoring_metrics()
-        .expect("scan_scoring_metrics should not fail");
-    assert_eq!(scanned, expected);
+    let scanned = store.scan_scoring_metrics(&committee).unwrap().unwrap();
+    assert_eq!(scanned.load_faulty_blocks_provable(), vec![50, 0]);
+    assert_eq!(scanned.load_faulty_blocks_unprovable(), vec![60, 0]);
+    assert_eq!(scanned.load_missing_proposals(), vec![70, 0]);
+    assert_eq!(scanned.load_equivocations(), vec![80, 0]);
 
-    // Directly read from the legacy field to verify that the data there is indeed
-    // updated, but it did not affect the scan results.
-    let mut scanned_from_legacy = vec![];
-    for kv in store.scoring_metrics.safe_iter() {
-        scanned_from_legacy.push(kv.unwrap());
-    }
+    // Case 4: Write v2 data via WriteBatch. V2 should now take priority over
+    // legacy.
+    let v2_blob = VersionedScoringMetrics::V1(
+        MisbehaviorsV1::new(vec![1, 2], vec![3, 4], vec![5, 6], vec![7, 8]).as_atomic(),
+    );
+    store
+        .write(WriteBatch::default().scoring_metrics(v2_blob.snapshot()))
+        .unwrap();
 
-    let expected_from_legacy = vec![
-        (
-            authorities[0],
-            StorageScoringMetrics {
-                faulty_blocks_provable: 40,
-                faulty_blocks_unprovable: 50,
-                equivocations: 60,
-                missing_proposals: 70,
-            },
-        ),
-        (
-            authorities[1],
-            StorageScoringMetrics {
-                faulty_blocks_provable: 0,
-                faulty_blocks_unprovable: 0,
-                equivocations: 0,
-                missing_proposals: 0,
-            },
-        ),
-    ];
-    assert_eq!(scanned_from_legacy, expected_from_legacy);
+    let scanned = store.scan_scoring_metrics(&committee).unwrap().unwrap();
+    assert_eq!(scanned.load_faulty_blocks_provable(), vec![1, 2]);
+    assert_eq!(scanned.load_faulty_blocks_unprovable(), vec![3, 4]);
+    assert_eq!(scanned.load_missing_proposals(), vec![5, 6]);
+    assert_eq!(scanned.load_equivocations(), vec![7, 8]);
+
+    // Case 5: Update legacy while v2 exists — v2 still takes priority,
+    // legacy changes are ignored.
+    store
+        .write_legacy_scoring_metrics(vec![
+            (AuthorityIndex::new_for_test(0), [99, 99, 99, 99]),
+            (AuthorityIndex::new_for_test(1), [99, 99, 99, 99]),
+        ])
+        .unwrap();
+
+    let scanned = store.scan_scoring_metrics(&committee).unwrap().unwrap();
+    assert_eq!(scanned.load_faulty_blocks_provable(), vec![1, 2]);
+    assert_eq!(scanned.load_faulty_blocks_unprovable(), vec![3, 4]);
+    assert_eq!(scanned.load_missing_proposals(), vec![5, 6]);
+    assert_eq!(scanned.load_equivocations(), vec![7, 8]);
+
+    // Case 6: Update v2 data — scan returns the updated v2 values.
+    let v2_updated = VersionedScoringMetrics::V1(
+        MisbehaviorsV1::new(vec![11, 22], vec![33, 44], vec![55, 66], vec![77, 88]).as_atomic(),
+    );
+    store
+        .write(WriteBatch::default().scoring_metrics(v2_updated.snapshot()))
+        .unwrap();
+
+    let scanned = store.scan_scoring_metrics(&committee).unwrap().unwrap();
+    assert_eq!(scanned.load_faulty_blocks_provable(), vec![11, 22]);
+    assert_eq!(scanned.load_faulty_blocks_unprovable(), vec![33, 44]);
+    assert_eq!(scanned.load_missing_proposals(), vec![55, 66]);
+    assert_eq!(scanned.load_equivocations(), vec![77, 88]);
 }

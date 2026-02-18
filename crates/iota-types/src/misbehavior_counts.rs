@@ -16,7 +16,6 @@ use serde::{Deserialize, Serialize};
 // - `T = Vec<u64>` for reports (one value per authority)
 // - `T = Vec<AtomicU64>` for atomic metrics collected and stored locally (one
 //   atomic per authority)
-// - `T = u64` for per-authority persistent storage
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct MisbehaviorsV1<T> {
     faulty_blocks_provable: T,
@@ -101,13 +100,16 @@ impl<T> FromIterator<T> for MisbehaviorsV1<T> {
     }
 }
 
-impl MisbehaviorsV1<u64> {
-    pub fn new_zeroed() -> Self {
-        Self::new(0, 0, 0, 0)
-    }
-}
-
 impl MisbehaviorsV1<Vec<u64>> {
+    pub fn new_zeroed(committee_size: usize) -> Self {
+        Self::new(
+            vec![0; committee_size],
+            vec![0; committee_size],
+            vec![0; committee_size],
+            vec![0; committee_size],
+        )
+    }
+
     // Verifies that all fields have the expected committee size.
     pub fn verify(&self, committee_size: usize) -> bool {
         self.iter().all(|metric| metric.len() == committee_size)
@@ -122,12 +124,6 @@ impl MisbehaviorsV1<Vec<u64>> {
                     .collect::<Vec<AtomicU64>>()
             })
             .collect::<MisbehaviorsV1<Vec<AtomicU64>>>()
-    }
-
-    pub fn misbehaviors_from_authority(&self, authority: usize) -> MisbehaviorsV1<u64> {
-        self.iter()
-            .map(|metric| metric[authority])
-            .collect::<MisbehaviorsV1<u64>>()
     }
 }
 
@@ -150,12 +146,6 @@ impl MisbehaviorsV1<Vec<AtomicU64>> {
                     .collect::<Vec<u64>>()
             })
             .collect::<MisbehaviorsV1<Vec<u64>>>()
-    }
-
-    pub fn misbehaviors_from_authority(&self, authority: usize) -> MisbehaviorsV1<u64> {
-        self.iter()
-            .map(|metric| metric[authority].load(std::sync::atomic::Ordering::Relaxed))
-            .collect::<MisbehaviorsV1<u64>>()
     }
 }
 

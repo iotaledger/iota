@@ -315,7 +315,7 @@ impl VersionedMisbehaviorReport {
     }
 
     /// Returns an iterator over references to the fields in the report.
-    pub fn iterate_over_metrics(&self) -> std::vec::IntoIter<&Vec<u64>> {
+    pub fn iter(&self) -> std::vec::IntoIter<&Vec<u64>> {
         match self {
             VersionedMisbehaviorReport::V1(report, _) => report.iter(),
         }
