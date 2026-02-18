@@ -36,7 +36,7 @@ ax.set_xlabel(r'$m$', fontsize=18)
 ax.set_ylabel('Cancellation rate (%)', fontsize=18)
 ax.grid(True, alpha=0.3)
 
-ax.legend([bp1["boxes"][0], bp2["boxes"][0]], ['IOTA', 'Sui'], loc='right', fontsize=18)
+ax.legend([bp2["boxes"][0],bp1["boxes"][0]], ['Baseline', 'IOTA'], loc='right', fontsize=18)
 
 plt.tight_layout()
     
@@ -66,7 +66,7 @@ bp2 = ax.plot(np.mean(data, axis=0), linestyle='None', marker='D', markerfacecol
 ax.set_xlabel(r'$m$', fontsize=18)
 ax.set_ylabel('Average active workers', fontsize=18)
 ax.grid(True, alpha=0.3)
-ax.legend(['IOTA', 'Sui'], loc='right', fontsize=18)
+ax.legend(['IOTA', 'Baseline'], loc='right', fontsize=18)
 
 plt.tight_layout()
     
@@ -101,7 +101,7 @@ bp2 = ax.boxplot(data, positions=np.arange(1, data.shape[1] + 1), widths=0.6, pa
 ax.set_xlabel(r'$m$', fontsize=18)
 ax.set_ylabel('Number of concurrent workers', fontsize=18)
 ax.grid(True, alpha=0.3)
-ax.legend([bp1["boxes"][0], bp2["boxes"][0]], ['IOTA', 'Sui'], loc='right', fontsize=18)
+ax.legend([bp2["boxes"][0], bp1["boxes"][0]], ['Baseline', 'IOTA'], loc='right', fontsize=18)
 
 plt.tight_layout()
     
