@@ -519,7 +519,7 @@ export interface SentCollectibleProperties {
 
 export interface SidePanelChangedProperties {
     enabled: boolean;
-    }
+}
 
 export interface StakeClickedProperties {
     isCurrentlyStaking?: boolean;
@@ -945,7 +945,7 @@ export class SidePanelChanged implements BaseEvent {
     event_type = 'side panel changed';
 
     constructor(public event_properties: SidePanelChangedProperties) {
-           this.event_properties = event_properties;
+        this.event_properties = event_properties;
     }
 }
 
