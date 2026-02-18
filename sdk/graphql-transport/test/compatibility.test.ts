@@ -59,7 +59,7 @@ describe('GraphQL IotaClient compatibility', () => {
         transactionBlockDigest = result.digest;
 
         await graphQLClient.waitForTransaction({
-            digest: anotherTransactionBlockDigest,
+            digest: transactionBlockDigest,
             waitMode: 'checkpoint',
         });
 
