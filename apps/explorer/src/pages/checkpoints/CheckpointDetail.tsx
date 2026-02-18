@@ -23,10 +23,12 @@ import {
 } from '@iota/apps-ui-kit';
 import { useState } from 'react';
 import { useFormatCoin } from '@iota/core';
-import { Warning } from '@iota/apps-ui-icons';
+import { Info, Warning } from '@iota/apps-ui-icons';
+import { CoinFormat } from '@iota/iota-sdk/utils';
 
 enum FeesTabs {
     GasAndStorageFees = 'gas-and-storage-fees',
+    RollingGasAndStorageFees = 'rolling-gas-and-storage-fees',
 }
 enum DetailsTabs {
     Details = 'details',
@@ -34,6 +36,34 @@ enum DetailsTabs {
 }
 enum NestedTabs {
     Aggregated = 'aggregated',
+}
+
+type CheckpointFeeDetails = {
+    computationCost?: string;
+    computationCostBurned?: string;
+    storageCost?: string;
+    storageRebate?: string;
+};
+
+function calculateDifference(a?: string, b?: string): string {
+    const res = BigInt(a ?? '0') - BigInt(b ?? '0');
+    return (res < 0n ? 0n : res).toString();
+}
+
+function getCheckpointFeesFromRolling(
+    current?: CheckpointFeeDetails,
+    prev?: CheckpointFeeDetails,
+): CheckpointFeeDetails | undefined {
+    if (!current) return undefined;
+    return {
+        computationCost: calculateDifference(current.computationCost, prev?.computationCost),
+        computationCostBurned: calculateDifference(
+            current.computationCostBurned,
+            prev?.computationCostBurned,
+        ),
+        storageCost: calculateDifference(current.storageCost, prev?.storageCost),
+        storageRebate: calculateDifference(current.storageRebate, prev?.storageRebate),
+    };
 }
 
 export function CheckpointDetail(): JSX.Element {
@@ -50,17 +80,47 @@ export function CheckpointDetail(): JSX.Element {
         queryFn: () => client.getCheckpoint({ id: String(digestOrSequenceNumber!) }),
     });
 
+    const previousDigest = data?.previousDigest;
+
+    const { data: previousCheckpointData } = useQuery({
+        queryKey: ['checkpoints', previousDigest],
+        queryFn: () => client.getCheckpoint({ id: String(previousDigest!) }),
+        enabled: !!previousDigest && !isPending && !isError,
+    });
+
+    const epochRollingGasCostSummary: CheckpointFeeDetails | undefined =
+        data?.epochRollingGasCostSummary;
+
+    const previousRollingEpochGasSummary: CheckpointFeeDetails | undefined =
+        previousCheckpointData && data && previousCheckpointData.epoch === data.epoch
+            ? previousCheckpointData.epochRollingGasCostSummary
+            : undefined;
+
+    const checkpointFeeSummary = getCheckpointFeesFromRolling(
+        epochRollingGasCostSummary,
+        previousRollingEpochGasSummary,
+    );
+
+    const selectedFeeSummary =
+        activeFeesTabId === FeesTabs.GasAndStorageFees
+            ? checkpointFeeSummary
+            : epochRollingGasCostSummary;
+
     const [formattedComputationCost, computationCostCoinType] = useFormatCoin({
-        balance: data?.epochRollingGasCostSummary?.computationCost,
+        balance: selectedFeeSummary?.computationCost,
+        format: CoinFormat.Full,
     });
     const [formattedComputationCostBurned, computationCostBurnedCoinType] = useFormatCoin({
-        balance: data?.epochRollingGasCostSummary?.computationCostBurned,
+        balance: selectedFeeSummary?.computationCostBurned,
+        format: CoinFormat.Full,
     });
     const [formattedStorageCost, storageCostCoinType] = useFormatCoin({
-        balance: data?.epochRollingGasCostSummary.storageCost,
+        balance: selectedFeeSummary?.storageCost,
+        format: CoinFormat.Full,
     });
     const [formattedStorageRebate, storageRebateCoinType] = useFormatCoin({
-        balance: data?.epochRollingGasCostSummary.storageRebate,
+        balance: selectedFeeSummary?.storageRebate,
+        format: CoinFormat.Full,
     });
 
     return (
@@ -180,37 +240,64 @@ export function CheckpointDetail(): JSX.Element {
                                             setActiveFeesTabId(FeesTabs.GasAndStorageFees)
                                         }
                                     />
+                                    <ButtonSegment
+                                        type={ButtonSegmentType.Underlined}
+                                        label="Rolling Gas & Storage Fees"
+                                        selected={
+                                            activeFeesTabId === FeesTabs.RollingGasAndStorageFees
+                                        }
+                                        onClick={() =>
+                                            setActiveFeesTabId(FeesTabs.RollingGasAndStorageFees)
+                                        }
+                                    />
                                 </SegmentedButton>
-                                {activeFeesTabId === FeesTabs.GasAndStorageFees ? (
-                                    <div className="flex flex-col gap-lg p-md--rs">
-                                        <div className="flex flex-row items-center gap-lg">
-                                            <LabelText
-                                                size={LabelTextSize.Medium}
-                                                label="Computation Fee"
-                                                text={formattedComputationCost}
-                                                supportingLabel={computationCostCoinType}
-                                            />
-                                            <LabelText
-                                                size={LabelTextSize.Medium}
-                                                label="Burnt"
-                                                text={formattedComputationCostBurned}
-                                                supportingLabel={computationCostBurnedCoinType}
-                                            />
-                                        </div>
+
+                                <div className="flex flex-col gap-lg p-md--rs">
+                                    <div className="flex flex-row items-center gap-lg">
                                         <LabelText
                                             size={LabelTextSize.Medium}
-                                            label="Storage Fee"
-                                            text={formattedStorageCost}
-                                            supportingLabel={storageCostCoinType}
+                                            label="Computation Fee"
+                                            text={formattedComputationCost}
+                                            supportingLabel={computationCostCoinType}
                                         />
                                         <LabelText
                                             size={LabelTextSize.Medium}
-                                            label="Storage Rebate"
-                                            text={formattedStorageRebate}
-                                            supportingLabel={storageRebateCoinType}
+                                            label="Burnt"
+                                            text={formattedComputationCostBurned}
+                                            supportingLabel={computationCostBurnedCoinType}
                                         />
                                     </div>
-                                ) : null}
+
+                                    <LabelText
+                                        size={LabelTextSize.Medium}
+                                        label="Storage Fee"
+                                        text={formattedStorageCost}
+                                        supportingLabel={storageCostCoinType}
+                                    />
+                                    <LabelText
+                                        size={LabelTextSize.Medium}
+                                        label="Storage Rebate"
+                                        text={formattedStorageRebate}
+                                        supportingLabel={storageRebateCoinType}
+                                    />
+                                    {activeFeesTabId === FeesTabs.RollingGasAndStorageFees ? (
+                                        <InfoBox
+                                            title="Fees of all transactions included in the current epoch
+                                            so far until this checkpoint"
+                                            icon={<Info />}
+                                            type={InfoBoxType.Default}
+                                            style={InfoBoxStyle.Elevated}
+                                        />
+                                    ) : null}
+                                    {activeFeesTabId === FeesTabs.GasAndStorageFees ? (
+                                        <InfoBox
+                                            title="Gas and storage fees for this checkpoint only"
+                                            icon={<Info />}
+                                            type={InfoBoxType.Default}
+                                            style={InfoBoxStyle.Elevated}
+                                        />
+                                    ) : null}
+                                </div>
                             </Panel>
                         </div>
                         <Panel>
