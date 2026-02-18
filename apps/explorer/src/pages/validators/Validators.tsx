@@ -135,6 +135,9 @@ function ValidatorPageResult(): JSX.Element {
             : activeValidators
         : [];
 
+    // Temporarily needed to compute the effectiveCommissionRate until infra exposes it in commissionRate directly
+    const hasEffectiveCommissionRate = Number(data?.protocolVersion ?? 0) >= 20;
+
     const tableColumns = useMemo(() => {
         if (!data || !maxCommitteeSize || !validatorEvents) return null;
         const includeColumns = [
@@ -143,6 +146,7 @@ function ValidatorPageResult(): JSX.Element {
             'APY',
             'Commission',
             'Next Epoch Commission',
+            ...(hasEffectiveCommissionRate ? ['Effective Commission'] : []),
             'Next Epoch Stake',
             'Last Epoch Rewards',
             'Voting Power',
@@ -162,7 +166,14 @@ function ValidatorPageResult(): JSX.Element {
             includeColumns,
             currentEpoch: data.epoch,
         });
-    }, [data, activeAndPendingValidators, validatorEvents, validatorsApy, maxCommitteeSize]);
+    }, [
+        data,
+        activeAndPendingValidators,
+        validatorEvents,
+        validatorsApy,
+        maxCommitteeSize,
+        hasEffectiveCommissionRate,
+    ]);
 
     const [formattedTotalStakedAmount, totalStakedSymbol] = useFormatCoin({ balance: totalStaked });
     const [formattedlastEpochRewardOnAllValidatorsAmount, lastEpochRewardOnAllValidatorsSymbol] =
