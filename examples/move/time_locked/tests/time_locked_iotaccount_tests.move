@@ -9,13 +9,14 @@ use iota::clock;
 use iota::dynamic_field as df;
 use iota::test_scenario::{Self, Scenario};
 use iotaccount::iotaccount::IOTAccount;
-use iotaccount::public_key_authenticators;
+use iotaccount::public_key_authentication;
+use iotaccount::public_key_iotaccount;
 use std::ascii;
 use std::unit_test::assert_eq;
 use time_locked::time_locked_iotaccount;
-use time_locked::unlock_time;
+use time_locked::unlock_time_authentication;
 
-use fun public_key_authenticators::borrow_public_key as IOTAccount.borrow_public_key;
+use fun public_key_iotaccount::borrow_public_key as IOTAccount.borrow_public_key;
 use fun time_locked_iotaccount::add_unlock_time as IOTAccount.add_unlock_time;
 use fun time_locked_iotaccount::remove_unlock_time as IOTAccount.remove_unlock_time;
 use fun time_locked_iotaccount::rotate_unlock_time as IOTAccount.rotate_unlock_time;
@@ -113,7 +114,7 @@ fun unlock_time_epoch_ed25519_IOTAccount_authenticator_success() {
 }
 
 #[test]
-#[expected_failure(abort_code = public_key_authenticators::EEd25519VerificationFailed)]
+#[expected_failure(abort_code = public_key_authentication::EEd25519VerificationFailed)]
 fun account_fails_verification() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
@@ -144,7 +145,7 @@ fun account_fails_verification() {
 }
 
 #[test]
-#[expected_failure(abort_code = unlock_time::EAccountStillLocked)]
+#[expected_failure(abort_code = unlock_time_authentication::EAccountStillLocked)]
 fun account_time_locked_clock() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
@@ -180,7 +181,7 @@ fun account_time_locked_clock() {
 }
 
 #[test]
-#[expected_failure(abort_code = unlock_time::EAccountStillLocked)]
+#[expected_failure(abort_code = unlock_time_authentication::EAccountStillLocked)]
 fun account_time_locked_epoch() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
@@ -347,7 +348,7 @@ fun create_public_key_account_for_testing(
 ): address {
     let authenticator = create_authenticator_function_ref_v1_for_testing();
 
-    public_key_authenticators::create(public_key, authenticator, scenario.ctx());
+    public_key_iotaccount::create(public_key, authenticator, scenario.ctx());
 
     scenario.next_tx(@0x0);
 

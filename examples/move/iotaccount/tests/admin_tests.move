@@ -3,7 +3,7 @@ module iotaccount::admin_tests;
 
 use iota::test_scenario;
 use iotaccount::iotaccount::{Self, IOTAccount};
-use iotaccount::public_key_authenticators;
+use iotaccount::public_key_iotaccount;
 use iotaccount::test_utils::create_authenticator_function_ref_v1_for_testing;
 
 #[test]
@@ -13,7 +13,7 @@ fun test_admin_rotate_auth_function_ref() {
 
     // Admin account -> secp256k1 key
     let admin_public_key = x"02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c";
-    public_key_authenticators::create(
+    public_key_iotaccount::create(
         admin_public_key,
         create_authenticator_function_ref_v1_for_testing(),
         scenario.ctx(),
@@ -25,7 +25,7 @@ fun test_admin_rotate_auth_function_ref() {
 
     // Main IOTAccount -> ed25519 key
     let iotaccount_public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
-    public_key_authenticators::create_with_admin(
+    public_key_iotaccount::create_with_admin(
         iotaccount_public_key,
         admin_address,
         create_authenticator_function_ref_v1_for_testing(),
@@ -41,7 +41,7 @@ fun test_admin_rotate_auth_function_ref() {
     {
         let mut account = scenario.take_shared_by_id<IOTAccount>(iotaccount_address.to_id());
 
-        public_key_authenticators::rotate_public_key(
+        public_key_iotaccount::rotate_public_key(
             &mut account,
             x"0123",
             create_authenticator_function_ref_v1_for_testing(),
@@ -56,7 +56,7 @@ fun test_admin_rotate_auth_function_ref() {
     {
         let mut account = scenario.take_shared_by_id<IOTAccount>(iotaccount_address.to_id());
 
-        public_key_authenticators::rotate_public_key(
+        public_key_iotaccount::rotate_public_key(
             &mut account,
             x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88",
             create_authenticator_function_ref_v1_for_testing(),
@@ -87,7 +87,7 @@ fun test_admin_rotate_auth_function_ref() {
         let signature =
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
 
-        public_key_authenticators::ed25519_IOTAccount_authenticator(
+        public_key_iotaccount::ed25519_IOTAccount_authenticator(
             &account,
             signature,
             &auth_ctx,
@@ -109,7 +109,7 @@ fun test_non_admin_rotate_auth_function_ref() {
     // Non-Admin account
     let non_admin_public_key =
         x"02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c";
-    public_key_authenticators::create(
+    public_key_iotaccount::create(
         non_admin_public_key,
         create_authenticator_function_ref_v1_for_testing(),
         scenario.ctx(),
@@ -121,7 +121,7 @@ fun test_non_admin_rotate_auth_function_ref() {
 
     // Main IOTAccount -> created with no admin
     let iotaccount_public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
-    public_key_authenticators::create(
+    public_key_iotaccount::create(
         iotaccount_public_key,
         create_authenticator_function_ref_v1_for_testing(),
         scenario.ctx(),
@@ -136,7 +136,7 @@ fun test_non_admin_rotate_auth_function_ref() {
     {
         let mut account = scenario.take_shared_by_id<IOTAccount>(iotaccount_address.to_id());
 
-        public_key_authenticators::rotate_public_key(
+        public_key_iotaccount::rotate_public_key(
             &mut account,
             x"0123",
             create_authenticator_function_ref_v1_for_testing(),

@@ -10,29 +10,17 @@
 /// - ed25519 -> `ed25519_IOTAccount_authenticator`
 /// - secp256k1 -> `secp256k1_IOTAccount_authenticator`
 /// - secp256r1 -> `secp256r1_IOTAccount_authenticator`
-module iotaccount::public_key_authenticators;
+module iotaccount::public_key_iotaccount;
 
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
-use iota::ecdsa_k1;
-use iota::ecdsa_r1;
-use iota::ed25519;
 use iotaccount::iotaccount::{Self, IOTAccount, IOTAccountBuilder};
+use iotaccount::public_key_authentication::{Self, public_key_field};
 
 // === Errors ===
-
-#[error(code = 0)]
-const EEd25519VerificationFailed: vector<u8> = b"Ed25519 authenticator verification failed.";
-#[error(code = 1)]
-const ESecp256k1VerificationFailed: vector<u8> = b"Secp256k1 authenticator verification failed.";
-#[error(code = 2)]
-const ESecp256r1VerificationFailed: vector<u8> = b"Secp256r1 authenticator verification failed.";
 
 // === Constants ===
 
 // === Structs ===
-
-/// A dynamic field key for the account owner public key.
-public struct PublicKeyField has copy, drop, store {}
 
 // === Account Helpers ===
 
@@ -45,7 +33,7 @@ public fun create(
     authenticator: AuthenticatorFunctionRefV1<IOTAccount>,
     ctx: &mut TxContext,
 ) {
-    iotaccount::builder(authenticator, ctx).with_field(PublicKeyField {}, public_key).build();
+    iotaccount::builder(authenticator, ctx).with_field(public_key_field(), public_key).build();
 }
 
 /// Creates a new `IOTAccount` as a shared object with the given authenticator.
@@ -59,14 +47,14 @@ public fun create_with_admin(
     ctx: &mut TxContext,
 ) {
     iotaccount::builder(authenticator, ctx)
-        .with_field(PublicKeyField {}, public_key)
+        .with_field(public_key_field(), public_key)
         .with_admin(admin)
         .build();
 }
 
 /// Attach a PublicKey as a dynamic field to the account being built.
 public fun with_public_key(self: IOTAccountBuilder, public_key: vector<u8>): IOTAccountBuilder {
-    self.with_field(PublicKeyField {}, public_key)
+    self.with_field(public_key_field(), public_key)
 }
 
 /// Rotates the account owner public key to a new one as well as the authenticator.
@@ -79,7 +67,7 @@ public fun rotate_public_key(
     ctx: &TxContext,
 ) {
     // Update the account owner public key dynamic field. It is expected that the field already exists.
-    account.rotate_field(PublicKeyField {}, public_key, ctx);
+    account.rotate_field(public_key_field(), public_key, ctx);
 
     // Update the account authenticator dynamic field. It is expected that the field already exists.
     account.rotate_auth_function_ref_v1(authenticator, ctx);
@@ -95,7 +83,7 @@ public fun add_public_key(
     ctx: &TxContext,
 ) {
     // Update the account owner public key dynamic field. It is expected that the field does not exist.
-    account.add_field(PublicKeyField {}, public_key, ctx);
+    account.add_field(public_key_field(), public_key, ctx);
 
     // Update the account authenticator dynamic field. It is expected that the field already exists.
     account.rotate_auth_function_ref_v1(authenticator, ctx);
@@ -111,7 +99,7 @@ public fun ed25519_IOTAccount_authenticator(
     _: &AuthContext,
     ctx: &TxContext,
 ) {
-    authenticate_ed25519(account, signature, ctx);
+    public_key_authentication::authenticate_ed25519(account.borrow_uid(), signature, ctx);
 }
 
 /// Secp256k1 signature authenticator for `IOTAccount`.
@@ -122,7 +110,7 @@ public fun secp256k1_IOTAccount_authenticator(
     _: &AuthContext,
     ctx: &TxContext,
 ) {
-    authenticate_secp256k1(account, signature, ctx);
+    public_key_authentication::authenticate_secp256k1(account.borrow_uid(), signature, ctx);
 }
 
 /// Secp256r1 signature authenticator for `IOTAccount`.
@@ -133,45 +121,19 @@ public fun secp256r1_IOTAccount_authenticator(
     _: &AuthContext,
     ctx: &TxContext,
 ) {
-    authenticate_secp256r1(account, signature, ctx);
-}
-
-// === Public Authenticators Helpers ===
-
-/// Ed25519 signature authenticator helper.
-public fun authenticate_ed25519(account: &IOTAccount, signature: vector<u8>, ctx: &TxContext) {
-    assert!(
-        ed25519::ed25519_verify(&signature, borrow_public_key(account), ctx.digest()),
-        EEd25519VerificationFailed,
-    );
-}
-
-/// Secp256k1 signature authenticator helper.
-public fun authenticate_secp256k1(account: &IOTAccount, signature: vector<u8>, ctx: &TxContext) {
-    assert!(
-        ecdsa_k1::secp256k1_verify(&signature, borrow_public_key(account), ctx.digest(), 0),
-        ESecp256k1VerificationFailed,
-    );
-}
-
-/// Secp256r1 signature authenticator helper.
-public fun authenticate_secp256r1(account: &IOTAccount, signature: vector<u8>, ctx: &TxContext) {
-    assert!(
-        ecdsa_r1::secp256r1_verify(&signature, borrow_public_key(account), ctx.digest(), 0),
-        ESecp256r1VerificationFailed,
-    );
+    public_key_authentication::authenticate_secp256r1(account.borrow_uid(), signature, ctx);
 }
 
 // === View Functions ===
 
 /// An utility function to check if the account has a public key set.
 public fun has_public_key(account: &IOTAccount): bool {
-    account.has_field(PublicKeyField {})
+    account.has_field(public_key_field())
 }
 
 /// An utility function to borrow the account-related public key.
 public fun borrow_public_key(account: &IOTAccount): &vector<u8> {
-    account.borrow_field(PublicKeyField {})
+    account.borrow_field(public_key_field())
 }
 
 // === Admin Functions ===

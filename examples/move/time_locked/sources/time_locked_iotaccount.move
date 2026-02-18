@@ -5,7 +5,7 @@
 /// time and a public key.
 ///
 /// The unlock time data is stored as a dynamic field of the account and the public key is stored as a
-/// dynamic field of the account as well, using the `public_key_authenticators` module.
+/// dynamic field of the account as well, using the `public_key_iotaccount` module.
 ///
 /// Authenticator functions are provided to authenticate the account by verifying the public key signature
 /// and checking the unlock time against the current time. Current time can be defined through the usage of
@@ -15,13 +15,14 @@ module time_locked::time_locked_iotaccount;
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::clock::Clock;
 use iotaccount::iotaccount::{Self, IOTAccount, IOTAccountBuilder};
-use iotaccount::public_key_authenticators;
-use time_locked::unlock_time::{Self, unlock_time_field};
+use iotaccount::public_key_authentication;
+use iotaccount::public_key_iotaccount;
+use time_locked::unlock_time_authentication::{Self, unlock_time_field};
 
 /// Allows calling `.with_public_key` on an `IOTAccountBuilder` to set a `public_key`.
-use fun public_key_authenticators::with_public_key as IOTAccountBuilder.with_public_key;
+use fun public_key_iotaccount::with_public_key as IOTAccountBuilder.with_public_key;
 /// Allows calling `.rotate_public_key` on an `IOTAccount` to rotate a `public_key`.
-use fun public_key_authenticators::rotate_public_key as IOTAccount.rotate_public_key;
+use fun public_key_iotaccount::rotate_public_key as IOTAccount.rotate_public_key;
 
 // === Errors ===
 
@@ -113,12 +114,12 @@ public fun unlock_time_clock_ed25519_IOTAccount_authenticator(
     _auth_ctx: &AuthContext,
     ctx: &TxContext,
 ) {
-    public_key_authenticators::authenticate_ed25519(
-        account,
+    public_key_authentication::authenticate_ed25519(
+        account.borrow_uid(),
         signature,
         ctx,
     );
-    unlock_time::authenticate_with_clock(account.borrow_uid(), clock);
+    unlock_time_authentication::authenticate_with_clock(account.borrow_uid(), clock);
 }
 
 /// Authenticate access for the `TimeLocked` IOTAccount.
@@ -131,12 +132,12 @@ public fun unlock_time_epoch_ed25519_IOTAccount_authenticator(
     _auth_ctx: &AuthContext,
     ctx: &TxContext,
 ) {
-    public_key_authenticators::authenticate_ed25519(
-        account,
+    public_key_authentication::authenticate_ed25519(
+        account.borrow_uid(),
         signature,
         ctx,
     );
-    unlock_time::authenticate_with_epoch_timestamp(account.borrow_uid(), ctx);
+    unlock_time_authentication::authenticate_with_epoch_timestamp(account.borrow_uid(), ctx);
 }
 
 // === View Functions ===
