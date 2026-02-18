@@ -354,10 +354,14 @@ impl StoredTransaction {
             None
         };
 
-        let effects = options
-            .show_effects
-            .then(|| self.try_into_iota_transaction_effects())
-            .transpose()?;
+        let effects = if options.show_effects {
+            Some(
+                self.try_into_iota_transaction_effects(package_resolver)
+                    .await?,
+            )
+        } else {
+            None
+        };
 
         let raw_transaction = if options.show_raw_input {
             self.raw_transaction
@@ -468,14 +472,19 @@ impl StoredTransaction {
         Ok(sender_signed_data)
     }
 
-    pub fn try_into_iota_transaction_effects(&self) -> IndexerResult<IotaTransactionBlockEffects> {
+    pub async fn try_into_iota_transaction_effects(
+        &self,
+        package_resolver: &Arc<Resolver<impl PackageStore>>,
+    ) -> IndexerResult<IotaTransactionBlockEffects> {
         let effects: TransactionEffects = bcs::from_bytes(&self.raw_effects).map_err(|e| {
             IndexerError::PersistentStorageDataCorruption(format!(
                 "Can't convert raw_effects of {} into TransactionEffects. Error: {e}",
                 self.tx_sequence_number
             ))
         })?;
-        let effects = IotaTransactionBlockEffects::try_from(effects)?;
+        let effects =
+            IotaTransactionBlockEffects::from_native_with_clever_error(effects, package_resolver)
+                .await;
         Ok(effects)
     }
 

@@ -89,9 +89,27 @@ const { signature } = await keypair.signPersonalMessage(message);
 
 const publicKey = await verifyPersonalMessageSignature(message, signature);
 
-if (publicKey.toIotaAddress() !== keypair.getPublicKey().toIotaAddress()) {
+if (!publicKey.verifyAddress(keypair.getPublicKey().toIotaAddress())) {
     throw new Error('Signature was valid, but was signed by a different key pair');
 }
+```
+
+## Verifying that a signature is valid for a specific address
+
+`verifyPersonalMessageSignature` and `verifyTransactionSignature` accept an optional `address`, and
+will throw an error if the signature is not valid for the provided address.
+
+```typescript
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { verifyPersonalMessageSignature } from '@iota/iota-sdk/verify';
+
+const keypair = new Ed25519Keypair();
+const message = new TextEncoder().encode('hello world');
+const { signature } = await keypair.signPersonalMessage(message);
+
+await verifyPersonalMessageSignature(message, signature, {
+	address: keypair.getPublicKey().toIotaAddress(),
+});
 ```
 
 ## Verifying transaction signatures
@@ -114,14 +132,10 @@ const bytes = await tx.build({ client });
 const keypair = new Ed25519Keypair();
 const { signature } = await keypair.signTransaction(bytes);
 
-// if you have a public key, you can verify it
-//   const isValid = await publicKey.verifyTransaction(bytes, signature);
-// or get the public key from the transaction
-const publicKey = await verifyTransactionSignature(bytes, signature);
-
-if (publicKey.toIotaAddress() !== keypair.getPublicKey().toIotaAddress()) {
-    throw new Error('Signature was valid, but was signed by a different keyPair');
-}
+await verifyTransactionSignature(bytes, signature, {
+	// optionally verify that the signature is valid for a specific address
+	address: keypair.getPublicKey().toIotaAddress(),
+});
 ```
 
 ## Verifying zkLogin signatures

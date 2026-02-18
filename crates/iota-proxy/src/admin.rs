@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs, io::BufReader, net::SocketAddr, sync::Arc, time::Duration};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use anyhow::{Error, Result};
 use axum::{Extension, Router, extract::DefaultBodyLimit, middleware, routing::post};
@@ -14,6 +14,7 @@ use iota_tls::{
     AllowAll, ClientCertVerifier, IOTA_VALIDATOR_SERVER_NAME, SelfSignedCertificate, TlsAcceptor,
     rustls::ServerConfig,
 };
+use rustls::pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject};
 use tokio::signal;
 use tower::ServiceBuilder;
 use tower_http::{
@@ -33,7 +34,7 @@ use crate::{
 };
 
 /// Configure our graceful shutdown scenarios
-pub async fn shutdown_signal(h: axum_server::Handle) {
+pub async fn shutdown_signal(h: axum_server::Handle<SocketAddr>) {
     let ctrl_c = async {
         signal::ctrl_c()
             .await
@@ -146,19 +147,22 @@ pub async fn server(
     app: Router,
     acceptor: Option<TlsAcceptor>,
 ) -> std::io::Result<()> {
+    listener.set_nonblocking(true)?;
+    let listener = tokio::net::TcpListener::from_std(listener)?;
+
     // setup our graceful shutdown
     let handle = axum_server::Handle::new();
     // Spawn a task to gracefully shutdown server.
     tokio::spawn(shutdown_signal(handle.clone()));
 
     if let Some(verify_peers) = acceptor {
-        axum_server::Server::from_tcp(listener)
+        axum_server::Server::from_listener(listener)
             .acceptor(verify_peers)
             .handle(handle)
             .serve(app.into_make_service_with_connect_info::<SocketAddr>())
             .await
     } else {
-        axum_server::Server::from_tcp(listener)
+        axum_server::Server::from_listener(listener)
             .handle(handle)
             .serve(app.into_make_service_with_connect_info::<SocketAddr>())
             .await
@@ -179,32 +183,17 @@ pub fn generate_self_cert(hostname: String) -> CertKeyPair {
 }
 
 /// Load a certificate for use by the listening service
-fn load_certs(filename: &str) -> Vec<rustls::pki_types::CertificateDer<'static>> {
-    let certfile = fs::File::open(filename)
-        .unwrap_or_else(|e| panic!("cannot open certificate file: {filename}; {e}"));
-    let mut reader = BufReader::new(certfile);
-    rustls_pemfile::certs(&mut reader)
+fn load_certs(filename: &str) -> Vec<CertificateDer<'static>> {
+    CertificateDer::pem_file_iter(filename)
+        .unwrap_or_else(|e| panic!("cannot open certificate file: {filename}: {e}"))
         .collect::<Result<Vec<_>, _>>()
-        .unwrap()
+        .unwrap_or_else(|e| panic!("cannot parse certificate file: {filename}: {e}"))
 }
 
 /// Load a private key
-fn load_private_key(filename: &str) -> rustls::pki_types::PrivateKeyDer<'static> {
-    let keyfile = fs::File::open(filename)
-        .unwrap_or_else(|e| panic!("cannot open private key file {filename}; {e}"));
-    let mut reader = BufReader::new(keyfile);
-
-    loop {
-        match rustls_pemfile::read_one(&mut reader).expect("cannot parse private key .pem file") {
-            Some(rustls_pemfile::Item::Pkcs1Key(key)) => return key.into(),
-            Some(rustls_pemfile::Item::Pkcs8Key(key)) => return key.into(),
-            Some(rustls_pemfile::Item::Sec1Key(key)) => return key.into(),
-            None => break,
-            _ => {}
-        }
-    }
-
-    panic!("no keys found in {filename:?} (encrypted keys not supported)");
+fn load_private_key(filename: &str) -> PrivateKeyDer<'static> {
+    PrivateKeyDer::from_pem_file(filename)
+        .unwrap_or_else(|e| panic!("cannot load private key from {filename}: {e}"))
 }
 
 /// load the static keys we'll use to allow external non-validator nodes to push

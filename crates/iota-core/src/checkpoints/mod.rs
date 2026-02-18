@@ -438,13 +438,11 @@ impl CheckpointStore {
 
     pub fn get_highest_pruned_checkpoint_seq_number(
         &self,
-    ) -> Result<CheckpointSequenceNumber, TypedStoreError> {
-        Ok(self
-            .tables
+    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+        self.tables
             .watermarks
-            .get(&CheckpointWatermark::HighestPruned)?
-            .unwrap_or_default()
-            .0)
+            .get(&CheckpointWatermark::HighestPruned)
+            .map(|watermark| watermark.map(|w| w.0))
     }
 
     pub fn get_checkpoint_contents(
@@ -1522,7 +1520,7 @@ impl CheckpointBuilder {
                 let scores: Vec<u64> = if self
                     .epoch_store
                     .protocol_config()
-                    .calculate_validator_scores()
+                    .pass_calculated_validator_scores_to_advance_epoch()
                 {
                     self.epoch_store
                         .scorer

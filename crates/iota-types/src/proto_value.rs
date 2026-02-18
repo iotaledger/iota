@@ -424,6 +424,10 @@ pub(crate) mod tests {
         expect.assert_eq(&err.to_string());
     }
 
+    /// Converts a `prost_types::Value` to a `serde_json::Value`.
+    ///
+    /// This is useful for converting proto values produced by
+    /// `ProtoVisitorBuilder` into JSON values for testing purposes.
     fn proto_value_to_json_value(proto: Value) -> serde_json::Value {
         match proto.kind {
             Some(Kind::NullValue(_)) | None => serde_json::Value::Null,

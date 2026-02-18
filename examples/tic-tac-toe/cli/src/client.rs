@@ -71,7 +71,7 @@ impl Client {
             );
         };
 
-        let wallet = WalletContext::new(&config, None, None)?;
+        let wallet = WalletContext::new(&config)?;
         Ok(Self {
             wallet,
             package: conn.package_id,

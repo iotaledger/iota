@@ -1346,3 +1346,69 @@ fn move_view_function_call() {
         assert!(fields.contains_key(&"counter".to_string()));
     });
 }
+
+/// Uses the test smart contract under `tests/data/clever_errors`.
+#[test]
+fn clever_errors() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let (address, keypair) = get_key_pair();
+        let keypair = IotaKeyPair::Ed25519(keypair);
+        let (gas_id, gas_seq, _) = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10 * NANOS_PER_IOTA),
+                address,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_id, gas_seq).await;
+
+        let ((package_id, _, _), _) =
+            publish_test_move_package(client, address, &keypair, "clever_errors")
+                .await
+                .unwrap();
+
+        let gas = client
+            .get_object(gas_id, None)
+            .await
+            .unwrap()
+            .data
+            .unwrap()
+            .object_ref();
+        // Execute a transaction that will fail
+        let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
+        let tx_data = tx_builder
+            .move_call(package_id, "clever_errors", "clever_aborter", vec![])
+            .build();
+        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
+
+        let indexer_tx_response = client
+            .execute_transaction_block(
+                tx_bytes,
+                signatures,
+                Some(IotaTransactionBlockResponseOptions::new().with_effects()),
+                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            )
+            .await
+            .unwrap();
+
+        // Assert clever error
+        let fn_name = format!("{package_id}::clever_errors::clever_aborter");
+        let clever_error = "'ENotFound': Element not found in vector 💥 🚀 🌠";
+        let expected_error =
+            format!("Error in 1st command, from '{fn_name}' (line 10), abort {clever_error}");
+        let effects = indexer_tx_response.effects.unwrap();
+        let IotaExecutionStatus::Failure { error } = effects.status() else {
+            panic!("transaction should have failed");
+        };
+        assert_eq!(error, &expected_error);
+    });
+}

@@ -18,9 +18,11 @@ query paginateMoveModuleLists(
     $hasMoreFriends: Boolean!
     $hasMoreStructs: Boolean!
     $hasMoreFunctions: Boolean!
+    $hasMoreEnums: Boolean!
     $afterFriends: String
     $afterStructs: String
     $afterFunctions: String
+    $afterEnums: String
 ) {
     object(address: $packageId) {
         asMovePackage {
@@ -53,6 +55,15 @@ query paginateMoveModuleLists(
                     }
                     nodes {
                         ...RPC_MOVE_FUNCTION_FIELDS
+                    }
+                }
+                enums(after: $afterEnums) @include(if: $hasMoreEnums) {
+                    pageInfo {
+                        hasNextPage
+                        endCursor
+                    }
+                    nodes {
+                        ...RPC_MOVE_ENUM_FIELDS
                     }
                 }
             }
