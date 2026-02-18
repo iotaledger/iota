@@ -732,7 +732,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let latest_epoch = self.try_get_latest_epoch_id()?;
                 let tx = VerifiedTransaction::new_randomness_state_update(
                     latest_epoch,
-                    RandomnessRound(randomness_round),
+                    RandomnessRound::new(randomness_round),
                     random_bytes,
                     SequenceNumber::from_u64(randomness_initial_version),
                 );

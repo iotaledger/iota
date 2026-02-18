@@ -15,6 +15,7 @@ use anyhow::bail;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
+pub use iota_sdk_types::RandomnessStateUpdate;
 use iota_sdk_types::{
     Identifier, ObjectId, TypeTag,
     crypto::{Intent, IntentMessage, IntentScope},
@@ -351,26 +352,6 @@ pub struct AuthenticatorStateUpdateV1 {
 impl AuthenticatorStateUpdateV1 {
     pub fn authenticator_obj_initial_shared_version(&self) -> SequenceNumber {
         self.authenticator_obj_initial_shared_version
-    }
-}
-
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct RandomnessStateUpdate {
-    /// Epoch of the randomness state update transaction
-    pub epoch: u64,
-    /// Randomness round of the update
-    pub randomness_round: RandomnessRound,
-    /// Updated random bytes
-    pub random_bytes: Vec<u8>,
-    /// The initial version of the randomness object that it was shared at.
-    pub randomness_obj_initial_shared_version: SequenceNumber,
-    // to version this struct, do not add new fields. Instead, add a RandomnessStateUpdateV2 to
-    // TransactionKind.
-}
-
-impl RandomnessStateUpdate {
-    pub fn randomness_obj_initial_shared_version(&self) -> SequenceNumber {
-        self.randomness_obj_initial_shared_version
     }
 }
 
@@ -1558,7 +1539,7 @@ impl TransactionKind {
             Self::RandomnessStateUpdate(update) => {
                 vec![InputObjectKind::SharedMoveObject {
                     id: ObjectID::RANDOMNESS_STATE,
-                    initial_shared_version: update.randomness_obj_initial_shared_version(),
+                    initial_shared_version: update.randomness_obj_initial_shared_version,
                     mutable: true,
                 }]
             }
