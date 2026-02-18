@@ -16,7 +16,7 @@ use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::ecdsa_k1;
 use iota::ecdsa_r1;
 use iota::ed25519;
-use iotaccount::iotaccount::{Self, IOTAccount};
+use iotaccount::iotaccount::{Self, IOTAccount, IOTAccountBuilder};
 
 // === Errors ===
 
@@ -64,6 +64,11 @@ public fun create_with_admin(
         .build();
 }
 
+/// Attach a PublicKey as a dynamic field to the account being built.
+public fun with_public_key(self: IOTAccountBuilder, public_key: vector<u8>): IOTAccountBuilder {
+    self.with_field(PublicKeyField {}, public_key)
+}
+
 /// Rotates the account owner public key to a new one as well as the authenticator.
 /// Once this function is called, the previous public key and authenticator are no longer valid.
 /// Only the account itself can call this function.
@@ -75,6 +80,22 @@ public fun rotate_public_key(
 ) {
     // Update the account owner public key dynamic field. It is expected that the field already exists.
     account.rotate_field(PublicKeyField {}, public_key, ctx);
+
+    // Update the account authenticator dynamic field. It is expected that the field already exists.
+    account.rotate_auth_function_ref_v1(authenticator, ctx);
+}
+
+// Attach a public key to the account with the provided `public_key`.
+// It fails if the account already has a public key attached.
+// Only the account itself can call this function.
+public fun add_public_key(
+    account: &mut IOTAccount,
+    public_key: vector<u8>,
+    authenticator: AuthenticatorFunctionRefV1<IOTAccount>,
+    ctx: &TxContext,
+) {
+    // Update the account owner public key dynamic field. It is expected that the field does not exist.
+    account.add_field(PublicKeyField {}, public_key, ctx);
 
     // Update the account authenticator dynamic field. It is expected that the field already exists.
     account.rotate_auth_function_ref_v1(authenticator, ctx);
@@ -142,6 +163,11 @@ public fun authenticate_secp256r1(account: &IOTAccount, signature: vector<u8>, c
 }
 
 // === View Functions ===
+
+/// An utility function to check if the account has a public key set.
+public fun has_public_key(account: &IOTAccount): bool {
+    account.has_field(PublicKeyField {})
+}
 
 /// An utility function to borrow the account-related public key.
 public fun borrow_public_key(account: &IOTAccount): &vector<u8> {

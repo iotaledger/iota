@@ -20,9 +20,8 @@ use std::ascii;
 fun account_can_add_dynamic_fields() {
     account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
-        let ctx = test_scenario::ctx(scenario);
 
-        account.add_field(42, 42, ctx);
+        account.add_field(42, 42, scenario.ctx());
 
         test_scenario::return_shared(account);
     })
@@ -62,9 +61,8 @@ fun account_can_read_auth_function_ref_v1() {
 fun account_can_modify_dynamic_fields() {
     account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
-        let ctx = test_scenario::ctx(scenario);
 
-        let _: &mut u8 = account.borrow_field_mut(b"SomeData".to_ascii_string(), ctx);
+        let _: &mut u8 = account.borrow_field_mut(b"SomeData".to_ascii_string(), scenario.ctx());
 
         test_scenario::return_shared(account);
     })
@@ -76,9 +74,8 @@ fun account_can_modify_dynamic_fields() {
 fun account_can_remove_dynamic_fields() {
     account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
-        let ctx = test_scenario::ctx(scenario);
 
-        account.remove_field<_, u8>(b"SomeData".to_ascii_string(), ctx);
+        account.remove_field<_, u8>(b"SomeData".to_ascii_string(), scenario.ctx());
 
         test_scenario::return_shared(account);
     })
@@ -103,7 +100,6 @@ fun account_can_query_dynamic_field_existence() {
 fun account_can_rotate_auth_function_ref_v1() {
     account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
-        let ctx = test_scenario::ctx(scenario);
 
         let default_authenticator = create_authenticator_function_ref_v1_for_testing();
 
@@ -115,7 +111,7 @@ fun account_can_rotate_auth_function_ref_v1() {
             ascii::string(b"function2"),
         );
 
-        let value = account.rotate_auth_function_ref_v1(new_authenticator, ctx);
+        let value = account.rotate_auth_function_ref_v1(new_authenticator, scenario.ctx());
         assert_eq(value, default_authenticator);
 
         assert_eq(*account.borrow_auth_function_ref_v1(), new_authenticator);
@@ -128,12 +124,11 @@ fun account_can_rotate_auth_function_ref_v1() {
 fun account_can_rotate_dynamic_field() {
     account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
-        let ctx = test_scenario::ctx(scenario);
 
         let value = account.rotate_field(
             b"SomeData".to_ascii_string(),
             2u8,
-            ctx,
+            scenario.ctx(),
         );
         assert_eq(value, 3u8);
 
@@ -166,9 +161,8 @@ macro fun account_sender($f: |&mut Scenario|) {
 fun non_account_cant_add_dynamic_fields() {
     non_account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
-        let ctx = test_scenario::ctx(scenario);
 
-        account.add_field(42, 42, ctx);
+        account.add_field(42, 42, scenario.ctx());
 
         test_scenario::return_shared(account);
     })
@@ -209,9 +203,8 @@ fun non_account_can_read_auth_function_ref_v1() {
 fun non_account_cant_modify_dynamic_fields() {
     non_account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
-        let ctx = test_scenario::ctx(scenario);
 
-        let _: &mut u8 = account.borrow_field_mut(b"SomeData".to_ascii_string(), ctx);
+        let _: &mut u8 = account.borrow_field_mut(b"SomeData".to_ascii_string(), scenario.ctx());
 
         test_scenario::return_shared(account);
     })
@@ -224,9 +217,8 @@ fun non_account_cant_modify_dynamic_fields() {
 fun non_account_cant_remove_dynamic_fields() {
     non_account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
-        let ctx = test_scenario::ctx(scenario);
 
-        account.remove_field<_, u8>(b"SomeData".to_ascii_string(), ctx);
+        account.remove_field<_, u8>(b"SomeData".to_ascii_string(), scenario.ctx());
 
         test_scenario::return_shared(account);
     })
@@ -252,11 +244,10 @@ fun non_account_can_query_dynamic_field_existence() {
 fun non_account_cant_rotate_auth_function_ref_v1() {
     non_account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
-        let ctx = test_scenario::ctx(scenario);
 
         account.rotate_auth_function_ref_v1(
             create_authenticator_function_ref_v1_for_testing(),
-            ctx,
+            scenario.ctx(),
         );
 
         test_scenario::return_shared(account);
@@ -268,12 +259,11 @@ fun non_account_cant_rotate_auth_function_ref_v1() {
 fun non_account_cant_rotate_dynamic_field() {
     non_account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
-        let ctx = test_scenario::ctx(scenario);
 
         account.rotate_field(
             b"SomeData".to_ascii_string(),
             2u8,
-            ctx,
+            scenario.ctx(),
         );
 
         test_scenario::return_shared(account);

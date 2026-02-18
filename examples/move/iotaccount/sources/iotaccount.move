@@ -92,9 +92,8 @@ public fun with_field<Name: copy + drop + store, Value: store>(
 }
 
 /// Attach an Admin as a dynamic field to the account being built.
-public fun with_admin(mut self: IOTAccountBuilder, admin: address): IOTAccountBuilder {
-    df::add(&mut self.account.id, AdminField {}, admin);
-    self
+public fun with_admin(self: IOTAccountBuilder, admin: address): IOTAccountBuilder {
+    self.with_field(AdminField {}, admin)
 }
 
 /// Finish building an `IOTAccount` instance. This will check the validity of the attached authenticator
@@ -223,6 +222,11 @@ public fun rotate_admin(self: &mut IOTAccount, admin: address, ctx: &TxContext):
 /// Return the account's address.
 public fun account_address(self: &IOTAccount): address {
     self.id.to_address()
+}
+
+/// Return the account's uid.
+public fun borrow_uid(self: &IOTAccount): &UID {
+    &self.id
 }
 
 /// Returns `true` if and only if `self` has a dynamic field with the specified `name`.

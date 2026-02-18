@@ -19,12 +19,11 @@ use std::ascii;
 fun account_created() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
-    let ctx = test_scenario::ctx(scenario);
 
     let public_key = b"42";
     let authenticator = create_authenticator_function_ref_v1_for_testing();
 
-    public_key_authenticators::create(public_key, authenticator, ctx);
+    public_key_authenticators::create(public_key, authenticator, scenario.ctx());
 
     scenario.next_tx(@0x0);
     {
@@ -257,9 +256,13 @@ fun test_rotate_account_public_key() {
             ascii::string(b"module2"),
             ascii::string(b"function2"),
         );
-        let ctx = test_scenario::ctx(scenario);
 
-        public_key_authenticators::rotate_public_key(&mut account, public_key, authenticator, ctx);
+        public_key_authenticators::rotate_public_key(
+            &mut account,
+            public_key,
+            authenticator,
+            scenario.ctx(),
+        );
 
         assert_eq(*borrow_public_key(&account), public_key);
         assert_ref_eq(account.borrow_auth_function_ref_v1(), &authenticator);
@@ -289,9 +292,13 @@ fun test_rotate_account_public_key_wrong_sender() {
             ascii::string(b"module2"),
             ascii::string(b"function2"),
         );
-        let ctx = test_scenario::ctx(scenario);
 
-        public_key_authenticators::rotate_public_key(&mut account, public_key, authenticator, ctx);
+        public_key_authenticators::rotate_public_key(
+            &mut account,
+            public_key,
+            authenticator,
+            scenario.ctx(),
+        );
 
         test_scenario::return_shared(account);
     };
@@ -305,11 +312,9 @@ fun create_iotaccount_with_pk_for_testing(
     scenario: &mut Scenario,
     public_key: vector<u8>,
 ): address {
-    let ctx = test_scenario::ctx(scenario);
-
     let authenticator = create_authenticator_function_ref_v1_for_testing();
 
-    public_key_authenticators::create(public_key, authenticator, ctx);
+    public_key_authenticators::create(public_key, authenticator, scenario.ctx());
 
     scenario.next_tx(@0x0);
 

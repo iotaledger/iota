@@ -8,11 +8,9 @@ use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
 use iotaccount::iotaccount::{builder, IOTAccount};
 
 public fun create_iotaccount_for_testing(scenario: &mut iota::test_scenario::Scenario): address {
-    let ctx = iota::test_scenario::ctx(scenario);
-
     let authenticator = create_authenticator_function_ref_v1_for_testing();
 
-    builder(authenticator, ctx).with_field(b"SomeData".to_ascii_string(), 3u8).build()
+    builder(authenticator, scenario.ctx()).with_field(b"SomeData".to_ascii_string(), 3u8).build()
 }
 
 public fun create_authenticator_function_ref_v1_for_testing(): AuthenticatorFunctionRefV1<

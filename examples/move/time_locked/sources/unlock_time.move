@@ -1,15 +1,14 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module time_locked::unlock_time;
-
-use iota::clock::Clock;
-use iota::dynamic_field;
-
 // Common functionality for constructing signature based authentication logic for abstract accounts.
 // These tools have protection for the values they manage, but impose no other access restrictions.
 // It is the sole responsibility of the account developer to ensure that only the right sender has
 // access to any logic provided by these functions.
+module time_locked::unlock_time;
+
+use iota::clock::Clock;
+use iota::dynamic_field as df;
 
 // === Errors ===
 
@@ -25,19 +24,13 @@ const EUnlockTimeMissing: vector<u8> = b"Unlock time missing.";
 // === Structs ===
 
 // A dynamic field key used for storing the "unlock time" for an account.
-public struct UnlockTime has copy, drop, store {}
-
-// === Events ===
-
-// === Method Aliases ===
-
-// === Public Functions ===
+public struct UnlockTimeField has copy, drop, store {}
 
 // Attach unlock time data to the account with the provided `unlock_time`.
 // `unlock_time` is the unix timestamp in millisecond.
 public fun attach(account_id: &mut UID, unlock_time: u64) {
     assert!(!has(account_id), EUnlockTimeAttached);
-    dynamic_field::add(account_id, UnlockTime {}, unlock_time)
+    df::add(account_id, UnlockTimeField {}, unlock_time)
 }
 
 // Detach unlock time data from the account, disabling unlock time based authentication
@@ -45,17 +38,19 @@ public fun attach(account_id: &mut UID, unlock_time: u64) {
 public fun detach(account_id: &mut UID): u64 {
     assert!(has(account_id), EUnlockTimeMissing);
 
-    dynamic_field::remove(account_id, UnlockTime {})
+    df::remove(account_id, UnlockTimeField {})
 }
 
 // Update the unlock time after which the account will unlock.
 public fun rotate(account_id: &mut UID, unlock_time: u64): u64 {
     assert!(has(account_id), EUnlockTimeMissing);
 
-    let prev_unlock_time = dynamic_field::remove(account_id, UnlockTime {});
-    dynamic_field::add(account_id, UnlockTime {}, unlock_time);
+    let prev_unlock_time = df::remove(account_id, UnlockTimeField {});
+    df::add(account_id, UnlockTimeField {}, unlock_time);
     prev_unlock_time
 }
+
+// === Public Authenticators Helpers ===
 
 // Check if epoch's unix timestamp has passed the unlock time stored in
 // the account.
@@ -84,19 +79,17 @@ public fun authenticate_unlock_time(account_id: &UID, current_time: u64) {
 
 // Check if the account has an unlock time set.
 public fun has(account_id: &UID): bool {
-    dynamic_field::exists_(account_id, UnlockTime {})
+    df::exists_(account_id, UnlockTimeField {})
 }
 
 // Borrow the unix timestamp in milliseconds after which (including) the account
 // will be accessible.
 public fun borrow(account_id: &UID): &u64 {
-    dynamic_field::borrow(account_id, UnlockTime {})
+    df::borrow(account_id, UnlockTimeField {})
 }
-
-// === Admin Functions ===
 
 // === Package Functions ===
 
-// === Private Functions ===
-
-// === Test Functions ===
+public(package) fun unlock_time_field(): UnlockTimeField {
+    UnlockTimeField {}
+}
