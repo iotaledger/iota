@@ -2,30 +2,31 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { motion } from 'framer-motion';
-
 export interface ProgressCircleProps {
     progress: number;
 }
 
 export function ProgressCircle({ progress }: ProgressCircleProps): JSX.Element {
+    const radius = 5;
+    const circumference = 2 * Math.PI * radius;
+    const strokeDashoffset = circumference * (1 - (progress === 100 ? 1.5 : progress / 100));
+
     return (
-        <motion.svg className="rotate-90" viewBox="0 0 16 16">
-            <motion.circle
+        <svg className="rotate-90" viewBox="0 0 16 16">
+            <circle
                 fill="none"
                 cx="8"
                 cy="8"
-                r="5"
+                r={radius}
                 strokeLinecap={progress === 100 ? 'butt' : 'round'}
                 strokeWidth={1.5}
                 stroke="currentColor"
-                pathLength={0}
-                animate={{
-                    pathLength: progress === 100 ? 1.5 : progress / 100,
-                    type: 'spring',
-                    transition: { duration: 1 },
+                strokeDasharray={circumference}
+                strokeDashoffset={strokeDashoffset}
+                style={{
+                    transition: 'stroke-dashoffset 1s ease-in-out',
                 }}
             />
-        </motion.svg>
+        </svg>
     );
 }

@@ -8,7 +8,6 @@ import { ampli } from '_src/shared/analytics/ampli';
 import { setNetworkGroup } from '_src/shared/analytics/amplitude';
 import { getCustomNetwork, toast } from '@iota/core';
 import { getAllNetworks, Network, type NetworkConfiguration } from '@iota/iota-sdk/client';
-import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useMemo, useState } from 'react';
 import { CustomRPCInput } from './custom-rpc-input';
 import { RadioButton } from '@iota/apps-ui-kit';
@@ -71,23 +70,11 @@ export function NetworkSelector() {
                     </div>
                 ))}
             </div>
-            <AnimatePresence>
-                {isCustomRpcInputVisible && (
-                    <motion.div
-                        initial={{
-                            opacity: 0,
-                        }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{
-                            duration: 0.5,
-                            ease: 'easeInOut',
-                        }}
-                    >
-                        <CustomRPCInput />
-                    </motion.div>
-                )}
-            </AnimatePresence>
+            {isCustomRpcInputVisible && (
+                <div className="transition-opacity duration-500 ease-in-out">
+                    <CustomRPCInput />
+                </div>
+            )}
         </div>
     );
 }

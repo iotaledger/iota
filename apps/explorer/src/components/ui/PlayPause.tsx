@@ -4,20 +4,7 @@
 
 import { ButtonUnstyled } from '@iota/apps-ui-kit';
 import { Pause, Play } from '@iota/apps-ui-icons';
-import { motion } from 'framer-motion';
-import { useEffect } from 'react';
-
-const getAnimationVariants = (duration: number) => ({
-    initial: {
-        pathLength: 0,
-    },
-    animate: {
-        pathLength: 1,
-        transition: {
-            duration: duration,
-        },
-    },
-});
+import { useEffect, useState } from 'react';
 
 export interface PlayPauseProps {
     paused?: boolean;
@@ -31,20 +18,49 @@ export interface PlayPauseProps {
 
 export function PlayPause({ paused, onChange, animate }: PlayPauseProps): JSX.Element {
     const Icon = paused ? Play : Pause;
+    const [animationProgress, setAnimationProgress] = useState(0);
 
     const isAnimating = animate?.start && !paused;
 
     useEffect(() => {
         let timer: NodeJS.Timeout;
+        let animationFrame: number;
 
-        if (isAnimating) {
+        if (isAnimating && animate) {
+            const startTime = Date.now();
+            const duration = animate.duration * 1000;
+
+            const updateProgress = () => {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                setAnimationProgress(progress);
+
+                if (progress < 1) {
+                    animationFrame = requestAnimationFrame(updateProgress);
+                }
+            };
+
+            updateProgress();
+
             timer = setTimeout(() => {
                 animate.setStart(false);
-            }, animate.duration * 1000);
+                setAnimationProgress(0);
+            }, duration);
+        } else {
+            setAnimationProgress(0);
         }
 
-        return () => clearTimeout(timer);
+        return () => {
+            clearTimeout(timer);
+            if (animationFrame) {
+                cancelAnimationFrame(animationFrame);
+            }
+        };
     }, [animate, isAnimating]);
+
+    const radius = 7;
+    const circumference = 2 * Math.PI * radius;
+    const strokeDashoffset = circumference * (1 - animationProgress);
 
     return (
         <ButtonUnstyled
@@ -53,23 +69,22 @@ export function PlayPause({ paused, onChange, animate }: PlayPauseProps): JSX.El
             className="relative cursor-pointer border-none bg-transparent p-xxs text-iota-neutral-40 dark:text-iota-neutral-60"
         >
             {isAnimating && (
-                <motion.svg
+                <svg
                     className="absolute left-1/2 top-1/2 h-full w-full -translate-x-1/2 -translate-y-1/2 -rotate-90 text-iota-primary-60"
                     viewBox="0 0 16 16"
                 >
-                    <motion.circle
+                    <circle
                         fill="none"
                         cx="8"
                         cy="8"
-                        r="7"
+                        r={radius}
                         strokeLinecap="round"
                         strokeWidth={1.5}
                         stroke="currentColor"
-                        variants={getAnimationVariants(animate.duration)}
-                        initial="initial"
-                        animate="animate"
+                        strokeDasharray={circumference}
+                        strokeDashoffset={strokeDashoffset}
                     />
-                </motion.svg>
+                </svg>
             )}
             <Icon />
         </ButtonUnstyled>
