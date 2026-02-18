@@ -309,7 +309,7 @@ impl RandomnessManager {
             used_messages: OnceCell::new(),
             confirmations: BTreeMap::new(),
             dkg_output: OnceCell::new(),
-            next_randomness_round: RandomnessRound(0),
+            next_randomness_round: RandomnessRound::new(0),
             highest_completed_round: Arc::new(Mutex::new(highest_completed_round)),
         };
         let dkg_output = tables
@@ -377,22 +377,21 @@ impl RandomnessManager {
             .randomness_next_round
             .get(&SINGLETON_KEY)
             .expect("typed_store should not fail")
-            .unwrap_or(RandomnessRound(0));
+            .unwrap_or(RandomnessRound::new(0));
         info!(
             "random beacon: starting from next_randomness_round={}",
-            rm.next_randomness_round.0
+            rm.next_randomness_round
         );
         let first_incomplete_round = highest_completed_round
             .map(|r| r + 1)
-            .unwrap_or(RandomnessRound(0));
+            .unwrap_or(RandomnessRound::new(0));
         if first_incomplete_round < rm.next_randomness_round {
             info!(
-                "random beacon: resuming generation for randomness rounds from {} to {}",
-                first_incomplete_round,
+                "random beacon: resuming generation for randomness rounds from {first_incomplete_round} to {}",
                 rm.next_randomness_round - 1,
             );
-            for r in first_incomplete_round.0..rm.next_randomness_round.0 {
-                network_handle.send_partial_signatures(committee.epoch(), RandomnessRound(r));
+            for r in first_incomplete_round.value()..rm.next_randomness_round.value() {
+                network_handle.send_partial_signatures(committee.epoch(), RandomnessRound::new(r));
             }
         }
 

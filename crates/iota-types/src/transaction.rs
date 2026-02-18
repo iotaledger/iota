@@ -2897,7 +2897,7 @@ impl<S> Envelope<SenderSignedData, S> {
     pub fn key(&self) -> TransactionKey {
         match &self.data().intent_message().value.kind() {
             TransactionKind::RandomnessStateUpdate(rsu) => {
-                TransactionKey::RandomnessRound(rsu.epoch, RandomnessRound(rsu.randomness_round))
+                TransactionKey::RandomnessRound(rsu.epoch, rsu.randomness_round)
             }
             _ => TransactionKey::Digest(*self.digest()),
         }
@@ -2911,7 +2911,7 @@ impl<S> Envelope<SenderSignedData, S> {
         match &self.data().intent_message().value.kind() {
             TransactionKind::RandomnessStateUpdate(rsu) => Some(TransactionKey::RandomnessRound(
                 rsu.epoch,
-                RandomnessRound(rsu.randomness_round),
+                rsu.randomness_round,
             )),
             _ => None,
         }
@@ -3028,7 +3028,7 @@ impl VerifiedTransaction {
     ) -> Self {
         RandomnessStateUpdate {
             epoch,
-            randomness_round: randomness_round.0,
+            randomness_round,
             random_bytes,
             randomness_obj_initial_shared_version,
         }

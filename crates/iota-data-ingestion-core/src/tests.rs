@@ -407,7 +407,7 @@ async fn basic_flow_with_custom_callback() {
     let tx_data = TransactionData::new(
         TransactionKind::RandomnessStateUpdate(RandomnessStateUpdate {
             epoch: 0,
-            randomness_round: 0,
+            randomness_round: 0.into(),
             random_bytes: vec![],
             randomness_obj_initial_shared_version: SequenceNumber::default(),
         }),

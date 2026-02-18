@@ -26,7 +26,7 @@ use iota_sdk_types::GasCostSummary;
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId, TransactionDigest},
     committee::StakeUnit,
-    crypto::{AuthorityStrongQuorumSignInfo, RandomnessRound},
+    crypto::AuthorityStrongQuorumSignInfo,
     digests::{CheckpointContentsDigest, CheckpointDigest},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, IotaResult},
@@ -1632,7 +1632,6 @@ impl CheckpointBuilder {
                 .iter()
                 .filter_map(|e| randomness_rounds.get(e.transaction_digest()))
                 .copied()
-                .map(RandomnessRound)
                 .collect();
 
             let summary = CheckpointSummary::new(
