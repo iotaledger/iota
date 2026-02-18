@@ -388,7 +388,7 @@ EndOfEpochTransactionKind:
           TYPENAME: ChangeEpochV4
 Event:
   STRUCT:
-    - packageId:
+    - package_id:
         TYPENAME: ObjectId
     - module: STR
     - sender:
@@ -559,11 +559,11 @@ FullCheckpointContents:
             TYPENAME: GenericSignature
 GasCostSummary:
   STRUCT:
-    - computationCost: U64
-    - computationCostBurned: U64
-    - storageCost: U64
-    - storageRebate: U64
-    - nonRefundableStorageFee: U64
+    - computation_cost: U64
+    - computation_cost_burned: U64
+    - storage_cost: U64
+    - storage_rebate: U64
+    - non_refundable_storage_fee: U64
 GasData:
   STRUCT:
     - payment:
@@ -605,7 +605,7 @@ Intent:
   STRUCT:
     - scope: U8
     - version: U8
-    - appId: U8
+    - app_id: U8
 IntentMessage:
   STRUCT:
     - intent:
@@ -838,15 +838,11 @@ PublicKey:
           TUPLEARRAY:
             CONTENT: U8
             SIZE: 33
-RandomnessRound:
-  NEWTYPESTRUCT: U64
 RandomnessStateUpdate:
   STRUCT:
     - epoch: U64
-    - randomness_round:
-        TYPENAME: RandomnessRound
-    - random_bytes:
-        SEQ: U8
+    - randomness_round: U64
+    - random_bytes: BYTES
     - randomness_obj_initial_shared_version: U64
 SenderSignedData:
   NEWTYPESTRUCT:
