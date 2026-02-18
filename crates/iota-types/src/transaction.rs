@@ -15,8 +15,7 @@ use anyhow::bail;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
-pub use iota_sdk_types::Argument;
-pub use iota_sdk_types::RandomnessStateUpdate;
+pub use iota_sdk_types::{Argument, RandomnessStateUpdate};
 use iota_sdk_types::{
     Identifier, ObjectId, TypeTag,
     crypto::{Intent, IntentMessage, IntentScope},
