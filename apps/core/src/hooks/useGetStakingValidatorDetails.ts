@@ -76,6 +76,9 @@ export function useGetStakingValidatorDetails({
     const totalStakeFormatted = useFormatCoin({ balance: totalStake });
     const totalValidatorsStakeFormatted = useFormatCoin({ balance: totalValidatorStake });
 
+    // Temporarily needed to compute the effectiveCommisionRate until infra exposes it in commisionRate directly
+    const hasEffectiveCommisionRate = Number(system?.protocolVersion ?? 0) >= 20;
+
     return {
         epoch: Number(system?.epoch) || 0,
         totalStake: totalStakeFormatted,
@@ -85,6 +88,6 @@ export function useGetStakingValidatorDetails({
         validatorApy,
         systemDataResult,
         delegatedStakeDataResult,
-        commission: getValidatorCommission(validatorData),
+        commission: getValidatorCommission(validatorData, hasEffectiveCommisionRate),
     };
 }
