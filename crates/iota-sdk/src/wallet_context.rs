@@ -146,7 +146,7 @@ impl WalletContext {
     /// Get the active [`IotaAddress`].
     /// If not set, defaults to the first address in the keystore.
     pub fn active_address(&self) -> Result<IotaAddress, anyhow::Error> {
-        if self.config.keystore.addresses().is_empty() {
+        if self.config.keystore.entries().is_empty() {
             bail!("No managed addresses. Create new address with the `new-address` command.");
         }
 
