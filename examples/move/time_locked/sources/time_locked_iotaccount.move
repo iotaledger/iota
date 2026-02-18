@@ -21,6 +21,7 @@ use time_locked::unlock_time_authentication::{Self, unlock_time_field};
 
 /// Allows calling `.with_public_key` on an `IOTAccountBuilder` to set a `public_key`.
 use fun public_key_iotaccount::with_public_key as IOTAccountBuilder.with_public_key;
+
 /// Allows calling `.rotate_public_key` on an `IOTAccount` to rotate a `public_key`.
 use fun public_key_iotaccount::rotate_public_key as IOTAccount.rotate_public_key;
 
@@ -61,9 +62,9 @@ public fun create(
     builder.build();
 }
 
-/// Attach a PublicKey as a dynamic field to the account being built.
-public fun with_unlock_time(self: IOTAccountBuilder, unlock_time: u64): IOTAccountBuilder {
-    self.with_field(unlock_time_field(), unlock_time)
+/// Attach an unlock time as a dynamic field to the account being built.
+public fun with_unlock_time(builder: IOTAccountBuilder, unlock_time: u64): IOTAccountBuilder {
+    builder.with_field(unlock_time_field(), unlock_time)
 }
 
 /// Rotates the account unlock time to a new one as well as the authenticator. It rotates the account public key if

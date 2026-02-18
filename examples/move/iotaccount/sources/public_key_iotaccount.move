@@ -73,9 +73,9 @@ public fun rotate_public_key(
     account.rotate_auth_function_ref_v1(authenticator, ctx);
 }
 
-// Attach a public key to the account with the provided `public_key`.
-// It fails if the account already has a public key attached.
-// Only the account itself can call this function.
+/// Attach a public key to the account with the provided `public_key`.
+/// It fails if the account already has a public key attached.
+/// Only the account itself can call this function.
 public fun add_public_key(
     account: &mut IOTAccount,
     public_key: vector<u8>,

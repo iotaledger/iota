@@ -102,7 +102,7 @@ public(package) fun borrow_mut_balance_reserve<T>(account_id: &mut UID): &mut Ba
     df::borrow_mut(account_id, BalanceReserveField {})
 }
 
-// An utility function to construct the dynamic field key for the balance reserve field.
+/// An utility function to construct the dynamic field key for the balance reserve field.
 public(package) fun balance_reserve_field(): BalanceReserveField {
     BalanceReserveField {}
 }

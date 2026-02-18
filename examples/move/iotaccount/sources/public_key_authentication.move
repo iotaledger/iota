@@ -107,7 +107,7 @@ public fun borrow_public_key(account_id: &UID): &vector<u8> {
 
 // === Package Functions ===
 
-// An utility function to construct the dynamic field key for the public key field.
+/// An utility function to construct the dynamic field key for the public key field.
 public(package) fun public_key_field(): PublicKeyField {
     PublicKeyField {}
 }

@@ -1,6 +1,24 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+/// The SpendingLimitAccount module defines an account struct that can be used as a programmable account
+/// with a spending limit.
+///
+/// The account data, stored as dynamic fields, includes a spending limit value and a balance reserve.
+/// The spending limit is a u64 value that represents the maximum amount that can be withdrawn from the
+/// account in a single transaction. The balance reserve is a struct that holds the current balance
+/// reserved for spending and allows withdrawing and depositing funds to it. The account also has an
+/// owner public key.
+///
+/// The module includes functions to create a new `SpendingLimitAccount`, rotate the account's
+/// authenticator, rotate the account's owner public key, withdraw from the balance reserve, and deposit
+/// to the balance reserve. It also includes view functions to query the account's UID, address,
+/// spending limit, owner public key, and authenticator function reference.
+///
+/// The authenticator function for the `SpendingLimitAccount` validates the signature and checks for
+/// withdrawal commands in the transaction PTB. It looks into the PTB commands to find calls to the
+/// `withdraw_from_balance_reserve` function, calculates the total amount to be withdrawn in the
+/// transaction, and checks that the total amount does not exceed the spending limit.
 module spending_limit::spending_limit_account;
 
 use iota::account;
@@ -41,6 +59,7 @@ use fun is_withdraw_call as ProgrammableMoveCall.is_withdraw_call;
 use fun first_arg_equals_sender as ProgrammableMoveCall.first_arg_equals_sender;
 
 // === Errors ===
+
 #[error(code = 0)]
 const ETransactionSenderIsNotTheAccount: vector<u8> = b"Transaction must be signed by the account.";
 #[error(code = 1)]
@@ -64,10 +83,6 @@ const ACCOUNT_MODULE_NAME: vector<u8> = b"account";
 public struct SpendingLimitAccount has key {
     id: UID,
 }
-
-// === Events ===
-
-// === Method Aliases ===
 
 // === SpendingLimitAccount Handling ===
 
