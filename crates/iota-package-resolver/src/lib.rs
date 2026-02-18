@@ -760,14 +760,14 @@ impl Package {
         let mut type_origins: BTreeMap<String, BTreeMap<String, IotaAddress>> = BTreeMap::new();
         for TypeOrigin {
             module_name,
-            datatype_name,
+            struct_name,
             package,
         } in package.type_origin_table()
         {
             type_origins
                 .entry(module_name.to_string())
                 .or_default()
-                .insert(datatype_name.to_string(), (*package).into());
+                .insert(struct_name.to_string(), (*package).into());
         }
 
         let mut runtime_id = None;
@@ -783,7 +783,11 @@ impl Package {
             match Module::read(bytecode, origins) {
                 Ok(module) => modules.insert(name, module),
                 Err(struct_) => {
-                    return Err(Error::NoTypeOrigin(package.id().into(), name, struct_));
+                    return Err(Error::NoTypeOrigin(
+                        package.id().into(),
+                        name.to_string(),
+                        struct_,
+                    ));
                 }
             };
         }

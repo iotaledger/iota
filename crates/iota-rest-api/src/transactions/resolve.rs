@@ -15,7 +15,7 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     gas::GasCostSummary,
     gas_coin::GasCoin,
-    move_package::MovePackage,
+    move_package::{MovePackage, normalize_move_package},
     transaction::{
         CallArg, GasData, ObjectArg, ProgrammableTransaction, TransactionData, TransactionDataAPI,
     },
@@ -256,14 +256,19 @@ fn called_packages(
         // Despite the above this is safe given we are only using the signature
         // information (and in particular the reference kind) from the
         // normalized package.
-        let normalized_modules = package
-            .normalize(&mut pool, &binary_config, /* include code */ true)
-            .map_err(|e| {
-                RestError::new(
-                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("unable to normalize package {}: {e}", move_call.package),
-                )
-            })?;
+        let normalized_modules = normalize_move_package(
+            &package,
+            &mut pool,
+            &binary_config,
+            // include code
+            true,
+        )
+        .map_err(|e| {
+            RestError::new(
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("unable to normalize package {}: {e}", move_call.package),
+            )
+        })?;
         let package = NormalizedPackage {
             package,
             normalized_modules,
