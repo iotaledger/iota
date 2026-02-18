@@ -76,7 +76,7 @@ export function useGetStakingValidatorDetails({
     const totalStakeFormatted = useFormatCoin({ balance: totalStake });
     const totalValidatorsStakeFormatted = useFormatCoin({ balance: totalValidatorStake });
 
-    // Temporarily needed to compute the effectiveCommissionRate until infra exposes it in commisionRate directly
+    // Temporarily needed to compute the effectiveCommissionRate until infra exposes it in commissionRate directly
     const hasEffectiveCommissionRate = Number(system?.protocolVersion ?? 0) >= 20;
 
     return {

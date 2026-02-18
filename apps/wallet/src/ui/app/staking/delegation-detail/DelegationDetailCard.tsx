@@ -134,7 +134,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         toast.error(error?.message ?? 'An error occurred fetching validator information');
     }
 
-    // Temporarily needed to compute the effectiveCommissionRate until infra exposes it in commisionRate directly
+    // Temporarily needed to compute the effectiveCommissionRate until infra exposes it in commissionRate directly
     const hasEffectiveCommissionRate = Number(system?.protocolVersion ?? 0) >= 20;
 
     function handleAddNewStake() {
