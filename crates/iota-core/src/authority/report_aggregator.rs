@@ -7,11 +7,13 @@ use std::sync::{
 };
 
 use arc_swap::ArcSwapOption;
-use iota_types::messages_consensus::VersionedMisbehaviorReport;
+use iota_types::{error::IotaResult, messages_consensus::VersionedMisbehaviorReport};
 use serde::{Deserialize, Serialize};
+use typed_store::Map;
 
-use crate::authority::authority_per_epoch_store::misbehavior_config::{
-    MisbehaviorConfig, MisbehaviorCounts, verify_legacy_payload,
+use crate::authority::authority_per_epoch_store::{
+    AuthorityEpochTables,
+    misbehavior_config::{MisbehaviorConfig, MisbehaviorCounts, verify_legacy_payload},
 };
 
 pub struct ReportAggregator {
@@ -80,6 +82,15 @@ impl ReportAggregator {
         self.received_reports_state.0[authority_index as usize].to_serializable()
     }
 
+    pub(crate) fn restore_from_tables(&self, tables: &AuthorityEpochTables) -> IotaResult<()> {
+        for (i, state) in self.received_reports_state.0.iter().enumerate() {
+            if let Some(persisted) = tables.received_reports_state.get(&(i as u32))? {
+                state.update_from_serializable(persisted);
+            }
+        }
+        Ok(())
+    }
+
     /// Returns the received counts paired with voting power for each authority
     /// that has submitted at least one report. Used by the `Scorer` to compute
     /// weighted medians.
@@ -144,7 +155,6 @@ impl ReceivedReportsStatePerAuthority {
         }
     }
 
-    #[expect(dead_code)]
     pub fn update_from_serializable(&self, serializable: DBReceivedReportsStatePerAuthority) {
         self.received_metrics
             .store(serializable.received_metrics.map(Arc::new));
