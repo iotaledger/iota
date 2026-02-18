@@ -8,6 +8,7 @@ import { attachEnvironmentPlugin, getCustomNetwork } from '@iota/core';
 import { getNetwork, type Network } from '@iota/iota-sdk/client';
 
 import { ampli } from './ampli';
+import { dialogContextPlugin } from './plugins/dialogContextPlugin';
 
 const IS_ENABLED = process.env.BUILD_ENV === 'production';
 
@@ -38,6 +39,11 @@ export async function initAmplitude() {
             },
         },
     });
+
+    // Add dialog context plugin to enrich events with dialog information
+    if (IS_ENABLED) {
+        ampli.client.add(dialogContextPlugin(ampli.client));
+    }
 
     // Flush events when popup is about to close
     window.addEventListener('pagehide', () => {

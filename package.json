@@ -22,6 +22,7 @@
 		"isc-sdk": "turbo --filter ./sdk/isc-sdk",
 		"apps-backend": "turbo --filter apps-backend",
 		"iota-docs": "turbo --filter iota-docs",
+		"examples": "turbo --filter ./sdk/examples",
 		"changeset-publish": "pnpm changeset publish",
 		"changeset-version": "pnpm changeset version && pnpm --filter @iota/iota-sdk codegen:version",
 		"prepare": "husky",

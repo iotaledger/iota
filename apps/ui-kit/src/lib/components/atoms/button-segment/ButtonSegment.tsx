@@ -91,7 +91,7 @@ export function ButtonSegment({
         >
             <div className={cx('flex flex-row items-center justify-center gap-2', textSize)}>
                 {icon && <span>{icon}</span>}
-                <span className="shrink-0 font-inter">{label}</span>
+                <span className="text-start font-inter">{label}</span>
             </div>
         </ButtonUnstyled>
     );
