@@ -30,7 +30,7 @@ use crate::{
     },
     digests::ZKLoginInputsDigest,
     error::{IotaError, IotaResult},
-    move_authenticator::MoveAuthenticator,
+    move_authenticator::{MoveAuthenticator, MoveAuthenticatorV1},
     multisig::MultiSig,
     passkey_authenticator::PasskeyAuthenticator,
     signature_verification::VerifiedDigestCache,
