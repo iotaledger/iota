@@ -26,7 +26,7 @@ impl RandomnessStateUpdateTransaction {
 
     /// Randomness round of the update.
     async fn randomness_round(&self) -> UInt53 {
-        self.native.randomness_round.0.into()
+        self.native.randomness_round.value().into()
     }
 
     /// Updated random bytes, encoded as Base64.

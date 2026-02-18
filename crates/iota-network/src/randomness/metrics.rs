@@ -39,9 +39,12 @@ impl Metrics {
 
     pub fn record_completed_round(&self, round: RandomnessRound) {
         if let Some(inner) = &self.0 {
-            inner
-                .highest_round_generated
-                .set(inner.highest_round_generated.get().max(round.0 as i64));
+            inner.highest_round_generated.set(
+                inner
+                    .highest_round_generated
+                    .get()
+                    .max(round.value() as i64),
+            );
         }
     }
 

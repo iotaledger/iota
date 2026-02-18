@@ -17,7 +17,7 @@ use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     committee::EpochId,
-    crypto::{KeypairTraits, RandomnessRound},
+    crypto::KeypairTraits,
     digests::ObjectDigest,
     effects::TransactionEffects,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
@@ -438,7 +438,7 @@ async fn basic_flow_with_custom_callback() {
     let tx_data = TransactionData::new(
         TransactionKind::RandomnessStateUpdate(RandomnessStateUpdate {
             epoch: 0,
-            randomness_round: RandomnessRound::new(0),
+            randomness_round: 0.into(),
             random_bytes: vec![],
             randomness_obj_initial_shared_version: SequenceNumber::default(),
         }),

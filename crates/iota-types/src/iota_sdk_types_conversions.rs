@@ -429,7 +429,7 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
             InternalTxnKind::RandomnessStateUpdate(randomness_state_update) => {
                 TransactionKind::RandomnessStateUpdate(RandomnessStateUpdate {
                     epoch: randomness_state_update.epoch,
-                    randomness_round: randomness_state_update.randomness_round.0,
+                    randomness_round: randomness_state_update.randomness_round,
                     random_bytes: randomness_state_update.random_bytes,
                     randomness_obj_initial_shared_version: randomness_state_update
                         .randomness_obj_initial_shared_version,
@@ -537,9 +537,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
             TransactionKind::RandomnessStateUpdate(randomness_state_update) => {
                 Self::RandomnessStateUpdate(crate::transaction::RandomnessStateUpdate {
                     epoch: randomness_state_update.epoch,
-                    randomness_round: crate::crypto::RandomnessRound(
-                        randomness_state_update.randomness_round,
-                    ),
+                    randomness_round: randomness_state_update.randomness_round,
                     random_bytes: randomness_state_update.random_bytes,
                     randomness_obj_initial_shared_version: randomness_state_update
                         .randomness_obj_initial_shared_version,
