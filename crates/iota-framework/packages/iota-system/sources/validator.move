@@ -64,6 +64,9 @@ const EGasPriceHigherThanThreshold: u64 = 102;
 // The committee member index is not within the range of validators number
 const ECommitteeMembersOutOfRange: u64 = 103;
 
+// The epoch range start is greater than epoch range end
+const EInvalidEpochRange: u64 = 104;
+
 // TODO: potentially move this value to onchain config.
 const MAX_COMMISSION_RATE: u64 = 2_000; // Max rate is 20%, which is 2000 base points
 
@@ -953,54 +956,40 @@ public(package) fun new_for_testing(
 // Records a score in the score record table for this validator.
 // This function should only be called from the advance_epoch function in validator_set, and the score will be set for the corresponding epoch as provided by the TxContext.
 public(package) fun record_score(self: &mut ValidatorV1, score: u64, ctx: &mut TxContext) {
-    if (self.extra_fields.contains_with_type<ScoreRecordKey, Table<u64, u64>>(ScoreRecordKey {})) {
-        let score_record: &mut Table<u64, u64> = self.extra_fields.borrow_mut(ScoreRecordKey {});
-        score_record.add(ctx.epoch(), score)
-    } else {
-        let mut score_record = table::new(ctx);
-        score_record.add(ctx.epoch(), score);
-        self.extra_fields.add(ScoreRecordKey {}, score_record);
-    }
+    if (!self.extra_fields.contains_with_type<ScoreRecordKey, Table<u64, u64>>(ScoreRecordKey {})) {
+        self.extra_fields.add(ScoreRecordKey {}, table::new<u64, u64>(ctx));
+    };
+    let score_record: &mut Table<u64, u64> = self.extra_fields.borrow_mut(ScoreRecordKey {});
+    score_record.add(ctx.epoch(), score)
 }
 
 // Returns the score recorded for this validator at the given epoch, if exists. Otherwise returns None.
 public fun get_recorded_score_for_epoch(self: &ValidatorV1, epoch: u64): Option<u64> {
-    if (self.extra_fields.contains_with_type<ScoreRecordKey, Table<u64, u64>>(ScoreRecordKey {})) {
-        let score_record: &Table<u64, u64> = self.extra_fields.borrow(ScoreRecordKey {});
-        if (score_record.contains(epoch)) {
-            let score = score_record.borrow(epoch);
-            option::some(*score)
-        } else {
-            option::none()
-        }
-    } else {
+    let scores = get_recorded_score_for_epoch_range(self, epoch, epoch);
+    if (vector::is_empty(&scores)) {
         option::none()
+    } else {
+        scores[0]
     }
 }
 
-// Returns the scores given to this validator over a given range of epochs, if they exist. Epochs for which no score was recorded will be None.
 public fun get_recorded_score_for_epoch_range(
     self: &ValidatorV1,
     start_epoch: u64,
     end_epoch: u64,
 ): vector<Option<u64>> {
-    let mut i = start_epoch;
-    let mut scores = vector::empty<Option<u64>>();
-    while (i <= end_epoch) {
-        if (
-            self.extra_fields.contains_with_type<ScoreRecordKey, Table<u64, u64>>(ScoreRecordKey {})
-        ) {
-            let score_record: &Table<u64, u64> = self.extra_fields.borrow(ScoreRecordKey {});
-            if (score_record.contains(i)) {
-                let score = score_record.borrow(i);
-                scores.push_back(option::some(*score));
-            } else {
-                scores.push_back(option::none());
-            }
-        } else {
-            scores.push_back(option::none());
-        };
-        i = i + 1;
+    assert!(start_epoch <= end_epoch, EInvalidEpochRange);
+    let mut scores = vector::tabulate!(end_epoch - start_epoch + 1, |_| option::none());
+    if (self.extra_fields.contains_with_type<ScoreRecordKey, Table<u64, u64>>(ScoreRecordKey {})) {
+        let score_record: &Table<u64, u64> = self.extra_fields.borrow(ScoreRecordKey {});
+        let mut i = 0;
+        scores.do_mut!(|score| {
+            let epoch = i + start_epoch;
+            if (score_record.contains(epoch)) {
+                *score = option::some(*score_record.borrow(epoch));
+            };
+            i = i + 1;
+        });
     };
     scores
 }
