@@ -40,7 +40,12 @@ export function VisualAssets({ items }: VisualAssetsProps) {
                 <MovedAssetNotification
                     t={t}
                     destination="Hidden Assets"
-                    onUndo={() => showAsset(object.objectId)}
+                    onUndo={() => {
+                        showAsset(object.objectId);
+                        ampli.collectibleUnHidden({
+                            collectibleType: object.type!,
+                        });
+                    }}
                 />
             ),
             {
