@@ -92,6 +92,14 @@ export interface AccountsAddedProperties {
     numberOfAccounts?: number;
 }
 
+export interface AccountKeysExportedProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    accountType?: string;
+}
 export interface AddedAccountsProperties {
     /**
      * | Rule | Value |
@@ -150,6 +158,15 @@ export interface AutoLockUpdatedProperties {
      * | Type | number |
      */
     lockTimeSeconds: number;
+}
+
+export interface BalanceFinderUsedProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    accountType?: string;
 }
 
 export interface ClickedAppsBannerCtaProperties {
@@ -540,6 +557,10 @@ export interface SwitchedNetworkProperties {
     toNetwork?: string;
 }
 
+export interface ThemeChangedProperties {
+    theme: string;
+}
+
 export interface UnpinnedCoinProperties {
     /**
      * | Rule | Value |
@@ -601,6 +622,13 @@ export class AccountDeleted implements BaseEvent {
     }
 }
 
+export class AccountKeysExported implements BaseEvent {
+    event_type = 'account keys exported';
+
+    constructor(public event_properties?: AccountKeysExportedProperties) {
+        this.event_properties = event_properties;
+    }
+}
 export class AccountsAdded implements BaseEvent {
     event_type = 'accounts added';
 
@@ -648,6 +676,14 @@ export class AutoLockUpdated implements BaseEvent {
     event_type = 'auto lock updated';
 
     constructor(public event_properties: AutoLockUpdatedProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class BalanceFinderUsed implements BaseEvent {
+    event_type = 'balance finder used';
+
+    constructor(public event_properties?: BalanceFinderUsedProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -932,6 +968,14 @@ export class SwitchedNetwork implements BaseEvent {
     }
 }
 
+export class ThemeChanged implements BaseEvent {
+    event_type = 'theme changed';
+
+    constructor(public event_properties: ThemeChangedProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
 export class UnpinnedCoin implements BaseEvent {
     event_type = 'unpinned coin';
 
@@ -1087,6 +1131,23 @@ export class Ampli {
   }
 
   /**
+   * account keys exported
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/account%20keys%20exported)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. accountType)
+   * @param options Amplitude event options.
+   */
+  accountKeysExported(
+    properties?: AccountKeysExportedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new AccountKeysExported(properties), options);
+  }
+
+  /**
    * account renamed
    *
    * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/account%20renamed)
@@ -1218,6 +1279,23 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new AutoLockUpdated(properties), options);
+  }
+
+  /**
+   * balance finder used
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/balance%20finder%20used)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. accountType)
+   * @param options Amplitude event options.
+   */
+  balanceFinderUsed(
+    properties?: BalanceFinderUsedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new BalanceFinderUsed(properties), options);
   }
 
   /**
@@ -1813,6 +1891,23 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new SwitchedNetwork(properties), options);
+  }
+
+  /**
+   * theme changed
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/theme%20changed)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. theme)
+   * @param options Amplitude event options.
+   */
+  themeChanged(
+    properties: ThemeChangedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ThemeChanged(properties), options);
   }
 
   /**
