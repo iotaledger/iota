@@ -11,15 +11,5 @@ interface PortalProps {
 }
 
 export function Portal({ children, containerId }: PortalProps) {
-    const [hasMounted, setHasMounted] = useState(false);
-
-    useEffect(() => {
-        setHasMounted(true);
-    }, []);
-
-    if (!hasMounted) {
-        return null;
-    }
-
     return createPortal(children, document.getElementById(containerId)!);
 }

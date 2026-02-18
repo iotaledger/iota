@@ -16,7 +16,6 @@ import { RemoveDialog } from './RemoveDialog';
 import { Portal } from '_app/shared/Portal';
 import { formatAccountName } from '_src/ui/app/helpers';
 import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
-import { ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE, ampli } from '_src/shared/analytics';
 
 interface AccountGroupItemProps {
     account: SerializedUIAccount;
@@ -72,12 +71,6 @@ export function AccountGroupItem({
     }
 
     function handleExportKeys() {
-        const accountType = account?.type;
-        if (accountType) {
-            ampli.accountKeysExported({
-                accountType: ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE[accountType],
-            });
-        }
         navigate(`/accounts/export/${account!.id}`);
     }
 
@@ -152,8 +145,8 @@ export function AccountGroupItem({
                     }
                 />
             </div>
-            <Portal containerId={'manage-account-item-portal-container'}>
-                {isDropdownOpen && (
+            {isDropdownOpen && (
+                <Portal containerId={'manage-account-item-portal-container'}>
                     <div
                         style={{
                             top: dropdownPosition.y,
@@ -179,8 +172,8 @@ export function AccountGroupItem({
                             </Dropdown>
                         </OutsideClickHandler>
                     </div>
-                )}
-            </Portal>
+                </Portal>
+            )}
             <NicknameDialog
                 isOpen={isDialogNicknameOpen}
                 setOpen={setDialogNicknameOpen}
