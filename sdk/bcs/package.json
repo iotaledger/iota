@@ -64,6 +64,6 @@
         "vitest": "^2.1.9"
     },
     "dependencies": {
-        "bs58": "^6.0.0"
+        "@scure/base": "^1.2.4"
     }
 }

@@ -29,19 +29,23 @@ export function VisualAssets({ items }: VisualAssetsProps) {
     ) {
         event.preventDefault();
         event.stopPropagation();
-        ampli.clickedHideAsset({
-            objectId: object.objectId,
+        hideAsset(object.objectId);
+
+        ampli.collectibleHidden({
             collectibleType: object.type!,
         });
-
-        await hideAsset(object.objectId);
 
         toast(
             (t) => (
                 <MovedAssetNotification
                     t={t}
                     destination="Hidden Assets"
-                    onUndo={() => showAsset(object.objectId)}
+                    onUndo={() => {
+                        showAsset(object.objectId);
+                        ampli.collectibleUnHidden({
+                            collectibleType: object.type!,
+                        });
+                    }}
                 />
             ),
             {
