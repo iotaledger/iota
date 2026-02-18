@@ -22,8 +22,21 @@ jobs:
 
   e2e:
     uses: ./.github/workflows/_e2e.yml
+    with:
+      isNightly: true
+      isRpc: true
+      isExplorer: true
+      isAppsBackend: true
+      isTypescriptSDK: true
+      isWallet: true
+      isGraphQlTransport: true
+      isWalletDashboard: true
+      isEvmBridge: true
+      isIscSDK: true
+      isKiosk: true
     secrets:
       EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK: ${{ secrets.EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK }}
       EVM_BRIDGE_CONFIG: ${{ secrets.EVM_BRIDGE_CONFIG }}
+
   check-sri-integrity-webassets:
     uses: ./.github/workflows/check_sri.yml
