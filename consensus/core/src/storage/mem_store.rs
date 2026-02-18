@@ -32,7 +32,7 @@ struct Inner {
     commits: BTreeMap<(CommitIndex, CommitDigest), TrustedCommit>,
     commit_votes: BTreeSet<(CommitIndex, CommitDigest, BlockRef)>,
     commit_info: BTreeMap<(CommitIndex, CommitDigest), CommitInfo>,
-    scoring_metrics: BTreeMap<(), VersionedScoringMetrics>,
+    scoring_metrics: Option<VersionedScoringMetrics>,
 }
 
 impl MemStore {
@@ -44,7 +44,7 @@ impl MemStore {
                 commits: BTreeMap::new(),
                 commit_votes: BTreeSet::new(),
                 commit_info: BTreeMap::new(),
-                scoring_metrics: BTreeMap::new(),
+                scoring_metrics: None,
             }),
         }
     }
@@ -85,7 +85,7 @@ impl Store for MemStore {
         }
 
         if let Some(metrics) = write_batch.scoring_metrics {
-            inner.scoring_metrics.insert((), metrics);
+            inner.scoring_metrics = Some(metrics);
         }
 
         Ok(())
@@ -138,8 +138,10 @@ impl Store for MemStore {
         &self,
         _committee: &Committee,
     ) -> ConsensusResult<Option<VersionedScoringMetrics>> {
-        let inner = self.inner.read();
-        Ok(inner.scoring_metrics.get(&()).map(|m| m.snapshot()))
+        match &self.inner.read().scoring_metrics {
+            Some(metrics) => Ok(Some(metrics.snapshot())),
+            None => Ok(None),
+        }
     }
 
     fn contains_block_at_slot(&self, slot: Slot) -> ConsensusResult<bool> {

@@ -40,7 +40,7 @@ pub(crate) struct RocksDBStore {
     /// TODO: remove this field after migration is done.
     #[deprecated]
     scoring_metrics: DBMap<AuthorityIndex, StorageScoringMetrics>,
-    /// Stores versioned scoring metrics as a single blob under key 0.
+    /// Stores versioned scoring metrics as a single blob under key `()`.
     scoring_metrics_v2: DBMap<(), VersionedScoringMetrics>,
 }
 
@@ -243,10 +243,11 @@ impl Store for RocksDBStore {
         Ok(blocks)
     }
 
-    // Reads scoring metrics from the v2 CF (single blob under key 0). If not found,
-    // falls back to the legacy per-authority `StorageScoringMetrics` CF, and
-    // reconstructs a single `VersionedScoringMetrics` blob. The legacy migration
-    // logic should be deleted after `StorageScoringMetrics` is removed.
+    // Reads scoring metrics from the v2 CF (single blob under key `()`). If not
+    // found, falls back to the legacy per-authority `StorageScoringMetrics` CF,
+    // and reconstructs a single `VersionedScoringMetrics` blob. The legacy
+    // migration logic should be deleted after `StorageScoringMetrics` is
+    // removed.
     fn scan_scoring_metrics(
         &self,
         committee: &Committee,
