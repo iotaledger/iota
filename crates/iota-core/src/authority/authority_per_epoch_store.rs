@@ -4177,6 +4177,9 @@ impl AuthorityPerEpochStore {
                         );
                     }
                 }
+                // Snapshot the full received reports state into the output so it gets
+                // persisted when the quarantine flushes this commit.
+                output.set_received_reports_state(self.scorer.received_reports_state_snapshot());
                 Ok(ConsensusCertificateResult::ConsensusMessage)
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {

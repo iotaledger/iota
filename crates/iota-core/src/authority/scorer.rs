@@ -213,6 +213,21 @@ impl Scorer {
         state.received_metrics.update_from_report(report);
         state.has_not_sent_report.store(false, Ordering::Relaxed);
     }
+
+    pub(crate) fn received_reports_state_snapshot(&self) -> ReceivedReportsState {
+        self.received_reports_state
+            .iter()
+            .map(|state| ReceivedReportsStatePerAuthority {
+                received_metrics: state.received_metrics.snapshot(),
+                has_not_sent_report: AtomicBool::new(
+                    state.has_not_sent_report.load(Ordering::Relaxed),
+                ),
+                invalid_reports_count: AtomicU64::new(
+                    state.invalid_reports_count.load(Ordering::Relaxed),
+                ),
+            })
+            .collect()
+    }
 }
 
 // Methods for ScorerVersion::V1
@@ -516,7 +531,7 @@ mod tests {
             }
         }
 
-        pub(crate) fn invalid_reports_count_value(&self, authority: u32) -> u64 {
+        fn invalid_reports_count_value(&self, authority: u32) -> u64 {
             self.received_reports_state[authority as usize]
                 .invalid_reports_count
                 .load(Ordering::Relaxed)
