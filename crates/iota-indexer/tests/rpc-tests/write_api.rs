@@ -881,6 +881,7 @@ fn test_repeatedly_update_display() {
 }
 
 #[tokio::test]
+#[ignore = "https://github.com/iotaledger/iota/issues/10291"]
 async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
     let optimistic_pruner_batch_size = 5;
     let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(

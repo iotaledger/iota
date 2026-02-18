@@ -88,10 +88,10 @@ public fun bytes_lt(a: &vector<u8>, b: &vector<u8>): bool {
     let mut i = 0;
     let min = if (la < lb) { la } else { lb };
     while (i < min) {
-        let ba = *a.borrow(i);
-        let bb = *b.borrow(i);
-        if (ba < bb) return true;
-        if (ba > bb) return false;
+        let a_element = *a.borrow(i);
+        let b_element = *b.borrow(i);
+        if (a_element < b_element) return true;
+        if (a_element > b_element) return false;
         i = i + 1;
     };
     // all equal up to min; shorter one is "less"

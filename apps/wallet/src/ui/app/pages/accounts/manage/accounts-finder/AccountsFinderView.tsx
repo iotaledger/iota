@@ -41,6 +41,8 @@ import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount'
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 import { MigrationDialog } from '../../../home/tokens/MigrationDialog';
 import { SupplyIncreaseVestingStakingDialog } from '../../../home/tokens/SupplyIncreaseVestingStakingDialog';
+import { ampli } from '_src/shared/analytics/ampli';
+import { ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE } from '_src/shared/analytics';
 
 function getAccountSourceType(
     accountSource?: AccountSourceSerializedUI,
@@ -53,6 +55,39 @@ function getAccountSourceType(
         default:
             return AllowedAccountSourceTypes.LedgerDerived;
     }
+}
+
+/**
+ * Maps account source to Amplitude accountType for balanceFinderUsed event.
+ * Uses ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE for consistency across the app.
+ */
+function getAmplitudeAccountType(accountSource?: AccountSourceSerializedUI): string {
+    let ampliAccountSourceType: string | undefined = '';
+    if (accountSource) {
+        switch (accountSource.type) {
+            case AccountSourceType.Mnemonic: {
+                ampliAccountSourceType =
+                    ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE[AccountType.MnemonicDerived];
+                break;
+            }
+            case AccountSourceType.Seed: {
+                ampliAccountSourceType =
+                    ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE[AccountType.SeedDerived];
+                break;
+            }
+            case AccountSourceType.Keystone: {
+                ampliAccountSourceType =
+                    ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE[AccountType.KeystoneDerived];
+                break;
+            }
+            default: {
+                ampliAccountSourceType =
+                    ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE[AccountType.LedgerDerived];
+                break;
+            }
+        }
+    }
+    return ampliAccountSourceType || 'unknown';
 }
 
 enum SearchPhase {
@@ -112,6 +147,9 @@ export function AccountsFinderView(): JSX.Element {
     async function runAccountsFinder() {
         try {
             setSearchPhase(SearchPhase.Ongoing);
+            ampli.balanceFinderUsed({
+                accountType: getAmplitudeAccountType(accountSource),
+            });
             await find();
         } finally {
             setSearchPhase(SearchPhase.Idle);
