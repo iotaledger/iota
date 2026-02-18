@@ -790,6 +790,17 @@ impl SequencedConsensusTransaction {
             _ => None,
         }
     }
+
+    pub fn is_misbehavior_report(&self) -> bool {
+        if let SequencedConsensusTransactionKind::External(ref transaction) = self.transaction {
+            matches!(
+                transaction.kind,
+                ConsensusTransactionKind::MisbehaviorReport(..)
+            )
+        } else {
+            false
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

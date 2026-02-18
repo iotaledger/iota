@@ -3015,10 +3015,17 @@ impl AuthorityPerEpochStore {
         consensus_commit_info: &ConsensusCommitInfo,
         authority_metrics: &Arc<AuthorityMetrics>,
     ) -> IotaResult<Vec<VerifiedExecutableTransaction>> {
+        // Track the author of any misbehavior report seen (valid or invalid) so we only
+        // snapshot the scorer state when needed.
+        let mut misbehavior_reports_authors_seen = Vec::new();
+
         // Split transactions into different types for processing.
         let verified_transactions: Vec<_> = transactions
             .into_iter()
             .filter_map(|transaction| {
+                if transaction.is_misbehavior_report() {
+                    misbehavior_reports_authors_seen.push(transaction.certificate_author_index);
+                }
                 self.verify_consensus_transaction(
                     transaction,
                     &authority_metrics.skipped_consensus_txns,
@@ -3233,11 +3240,25 @@ impl AuthorityPerEpochStore {
                 shared_object_using_randomness_congestion_tracker,
             )
             .await?;
+        // Snapshot the received reports state into the output so it gets persisted when
+        // the quarantine flushes this commit. Only snapshot when at least one
+        // misbehavior report was seen, to avoid unnecessary work.
+        misbehavior_reports_authors_seen
+            .iter()
+            .for_each(|author_index| {
+                output.set_received_reports_state_for_authority(
+                    *author_index,
+                    self.report_aggregator
+                        .received_reports_state_per_authority_snapshot(*author_index),
+                );
+            });
         // Update scores on the consensus handler thread, right after processing
         // reports and snapshotting. This avoids cross-thread reads of the
         // aggregator — the checkpoint service only reads the final scores
         // (Vec<AtomicU64>).
-        if self.protocol_config().calculate_validator_scores() {
+        if !misbehavior_reports_authors_seen.is_empty()
+            && self.protocol_config().calculate_validator_scores()
+        {
             self.scorer.update_scores(&self.report_aggregator);
         }
         self.finish_consensus_certificate_process(&verified_transactions);

@@ -73,7 +73,6 @@ impl ReportAggregator {
             .fetch_add(1, Ordering::Relaxed);
     }
 
-    #[cfg(test)]
     pub(crate) fn received_reports_state_per_authority_snapshot(
         &self,
         authority_index: u32,
@@ -130,17 +129,14 @@ pub(crate) struct ReceivedReportsStatePerAuthority {
 }
 
 impl ReceivedReportsStatePerAuthority {
-    #[cfg(test)]
     pub fn invalid_reports_count_snapshot(&self) -> u64 {
         self.invalid_reports_count.load(Ordering::Relaxed)
     }
 
-    #[cfg(test)]
     pub fn received_metrics_snapshot(&self) -> Option<MisbehaviorCounts> {
         self.received_metrics.load().as_deref().cloned()
     }
 
-    #[cfg(test)]
     pub fn to_serializable(&self) -> DBReceivedReportsStatePerAuthority {
         DBReceivedReportsStatePerAuthority {
             received_metrics: self.received_metrics_snapshot(),

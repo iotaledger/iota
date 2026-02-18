@@ -25,6 +25,7 @@ use typed_store::{Map, rocks::DBBatch};
 use super::*;
 use crate::{
     authority::{
+        authority_per_epoch_store::report_aggregator::DBReceivedReportsStatePerAuthority,
         shared_object_congestion_tracker::CongestionPerObjectDebt,
         shared_object_version_manager::AssignedTxAndVersions,
     },
@@ -76,6 +77,10 @@ pub(crate) struct ConsensusCommitOutput {
     // jwk state
     pending_jwks: BTreeSet<(AuthorityName, JwkId, JWK)>,
     active_jwks: BTreeSet<(u64, (JwkId, JWK))>,
+
+    // Full snapshot of the scorer's received reports state, set after processing
+    // misbehavior reports in this commit.
+    received_reports_state: BTreeMap<u32, DBReceivedReportsStatePerAuthority>,
 }
 
 impl ConsensusCommitOutput {
@@ -198,6 +203,14 @@ impl ConsensusCommitOutput {
 
     pub fn insert_active_jwk(&mut self, round: u64, key: (JwkId, JWK)) {
         self.active_jwks.insert((round, key));
+    }
+
+    pub fn set_received_reports_state_for_authority(
+        &mut self,
+        authority_index: u32,
+        state: DBReceivedReportsStatePerAuthority,
+    ) {
+        self.received_reports_state.insert(authority_index, state);
     }
 
     pub fn set_congestion_control_object_debts(&mut self, object_debts: Vec<(ObjectID, u64)>) {
@@ -334,6 +347,8 @@ impl ConsensusCommitOutput {
                     )
                 }),
         )?;
+
+        batch.insert_batch(&tables.received_reports_state, self.received_reports_state)?;
 
         Ok(())
     }
