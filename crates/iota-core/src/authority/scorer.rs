@@ -190,8 +190,7 @@ impl Scorer {
     }
 
     pub(crate) fn store_last_report_summary(&self, summary: u64) {
-        self.last_report_checkpoint_seq
-            .store(summary, Ordering::Relaxed)
+        self.last_report_summary.store(summary, Ordering::Relaxed)
     }
 }
 
