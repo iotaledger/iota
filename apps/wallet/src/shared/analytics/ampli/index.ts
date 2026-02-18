@@ -417,6 +417,12 @@ export interface IotaUnstakedProperties {
      * |---|---|
      * | Type | number |
      */
+    rewards?: number;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
     stakedAmount?: number;
     /**
      * | Rule | Value |
@@ -424,6 +430,12 @@ export interface IotaUnstakedProperties {
      * | Regex |  |
      */
     validatorAddress?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    validatorName?: string;
 }
 
 export interface NetworkSwitchedProperties {

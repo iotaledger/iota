@@ -22,6 +22,7 @@ import {
 } from '@iota/core';
 import { useMemo } from 'react';
 import { useActiveAccount, useSigner } from '_hooks';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 import {
     Button,
     ButtonType,
@@ -53,6 +54,9 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
     const activeAccount = useActiveAccount();
     const activeAddress = activeAccount?.address ?? '';
     const signer = useSigner(activeAccount);
+    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
+    const validatorName =
+        systemState?.activeValidators.find((v) => v.iotaAddress === validatorAddress)?.name ?? '';
 
     const { data: allDelegation, isPending } = useGetDelegatedStake({
         address: activeAddress || '',
@@ -137,6 +141,8 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
                 ampli.iotaUnstaked({
                     stakedAmount: Number(tokenBalanceFormatted),
                     validatorAddress: validatorAddress!,
+                    rewards: Number(rewards),
+                    validatorName,
                 });
             },
         });
