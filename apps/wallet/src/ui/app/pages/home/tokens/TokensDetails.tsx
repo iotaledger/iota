@@ -186,6 +186,12 @@ export function TokenDetails() {
         setInterstitialDismissed(dismissed === 'true');
     }, [walletInterstitialConfig?.dismissKey]);
 
+    useEffect(() => {
+        if (isError) {
+            toast.error('Error updating balance');
+        }
+    }, [isError]);
+
     if (
         navigator.userAgent !== 'Playwright' &&
         walletInterstitialConfig?.enabled &&
@@ -205,12 +211,6 @@ export function TokenDetails() {
     if (!activeAccountAddress) {
         return null;
     }
-
-    useEffect(() => {
-        if (isError) {
-            toast.error('Error updating balance');
-        }
-    }, [isError]);
 
     return (
         <>
