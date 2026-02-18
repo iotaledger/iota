@@ -874,6 +874,10 @@ pub struct AuthorityEpochTables {
 
     /// Accumulated per-object debts for randomness congestion control.
     congestion_control_randomness_object_debts: DBMap<ObjectID, CongestionPerObjectDebt>,
+
+    /// Full snapshot of the scorer's received reports state, stored under key
+    /// `()`.
+    pub(crate) received_reports_state: DBMap<(), scorer::ReceivedReportsState>,
 }
 
 fn signed_transactions_table_default_config() -> DBOptions {

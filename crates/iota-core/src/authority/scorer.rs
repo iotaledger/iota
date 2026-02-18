@@ -11,6 +11,7 @@ use iota_types::{
     messages_consensus::VersionedMisbehaviorReport, misbehavior_counts::MisbehaviorsV1,
     scoring_metrics::VersionedScoringMetrics,
 };
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 pub(crate) const MAX_SCORE: u64 = u16::MAX as u64 + 1; // Note: must be consistent with MAX_SCORE in validator_set.move in iota-framework.
 const SCALE_FACTOR: u64 = 2_u64.pow(16);
@@ -21,6 +22,7 @@ pub type ReceivedReportsState = Vec<ReceivedReportsStatePerAuthority>;
 // which includes the received metrics and the count of invalid reports. This is
 // used to calculate the scores of the authorities based on the reports they
 // have sent and their validity.
+#[derive(Debug)]
 pub struct ReceivedReportsStatePerAuthority {
     // The metrics counts received from the authority, i.e., the information contained in the
     // MisbehaviourReports received. If the authority has not sent a report, received_metrics will
@@ -34,6 +36,37 @@ pub struct ReceivedReportsStatePerAuthority {
     // a deterministic way, since this information will not be propagated again to the rest of the
     // committee.
     invalid_reports_count: AtomicU64,
+}
+
+// Serializable counterpart of ReceivedReportsStatePerAuthority — converts
+// atomic types to plain types for DB storage.
+#[derive(Serialize, Deserialize)]
+struct SerializableReceivedReportsStatePerAuthority {
+    received_metrics: VersionedScoringMetrics,
+    has_not_sent_report: bool,
+    invalid_reports_count: u64,
+}
+
+impl Serialize for ReceivedReportsStatePerAuthority {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let serializable = SerializableReceivedReportsStatePerAuthority {
+            received_metrics: self.received_metrics.snapshot(),
+            has_not_sent_report: self.has_not_sent_report.load(Ordering::Relaxed),
+            invalid_reports_count: self.invalid_reports_count.load(Ordering::Relaxed),
+        };
+        serializable.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for ReceivedReportsStatePerAuthority {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = SerializableReceivedReportsStatePerAuthority::deserialize(deserializer)?;
+        Ok(ReceivedReportsStatePerAuthority {
+            received_metrics: s.received_metrics,
+            has_not_sent_report: AtomicBool::new(s.has_not_sent_report),
+            invalid_reports_count: AtomicU64::new(s.invalid_reports_count),
+        })
+    }
 }
 
 /// Holds all information related to scoring of authorities in the committee.
