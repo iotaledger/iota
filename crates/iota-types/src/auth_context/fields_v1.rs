@@ -323,7 +323,7 @@ mod tests {
             type_arguments: vec![TypeName {
                 name: "u64".to_string(),
             }],
-            arguments: vec![Argument::GasCoin, Argument::Input(0)],
+            arguments: vec![Argument::Gas, Argument::Input(0)],
         }))
     }
 
@@ -343,16 +343,14 @@ mod tests {
 
     #[test]
     fn command_split_coins_round_trip() {
-        let cmd = MoveCommand::SplitCoins(Argument::GasCoin, vec![Argument::Input(0)]);
+        let cmd = MoveCommand::SplitCoins(Argument::Gas, vec![Argument::Input(0)]);
         assert_eq!(round_trip(&cmd), cmd);
     }
 
     #[test]
     fn command_merge_coins_round_trip() {
-        let cmd = MoveCommand::MergeCoins(
-            Argument::GasCoin,
-            vec![Argument::Input(0), Argument::Input(1)],
-        );
+        let cmd =
+            MoveCommand::MergeCoins(Argument::Gas, vec![Argument::Input(0), Argument::Input(1)]);
         assert_eq!(round_trip(&cmd), cmd);
     }
 

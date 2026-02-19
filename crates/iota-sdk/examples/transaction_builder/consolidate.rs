@@ -62,7 +62,7 @@ async fn main() -> Result<(), anyhow::Error> {
                             .unwrap()
                     })
                     .collect::<Vec<_>>();
-                builder.command(Command::MergeCoins(Argument::GasCoin, coin_args));
+                builder.command(Command::MergeCoins(Argument::Gas, coin_args));
             }
             builder.finish()
         };
