@@ -101,13 +101,31 @@ export function MenuList() {
     function onThemeClick() {
         navigate(themeUrl);
     }
+    async function onSidePanelClick(
+        _isToggled: boolean,
+        event: React.ChangeEvent<HTMLInputElement>,
+    ) {
+        const isSidePanelVisible = event.target.checked;
 
-    function onSidePanelClick() {
-        sidePanelMutation.mutateAsync(!sidePanel.data).then(() => {
-            if (!sidePanel.data) {
-                window.close();
-            }
-        });
+        if (!isSidePanelVisible) {
+            // Track before the mutation: SidePanel.close() destroys this window, so we must flush before it runs
+            ampli.sidePanelChanged({ enabled: false });
+            await ampli.client.flush?.();
+        }
+
+        try {
+            await sidePanelMutation.mutateAsync(isSidePanelVisible);
+        } catch {
+            // If the mutation fails, don't track the enabled event
+            return;
+        }
+
+        if (isSidePanelVisible) {
+            // Track after the mutation: the popup is still alive, so it's safe to flush before closing
+            ampli.sidePanelChanged({ enabled: true });
+            await ampli.client.flush?.();
+            window.close();
+        }
     }
 
     function onSupportClick() {
@@ -161,8 +179,7 @@ export function MenuList() {
                       title: 'Side Panel',
                       subtitle: sidePanel.data ? `Enabled` : 'Disabled',
                       icon: <Sidepanel />,
-                      onClick: onSidePanelClick,
-                      tailIcon: <Toggle isToggled={!!sidePanel.data} />,
+                      tailIcon: <Toggle isToggled={!!sidePanel.data} onChange={onSidePanelClick} />,
                   },
               ]
             : []),
