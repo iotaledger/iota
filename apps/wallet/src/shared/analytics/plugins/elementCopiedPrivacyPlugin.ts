@@ -4,7 +4,7 @@
 import type { EnrichmentPlugin, Event } from '@amplitude/analytics-types';
 
 // these are the types that are always private
-export const PRIVATE_TYPES = new Set<string>(['address', 'digest', 'object', 'mnemonic']);
+const PRIVATE_TYPES = new Set<string>(['address', 'digest', 'object', 'mnemonic']);
 
 export function elementCopiedPrivacyPlugin(): EnrichmentPlugin {
     return {

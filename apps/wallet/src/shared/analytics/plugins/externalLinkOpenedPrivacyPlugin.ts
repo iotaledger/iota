@@ -3,9 +3,8 @@
 
 import type { EnrichmentPlugin, Event } from '@amplitude/analytics-types';
 
-export const PUBLIC_TYPES = new Set<string>(['documentation', 'application', 'support']);
 // these are the types that are always private
-export const PRIVATE_TYPES = new Set<string>(['address', 'digest', 'object']);
+const PRIVATE_TYPES = new Set<string>(['address', 'digest', 'object']);
 
 export function externalLinkOpenedPrivacyPlugin(): EnrichmentPlugin {
     return {
