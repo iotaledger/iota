@@ -3,7 +3,7 @@
 
 module dynamic_multisig_account::members;
 
-// --------------------------------------- Errors ---------------------------------------
+// === Errors ===
 
 #[error(code = 0)]
 const EMembersComponentsHaveDifferentLengths: vector<u8> =
@@ -14,7 +14,7 @@ const EMembersMustNotContainDuplicates: vector<u8> =
 #[error(code = 2)]
 const EMemberIsNotFound: vector<u8> = b"The member with the provided address is not found.";
 
-// ----------------------------------- Data Structures -----------------------------------
+// === Structs ===
 
 /// Holds the information about a member.
 public struct Member has drop, store {
@@ -30,7 +30,7 @@ public struct Members has drop, store {
     list: vector<Member>,
 }
 
-// --------------------------------------- Creation ---------------------------------------
+// === Public Functions ===
 
 /// Creates a `Members` instance from the given vectors of addresses and weights.
 /// The vectors must have the same length.
@@ -45,7 +45,16 @@ public(package) fun create(addresses: vector<address>, weights: vector<u64>): Me
     Members { list }
 }
 
-// --------------------------------------- Members ---------------------------------------
+/// Mutably borrows the account member with the provided address.
+public(package) fun borrow_mut(self: &mut Members, addr: address): &mut Member {
+    let index = find_index(self, addr);
+
+    assert!(index.is_some(), EMemberIsNotFound);
+
+    self.list.borrow_mut(*index.borrow())
+}
+
+// === View Functions ===
 
 /// Checks if the account has a member with the provided address.
 public fun contains(self: &Members, addr: address): bool {
@@ -82,17 +91,6 @@ public fun total_weight(self: &Members): u64 {
     total
 }
 
-/// Mutably borrows the account member with the provided address.
-public(package) fun borrow_mut(self: &mut Members, addr: address): &mut Member {
-    let index = find_index(self, addr);
-
-    assert!(index.is_some(), EMemberIsNotFound);
-
-    self.list.borrow_mut(*index.borrow())
-}
-
-// --------------------------------------- Member ---------------------------------------
-
 /// Borrows the address of the member.
 public fun addr(self: &Member): &address {
     &self.addr
@@ -103,7 +101,7 @@ public fun weight(self: &Member): u64 {
     self.weight
 }
 
-// --------------------------------------- Utilities ---------------------------------------
+// === Private Functions ===
 
 /// Check that the provided members components are valid.
 fun check_members(addresses: &vector<address>, weights: &vector<u64>) {

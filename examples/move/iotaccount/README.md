@@ -3,11 +3,13 @@
 This example shows how to create and use an IOTAccount Move smart contract that uses an Ed25519 public key for authentication.
 
 In a dedicated terminal run a local IOTA network:
+
 ```bash
 RUST_LOG="info,consensus=warn,iota_core=warn,fastcrypto_tbls=off,starfish_core=warn,iota_indexer=warn,iota_data_ingestion_core=error,iota_graphql_rpc=warn" iota start --force-regenesis --committee-size 1 --with-faucet --with-indexer --with-graphql
 ```
 
 In another terminal run the rest of the commands:
+
 ```bash
 # To re-run the commands below, first switch to a non account address like this:
 # iota client switch --address 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215

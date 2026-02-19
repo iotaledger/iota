@@ -29,7 +29,7 @@ fun test_account_creation() {
             assert_eq(account.members().weights(), vector[1, 2, 3]);
             assert_eq(account.threshold(), 3);
             assert_ref_eq(
-                account.authenticator(),
+                account.borrow_auth_function_ref_v1(),
                 &create_default_authenticator_function_ref_v1_for_testing(),
             );
 
@@ -85,7 +85,11 @@ fun test_account_creation() {
             // with total weight which is enough to reach the threshold.
             assert_eq(account.total_approves(TRANSACTION_DIGEST), 3);
 
-            dynamic_multisig_account::authenticate(&account, &auth_ctx, &tx_ctx);
+            dynamic_multisig_account::approval_DynamicMultisigAccount_authenticator(
+                &account,
+                &auth_ctx,
+                &tx_ctx,
+            );
 
             test_scenario::return_shared(account);
         };
@@ -505,7 +509,7 @@ fun test_account_updating() {
             assert_eq(account.members().addresses(), members_addresses);
             assert_eq(account.members().weights(), members_weights);
             assert_eq(account.threshold(), threshold);
-            assert_ref_eq(account.authenticator(), &authenticator);
+            assert_ref_eq(account.borrow_auth_function_ref_v1(), &authenticator);
 
             test_scenario::return_shared(account);
         };
@@ -664,38 +668,6 @@ fun test_account_updating_with_inconsistent_threshold() {
 // --------------------------------------- Authentication ---------------------------------------
 
 #[test]
-#[expected_failure(abort_code = dynamic_multisig_account::ETransactionSenderIsNotTheAccount)]
-fun test_authenticate_by_not_account() {
-    account_test!(|scenario, _| {
-        // Propose a transaction.
-        scenario.next_tx(@0x3);
-        {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
-
-            account.propose_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
-
-            assert_eq(account.threshold(), 3);
-            // The transaction has enough approves weight and can be executed.
-            assert_eq(account.total_approves(TRANSACTION_DIGEST), 3);
-
-            test_scenario::return_shared(account);
-        };
-
-        // Authenticate the transaction by not the account.
-        scenario.next_tx(@0x3);
-        {
-            let account = scenario.take_shared<DynamicMultisigAccount>();
-            let tx_ctx = create_tx_context_for_testing(@0x3, TRANSACTION_DIGEST);
-            let auth_ctx = create_auth_context_for_testing();
-
-            dynamic_multisig_account::authenticate(&account, &auth_ctx, &tx_ctx);
-
-            test_scenario::return_shared(account);
-        };
-    });
-}
-
-#[test]
 #[
     expected_failure(
         abort_code = dynamic_multisig_account::ETransactionDoesNotHaveSufficientApprovals,
@@ -724,7 +696,11 @@ fun test_authenticate_not_enough_total_weight() {
             let tx_ctx = create_tx_context_for_testing(account_address, TRANSACTION_DIGEST);
             let auth_ctx = create_auth_context_for_testing();
 
-            dynamic_multisig_account::authenticate(&account, &auth_ctx, &tx_ctx);
+            dynamic_multisig_account::approval_DynamicMultisigAccount_authenticator(
+                &account,
+                &auth_ctx,
+                &tx_ctx,
+            );
 
             test_scenario::return_shared(account);
         };
@@ -784,7 +760,11 @@ fun test_authenticate_not_enough_total_weight_after_update() {
             let tx_ctx = create_tx_context_for_testing(account_address, TRANSACTION_DIGEST);
             let auth_ctx = create_auth_context_for_testing();
 
-            dynamic_multisig_account::authenticate(&account, &auth_ctx, &tx_ctx);
+            dynamic_multisig_account::approval_DynamicMultisigAccount_authenticator(
+                &account,
+                &auth_ctx,
+                &tx_ctx,
+            );
 
             test_scenario::return_shared(account);
         };
@@ -854,7 +834,11 @@ fun test_authenticate_member_removed_during_update() {
             let tx_ctx = create_tx_context_for_testing(account_address, TRANSACTION_DIGEST);
             let auth_ctx = create_auth_context_for_testing();
 
-            dynamic_multisig_account::authenticate(&account, &auth_ctx, &tx_ctx);
+            dynamic_multisig_account::approval_DynamicMultisigAccount_authenticator(
+                &account,
+                &auth_ctx,
+                &tx_ctx,
+            );
 
             test_scenario::return_shared(account);
         };
@@ -914,7 +898,11 @@ fun test_authenticate_threshold_changed_during_update() {
             let tx_ctx = create_tx_context_for_testing(account_address, TRANSACTION_DIGEST);
             let auth_ctx = create_auth_context_for_testing();
 
-            dynamic_multisig_account::authenticate(&account, &auth_ctx, &tx_ctx);
+            dynamic_multisig_account::approval_DynamicMultisigAccount_authenticator(
+                &account,
+                &auth_ctx,
+                &tx_ctx,
+            );
 
             test_scenario::return_shared(account);
         };
