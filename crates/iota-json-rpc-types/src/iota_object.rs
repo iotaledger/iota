@@ -23,7 +23,7 @@ use iota_types::{
         UserInputResult,
     },
     gas_coin::GasCoin,
-    iota_serde::{BigInt, IotaOwner, IotaStructTag, SequenceNumber as AsSequenceNumber},
+    iota_serde::{BigInt, IotaStructTag, SequenceNumber as AsSequenceNumber},
     messages_checkpoint::CheckpointSequenceNumber,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
     object::{Data, MoveObject, Object, ObjectInner, ObjectRead, Owner},
@@ -210,8 +210,6 @@ pub struct IotaObjectData {
     /// The owner of this object. Default to be None unless
     /// IotaObjectDataOptions.showOwner is set to true
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<IotaOwner>")]
-    #[serde_as(as = "Option<IotaOwner>")]
     pub owner: Option<Owner>,
     /// The digest of the transaction that created or last mutated this object.
     /// Default to be None unless IotaObjectDataOptions.

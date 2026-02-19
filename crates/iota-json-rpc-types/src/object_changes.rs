@@ -6,7 +6,7 @@ use std::fmt::{Display, Formatter, Result};
 
 use iota_types::{
     base_types::{IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber, StructTag},
-    iota_serde::{IotaOwner, IotaStructTag, SequenceNumber as AsSequenceNumber},
+    iota_serde::{IotaStructTag, SequenceNumber as AsSequenceNumber},
     object::Owner,
 };
 use schemars::JsonSchema;
@@ -33,8 +33,6 @@ pub enum ObjectChange {
     #[serde(rename_all = "camelCase")]
     Transferred {
         sender: IotaAddress,
-        #[schemars(with = "IotaOwner")]
-        #[serde_as(as = "IotaOwner")]
         recipient: Owner,
         #[schemars(with = "String")]
         #[serde_as(as = "IotaStructTag")]
@@ -49,8 +47,6 @@ pub enum ObjectChange {
     #[serde(rename_all = "camelCase")]
     Mutated {
         sender: IotaAddress,
-        #[schemars(with = "IotaOwner")]
-        #[serde_as(as = "IotaOwner")]
         owner: Owner,
         #[schemars(with = "String")]
         #[serde_as(as = "IotaStructTag")]
@@ -92,8 +88,6 @@ pub enum ObjectChange {
     #[serde(rename_all = "camelCase")]
     Created {
         sender: IotaAddress,
-        #[schemars(with = "IotaOwner")]
-        #[serde_as(as = "IotaOwner")]
         owner: Owner,
         #[schemars(with = "String")]
         #[serde_as(as = "IotaStructTag")]

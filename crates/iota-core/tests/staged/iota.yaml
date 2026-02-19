@@ -792,18 +792,19 @@ ObjectOut:
 Owner:
   ENUM:
     0:
-      address:
+      AddressOwner:
         NEWTYPE:
           TYPENAME: Address
     1:
-      object:
+      ObjectOwner:
         NEWTYPE:
-          TYPENAME: ObjectId
+          TYPENAME: Address
     2:
-      shared:
-        NEWTYPE: U64
+      Shared:
+        STRUCT:
+          - initial_shared_version: U64
     3:
-      immutable: UNIT
+      Immutable: UNIT
 PackageUpgradeError:
   ENUM:
     0:

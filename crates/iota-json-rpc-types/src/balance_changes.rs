@@ -4,11 +4,7 @@
 
 use std::fmt::{Display, Formatter, Result};
 
-use iota_types::{
-    base_types::TypeTag,
-    iota_serde::{IotaOwner, IotaTypeTag},
-    object::Owner,
-};
+use iota_types::{base_types::TypeTag, iota_serde::IotaTypeTag, object::Owner};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
@@ -18,8 +14,6 @@ use serde_with::{DisplayFromStr, serde_as};
 #[serde(rename_all = "camelCase")]
 pub struct BalanceChange {
     /// Owner of the balance change
-    #[schemars(with = "IotaOwner")]
-    #[serde_as(as = "IotaOwner")]
     pub owner: Owner,
     #[schemars(with = "String")]
     #[serde_as(as = "IotaTypeTag")]

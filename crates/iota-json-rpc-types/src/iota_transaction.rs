@@ -25,8 +25,7 @@ use iota_types::{
     gas::GasCostSummary,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     iota_serde::{
-        BigInt, IotaOwner, IotaTypeTag as AsIotaTypeTag, Readable,
-        SequenceNumber as AsSequenceNumber,
+        BigInt, IotaTypeTag as AsIotaTypeTag, Readable, SequenceNumber as AsSequenceNumber,
     },
     layout_resolver::{LayoutResolver, get_layout_from_struct_tag},
     messages_checkpoint::CheckpointSequenceNumber,
@@ -2469,8 +2468,6 @@ impl TransactionBlockBytes {
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename = "OwnedObjectRef")]
 pub struct OwnedObjectRef {
-    #[schemars(with = "IotaOwner")]
-    #[serde_as(as = "IotaOwner")]
     pub owner: Owner,
     pub reference: IotaObjectRef,
 }
