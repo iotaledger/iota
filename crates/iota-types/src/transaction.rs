@@ -2226,6 +2226,8 @@ pub trait TransactionDataAPI {
     /// run at the very end of the epoch
     fn is_end_of_epoch_tx(&self) -> bool;
 
+    fn is_consensus_commit_prologue(&self) -> bool;
+
     /// Check if the transaction is sponsored (namely gas owner != sender)
     fn is_sponsored_tx(&self) -> bool;
 
@@ -2355,6 +2357,14 @@ impl TransactionDataAPI for TransactionDataV1 {
 
     fn is_end_of_epoch_tx(&self) -> bool {
         matches!(self.kind, TransactionKind::EndOfEpochTransaction(_))
+    }
+
+    fn is_consensus_commit_prologue(&self) -> bool {
+        matches!(
+            &self.kind,
+            TransactionKind::ConsensusCommitPrologueV1(_)
+                | TransactionKind::ConsensusCommitPrologueV2(_)
+        )
     }
 
     fn is_system_tx(&self) -> bool {
