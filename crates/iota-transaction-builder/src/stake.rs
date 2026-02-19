@@ -10,7 +10,7 @@ use iota_types::{
     timelock::timelocked_staking::{
         ADD_TIMELOCKED_STAKE_FUN_NAME, WITHDRAW_TIMELOCKED_STAKE_FUN_NAME,
     },
-    transaction::{CallArg, Command, ObjectArg, TransactionData},
+    transaction::{CallArg, Command, TransactionData},
 };
 
 use crate::TransactionBuilder;
@@ -51,21 +51,17 @@ impl TransactionBuilder {
                 type_ == coin_type,
                 "All coins should be the same type, expecting {coin_type}, got {type_}."
             );
-            obj_vec.push(ObjectArg::ImmOrOwnedObject(oref))
+            obj_vec.push(CallArg::ImmutableOrOwned(oref))
         }
-        obj_vec.push(ObjectArg::ImmOrOwnedObject(oref));
+        obj_vec.push(CallArg::ImmutableOrOwned(oref));
 
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let arguments = vec![
                 builder.input(CallArg::IOTA_SYSTEM_MUT).unwrap(),
                 builder.make_obj_vec(obj_vec)?,
-                builder
-                    .input(CallArg::Pure(bcs::to_bytes(&amount.into())?))
-                    .unwrap(),
-                builder
-                    .input(CallArg::Pure(bcs::to_bytes(&validator)?))
-                    .unwrap(),
+                builder.input(CallArg::pure(&amount.into())).unwrap(),
+                builder.input(CallArg::pure(&validator)).unwrap(),
             ];
             builder.command(Command::move_call(
                 ObjectID::SYSTEM,
@@ -107,7 +103,7 @@ impl TransactionBuilder {
             gas,
             vec![
                 CallArg::IOTA_SYSTEM_MUT,
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(staked_iota)),
+                CallArg::ImmutableOrOwned(staked_iota),
             ],
             gas_budget,
             gas_price,
@@ -142,8 +138,8 @@ impl TransactionBuilder {
             let mut builder = ProgrammableTransactionBuilder::new();
             let arguments = vec![
                 builder.input(CallArg::IOTA_SYSTEM_MUT)?,
-                builder.input(CallArg::Object(ObjectArg::ImmOrOwnedObject(oref)))?,
-                builder.input(CallArg::Pure(bcs::to_bytes(&validator)?))?,
+                builder.input(CallArg::ImmutableOrOwned(oref))?,
+                builder.input(CallArg::pure(&validator))?,
             ];
             builder.command(Command::move_call(
                 ObjectID::SYSTEM,
@@ -185,7 +181,7 @@ impl TransactionBuilder {
             gas,
             vec![
                 CallArg::IOTA_SYSTEM_MUT,
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(timelocked_staked_iota)),
+                CallArg::ImmutableOrOwned(timelocked_staked_iota),
             ],
             gas_budget,
             gas_price,

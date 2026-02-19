@@ -764,7 +764,7 @@ pub mod shared_object_test_utils {
         base_types::{ObjectID, SequenceNumber, random_object_ref},
         crypto::{AccountKeyPair, get_key_pair},
         executable_transaction::VerifiedExecutableTransaction,
-        transaction::{CallArg, ObjectArg, VerifiedTransaction},
+        transaction::{CallArg, VerifiedTransaction},
     };
 
     use super::*;
@@ -793,12 +793,10 @@ pub mod shared_object_test_utils {
                         "unimportant_function",
                         objects
                             .iter()
-                            .map(|(id, mutable)| {
-                                CallArg::Object(ObjectArg::SharedObject {
-                                    id: *id,
-                                    initial_shared_version: SequenceNumber::default(),
-                                    mutable: *mutable,
-                                })
+                            .map(|(id, mutable)| CallArg::Shared {
+                                object_id: *id,
+                                initial_shared_version: SequenceNumber::default(),
+                                mutable: *mutable,
                             })
                             .collect(),
                     )

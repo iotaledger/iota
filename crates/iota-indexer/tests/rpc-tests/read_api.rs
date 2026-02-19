@@ -30,7 +30,7 @@ use iota_types::{
     digests::{ChainIdentifier, ObjectDigest, TransactionDigest},
     error::IotaObjectResponseError,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, ObjectArg},
+    transaction::CallArg,
     utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;
@@ -2086,9 +2086,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             let mut builder = ProgrammableTransactionBuilder::new();
 
             let sword_object_ref_arg = builder
-                .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(
-                    sword_object_ref.to_object_ref(),
-                )))
+                .input(CallArg::ImmutableOrOwned(sword_object_ref.to_object_ref()))
                 .expect("valid pure");
 
             let warrior = builder.programmable_move_call(
@@ -2176,9 +2174,9 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             let mut builder = ProgrammableTransactionBuilder::new();
 
             let warrior_object_ref_arg = builder
-                .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(
+                .input(CallArg::ImmutableOrOwned(
                     warrior_object_ref.to_object_ref(),
-                )))
+                ))
                 .unwrap();
 
             let sword = builder.programmable_move_call(
@@ -2274,9 +2272,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             let mut builder = ProgrammableTransactionBuilder::new();
 
             let warrior_object_ref_arg = builder
-                .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(
-                    warrior_object_ref,
-                )))
+                .input(CallArg::ImmutableOrOwned(warrior_object_ref))
                 .unwrap();
 
             let _ = builder.programmable_move_call(
@@ -2443,9 +2439,7 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
 
             // Reference to the Warrior object
             let warrior_object_ref_arg = builder
-                .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(
-                    warrior_object_ref,
-                )))
+                .input(CallArg::ImmutableOrOwned(warrior_object_ref))
                 .expect("valid pure");
 
             // Unwrap the Sword

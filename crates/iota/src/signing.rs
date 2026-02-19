@@ -83,11 +83,11 @@ pub(crate) async fn sign_transaction(
         return Ok(GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
             auth_call_args,
             auth_type_args,
-            CallArg::Object(iota_types::transaction::ObjectArg::SharedObject {
-                id: ObjectID::from(*signer_address),
+            CallArg::Shared {
+                object_id: ObjectID::from(*signer_address),
                 initial_shared_version,
                 mutable: false,
-            }),
+            },
         )));
     }
 

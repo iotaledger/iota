@@ -304,7 +304,7 @@ mod tests {
         },
         object::Object,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{ObjectArg, SenderSignedData, TransactionKey},
+        transaction::{CallArg, SenderSignedData, TransactionKey},
     };
 
     use super::*;
@@ -682,8 +682,8 @@ mod tests {
         for (shared_object_id, shared_object_init_version, shared_object_mutable) in shared_objects
         {
             builder
-                .obj(ObjectArg::SharedObject {
-                    id: *shared_object_id,
+                .obj(CallArg::Shared {
+                    object_id: *shared_object_id,
                     initial_shared_version: *shared_object_init_version,
                     mutable: *shared_object_mutable,
                 })

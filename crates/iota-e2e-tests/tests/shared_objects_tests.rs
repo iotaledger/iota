@@ -22,7 +22,7 @@ use iota_types::{
     event::Event,
     execution_status::ExecutionStatus,
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest},
-    transaction::{CallArg, ObjectArg},
+    transaction::CallArg,
 };
 use rand::distributions::Distribution;
 use test_cluster::TestClusterBuilder;
@@ -325,13 +325,13 @@ async fn call_shared_object_contract() {
     let package_id = package.object_id;
     let counter_id = counter.object_id;
     let counter_initial_shared_version = counter.version;
-    let counter_object_arg = ObjectArg::SharedObject {
-        id: counter_id,
+    let counter_object_arg = CallArg::Shared {
+        object_id: counter_id,
         initial_shared_version: counter_initial_shared_version,
         mutable: true,
     };
-    let counter_object_arg_imm = ObjectArg::SharedObject {
-        id: counter_id,
+    let counter_object_arg_imm = CallArg::Shared {
+        object_id: counter_id,
         initial_shared_version: counter_initial_shared_version,
         mutable: false,
     };
@@ -353,8 +353,10 @@ async fn call_shared_object_contract() {
                 "counter",
                 "assert_value",
                 vec![
-                    CallArg::Object(counter_object_arg_imm),
-                    CallArg::Pure(0u64.to_le_bytes().to_vec()),
+                    counter_object_arg_imm.clone(),
+                    CallArg::Pure {
+                        value: 0u64.to_le_bytes().to_vec(),
+                    },
                 ],
             )
             .build();
@@ -417,12 +419,14 @@ async fn call_shared_object_contract() {
                 "counter",
                 "assert_value",
                 vec![
-                    CallArg::Object(if imm {
-                        counter_object_arg_imm
+                    if imm {
+                        counter_object_arg_imm.clone()
                     } else {
-                        counter_object_arg
-                    }),
-                    CallArg::Pure(1u64.to_le_bytes().to_vec()),
+                        counter_object_arg.clone()
+                    },
+                    CallArg::Pure {
+                        value: 1u64.to_le_bytes().to_vec(),
+                    },
                 ],
             )
             .build();
@@ -449,7 +453,7 @@ async fn call_shared_object_contract() {
             package_id,
             "counter",
             "increment",
-            vec![CallArg::Object(counter_object_arg_imm)],
+            vec![counter_object_arg_imm],
         )
         .build();
     let effects = test_cluster

@@ -18,8 +18,7 @@ use iota_types::{
     },
     object::Object,
     transaction::{
-        CallArg, CertifiedTransaction, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
-        TransactionData,
+        CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionData,
     },
     utils::{make_committee_key_num, to_sender_signed_transaction},
 };
@@ -61,8 +60,8 @@ pub async fn test_certificates(
     let rgp = epoch_store.reference_gas_price();
 
     let mut certificates = Vec::new();
-    let shared_object_arg = ObjectArg::SharedObject {
-        id: shared_object.id(),
+    let shared_object_arg = CallArg::Shared {
+        object_id: shared_object.id(),
         initial_shared_version: shared_object.version(),
         mutable: true,
     };
@@ -83,9 +82,11 @@ pub async fn test_certificates(
             gas_object.compute_object_reference(),
             // args
             vec![
-                CallArg::Object(shared_object_arg),
-                CallArg::Pure(16u64.to_le_bytes().to_vec()),
-                CallArg::Pure(bcs::to_bytes(&AccountAddress::new(sender.into_bytes())).unwrap()),
+                shared_object_arg.clone(),
+                CallArg::Pure {
+                    value: 16u64.to_le_bytes().to_vec(),
+                },
+                CallArg::pure(&AccountAddress::new(sender.into_bytes())),
             ],
             rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
             rgp,

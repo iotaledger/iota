@@ -9,7 +9,7 @@ use async_graphql::{
 use iota_json_rpc_types::IotaArgument;
 use iota_types::transaction::{
     Argument as NativeArgument, CallArg as NativeCallArg, Command as NativeProgrammableTransaction,
-    ObjectArg as NativeObjectArg, ProgrammableMoveCall as NativeMoveCallTransaction,
+    ProgrammableMoveCall as NativeMoveCallTransaction,
     ProgrammableTransaction as NativeProgrammableTransactionBlock,
 };
 
@@ -327,37 +327,38 @@ impl MoveCallTransaction {
 impl TransactionInput {
     fn from(argument: NativeCallArg, checkpoint_viewed_at: u64) -> Self {
         use NativeCallArg as N;
-        use NativeObjectArg as O;
         use TransactionInput as I;
 
         match argument {
-            N::Pure(bytes) => I::Pure(Pure {
+            N::Pure { value: bytes } => I::Pure(Pure {
                 bytes: Base64::from(bytes),
             }),
 
-            N::Object(O::ImmOrOwnedObject(oref)) => I::OwnedOrImmutable(OwnedOrImmutable {
+            N::ImmutableOrOwned(obj_ref) => I::OwnedOrImmutable(OwnedOrImmutable {
                 read: ObjectRead {
-                    native: oref,
+                    native: obj_ref,
                     checkpoint_viewed_at,
                 },
             }),
 
-            N::Object(O::SharedObject {
-                id,
+            N::Shared {
+                object_id: id,
                 initial_shared_version,
                 mutable,
-            }) => I::SharedInput(SharedInput {
+            } => I::SharedInput(SharedInput {
                 address: id.into(),
                 initial_shared_version: initial_shared_version.as_u64().into(),
                 mutable,
             }),
 
-            N::Object(O::Receiving(oref)) => I::Receiving(Receiving {
+            N::Receiving(obj_ref) => I::Receiving(Receiving {
                 read: ObjectRead {
-                    native: oref,
+                    native: obj_ref,
                     checkpoint_viewed_at,
                 },
             }),
+
+            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
     }
 }

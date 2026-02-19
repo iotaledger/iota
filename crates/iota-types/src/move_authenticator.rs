@@ -22,7 +22,10 @@ use crate::{
     error::{IotaError, IotaResult, UserInputError, UserInputResult},
     signature::{AuthenticatorTrait, VerifyParams},
     signature_verification::VerifiedDigestCache,
-    transaction::{CallArg, InputObjectKind, ObjectArg, SharedInputObject},
+    transaction::{
+        CallArg, InputObjectKind, SharedInputObject, call_arg_input_objects,
+        call_arg_receiving_object, call_arg_shared_object, call_arg_validity_check,
+    },
     type_input::TypeInput,
 };
 
@@ -93,33 +96,37 @@ impl MoveAuthenticator {
         &self,
     ) -> UserInputResult<(ObjectID, Option<SequenceNumber>, Option<ObjectDigest>)> {
         Ok(match self.object_to_authenticate() {
-            CallArg::Pure(_) => {
+            CallArg::Pure { .. } => {
                 return Err(UserInputError::Unsupported(
                     "MoveAuthenticator cannot authenticate pure inputs".to_string(),
                 ));
             }
-            CallArg::Object(object_arg) => match object_arg {
-                ObjectArg::ImmOrOwnedObject(object_ref) => (
-                    object_ref.object_id,
-                    Some(object_ref.version),
-                    Some(object_ref.digest),
-                ),
-                ObjectArg::SharedObject { id, mutable, .. } => {
-                    if *mutable {
-                        return Err(UserInputError::Unsupported(
-                            "MoveAuthenticator cannot authenticate mutable shared objects"
-                                .to_string(),
-                        ));
-                    }
-
-                    (*id, None, None)
-                }
-                ObjectArg::Receiving(_) => {
+            CallArg::ImmutableOrOwned(object_ref) => (
+                object_ref.object_id,
+                Some(object_ref.version),
+                Some(object_ref.digest),
+            ),
+            CallArg::Shared {
+                object_id, mutable, ..
+            } => {
+                if *mutable {
                     return Err(UserInputError::Unsupported(
-                        "MoveAuthenticator cannot authenticate receiving objects".to_string(),
+                        "MoveAuthenticator cannot authenticate mutable shared objects".to_string(),
                     ));
                 }
-            },
+
+                (*object_id, None, None)
+            }
+            CallArg::Receiving(_) => {
+                return Err(UserInputError::Unsupported(
+                    "MoveAuthenticator cannot authenticate receiving objects".to_string(),
+                ));
+            }
+            _ => {
+                return Err(UserInputError::Unsupported(
+                    "Unknown CallArg variant in MoveAuthenticator".to_string(),
+                ));
+            }
         })
     }
 
@@ -128,15 +135,15 @@ impl MoveAuthenticator {
     pub fn input_objects(&self) -> Vec<InputObjectKind> {
         self.call_args
             .iter()
-            .flat_map(|arg| arg.input_objects())
-            .chain(self.object_to_authenticate().input_objects())
+            .filter_map(call_arg_input_objects)
+            .chain(call_arg_input_objects(self.object_to_authenticate()))
             .collect::<Vec<_>>()
     }
 
     pub fn receiving_objects(&self) -> Vec<ObjectRef> {
         self.call_args
             .iter()
-            .flat_map(|arg| arg.receiving_objects())
+            .filter_map(call_arg_receiving_object)
             .collect()
     }
 
@@ -145,8 +152,8 @@ impl MoveAuthenticator {
     pub fn shared_objects(&self) -> Vec<SharedInputObject> {
         self.call_args
             .iter()
-            .flat_map(|arg| arg.shared_objects())
-            .chain(self.object_to_authenticate().shared_objects())
+            .filter_map(call_arg_shared_object)
+            .chain(call_arg_shared_object(self.object_to_authenticate()))
             .collect()
     }
 
@@ -192,7 +199,7 @@ impl MoveAuthenticator {
 
         self.call_args()
             .iter()
-            .try_for_each(|obj| obj.validity_check(config))?;
+            .try_for_each(|obj| call_arg_validity_check(obj, config))?;
 
         // Type arguments validity check.
         //

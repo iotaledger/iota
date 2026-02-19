@@ -1428,17 +1428,23 @@ impl IotaTestAdapter {
             .into_iter()
             .next()
             .ok_or_else(|| anyhow::anyhow!("Missing account for MoveAuthenticator"))?;
-        let CallArg::Object(aa_arg) = aa_arg.into_call_arg(self)? else {
-            anyhow::bail!("abstract: account must be an object representing the abstract account");
+        let aa_call_arg = aa_arg.into_call_arg(self)?;
+        let aa_id = match &aa_call_arg {
+            CallArg::ImmutableOrOwned(obj_ref) => obj_ref.object_id,
+            CallArg::Shared { object_id, .. } => *object_id,
+            _ => {
+                return Err(anyhow::anyhow!(
+                    "abstract: account must be an object representing the abstract account"
+                ));
+            }
         };
-        let aa_id = aa_arg.id();
 
         Ok((
             aa_id,
             GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
                 auth_inputs,
                 vec![],
-                CallArg::Object(aa_arg),
+                aa_call_arg,
             )),
         ))
     }

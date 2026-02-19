@@ -26,7 +26,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
     transaction::{
-        InputObjectKind, ObjectArg, ProgrammableTransaction, Transaction, TransactionData,
+        CallArg, InputObjectKind, ProgrammableTransaction, Transaction, TransactionData,
         TransactionKind,
     },
 };
@@ -145,13 +145,13 @@ impl Client {
         // (4) Check whether the game has ended or not.
         let mut builder = ProgrammableTransactionBuilder::new();
         let g = if let Owner::Shared(initial_shared_version) = owner {
-            builder.obj(ObjectArg::SharedObject {
-                id,
+            builder.obj(CallArg::Shared {
+                object_id: id,
                 initial_shared_version,
                 mutable: false,
             })?
         } else {
-            builder.obj(ObjectArg::ImmOrOwnedObject(ObjectRef::new(
+            builder.obj(CallArg::ImmutableOrOwned(ObjectRef::new(
                 object_id, version, digest,
             )))?
         };
@@ -349,8 +349,8 @@ impl Client {
 
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let g = builder.obj(ObjectArg::SharedObject {
-            id: game.board.id,
+        let g = builder.obj(CallArg::Shared {
+            object_id: game.board.id,
             initial_shared_version,
             mutable: true,
         })?;
@@ -381,7 +381,7 @@ impl Client {
 
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let g = builder.obj(ObjectArg::ImmOrOwnedObject(game_ref))?;
+        let g = builder.obj(CallArg::ImmutableOrOwned(game_ref))?;
 
         builder.programmable_move_call(
             self.package,
@@ -426,8 +426,8 @@ impl Client {
 
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let g = builder.obj(ObjectArg::SharedObject {
-            id: game.board.id,
+        let g = builder.obj(CallArg::Shared {
+            object_id: game.board.id,
             initial_shared_version,
             mutable: true,
         })?;
@@ -466,7 +466,7 @@ impl Client {
         // First transaction sends the mark to the game.
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let t = builder.obj(ObjectArg::ImmOrOwnedObject(cap_ref))?;
+        let t = builder.obj(CallArg::ImmutableOrOwned(cap_ref))?;
         let r = builder.pure(row)?;
         let c = builder.pure(col)?;
 
@@ -520,8 +520,8 @@ impl Client {
         // admin.
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let g = builder.obj(ObjectArg::ImmOrOwnedObject(game_ref))?;
-        let m = builder.obj(ObjectArg::Receiving(mark))?;
+        let g = builder.obj(CallArg::ImmutableOrOwned(game_ref))?;
+        let m = builder.obj(CallArg::Receiving(mark))?;
 
         builder.programmable_move_call(
             self.package,

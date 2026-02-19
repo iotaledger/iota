@@ -1784,12 +1784,14 @@ async fn test_handle_soft_bundle_certificates() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Object(ObjectArg::SharedObject {
-                        id: shared_object.id(),
+                    CallArg::Shared {
+                        object_id: shared_object.id(),
                         initial_shared_version,
                         mutable: true,
-                    }),
-                    CallArg::Pure((i as u64).to_le_bytes().to_vec()),
+                    },
+                    CallArg::Pure {
+                        value: (i as u64).to_le_bytes().to_vec(),
+                    },
                 ],
                 TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
                 rgp,
@@ -2059,12 +2061,14 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Object(ObjectArg::SharedObject {
-                        id: shared_object.id(),
+                    CallArg::Shared {
+                        object_id: shared_object.id(),
                         initial_shared_version,
                         mutable: true,
-                    }),
-                    CallArg::Pure(11u64.to_le_bytes().to_vec()),
+                    },
+                    CallArg::Pure {
+                        value: 11u64.to_le_bytes().to_vec(),
+                    },
                 ],
                 TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
                 rgp,
@@ -2089,12 +2093,14 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Object(ObjectArg::SharedObject {
-                        id: shared_object.id(),
+                    CallArg::Shared {
+                        object_id: shared_object.id(),
                         initial_shared_version,
                         mutable: true,
-                    }),
-                    CallArg::Pure(12u64.to_le_bytes().to_vec()),
+                    },
+                    CallArg::Pure {
+                        value: 12u64.to_le_bytes().to_vec(),
+                    },
                 ],
                 TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
                 rgp + 1,
@@ -2145,12 +2151,14 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Object(ObjectArg::SharedObject {
-                        id: shared_object.id(),
+                    CallArg::Shared {
+                        object_id: shared_object.id(),
                         initial_shared_version,
                         mutable: true,
-                    }),
-                    CallArg::Pure(11u64.to_le_bytes().to_vec()),
+                    },
+                    CallArg::Pure {
+                        value: 11u64.to_le_bytes().to_vec(),
+                    },
                 ],
                 TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
                 rgp,
@@ -2175,12 +2183,14 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Object(ObjectArg::SharedObject {
-                        id: shared_object.id(),
+                    CallArg::Shared {
+                        object_id: shared_object.id(),
                         initial_shared_version,
                         mutable: true,
-                    }),
-                    CallArg::Pure(12u64.to_le_bytes().to_vec()),
+                    },
+                    CallArg::Pure {
+                        value: 12u64.to_le_bytes().to_vec(),
+                    },
                 ],
                 TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
                 rgp,

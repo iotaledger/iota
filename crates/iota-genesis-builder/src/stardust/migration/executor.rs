@@ -39,7 +39,7 @@ use iota_types::{
         output::{Alias, AliasOutput, BasicOutput, Nft, NftOutput},
     },
     transaction::{
-        Argument, CheckedInputObjects, Command, InputObjectKind, InputObjects, ObjectArg,
+        Argument, CallArg, CheckedInputObjects, Command, InputObjectKind, InputObjects,
         ObjectReadResult, ProgrammableTransaction,
     },
 };
@@ -372,8 +372,8 @@ impl Executor {
             let mut builder = ProgrammableTransactionBuilder::new();
 
             let alias_output_arg =
-                builder.obj(ObjectArg::ImmOrOwnedObject(move_alias_output_object_ref))?;
-            let alias_arg = builder.obj(ObjectArg::ImmOrOwnedObject(move_alias_object_ref))?;
+                builder.obj(CallArg::ImmutableOrOwned(move_alias_output_object_ref))?;
+            let alias_arg = builder.obj(CallArg::ImmutableOrOwned(move_alias_object_ref))?;
 
             builder.programmable_move_call(
                 ObjectID::STARDUST,
@@ -717,8 +717,8 @@ impl Executor {
             let mut builder = ProgrammableTransactionBuilder::new();
 
             let nft_output_arg =
-                builder.obj(ObjectArg::ImmOrOwnedObject(move_nft_output_object_ref))?;
-            let nft_arg = builder.obj(ObjectArg::ImmOrOwnedObject(move_nft_object_ref))?;
+                builder.obj(CallArg::ImmutableOrOwned(move_nft_output_object_ref))?;
+            let nft_arg = builder.obj(CallArg::ImmutableOrOwned(move_nft_object_ref))?;
             builder.programmable_move_call(
                 ObjectID::STARDUST,
                 Identifier::from_static("nft_output"),
@@ -770,7 +770,7 @@ mod pt {
         token_type_tag: TypeTag,
         amount: u64,
     ) -> Result<Argument> {
-        let foundry_coin_ref = builder.obj(ObjectArg::ImmOrOwnedObject(foundry_coin_ref))?;
+        let foundry_coin_ref = builder.obj(CallArg::ImmutableOrOwned(foundry_coin_ref))?;
         let amount = builder.pure(amount)?;
         let coin = builder.programmable_move_call(
             ObjectID::FRAMEWORK,

@@ -17,12 +17,11 @@ use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::{Argument, AuthenticatorStateUpdateV1, RandomnessStateUpdate};
 use iota_sdk_types::{
-    Identifier, ObjectId, TypeTag,
+    Identifier, Input, ObjectId, TypeTag,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use itertools::Either;
 use nonempty::{NonEmpty, nonempty};
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strum::IntoStaticStr;
 use tap::Pipe;
@@ -30,8 +29,7 @@ use tracing::{instrument, trace};
 
 use super::{base_types::*, error::*};
 use crate::{
-    IOTA_AUTHENTICATOR_STATE_OBJECT_SHARED_VERSION, IOTA_CLOCK_OBJECT_SHARED_VERSION,
-    IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
+    IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
     authenticator_state::ActiveJwk,
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{
@@ -77,48 +75,8 @@ const BLOCKED_MOVE_FUNCTIONS: [(ObjectID, &str, &str); 0] = [];
 #[path = "unit_tests/messages_tests.rs"]
 mod messages_tests;
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
-pub enum CallArg {
-    // contains no structs or objects
-    Pure(Vec<u8>),
-    // an object
-    Object(ObjectArg),
-}
-
-impl CallArg {
-    pub const IOTA_SYSTEM_MUT: Self = Self::Object(ObjectArg::IOTA_SYSTEM_MUT);
-    pub const CLOCK_IMM: Self = Self::Object(ObjectArg::SharedObject {
-        id: ObjectID::CLOCK,
-        initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
-        mutable: false,
-    });
-    pub const CLOCK_MUT: Self = Self::Object(ObjectArg::SharedObject {
-        id: ObjectID::CLOCK,
-        initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
-        mutable: true,
-    });
-    pub const AUTHENTICATOR_MUT: Self = Self::Object(ObjectArg::SharedObject {
-        id: ObjectID::AUTHENTICATOR_STATE,
-        initial_shared_version: IOTA_AUTHENTICATOR_STATE_OBJECT_SHARED_VERSION,
-        mutable: true,
-    });
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize, JsonSchema)]
-pub enum ObjectArg {
-    // A Move object, either immutable, or owned mutable.
-    ImmOrOwnedObject(ObjectRef),
-    // A Move object that's shared.
-    // SharedObject::mutable controls whether caller asks for a mutable reference to shared
-    // object.
-    SharedObject {
-        id: ObjectID,
-        initial_shared_version: SequenceNumber,
-        mutable: bool,
-    },
-    // A Move object that can be received in this transaction.
-    Receiving(ObjectRef),
-}
+/// Type alias for the SDK's `Input` type, used as transaction call arguments.
+pub type CallArg = Input;
 
 pub fn type_input_validity_check(
     tag: &TypeInput,
@@ -658,152 +616,51 @@ impl EndOfEpochTransactionKind {
     }
 }
 
-impl CallArg {
-    pub fn input_objects(&self) -> Vec<InputObjectKind> {
-        match self {
-            CallArg::Pure(_) => vec![],
-            CallArg::Object(ObjectArg::ImmOrOwnedObject(object_ref)) => {
-                vec![InputObjectKind::ImmOrOwnedMoveObject(*object_ref)]
+/// Returns the input object kinds for a `CallArg`, excluding receiving objects.
+pub fn call_arg_input_objects(arg: &CallArg) -> Option<InputObjectKind> {
+    if let Some(object_ref) = arg.as_immutable_or_owned_opt() {
+        Some(InputObjectKind::ImmOrOwnedMoveObject(*object_ref))
+    } else if let Some((object_id, initial_shared_version, mutable)) = arg.as_shared() {
+        Some(InputObjectKind::SharedMoveObject {
+            id: *object_id,
+            initial_shared_version,
+            mutable,
+        })
+    } else {
+        None
+    }
+}
+
+/// Returns the receiving object ref for a `CallArg`, if it is a `Receiving`
+/// variant.
+pub fn call_arg_receiving_object(arg: &CallArg) -> Option<ObjectRef> {
+    arg.receiving_objects().copied()
+}
+
+/// Returns the shared input object for a `CallArg`, if it is a `Shared`
+/// variant.
+pub fn call_arg_shared_object(arg: &CallArg) -> Option<SharedInputObject> {
+    arg.as_shared().map(
+        |(object_id, initial_shared_version, mutable)| SharedInputObject {
+            id: *object_id,
+            initial_shared_version,
+            mutable,
+        },
+    )
+}
+
+/// Validity check for a `CallArg` input.
+pub fn call_arg_validity_check(arg: &CallArg, config: &ProtocolConfig) -> UserInputResult {
+    if let Some(value) = arg.as_pure_value() {
+        fp_ensure!(
+            value.len() < config.max_pure_argument_size() as usize,
+            UserInputError::SizeLimitExceeded {
+                limit: "maximum pure argument size".to_string(),
+                value: config.max_pure_argument_size().to_string()
             }
-            CallArg::Object(ObjectArg::SharedObject {
-                id,
-                initial_shared_version,
-                mutable,
-            }) => {
-                let id = *id;
-                let initial_shared_version = *initial_shared_version;
-                let mutable = *mutable;
-                vec![InputObjectKind::SharedMoveObject {
-                    id,
-                    initial_shared_version,
-                    mutable,
-                }]
-            }
-            // Receiving objects are not part of the input objects.
-            CallArg::Object(ObjectArg::Receiving(_)) => vec![],
-        }
+        );
     }
-
-    pub fn receiving_objects(&self) -> Vec<ObjectRef> {
-        match self {
-            CallArg::Pure(_) => vec![],
-            CallArg::Object(o) => match o {
-                ObjectArg::ImmOrOwnedObject(_) => vec![],
-                ObjectArg::SharedObject { .. } => vec![],
-                ObjectArg::Receiving(obj_ref) => vec![*obj_ref],
-            },
-        }
-    }
-
-    pub fn shared_objects(&self) -> Vec<SharedInputObject> {
-        match self {
-            CallArg::Pure(_) => vec![],
-            CallArg::Object(o) => match o {
-                ObjectArg::ImmOrOwnedObject(_) | ObjectArg::Receiving(_) => vec![],
-                ObjectArg::SharedObject {
-                    id,
-                    initial_shared_version,
-                    mutable,
-                } => vec![SharedInputObject {
-                    id: *id,
-                    initial_shared_version: *initial_shared_version,
-                    mutable: *mutable,
-                }],
-            },
-        }
-    }
-
-    pub fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
-        match self {
-            CallArg::Pure(p) => {
-                fp_ensure!(
-                    p.len() < config.max_pure_argument_size() as usize,
-                    UserInputError::SizeLimitExceeded {
-                        limit: "maximum pure argument size".to_string(),
-                        value: config.max_pure_argument_size().to_string()
-                    }
-                );
-            }
-            CallArg::Object(o) => match o {
-                ObjectArg::Receiving(_)
-                | ObjectArg::ImmOrOwnedObject(_)
-                | ObjectArg::SharedObject { .. } => (),
-            },
-        }
-        Ok(())
-    }
-}
-
-impl From<bool> for CallArg {
-    fn from(b: bool) -> Self {
-        // unwrap safe because every u8 value is BCS-serializable
-        CallArg::Pure(bcs::to_bytes(&b).unwrap())
-    }
-}
-
-impl From<u8> for CallArg {
-    fn from(n: u8) -> Self {
-        // unwrap safe because every u8 value is BCS-serializable
-        CallArg::Pure(bcs::to_bytes(&n).unwrap())
-    }
-}
-
-impl From<u16> for CallArg {
-    fn from(n: u16) -> Self {
-        // unwrap safe because every u16 value is BCS-serializable
-        CallArg::Pure(bcs::to_bytes(&n).unwrap())
-    }
-}
-
-impl From<u32> for CallArg {
-    fn from(n: u32) -> Self {
-        // unwrap safe because every u32 value is BCS-serializable
-        CallArg::Pure(bcs::to_bytes(&n).unwrap())
-    }
-}
-
-impl From<u64> for CallArg {
-    fn from(n: u64) -> Self {
-        // unwrap safe because every u64 value is BCS-serializable
-        CallArg::Pure(bcs::to_bytes(&n).unwrap())
-    }
-}
-
-impl From<u128> for CallArg {
-    fn from(n: u128) -> Self {
-        // unwrap safe because every u128 value is BCS-serializable
-        CallArg::Pure(bcs::to_bytes(&n).unwrap())
-    }
-}
-
-impl From<&Vec<u8>> for CallArg {
-    fn from(v: &Vec<u8>) -> Self {
-        // unwrap safe because every vec<u8> value is BCS-serializable
-        CallArg::Pure(bcs::to_bytes(v).unwrap())
-    }
-}
-
-impl From<ObjectRef> for CallArg {
-    fn from(obj: ObjectRef) -> Self {
-        CallArg::Object(ObjectArg::ImmOrOwnedObject(obj))
-    }
-}
-
-impl ObjectArg {
-    pub const IOTA_SYSTEM_MUT: Self = Self::SharedObject {
-        id: ObjectID::SYSTEM_STATE,
-        initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
-        mutable: true,
-    };
-
-    pub fn id(&self) -> ObjectID {
-        match self {
-            ObjectArg::Receiving(object_ref) | ObjectArg::ImmOrOwnedObject(object_ref) => {
-                object_ref.object_id
-            }
-            ObjectArg::SharedObject { id, .. } => *id,
-        }
-    }
+    Ok(())
 }
 
 // Add package IDs, `ObjectID`, for types defined in modules.
@@ -1113,7 +970,7 @@ impl ProgrammableTransaction {
         let ProgrammableTransaction { inputs, commands } = self;
         let input_arg_objects = inputs
             .iter()
-            .flat_map(|arg| arg.input_objects())
+            .filter_map(call_arg_input_objects)
             .collect::<Vec<_>>();
         // all objects, not just mutable, must be unique
         let mut used = HashSet::new();
@@ -1135,7 +992,7 @@ impl ProgrammableTransaction {
         let ProgrammableTransaction { inputs, .. } = self;
         inputs
             .iter()
-            .flat_map(|arg| arg.receiving_objects())
+            .filter_map(call_arg_receiving_object)
             .collect()
     }
 
@@ -1157,7 +1014,7 @@ impl ProgrammableTransaction {
             }
         );
         for input in inputs {
-            input.validity_check(config)?
+            call_arg_validity_check(input, config)?
         }
         if let Some(max_publish_commands) = config.max_publish_or_upgrade_per_ptb_as_option() {
             let publish_count = commands
@@ -1180,7 +1037,7 @@ impl ProgrammableTransaction {
         // A command that uses Random can only be followed by TransferObjects or
         // MergeCoins.
         if let Some(random_index) = inputs.iter().position(|obj| {
-            matches!(obj, CallArg::Object(ObjectArg::SharedObject { id, .. }) if *id == ObjectID::RANDOMNESS_STATE)
+            matches!(obj, CallArg::Shared { object_id, .. } if *object_id == ObjectID::RANDOMNESS_STATE)
         }) {
             let mut used_random_object = false;
             let random_index = random_index.try_into().unwrap();
@@ -1206,18 +1063,17 @@ impl ProgrammableTransaction {
         self.inputs
             .iter()
             .filter_map(|arg| match arg {
-                CallArg::Pure(_)
-                | CallArg::Object(ObjectArg::Receiving(_))
-                | CallArg::Object(ObjectArg::ImmOrOwnedObject(_)) => None,
-                CallArg::Object(ObjectArg::SharedObject {
-                    id,
+                CallArg::Pure { .. } | CallArg::Receiving(_) | CallArg::ImmutableOrOwned(_) => None,
+                CallArg::Shared {
+                    object_id,
                     initial_shared_version,
                     mutable,
-                }) => Some(vec![SharedInputObject {
-                    id: *id,
+                } => Some(vec![SharedInputObject {
+                    id: *object_id,
                     initial_shared_version: *initial_shared_version,
                     mutable: *mutable,
                 }]),
+                _ => None,
             })
             .flatten()
     }
@@ -1967,9 +1823,9 @@ impl TransactionData {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let capability_arg = match capability_owner {
-                Owner::Address(_) => ObjectArg::ImmOrOwnedObject(upgrade_capability),
-                Owner::Shared(initial_shared_version) => ObjectArg::SharedObject {
-                    id: upgrade_capability.object_id,
+                Owner::Address(_) => CallArg::ImmutableOrOwned(upgrade_capability),
+                Owner::Shared(initial_shared_version) => CallArg::Shared {
+                    object_id: upgrade_capability.object_id,
                     initial_shared_version,
                     mutable: true,
                 },
@@ -2637,17 +2493,16 @@ impl SenderSignedData {
                     .collect::<Vec<_>>()
                     .into();
 
-                let account_objects = move_authenticator
-                    .object_to_authenticate()
-                    .input_objects()
-                    .iter()
-                    .map(|k| {
-                        input_objects_map
-                            .get(k)
-                            .map(|&r| r.clone())
-                            .expect("Account object is expected to be present")
-                    })
-                    .collect::<Vec<_>>();
+                let account_objects =
+                    call_arg_input_objects(move_authenticator.object_to_authenticate())
+                        .iter()
+                        .map(|k| {
+                            input_objects_map
+                                .get(k)
+                                .map(|&r| r.clone())
+                                .expect("Account object is expected to be present")
+                        })
+                        .collect::<Vec<_>>();
 
                 debug_assert!(
                     account_objects.len() == 1,

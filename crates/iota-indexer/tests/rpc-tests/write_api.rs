@@ -1168,7 +1168,7 @@ async fn create_new_bear(
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        let name_arg = builder.input(CallArg::Pure(bcs::to_bytes(name).unwrap()))?;
+        let name_arg = builder.input(CallArg::pure(&name.to_string()))?;
         let bear = builder.programmable_move_call(
             *package_id,
             Identifier::from_str(&module)?,

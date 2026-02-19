@@ -854,9 +854,7 @@ fn test_sponsored_transaction_validity_check() {
                 Identifier::from_static("random_module"),
                 Identifier::from_static("random_function"),
                 vec![],
-                vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(
-                    random_object_ref(),
-                ))],
+                vec![CallArg::ImmutableOrOwned(random_object_ref())],
             )
             .unwrap();
         builder.finish()
@@ -1127,21 +1125,19 @@ fn test_move_input_objects() {
     let type_args = vec![t1, t2, t3];
     let mut builder = ProgrammableTransactionBuilder::new();
     let args = vec![
-        builder
-            .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(o1)))
-            .unwrap(),
+        builder.input(CallArg::ImmutableOrOwned(o1)).unwrap(),
         builder
             .make_obj_vec(vec![
-                ObjectArg::ImmOrOwnedObject(o2),
-                ObjectArg::ImmOrOwnedObject(o3),
+                CallArg::ImmutableOrOwned(o2),
+                CallArg::ImmutableOrOwned(o3),
             ])
             .unwrap(),
         builder
-            .input(CallArg::Object(ObjectArg::SharedObject {
-                id: shared.object_id,
+            .input(CallArg::Shared {
+                object_id: shared.object_id,
                 initial_shared_version: shared.version,
                 mutable: true,
-            }))
+            })
             .unwrap(),
     ];
     builder.command(Command::move_call(
@@ -1216,23 +1212,21 @@ fn test_unique_input_objects() {
     let type_args = vec![t1, t2, t3];
     let mut builder = ProgrammableTransactionBuilder::new();
     let args_1 = vec![
-        builder
-            .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(o1)))
-            .unwrap(),
+        builder.input(CallArg::ImmutableOrOwned(o1)).unwrap(),
         builder
             .make_obj_vec(vec![
-                ObjectArg::ImmOrOwnedObject(o2),
-                ObjectArg::ImmOrOwnedObject(o3),
+                CallArg::ImmutableOrOwned(o2),
+                CallArg::ImmutableOrOwned(o3),
             ])
             .unwrap(),
     ];
     let args_2 = vec![
         builder
-            .input(CallArg::Object(ObjectArg::SharedObject {
-                id: shared.object_id,
+            .input(CallArg::Shared {
+                object_id: shared.object_id,
                 initial_shared_version: shared.version,
                 mutable: true,
-            }))
+            })
             .unwrap(),
     ];
 

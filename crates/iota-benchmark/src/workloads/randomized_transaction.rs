@@ -12,7 +12,7 @@ use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, ObjectArg, Transaction},
+    transaction::{CallArg, Transaction},
 };
 use rand::Rng;
 use tracing::{error, info};
@@ -130,12 +130,12 @@ impl RandomizedTransactionPayload {
                         Identifier::from_static("counter"),
                         Identifier::from_static("increment"),
                         vec![],
-                        vec![CallArg::Object(ObjectArg::SharedObject {
-                            id: self.shared_objects[next_shared_input_index].object_id,
+                        vec![CallArg::Shared {
+                            object_id: self.shared_objects[next_shared_input_index].object_id,
                             initial_shared_version: self.shared_objects[next_shared_input_index]
                                 .version,
                             mutable: true,
-                        })],
+                        }],
                     )
                     .unwrap();
             }
@@ -147,14 +147,16 @@ impl RandomizedTransactionPayload {
                         Identifier::from_static("set_value"),
                         vec![],
                         vec![
-                            CallArg::Object(ObjectArg::SharedObject {
-                                id: self.shared_objects[next_shared_input_index].object_id,
+                            CallArg::Shared {
+                                object_id: self.shared_objects[next_shared_input_index].object_id,
                                 initial_shared_version: self.shared_objects
                                     [next_shared_input_index]
                                     .version,
                                 mutable: true,
-                            }),
-                            CallArg::Pure((10_u64).to_le_bytes().to_vec()),
+                            },
+                            CallArg::Pure {
+                                value: (10_u64).to_le_bytes().to_vec(),
+                            },
                         ],
                     )
                     .unwrap();
@@ -166,12 +168,12 @@ impl RandomizedTransactionPayload {
                         Identifier::from_static("counter"),
                         Identifier::from_static("value"),
                         vec![],
-                        vec![CallArg::Object(ObjectArg::SharedObject {
-                            id: self.shared_objects[next_shared_input_index].object_id,
+                        vec![CallArg::Shared {
+                            object_id: self.shared_objects[next_shared_input_index].object_id,
                             initial_shared_version: self.shared_objects[next_shared_input_index]
                                 .version,
                             mutable: false,
-                        })],
+                        }],
                     )
                     .unwrap();
             }
@@ -185,11 +187,11 @@ impl RandomizedTransactionPayload {
                 Identifier::RANDOM_MODULE,
                 Identifier::from_static("new"),
                 vec![],
-                vec![CallArg::Object(ObjectArg::SharedObject {
-                    id: ObjectID::RANDOMNESS_STATE,
+                vec![CallArg::Shared {
+                    object_id: ObjectID::RANDOMNESS_STATE,
                     initial_shared_version: self.randomness_initial_shared_version,
                     mutable: false,
-                })],
+                }],
             )
             .unwrap();
     }
@@ -241,13 +243,13 @@ impl Payload for RandomizedTransactionPayload {
         // Generate inputs in addition to move calls.
         if config.contain_owned_object {
             builder
-                .obj(ObjectArg::ImmOrOwnedObject(self.owned_object))
+                .obj(CallArg::ImmutableOrOwned(self.owned_object))
                 .unwrap();
         }
         for i in 0..config.num_shared_inputs {
             builder
-                .obj(ObjectArg::SharedObject {
-                    id: self.shared_objects[i as usize].object_id,
+                .obj(CallArg::Shared {
+                    object_id: self.shared_objects[i as usize].object_id,
                     initial_shared_version: self.shared_objects[i as usize].version,
                     mutable: rand::thread_rng().gen_bool(0.5),
                 })
@@ -472,10 +474,7 @@ impl Workload<dyn Payload> for RandomizedTransactionWorkload {
                         self.basics_package_id.unwrap(),
                         "object_basics",
                         "create",
-                        vec![
-                            CallArg::Pure(bcs::to_bytes(&(16_u64)).unwrap()),
-                            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
-                        ],
+                        vec![CallArg::pure(&16_u64), CallArg::pure(&sender)],
                     )
                     .build_and_sign(keypair.as_ref());
                 let proxy_ref = proxy.clone();

@@ -4008,10 +4008,10 @@ async fn create_move_authenticator_signature(
     Ok(GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
         call_args,
         type_args.into_iter().map(TypeInput::from).collect(),
-        CallArg::Object(iota_types::transaction::ObjectArg::SharedObject {
-            id: ObjectID::from(address),
+        CallArg::Shared {
+            object_id: ObjectID::from(address),
             initial_shared_version,
             mutable: false,
-        }),
+        },
     )))
 }

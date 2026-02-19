@@ -514,7 +514,7 @@ impl<S: PackageStore> Resolver<S> {
                 return Ok(());
             };
 
-            if !matches!(tx.inputs.get(ix as usize), Some(CallArg::Pure(_))) {
+            if !matches!(tx.inputs.get(ix as usize), Some(CallArg::Pure { .. })) {
                 return Ok(());
             }
 
@@ -1890,7 +1890,6 @@ mod tests {
     use iota_types::{
         base_types::{Identifier, ObjectID, random_object_ref},
         error::IotaResult,
-        transaction::ObjectArg,
     };
     use move_binary_format::file_format::Ability;
     use move_compiler::compiled_unit::NamedCompiledModule;
@@ -2847,7 +2846,6 @@ mod tests {
     #[tokio::test]
     async fn test_pure_input_layouts() {
         use CallArg as I;
-        use ObjectArg::ImmOrOwnedObject as O;
         use TypeTag as T;
 
         let (_, cache) = package_cache([
@@ -2862,13 +2860,19 @@ mod tests {
         fn ptb(t: TypeTag, y: CallArg) -> ProgrammableTransaction {
             ProgrammableTransaction {
                 inputs: vec![
-                    I::Object(O(random_object_ref())),
-                    I::Pure(bcs::to_bytes(&42u64).unwrap()),
-                    I::Object(O(random_object_ref())),
+                    I::ImmutableOrOwned(random_object_ref()),
+                    I::Pure {
+                        value: bcs::to_bytes(&42u64).unwrap(),
+                    },
+                    I::ImmutableOrOwned(random_object_ref()),
                     y,
-                    I::Object(O(random_object_ref())),
-                    I::Pure(bcs::to_bytes("hello").unwrap()),
-                    I::Pure(bcs::to_bytes("world").unwrap()),
+                    I::ImmutableOrOwned(random_object_ref()),
+                    I::Pure {
+                        value: bcs::to_bytes("hello").unwrap(),
+                    },
+                    I::Pure {
+                        value: bcs::to_bytes("world").unwrap(),
+                    },
                 ],
                 commands: vec![Command::move_call(
                     obj_id("0xe0"),
@@ -2880,7 +2884,12 @@ mod tests {
             }
         }
 
-        let ptb_u64 = ptb(T::U64, I::Pure(bcs::to_bytes(&1u64).unwrap()));
+        let ptb_u64 = ptb(
+            T::U64,
+            I::Pure {
+                value: bcs::to_bytes(&1u64).unwrap(),
+            },
+        );
 
         let ptb_opt = ptb(
             TypeTag::Struct(Box::new(StructTag::new(
@@ -2889,7 +2898,9 @@ mod tests {
                 Identifier::from_static("Option"),
                 vec![TypeTag::U64],
             ))),
-            I::Pure(bcs::to_bytes(&[vec![1u64], vec![], vec![3]]).unwrap()),
+            I::Pure {
+                value: bcs::to_bytes(&[vec![1u64], vec![], vec![3]]).unwrap(),
+            },
         );
 
         let ptb_obj = ptb(
@@ -2899,7 +2910,7 @@ mod tests {
                 Identifier::from_static("O"),
                 vec![],
             ))),
-            I::Object(O(random_object_ref())),
+            I::ImmutableOrOwned(random_object_ref()),
         );
 
         let inputs_u64 = resolver.pure_input_layouts(&ptb_u64).await.unwrap();
@@ -2927,7 +2938,6 @@ mod tests {
     #[tokio::test]
     async fn test_pure_input_layouts_overlapping() {
         use CallArg as I;
-        use ObjectArg::ImmOrOwnedObject as O;
         use TypeTag as T;
 
         let (_, cache) = package_cache([
@@ -2941,13 +2951,21 @@ mod tests {
         // Helper function to generate a PTB calling 0xe0::m::foo.
         let ptb = ProgrammableTransaction {
             inputs: vec![
-                I::Object(O(random_object_ref())),
-                I::Pure(bcs::to_bytes(&42u64).unwrap()),
-                I::Object(O(random_object_ref())),
-                I::Pure(bcs::to_bytes(&43u64).unwrap()),
-                I::Object(O(random_object_ref())),
-                I::Pure(bcs::to_bytes("hello").unwrap()),
-                I::Pure(bcs::to_bytes("world").unwrap()),
+                I::ImmutableOrOwned(random_object_ref()),
+                I::Pure {
+                    value: bcs::to_bytes(&42u64).unwrap(),
+                },
+                I::ImmutableOrOwned(random_object_ref()),
+                I::Pure {
+                    value: bcs::to_bytes(&43u64).unwrap(),
+                },
+                I::ImmutableOrOwned(random_object_ref()),
+                I::Pure {
+                    value: bcs::to_bytes("hello").unwrap(),
+                },
+                I::Pure {
+                    value: bcs::to_bytes("world").unwrap(),
+                },
             ],
             commands: vec![
                 Command::move_call(
@@ -2984,7 +3002,6 @@ mod tests {
     #[tokio::test]
     async fn test_pure_input_layouts_conflicting() {
         use CallArg as I;
-        use ObjectArg::ImmOrOwnedObject as O;
         use TypeInput as TI;
         use TypeTag as T;
 
@@ -2998,13 +3015,21 @@ mod tests {
 
         let ptb = ProgrammableTransaction {
             inputs: vec![
-                I::Object(O(random_object_ref())),
-                I::Pure(bcs::to_bytes(&42u64).unwrap()),
-                I::Object(O(random_object_ref())),
-                I::Pure(bcs::to_bytes(&43u64).unwrap()),
-                I::Object(O(random_object_ref())),
-                I::Pure(bcs::to_bytes("hello").unwrap()),
-                I::Pure(bcs::to_bytes("world").unwrap()),
+                I::ImmutableOrOwned(random_object_ref()),
+                I::Pure {
+                    value: bcs::to_bytes(&42u64).unwrap(),
+                },
+                I::ImmutableOrOwned(random_object_ref()),
+                I::Pure {
+                    value: bcs::to_bytes(&43u64).unwrap(),
+                },
+                I::ImmutableOrOwned(random_object_ref()),
+                I::Pure {
+                    value: bcs::to_bytes("hello").unwrap(),
+                },
+                I::Pure {
+                    value: bcs::to_bytes("world").unwrap(),
+                },
             ],
             commands: vec![
                 Command::move_call(

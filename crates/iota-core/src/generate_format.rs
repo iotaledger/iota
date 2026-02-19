@@ -41,8 +41,8 @@ use iota_types::{
     signature::GenericSignature,
     storage::DeleteKind,
     transaction::{
-        Argument, CallArg, Command, EndOfEpochTransactionKind, GenesisObject, ObjectArg,
-        SenderSignedData, TransactionData, TransactionExpiration, TransactionKind,
+        Argument, CallArg, Command, EndOfEpochTransactionKind, GenesisObject, SenderSignedData,
+        TransactionData, TransactionExpiration, TransactionKind,
     },
     type_input::{StructInput, TypeInput},
     utils::DEFAULT_ADDRESS_SEED,
@@ -320,6 +320,7 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_type::<Owner>(&samples).unwrap();
     tracer.trace_type::<CallArg>(&samples).unwrap();
     tracer.trace_type::<ObjectArg>(&samples).unwrap();
+    tracer.trace_type::<Data>(&samples).unwrap();
     tracer.trace_type::<TypedStoreError>(&samples).unwrap();
     tracer
         .trace_type::<ObjectInfoRequestKind>(&samples)

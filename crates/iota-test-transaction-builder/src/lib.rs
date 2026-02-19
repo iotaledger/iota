@@ -22,7 +22,7 @@ use iota_types::{
     object::Owner,
     signature::GenericSignature,
     transaction::{
-        CallArg, DEFAULT_VALIDATOR_GAS_PRICE, ObjectArg, ProgrammableTransaction,
+        CallArg, DEFAULT_VALIDATOR_GAS_PRICE, ProgrammableTransaction,
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         Transaction, TransactionData,
     },
@@ -104,11 +104,11 @@ impl TestTransactionBuilder {
             package_id,
             "counter",
             "increment",
-            vec![CallArg::Object(ObjectArg::SharedObject {
-                id: counter_id,
+            vec![CallArg::Shared {
+                object_id: counter_id,
                 initial_shared_version: counter_initial_shared_version,
                 mutable: true,
-            })],
+            }],
         )
     }
 
@@ -122,11 +122,11 @@ impl TestTransactionBuilder {
             package_id,
             "counter",
             "value",
-            vec![CallArg::Object(ObjectArg::SharedObject {
-                id: counter_id,
+            vec![CallArg::Shared {
+                object_id: counter_id,
                 initial_shared_version: counter_initial_shared_version,
                 mutable: false,
-            })],
+            }],
         )
     }
 
@@ -140,11 +140,11 @@ impl TestTransactionBuilder {
             package_id,
             "counter",
             "delete",
-            vec![CallArg::Object(ObjectArg::SharedObject {
-                id: counter_id,
+            vec![CallArg::Shared {
+                object_id: counter_id,
                 initial_shared_version: counter_initial_shared_version,
                 mutable: true,
-            })],
+            }],
         )
     }
 
@@ -154,11 +154,9 @@ impl TestTransactionBuilder {
             "testnet_nft",
             "mint_to_sender",
             vec![
-                CallArg::Pure(bcs::to_bytes("example_nft_name").unwrap()),
-                CallArg::Pure(bcs::to_bytes("example_nft_description").unwrap()),
-                CallArg::Pure(
-                    bcs::to_bytes("https://iota.org/_nuxt/img/iota-logo.8d3c44e.svg").unwrap(),
-                ),
+                CallArg::pure(&"example_nft_name"),
+                CallArg::pure(&"example_nft_description"),
+                CallArg::pure(&"https://iota.org/_nuxt/img/iota-logo.8d3c44e.svg"),
             ],
         )
     }
@@ -168,7 +166,7 @@ impl TestTransactionBuilder {
             package_id,
             "testnet_nft",
             "burn",
-            vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(nft_to_delete))],
+            vec![CallArg::ImmutableOrOwned(nft_to_delete)],
         )
     }
 
@@ -179,8 +177,8 @@ impl TestTransactionBuilder {
             "request_add_stake",
             vec![
                 CallArg::IOTA_SYSTEM_MUT,
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(stake_coin)),
-                CallArg::Pure(bcs::to_bytes(&validator).unwrap()),
+                CallArg::ImmutableOrOwned(stake_coin),
+                CallArg::pure(&validator),
             ],
         )
     }
@@ -194,11 +192,11 @@ impl TestTransactionBuilder {
             package_id,
             "random",
             "new",
-            vec![CallArg::Object(ObjectArg::SharedObject {
-                id: ObjectID::RANDOMNESS_STATE,
+            vec![CallArg::Shared {
+                object_id: ObjectID::RANDOMNESS_STATE,
                 initial_shared_version: randomness_initial_shared_version,
                 mutable: false,
-            })],
+            }],
         )
     }
 
@@ -221,19 +219,19 @@ impl TestTransactionBuilder {
             "request_add_validator_candidate",
             vec![
                 CallArg::IOTA_SYSTEM_MUT,
-                CallArg::Pure(bcs::to_bytes(&validator.authority_public_key).unwrap()),
-                CallArg::Pure(bcs::to_bytes(&validator.network_public_key).unwrap()),
-                CallArg::Pure(bcs::to_bytes(&validator.protocol_public_key).unwrap()),
-                CallArg::Pure(bcs::to_bytes(&validator.proof_of_possession).unwrap()),
-                CallArg::Pure(bcs::to_bytes(validator.name.as_bytes()).unwrap()),
-                CallArg::Pure(bcs::to_bytes(validator.description.as_bytes()).unwrap()),
-                CallArg::Pure(bcs::to_bytes(validator.image_url.as_bytes()).unwrap()),
-                CallArg::Pure(bcs::to_bytes(validator.project_url.as_bytes()).unwrap()),
-                CallArg::Pure(bcs::to_bytes(&validator.network_address).unwrap()),
-                CallArg::Pure(bcs::to_bytes(&validator.p2p_address).unwrap()),
-                CallArg::Pure(bcs::to_bytes(&validator.primary_address).unwrap()),
-                CallArg::Pure(bcs::to_bytes(&DEFAULT_VALIDATOR_GAS_PRICE).unwrap()), // gas_price
-                CallArg::Pure(bcs::to_bytes(&0u64).unwrap()), // commission_rate
+                CallArg::pure(&validator.authority_public_key),
+                CallArg::pure(&validator.network_public_key),
+                CallArg::pure(&validator.protocol_public_key),
+                CallArg::pure(&validator.proof_of_possession),
+                CallArg::pure(&validator.name),
+                CallArg::pure(&validator.description),
+                CallArg::pure(&validator.image_url),
+                CallArg::pure(&validator.project_url),
+                CallArg::pure(&validator.network_address),
+                CallArg::pure(&validator.p2p_address),
+                CallArg::pure(&validator.primary_address),
+                CallArg::pure(&DEFAULT_VALIDATOR_GAS_PRICE), // gas_price
+                CallArg::pure(&0u64),                        // commission_rate
             ],
         )
     }
@@ -657,11 +655,11 @@ pub async fn emit_new_random_u128(
     let Owner::Shared(initial_shared_version) = random_obj_owner else {
         panic!("Expect Randomness to be shared object")
     };
-    let random_call_arg = CallArg::Object(ObjectArg::SharedObject {
-        id: ObjectID::RANDOMNESS_STATE,
+    let random_call_arg = CallArg::Shared {
+        object_id: ObjectID::RANDOMNESS_STATE,
         initial_shared_version,
         mutable: false,
-    });
+    };
 
     let txn = context.sign_transaction(
         &TestTransactionBuilder::new(sender, gas_object, rgp)

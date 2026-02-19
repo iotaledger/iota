@@ -16,7 +16,7 @@ use iota_grpc_types::{
 use iota_macros::sim_test;
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{ObjectArg, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionData, TransactionDataAPI},
 };
 use prost_types::FieldMask;
 
@@ -285,7 +285,7 @@ async fn simulate_programmable_transaction_command_results() {
 
     // Use SplitCoins which returns a value (the split coin)
     let gas_coin_arg = builder
-        .obj(ObjectArg::ImmOrOwnedObject(*obj_to_split))
+        .obj(CallArg::ImmutableOrOwned(*obj_to_split))
         .unwrap();
     let amount = builder.pure(1000u64).unwrap();
 
