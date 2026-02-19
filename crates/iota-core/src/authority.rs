@@ -3540,6 +3540,9 @@ impl AuthorityState {
             if let Some(indexes) = self.indexes.as_ref() {
                 indexes.checkpoint_db(&checkpoint_path_tmp.join("indexes"))?;
             }
+            if let Some(rest_index) = self.rest_index.as_ref() {
+                rest_index.checkpoint_db(&checkpoint_path_tmp.join("grpc_indexes"))?;
+            }
         }
 
         fs::rename(checkpoint_path_tmp, checkpoint_path)

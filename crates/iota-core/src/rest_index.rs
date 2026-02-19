@@ -4,7 +4,7 @@
 
 use std::{
     collections::{BTreeMap, HashMap},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -14,6 +14,7 @@ use iota_types::{
     committee::EpochId,
     digests::TransactionDigest,
     dynamic_field::visitor as DFV,
+    error::IotaResult,
     full_checkpoint_content::CheckpointData,
     iota_system_state::IotaSystemStateTrait,
     layout_resolver::LayoutResolver,
@@ -702,6 +703,11 @@ impl RestIndexStore {
             tables,
             pending_updates: Default::default(),
         }
+    }
+
+    pub fn checkpoint_db(&self, path: &Path) -> IotaResult {
+        // We are checkpointing the whole db
+        self.tables.meta.checkpoint_db(path).map_err(Into::into)
     }
 
     pub fn prune(
