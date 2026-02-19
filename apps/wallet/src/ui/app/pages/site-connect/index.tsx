@@ -92,12 +92,13 @@ export function SiteConnectPage() {
     );
 
     const isSecure = parsedOrigin?.protocol === 'https:';
-    const [displayWarning, setDisplayWarning] = useState(!isSecure);
+    const [warningDismissed, setWarningDismissed] = useState(false);
+    const displayWarning = !isSecure && !warningDismissed;
 
     const handleHideWarning = useCallback(
         async (allowed: boolean) => {
             if (allowed) {
-                setDisplayWarning(false);
+                setWarningDismissed(true);
             } else {
                 await handleOnSubmit(false);
             }
@@ -105,9 +106,6 @@ export function SiteConnectPage() {
         [handleOnSubmit],
     );
 
-    useEffect(() => {
-        setDisplayWarning(!isSecure);
-    }, [isSecure]);
     return (
         <Loading loading={loading}>
             {permissionRequest &&
