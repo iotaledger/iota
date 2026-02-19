@@ -991,7 +991,9 @@ pub struct VerifiedTransactions {
     transaction_ref: TransactionRef,
 
     /// Digest of the block this transaction batch belongs to.
-    block_digest: BlockHeaderDigest,
+    /// `None` when created via the `consensus_transaction_ref` path where no
+    /// block header is available.
+    block_digest: Option<BlockHeaderDigest>,
 
     /// The serialized bytes of the transactions.
     serialized: Bytes,
@@ -1007,7 +1009,7 @@ impl VerifiedTransactions {
     pub(crate) fn new(
         transactions: Vec<Transaction>,
         transaction_ref: TransactionRef,
-        block_digest: BlockHeaderDigest,
+        block_digest: Option<BlockHeaderDigest>,
         serialized: Bytes,
     ) -> Self {
         Self {
@@ -1030,12 +1032,12 @@ impl VerifiedTransactions {
         self.transaction_ref.author
     }
 
-    pub fn block_ref(&self) -> BlockRef {
-        BlockRef {
+    pub fn block_ref(&self) -> Option<BlockRef> {
+        self.block_digest.map(|digest| BlockRef {
             round: self.transaction_ref.round,
             author: self.transaction_ref.author,
-            digest: self.block_digest,
-        }
+            digest,
+        })
     }
 
     pub fn transaction_ref(&self) -> TransactionRef {
@@ -1084,7 +1086,7 @@ impl VerifiedBlock {
         let verified_transactions = VerifiedTransactions::new(
             vec![],
             verified_block_header.transaction_ref(),
-            verified_block_header.digest(),
+            Some(verified_block_header.digest()),
             Bytes::from(bcs::to_bytes::<Vec<Transaction>>(&vec![]).unwrap()),
         );
         Self {
@@ -1099,7 +1101,7 @@ impl VerifiedBlock {
         let verified_transactions = VerifiedTransactions::new(
             vec![],
             verified_block_header.transaction_ref(),
-            verified_block_header.digest(),
+            Some(verified_block_header.digest()),
             Bytes::from(
                 bcs::to_bytes::<Vec<Transaction>>(
                     &vec![vec![tx; 16]]
@@ -1156,7 +1158,7 @@ pub(crate) fn genesis_blocks(context: &Context) -> Vec<VerifiedBlock> {
                 verified_transactions: VerifiedTransactions::new(
                     vec![],
                     verified_block_header.transaction_ref(),
-                    verified_block_header.digest(),
+                    Some(verified_block_header.digest()),
                     Bytes::from(bcs::to_bytes::<Vec<Transaction>>(&vec![]).unwrap()),
                 ),
             }

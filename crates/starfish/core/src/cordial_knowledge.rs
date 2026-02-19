@@ -1328,7 +1328,11 @@ mod tests {
                             verified_transactions.transaction_ref(),
                         )
                     } else {
-                        GenericTransactionRef::BlockRef(verified_transactions.block_ref())
+                        GenericTransactionRef::BlockRef(
+                            verified_transactions
+                                .block_ref()
+                                .expect("block_ref must be present in non-transaction-ref path"),
+                        )
                     };
                     let shard_for_core = VerifiedOwnShard {
                         serialized_shard: Bytes::from([0u8; 32].to_vec()), /* put some dummy
@@ -1354,7 +1358,11 @@ mod tests {
                 let gen_transaction_ref = if context.protocol_config.consensus_transaction_ref() {
                     GenericTransactionRef::TransactionRef(verified_transactions.transaction_ref())
                 } else {
-                    GenericTransactionRef::BlockRef(verified_transactions.block_ref())
+                    GenericTransactionRef::BlockRef(
+                        verified_transactions
+                            .block_ref()
+                            .expect("block_ref must be present in non-transaction-ref path"),
+                    )
                 };
                 let shard_for_core = VerifiedOwnShard {
                     serialized_shard: Bytes::from([0u8; 32].to_vec()), // put some dummy shard data

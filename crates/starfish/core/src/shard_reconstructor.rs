@@ -211,7 +211,7 @@ impl ShardAccumulator {
         Ok(VerifiedTransactions::new(
             transactions,
             TransactionRef::new(self.block_ref, self.transactions_commitment),
-            self.block_ref.digest,
+            Some(self.block_ref.digest),
             serialized,
         ))
     }
@@ -932,7 +932,10 @@ mod tests {
             "Reconstruction should happen after reaching info_length shards"
         );
         let vt = &fetched[0];
-        assert_eq!(vt.block_ref(), block_ref);
+        assert_eq!(
+            vt.block_ref().expect("block_ref should be set in test"),
+            block_ref
+        );
         assert_eq!(vt.transactions(), txs);
 
         handle

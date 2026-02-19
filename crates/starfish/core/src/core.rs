@@ -945,7 +945,7 @@ impl Core {
         let verified_transactions = VerifiedTransactions::new(
             transactions,
             verified_block_header.transaction_ref(),
-            verified_block_header.digest(),
+            Some(verified_block_header.digest()),
             serialized_transactions,
         );
         let verified_block = VerifiedBlock {
@@ -2545,16 +2545,27 @@ mod test {
                     || transaction.round() >= num_rounds_with_skip_ancestors
                 {
                     assert!(
-                        existing_headers.contains(&transaction.block_ref()),
+                        existing_headers.contains(
+                            &transaction
+                                .block_ref()
+                                .expect("block_ref should be set in test")
+                        ),
                         "{}",
-                        transaction.block_ref()
+                        transaction
+                            .block_ref()
+                            .expect("block_ref should be set in test")
                     );
                 } else {
                     assert!(
-                        !existing_headers.contains(&transaction.block_ref())
-                            && !commit_only_for_traversed_headers,
+                        !existing_headers.contains(
+                            &transaction
+                                .block_ref()
+                                .expect("block_ref should be set in test")
+                        ) && !commit_only_for_traversed_headers,
                         "{}",
-                        transaction.block_ref()
+                        transaction
+                            .block_ref()
+                            .expect("block_ref should be set in test")
                     );
                 }
             }

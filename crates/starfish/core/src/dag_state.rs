@@ -539,10 +539,13 @@ impl DagState {
         source: DataSource,
     ) {
         let transaction_ref = transactions.transaction_ref();
-        let block_ref = transactions.block_ref();
         let generic_ref = if self.context.protocol_config.consensus_transaction_ref() {
             GenericTransactionRef::from(transaction_ref)
         } else {
+            let Some(block_ref) = transactions.block_ref() else {
+                error!("block_ref unavailable for transactions in non-transaction-ref path");
+                return;
+            };
             GenericTransactionRef::from(block_ref)
         };
         if self.recent_transactions_by_authority[transaction_ref.author].contains_key(&generic_ref)
@@ -711,15 +714,18 @@ impl DagState {
         source: DataSource,
     ) {
         let transaction_ref = transactions.transaction_ref();
-        let block_ref = transactions.block_ref();
         let generic_ref = if self.context.protocol_config.consensus_transaction_ref() {
             GenericTransactionRef::from(transaction_ref)
         } else {
+            let Some(block_ref) = transactions.block_ref() else {
+                error!("block_ref unavailable for transactions in non-transaction-ref path");
+                return;
+            };
             GenericTransactionRef::from(block_ref)
         };
-        self.recent_transactions_by_authority[block_ref.author]
+        self.recent_transactions_by_authority[transaction_ref.author]
             .insert(generic_ref, transactions.clone());
-        tracing::debug!("Adding transactions for block ref: {block_ref}");
+        tracing::debug!("Adding transactions for {generic_ref}");
 
         // Handle pending acknowledgments for recent blocks
         let has_transactions = transactions.has_transactions();
@@ -728,10 +734,10 @@ impl DagState {
         let hostname = self
             .context
             .committee
-            .authority(block_ref.author)
+            .authority(transaction_ref.author)
             .hostname
             .as_str();
-        let clock_round_gap = clock_round.saturating_sub(block_ref.round);
+        let clock_round_gap = clock_round.saturating_sub(transaction_ref.round);
 
         if has_transactions {
             // Record metrics
@@ -747,8 +753,11 @@ impl DagState {
                 .accepted_transactions_round_gap
                 .with_label_values(&[source.as_str()])
                 .observe(clock_round_gap as f64);
-            if block_ref.round >= min_round {
-                self.add_pending_acknowledgment(block_ref);
+            if transaction_ref.round >= min_round {
+                self.add_pending_acknowledgment(
+                    transaction_ref,
+                    transactions.block_ref().map(|br| br.digest),
+                );
             }
         } else {
             self.context
@@ -2029,8 +2038,30 @@ impl DagState {
         }
     }
 
-    /// Adds a block reference to pending acknowledgments.
-    pub(crate) fn add_pending_acknowledgment(&mut self, block_ref: BlockRef) {
+    /// Adds a block reference to pending acknowledgments by looking up the
+    /// block digest from the transaction ref.
+    pub(crate) fn add_pending_acknowledgment(
+        &mut self,
+        transaction_ref: TransactionRef,
+        block_digest: Option<BlockHeaderDigest>,
+    ) {
+        let block_digest = if let Some(digest) = block_digest {
+            digest
+        } else {
+            let Some(&digest) = self.tx_ref_to_block_digest_by_authority[transaction_ref.author]
+                .get(&(
+                    transaction_ref.round,
+                    transaction_ref.transactions_commitment,
+                ))
+            else {
+                error!(
+                    "block_digest not found for {transaction_ref:?} when adding pending acknowledgment"
+                );
+                return;
+            };
+            digest
+        };
+        let block_ref = BlockRef::new(transaction_ref.round, transaction_ref.author, block_digest);
         self.pending_acknowledgments.insert(block_ref);
     }
 
@@ -4018,7 +4049,7 @@ mod test {
                 let verified_transaction = VerifiedTransactions::new(
                     transactions,
                     TransactionRef::new(block_ref, transaction_commitment),
-                    block_ref.digest,
+                    Some(block_ref.digest),
                     serialized,
                 );
                 dag_state.add_transactions(verified_transaction, DataSource::Test);

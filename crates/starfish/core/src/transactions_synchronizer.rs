@@ -1132,7 +1132,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             transactions.len(),
             transactions
                 .iter()
-                .map(|b| b.block_ref().to_string())
+                .map(|b| b.transaction_ref().to_string())
                 .join(", "),
         );
 
@@ -1240,7 +1240,12 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(transactions, header.transaction_ref(), header.digest(), serialized)
+                VerifiedTransactions::new(
+                    transactions,
+                    header.transaction_ref(),
+                    Some(header.digest()),
+                    serialized,
+                )
             })
             .collect::<Vec<_>>();
 
@@ -1294,7 +1299,7 @@ mod tests {
             assert!(
                 fetched_transactions
                     .iter()
-                    .any(|t| t.block_ref() == transaction.block_ref())
+                    .any(|t| t.transactions_commitment() == transaction.transactions_commitment())
             );
         }
 
@@ -1353,8 +1358,12 @@ mod tests {
 
             block_headers.push(header.clone());
 
-            let verified_transaction =
-                VerifiedTransactions::new(transactions, header.transaction_ref(), header.digest(), serialized);
+            let verified_transaction = VerifiedTransactions::new(
+                transactions,
+                header.transaction_ref(),
+                Some(header.digest()),
+                serialized,
+            );
 
             verified_transactions.push(verified_transaction);
         }
@@ -1474,7 +1483,12 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(transactions, header.transaction_ref(), header.digest(), serialized)
+                VerifiedTransactions::new(
+                    transactions,
+                    header.transaction_ref(),
+                    Some(header.digest()),
+                    serialized,
+                )
             })
             .collect::<Vec<_>>();
 
@@ -1546,7 +1560,7 @@ mod tests {
             assert!(
                 fetched_transactions
                     .iter()
-                    .any(|t| t.block_ref() == transaction.block_ref())
+                    .any(|t| t.transactions_commitment() == transaction.transactions_commitment())
             );
         }
 
@@ -1608,7 +1622,12 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(transactions, header.transaction_ref(), header.digest(), serialized)
+                VerifiedTransactions::new(
+                    transactions,
+                    header.transaction_ref(),
+                    Some(header.digest()),
+                    serialized,
+                )
             })
             .collect::<Vec<_>>();
 
@@ -1669,7 +1688,7 @@ mod tests {
             assert!(
                 fetched_transactions
                     .iter()
-                    .any(|t| t.block_ref() == transaction.block_ref())
+                    .any(|t| t.transactions_commitment() == transaction.transactions_commitment())
             );
         }
 
@@ -1731,7 +1750,12 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(transactions, header.transaction_ref(), header.digest(), serialized)
+                VerifiedTransactions::new(
+                    transactions,
+                    header.transaction_ref(),
+                    Some(header.digest()),
+                    serialized,
+                )
             })
             .collect::<Vec<_>>();
 
@@ -1794,7 +1818,7 @@ mod tests {
             assert!(
                 fetched_transactions
                     .iter()
-                    .any(|t| t.block_ref() == transaction.block_ref())
+                    .any(|t| t.transactions_commitment() == transaction.transactions_commitment())
             );
         }
 
@@ -1858,7 +1882,12 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(transactions, header.transaction_ref(), header.digest(), serialized)
+                VerifiedTransactions::new(
+                    transactions,
+                    header.transaction_ref(),
+                    Some(header.digest()),
+                    serialized,
+                )
             })
             .collect::<Vec<_>>();
 
@@ -1924,7 +1953,7 @@ mod tests {
             assert!(
                 fetched_transactions
                     .iter()
-                    .any(|t| t.block_ref() == transaction.block_ref())
+                    .any(|t| t.transactions_commitment() == transaction.transactions_commitment())
             );
         }
 
@@ -2209,7 +2238,6 @@ mod tests {
         ) {
             let mut transactions_map = self.transactions.lock().await;
             for transaction in transactions {
-                let block_ref = transaction.block_ref();
                 let transaction_ref = transaction.transaction_ref();
 
                 if transaction_ref_enabled {
@@ -2224,6 +2252,9 @@ mod tests {
                     transactions_map.insert((peer, tx_ref), serialized.into());
                 } else {
                     // Create a SerializedTransactionsV1 struct with BlockRef
+                    let block_ref = transaction
+                        .block_ref()
+                        .expect("block_ref must be present in non-transaction-ref path");
                     let serialized_transactions = SerializedTransactionsV1 {
                         block_ref,
                         serialized_transactions: transaction.serialized().clone(),
@@ -2332,11 +2363,11 @@ mod tests {
             let mut seen = BTreeSet::new();
             // Populate with txns
             for transaction in txns.iter() {
-                seen.insert(transaction.block_ref());
+                seen.insert(transaction.transactions_commitment());
             }
             for transaction in transactions {
-                if !seen.contains(&transaction.block_ref()) {
-                    seen.insert(transaction.block_ref());
+                if !seen.contains(&transaction.transactions_commitment()) {
+                    seen.insert(transaction.transactions_commitment());
                     txns.push(transaction);
                 }
             }
@@ -2358,9 +2389,14 @@ mod tests {
                 BTreeMap::new();
 
             for (block_ref, authority_set) in missing.iter() {
-                let exists = transactions
-                    .iter()
-                    .any(|txn| GenericTransactionRef::from(txn.block_ref()) == *block_ref);
+                let exists = transactions.iter().any(|txn| {
+                    let tx_ref_match =
+                        GenericTransactionRef::TransactionRef(txn.transaction_ref()) == *block_ref;
+                    let block_ref_match = txn
+                        .block_ref()
+                        .is_some_and(|br| GenericTransactionRef::BlockRef(br) == *block_ref);
+                    tx_ref_match || block_ref_match
+                });
 
                 if !exists {
                     filtered.insert(*block_ref, authority_set.clone());

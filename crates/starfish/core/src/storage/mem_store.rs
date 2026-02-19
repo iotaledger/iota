@@ -100,7 +100,6 @@ impl Store for MemStore {
 
         // Store transactions data separately
         for transaction in write_batch.transactions {
-            let block_ref = transaction.block_ref();
             let transaction_ref = transaction.transaction_ref();
             if context.protocol_config.consensus_transaction_ref() {
                 inner.transactions_by_tx_refs.insert(
@@ -119,6 +118,9 @@ impl Store for MemStore {
                     transaction_ref.block_digest,
                 ));
             } else {
+                let block_ref = transaction
+                    .block_ref()
+                    .expect("block_ref must be present in non-transaction-ref path");
                 inner.transactions.insert(
                     (block_ref.round, block_ref.author, block_ref.digest),
                     transaction,

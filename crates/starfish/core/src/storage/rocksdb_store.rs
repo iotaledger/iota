@@ -424,7 +424,7 @@ impl Store for RocksDBStore {
                     let verified_transactions = VerifiedTransactions::new(
                         transactions,
                         *tx_ref,
-                        tx_ref.block_digest,
+                        None,
                         serialized_transactions,
                     );
                     result.push(Some(verified_transactions));
@@ -468,7 +468,7 @@ impl Store for RocksDBStore {
                             *block_ref,
                             signed_block_header.transactions_commitment(),
                         ),
-                        block_ref.digest,
+                        Some(block_ref.digest),
                         serialized_transactions,
                     );
                     result.push(Some(verified_transactions));
