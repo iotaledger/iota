@@ -26,7 +26,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 4, line 32:
 //# view-object 2,0
-Owner: Shared( 3 )
+Owner: Shared(3)
 Version: 3
 Contents: test::m::S {
     id: iota::object::UID {
@@ -38,7 +38,7 @@ Contents: test::m::S {
 
 task 5, line 34:
 //# view-object 3,0
-Owner: Shared( 4 )
+Owner: Shared(4)
 Version: 4
 Contents: test::m::S2 {
     id: iota::object::UID {
@@ -60,7 +60,7 @@ Debug of error: SharedObjectOperationNotAllowed at command None
 
 task 8, line 40:
 //# view-object 2,0
-Owner: Shared( 3 )
+Owner: Shared(3)
 Version: 4
 Contents: test::m::S {
     id: iota::object::UID {
@@ -72,7 +72,7 @@ Contents: test::m::S {
 
 task 9, line 42:
 //# view-object 3,0
-Owner: Shared( 4 )
+Owner: Shared(4)
 Version: 5
 Contents: test::m::S2 {
     id: iota::object::UID {

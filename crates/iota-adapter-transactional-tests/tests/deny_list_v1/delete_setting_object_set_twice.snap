@@ -28,7 +28,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 4, line 61:
 //# view-object 2,1
-Owner: Object ID: ( fake(2,0) )
+Owner: Object(fake(2,0))
 Version: 3
 Contents: iota::dynamic_field::Field<iota::deny_list::AddressKey, iota::config::Setting<bool>> {
     id: iota::object::UID {
@@ -60,7 +60,7 @@ Contents: iota::dynamic_field::Field<iota::deny_list::AddressKey, iota::config::
 
 task 5, line 63:
 //# view-object 3,0
-Owner: Object ID: ( fake(2,0) )
+Owner: Object(fake(2,0))
 Version: 4
 Contents: iota::dynamic_field::Field<iota::deny_list::GlobalPauseKey, iota::config::Setting<bool>> {
     id: iota::object::UID {
@@ -106,7 +106,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 9, line 74:
 //# view-object 2,1
-Owner: Object ID: ( fake(2,0) )
+Owner: Object(fake(2,0))
 Version: 5
 Contents: iota::dynamic_field::Field<iota::deny_list::AddressKey, iota::config::Setting<bool>> {
     id: iota::object::UID {
@@ -140,7 +140,7 @@ Contents: iota::dynamic_field::Field<iota::deny_list::AddressKey, iota::config::
 
 task 10, line 76:
 //# view-object 3,0
-Owner: Object ID: ( fake(2,0) )
+Owner: Object(fake(2,0))
 Version: 6
 Contents: iota::dynamic_field::Field<iota::deny_list::GlobalPauseKey, iota::config::Setting<bool>> {
     id: iota::object::UID {
@@ -188,7 +188,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 14, line 87:
 //# view-object 2,1
-Owner: Object ID: ( fake(2,0) )
+Owner: Object(fake(2,0))
 Version: 7
 Contents: iota::dynamic_field::Field<iota::deny_list::AddressKey, iota::config::Setting<bool>> {
     id: iota::object::UID {
@@ -220,7 +220,7 @@ Contents: iota::dynamic_field::Field<iota::deny_list::AddressKey, iota::config::
 
 task 15, line 89:
 //# view-object 3,0
-Owner: Object ID: ( fake(2,0) )
+Owner: Object(fake(2,0))
 Version: 8
 Contents: iota::dynamic_field::Field<iota::deny_list::GlobalPauseKey, iota::config::Setting<bool>> {
     id: iota::object::UID {

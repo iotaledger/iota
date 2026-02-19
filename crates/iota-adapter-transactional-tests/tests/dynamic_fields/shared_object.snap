@@ -31,7 +31,7 @@ Debug of error: SharedObjectOperationNotAllowed at command None
 
 task 5, line 82:
 //# view-object 3,0
-Owner: Shared( 3 )
+Owner: Shared(3)
 Version: 4
 Contents: test::m::Child {
     id: iota::object::UID {
@@ -49,7 +49,7 @@ Debug of error: MoveAbort(MoveLocation { module: ModuleId { address: iota, name:
 
 task 7, line 86:
 //# view-object 3,0
-Owner: Shared( 3 )
+Owner: Shared(3)
 Version: 4
 Contents: test::m::Child {
     id: iota::object::UID {

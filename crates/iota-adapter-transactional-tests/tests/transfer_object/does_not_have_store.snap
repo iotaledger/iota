@@ -20,7 +20,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 3, line 30:
 //# view-object 2,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 2
 Contents: test::m::S {
     id: iota::object::UID {
@@ -37,7 +37,7 @@ Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { k
 
 task 5, lines 34-37:
 //# view-object 2,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 3
 Contents: test::m::S {
     id: iota::object::UID {
@@ -55,7 +55,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 7, line 41:
 //# view-object 6,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 4
 Contents: test::m::Cup<test::m::S> {
     id: iota::object::UID {
@@ -72,7 +72,7 @@ Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { k
 
 task 9, line 45:
 //# view-object 6,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 5
 Contents: test::m::Cup<test::m::S> {
     id: iota::object::UID {

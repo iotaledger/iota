@@ -691,7 +691,7 @@ impl Builder {
                     let timelock_staked_iota_object_id = timelock_staked_iota_objects
                         .iter()
                         .find(|(_k, (o, s))| {
-                            let Owner::AddressOwner(owner) = &o.owner else {
+                            let Owner::Address(owner) = &o.owner else {
                                 panic!("gas object owner must be address owner");
                             };
                             *owner == allocation.recipient_address
@@ -706,7 +706,7 @@ impl Builder {
                         .unwrap();
                     assert_eq!(
                         timelock_staked_iota_object.0.owner,
-                        Owner::AddressOwner(allocation.recipient_address)
+                        Owner::Address(allocation.recipient_address)
                     );
                     assert_eq!(
                         timelock_staked_iota_object.1.principal(),
@@ -718,7 +718,7 @@ impl Builder {
                     let staked_iota_object_id = staked_iota_objects
                         .iter()
                         .find(|(_k, (o, s))| {
-                            let Owner::AddressOwner(owner) = &o.owner else {
+                            let Owner::Address(owner) = &o.owner else {
                                 panic!("gas object owner must be address owner");
                             };
                             *owner == allocation.recipient_address
@@ -731,7 +731,7 @@ impl Builder {
                         staked_iota_objects.remove(&staked_iota_object_id).unwrap();
                     assert_eq!(
                         staked_iota_object.0.owner,
-                        Owner::AddressOwner(allocation.recipient_address)
+                        Owner::Address(allocation.recipient_address)
                     );
                     assert_eq!(staked_iota_object.1.principal(), allocation.amount_nanos);
                     assert_eq!(staked_iota_object.1.pool_id(), staking_pool_id);
@@ -741,7 +741,7 @@ impl Builder {
                 let gas_object_id = gas_objects
                     .iter()
                     .find(|(_k, (o, g))| {
-                        if let Owner::AddressOwner(owner) = &o.owner {
+                        if let Owner::Address(owner) = &o.owner {
                             *owner == allocation.recipient_address
                                 && g.value() == allocation.amount_nanos
                         } else {
@@ -753,7 +753,7 @@ impl Builder {
                 let gas_object = gas_objects.remove(&gas_object_id).unwrap();
                 assert_eq!(
                     gas_object.0.owner,
-                    Owner::AddressOwner(allocation.recipient_address)
+                    Owner::Address(allocation.recipient_address)
                 );
                 assert_eq!(gas_object.1.value(), allocation.amount_nanos,);
             }
@@ -1303,10 +1303,7 @@ fn create_genesis_transaction(
                     o.decrement_version_to(SequenceNumber::MIN_VALID_INCL);
                 }
 
-                if let Owner::Shared {
-                    initial_shared_version,
-                } = &mut object.owner
-                {
+                if let Owner::Shared(initial_shared_version) = &mut object.owner {
                     *initial_shared_version = SequenceNumber::MIN_VALID_INCL;
                 }
 

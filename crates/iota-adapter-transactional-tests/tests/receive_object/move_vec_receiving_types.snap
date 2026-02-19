@@ -17,7 +17,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 3, line 68:
 //# view-object 2,0
-Owner: Account Address ( _ )
+Owner: Address(_)
 Version: 3
 Contents: tto::M1::A {
     id: iota::object::UID {
@@ -29,7 +29,7 @@ Contents: tto::M1::A {
 
 task 4, line 70:
 //# view-object 2,1
-Owner: Account Address ( fake(2,0) )
+Owner: Address(fake(2,0))
 Version: 3
 Contents: tto::M1::B {
     id: iota::object::UID {
@@ -41,7 +41,7 @@ Contents: tto::M1::B {
 
 task 5, line 72:
 //# view-object 2,2
-Owner: Account Address ( fake(2,0) )
+Owner: Address(fake(2,0))
 Version: 3
 Contents: tto::M1::B {
     id: iota::object::UID {
@@ -53,7 +53,7 @@ Contents: tto::M1::B {
 
 task 6, line 74:
 //# view-object 2,3
-Owner: Account Address ( fake(2,0) )
+Owner: Address(fake(2,0))
 Version: 3
 Contents: tto::M1::C {
     id: iota::object::UID {
@@ -65,7 +65,7 @@ Contents: tto::M1::C {
 
 task 7, lines 76-78:
 //# view-object 2,4
-Owner: Account Address ( fake(2,0) )
+Owner: Address(fake(2,0))
 Version: 3
 Contents: tto::M1::C {
     id: iota::object::UID {

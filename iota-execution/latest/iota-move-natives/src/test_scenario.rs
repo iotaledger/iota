@@ -222,7 +222,7 @@ pub fn end_transaction(
             written.push(id);
         }
         match owner {
-            Owner::AddressOwner(a) => {
+            Owner::Address(a) => {
                 inventories
                     .address_inventories
                     .entry(a)
@@ -231,7 +231,7 @@ pub fn end_transaction(
                     .or_default()
                     .insert(id);
             }
-            Owner::ObjectOwner(_) => (),
+            Owner::Object(_) => (),
             Owner::Shared { .. } => {
                 inventories
                     .shared_inventory
@@ -246,6 +246,7 @@ pub fn end_transaction(
                     .or_default()
                     .insert(id);
             }
+            _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
     }
 
@@ -407,7 +408,7 @@ pub fn take_from_address_by_id(
         &mut inventories.taken,
         &mut object_runtime.state.input_objects,
         id,
-        Owner::AddressOwner(account),
+        Owner::Address(account),
     );
     Ok(match res {
         Ok(value) => NativeResult::ok(legacy_test_cost(), smallvec![value]),
@@ -476,7 +477,7 @@ pub fn was_taken_from_address(
     let was_taken = inventories
         .taken
         .get(&id)
-        .map(|owner| owner == &Owner::AddressOwner(account))
+        .map(|owner| owner == &Owner::Address(account))
         .unwrap_or(false);
     Ok(NativeResult::ok(
         legacy_test_cost(),
@@ -590,7 +591,7 @@ pub fn take_shared_by_id(
         &mut inventories.taken,
         &mut object_runtime.state.input_objects,
         id,
-        Owner::Shared { initial_shared_version: /* dummy */ SequenceNumber::default() },
+        Owner::Shared(Default::default()),
     );
     Ok(match res {
         Ok(value) => NativeResult::ok(legacy_test_cost(), smallvec![value]),
@@ -695,7 +696,7 @@ pub fn allocate_receiving_ticket_for_object(
             DynamicallyLoadedObjectMetadata {
                 version: SequenceNumber::default(),
                 digest: ObjectDigest::MIN,
-                owner: Owner::AddressOwner(*owner),
+                owner: Owner::Address(*owner),
                 storage_rebate: 0,
                 previous_transaction: TransactionDigest::default(),
             },
@@ -705,7 +706,7 @@ pub fn allocate_receiving_ticket_for_object(
 
     let object = Object::new_move(
         move_object,
-        Owner::AddressOwner(*owner),
+        Owner::Address(*owner),
         TransactionDigest::default(),
     );
 
@@ -849,16 +850,17 @@ fn transaction_effects(
     let mut frozen = vec![];
     for (id, owner) in transferred {
         match owner {
-            Owner::AddressOwner(a) => transferred_to_account.push((
+            Owner::Address(a) => transferred_to_account.push((
                 pack_id(AccountAddress::new(id.into_bytes())),
                 Value::address(AccountAddress::new(a.into_bytes())),
             )),
-            Owner::ObjectOwner(o) => transferred_to_object.push((
+            Owner::Object(o) => transferred_to_object.push((
                 pack_id(AccountAddress::new(id.into_bytes())),
                 pack_id(AccountAddress::new(o.into_bytes())),
             )),
             Owner::Shared { .. } => shared.push(AccountAddress::new(id.into_bytes())),
             Owner::Immutable => frozen.push(AccountAddress::new(id.into_bytes())),
+            _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
     }
 
