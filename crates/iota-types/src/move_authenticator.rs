@@ -144,13 +144,23 @@ impl AuthenticatorTrait for MoveAuthenticator {
 }
 
 /// Necessary trait for
-/// [SenderSignerData](crate::transaction::SenderSignedData).
+/// [SenderSignerData](crate::transaction::SenderSignedData). This trait is
+/// implemented only for MoveAuthenticator and not for specific versions of
+/// MoveAuthenticator (e.g., MoveAuthenticatorV1) because the custom
+/// serialization/deserialization signature logic is defined on the
+/// MoveAuthenticator level.
 impl Hash for MoveAuthenticator {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.as_ref().hash(state);
     }
 }
 
+/// Necessary trait for
+/// [GenericSignature](crate::signature::GenericSignature). This trait is
+/// implemented only for MoveAuthenticator and not for specific versions of
+/// MoveAuthenticator (e.g., MoveAuthenticatorV1) because the custom
+/// serialization/deserialization signature logic is defined on the
+/// MoveAuthenticator level.
 impl ToFromBytes for MoveAuthenticator {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         // The first byte matches the flag of MoveAuthenticator.
@@ -166,6 +176,12 @@ impl ToFromBytes for MoveAuthenticator {
     }
 }
 
+/// Necessary trait for
+/// [GenericSignature](crate::signature::GenericSignature). This trait is
+/// implemented only for MoveAuthenticator and not for specific versions of
+/// MoveAuthenticator (e.g., MoveAuthenticatorV1) because the custom
+/// serialization/deserialization signature logic is defined on the
+/// MoveAuthenticator level.
 impl AsRef<[u8]> for MoveAuthenticator {
     fn as_ref(&self) -> &[u8] {
         self.bytes.get_or_init(|| {
@@ -179,7 +195,11 @@ impl AsRef<[u8]> for MoveAuthenticator {
 }
 
 /// Necessary trait for
-/// [SenderSignerData](crate::transaction::SenderSignedData).
+/// [SenderSignerData](crate::transaction::SenderSignedData). This trait is
+/// implemented only for MoveAuthenticator and not for specific versions of
+/// MoveAuthenticator (e.g., MoveAuthenticatorV1) because the custom
+/// serialization/deserialization signature logic is defined on the
+/// MoveAuthenticator level. This trait is
 impl PartialEq for MoveAuthenticator {
     fn eq(&self, other: &Self) -> bool {
         self.as_ref() == other.as_ref()
@@ -187,7 +207,11 @@ impl PartialEq for MoveAuthenticator {
 }
 
 /// Necessary trait for
-/// [SenderSignerData](crate::transaction::SenderSignedData).
+/// [SenderSignerData](crate::transaction::SenderSignedData). This trait is
+/// implemented only for MoveAuthenticator and not for specific versions of
+/// MoveAuthenticator (e.g., MoveAuthenticatorV1) because the custom
+/// serialization/deserialization signature logic is defined at the
+/// MoveAuthenticator level.
 impl Eq for MoveAuthenticator {}
 
 /// MoveAuthenticatorKind is an enum that represents the different versions of
