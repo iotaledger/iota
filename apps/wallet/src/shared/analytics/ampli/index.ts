@@ -315,6 +315,12 @@ export interface CoinsSentProperties {
     /**
      * | Rule | Value |
      * |---|---|
+     * | Type | number |
+     */
+    amount?: number;
+    /**
+     * | Rule | Value |
+     * |---|---|
      * | Regex |  |
      */
     coinType?: string;
@@ -408,9 +414,27 @@ export interface IotaStakedProperties {
      * | Regex |  |
      */
     validatorAddress?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    validatorAPY?: number;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    validatorName?: string;
 }
 
 export interface IotaUnstakedProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    rewards?: number;
     /**
      * | Rule | Value |
      * |---|---|
@@ -423,6 +447,12 @@ export interface IotaUnstakedProperties {
      * | Regex |  |
      */
     validatorAddress?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    validatorName?: string;
 }
 
 export interface NetworkSwitchedProperties {
