@@ -118,6 +118,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 21;
 //             mechanism on testnet.
 //             Enable a separate gas price feedback mechanism for transactions
 //             using randomness on testnet.
+//             Enable recording additional state digest in consensus commit
+//             prologue on devnet (i.e., enables ConsensusCommitPrologueV2).
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -436,6 +438,11 @@ struct FeatureFlags {
     // If false, a default score (MAX_SCORE) is passed
     #[serde(skip_serializing_if = "is_false")]
     pass_calculated_validator_scores_to_advance_epoch: bool,
+
+    // If true, record the additional state digest in the consensus commit prologue (i.e., enables
+    // ConsensusCommitPrologueV2).
+    #[serde(skip_serializing_if = "is_false")]
+    record_additional_states_digests_in_prologue: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1582,6 +1589,11 @@ impl ProtocolConfig {
         );
         pass
     }
+
+    pub fn record_additional_states_digests_in_prologue(&self) -> bool {
+        self.feature_flags
+            .record_additional_states_digests_in_prologue
+    }
 }
 
 #[cfg(not(msim))]
@@ -2528,6 +2540,11 @@ impl ProtocolConfig {
                         // randomness on testnet.
                         cfg.feature_flags
                             .separate_gas_price_feedback_mechanism_for_randomness = true;
+                        if chain != Chain::Testnet {
+                            // Enable ConsensusCommitPrologueV2 on devnet
+                            cfg.feature_flags
+                                .record_additional_states_digests_in_prologue = true;
+                        }
                     }
                 }
 
