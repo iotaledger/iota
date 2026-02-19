@@ -421,8 +421,12 @@ impl Store for RocksDBStore {
                         .map_err(ConsensusError::MalformedTransactions)?;
                     // We don't check the transactions commitment from the header as it's loaded
                     // from storage. Assemble verified transactions
-                    let verified_transactions =
-                        VerifiedTransactions::new(transactions, *tx_ref, serialized_transactions);
+                    let verified_transactions = VerifiedTransactions::new(
+                        transactions,
+                        *tx_ref,
+                        tx_ref.block_digest,
+                        serialized_transactions,
+                    );
                     result.push(Some(verified_transactions));
                 } else {
                     result.push(None);
@@ -464,6 +468,7 @@ impl Store for RocksDBStore {
                             *block_ref,
                             signed_block_header.transactions_commitment(),
                         ),
+                        block_ref.digest,
                         serialized_transactions,
                     );
                     result.push(Some(verified_transactions));

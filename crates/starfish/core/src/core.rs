@@ -945,6 +945,7 @@ impl Core {
         let verified_transactions = VerifiedTransactions::new(
             transactions,
             verified_block_header.transaction_ref(),
+            verified_block_header.digest(),
             serialized_transactions,
         );
         let verified_block = VerifiedBlock {

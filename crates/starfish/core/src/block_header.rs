@@ -990,6 +990,9 @@ pub struct VerifiedTransactions {
     /// Commitment of transactions in the block
     transaction_ref: TransactionRef,
 
+    /// Digest of the block this transaction batch belongs to.
+    block_digest: BlockHeaderDigest,
+
     /// The serialized bytes of the transactions.
     serialized: Bytes,
 }
@@ -1004,11 +1007,13 @@ impl VerifiedTransactions {
     pub(crate) fn new(
         transactions: Vec<Transaction>,
         transaction_ref: TransactionRef,
+        block_digest: BlockHeaderDigest,
         serialized: Bytes,
     ) -> Self {
         Self {
             transactions,
             transaction_ref,
+            block_digest,
             serialized,
         }
     }
@@ -1029,7 +1034,7 @@ impl VerifiedTransactions {
         BlockRef {
             round: self.transaction_ref.round,
             author: self.transaction_ref.author,
-            digest: self.transaction_ref.block_digest,
+            digest: self.block_digest,
         }
     }
 
@@ -1079,6 +1084,7 @@ impl VerifiedBlock {
         let verified_transactions = VerifiedTransactions::new(
             vec![],
             verified_block_header.transaction_ref(),
+            verified_block_header.digest(),
             Bytes::from(bcs::to_bytes::<Vec<Transaction>>(&vec![]).unwrap()),
         );
         Self {
@@ -1093,6 +1099,7 @@ impl VerifiedBlock {
         let verified_transactions = VerifiedTransactions::new(
             vec![],
             verified_block_header.transaction_ref(),
+            verified_block_header.digest(),
             Bytes::from(
                 bcs::to_bytes::<Vec<Transaction>>(
                     &vec![vec![tx; 16]]
@@ -1149,6 +1156,7 @@ pub(crate) fn genesis_blocks(context: &Context) -> Vec<VerifiedBlock> {
                 verified_transactions: VerifiedTransactions::new(
                     vec![],
                     verified_block_header.transaction_ref(),
+                    verified_block_header.digest(),
                     Bytes::from(bcs::to_bytes::<Vec<Transaction>>(&vec![]).unwrap()),
                 ),
             }

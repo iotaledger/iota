@@ -623,6 +623,7 @@ impl DagBuilder {
             let verified_transactions = VerifiedTransactions::new(
                 transactions,
                 TransactionRef::new(block_ref, commitment),
+                block_ref.digest,
                 serialized_transactions,
             );
             self.transactions.insert(block_ref, verified_transactions);
@@ -1124,6 +1125,7 @@ impl<'a> LayerBuilder<'a> {
                 let verified_transactions = VerifiedTransactions::new(
                     transactions,
                     block_header.transaction_ref(),
+                    block_header.digest(),
                     serialized_transactions,
                 );
 

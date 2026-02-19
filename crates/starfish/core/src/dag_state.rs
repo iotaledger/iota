@@ -4018,6 +4018,7 @@ mod test {
                 let verified_transaction = VerifiedTransactions::new(
                     transactions,
                     TransactionRef::new(block_ref, transaction_commitment),
+                    block_ref.digest,
                     serialized,
                 );
                 dag_state.add_transactions(verified_transaction, DataSource::Test);

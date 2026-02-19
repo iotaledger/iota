@@ -211,6 +211,7 @@ impl ShardAccumulator {
         Ok(VerifiedTransactions::new(
             transactions,
             TransactionRef::new(self.block_ref, self.transactions_commitment),
+            self.block_ref.digest,
             serialized,
         ))
     }

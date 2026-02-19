@@ -1240,7 +1240,7 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(transactions, header.transaction_ref(), serialized)
+                VerifiedTransactions::new(transactions, header.transaction_ref(), header.digest(), serialized)
             })
             .collect::<Vec<_>>();
 
@@ -1354,7 +1354,7 @@ mod tests {
             block_headers.push(header.clone());
 
             let verified_transaction =
-                VerifiedTransactions::new(transactions, header.transaction_ref(), serialized);
+                VerifiedTransactions::new(transactions, header.transaction_ref(), header.digest(), serialized);
 
             verified_transactions.push(verified_transaction);
         }
@@ -1474,7 +1474,7 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(transactions, header.transaction_ref(), serialized)
+                VerifiedTransactions::new(transactions, header.transaction_ref(), header.digest(), serialized)
             })
             .collect::<Vec<_>>();
 
@@ -1608,7 +1608,7 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(transactions, header.transaction_ref(), serialized)
+                VerifiedTransactions::new(transactions, header.transaction_ref(), header.digest(), serialized)
             })
             .collect::<Vec<_>>();
 
@@ -1731,7 +1731,7 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(transactions, header.transaction_ref(), serialized)
+                VerifiedTransactions::new(transactions, header.transaction_ref(), header.digest(), serialized)
             })
             .collect::<Vec<_>>();
 
@@ -1858,7 +1858,7 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(transactions, header.transaction_ref(), serialized)
+                VerifiedTransactions::new(transactions, header.transaction_ref(), header.digest(), serialized)
             })
             .collect::<Vec<_>>();
 

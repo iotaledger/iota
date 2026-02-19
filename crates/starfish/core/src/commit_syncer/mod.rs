@@ -320,6 +320,7 @@ pub(crate) fn verify_transactions_with_headers(
         let verified_transactions = VerifiedTransactions::new(
             transactions,
             TransactionRef::new(block_ref, block_header.transactions_commitment()),
+            block_ref.digest,
             inner_serialized_transactions,
         );
 
@@ -374,7 +375,7 @@ pub(crate) fn verify_transactions_with_transactions_refs(
 
         // Step 3: Create a VerifiedTransactions instance and insert into map
         let verified_transactions =
-            VerifiedTransactions::new(transactions, transaction_ref, inner_serialized_transactions);
+            VerifiedTransactions::new(transactions, transaction_ref, transaction_ref.block_digest, inner_serialized_transactions);
 
         verified_transactions_map.insert(
             GenericTransactionRef::TransactionRef(transaction_ref),
