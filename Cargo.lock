@@ -8110,12 +8110,12 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b788e641030664a1cbdac71c08d0771f307d977f#b788e641030664a1cbdac71c08d0771f307d977f"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e42877c8d37699e15f1439ec6b99b848a7a04f11#e42877c8d37699e15f1439ec6b99b848a7a04f11"
 dependencies = [
  "bip32",
  "bip39",
  "ed25519-dalek",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b788e641030664a1cbdac71c08d0771f307d977f)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e42877c8d37699e15f1439ec6b99b848a7a04f11)",
  "rand_core 0.6.4",
  "signature 2.2.0",
  "slip10_ed25519",
@@ -8154,7 +8154,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b788e641030664a1cbdac71c08d0771f307d977f#b788e641030664a1cbdac71c08d0771f307d977f"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e42877c8d37699e15f1439ec6b99b848a7a04f11#e42877c8d37699e15f1439ec6b99b848a7a04f11"
 dependencies = [
  "base64ct",
  "bcs",
