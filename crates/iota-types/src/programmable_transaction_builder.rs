@@ -237,16 +237,16 @@ impl ProgrammableTransactionBuilder {
         let rec_arg = self.pure(recipient).unwrap();
         let coin_arg = if let Some(amount) = amount {
             let amt_arg = self.pure(amount).unwrap();
-            self.command(Command::SplitCoins(Argument::GasCoin, vec![amt_arg]))
+            self.command(Command::SplitCoins(Argument::Gas, vec![amt_arg]))
         } else {
-            Argument::GasCoin
+            Argument::Gas
         };
         self.command(Command::TransferObjects(vec![coin_arg], rec_arg));
     }
 
     pub fn pay_all_iota(&mut self, recipient: IotaAddress) {
         let rec_arg = self.pure(recipient).unwrap();
-        self.command(Command::TransferObjects(vec![Argument::GasCoin], rec_arg));
+        self.command(Command::TransferObjects(vec![Argument::Gas], rec_arg));
     }
 
     /// Will fail to generate if recipients and amounts do not have the same
@@ -256,7 +256,7 @@ impl ProgrammableTransactionBuilder {
         recipients: Vec<IotaAddress>,
         amounts: Vec<u64>,
     ) -> anyhow::Result<()> {
-        self.pay_impl(recipients, amounts, Argument::GasCoin)
+        self.pay_impl(recipients, amounts, Argument::Gas)
     }
 
     pub fn split_coin(&mut self, recipient: IotaAddress, coin: ObjectRef, amounts: Vec<u64>) {

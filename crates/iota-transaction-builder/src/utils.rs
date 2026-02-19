@@ -264,7 +264,7 @@ impl TransactionBuilder {
                     }
                 }
                 PtbInput::PtbRef(iota_arg) => match iota_arg {
-                    IotaArgument::GasCoin => Argument::GasCoin,
+                    IotaArgument::GasCoin => Argument::Gas,
                     IotaArgument::Input(idx) => Argument::Input(idx),
                     IotaArgument::Result(idx) => Argument::Result(idx),
                     IotaArgument::NestedResult(idx, nested_idx) => {

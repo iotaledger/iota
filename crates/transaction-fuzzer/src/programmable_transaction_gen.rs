@@ -71,7 +71,7 @@ pub fn gen_command() -> impl Strategy<Value = Command> {
 
 pub fn gen_argument() -> impl Strategy<Value = Argument> {
     prop_oneof![
-        Just(Argument::GasCoin),
+        Just(Argument::Gas),
         u16_with_boundaries_strategy().prop_map(Argument::Input),
         u16_with_boundaries_strategy().prop_map(Argument::Result),
         (
