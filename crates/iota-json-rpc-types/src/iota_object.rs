@@ -600,7 +600,7 @@ impl TryInto<Object> for IotaObjectData {
             Some(IotaRawData::Package(p)) => Data::Package(MovePackage::new(
                 p.id,
                 self.version,
-                p.module_map,
+                p.modules,
                 protocol_config.max_move_package_size(),
                 p.type_origin_table,
                 p.linkage_table,
