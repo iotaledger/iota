@@ -30,14 +30,7 @@ const config = {
   onBrokenAnchors: "throw",
 
   future: {
-    experimental_faster: {
-      swcJsLoader: true,
-      swcJsMinimizer: true,
-      swcHtmlMinimizer: true,
-      lightningCssMinimizer: true,
-      rspackBundler: true,
-      mdxCrossCompilerCache: true,
-    },
+    experimental_faster: "true",
   },
 
   markdown: {
