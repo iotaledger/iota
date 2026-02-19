@@ -86,11 +86,7 @@
     "production": [
       ">0.5%",
       "not dead",
-      "not op_mini all",
-      "not chrome < 80",
-      "not firefox < 80",
-      "not safari < 14.1",
-      "not ios_saf < 14.5"
+      "not op_mini all"
     ],
     "development": [
       "last 1 chrome version",
