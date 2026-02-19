@@ -52,7 +52,7 @@ export function DisconnectApp({
 
             await backgroundClient.disconnectApp(origin, accountsToDisconnect);
             await backgroundClient.sendGetPermissionRequests();
-            ampli.disconnectedApplication({
+            ampli.applicationDisconnected({
                 sourceFlow: 'Application page',
                 disconnectedAccounts: accountsToDisconnect.length || 1,
                 applicationName: permission.name,

@@ -55,7 +55,7 @@ export function DAppInfoCard({
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={() => {
-                                ampli.openedApplication({ applicationName: name });
+                                ampli.applicationOpened({ applicationName: name });
                             }}
                         >
                             {validDAppUrl?.toString() ?? url}

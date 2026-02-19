@@ -72,7 +72,7 @@ async fn version_9_accepts() {
     assert_eq!(
         *dev_inspect_result.effects.status(),
         IotaExecutionStatus::Failure {
-            error: "VMVerificationOrDeserializationError in command 0".to_string(),
+            error: "Move Bytecode Verification Error. Please run the Bytecode Verifier for more information. in command 0".to_string(),
         }
     );
 }

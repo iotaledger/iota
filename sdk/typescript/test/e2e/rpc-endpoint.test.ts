@@ -26,7 +26,7 @@ describe('Invoke any RPC endpoint', () => {
     });
 
     it('iota_getObjectOwnedByAddress Error', async () => {
-        expect(toolbox.client.call('iotax_getOwnedObjects', [])).rejects.toThrowError();
+        await expect(toolbox.client.call('iotax_getOwnedObjects', [])).rejects.toThrowError();
     });
 
     it('iotax_getCommitteeInfo', async () => {
@@ -34,6 +34,6 @@ describe('Invoke any RPC endpoint', () => {
 
         const committeeInfo = await toolbox.client.call('iotax_getCommitteeInfo', []);
 
-        expect(committeeInfo).toStrictEqual(committeeInfoExpected);
+        await expect(committeeInfo).toStrictEqual(committeeInfoExpected);
     });
 });

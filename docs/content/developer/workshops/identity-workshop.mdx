@@ -4,9 +4,6 @@ tags:
  - tutorial
  - rust
 ---
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
-
 # IOTA Identity Workshop
 
 In this workshop, we will build a production-ready **University Degree Verification system** using **IOTA Identity**, **Rust**, and **React.** By the end of this workshop, you’ll have a complete, end-to-end flow demonstrating how **universities**, **students**, and **employers** interact in a real-world university degree validation scenario — all powered by IOTA Identity. We will build the application piece-by-piece, focusing on the communication flow for each of the four core identity steps (Decentralized Identifier creation, Verifiable Credential issuance, Verifiable Presentation creation, and Verification).
@@ -83,7 +80,7 @@ Rust and Cargo are required for the Rust backend of the IOTA Identity workshop. 
 
 <Tabs groupId="os-install" defaultValue="macos">
   <TabItem value="macos" label="macOS">
-    <h3>Step 1: Install `rustup` (The Rust Installer)</h3>
+    ### Step 1: Install `rustup` (The Rust Installer)
 
     Open your Terminal application and run the following command to download and start the `rustup` installer:
 
@@ -95,7 +92,7 @@ Rust and Cargo are required for the Rust backend of the IOTA Identity workshop. 
     1. Type `1` (for "Proceed with installation (default)").
     2. Press Enter.
 
-    <h3>Step 2: Configure Your Shell Environment</h3>
+    ### Step 2: Configure Your Shell Environment
 
     After installation, update your shell's profile to make the `cargo` command available. For Zsh (the default shell on modern macOS), run:
 
@@ -103,9 +100,13 @@ Rust and Cargo are required for the Rust backend of the IOTA Identity workshop. 
     source $HOME/.cargo/env
     ```
 
-    > **Note**: If using Bash, the command might be `source $HOME/.bashrc`. The `rustup` installer will display the correct command upon completion. Restart your terminal if needed.
+    :::note
+    
+    If using Bash, the command might be `source $HOME/.bashrc`. The `rustup` installer will display the correct command upon completion. Restart your terminal if needed.
 
-    <h3>Step 3: Verify the Installation</h3>
+    :::
+
+    ### Step 3: Verify the Installation
 
     Confirm that Rust and Cargo are installed correctly:
 
@@ -125,7 +126,7 @@ Rust and Cargo are required for the Rust backend of the IOTA Identity workshop. 
 
        Expected Output: `cargo 1.XX.0 (long_hash_string)`
 
-    <h3>Step 4: Update (Maintenance)</h3>
+    ### Step 4: Update (Maintenance)
 
     To ensure the latest stable libraries for IOTA Identity, update your Rust toolchain:
 
@@ -135,7 +136,7 @@ Rust and Cargo are required for the Rust backend of the IOTA Identity workshop. 
   </TabItem>
 
   <TabItem value="windows" label="Windows">
-    <h3>Step 1: Install `rustup` (The Rust Installer)</h3>
+    ### Step 1: Install `rustup` (The Rust Installer)
 
     1. Open a web browser and navigate to [https://www.rust-lang.org/tools/install](https://www.rust-lang.org/tools/install).
     2. Download the `rustup-init.exe` installer for Windows by clicking the "Download" button.
@@ -144,9 +145,12 @@ Rust and Cargo are required for the Rust backend of the IOTA Identity workshop. 
        - Type `1` (for "Proceed with installation (default)") and press Enter.
        - Follow any additional prompts to complete the installation.
 
-    > **Note**: If you encounter permission issues, right-click `rustup-init.exe` and select "Run as administrator".
+    :::note
+    
+    If you encounter permission issues, right-click `rustup-init.exe` and select "Run as administrator".
 
-    <h3>Step 2: Configure Your Environment</h3>
+    :::
+    ### Step 2: Configure Your Environment
 
     The Rust installer automatically adds Rust and Cargo to your system PATH. To apply these changes:
     1. Close your current Command Prompt (if open).
@@ -155,7 +159,7 @@ Rust and Cargo are required for the Rust backend of the IOTA Identity workshop. 
 
     > **Tip**: If `cargo` isn’t recognized in Step 3, ensure `C:\Users\<YourUsername>\.cargo\bin` is in your PATH (check with `echo %PATH%` in Command Prompt).
 
-    <h3>Step 3: Verify the Installation</h3>
+    ### Step 3: Verify the Installation
 
     Confirm that Rust and Cargo are installed correctly:
 
@@ -177,7 +181,7 @@ Rust and Cargo are required for the Rust backend of the IOTA Identity workshop. 
 
     > **Troubleshooting**: If either command returns "not recognized," ensure Rust was installed correctly and the PATH is updated. Try running Command Prompt as administrator or restarting your system.
 
-    <h3>Step 4: Update (Maintenance)</h3>
+    ### Step 4: Update (Maintenance)
 
     To ensure the latest stable libraries for IOTA Identity, update your Rust toolchain:
 
@@ -199,7 +203,7 @@ Visual Studio Code (VS Code) is a lightweight code editor that you'll use to edi
 
 <Tabs groupId="os-install" defaultValue="macos">
   <TabItem value="macos" label="macOS">
-    <h3>Install VS Code on macOS</h3>
+    ### Step 6: Install Visual Studio Code on macOS
 
     1. **Download VS Code**:
        - Visit the [Visual Studio Code download page](https://code.visualstudio.com/download).
@@ -232,7 +236,7 @@ Visual Studio Code (VS Code) is a lightweight code editor that you'll use to edi
   </TabItem>
 
   <TabItem value="windows" label="Windows">
-    <h3>Install VS Code on Windows</h3>
+    ### Step 6: Install Visual Studio Code on Windows
 
     1. **Download VS Code**:
        - Visit the [Visual Studio Code download page](https://code.visualstudio.com/download).
@@ -273,7 +277,7 @@ Visual Studio Code (VS Code) is a lightweight code editor that you'll use to edi
 
 We will create two separate projects that communicate via HTTP: the React Frontend (the user interface) and the Rust Axum Backend (the identity logic engine).
 
-<h3>Step 1.1: Project Initialization</h3>
+### Step 1.1: Project Initialization
 
 Start by creating the root folder and initializing the two sub-projects.
 
@@ -298,7 +302,7 @@ npm create vite@latest . -- --template react
 npm install
 npm install lucide-react # For icons
 ```
-<h3>Explanation:</h3>
+### Explanation:
 
 - **What it does**: Creates a project structure with a Rust backend (`iota-identity-backend`) and a React frontend (`iota-identity-frontend`). The `cargo init` command sets up a Rust project with a `Cargo.toml` file, while `npm create vite` initializes a React app using Vite for fast development. The `lucide-react` library adds icons for the UI.
 - **Why it matters**: This sets up a full-stack environment where the frontend handles user interaction and the backend processes IOTA Identity logic. The utility folder (`crates/identity_logic`) will hold shared Rust code.
@@ -307,7 +311,7 @@ npm install lucide-react # For icons
     - **React Frontend**: Provides a user-friendly interface to trigger backend actions.
     - **Vite**: A modern build tool for fast React development.
 
-<h3>Code Scaffold</h3>
+### Code Scaffold
 
 Before starting the IOTA Identity workflow, set up the foundational code for the Rust backend (`main.rs`) and React frontend (`App.jsx`). This scaffold includes imports, data structures, and server/client setup needed to run the project.
 
@@ -380,7 +384,7 @@ const handleApiCall = useCallback(async (step, endpoint, body) => {
     }, [packageId, apiUrl]);
 ```
 
-<h3>Explanation:</h3>
+### Explanation:
 
 - What it does: This function sends HTTP POST requests to the Rust backend’s API endpoints (e.g., `/holder/create-did`). It includes a `packageId` (required for IOTA Identity) and handles errors by checking the response status. The result (e.g., a Decentralized Identifier or JWT) is returned to update the frontend state.
 - Why it matters: Centralizes API communication, ensuring consistent error handling and payload formatting across all steps. The `useCallback` hook optimizes performance by memoizing the function.
@@ -411,7 +415,7 @@ const handleCreateDid = async () => {
 // This handler is attached to the "Execute Step 1" button.
 ```
 
-<h3>Explanation:</h3>
+### Explanation:
 
 - **What it does**: The `handleCreateDid` function triggers a POST request to the backend’s `/holder/create-did endpoint`. It sends an empty body since the backend handles all Decentralized identifier creation logic. The returned Decentralized Identifier string is stored in the React state (`setDid`) for display in the UI.
 - **Why it matters**: This initiates the IOTA Identity flow by creating a unique identifier for the student (`Holder`), which is used in later steps (e.g., VC issuance). It connects the frontend button to the backend logic.
@@ -445,7 +449,7 @@ async fn holder_create_did(Json(_body): Json<PackageId>) -> Result<Json<DidRespo
     }))
 }
 ```
-<h3>Explanation:</h3>
+### Explanation:
 
 - **What it does**: The `holder_create_did` function handles the `/holder/create-did` endpoint. It calls `create_or_load_did` (a utility function) to either create a new Decentralized Identifier or load an existing one from `holder_doc.json`. The Decentralized Identifier is anchored to the IOTA network, and the function returns a JSON response containing the Decentralized Identifier string.
 - **Why it matters**: This creates the student’s identity on the IOTA network, stored securely using Stronghold. The Decentralized Identifier is the foundation for issuing and verifying credentials.
@@ -487,7 +491,7 @@ async fn create_or_load_did(
     }
 }
 ```
-<h3>Explanation:</h3>
+### Explanation:
 
 - **What it does**: The `create_or_load_did` function checks if a Decentralized Identifier document exists at the specified `doc_file` path. If it doesn’t exist, it creates a new Decentralized Identifier using the IOTA Identity library, funds it via an IOTA client, and saves the Decentralized Identifier document and its signing fragment to `doc_file` and `fragment_file` respectively. If the file exists, it loads the Decentralized Identifier document and fragment from disk. The function returns a tuple containing the `IotaDocument` (the Decentralized Identifier document) and a `String` (the signing fragment).
 - **Why it matters**: This function ensures the Student’s Decentralized Identifier is either created and anchored to the IOTA network or loaded for reuse, providing persistence across server restarts. It abstracts the complexity of Decentralized Identifier creation and storage, making it reusable across different endpoints (e.g., `holder_create_did`).
@@ -498,7 +502,7 @@ async fn create_or_load_did(
     - **Persistence**: Saves the Decentralized Identifier and fragment to disk to avoid recreating them, ensuring consistency in the identity flow.
     - **IOTA Client**: The `get_funded_client` function provides a funded client to anchor the Decentralized Identifier to the IOTA network.
 
-<h3>Context</h3>
+### Context
 
 The `create_or_load_did` function, used by the `holder_create_did` endpoint, relies on three helper functions to create or load a Decentralized Identifier. These functions, defined in `crates/identity_logic/src/lib.rs`, handle interactions with the IOTA Identity framework and the IOTA network, enabling the creation and management of Decentralized Identifiers (DIDs) for the Student (holder).
 
@@ -508,7 +512,7 @@ The `create_or_load_did` function, used by the `holder_create_did` endpoint, rel
 
 Below, we explain each function, including its purpose, functionality, and role in the workshop’s identity flow.
 
-<h3> Helper Function: `get_stronghold_storage`</h3>
+### Helper Function: `get_stronghold_storage`
 
 This function initializes a Stronghold storage instance for securely managing cryptographic keys.
 
@@ -532,7 +536,7 @@ pub fn get_stronghold_storage(
 }
 ```
 
-<h3>Explanation:</h3>
+### Explanation:
 
 - **What it does**: The `get_stronghold_storage` function creates a `StrongholdStorage` instance, which is used to securely store cryptographic keys. It takes an optional file path (`path`) for the Stronghold file; if none is provided, it generates a random path using `random_stronghold_path`. The function sets a default password (`secure_password`), builds a `StrongholdSecretManager`, and wraps it in a `StrongholdStorage` instance, returning it as a `Storage` type compatible with IOTA Identity.
 - **Why it matters**: Secure key storage is essential for managing private keys used in Decentralized Identifier creation, Verifiable Credential issuance, and Verifiable Presentation signing. Stronghold ensures keys are encrypted and protected, preventing unauthorized access. This function provides a reusable storage setup for all identity operations in the workshop.
@@ -542,7 +546,7 @@ pub fn get_stronghold_storage(
     - **Password**: Secures the Stronghold file to prevent unauthorized access.
     - **Storage Type**: Combines key storage (`JwkStorage`) and key ID storage (`KeyIdStorage`) for IOTA Identity compatibility.
 
-<h3>Helper Function: `get_funded_client`</h3>
+### Helper Function: `get_funded_client`
 
 This function creates an IOTA Identity client with sufficient funds for network operations.
 
@@ -579,7 +583,7 @@ where
 }
 ```
 
-<h3>Explanation:</h3>
+### Explanation:
 
 - **What it does**: The `get_funded_client` function generates a new Ed25519 key pair in the provided `storage`, creates a `StorageSigner` for signing transactions, derives an IOTA address from the public key, and requests test funds for that address from the IOTA test network faucet. It then builds an `IdentityClient` by combining a read-only IOTA client (from `get_read_only_client`) with the signer, enabling the client to perform funded operations like publishing Decentralized Identifiers.
 - **Why it matters**: Publishing a Decentralized Identifier to the IOTA network requires funds to cover transaction fees. This function automates key generation, funding, and client setup, ensuring the client is ready for identity operations. It’s a critical step for creating and anchoring Decentralized Identifiers in the workshop.
@@ -590,7 +594,7 @@ where
     - **IdentityClient**: A client that interacts with the IOTA network for identity operations, requiring both a signer and network access.
     - **Test Funds**: Necessary for covering transaction costs on the IOTA test network.
 
-<h3>Helper Function: `create_did_document`</h3>
+### Helper Function: `create_did_document`
 
 This function creates and publishes a Decentralized Identifier document to the IOTA network.
 
@@ -630,7 +634,7 @@ where
 }
 ```
 
-<h3>Explanation:</h3>
+### Explanation:
 
 - **What it does**: The `create_did_document` function creates a new, unpublished `IotaDocument` for the specified IOTA network, generates an Ed25519 verification method (key pair) stored in `storage`, and adds it to the document. It then publishes the document to the IOTA network using the provided `identity_client`, allocating a gas budget (`TEST_GAS_BUDGET`) for the transaction. The function returns the published Decentralized Identifier document and the fragment (identifier) of the verification method.
 - **Why it matters**: This function is the core of Decentralized Identifier creation, anchoring the Student’s identity to the IOTA network. The published Decentralized Identifier document and its verification method enable secure signing of credentials and presentations, forming the foundation of the workshop’s identity flow.
@@ -640,7 +644,7 @@ where
     - **Publish Decentralized Identifier**: Anchors the Decentralized Identifier document to the IOTA network, making it publicly resolvable.
     - **Gas Budget**: Allocates funds for the network transaction to publish the Decentralized Identifier.
 
-<h3>Integration with `create_or_load_did`</h3>
+### Integration with `create_or_load_did`
 
 These helper functions are called by `create_or_load_did` to create a new Decentralized Identifier:
 
@@ -650,7 +654,7 @@ These helper functions are called by `create_or_load_did` to create a new Decent
 
 Together, they ensure the Student’s Decentralized Identifier is created securely, funded, and anchored to the IOTA network, or loaded from disk if it already exists.
 
-<h3>Checkpoint</h3>
+### Checkpoint
 
 - Verify that `get_stronghold_storage` creates a Stronghold file (e.g., `holder.stronghold`).
 - Check that `get_funded_client` successfully requests test funds by monitoring the IOTA test network faucet.
@@ -668,7 +672,7 @@ Output after a successful creation of the student’s Decentralized Identifier.
 
 ![Full Page](./images/university-create-vc.png)
 
-<h3>Frontend (`src/App.jsx`):</h3>
+### Frontend (`src/App.jsx`):
 
 ```JavaScript
 // src/App.jsx (Issuer VC Handler)
@@ -680,7 +684,7 @@ const handleIssueVc = async () => {
     }
 };
 ```
-<h3>Explanation</h3>
+### Explanation
 
 - **What it does**: The `handleIssueVc` function sends a POST request to the `/issuer/issue-vc` endpoint with an empty body. The backend generates a Verifiable Credential (University Degree)and returns its JWT, which is stored in the React state (`setVcJwt`) for display and use in the next step.
 - **Why it matters**: This triggers the issuance of a degree credential, which the student can later present to employers. It connects the frontend UI to the backend’s Verifiable Credential logic.
@@ -752,7 +756,7 @@ async fn issuer_issue_vc(Json(_body): Json<PackageId>) -> Result<Json<JwtRespons
 }
 ```
 
-<h3>Explanation:</h3>
+### Explanation:
 
 - **What it does**: The `issuer_issue_vc` function handles the `/issuer/issue-vc` HTTP endpoint, triggered by the React frontend. It performs four key steps:
     1. **Create/Load Issuer Decentralized Identifier**: Calls `create_or_load_did` to either create a new Decentralized Identifier for the University (issuer) or load an existing one from disk.
@@ -767,9 +771,9 @@ async fn issuer_issue_vc(Json(_body): Json<PackageId>) -> Result<Json<JwtRespons
     - **Stronghold**: Securely stores the Universities’s private key, accessed via `get_stronghold_storage`.
     - **CredentialBuilder**: An IOTA Identity utility for constructing VCs with standardized fields (e.g., `id`, `issuer`, `subject`).
 
-<h3>Step-by-Step Breakdown</h3>
+### Step-by-Step Breakdown
 
-<h3>1. Create/Load University Decentralized Identifier (DID):</h3>
+### 1. Create/Load University Decentralized Identifier (DID):
 
 - Code:
 
@@ -787,7 +791,7 @@ let (issuer_doc, issuer_fragment) = create_or_load_did(
     - **Decentralized Identifier Document**: Contains the University's identifier (e.g., `did:iota:...`) and verification methods.
     - **Fragment**: Identifies the signing key (e.g., `#sign-0`) in the Decentralized Identifier document.
 
-<h3>2. Load Student Decentralized Identifier:</h3>
+### 2. Load Student Decentralized Identifier:
 
 - **Code**:
 
@@ -802,7 +806,7 @@ let holder_doc = IotaDocument::from_json(&holder_doc_json).map_err(|_| StatusCod
     - File I/O: Uses Rust’s `fs` module to read the Decentralized Identifier document from disk.
     - JSON Deserialization: Converts the JSON string into an `IotaDocument` using `from_json`.
 
-<h3>3. Build Verifiable Credential:</h3>
+### 3. Build Verifiable Credential:
 
 - Code:
 
@@ -828,7 +832,7 @@ let credential: Credential<Object> = CredentialBuilder::default()
     - **CredentialBuilder**: Builds a structured Verifiable Credential with standardized fields.
     - **JSON Macro**: The `serde_json::json!` macro creates a JSON object for the subject data.
 
-<h3>4. Sign Verifiable Credential:</h3>
+### 4. Sign Verifiable Credential:
 
 - Code:
 
@@ -853,7 +857,7 @@ let credential_jwt = issuer_doc
     - **JWT**: Encodes the Verifiable Credential for secure transmission to the frontend.
     - **JwsSignatureOptions**: Configures signing options (e.g., default algorithm is Ed25519).
 
-<h3>5. Return Verifiable Credential JWT:</h3>
+### 5. Return Verifiable Credential JWT:
 
 - Code:
 
@@ -868,7 +872,7 @@ Ok(Json(JwtResponse {
     - **Axum Response**: Uses `Json` to serialize the response for HTTP communication.
     - **JwtResponse**: A custom struct to structure the API response.
 
-<h3>Integration with the Workshop</h3>
+### Integration with the Workshop
 
 The `issuer_issue_vc` function is triggered by the React frontend’s “Execute Step 2” button, which calls the `/issuer/issue-vc` endpoint. It relies on:
 
@@ -878,7 +882,7 @@ The `issuer_issue_vc` function is triggered by the React frontend’s “Execute
 
 The returned Verifiable Credential JWT is stored in the frontend’s state and used in Step 3 to create a Verifiable Presentation (VP).
 
-<h3>Checkpoint</h3>
+### Checkpoint
 
 - Run the backend (`cargo run`) and use the frontend to trigger Step 2.
 - Verify that `issuer_doc.json`, `issuer_fragment.txt`, and `vc.jwt` are created.
@@ -911,7 +915,7 @@ const handleCreateVp = async () => {
 };
 ```
 
-<h3>Explanation:</h3>
+### Explanation:
 
 - **What it does**: The `handleCreateVp` function sends a POST request to the `/holder/create-vp` endpoint, including the Verifiable Credential JWT (`vcJwt`) from the previous step. The backend returns a Verifiable Presentation JWT, which is stored in the React state (`setVpJwt`) for display and verification.
 - **Why it matters**: This allows the student to create a signed Verifiable Presentation, proving they own the Verifiable Credential when presenting it to an employer.
@@ -922,7 +926,7 @@ const handleCreateVp = async () => {
 
 **Backend** (`src/main.rs`): In this step, the Holder (student, Alice) packages the received Verifiable Credential (VC) into a Verifiable Presentation (VP) and signs it for presentation to a employer (verifier). The Verifiable Presentation proves that Alice controls the Verifiable Credential and hasn't tampered with it.
 
-<h3>Backend: `holder_create_vp` Function</h3>
+### Backend: `holder_create_vp` Function
 
 The `holder_create_vp` function handles the `/holder/create-vp` endpoint in the Rust Axum backend, receiving the Verifiable Credential JWT from the frontend and creating a signed Verifiable Presentation.
 
@@ -979,7 +983,7 @@ async fn holder_create_vp(Json(body): Json<VcJwt>) -> Result<Json<JwtResponse>, 
 }
 ```
 
-<h3>Explanation:</h3>
+### Explanation:
 
 - What it does: The `holder_create_vp` function handles the `/holder/create-vp` HTTP endpoint, triggered by the React frontend. It performs three key steps:
     1. **Load Holder Decentralized Identifier**: Retrieves the Student's Decentralized Identifier document and signing fragment from disk (created in Step 1).
@@ -992,7 +996,7 @@ async fn holder_create_vp(Json(body): Json<VcJwt>) -> Result<Json<JwtResponse>, 
     - **Expiration**: The VP expires after 10 minutes, adding security by limiting its validity period.
     - **PresentationBuilder**: An IOTA Identity utility for constructing VPs with the presenter's Decentralized Identifier and embedded credentials.
 
-<h3>Step-by-Step Breakdown</h3>
+### Step-by-Step Breakdown
 
 1. Load Holder Decentralized Identifier:
 
@@ -1093,7 +1097,7 @@ Ok(Json(JwtResponse {
         - **Axum JSON Response**: Serializes the VP JWT for HTTP communication with the frontend.
         - **JwtResponse**: Custom API response structure containing the signed VP.
 
-<h3>Integration with the Workshop</h3>
+### Integration with the Workshop
 
 The `holder_create_Verifiable Presentation` function is triggered by the React frontend's "Execute Step 3" button, which calls the `/holder/create-vp` endpoint with the Verifiable Credential JWT from Step 2. It relies on:
 
@@ -1130,7 +1134,7 @@ const handleValidateVp = async () => {
 };
 ```
 
-<h3>Explanation:</h3>
+### Explanation:
 
 - What it does: The `handleValidateVp` function sends a POST request to the `/verifier/validate` endpoint with the VP JWT (`vpJwt`). The backend returns a validation result (log and success boolean), which updates the React state to display the outcome (e.g., “SUCCESS” or “FAIL”) in the UI.
 - Why it matters: This completes the identity flow by verifying the VP’s authenticity, ensuring the degree credential is valid and untampered.
@@ -1143,7 +1147,7 @@ const handleValidateVp = async () => {
 
 In this step, the Verifier (employer) validates the Verifiable Presentation (VP) and its embedded Verifiable Credential (VC) received from the Holder (student, Alice). This ensures the degree credential is authentic, untampered, and issued by a trusted university, completing the IOTA Identity flow.
 
-<h3>Backend: `verifier_validate` Function</h3>
+### Backend: `verifier_validate` Function
 
 The `verifier_validate` function handles the `/verifier/validate` endpoint in the Rust Axum backend, receiving the VP JWT from the frontend and performing a multi-step validation process.
 
@@ -1237,7 +1241,7 @@ async fn verifier_validate(Json(body): Json<VpJwt>) -> Result<Json<ValidationRes
 }
 ```
 
-<h3>Explanation:</h3>
+### Explanation:
 
 - What it does: The verifier_validate function handles the /verifier/validate HTTP endpoint, triggered by the React frontend. It validates the Verifiable Presentation JWT received from the frontend (body.Verifiable Presentation_jwt) by performing four key steps:
     1. Setup Resolver and Client: Initializes an IOTA resolver and read-only client to fetch Decentralized Identifier documents from the IOTA network.
@@ -1252,7 +1256,7 @@ async fn verifier_validate(Json(body): Json<VpJwt>) -> Result<Json<ValidationRes
     - Nonce/Challenge: Ensures the Verifiable Presentation is fresh and not reused (challenge-123).
     - Validation Log: A detailed string (output) tracking each step’s success or failure, returned to the frontend.
 
-<h3>Step-by-Step Breakdown</h3>
+### Step-by-Step Breakdown
 
 1. Setup Resolver and Read-Only Client:
     - Code:
@@ -1289,7 +1293,7 @@ output.push_str(&format!("✅ Resolved holder DID from network: {}\n", holder_do
         - Resolver: Retrieves the Decentralized Identifier document, including public keys, from the IOTA network.
         - Logging: Tracks the Decentralized Identifier resolution process for debugging and user feedback.
 
-3. <h3>Validate Verifiable Presentation Signature and Challenge:</h3>
+3. Validate Verifiable Presentation Signature and Challenge:
 
     - Code:
 
@@ -1313,7 +1317,7 @@ output.push_str(&format!(" VP Student matches Subject: {}\n", decoded_vp.present
     - Nonce Validation: Ensures the VP’s nonce matches challenge-123.
     - DecodedJwtPresentation: The validated Verifiable Presentation structure, containing the embedded Verifiable Credential and Student's Decentralized Identifier.
 
-4. <h3>Extract and Validate Embedded Credentials:</h3>
+4. Extract and Validate Embedded Credentials:
     - Code:
 ```rust
 let jwt_credentials: &Vec<Jwt> = &decoded_vp.presentation.verifiable_credential;
@@ -1363,7 +1367,7 @@ for (index, jwt_vc) in jwt_credentials.iter().enumerate() {
     - Subject-Holder Relationship: Ensures the Verifiable Credential subject (Alice) matches the Student's Decentralized Identifier.
     - FailFast: Stops validation on the first error to avoid unnecessary processing.
 
-5. <h3>Return Validation Result:</h3>
+5. Return Validation Result:
     - Code:
 
 ```rust
@@ -1376,7 +1380,7 @@ Ok(Json(ValidationResponse { success: true, output }))
     - ValidationResponse: A custom struct containing a boolean (success) and log (output).
     - JSON Response: Serializes the result for HTTP communication with the React frontend.
 
-<h3>Integration with the Workshop</h3>
+### Integration with the Workshop
 
 The verifier_validate function is triggered by the React frontend’s “Execute Step 4” button, which sends the VP JWT (from Step 3) to the /verifier/validate endpoint. It relies on:
     - Input: The VP JWT (body.vp_jwt) from the frontend.
@@ -1388,7 +1392,7 @@ The returned ValidationResponse updates the frontend UI, displaying the validati
 Output after a successful validation of the student’s Verifiable Presentation.
 ![Create Decentralized Identifier output](./images/VerifyVP2.png)
     
-<h3>Explanation:</h3>
+### Explanation:
 
 This completes the guided workshop, demonstrating the seamless and robust interaction between the React frontend and the Rust Axum backend across all four phases of the IOTA Identity flow.
 
@@ -1535,7 +1539,7 @@ Now that you’ve set up the prerequisites (Rust, Node.js, VS Code) and copied t
          ```
        - Keep this terminal open.
 
-    <h3>Run the Frontend (React)</h3>
+    ### Run the Frontend (React)
 
     1. **Open a New Terminal**:
        - Open a second Command Prompt or PowerShell window (e.g., `Start > cmd` or `Start > PowerShell`).
@@ -1560,7 +1564,7 @@ Now that you’ve set up the prerequisites (Rust, Node.js, VS Code) and copied t
        - The app starts at `http://localhost:5173` (or another port if 5173 is in use). The terminal will display the URL.
        - Open `http://localhost:5173` in your browser.
 
-    <h3>Test the Project</h3>
+    ### Test the Project
 
     1. **Access the Workshop UI**:
        - In your browser, go to `http://localhost:5173`.
@@ -1611,6 +1615,4 @@ You’ve built a full-stack IOTA Identity application:
 
 ## Extension tasks
 
-:::tasks
 Build a solution based on any of the IOTA Identity use cases — such as decentralized digital identity ownership, verifiable product credentials, or digital asset provenance — or explore an entirely new idea that leverages IOTA Identity’s verifiable credentials and decentralized identifiers (DIDs). Once you’ve built your prototype, share it in the #identity channel on Discord to get feedback directly from the IOTA team and community.
-:::

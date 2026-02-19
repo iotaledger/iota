@@ -6,6 +6,7 @@ syntax = "proto3";
 
 package iota.grpc.v0.checkpoint;
 
+import "iota/grpc/options.proto";
 import "iota/grpc/v0/bcs.proto";
 import "iota/grpc/v0/signatures.proto";
 import "iota/grpc/v0/types.proto";
@@ -30,15 +31,19 @@ import "iota/grpc/v0/types.proto";
 // hashes included in the summary. `CheckpointSummary`s are signed and certified by a quorum of
 // the validator committee in a given epoch to allow verification of the chain's state.
 message CheckpointSummary {
+  option (iota.grpc.message_accessors) = "with";
+
   // The digest of this CheckpointSummary.
   optional iota.grpc.v0.types.Digest digest = 1;
-  
+
   // This CheckpointSummary serialized as BCS.
   optional iota.grpc.v0.bcs.BcsData bcs = 2;
 }
 
 // The committed to contents of a checkpoint.
 message CheckpointContents {
+  option (iota.grpc.message_accessors) = "with";
+
   // The digest of this CheckpointContents.
   optional iota.grpc.v0.types.Digest digest = 1;
   // This CheckpointContents serialized as BCS.
@@ -46,6 +51,8 @@ message CheckpointContents {
 }
 
 message Checkpoint {
+  option (iota.grpc.message_accessors) = "with";
+
   // The height of this checkpoint.
   optional uint64 sequence_number = 1;
 

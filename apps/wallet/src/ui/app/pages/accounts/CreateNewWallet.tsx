@@ -52,7 +52,7 @@ export function CreateNewWallet() {
         switch (actionType) {
             case AccountsFormType.NewMnemonic:
                 setAccountsFormValues({ type: AccountsFormType.NewMnemonic });
-                ampli.clickedCreateNewAccount({ sourceFlow });
+                ampli.accountCreationStarted({ sourceFlow });
                 navigate(
                     `/accounts/protect-account?accountsFormType=${AccountsFormType.NewMnemonic}`,
                 );

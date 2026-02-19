@@ -474,7 +474,9 @@ export const RPC_METHODS: {
                           ? inputFilter.AddressOwner
                           : undefined,
             };
-            const unsupportedFilters: string[] = [];
+
+            // GraphQL's ObjectFilter doesn't support complex filter composition or version filtering.
+            const unsupportedFilters = ['MatchAll', 'MatchAny', 'MatchNone', 'Version'];
 
             for (const unsupportedFilter of unsupportedFilters) {
                 if (unsupportedFilter in inputFilter) {
@@ -512,26 +514,35 @@ export const RPC_METHODS: {
         };
     },
     async getObject(transport, [id, options]) {
-        const object = await transport.graphqlQuery(
-            {
-                query: GetObjectDocument,
-                variables: {
-                    id,
-                    showBcs: options?.showBcs,
-                    showContent: options?.showContent,
-                    showDisplay: options?.showDisplay,
-                    showOwner: options?.showOwner,
-                    showPreviousTransaction: options?.showPreviousTransaction,
-                    showStorageRebate: options?.showStorageRebate,
-                    showType: options?.showType,
+        try {
+            const object = await transport.graphqlQuery(
+                {
+                    query: GetObjectDocument,
+                    variables: {
+                        id,
+                        showBcs: options?.showBcs,
+                        showContent: options?.showContent,
+                        showDisplay: options?.showDisplay,
+                        showOwner: options?.showOwner,
+                        showPreviousTransaction: options?.showPreviousTransaction,
+                        showStorageRebate: options?.showStorageRebate,
+                        showType: options?.showType,
+                    },
                 },
-            },
-            (data) => data.object,
-        );
+                (data) => data.object,
+            );
 
-        return {
-            data: mapGraphQLObjectToRpcObject(object, options ?? {}),
-        };
+            return {
+                data: mapGraphQLObjectToRpcObject(object, options ?? {}),
+            };
+        } catch (_) {
+            return {
+                error: {
+                    code: 'notExists',
+                    object_id: id,
+                },
+            };
+        }
     },
     async tryGetPastObject(transport, [id, version, options]) {
         const data = await transport.graphqlQuery({
@@ -551,7 +562,7 @@ export const RPC_METHODS: {
 
         if (!data.current) {
             return {
-                details: 'Could not find the referenced object',
+                details: id,
                 status: 'ObjectNotExists',
             };
         }

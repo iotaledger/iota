@@ -30,6 +30,10 @@ pub enum Error {
     #[error("signature conversion error: {0}")]
     Signature(String),
 
+    /// The server stream ended unexpectedly while `has_next` was still true.
+    #[error("stream ended unexpectedly: server indicated more results with has_next=true")]
+    UnexpectedEndOfStream,
+
     /// gRPC transport or protocol error.
     #[error("grpc error: {0}")]
     Grpc(#[from] tonic::Status),
@@ -52,6 +56,9 @@ impl From<Error> for tonic::Status {
             Error::Signature(msg) => {
                 tonic::Status::internal(format!("signature conversion error: {msg}"))
             }
+            Error::UnexpectedEndOfStream => {
+                tonic::Status::internal("stream ended unexpectedly: has_next was true")
+            }
             Error::Grpc(status) => status,
         }
     }
@@ -69,6 +76,19 @@ pub type Result<T> = std::result::Result<T, Error>;
 // fields.
 //
 // If `None` is passed, these defaults are used.
+
+/// Default field mask for [`crate::Client::get_service_info`].
+/// possible fields:
+/// chain_id,chain,epoch,executed_checkpoint_height,
+/// executed_checkpoint_timestamp,lowest_available_checkpoint,
+/// lowest_available_checkpoint_objects,server
+pub const SERVICE_INFO_READ_MASK: &str = "chain_id,epoch,executed_checkpoint_height";
+
+/// Default field mask for [`crate::Client::get_epoch`].
+/// possible fields:
+/// epoch,committee,bcs_system_state,first_checkpoint,last_checkpoint,
+/// start,end,reference_gas_price,protocol_config
+pub const EPOCH_READ_MASK: &str = "epoch,first_checkpoint,last_checkpoint,start,end,reference_gas_price,protocol_config.protocol_version";
 
 /// Default field mask for [`crate::Client::get_transactions`].
 /// possible fields:
@@ -123,6 +143,7 @@ impl ProtoResult for ObjectResult {
             Some(object_result::Result::Object(obj)) => Ok(obj),
             Some(object_result::Result::Error(e)) => Err(Error::Server(e.message)),
             None => Err(TryFromProtoError::missing("result").into()),
+            Some(_) => Err(Error::server("Unknown object result type")),
         }
     }
 }
@@ -135,6 +156,7 @@ impl ProtoResult for TransactionResult {
             Some(transaction_result::Result::Transaction(tx)) => Ok(tx),
             Some(transaction_result::Result::Error(e)) => Err(Error::Server(e.message)),
             None => Err(TryFromProtoError::missing("result").into()),
+            Some(_) => Err(Error::server("Unknown transaction result type")),
         }
     }
 }
@@ -144,8 +166,9 @@ pub fn build_proto_transaction<T: Serialize>(data: &T, digest: Digest) -> Result
     let bcs = BcsData::serialize(data)
         .map_err(|e| Error::from(TryFromProtoError::invalid("transaction", e)))?;
 
-    Ok(ProtoTransaction {
-        digest: Some(digest.into()),
-        bcs: Some(bcs),
-    })
+    let proto_transaction = ProtoTransaction::default()
+        .with_digest(digest)
+        .with_bcs(bcs);
+
+    Ok(proto_transaction)
 }

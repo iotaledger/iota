@@ -13,3 +13,4 @@ export * from './enums';
 export * from './forms';
 export * from './types';
 export * from './interfaces';
+export * from './amplitude';
