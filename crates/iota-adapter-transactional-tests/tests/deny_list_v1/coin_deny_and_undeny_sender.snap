@@ -15,7 +15,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 2, lines 50-52:
 //# view-object 1,2
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 2
 Contents: iota::coin::DenyCapV1<test::regulated_coin::REGULATED_COIN> {
     id: iota::object::UID {

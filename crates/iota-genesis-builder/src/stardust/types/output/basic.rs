@@ -51,7 +51,7 @@ pub fn create_coin(
         )?
     };
     // Resolve ownership
-    let owner = Owner::AddressOwner(owner);
+    let owner = Owner::Address(owner);
     Ok(Object::new_from_genesis(
         Data::Move(move_object),
         owner,
@@ -162,11 +162,9 @@ impl BasicOutputExt for BasicOutput {
         };
         // Resolve ownership
         let owner = if self.expiration.is_some() {
-            Owner::Shared {
-                initial_shared_version: version,
-            }
+            Owner::Shared(version)
         } else {
-            Owner::AddressOwner(owner)
+            Owner::Address(owner)
         };
         Ok(Object::new_from_genesis(
             Data::Move(move_object),

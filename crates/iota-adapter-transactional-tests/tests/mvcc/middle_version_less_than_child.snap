@@ -23,7 +23,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 3, line 60:
 //# view-object 2,0
-Owner: Object ID: ( fake(2,2) )
+Owner: Object(fake(2,2))
 Version: 2
 Contents: iota::dynamic_field::Field<u64, test::m::Obj> {
     id: iota::object::UID {
@@ -44,7 +44,7 @@ Contents: iota::dynamic_field::Field<u64, test::m::Obj> {
 
 task 4, line 62:
 //# view-object 2,1
-Owner: Object ID: ( _ )
+Owner: Object(_)
 Version: 2
 Contents: iota::dynamic_field::Field<u64, test::m::Obj> {
     id: iota::object::UID {
@@ -65,7 +65,7 @@ Contents: iota::dynamic_field::Field<u64, test::m::Obj> {
 
 task 5, line 64:
 //# view-object 2,2
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 2
 Contents: test::m::Obj {
     id: iota::object::UID {
@@ -85,7 +85,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 7, line 71:
 //# view-object 2,0
-Owner: Object ID: ( fake(2,2) )
+Owner: Object(fake(2,2))
 Version: 2
 Contents: iota::dynamic_field::Field<u64, test::m::Obj> {
     id: iota::object::UID {
@@ -106,7 +106,7 @@ Contents: iota::dynamic_field::Field<u64, test::m::Obj> {
 
 task 8, line 73:
 //# view-object 2,1
-Owner: Object ID: ( _ )
+Owner: Object(_)
 Version: 3
 Contents: iota::dynamic_field::Field<u64, test::m::Obj> {
     id: iota::object::UID {
@@ -127,7 +127,7 @@ Contents: iota::dynamic_field::Field<u64, test::m::Obj> {
 
 task 9, lines 75-78:
 //# view-object 2,2
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 3
 Contents: test::m::Obj {
     id: iota::object::UID {

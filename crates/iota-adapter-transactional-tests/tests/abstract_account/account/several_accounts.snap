@@ -42,7 +42,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 6, line 32:
 //# view-object 4,1
-Owner: Object ID: ( fake(4,2) )
+Owner: Object(fake(4,2))
 Version: 3
 Contents: iota::dynamic_field::Field<iota::account::AuthenticatorFunctionRefV1Key, iota::authenticator_function::AuthenticatorFunctionRefV1<simple_abstract_account::abstract_account::AbstractAccount>> {
     id: iota::object::UID {
@@ -106,7 +106,7 @@ Contents: iota::dynamic_field::Field<iota::account::AuthenticatorFunctionRefV1Ke
 
 task 7, line 34:
 //# view-object 4,2
-Owner: Shared( 3 )
+Owner: Shared(3)
 Version: 3
 Contents: simple_abstract_account::abstract_account::AbstractAccount {
     id: iota::object::UID {
@@ -118,7 +118,7 @@ Contents: simple_abstract_account::abstract_account::AbstractAccount {
 
 task 8, line 36:
 //# view-object 5,1
-Owner: Object ID: ( fake(5,2) )
+Owner: Object(fake(5,2))
 Version: 4
 Contents: iota::dynamic_field::Field<iota::account::AuthenticatorFunctionRefV1Key, iota::authenticator_function::AuthenticatorFunctionRefV1<simple_abstract_account::abstract_account::AbstractAccount>> {
     id: iota::object::UID {
@@ -182,7 +182,7 @@ Contents: iota::dynamic_field::Field<iota::account::AuthenticatorFunctionRefV1Ke
 
 task 9, line 38:
 //# view-object 5,2
-Owner: Shared( 4 )
+Owner: Shared(4)
 Version: 4
 Contents: simple_abstract_account::abstract_account::AbstractAccount {
     id: iota::object::UID {
@@ -194,7 +194,7 @@ Contents: simple_abstract_account::abstract_account::AbstractAccount {
 
 task 10, line 40:
 //# view-object 6,1
-Owner: Object ID: ( fake(6,2) )
+Owner: Object(fake(6,2))
 Version: 5
 Contents: iota::dynamic_field::Field<iota::account::AuthenticatorFunctionRefV1Key, iota::authenticator_function::AuthenticatorFunctionRefV1<simple_abstract_account::abstract_account::AbstractAccount>> {
     id: iota::object::UID {
@@ -258,7 +258,7 @@ Contents: iota::dynamic_field::Field<iota::account::AuthenticatorFunctionRefV1Ke
 
 task 11, line 42:
 //# view-object 6,2
-Owner: Shared( 5 )
+Owner: Shared(5)
 Version: 5
 Contents: simple_abstract_account::abstract_account::AbstractAccount {
     id: iota::object::UID {

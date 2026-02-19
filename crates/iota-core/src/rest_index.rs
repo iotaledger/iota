@@ -509,17 +509,18 @@ impl IndexStoreTables {
             // determine changes from removed objects
             for removed_object in tx.removed_objects_pre_version() {
                 match removed_object.owner() {
-                    Owner::AddressOwner(address) => {
+                    Owner::Address(address) => {
                         let owner_key = OwnerIndexKey::new(*address, removed_object.id());
                         batch.delete_batch(&self.owner, [owner_key])?;
                     }
-                    Owner::ObjectOwner(object_id) => {
+                    Owner::Object(object_id) => {
                         batch.delete_batch(
                             &self.dynamic_field,
                             [DynamicFieldKey::new(*object_id, removed_object.id())],
                         )?;
                     }
                     Owner::Shared { .. } | Owner::Immutable => {}
+                    _ => unimplemented!("a new enum variant was added and needs to be handled"),
                 }
             }
 
@@ -527,12 +528,11 @@ impl IndexStoreTables {
             for (object, old_object) in tx.changed_objects() {
                 if let Some(old_object) = old_object {
                     match old_object.owner() {
-                        Owner::AddressOwner(address) => {
+                        Owner::Address(address) => {
                             let owner_key = OwnerIndexKey::new(*address, old_object.id());
                             batch.delete_batch(&self.owner, [owner_key])?;
                         }
-
-                        Owner::ObjectOwner(object_id) => {
+                        Owner::Object(object_id) => {
                             if old_object.owner() != object.owner() {
                                 batch.delete_batch(
                                     &self.dynamic_field,
@@ -540,18 +540,18 @@ impl IndexStoreTables {
                                 )?;
                             }
                         }
-
                         Owner::Shared { .. } | Owner::Immutable => {}
+                        _ => unimplemented!("a new enum variant was added and needs to be handled"),
                     }
                 }
 
                 match object.owner() {
-                    Owner::AddressOwner(owner) => {
+                    Owner::Address(owner) => {
                         let owner_key = OwnerIndexKey::new(*owner, object.id());
                         let owner_info = OwnerIndexInfo::new(object);
                         batch.insert_batch(&self.owner, [(owner_key, owner_info)])?;
                     }
-                    Owner::ObjectOwner(parent) => {
+                    Owner::Object(parent) => {
                         if let Some(field_info) = try_create_dynamic_field_info(object, resolver)? {
                             let field_key = DynamicFieldKey::new(*parent, object.id());
 
@@ -559,6 +559,7 @@ impl IndexStoreTables {
                         }
                     }
                     Owner::Shared { .. } | Owner::Immutable => {}
+                    _ => unimplemented!("a new enum variant was added and needs to be handled"),
                 }
             }
 
@@ -899,7 +900,7 @@ impl LiveObjectIndexer for RestLiveObjectIndexer<'_> {
     fn index_object(&mut self, object: Object) -> Result<(), StorageError> {
         match object.owner {
             // Owner Index
-            Owner::AddressOwner(owner) => {
+            Owner::Address(owner) => {
                 let owner_key = OwnerIndexKey::new(owner, object.id());
                 let owner_info = OwnerIndexInfo::new(&object);
                 self.batch
@@ -907,7 +908,7 @@ impl LiveObjectIndexer for RestLiveObjectIndexer<'_> {
             }
 
             // Dynamic Field Index
-            Owner::ObjectOwner(parent) => {
+            Owner::Object(parent) => {
                 if let Some(field_info) =
                     try_create_dynamic_field_info(&object, self.resolver.as_mut())?
                 {
@@ -919,6 +920,7 @@ impl LiveObjectIndexer for RestLiveObjectIndexer<'_> {
             }
 
             Owner::Shared { .. } | Owner::Immutable => {}
+            _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
 
         // Look for CoinMetadata<T> and TreasuryCap<T> objects
