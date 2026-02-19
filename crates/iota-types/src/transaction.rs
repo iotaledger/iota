@@ -1609,9 +1609,14 @@ impl TransactionKind {
             TransactionKind::ProgrammableTransaction(p) => p.validity_check(config)?,
             // All transaction kinds below are assumed to be system,
             // and no validity or limit checks are performed.
-            TransactionKind::Genesis(_)
-            | TransactionKind::ConsensusCommitPrologueV1(_)
-            | TransactionKind::ConsensusCommitPrologueV2(_) => (),
+            TransactionKind::Genesis(_) | TransactionKind::ConsensusCommitPrologueV1(_) => (),
+            TransactionKind::ConsensusCommitPrologueV2(_) => {
+                if !config.record_additional_states_digests_in_prologue() {
+                    return Err(UserInputError::Unsupported(
+                        "ConsensusCommitPrologueV2 is not supported".to_string(),
+                    ));
+                }
+            }
             TransactionKind::EndOfEpochTransaction(txns) => {
                 for tx in txns {
                     tx.validity_check(config)?;
