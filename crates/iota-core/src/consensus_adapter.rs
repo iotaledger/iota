@@ -601,6 +601,7 @@ impl ConsensusAdapter {
         // it immediately, it's dropped. No WAL, no retry, no epoch boundary handling.
         // This will be designed and implemented separately.
         epoch_store.insert_pending_consensus_transactions(transactions, lock)?;
+
         Ok(self.submit_unchecked(transactions, epoch_store))
     }
 

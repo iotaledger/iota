@@ -2240,18 +2240,33 @@ impl AuthorityPerEpochStore {
 
         // TODO: lock once for all insert() calls.
         for transaction in transactions {
-            if let ConsensusTransactionKind::CertifiedTransaction(cert) = &transaction.kind {
-                let state = lock.expect("Must pass reconfiguration lock when storing certificate");
+            let digest_cert_or_tx = match &transaction.kind {
+                ConsensusTransactionKind::CertifiedTransaction(cert) => {
+                    // Branch WITH certification: `CertifiedTransaction` digest will be tracked
+                    // in the pending set
+                    Some((*cert.digest(), "certificate"))
+                }
+                ConsensusTransactionKind::UserTransactionV1(tx) => {
+                    // Branch WITHOUT certification: `UserTransactionV1` digest will be tracked
+                    // in the pending set
+                    Some((*tx.digest(), "transaction"))
+                }
+                _ => None,
+            };
+
+            if let Some((digest, cert_or_tx)) = digest_cert_or_tx {
+                let state = lock.unwrap_or_else(|| {
+                    panic!("Must pass reconfiguration lock when storing {cert_or_tx}");
+                });
                 // Caller is responsible for performing graceful check
                 assert!(
                     state.should_accept_user_certs(),
-                    "Reconfiguration state should allow accepting user transactions"
+                    "Reconfiguration state should allow accepting user {cert_or_tx}s"
                 );
-                self.pending_consensus_certificates
-                    .write()
-                    .insert(*cert.digest());
+                self.pending_consensus_certificates.write().insert(digest);
             }
         }
+
         Ok(())
     }
 
