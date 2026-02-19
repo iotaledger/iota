@@ -762,7 +762,6 @@ export const RPC_METHODS: {
             mapGraphQLTransactionBlockToRpcTransactionBlock(transactionBlock, options),
         );
     },
-
     async getTotalTransactionBlocks(transport): Promise<bigint> {
         return transport.graphqlQuery(
             {
