@@ -4,6 +4,9 @@
 
 import type { WalletAccount } from '@wallet-standard/core';
 
+/** Name of the feature. */
+export const IotaSignPersonalMessage = 'iota:signPersonalMessage';
+
 /** The latest API version of the signPersonalMessage API. */
 export type IotaSignPersonalMessageVersion = '1.0.0';
 
@@ -13,7 +16,7 @@ export type IotaSignPersonalMessageVersion = '1.0.0';
  */
 export type IotaSignPersonalMessageFeature = {
     /** Namespace for the feature. */
-    'iota:signPersonalMessage': {
+    [IotaSignPersonalMessage]: {
         /** Version of the feature API. */
         version: IotaSignPersonalMessageVersion;
         signPersonalMessage: IotaSignPersonalMessageMethod;
