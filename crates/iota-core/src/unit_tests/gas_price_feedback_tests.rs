@@ -724,10 +724,10 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
             // Check is returned congested_objects and suggested_gas_price are correct.
             assert_eq!(
                 *congested_objects,
-                CongestedObjects(vec![
+                vec![
                     tester.shared_counter_1.object_id,
                     tester.shared_counter_2.object_id
-                ])
+                ]
             );
             assert_eq!(*suggested_gas_price, REFERENCE_GAS_PRICE_FOR_TESTS);
         } else {
@@ -775,10 +775,10 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
             // Check is returned congested_objects and suggested_gas_price are correct.
             assert_eq!(
                 *congested_objects,
-                CongestedObjects(vec![
+                vec![
                     tester.shared_counter_1.object_id,
                     tester.shared_counter_2.object_id
-                ])
+                ]
             );
             assert_eq!(*suggested_gas_price, expected_suggested_gas_price_2);
         } else {
@@ -937,10 +937,10 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
             // Check is returned congested_objects are correct.
             assert_eq!(
                 *congested_objects,
-                CongestedObjects(vec![
+                vec![
                     tester.shared_counter_1.object_id,
                     tester.shared_counter_2.object_id
-                ])
+                ]
             );
         } else {
             panic!("ExecutionFailureStatus must be ExecutionCancelledDueToSharedObjectCongestion.");
@@ -1084,10 +1084,10 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
             // Check is returned congested_objects and suggested_gas_price are correct.
             assert_eq!(
                 *congested_objects,
-                CongestedObjects(vec![
+                vec![
                     tester.shared_counter_1.object_id,
                     tester.shared_counter_2.object_id
-                ])
+                ]
             );
             assert_eq!(*suggested_gas_price, expected_suggested_gas_price);
         } else {
@@ -1332,10 +1332,10 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
             // Check is returned congested_objects and suggested_gas_price are correct.
             assert_eq!(
                 *congested_objects,
-                CongestedObjects(vec![
+                vec![
                     tester.shared_counter_1.object_id,
                     tester.shared_counter_2.object_id
-                ])
+                ]
             );
             assert_eq!(*suggested_gas_price, expected_suggested_gas_price);
         } else {
@@ -1608,10 +1608,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
             } = error
             {
                 // Check is returned congested_objects and suggested_gas_price are correct.
-                assert_eq!(
-                    *congested_objects,
-                    CongestedObjects(vec![tester.shared_counter_2.object_id])
-                );
+                assert_eq!(*congested_objects, vec![tester.shared_counter_2.object_id]);
                 assert_eq!(
                     *suggested_gas_price,
                     expected_suggested_gas_price_for_object_2
@@ -1651,10 +1648,10 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 // Check is returned congested_objects and suggested_gas_price are correct.
                 assert_eq!(
                     *congested_objects,
-                    CongestedObjects(vec![
+                    vec![
                         tester.shared_counter_1.object_id,
                         tester.shared_counter_2.object_id
-                    ])
+                    ]
                 );
                 assert_eq!(
                     *suggested_gas_price,
@@ -1938,10 +1935,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
             } = error
             {
                 // Check is returned congested_objects and suggested_gas_price are correct.
-                assert_eq!(
-                    *congested_objects,
-                    CongestedObjects(vec![tester.shared_counter_2.object_id])
-                );
+                assert_eq!(*congested_objects, vec![tester.shared_counter_2.object_id]);
                 assert_eq!(*suggested_gas_price, expected_suggested_gas_price);
             } else {
                 panic!(
@@ -1988,10 +1982,10 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                 // Check is returned congested_objects and suggested_gas_price are correct.
                 assert_eq!(
                     *congested_objects,
-                    CongestedObjects(vec![
+                    vec![
                         tester.shared_counter_1.object_id,
                         tester.shared_counter_2.object_id
-                    ])
+                    ]
                 );
                 assert_eq!(*suggested_gas_price, expected_suggested_gas_price);
             } else {

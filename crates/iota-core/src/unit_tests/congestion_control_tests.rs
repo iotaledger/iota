@@ -405,7 +405,7 @@ async fn test_congestion_control_execution_cancellation() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
-                congested_objects: vec![shared_object_1.0, shared_object_2.0],
+                congested_objects: vec![shared_object_1.object_id, shared_object_2.object_id],
                 suggested_gas_price,
             },
             command: None
@@ -448,7 +448,7 @@ async fn test_congestion_control_execution_cancellation() {
     assert_eq!(
         execution_error.unwrap().to_execution_status().0,
         ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
-            congested_objects: vec![shared_object_1.0, shared_object_2.0],
+            congested_objects: vec![shared_object_1.object_id, shared_object_2.object_id],
             suggested_gas_price,
         }
     );
@@ -629,7 +629,7 @@ async fn test_congestion_control_debt_tracking() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
-                congested_objects: vec![shared_object_2.0],
+                congested_objects: vec![shared_object_2.object_id],
                 suggested_gas_price: expected_suggested_gas_price,
             },
             command: None
@@ -771,7 +771,7 @@ async fn test_congestion_control_debt_tracking() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
-                congested_objects: vec![shared_object_1.0, shared_object_2.0],
+                congested_objects: vec![shared_object_1.object_id, shared_object_2.object_id],
                 suggested_gas_price: expected_suggested_gas_price,
             },
             command: None
