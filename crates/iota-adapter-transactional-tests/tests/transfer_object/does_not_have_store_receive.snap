@@ -20,7 +20,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 3, line 82:
 //# view-object 2,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 2
 Contents: test::m::Parent {
     id: iota::object::UID {
@@ -32,7 +32,7 @@ Contents: test::m::Parent {
 
 task 4, line 84:
 //# view-object 2,1
-Owner: Account Address ( fake(2,0) )
+Owner: Address(fake(2,0))
 Version: 2
 Contents: test::m::S {
     id: iota::object::UID {
@@ -58,7 +58,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 7, line 92:
 //# view-object 6,0
-Owner: Account Address ( fake(6,1) )
+Owner: Address(fake(6,1))
 Version: 4
 Contents: test::m::Cup<u64> {
     id: iota::object::UID {
@@ -70,7 +70,7 @@ Contents: test::m::Cup<u64> {
 
 task 8, line 94:
 //# view-object 6,1
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 4
 Contents: test::m::Parent {
     id: iota::object::UID {
@@ -97,7 +97,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 11, line 104:
 //# view-object 10,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 6
 Contents: test::m::Parent {
     id: iota::object::UID {
@@ -109,7 +109,7 @@ Contents: test::m::Parent {
 
 task 12, line 106:
 //# view-object 10,1
-Owner: Account Address ( fake(10,0) )
+Owner: Address(fake(10,0))
 Version: 6
 Contents: test::m::S {
     id: iota::object::UID {
@@ -144,7 +144,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 16, line 122:
 //# view-object 15,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 9
 Contents: test::m::Parent {
     id: iota::object::UID {
@@ -156,7 +156,7 @@ Contents: test::m::Parent {
 
 task 17, line 124:
 //# view-object 15,1
-Owner: Account Address ( fake(15,0) )
+Owner: Address(fake(15,0))
 Version: 9
 Contents: test::m::Store {
     id: iota::object::UID {

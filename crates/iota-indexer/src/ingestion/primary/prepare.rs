@@ -454,7 +454,7 @@ impl PrimaryWorker {
             .all_changed_objects()
             .into_iter()
             .filter_map(|(_object_ref, owner, _write_kind)| match owner {
-                Owner::AddressOwner(address) => Some(address),
+                Owner::Address(address) => Some(address),
                 _ => None,
             })
             .unique()

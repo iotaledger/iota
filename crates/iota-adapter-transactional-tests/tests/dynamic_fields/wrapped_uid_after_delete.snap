@@ -38,7 +38,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 6, line 93:
 //# view-object 3,0
-Owner: Object ID: ( fake(2,0) )
+Owner: Object(fake(2,0))
 Version: 4
 Contents: iota::dynamic_field::Field<u64, a::m::Counter> {
     id: iota::object::UID {
@@ -71,7 +71,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 9, line 99:
 //# view-object 3,0
-Owner: Object ID: ( fake(2,0) )
+Owner: Object(fake(2,0))
 Version: 4
 Contents: iota::dynamic_field::Field<u64, a::m::Counter> {
     id: iota::object::UID {

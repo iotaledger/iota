@@ -73,7 +73,7 @@ async fn test_dev_inspect_transaction_block() -> Result<(), anyhow::Error> {
         .unwrap();
     assert_eq!(
         tx_effect_obj_reassigned.owner,
-        Owner::AddressOwner(other_address)
+        Owner::Address(other_address)
     );
 
     let actual_object_info = http_client
@@ -89,7 +89,7 @@ async fn test_dev_inspect_transaction_block() -> Result<(), anyhow::Error> {
 
     assert_eq!(
         actual_object_info.data.unwrap().owner.unwrap(),
-        Owner::AddressOwner(address)
+        Owner::Address(address)
     );
 
     Ok(())

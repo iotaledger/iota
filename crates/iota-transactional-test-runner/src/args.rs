@@ -555,10 +555,7 @@ impl IotaValue {
     ) -> anyhow::Result<ObjectArg> {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
         let id = obj.id();
-        if let Owner::Shared {
-            initial_shared_version,
-        } = obj.owner
-        {
+        if let Owner::Shared(initial_shared_version) = obj.owner {
             Ok(ObjectArg::SharedObject {
                 id,
                 initial_shared_version,
@@ -577,17 +574,16 @@ impl IotaValue {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
         let id = obj.id();
         match obj.owner {
-            Owner::Shared {
-                initial_shared_version,
-            } => Ok(ObjectArg::SharedObject {
+            Owner::Shared(initial_shared_version) => Ok(ObjectArg::SharedObject {
                 id,
                 initial_shared_version,
                 mutable: true,
             }),
-            Owner::AddressOwner(_) | Owner::ObjectOwner(_) | Owner::Immutable => {
+            Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
                 let obj_ref = obj.compute_object_reference();
                 Ok(ObjectArg::ImmOrOwnedObject(obj_ref))
             }
+            _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
     }
 

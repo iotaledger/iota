@@ -20,7 +20,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 3, line 41:
 //# view-object 2,0
-Owner: Account Address ( fake(2,1) )
+Owner: Address(fake(2,1))
 Version: 3
 Contents: tto::M1::A {
     id: iota::object::UID {
@@ -33,7 +33,7 @@ Contents: tto::M1::A {
 
 task 4, line 43:
 //# view-object 2,1
-Owner: Account Address ( _ )
+Owner: Address(_)
 Version: 3
 Contents: tto::M1::A {
     id: iota::object::UID {
@@ -52,7 +52,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 6, line 47:
 //# view-object 2,0
-Owner: Object ID: ( fake(5,0) )
+Owner: Object(fake(5,0))
 Version: 4
 Contents: tto::M1::A {
     id: iota::object::UID {
@@ -65,7 +65,7 @@ Contents: tto::M1::A {
 
 task 7, line 49:
 //# view-object 2,1
-Owner: Account Address ( _ )
+Owner: Address(_)
 Version: 4
 Contents: tto::M1::A {
     id: iota::object::UID {
@@ -78,7 +78,7 @@ Contents: tto::M1::A {
 
 task 8, line 51:
 //# view-object 5,0
-Owner: Object ID: ( fake(2,1) )
+Owner: Object(fake(2,1))
 Version: 4
 Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, iota::object::ID> {
     id: iota::object::UID {
@@ -96,7 +96,7 @@ Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, i
 
 task 9, line 53:
 //# view-object 5,1
-Owner: Object ID: ( fake(2,0) )
+Owner: Object(fake(2,0))
 Version: 4
 Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, iota::object::ID> {
     id: iota::object::UID {
@@ -114,7 +114,7 @@ Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, i
 
 task 10, line 55:
 //# view-object 5,2
-Owner: Object ID: ( fake(5,1) )
+Owner: Object(fake(5,1))
 Version: 4
 Contents: tto::M1::A {
     id: iota::object::UID {

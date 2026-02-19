@@ -172,7 +172,7 @@ impl<T: Storage + ChildObjectResolver> StorageView for T {}
 /// An abstraction of the (possibly distributed) store for objects. This
 /// API only allows for the retrieval of objects, not any state changes
 pub trait ChildObjectResolver {
-    /// `child` must have an `ObjectOwner` ownership equal to `owner`.
+    /// `child` must have an `Object` ownership equal to `owner`.
     fn read_child_object(
         &self,
         parent: &ObjectID,
@@ -180,7 +180,7 @@ pub trait ChildObjectResolver {
         child_version_upper_bound: SequenceNumber,
     ) -> IotaResult<Option<Object>>;
 
-    /// `receiving_object_id` must have an `AddressOwner` ownership equal to
+    /// `receiving_object_id` must have an `Address` ownership equal to
     /// `owner`. `get_object_received_at_version` must be the exact version
     /// at which the object will be received, and it cannot have been
     /// previously received at that version. NB: An object not existing at

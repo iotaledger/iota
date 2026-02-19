@@ -10,7 +10,6 @@ use crate::{
     IOTA_FRAMEWORK_ADDRESS,
     base_types::{Identifier, ObjectID, SequenceNumber},
     error::{IotaError, IotaResult},
-    object::Owner,
     storage::ObjectStore,
 };
 
@@ -28,11 +27,10 @@ pub fn get_randomness_state_obj_initial_shared_version(
 ) -> IotaResult<SequenceNumber> {
     object_store
         .try_get_object(&ObjectID::RANDOMNESS_STATE)?
-        .map(|obj| match obj.owner {
-            Owner::Shared {
-                initial_shared_version,
-            } => initial_shared_version,
-            _ => unreachable!("Randomness state object must be shared"),
+        .map(|obj| {
+            obj.owner
+                .into_shared_opt()
+                .expect("Randomness state object must be shared")
         })
         .ok_or(IotaError::Storage(
             "Randomness state object not found".to_string(),

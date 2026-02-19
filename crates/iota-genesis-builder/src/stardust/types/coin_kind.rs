@@ -111,7 +111,7 @@ mod tests {
             native_tokens: Default::default(),
         };
         output.to_genesis_object(
-            Owner::AddressOwner(IotaAddress::ZERO),
+            Owner::Address(IotaAddress::ZERO),
             &ProtocolConfig::get_for_min_version(),
             &TxContext::random_for_testing_only(),
             1.into(),

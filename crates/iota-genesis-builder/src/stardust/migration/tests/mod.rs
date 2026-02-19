@@ -95,7 +95,7 @@ fn create_foundry(
 }
 
 /// Test that an Object owned by another Object (not to be confused with
-/// Owner::ObjectOwner) can be received by the owning object. This means aliases
+/// Owner::Object) can be received by the owning object. This means aliases
 /// owned by aliases, aliases owned by NFTs, etc.
 ///
 /// The PTB sends the extracted assets to the null address since they must be

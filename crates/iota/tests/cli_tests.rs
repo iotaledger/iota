@@ -248,7 +248,7 @@ async fn publish_package(
     let cap = effects
         .created()
         .iter()
-        .find(|refe| matches!(refe.owner, Owner::AddressOwner(_)))
+        .find(|refe| matches!(refe.owner, Owner::Address(_)))
         .unwrap();
 
     Ok((package_a.reference.object_id, cap.reference.object_id))
@@ -1549,12 +1549,7 @@ async fn test_receive_argument() -> Result<(), anyhow::Error> {
             let created = response.effects.unwrap().created().to_vec();
             let owners: BTreeSet<ObjectID> = created
                 .iter()
-                .flat_map(|refe| {
-                    refe.owner
-                        .get_address_owner_address()
-                        .ok()
-                        .map(|x| x.into())
-                })
+                .flat_map(|refe| refe.owner.as_address_opt().copied().map(|x| x.into()))
                 .collect();
             let child = created
                 .iter()
@@ -1692,12 +1687,7 @@ async fn test_receive_argument_by_immut_ref() -> Result<(), anyhow::Error> {
             let created = response.effects.unwrap().created().to_vec();
             let owners: BTreeSet<ObjectID> = created
                 .iter()
-                .flat_map(|refe| {
-                    refe.owner
-                        .get_address_owner_address()
-                        .ok()
-                        .map(|x| x.into())
-                })
+                .flat_map(|refe| refe.owner.as_address_opt().copied().map(|x| x.into()))
                 .collect();
             let child = created
                 .iter()
@@ -1835,12 +1825,7 @@ async fn test_receive_argument_by_mut_ref() -> Result<(), anyhow::Error> {
             let created = response.effects.unwrap().created().to_vec();
             let owners: BTreeSet<ObjectID> = created
                 .iter()
-                .flat_map(|refe| {
-                    refe.owner
-                        .get_address_owner_address()
-                        .ok()
-                        .map(|x| x.into())
-                })
+                .flat_map(|refe| refe.owner.as_address_opt().copied().map(|x| x.into()))
                 .collect();
             let child = created
                 .iter()
@@ -2375,7 +2360,7 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
     let cap = effects
         .created()
         .iter()
-        .find(|refe| matches!(refe.owner, Owner::AddressOwner(_)))
+        .find(|refe| matches!(refe.owner, Owner::Address(_)))
         .unwrap();
 
     // Hacky for now: we need to add the correct `published-at` field to the Move
@@ -2525,7 +2510,7 @@ async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Erro
     let cap = effects
         .created()
         .iter()
-        .find(|refe| matches!(refe.owner, Owner::AddressOwner(_)))
+        .find(|refe| matches!(refe.owner, Owner::Address(_)))
         .unwrap();
 
     // We will upgrade the package in a `tmp_dir` using the `Move.lock` resulting
@@ -2691,7 +2676,7 @@ async fn test_package_management_on_upgrade_command_conflict() -> Result<(), any
     let cap = effects
         .created()
         .iter()
-        .find(|refe| matches!(refe.owner, Owner::AddressOwner(_)))
+        .find(|refe| matches!(refe.owner, Owner::Address(_)))
         .unwrap();
 
     // Set up a temporary working directory  for upgrading.
@@ -2883,14 +2868,14 @@ async fn test_native_transfer() -> Result<(), anyhow::Error> {
         panic!();
     };
 
-    let (gas, obj) = if mut_obj1.owner.unwrap().get_owner_address().unwrap() == address {
+    let (gas, obj) = if *mut_obj1.owner.unwrap().address().unwrap() == address {
         (mut_obj1, mut_obj2)
     } else {
         (mut_obj2, mut_obj1)
     };
 
-    assert_eq!(gas.owner.unwrap().get_owner_address().unwrap(), address);
-    assert_eq!(obj.owner.unwrap().get_owner_address().unwrap(), recipient);
+    assert_eq!(*gas.owner.unwrap().address().unwrap(), address);
+    assert_eq!(*obj.owner.unwrap().address().unwrap(), recipient);
 
     let object_refs = client
         .read_api()
@@ -3955,10 +3940,7 @@ async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Resul
     // assert that all the objects_returned are owned by the address
     for resp in &object_responses.data {
         let obj_owner = resp.object().unwrap().owner.unwrap();
-        assert_eq!(
-            obj_owner.get_owner_address().unwrap().to_string(),
-            address.to_string()
-        )
+        assert_eq!(*obj_owner.address().unwrap(), address)
     }
     // assert that has next page is false
     assert!(!object_responses.has_next_page);

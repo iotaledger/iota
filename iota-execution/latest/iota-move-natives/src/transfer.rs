@@ -173,7 +173,7 @@ pub fn transfer_internal(
     let recipient = pop_arg!(args, AccountAddress);
     let obj = args.pop_back().unwrap();
 
-    let owner = Owner::AddressOwner(IotaAddress::new(recipient.into_bytes()));
+    let owner = Owner::Address(IotaAddress::new(recipient.into_bytes()));
     object_runtime_transfer(context, owner, ty, obj)?;
     let cost = context.gas_used();
     Ok(NativeResult::ok(cost, smallvec![]))
@@ -251,9 +251,7 @@ pub fn share_object(
         context,
         // Dummy version, to be filled with the correct initial version when the effects of the
         // transaction are written to storage.
-        Owner::Shared {
-            initial_shared_version: SequenceNumber::default(),
-        },
+        Owner::Shared(Default::default()),
         ty,
         obj,
     )?;

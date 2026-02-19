@@ -78,7 +78,7 @@ async fn test_full_node_follows_txes() -> Result<(), anyhow::Error> {
     let object_read = fullnode.state().get_object_read(&transferred_object)?;
     let object = object_read.into_object()?;
 
-    assert_eq!(object.owner.get_owner_address().unwrap(), receiver);
+    assert_eq!(*object.owner.address().unwrap(), receiver);
 
     Ok(())
 }
@@ -416,7 +416,7 @@ async fn test_full_node_indexes() -> Result<(), anyhow::Error> {
     // let events_by_recipient = node
     // .state()
     // .query_events(
-    // EventQuery::Recipient(Owner::AddressOwner(receiver)),
+    // EventQuery::Recipient(Owner::Address(receiver)),
     // None,
     // 100,
     // false,
@@ -1011,13 +1011,13 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
         get_past_obj_read_from_node(node, object_id, object_ref_v2.version).await?;
     assert_eq!(read_ref_v2, object_ref_v2);
     assert_eq!(read_obj_v2, object_v2);
-    assert_eq!(read_obj_v2.owner, Owner::AddressOwner(recipient));
+    assert_eq!(read_obj_v2.owner, Owner::Address(recipient));
 
     let (read_ref_v1, read_obj_v1, _) =
         get_past_obj_read_from_node(node, object_id, object_ref_v1.version).await?;
     assert_eq!(read_ref_v1, object_ref_v1);
     assert_eq!(read_obj_v1, object_v1);
-    assert_eq!(read_obj_v1.owner, Owner::AddressOwner(sender));
+    assert_eq!(read_obj_v1.owner, Owner::Address(sender));
 
     let too_high_version = SequenceNumber::lamport_increment([object_ref_v3.version]).unwrap();
 

@@ -88,7 +88,7 @@ pub(crate) fn get_coin_info(
             // to mint, so supply is fixed.
             let supply_state = match &object.owner {
                 iota_types::object::Owner::Immutable => SupplyState::Fixed,
-                iota_types::object::Owner::AddressOwner(addr)
+                iota_types::object::Owner::Address(addr)
                     if *addr == iota_types::base_types::IotaAddress::ZERO =>
                 {
                     SupplyState::Fixed

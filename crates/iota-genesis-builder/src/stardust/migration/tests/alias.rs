@@ -157,10 +157,10 @@ fn alias_migration_with_full_features() {
         &bcs::to_bytes(ALIAS_DYNAMIC_OBJECT_FIELD_KEY).unwrap(),
     )
     .unwrap();
-    assert_eq!(alias_object.owner, Owner::ObjectOwner(alias_owner.into()));
+    assert_eq!(alias_object.owner, Owner::Object(alias_owner));
 
     let alias_output_owner =
-        Owner::AddressOwner(stardust_to_iota_address(stardust_alias.governor_address()).unwrap());
+        Owner::Address(stardust_to_iota_address(stardust_alias.governor_address()).unwrap());
     assert_eq!(alias_output_object.owner, alias_output_owner);
 }
 
