@@ -81,16 +81,6 @@ impl Hash for TransactionRef {
     }
 }
 
-impl From<TransactionRef> for BlockRef {
-    fn from(tr: TransactionRef) -> Self {
-        BlockRef {
-            round: tr.round,
-            author: tr.author,
-            digest: tr.block_digest,
-        }
-    }
-}
-
 /// Accessors to transaction reference info.
 #[enum_dispatch]
 pub(crate) trait GenericTransactionRefAPI {

@@ -1029,9 +1029,7 @@ impl DagState {
             let refs_with_indices: Vec<_> = missing
                 .iter()
                 .filter_map(|(idx, tx)| {
-                    self.tx_ref_to_block_digest_by_authority[tx.author]
-                        .get(&(tx.round, tx.transactions_commitment))
-                        .map(|&d| (*idx, BlockRef::new(tx.round, tx.author, d)))
+                    self.resolve_block_ref(tx).map(|br| (*idx, br))
                 })
                 .collect();
 
@@ -1229,6 +1227,14 @@ impl DagState {
         block_headers
     }
 
+    /// Resolves a `TransactionRef` to a `BlockRef` using the in-memory
+    /// `tx_ref_to_block_digest_by_authority` lookup table.
+    pub(crate) fn resolve_block_ref(&self, tx_ref: &TransactionRef) -> Option<BlockRef> {
+        self.tx_ref_to_block_digest_by_authority[tx_ref.author]
+            .get(&(tx_ref.round, tx_ref.transactions_commitment))
+            .map(|&digest| BlockRef::new(tx_ref.round, tx_ref.author, digest))
+    }
+
     /// Gets cached block headers for a list of TransactionRefs by first looking
     /// up the block digest from the in-memory tx_ref_to_block_digest map, then
     /// fetching the cached block header.
@@ -1238,12 +1244,9 @@ impl DagState {
     ) -> Vec<Option<VerifiedBlockHeader>> {
         let mut block_headers: Vec<Option<VerifiedBlockHeader>> = vec![None; tx_refs.len()];
         for (index, tx_ref) in tx_refs.iter().enumerate() {
-            let Some(&digest) = self.tx_ref_to_block_digest_by_authority[tx_ref.author]
-                .get(&(tx_ref.round, tx_ref.transactions_commitment))
-            else {
+            let Some(block_ref) = self.resolve_block_ref(tx_ref) else {
                 continue;
             };
-            let block_ref = BlockRef::new(tx_ref.round, tx_ref.author, digest);
             if tx_ref.round == GENESIS_ROUND {
                 if let Some(block) = self.genesis.get(&block_ref) {
                     block_headers[index] = Some(block.verified_block_header.clone());
@@ -2045,23 +2048,17 @@ impl DagState {
         transaction_ref: TransactionRef,
         block_digest: Option<BlockHeaderDigest>,
     ) {
-        let block_digest = if let Some(digest) = block_digest {
-            digest
+        let block_ref = if let Some(digest) = block_digest {
+            BlockRef::new(transaction_ref.round, transaction_ref.author, digest)
         } else {
-            let Some(&digest) = self.tx_ref_to_block_digest_by_authority[transaction_ref.author]
-                .get(&(
-                    transaction_ref.round,
-                    transaction_ref.transactions_commitment,
-                ))
-            else {
+            let Some(br) = self.resolve_block_ref(&transaction_ref) else {
                 error!(
                     "block_digest not found for {transaction_ref:?} when adding pending acknowledgment"
                 );
                 return;
             };
-            digest
+            br
         };
-        let block_ref = BlockRef::new(transaction_ref.round, transaction_ref.author, block_digest);
         self.pending_acknowledgments.insert(block_ref);
     }
 

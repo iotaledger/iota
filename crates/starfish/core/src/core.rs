@@ -2629,11 +2629,12 @@ mod test {
         let missing_verified_transactions: Vec<_> = all_sequenced_transactions
             .into_iter()
             .filter(|tx| {
-                let tx_ref = tx.transaction_ref();
                 let generic_ref = if consensus_transaction_ref {
-                    GenericTransactionRef::TransactionRef(tx_ref)
+                    GenericTransactionRef::TransactionRef(tx.transaction_ref())
                 } else {
-                    GenericTransactionRef::BlockRef(BlockRef::from(tx_ref))
+                    GenericTransactionRef::BlockRef(
+                        tx.block_ref().expect("block_ref should be set in test"),
+                    )
                 };
                 missing_transactions.contains_key(&generic_ref)
             })
@@ -2641,7 +2642,7 @@ mod test {
         core_catch_up
             .add_transactions(
                 missing_verified_transactions,
-                crate::dag_state::DataSource::TransactionSynchronizer,
+                DataSource::TransactionSynchronizer,
             )
             .unwrap();
 
