@@ -99,6 +99,7 @@ const config = {
       'docusaurus-plugin-typedoc',
       // Options
       {
+        skipErrorChecking: true,
         tsconfig: '../../sdk/typescript/tsconfig.json',
         entryPoints: [
           "../../sdk/typescript/src/bcs",
