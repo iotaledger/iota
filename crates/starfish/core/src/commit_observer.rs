@@ -574,10 +574,10 @@ impl CommitObserver {
                     .inc();
             }
 
-            let block_refs_for_committed_txs = commit
+            let tx_refs_for_committed_txs = commit
                 .transactions
                 .iter()
-                .map(|tx| tx.block_ref())
+                .map(|tx| tx.transaction_ref())
                 .collect::<Vec<_>>();
 
             // Read only cached block headers from storage for the transactions in the
@@ -587,7 +587,7 @@ impl CommitObserver {
             let headers_for_committed_txs = self
                 .dag_state
                 .read()
-                .get_cached_block_headers(&block_refs_for_committed_txs)
+                .get_cached_block_headers_for_transaction_refs(&tx_refs_for_committed_txs)
                 .into_iter()
                 .flatten()
                 .collect::<Vec<_>>();

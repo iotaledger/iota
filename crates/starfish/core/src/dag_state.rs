@@ -1207,7 +1207,7 @@ impl DagState {
             if block_ref.round == GENESIS_ROUND {
                 // Allow the caller to handle the invalid genesis ancestor error.
                 if let Some(block) = self.genesis.get(block_ref) {
-                    block_headers[index] = Some((**block).clone());
+                    block_headers[index] = Some(block.verified_block_header.clone());
                 }
                 continue;
             }
@@ -1219,6 +1219,33 @@ impl DagState {
 
         block_headers
     }
+
+    /// Gets cached block headers for a list of TransactionRefs by first looking
+    /// up the block digest from the in-memory tx_ref_to_block_digest map, then
+    /// fetching the cached block header.
+    pub(crate) fn get_cached_block_headers_for_transaction_refs(
+        &self,
+        tx_refs: &[TransactionRef],
+    ) -> Vec<Option<VerifiedBlockHeader>> {
+        let mut block_headers: Vec<Option<VerifiedBlockHeader>> = vec![None; tx_refs.len()];
+        for (index, tx_ref) in tx_refs.iter().enumerate() {
+            let Some(&digest) = self.tx_ref_to_block_digest_by_authority[tx_ref.author]
+                .get(&(tx_ref.round, tx_ref.transactions_commitment))
+            else {
+                continue;
+            };
+            let block_ref = BlockRef::new(tx_ref.round, tx_ref.author, digest);
+            if tx_ref.round == GENESIS_ROUND {
+                if let Some(block) = self.genesis.get(&block_ref) {
+                    block_headers[index] = Some(block.verified_block_header.clone());
+                }
+            } else if let Some(block) = self.recent_block_headers.get(&block_ref) {
+                block_headers[index] = Some(block.clone());
+            }
+        }
+        block_headers
+    }
+
     /// Gets shards by checking cached recent shards in memory.
     pub(crate) fn get_cached_shards(
         &self,
