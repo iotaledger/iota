@@ -70,6 +70,8 @@ export function MenuList() {
     const logoutMutation = useMutation({
         mutationKey: ['logout', 'clear wallet'],
         mutationFn: async () => {
+            await ampli.walletReset();
+            await ampli.client.flush?.();
             ampli.client.reset();
             queryClient.cancelQueries();
             queryClient.clear();
