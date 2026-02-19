@@ -53,6 +53,7 @@ import { OverviewHint } from './OverviewHint';
 import { SupplyIncreaseVestingStakingDialog } from './SupplyIncreaseVestingStakingDialog';
 import { MigrationDialog } from './MigrationDialog';
 import { openInNewTab } from '_src/shared/utils';
+import { ampli } from '_src/shared/analytics';
 
 export function TokenDetails() {
     const navigate = useNavigate();
@@ -237,6 +238,7 @@ export function TokenDetails() {
                                 isCopyable
                                 copyText={activeAccountAddress}
                                 onCopySuccess={() => toast('Address copied')}
+                                onOpen={() => ampli.externalLinkOpened({ type: 'address' })}
                             />
                             <CoinBalance amount={tokenBalance} type={activeCoinType} />
                         </div>
