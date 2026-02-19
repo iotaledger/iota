@@ -67,11 +67,11 @@ impl TestCaseImpl for CoinIndexTest {
         let balance_change = response.balance_changes.unwrap();
         let owner_balance = balance_change
             .iter()
-            .find(|b| b.owner == Owner::AddressOwner(account))
+            .find(|b| b.owner == Owner::Address(account))
             .unwrap();
         let recipient_balance = balance_change
             .iter()
-            .find(|b| b.owner != Owner::AddressOwner(account))
+            .find(|b| b.owner != Owner::Address(account))
             .unwrap();
         let Balance {
             coin_object_count,
@@ -95,7 +95,7 @@ impl TestCaseImpl for CoinIndexTest {
             ..
         } = client
             .coin_read_api()
-            .get_balance(recipient_balance.owner.get_owner_address().unwrap(), None)
+            .get_balance(*recipient_balance.owner.address().unwrap(), None)
             .await?;
         assert_eq!(coin_object_count, 1);
         assert!(recipient_balance.amount > 0);
@@ -124,7 +124,7 @@ impl TestCaseImpl for CoinIndexTest {
             .await?;
 
         let balance_change = &response.balance_changes.unwrap()[0];
-        assert_eq!(balance_change.owner, Owner::AddressOwner(account));
+        assert_eq!(balance_change.owner, Owner::Address(account));
 
         let Balance {
             coin_object_count,
@@ -184,8 +184,8 @@ impl TestCaseImpl for CoinIndexTest {
             .find(|b| b.coin_type.to_string().contains("MANAGED"))
             .unwrap();
 
-        assert_eq!(iota_balance_change.owner, Owner::AddressOwner(account));
-        assert_eq!(managed_balance_change.owner, Owner::AddressOwner(account));
+        assert_eq!(iota_balance_change.owner, Owner::Address(account));
+        assert_eq!(managed_balance_change.owner, Owner::Address(account));
 
         let Balance { total_balance, .. } =
             client.coin_read_api().get_balance(account, None).await?;
@@ -650,7 +650,7 @@ async fn publish_managed_coin_package(
         .iter()
         .find(|change| {
             matches!(change, ObjectChange::Created {
-            owner: Owner::AddressOwner(_),
+            owner: Owner::Address(_),
             object_type,
             ..
         } if object_type.is_treasury_cap())

@@ -354,11 +354,8 @@ async fn test_object_owning_another_object() {
         .find(|(object_ref, _)| object_ref.object_id == child_id)
         .unwrap();
     // Check that the child is now owned by the parent.
-    let field_id = match child_effect.1 {
-        Owner::ObjectOwner(field_id) => field_id.into(),
-        Owner::Shared { .. } | Owner::Immutable | Owner::AddressOwner(_) => panic!(),
-    };
-    let field_object = authority.get_object(&field_id).await.unwrap();
+    let field_id = child_effect.1.as_object();
+    let field_object = authority.get_object(field_id).await.unwrap();
     assert_eq!(field_object.owner, parent_id);
 
     // Mutate the child directly will now fail because we need the parent to
@@ -493,7 +490,7 @@ async fn test_create_then_delete_parent_child() {
     let parent = effects
         .created()
         .iter()
-        .find(|(_, owner)| matches!(owner, Owner::AddressOwner(_)))
+        .find(|(_, owner)| matches!(owner, Owner::Address(_)))
         .unwrap()
         .0;
 
@@ -562,7 +559,7 @@ async fn test_create_then_delete_parent_child_wrap() {
     let parent = effects
         .created()
         .iter()
-        .find(|(_, owner)| matches!(owner, Owner::AddressOwner(_)))
+        .find(|(_, owner)| matches!(owner, Owner::Address(_)))
         .unwrap()
         .0;
 
@@ -659,7 +656,7 @@ async fn test_remove_child_when_no_prior_version_exists() {
     let parent = effects
         .created()
         .iter()
-        .find(|(_, owner)| matches!(owner, Owner::AddressOwner(_)))
+        .find(|(_, owner)| matches!(owner, Owner::Address(_)))
         .unwrap()
         .0;
 
@@ -3022,7 +3019,7 @@ pub async fn build_and_publish_test_package_with_upgrade_cap(
     let upgrade_cap = effects
         .created()
         .into_iter()
-        .find(|(_, owner)| matches!(owner, Owner::AddressOwner(_)))
+        .find(|(_, owner)| matches!(owner, Owner::Address(_)))
         .unwrap();
 
     (package.0, upgrade_cap.0)
@@ -3040,7 +3037,7 @@ pub async fn collect_packages_and_upgrade_caps(
         .collect();
     let mut caps = HashMap::new();
     for (obj_ref, owner) in effects.created() {
-        if !matches!(owner, Owner::AddressOwner(_)) {
+        if !matches!(owner, Owner::Address(_)) {
             continue;
         }
         let cap = authority.get_object(&obj_ref.object_id).await.unwrap();

@@ -76,17 +76,14 @@ pub(super) fn verify_nft_output(
     }
 
     // NFT Owner
-    let expected_nft_owner = Owner::ObjectOwner(
-        derive_dynamic_field_id(
-            created_output_obj.id(),
-            &DynamicFieldInfo::dynamic_object_field_wrapper(
-                NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE.parse::<TypeTag>()?,
-            )
-            .into(),
-            &bcs::to_bytes(NFT_DYNAMIC_OBJECT_FIELD_KEY)?,
-        )?
+    let expected_nft_owner = Owner::Object(derive_dynamic_field_id(
+        created_output_obj.id(),
+        &DynamicFieldInfo::dynamic_object_field_wrapper(
+            NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE.parse::<TypeTag>()?,
+        )
         .into(),
-    );
+        &bcs::to_bytes(NFT_DYNAMIC_OBJECT_FIELD_KEY)?,
+    )?);
 
     ensure!(
         created_nft_obj.owner == expected_nft_owner,

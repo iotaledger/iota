@@ -190,9 +190,18 @@ async fn test_pay_iota_success_one_input_coin() -> anyhow::Result<()> {
         .await
         .unwrap();
 
-    let addr1 = effects.created()[0].1.get_owner_address()?;
-    let addr2 = effects.created()[1].1.get_owner_address()?;
-    let addr3 = effects.created()[2].1.get_owner_address()?;
+    let addr1 = *effects.created()[0]
+        .1
+        .address()
+        .ok_or_else(|| anyhow::anyhow!("not an address or object owner"))?;
+    let addr2 = *effects.created()[1]
+        .1
+        .address()
+        .ok_or_else(|| anyhow::anyhow!("not an address or object owner"))?;
+    let addr3 = *effects.created()[2]
+        .1
+        .address()
+        .ok_or_else(|| anyhow::anyhow!("not an address or object owner"))?;
     let coin_val1 = *recipient_amount_map
         .get(&addr1)
         .ok_or(IotaError::InvalidAddress)?;
@@ -261,8 +270,14 @@ async fn test_pay_iota_success_multiple_input_coins() -> anyhow::Result<()> {
         .get_object(&created_obj_id2)
         .await
         .unwrap();
-    let addr1 = effects.created()[0].1.get_owner_address()?;
-    let addr2 = effects.created()[1].1.get_owner_address()?;
+    let addr1 = *effects.created()[0]
+        .1
+        .address()
+        .ok_or_else(|| anyhow::anyhow!("not an address or object owner"))?;
+    let addr2 = *effects.created()[1]
+        .1
+        .address()
+        .ok_or_else(|| anyhow::anyhow!("not an address or object owner"))?;
     let coin_val1 = *recipient_amount_map
         .get(&addr1)
         .ok_or(IotaError::InvalidAddress)?;

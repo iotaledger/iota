@@ -34,7 +34,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 5, lines 66-69:
 //# view-object 2,0
-Owner: Account Address ( P1 )
+Owner: Address(P1)
 Version: 4
 Contents: test::m::A {
     id: iota::object::UID {
@@ -54,7 +54,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 7, line 75:
 //# view-object 6,0
-Owner: Object ID: ( fake(6,1) )
+Owner: Object(fake(6,1))
 Version: 2
 Contents: iota::dynamic_field::Field<u64, u64> {
     id: iota::object::UID {
@@ -74,7 +74,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 9, lines 80-84:
 //# view-object 6,0
-Owner: Object ID: ( fake(6,1) )
+Owner: Object(fake(6,1))
 Version: 3
 Contents: iota::dynamic_field::Field<u64, u64> {
     id: iota::object::UID {

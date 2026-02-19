@@ -271,7 +271,7 @@ async fn create_test_env() -> TestEnv {
         } else if object.is_coin() {
             coin_id = Some(object_id);
             coin_type = object.coin_type_maybe();
-            coin_owner = Some(created.owner.get_address_owner_address().unwrap());
+            coin_owner = Some(*created.owner.as_address());
         } else if object.type_().unwrap().is_coin_deny_cap_v1() {
             deny_cap = Some(object_id);
         }

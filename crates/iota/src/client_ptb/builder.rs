@@ -132,20 +132,19 @@ impl<'a> Resolver<'a> for ToObject {
         // Depending on the ownership of the object, we resolve it to different types of
         // object arguments for the transaction.
         let obj_arg = match owner {
-            Owner::AddressOwner(_) if self.is_receiving => ObjectArg::Receiving(object_ref),
-            Owner::Immutable | Owner::AddressOwner(_) => ObjectArg::ImmOrOwnedObject(object_ref),
-            Owner::Shared {
-                initial_shared_version,
-            } => ObjectArg::SharedObject {
+            Owner::Address(_) if self.is_receiving => ObjectArg::Receiving(object_ref),
+            Owner::Immutable | Owner::Address(_) => ObjectArg::ImmOrOwnedObject(object_ref),
+            Owner::Shared(initial_shared_version) => ObjectArg::SharedObject {
                 id: object_ref.object_id,
                 initial_shared_version,
                 mutable: self.is_mut,
             },
-            Owner::ObjectOwner(_) => {
+            Owner::Object(_) => {
                 error!(loc => help: {
                     "{obj_id} is an object-owned object, you can only use immutable, shared, or owned objects here."
                 }, "Cannot use an object-owned object as an argument")
             }
+            _ => unimplemented!("a new enum variant was added and needs to be handled"),
         };
         // Insert the correct object arg that we built above into the transaction.
         builder.ptb.obj(obj_arg).map_err(|e| err!(loc, "{e}"))

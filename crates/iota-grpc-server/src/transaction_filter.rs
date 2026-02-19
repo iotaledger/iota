@@ -362,7 +362,7 @@ impl TransactionFilter {
                 .mutated()
                 .iter()
                 .chain(item.effects.unwrapped().iter())
-                .any(|(_, owner)| matches!(owner, Owner::AddressOwner(addr) if *addr == *a)),
+                .any(|(_, owner)| matches!(owner, Owner::Address(addr) if *addr == *a)),
 
             TransactionFilter::AffectedObject(o) => item
                 .effects

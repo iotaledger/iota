@@ -30,9 +30,7 @@ use iota_sdk_types::{
     },
     gas::GasCostSummary,
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
-    object::{
-        GenesisObject, MovePackage, MoveStruct, Object, ObjectData, Owner, TypeOrigin, UpgradeInfo,
-    },
+    object::{GenesisObject, MovePackage, MoveStruct, Object, ObjectData, TypeOrigin, UpgradeInfo},
     object_id::ObjectId,
     transaction::{
         Argument, CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4,
@@ -84,7 +82,7 @@ impl TryFrom<crate::object::Object> for Object {
     fn try_from(value: crate::object::Object) -> Result<Self, Self::Error> {
         Self {
             data: value.data.clone().try_into()?,
-            owner: value.owner.into(),
+            owner: value.owner,
             previous_transaction: value.previous_transaction,
             storage_rebate: value.storage_rebate,
         }
@@ -98,7 +96,7 @@ impl TryFrom<Object> for crate::object::Object {
     fn try_from(value: Object) -> Result<Self, Self::Error> {
         Self::from(ObjectInner {
             data: value.data.try_into()?,
-            owner: value.owner.into(),
+            owner: value.owner,
             previous_transaction: value.previous_transaction,
             storage_rebate: value.storage_rebate,
         })
@@ -361,7 +359,7 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                                 match data.try_into() {
                                     Ok(data) => Ok(GenesisObject {
                                         data,
-                                        owner: owner.into(),
+                                        owner,
                                     }),
                                     Err(e) => Err(e),
                                 }
@@ -448,7 +446,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                             match obj.data.try_into() {
                                 Ok(data) => Ok(crate::transaction::GenesisObject::RawObject {
                                     data,
-                                    owner: obj.owner.into(),
+                                    owner: obj.owner,
                                 }),
                                 Err(e) => Err(e),
                             }
@@ -764,17 +762,14 @@ impl TryFrom<crate::effects::TransactionEffects> for TransactionEffects {
                                     ObjectIn::Data {
                                         version,
                                         digest,
-                                        owner: owner.into(),
+                                        owner,
                                     }
                                 }
                             },
                             output_state: match change.output_state {
                                 crate::effects::ObjectOut::NotExist => ObjectOut::Missing,
                                 crate::effects::ObjectOut::ObjectWrite((digest, owner)) => {
-                                    ObjectOut::ObjectWrite {
-                                        digest,
-                                        owner: owner.into(),
-                                    }
+                                    ObjectOut::ObjectWrite { digest, owner }
                                 }
                                 crate::effects::ObjectOut::PackageWrite((seq, digest)) => {
                                     ObjectOut::PackageWrite {
@@ -869,7 +864,7 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                                                 owner,
                                             } => crate::effects::ObjectIn::Exist((
                                                 (version, digest),
-                                                owner.into(),
+                                                owner,
                                             )),
                                             _ => unimplemented!("a new enum variant was added and needs to be handled"),
                                         },
@@ -880,7 +875,7 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                                             ObjectOut::ObjectWrite { digest, owner } => {
                                                 crate::effects::ObjectOut::ObjectWrite((
                                                     digest,
-                                                    owner.into(),
+                                                    owner,
                                                 ))
                                             }
                                             ObjectOut::PackageWrite { version, digest } => {
@@ -1899,33 +1894,6 @@ impl<const T: bool> From<ValidatorAggregatedSignature>
             signature: crate::crypto::AggregateAuthoritySignature::from_bytes(signature.as_bytes())
                 .unwrap(),
             signers_map: bitmap,
-        }
-    }
-}
-
-impl From<crate::object::Owner> for Owner {
-    fn from(value: crate::object::Owner) -> Self {
-        match value {
-            crate::object::Owner::AddressOwner(address) => Self::Address(address),
-            crate::object::Owner::ObjectOwner(object_id) => Self::Object(object_id.into()),
-            crate::object::Owner::Shared {
-                initial_shared_version,
-            } => Self::Shared(initial_shared_version),
-            crate::object::Owner::Immutable => Self::Immutable,
-        }
-    }
-}
-
-impl From<Owner> for crate::object::Owner {
-    fn from(value: Owner) -> Self {
-        match value {
-            Owner::Address(address) => crate::object::Owner::AddressOwner(address),
-            Owner::Object(object_id) => crate::object::Owner::ObjectOwner(object_id.into()),
-            Owner::Shared(initial_shared_version) => crate::object::Owner::Shared {
-                initial_shared_version,
-            },
-            Owner::Immutable => crate::object::Owner::Immutable,
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
     }
 }

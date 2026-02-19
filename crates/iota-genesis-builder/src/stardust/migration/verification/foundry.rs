@@ -69,7 +69,7 @@ pub(super) fn verify_foundry_output(
         .ok_or_else(|| anyhow!("expected a native token coin"))?;
 
     // The minted native token coin should be owned by `0x0`
-    let expected_owner = Owner::AddressOwner(IotaAddress::ZERO);
+    let expected_owner = Owner::Address(IotaAddress::ZERO);
     ensure!(
         native_token_coin_obj.owner == expected_owner,
         "native token coin owner mismatch: found {}, expected {}",

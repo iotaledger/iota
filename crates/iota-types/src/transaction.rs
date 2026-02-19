@@ -1934,10 +1934,8 @@ impl TransactionData {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let capability_arg = match capability_owner {
-                Owner::AddressOwner(_) => ObjectArg::ImmOrOwnedObject(upgrade_capability),
-                Owner::Shared {
-                    initial_shared_version,
-                } => ObjectArg::SharedObject {
+                Owner::Address(_) => ObjectArg::ImmOrOwnedObject(upgrade_capability),
+                Owner::Shared(initial_shared_version) => ObjectArg::SharedObject {
                     id: upgrade_capability.object_id,
                     initial_shared_version,
                     mutable: true,
@@ -1947,9 +1945,10 @@ impl TransactionData {
                 }
                 // If the capability is owned by an object, then the module defining the owning
                 // object gets to decide how the upgrade capability should be used.
-                Owner::ObjectOwner(_) => {
+                Owner::Object(_) => {
                     bail!("Upgrade capability controlled by object");
                 }
+                _ => unimplemented!("a new enum variant was added and needs to be handled"),
             };
             builder.obj(capability_arg).unwrap();
             let upgrade_arg = builder.pure(upgrade_policy).unwrap();

@@ -189,7 +189,7 @@ impl Scenario {
         let (owner, _) = deterministic_random_account_key();
         Object::new_move(
             MoveObject::new_gas_coin(OBJECT_START_VERSION, id, 100),
-            Owner::AddressOwner(owner),
+            Owner::Address(owner),
             TransactionDigest::ZERO,
         )
     }
@@ -215,7 +215,7 @@ impl Scenario {
         let id = ObjectID::random();
         Object::new_move(
             MoveObject::new_gas_coin(OBJECT_START_VERSION, id, 100),
-            Owner::ObjectOwner(owner.into()),
+            Owner::Object(owner),
             TransactionDigest::ZERO,
         )
     }
@@ -1230,7 +1230,7 @@ async fn latest_object_cache_race_test() {
                 let object = Object::with_id_owner_version_for_testing(
                     object_id,
                     version,
-                    Owner::AddressOwner(owner),
+                    Owner::Address(owner),
                 );
 
                 cache.write_object_entry(&object_id, version, object.into());
@@ -1271,7 +1271,7 @@ async fn latest_object_cache_race_test() {
                 let object = Object::with_id_owner_version_for_testing(
                     object_id,
                     latest_version,
-                    Owner::AddressOwner(owner),
+                    Owner::Address(owner),
                 );
 
                 // because we obtained the ticket before reading the object, we will not write a
@@ -1412,7 +1412,7 @@ async fn concurrent_latest_object_cache_race_test() {
         let object = Object::with_id_owner_version_for_testing(
             object_id,
             write_version,
-            Owner::AddressOwner(owner),
+            Owner::Address(owner),
         );
 
         cache.write_object_entry(&object_id, write_version, object.into());
@@ -1461,7 +1461,7 @@ async fn concurrent_latest_object_cache_race_test() {
         let object = Object::with_id_owner_version_for_testing(
             object_id,
             latest_version,
-            Owner::AddressOwner(owner),
+            Owner::Address(owner),
         );
 
         // preempt the reader to update the latest version and invalidate the cache
@@ -1534,7 +1534,7 @@ async fn concurrent_latest_object_cache_collision_test() {
         let object = Object::with_id_owner_version_for_testing(
             object_id,
             *write_version,
-            Owner::AddressOwner(owner),
+            Owner::Address(owner),
         );
 
         cache.write_object_entry(&object_id, *write_version, object.into());
@@ -1570,7 +1570,7 @@ async fn concurrent_latest_object_cache_collision_test() {
         let object2 = Object::with_id_owner_version_for_testing(
             object2_id,
             latest2_version,
-            Owner::AddressOwner(owner2),
+            Owner::Address(owner2),
         );
 
         // preempt the reader

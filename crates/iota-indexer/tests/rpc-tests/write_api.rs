@@ -271,7 +271,7 @@ fn dev_inspect_transaction_block() {
             .find_map(|obj| (obj.reference.object_id == object_ref.object_id).then_some(obj.owner))
             .unwrap();
 
-        assert_eq!(owner, Owner::AddressOwner(receiver));
+        assert_eq!(owner, Owner::Address(receiver));
 
         let latest_checkpoint_seq_number = client
             .get_latest_checkpoint_sequence_number()
@@ -298,7 +298,7 @@ fn dev_inspect_transaction_block() {
         );
         assert_eq!(
             actual_object_data.owner.unwrap(),
-            Owner::AddressOwner(sender),
+            Owner::Address(sender),
             "the initial owner of the object should not change"
         );
     });
@@ -374,7 +374,7 @@ fn execute_transaction_block() {
             })
             .unwrap();
 
-        assert_eq!(owner, Owner::AddressOwner(receiver));
+        assert_eq!(owner, Owner::Address(receiver));
 
         let actual_object_info = client
             .get_object(
@@ -387,7 +387,7 @@ fn execute_transaction_block() {
         assert_eq!(actual_object_info.data.as_ref().unwrap().version, seq_num);
         assert_eq!(
             actual_object_info.data.unwrap().owner.unwrap(),
-            Owner::AddressOwner(receiver)
+            Owner::Address(receiver)
         );
     });
 }
@@ -1419,10 +1419,7 @@ fn move_view_function_call() {
             .find_map(|change| match change {
                 ObjectChange::Created {
                     object_id,
-                    owner:
-                        Owner::Shared {
-                            initial_shared_version,
-                        },
+                    owner: Owner::Shared(initial_shared_version),
                     ..
                 } => Some((object_id, initial_shared_version)),
                 _ => None,

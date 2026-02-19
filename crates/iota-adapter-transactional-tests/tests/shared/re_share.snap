@@ -17,7 +17,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 3, line 34:
 //# view-object 2,0
-Owner: Shared( 3 )
+Owner: Shared(3)
 Version: 3
 Contents: t2::o2::Obj2 {
     id: iota::object::UID {
@@ -34,7 +34,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 5, line 38:
 //# view-object 2,0
-Owner: Shared( 3 )
+Owner: Shared(3)
 Version: 4
 Contents: t2::o2::Obj2 {
     id: iota::object::UID {
@@ -51,7 +51,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 7, line 42:
 //# view-object 2,0
-Owner: Shared( 3 )
+Owner: Shared(3)
 Version: 5
 Contents: t2::o2::Obj2 {
     id: iota::object::UID {
@@ -68,7 +68,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 9, line 46:
 //# view-object 2,0
-Owner: Shared( 3 )
+Owner: Shared(3)
 Version: 6
 Contents: t2::o2::Obj2 {
     id: iota::object::UID {
@@ -85,7 +85,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 11, line 50:
 //# view-object 2,0
-Owner: Shared( 3 )
+Owner: Shared(3)
 Version: 7
 Contents: t2::o2::Obj2 {
     id: iota::object::UID {

@@ -88,7 +88,7 @@ impl InMemoryWallet {
     /// Apply updates from `effects` to `self`
     pub fn update(&mut self, effects: &ExecutionEffects) {
         for (obj, owner) in effects.mutated().into_iter().chain(effects.created()) {
-            if let Owner::AddressOwner(a) = owner {
+            if let Owner::Address(a) = owner {
                 if let Some(account) = self.accounts.get_mut(&a) {
                     account.add_or_update(obj);
                 } // else, doesn't belong to an account we can spend from, we

@@ -14,7 +14,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 2, line 34:
 //# view-object 1,0
-Owner: Shared( 2 )
+Owner: Shared(2)
 Version: 2
 Contents: iota::coin::Coin<test_coin::regulated_coin::REGULATED_COIN> {
     id: iota::object::UID {

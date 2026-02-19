@@ -242,7 +242,7 @@ impl<'backing> TemporaryStore<'backing> {
                 // This is because this could be "spoofed" by loading a dynamic object field.
                 let loaded_via_receive = obj_meta.version == receiving_object.version
                     && obj_meta.digest == receiving_object.digest
-                    && obj_meta.owner.is_address_owned();
+                    && obj_meta.owner.is_address();
                 if loaded_via_receive {
                     transaction_dependencies.insert(obj_meta.previous_transaction);
                 }
@@ -567,7 +567,7 @@ impl TemporaryStore<'_> {
                     return None;
                 }
                 match &obj.owner {
-                    Owner::AddressOwner(a) => {
+                    Owner::Address(a) => {
                         assert!(sender == a, "Input object not owned by sender");
                         Some(id)
                     }
@@ -585,9 +585,10 @@ impl TemporaryStore<'_> {
                         // us from catching this.
                         None
                     }
-                    Owner::ObjectOwner(_parent) => {
+                    Owner::Object(_parent) => {
                         unreachable!("Input objects must be address owned, shared, or immutable")
                     }
+                    _ => unimplemented!("a new enum variant was added and needs to be handled"),
                 }
             })
             .filter(|id| {
@@ -628,8 +629,8 @@ impl TemporaryStore<'_> {
                     )
                 };
                 match &old_obj.owner {
-                    Owner::ObjectOwner(parent) => ObjectID::from(*parent),
-                    Owner::AddressOwner(parent) => {
+                    Owner::Object(parent) => *parent,
+                    Owner::Address(parent) => {
                         // For Receiving<_> objects, the address owner is actually an object.
                         // If it was actually an address, we should have caught it as an input and
                         // it would already have been in authenticated_for_mutation
@@ -654,6 +655,7 @@ impl TemporaryStore<'_> {
                         );
                         continue;
                     }
+                    _ => unimplemented!("a new enum variant was added and needs to be handled"),
                 }
             };
             // we now assume the object is authenticated and must check the parent

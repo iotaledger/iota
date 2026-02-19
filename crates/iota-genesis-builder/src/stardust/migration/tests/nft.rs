@@ -186,10 +186,10 @@ fn nft_migration_with_full_features() {
         &bcs::to_bytes(NFT_DYNAMIC_OBJECT_FIELD_KEY).unwrap(),
     )
     .unwrap();
-    assert_eq!(nft_object.owner, Owner::ObjectOwner(nft_owner.into()));
+    assert_eq!(nft_object.owner, Owner::Object(nft_owner));
 
     let nft_output_owner =
-        Owner::AddressOwner(stardust_to_iota_address(stardust_nft.address()).unwrap());
+        Owner::Address(stardust_to_iota_address(stardust_nft.address()).unwrap());
     assert_eq!(nft_output_object.owner, nft_output_owner);
 }
 

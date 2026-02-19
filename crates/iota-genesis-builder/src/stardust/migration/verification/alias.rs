@@ -61,17 +61,14 @@ pub(super) fn verify_alias_output(
     )?;
 
     // Alias Owner
-    let expected_alias_owner = Owner::ObjectOwner(
-        derive_dynamic_field_id(
-            created_output_obj.id(),
-            &DynamicFieldInfo::dynamic_object_field_wrapper(
-                ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE.parse::<TypeTag>()?,
-            )
-            .into(),
-            &bcs::to_bytes(ALIAS_DYNAMIC_OBJECT_FIELD_KEY)?,
-        )?
+    let expected_alias_owner = Owner::Object(derive_dynamic_field_id(
+        created_output_obj.id(),
+        &DynamicFieldInfo::dynamic_object_field_wrapper(
+            ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE.parse::<TypeTag>()?,
+        )
         .into(),
-    );
+        &bcs::to_bytes(ALIAS_DYNAMIC_OBJECT_FIELD_KEY)?,
+    )?);
 
     ensure!(
         created_alias_obj.owner == expected_alias_owner,
