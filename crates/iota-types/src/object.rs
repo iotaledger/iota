@@ -11,11 +11,11 @@ use std::{
 };
 
 use iota_protocol_config::ProtocolConfig;
+pub use iota_sdk_types::Owner;
 use iota_sdk_types::{StructTag, TypeTag};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
 use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue};
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
 
@@ -452,104 +452,6 @@ impl Data {
     }
 }
 
-#[derive(
-    Eq, PartialEq, Debug, Clone, Copy, Deserialize, Serialize, Hash, JsonSchema, Ord, PartialOrd,
-)]
-#[cfg_attr(feature = "fuzzing", derive(proptest_derive::Arbitrary))]
-pub enum Owner {
-    /// Object is exclusively owned by a single address, and is mutable.
-    AddressOwner(IotaAddress),
-    /// Object is exclusively owned by a single object, and is mutable.
-    /// The object ID is converted to IotaAddress as IotaAddress is universal.
-    ObjectOwner(IotaAddress),
-    /// Object is shared, can be used by any address, and is mutable.
-    Shared {
-        /// The version at which the object became shared
-        initial_shared_version: SequenceNumber,
-    },
-    /// Object is immutable, and hence ownership doesn't matter.
-    Immutable,
-}
-
-impl Owner {
-    // NOTE: only return address of AddressOwner, otherwise return error,
-    // ObjectOwner's address is converted from object id, thus we will skip it.
-    pub fn get_address_owner_address(&self) -> IotaResult<IotaAddress> {
-        match self {
-            Self::AddressOwner(address) => Ok(*address),
-            Self::Shared { .. } | Self::Immutable | Self::ObjectOwner(_) => {
-                Err(IotaError::UnexpectedOwnerType)
-            }
-        }
-    }
-
-    // NOTE: this function will return address of both AddressOwner and ObjectOwner,
-    // address of ObjectOwner is converted from object id, even though the type is
-    // IotaAddress.
-    pub fn get_owner_address(&self) -> IotaResult<IotaAddress> {
-        match self {
-            Self::AddressOwner(address) | Self::ObjectOwner(address) => Ok(*address),
-            Self::Shared { .. } | Self::Immutable => Err(IotaError::UnexpectedOwnerType),
-        }
-    }
-
-    pub fn is_immutable(&self) -> bool {
-        matches!(self, Owner::Immutable)
-    }
-
-    pub fn is_address_owned(&self) -> bool {
-        matches!(self, Owner::AddressOwner(_))
-    }
-
-    pub fn is_child_object(&self) -> bool {
-        matches!(self, Owner::ObjectOwner(_))
-    }
-
-    pub fn is_shared(&self) -> bool {
-        matches!(self, Owner::Shared { .. })
-    }
-}
-
-impl PartialEq<IotaAddress> for Owner {
-    fn eq(&self, other: &IotaAddress) -> bool {
-        match self {
-            Self::AddressOwner(address) => address == other,
-            Self::ObjectOwner(_) | Self::Shared { .. } | Self::Immutable => false,
-        }
-    }
-}
-
-impl PartialEq<ObjectID> for Owner {
-    fn eq(&self, other: &ObjectID) -> bool {
-        let other_id: IotaAddress = (*other).into();
-        match self {
-            Self::ObjectOwner(id) => id == &other_id,
-            Self::AddressOwner(_) | Self::Shared { .. } | Self::Immutable => false,
-        }
-    }
-}
-
-impl Display for Owner {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::AddressOwner(address) => {
-                write!(f, "Account Address ( {address} )")
-            }
-            Self::ObjectOwner(address) => {
-                write!(f, "Object ID: ( {address} )")
-            }
-            Self::Immutable => {
-                write!(f, "Immutable")
-            }
-            Self::Shared {
-                initial_shared_version,
-            } => {
-                write!(f, "Shared( {initial_shared_version} )")
-            }
-        }
-    }
-}
-
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 #[serde(rename = "Object")]
 pub struct ObjectInner {
@@ -720,11 +622,11 @@ impl ObjectInner {
     }
 
     pub fn is_address_owned(&self) -> bool {
-        self.owner.is_address_owned()
+        self.owner.is_address()
     }
 
     pub fn is_child_object(&self) -> bool {
-        self.owner.is_child_object()
+        self.owner.is_object()
     }
 
     pub fn is_shared(&self) -> bool {
@@ -732,7 +634,7 @@ impl ObjectInner {
     }
 
     pub fn get_single_owner(&self) -> Option<IotaAddress> {
-        self.owner.get_owner_address().ok()
+        self.owner.address().copied()
     }
 
     // It's a common pattern to retrieve both the owner and object ID
@@ -847,7 +749,7 @@ impl ObjectInner {
 
     /// Change the owner of `self` to `new_owner`.
     pub fn transfer(&mut self, new_owner: IotaAddress) {
-        self.owner = Owner::AddressOwner(new_owner);
+        self.owner = Owner::Address(new_owner);
     }
 
     /// Get a `MoveStructLayout` for `self`.
@@ -929,9 +831,7 @@ impl Object {
     pub fn shared_for_testing() -> Object {
         let id = ObjectID::random();
         let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, id, 10);
-        let owner = Owner::Shared {
-            initial_shared_version: obj.version(),
-        };
+        let owner = Owner::Shared(obj.version());
         Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
     }
 
@@ -942,7 +842,7 @@ impl Object {
             contents: GasCoin::new(id, gas).to_bcs_bytes(),
         });
         ObjectInner {
-            owner: Owner::AddressOwner(owner),
+            owner: Owner::Address(owner),
             data,
             previous_transaction: TransactionDigest::GENESIS_MARKER,
             storage_rebate: 0,
@@ -987,7 +887,7 @@ impl Object {
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
         });
         ObjectInner {
-            owner: Owner::ObjectOwner(owner.into()),
+            owner: Owner::Object(owner),
             data,
             previous_transaction: TransactionDigest::GENESIS_MARKER,
             storage_rebate: 0,
@@ -1029,7 +929,7 @@ impl Object {
         let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectID::random(), value);
         Object::new_move(
             obj,
-            Owner::AddressOwner(owner),
+            Owner::Address(owner),
             TransactionDigest::GENESIS_MARKER,
         )
     }
@@ -1209,7 +1109,7 @@ mod tests {
             GasCoin::new_for_testing_with_id(ObjectID::ZERO, 123).to_object(OBJECT_START_VERSION);
         let o = Object::new_move(
             g,
-            Owner::AddressOwner(IotaAddress::ZERO),
+            Owner::Address(IotaAddress::ZERO),
             TransactionDigest::ZERO,
         );
         let bytes = bcs::to_bytes(&o).unwrap();

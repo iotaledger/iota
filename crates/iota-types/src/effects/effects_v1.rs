@@ -299,7 +299,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
         } else {
             (
                 ObjectRef::new(ObjectID::ZERO, SequenceNumber::default(), ObjectDigest::MIN),
-                Owner::AddressOwner(IotaAddress::ZERO),
+                Owner::Address(IotaAddress::ZERO),
             )
         }
     }
@@ -347,15 +347,11 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
                 EffectsObjectChange {
                     input_state: ObjectIn::Exist((
                         (obj_ref.version, obj_ref.digest),
-                        Owner::Shared {
-                            initial_shared_version: OBJECT_START_VERSION,
-                        },
+                        Owner::Shared(OBJECT_START_VERSION),
                     )),
                     output_state: ObjectOut::ObjectWrite((
                         obj_ref.digest,
-                        Owner::Shared {
-                            initial_shared_version: obj_ref.version,
-                        },
+                        Owner::Shared(obj_ref.version),
                     )),
                     id_operation: IDOperation::None,
                 },
@@ -382,11 +378,11 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
             EffectsObjectChange {
                 input_state: ObjectIn::Exist((
                     (obj_ref.version, obj_ref.digest),
-                    Owner::AddressOwner(IotaAddress::ZERO),
+                    Owner::Address(IotaAddress::ZERO),
                 )),
                 output_state: ObjectOut::ObjectWrite((
                     obj_ref.digest,
-                    Owner::AddressOwner(IotaAddress::ZERO),
+                    Owner::Address(IotaAddress::ZERO),
                 )),
                 id_operation: IDOperation::None,
             },
@@ -399,7 +395,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
             EffectsObjectChange {
                 input_state: ObjectIn::Exist((
                     (obj_ref.version, obj_ref.digest),
-                    Owner::AddressOwner(IotaAddress::ZERO),
+                    Owner::Address(IotaAddress::ZERO),
                 )),
                 output_state: ObjectOut::NotExist,
                 id_operation: IDOperation::Deleted,
@@ -571,7 +567,7 @@ impl TransactionEffectsV1 {
         }
         // Make sure that gas object exists in changed_objects.
         let (_, owner) = self.gas_object();
-        assert!(matches!(owner, Owner::AddressOwner(_)));
+        assert!(matches!(owner, Owner::Address(_)));
 
         for (id, _) in &self.unchanged_shared_objects {
             assert!(

@@ -44,7 +44,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 7, lines 79-81:
 //# view-object 6,0
-Owner: Shared( 2 )
+Owner: Shared(2)
 Version: 2
 Contents: Test_DepV1::DepM1::DepObj {
     id: iota::object::UID {
@@ -64,7 +64,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 9, lines 86-89:
 //# view-object 6,0
-Owner: Shared( 2 )
+Owner: Shared(2)
 Version: 7
 Contents: Test_DepV1::DepM1::DepObj {
     id: iota::object::UID {
@@ -84,7 +84,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 11, lines 94-97:
 //# view-object 6,0
-Owner: Shared( 2 )
+Owner: Shared(2)
 Version: 8
 Contents: Test_DepV1::DepM1::DepObj {
     id: iota::object::UID {
@@ -104,7 +104,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 13, line 102:
 //# view-object 6,0
-Owner: Shared( 2 )
+Owner: Shared(2)
 Version: 9
 Contents: Test_DepV1::DepM1::DepObj {
     id: iota::object::UID {

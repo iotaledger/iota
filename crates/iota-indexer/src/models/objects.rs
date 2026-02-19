@@ -690,7 +690,7 @@ mod tests {
         let owner = IotaAddress::STD;
 
         let object = ObjectInner {
-            owner: Owner::AddressOwner(owner),
+            owner: Owner::Address(owner),
             data,
             previous_transaction: TransactionDigest::GENESIS_MARKER,
             storage_rebate: 0,

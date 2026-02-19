@@ -82,7 +82,7 @@ async fn test_end_to_end() -> anyhow::Result<()> {
     let cap = effects
         .created()
         .iter()
-        .find(|refe| matches!(refe.owner, Owner::AddressOwner(_)))
+        .find(|refe| matches!(refe.owner, Owner::Address(_)))
         .unwrap();
 
     // Set up source service config to watch the upgrade cap.

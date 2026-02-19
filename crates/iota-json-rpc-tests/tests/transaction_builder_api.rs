@@ -138,9 +138,9 @@ async fn test_transfer_iota() -> Result<(), anyhow::Error> {
     // let amount_to_transfer = i128::from(amount_to_transfer);
     let expected_sender_balance_change = -amount_to_transfer - gas_usage;
     let balance_changes = tx_response.balance_changes.unwrap();
-    assert_eq!(balance_changes[0].owner, Owner::AddressOwner(address));
+    assert_eq!(balance_changes[0].owner, Owner::Address(address));
     assert_eq!(balance_changes[0].amount, expected_sender_balance_change);
-    assert_eq!(balance_changes[1].owner, Owner::AddressOwner(other_address));
+    assert_eq!(balance_changes[1].owner, Owner::Address(other_address));
     assert_eq!(balance_changes[1].amount, amount_to_transfer);
 
     Ok(())
@@ -191,9 +191,9 @@ async fn test_pay() -> Result<(), anyhow::Error> {
 
     let expected_sender_balance_change = -amount_to_transfer - gas_usage;
     let balance_changes = tx_response.balance_changes.unwrap();
-    assert_eq!(balance_changes[0].owner, Owner::AddressOwner(address));
+    assert_eq!(balance_changes[0].owner, Owner::Address(address));
     assert_eq!(balance_changes[0].amount, expected_sender_balance_change);
-    assert_eq!(balance_changes[1].owner, Owner::AddressOwner(other_address));
+    assert_eq!(balance_changes[1].owner, Owner::Address(other_address));
     assert_eq!(balance_changes[1].amount, amount_to_transfer);
 
     Ok(())
@@ -248,11 +248,11 @@ async fn test_pay_iota() -> Result<(), anyhow::Error> {
 
     let expected_sender_balance_change = -recipient_1_amount - recipient_2_amount - gas_usage;
     let balance_changes = tx_response.balance_changes.unwrap();
-    assert_eq!(balance_changes[0].owner, Owner::AddressOwner(address));
+    assert_eq!(balance_changes[0].owner, Owner::Address(address));
     assert_eq!(balance_changes[0].amount, expected_sender_balance_change);
-    assert_eq!(balance_changes[1].owner, Owner::AddressOwner(recipient_1));
+    assert_eq!(balance_changes[1].owner, Owner::Address(recipient_1));
     assert_eq!(balance_changes[1].amount, recipient_1_amount);
-    assert_eq!(balance_changes[2].owner, Owner::AddressOwner(recipient_2));
+    assert_eq!(balance_changes[2].owner, Owner::Address(recipient_2));
     assert_eq!(balance_changes[2].amount, recipient_2_amount);
 
     Ok(())
@@ -302,9 +302,9 @@ async fn test_pay_all_iota() -> Result<(), anyhow::Error> {
 
     let expected_recipient_balance_change = total_balance - gas_usage;
     let balance_changes = tx_response.balance_changes.unwrap();
-    assert_eq!(balance_changes[0].owner, Owner::AddressOwner(address));
+    assert_eq!(balance_changes[0].owner, Owner::Address(address));
     assert_eq!(balance_changes[0].amount, -total_balance);
-    assert_eq!(balance_changes[1].owner, Owner::AddressOwner(recipient));
+    assert_eq!(balance_changes[1].owner, Owner::Address(recipient));
     assert_eq!(balance_changes[1].amount, expected_recipient_balance_change);
 
     Ok(())
@@ -640,7 +640,7 @@ async fn test_batch_transaction() -> Result<(), anyhow::Error> {
             .unwrap();
         assert_eq!(
             transferred_object.owner(),
-            Some(Owner::AddressOwner(other_address))
+            Some(Owner::Address(other_address))
         );
     }
 

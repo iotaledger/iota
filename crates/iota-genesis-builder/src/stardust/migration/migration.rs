@@ -318,9 +318,9 @@ impl Extend<Object> for MigrationObjects {
             } else {
                 continue;
             };
-            let owner = object
+            let owner = *object
                 .owner
-                .get_owner_address()
+                .as_address_opt()
                 .expect("timelocks should have an address owner");
             owner_object_map
                 .entry(owner)
@@ -513,7 +513,7 @@ mod tests {
             .map(|move_object| {
                 Object::new_from_genesis(
                     Data::Move(move_object),
-                    Owner::AddressOwner(address),
+                    Owner::Address(address),
                     tx_context.digest(),
                 )
             });
@@ -557,7 +557,7 @@ mod tests {
             .map(|move_object| {
                 Object::new_from_genesis(
                     Data::Move(move_object),
-                    Owner::AddressOwner(owner),
+                    Owner::Address(owner),
                     tx_context.digest(),
                 )
             })

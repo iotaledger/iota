@@ -30,7 +30,7 @@ use super::{
     iota_address::IotaAddress,
     move_object::{MoveObject, MoveObjectImpl},
     move_value::MoveValue,
-    object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
+    object::{self, Object, ObjectFilter, ObjectImpl, ObjectStatus},
     owner::OwnerImpl,
     stake::StakedIota,
     string_input::impl_string_input,
@@ -44,6 +44,7 @@ use crate::{
     consistency::{View, build_objects_query},
     data::{Db, DbConnection, QueryExecutor},
     error::Error,
+    types::object::ObjectOwner,
 };
 
 /// Represents the "core" of the name service (e.g. the on-chain registry and

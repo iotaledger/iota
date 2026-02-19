@@ -23,7 +23,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 4, line 104:
 //# view-object 2,0
-Owner: Shared( 3 )
+Owner: Shared(3)
 Version: 3
 Contents: t2::o2::Obj2 {
     id: iota::object::UID {
@@ -35,7 +35,7 @@ Contents: t2::o2::Obj2 {
 
 task 5, lines 106-108:
 //# view-object 3,0
-Owner: Shared( 4 )
+Owner: Shared(4)
 Version: 4
 Contents: t2::o2::Obj2 {
     id: iota::object::UID {
@@ -129,7 +129,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 16, lines 160-163:
 //# view-object 15,0
-Owner: Shared( 14 )
+Owner: Shared(14)
 Version: 14
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {

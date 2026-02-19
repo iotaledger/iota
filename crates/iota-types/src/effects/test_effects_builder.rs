@@ -149,12 +149,12 @@ impl TestEffectsBuilder {
                         EffectsObjectChange {
                             input_state: ObjectIn::Exist((
                                 (oref.version, oref.digest),
-                                Owner::AddressOwner(sender),
+                                Owner::Address(sender),
                             )),
                             output_state: ObjectOut::ObjectWrite((
                                 // Digest must change with a mutation.
                                 ObjectDigest::MAX,
-                                Owner::AddressOwner(sender),
+                                Owner::Address(sender),
                             )),
                             id_operation: IDOperation::None,
                         },
@@ -176,16 +176,12 @@ impl TestEffectsBuilder {
                                     .unwrap_or(initial_shared_version),
                                 ObjectDigest::MIN,
                             ),
-                            Owner::Shared {
-                                initial_shared_version: *initial_shared_version,
-                            },
+                            Owner::Shared(*initial_shared_version),
                         )),
                         output_state: ObjectOut::ObjectWrite((
                             // Digest must change with a mutation.
                             ObjectDigest::MAX,
-                            Owner::Shared {
-                                initial_shared_version: *initial_shared_version,
-                            },
+                            Owner::Shared(*initial_shared_version),
                         )),
                         id_operation: IDOperation::None,
                     },
@@ -210,7 +206,7 @@ impl TestEffectsBuilder {
                             EffectsObjectChange {
                                 input_state: ObjectIn::Exist((
                                     (version, ObjectDigest::random()),
-                                    Owner::AddressOwner(sender),
+                                    Owner::Address(sender),
                                 )),
                                 output_state: ObjectOut::ObjectWrite((
                                     ObjectDigest::random(),
@@ -227,7 +223,7 @@ impl TestEffectsBuilder {
                     EffectsObjectChange {
                         input_state: ObjectIn::Exist((
                             (version, ObjectDigest::random()),
-                            Owner::AddressOwner(sender),
+                            Owner::Address(sender),
                         )),
                         output_state: ObjectOut::NotExist,
                         id_operation: IDOperation::Deleted,
@@ -240,7 +236,7 @@ impl TestEffectsBuilder {
                     EffectsObjectChange {
                         input_state: ObjectIn::Exist((
                             (version, ObjectDigest::random()),
-                            Owner::AddressOwner(sender),
+                            Owner::Address(sender),
                         )),
                         output_state: ObjectOut::NotExist,
                         id_operation: IDOperation::None,

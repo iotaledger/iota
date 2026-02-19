@@ -26,7 +26,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 4, line 30:
 //# view-object 3,0
-Owner: Object ID: ( fake(2,0) )
+Owner: Object(fake(2,0))
 Version: 4
 Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, iota::object::ID> {
     id: iota::object::UID {
@@ -48,7 +48,7 @@ Error: Error checking transaction input objects: Object ObjectId("object(3,0)") 
 
 task 6, line 34:
 //# view-object 3,0
-Owner: Object ID: ( fake(2,0) )
+Owner: Object(fake(2,0))
 Version: 4
 Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, iota::object::ID> {
     id: iota::object::UID {

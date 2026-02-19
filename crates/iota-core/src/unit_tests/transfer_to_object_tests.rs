@@ -257,7 +257,7 @@ impl TestRunner {
 fn get_parent_and_child(
     created: Vec<(ObjectRef, Owner)>,
 ) -> ((ObjectRef, Owner), (ObjectRef, Owner)) {
-    // make sure there is an object with an `AddressOwner` who matches the object ID
+    // make sure there is an object with an `Address` who matches the object ID
     // of another object.
     let created_addrs: HashSet<_> = created
         .iter()
@@ -266,7 +266,7 @@ fn get_parent_and_child(
     let (child, parent_id) = created
         .iter()
         .find_map(|child @ (_, owner)| match owner {
-            Owner::AddressOwner(j) if created_addrs.contains(&ObjectID::from(*j)) => {
+            Owner::Address(j) if created_addrs.contains(&ObjectID::from(*j)) => {
                 Some((child, (*j).into()))
             }
             _ => None,
@@ -321,7 +321,7 @@ async fn test_tto_transfer() {
         for (obj_ref, owner) in effects.mutated().iter() {
             if obj_ref.object_id == child.0 .object_id {
                 // Child should be sent to 0x0
-                assert_eq!(owner, &Owner::AddressOwner(IotaAddress::ZERO));
+                assert_eq!(owner, &Owner::Address(IotaAddress::ZERO));
                 // It's version should be bumped as well
                 assert!(obj_ref.version > child.0.version);
             }
@@ -424,7 +424,7 @@ async fn test_tto_invalid_receiving_arguments() {
         let object_owned = *effects
             .created()
             .iter()
-            .find(|(_, owner)| matches!(owner, Owner::ObjectOwner(_)))
+            .find(|(_, owner)| matches!(owner, Owner::Object(_)))
             .unwrap();
 
         #[expect(clippy::type_complexity)]
@@ -768,7 +768,7 @@ async fn test_tto_unwrap_transfer() {
         // The now-unwrapped object should be sent to 0x0
         assert_eq!(
             effects.unwrapped()[0].1,
-            Owner::AddressOwner(IotaAddress::ZERO)
+            Owner::Address(IotaAddress::ZERO)
         );
 
         // Receiving object ID is deleted
@@ -1132,7 +1132,7 @@ async fn test_tto_valid_dependencies() {
         for (obj_ref, owner) in effects.mutated().iter() {
             if obj_ref.object_id == child.0 .object_id {
                 // Child should be sent to 0x0
-                assert_eq!(owner, &Owner::AddressOwner(IotaAddress::ZERO));
+                assert_eq!(owner, &Owner::Address(IotaAddress::ZERO));
                 // It's version should be bumped as well
                 assert!(obj_ref.version > child.0.version);
                 // The child should be the max version
@@ -1659,9 +1659,9 @@ async fn receive_and_dof_interleave() {
         let owned = *effects
             .created()
             .iter()
-            .find(|(_, owner)| matches!(owner, Owner::AddressOwner(_)))
+            .find(|(_, owner)| matches!(owner, Owner::Address(_)))
             .unwrap();
-        let Owner::Shared { initial_shared_version }= shared.1 else { unreachable!() };
+        let Owner::Shared(initial_shared_version) = shared.1 else { unreachable!() };
 
         let init_digest = effects.transaction_digest();
 

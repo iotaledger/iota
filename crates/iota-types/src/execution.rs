@@ -138,10 +138,7 @@ impl ExecutionResultsV1 {
             // Note, this only works because shared objects must be created as
             // shared (not created as owned in one transaction and later
             // converted to shared in another).
-            if let Owner::Shared {
-                initial_shared_version,
-            } = &mut obj.owner
-            {
+            if let Owner::Shared(initial_shared_version) = &mut obj.owner {
                 if self.created_object_ids.contains(id) {
                     assert_eq!(
                         *initial_shared_version,
@@ -152,9 +149,9 @@ impl ExecutionResultsV1 {
                 }
 
                 // Update initial_shared_version for reshared objects
-                if let Some(Owner::Shared {
-                    initial_shared_version: previous_initial_shared_version,
-                }) = input_objects.get(id).map(|obj| &obj.owner)
+                if let Some(previous_initial_shared_version) = input_objects
+                    .get(id)
+                    .and_then(|obj| obj.owner.as_shared_opt())
                 {
                     debug_assert!(!self.created_object_ids.contains(id));
                     debug_assert!(!self.deleted_object_ids.contains(id));

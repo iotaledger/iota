@@ -38,7 +38,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 6, line 79:
 //# view-object 4,0
-Owner: Object ID: ( fake(5,0) )
+Owner: Object(fake(5,0))
 Version: 3
 Contents: t3::o3::Obj3 {
     id: iota::object::UID {
@@ -50,7 +50,7 @@ Contents: t3::o3::Obj3 {
 
 task 7, lines 81-83:
 //# view-object 5,1
-Owner: Shared( 3 )
+Owner: Shared(3)
 Version: 3
 Contents: t2::o2::Obj2 {
     id: iota::object::UID {

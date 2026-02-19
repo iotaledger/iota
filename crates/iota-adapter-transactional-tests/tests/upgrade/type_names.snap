@@ -74,7 +74,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 12, line 81:
 //# view-object 4,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 5
 Contents: A0::m::Canary {
     id: iota::object::UID {
@@ -152,7 +152,7 @@ Contents: A0::m::Canary {
 
 task 13, line 83:
 //# view-object 5,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 6
 Contents: A0::m::Canary {
     id: iota::object::UID {
@@ -230,7 +230,7 @@ Contents: A0::m::Canary {
 
 task 14, line 85:
 //# view-object 6,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 7
 Contents: A0::m::Canary {
     id: iota::object::UID {
@@ -308,7 +308,7 @@ Contents: A0::m::Canary {
 
 task 15, line 87:
 //# view-object 7,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 8
 Contents: A0::m::Canary {
     id: iota::object::UID {
@@ -386,7 +386,7 @@ Contents: A0::m::Canary {
 
 task 16, line 89:
 //# view-object 8,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 9
 Contents: A0::m::Canary {
     id: iota::object::UID {
@@ -464,7 +464,7 @@ Contents: A0::m::Canary {
 
 task 17, line 91:
 //# view-object 9,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 10
 Contents: A0::m::Canary {
     id: iota::object::UID {
@@ -542,7 +542,7 @@ Contents: A0::m::Canary {
 
 task 18, line 93:
 //# view-object 10,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 11
 Contents: A0::m::Canary {
     id: iota::object::UID {
@@ -620,7 +620,7 @@ Contents: A0::m::Canary {
 
 task 19, line 95:
 //# view-object 11,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 12
 Contents: A0::m::Canary {
     id: iota::object::UID {

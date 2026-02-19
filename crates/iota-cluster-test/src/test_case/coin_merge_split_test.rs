@@ -54,7 +54,7 @@ impl TestCaseImpl for CoinMergeSplitTest {
                 .iter()
                 .map(|coin_ref| {
                     ObjectChecker::new(coin_ref.reference.object_id)
-                        .owner(Owner::AddressOwner(signer))
+                        .owner(Owner::Address(signer))
                         .check_into_gas_coin(ctx.get_fullnode_client())
                 })
                 .collect::<Vec<_>>(),
@@ -85,7 +85,7 @@ impl TestCaseImpl for CoinMergeSplitTest {
                 .iter()
                 .map(|obj_id| {
                     ObjectChecker::new(*obj_id)
-                        .owner(Owner::AddressOwner(signer))
+                        .owner(Owner::Address(signer))
                         .deleted()
                         .check(ctx.get_fullnode_client())
                 })
@@ -101,7 +101,7 @@ impl TestCaseImpl for CoinMergeSplitTest {
             *primary_coin.id()
         );
         let primary_after_merge = ObjectChecker::new(primary_coin_id)
-            .owner(Owner::AddressOwner(ctx.get_wallet_address()))
+            .owner(Owner::Address(ctx.get_wallet_address()))
             .check_into_gas_coin(ctx.get_fullnode_client())
             .await;
         assert_eq!(

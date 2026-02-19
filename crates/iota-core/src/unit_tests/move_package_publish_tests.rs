@@ -90,7 +90,7 @@ async fn test_publishing_with_unpublished_deps() {
     // Check that calling the function does what we expect
     assert!(matches!(
         owner,
-        Owner::Shared { initial_shared_version: initial } if initial == v
+        Owner::Shared(initial) if initial == v
     ));
 }
 

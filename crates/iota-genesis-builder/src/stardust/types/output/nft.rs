@@ -344,11 +344,9 @@ impl NftOutputExt for NftOutput {
         };
 
         let owner = if self.expiration.is_some() {
-            Owner::Shared {
-                initial_shared_version: version,
-            }
+            Owner::Shared(version)
         } else {
-            Owner::AddressOwner(owner)
+            Owner::Address(owner)
         };
 
         let move_nft_output_object = Object::new_from_genesis(

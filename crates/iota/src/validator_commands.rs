@@ -504,7 +504,7 @@ async fn get_cap_object_ref(
         let cap_obj_ref = resp
             .object_ref_if_exists()
             .unwrap_or_else(|| panic!("OperationCap {cap_object_id} does not exist"));
-        if owner != Owner::AddressOwner(context.active_address()?) {
+        if owner != Owner::Address(context.active_address()?) {
             anyhow::bail!(
                 "OperationCap {} is not owned by the sender address {} but {:?}",
                 summary.operation_cap_id,

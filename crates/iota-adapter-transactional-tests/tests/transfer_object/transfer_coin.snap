@@ -14,7 +14,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 2, line 12:
 //# view-object 0,2
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 2
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {
@@ -34,7 +34,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 4, line 16:
 //# view-object 0,2
-Owner: Account Address ( B )
+Owner: Address(B)
 Version: 3
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {

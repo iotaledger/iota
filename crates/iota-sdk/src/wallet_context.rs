@@ -225,10 +225,11 @@ impl WalletContext {
             .get_object_with_options(*id, IotaObjectDataOptions::new().with_owner())
             .await?
             .into_object()?;
-        Ok(object
+        Ok(*object
             .owner
             .ok_or_else(|| anyhow!("Owner field is None"))?
-            .get_owner_address()?)
+            .address()
+            .ok_or_else(|| anyhow::anyhow!("not an address or object owner"))?)
     }
 
     /// Get the address that owns the object, if an [`ObjectID`] is provided.

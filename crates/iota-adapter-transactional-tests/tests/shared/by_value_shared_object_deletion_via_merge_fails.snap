@@ -32,7 +32,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 5, line 71:
 //# view-object 2,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 3
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {
@@ -47,7 +47,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
 
 task 6, line 73:
 //# view-object 3,0
-Owner: Shared( 4 )
+Owner: Shared(4)
 Version: 4
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {
@@ -62,7 +62,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
 
 task 7, lines 75-77:
 //# view-object 4,0
-Owner: Shared( 5 )
+Owner: Shared(5)
 Version: 5
 Contents: t2::o2::Obj2 {
     id: iota::object::UID {
@@ -132,7 +132,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 16, line 110:
 //# view-object 13,0
-Owner: Shared( 6 )
+Owner: Shared(6)
 Version: 6
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {
@@ -147,7 +147,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
 
 task 17, line 112:
 //# view-object 14,0
-Owner: Shared( 7 )
+Owner: Shared(7)
 Version: 7
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {
@@ -162,7 +162,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
 
 task 18, lines 114-116:
 //# view-object 15,0
-Owner: Shared( 8 )
+Owner: Shared(8)
 Version: 8
 Contents: t2::o2::Obj2 {
     id: iota::object::UID {

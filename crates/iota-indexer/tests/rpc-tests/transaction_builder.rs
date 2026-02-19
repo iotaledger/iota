@@ -72,10 +72,7 @@ fn transfer_object() {
             .await
             .unwrap();
 
-        assert_eq!(
-            transferred_object.owner(),
-            Some(Owner::AddressOwner(receiver))
-        );
+        assert_eq!(transferred_object.owner(), Some(Owner::Address(receiver)));
     });
 }
 
@@ -835,7 +832,7 @@ async fn create_cluster_with_timelocked_iota(
         .unwrap()
     };
     let timelock_iota = ObjectInner {
-        owner: Owner::AddressOwner(address),
+        owner: Owner::Address(address),
         data: Data::Move(timelock_iota),
         previous_transaction: TransactionDigest::GENESIS_MARKER,
         storage_rebate: 0,

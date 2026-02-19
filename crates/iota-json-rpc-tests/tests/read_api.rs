@@ -467,7 +467,7 @@ async fn get_object_info() -> Result<(), anyhow::Error> {
             )
             .await?;
         assert!(
-            matches!(rpc_obj, IotaObjectResponse { data: Some(object), .. } if oref.object_id == object.object_id && object.owner.unwrap().get_owner_address()? == address)
+            matches!(rpc_obj, IotaObjectResponse { data: Some(object), .. } if oref.object_id == object.object_id && *object.owner.unwrap().address().unwrap() == address)
         );
     }
     Ok(())

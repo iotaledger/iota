@@ -344,7 +344,7 @@ mod add_stake {
             let staked_amount =
                 object.get_total_iota(layout_resolver.as_mut()).unwrap() - object.storage_rebate;
             assert_eq!(staked_amount, self.stake_amount);
-            assert_eq!(object.owner.get_owner_address().unwrap(), self.sender);
+            assert_eq!(*object.owner.address().unwrap(), self.sender);
             runner.display_effects(effects);
         }
 

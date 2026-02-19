@@ -97,16 +97,15 @@ impl TestCallArg {
     async fn call_arg_from_id(object_id: ObjectID, state: &AuthorityState) -> ObjectArg {
         let object = state.get_object(&object_id).await.unwrap();
         match &object.owner {
-            Owner::AddressOwner(_) | Owner::ObjectOwner(_) | Owner::Immutable => {
+            Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
                 ObjectArg::ImmOrOwnedObject(object.compute_object_reference())
             }
-            Owner::Shared {
-                initial_shared_version,
-            } => ObjectArg::SharedObject {
+            Owner::Shared(initial_shared_version) => ObjectArg::SharedObject {
                 id: object_id,
                 initial_shared_version: *initial_shared_version,
                 mutable: true,
             },
+            _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
     }
 }
@@ -153,9 +152,7 @@ async fn construct_shared_object_transaction_with_sequence_number(
                 .try_as_move_mut()
                 .unwrap()
                 .increment_version_to(initial_shared_version);
-            shared_object.owner = Owner::Shared {
-                initial_shared_version,
-            };
+            shared_object.owner = Owner::Shared(initial_shared_version);
         }
         shared_object.previous_transaction = TransactionDigest::GENESIS_MARKER;
         (shared_object_id, shared_object)
@@ -446,7 +443,7 @@ async fn test_dev_inspect_unowned_object() {
     let created_object_id = effects.created()[0].0.object_id;
     let created_object = validator.get_object(&created_object_id).await.unwrap();
     assert!(alice != bob);
-    assert_eq!(created_object.owner, Owner::AddressOwner(bob));
+    assert_eq!(created_object.owner, Owner::Address(bob));
 
     // alice uses the object with dev inspect, despite not being the owner
     let DevInspectResults {
@@ -1096,7 +1093,7 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
     let gas_object = Object::with_id_owner_version_for_testing(
         gas_object_id,
         SequenceNumber::MAX_VALID_EXCL - 1,
-        Owner::AddressOwner(sender),
+        Owner::Address(sender),
     );
     let gas_object_ref = gas_object.compute_object_reference();
     validator.insert_genesis_object(gas_object.clone()).await;
@@ -3218,7 +3215,7 @@ async fn test_transfer_iota_no_amount() {
     assert!(effects.status().is_ok());
     assert!(effects.mutated_excluding_gas().is_empty());
     assert!(gas_ref.version < effects.gas_object().0.version);
-    assert_eq!(effects.gas_object().1, Owner::AddressOwner(recipient));
+    assert_eq!(effects.gas_object().1, Owner::Address(recipient));
     let new_balance = iota_types::gas::get_gas_balance(
         &authority_state.get_object(&gas_object_id).await.unwrap(),
     )
@@ -3259,14 +3256,14 @@ async fn test_transfer_iota_with_amount() {
     assert!(effects.status().is_ok());
     assert!(effects.mutated_excluding_gas().is_empty());
     assert_eq!(effects.created().len(), 1);
-    assert_eq!(effects.created()[0].1, Owner::AddressOwner(recipient));
+    assert_eq!(effects.created()[0].1, Owner::Address(recipient));
     let new_gas = authority_state
         .get_object(&effects.created()[0].0.object_id)
         .await
         .unwrap();
     assert_eq!(iota_types::gas::get_gas_balance(&new_gas).unwrap(), 500);
     assert!(gas_ref.version < effects.gas_object().0.version);
-    assert_eq!(effects.gas_object().1, Owner::AddressOwner(sender));
+    assert_eq!(effects.gas_object().1, Owner::Address(sender));
     let new_balance = iota_types::gas::get_gas_balance(
         &authority_state.get_object(&gas_object_id).await.unwrap(),
     )
@@ -3314,7 +3311,7 @@ async fn test_store_revert_transfer_iota() {
 
     assert_eq!(
         cache.get_object(&gas_object_id).unwrap().owner,
-        Owner::AddressOwner(sender),
+        Owner::Address(sender),
     );
     assert_eq!(
         cache
@@ -3776,11 +3773,11 @@ async fn test_store_revert_add_ofield() {
     assert_eq!(outer.version(), outer_v1.version);
 
     let field = cache.get_object(&field_v0.object_id).unwrap();
-    assert_eq!(field.owner, Owner::ObjectOwner(outer_v0.object_id.into()));
+    assert_eq!(field.owner, Owner::Object(outer_v0.object_id));
 
     let inner = cache.get_object(&inner_v0.object_id).unwrap();
     assert_eq!(inner.version(), inner_v1.version);
-    assert_eq!(inner.owner, Owner::ObjectOwner(field_v0.object_id.into()));
+    assert_eq!(inner.owner, Owner::Object(field_v0.object_id));
 
     reconfig_api.revert_state_update(&add_digest);
 
@@ -3795,7 +3792,7 @@ async fn test_store_revert_add_ofield() {
 
     let inner = cache.get_object(&inner_v0.object_id).unwrap();
     assert_eq!(inner.version(), inner_v0.version);
-    assert_eq!(inner.owner, Owner::AddressOwner(sender));
+    assert_eq!(inner.owner, Owner::Address(sender));
 }
 
 #[tokio::test]
@@ -3902,7 +3899,7 @@ async fn test_store_revert_remove_ofield() {
     assert_eq!(outer.version(), outer_v2.version);
 
     let inner = cache.get_object(&inner_v0.object_id).unwrap();
-    assert_eq!(inner.owner, Owner::AddressOwner(sender));
+    assert_eq!(inner.owner, Owner::Address(sender));
     assert_eq!(inner.version(), inner_v2.version);
 
     reconfig_api.revert_state_update(&remove_ofield_digest);
@@ -3913,10 +3910,10 @@ async fn test_store_revert_remove_ofield() {
     assert_eq!(outer.version(), outer_v1.version);
 
     let field = cache.get_object(&field_v0.object_id).unwrap();
-    assert_eq!(field.owner, Owner::ObjectOwner(outer_v0.object_id.into()));
+    assert_eq!(field.owner, Owner::Object(outer_v0.object_id));
 
     let inner = cache.get_object(&inner_v0.object_id).unwrap();
-    assert_eq!(inner.owner, Owner::ObjectOwner(field_v0.object_id.into()));
+    assert_eq!(inner.owner, Owner::Object(field_v0.object_id));
     assert_eq!(inner.version(), inner_v1.version);
 }
 
@@ -4648,9 +4645,7 @@ async fn prepare_authority_and_shared_object_cert()
     let shared_object_id = ObjectID::random();
     let shared_object = {
         let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
-        let owner = Owner::Shared {
-            initial_shared_version: obj.version(),
-        };
+        let owner = Owner::Shared(obj.version());
         Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
     };
     let initial_shared_version = shared_object.version();
@@ -4735,9 +4730,7 @@ async fn test_consensus_commit_prologue_generation() {
     let shared_object_id = ObjectID::random();
     let shared_object = {
         let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
-        let owner = Owner::Shared {
-            initial_shared_version: obj.version(),
-        };
+        let owner = Owner::Shared(obj.version());
         Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
     };
     let initial_shared_version = shared_object.version();
@@ -4835,9 +4828,7 @@ async fn test_consensus_message_processed() {
     let shared_object = {
         use iota_types::object::MoveObject;
         let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
-        let owner = Owner::Shared {
-            initial_shared_version: obj.version(),
-        };
+        let owner = Owner::Shared(obj.version());
         Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
     };
     let initial_shared_version = shared_object.version();
@@ -6243,9 +6234,7 @@ fn create_shared_objects(num: u32) -> Vec<Object> {
         let shared_object_id = ObjectID::random();
         let shared_object = {
             let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
-            let owner = Owner::Shared {
-                initial_shared_version: obj.version(),
-            };
+            let owner = Owner::Shared(obj.version());
             Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
         };
         objects.push(shared_object);
@@ -6501,12 +6490,12 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         Object::with_id_owner_version_for_testing(
             ObjectID::random(),
             1.into(),
-            Owner::AddressOwner(sender),
+            Owner::Address(sender),
         ),
         Object::with_id_owner_version_for_testing(
             ObjectID::random(),
             2.into(),
-            Owner::AddressOwner(sender),
+            Owner::Address(sender),
         ),
     ];
 

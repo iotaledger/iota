@@ -22,7 +22,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 3, lines 38-40:
 //# view-object 0,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 2
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {
@@ -46,7 +46,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 5, lines 46-48:
 //# view-object 4,0
-Owner: Account Address ( _ )
+Owner: Address(_)
 Version: 3
 Contents: test::m1::Pub {
     id: iota::object::UID {
@@ -70,7 +70,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 7, lines 56-58:
 //# view-object 6,0
-Owner: Account Address ( B )
+Owner: Address(B)
 Version: 4
 Contents: test::m1::Pub {
     id: iota::object::UID {
@@ -96,7 +96,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 9, line 68:
 //# view-object 8,0
-Owner: Account Address ( B )
+Owner: Address(B)
 Version: 5
 Contents: test::m1::Cup<iota::object::ID> {
     id: iota::object::UID {
@@ -108,7 +108,7 @@ Contents: test::m1::Cup<iota::object::ID> {
 
 task 10, line 70:
 //# view-object 8,1
-Owner: Account Address ( B )
+Owner: Address(B)
 Version: 5
 Contents: test::m1::Cup<test::m1::Pub> {
     id: iota::object::UID {
@@ -120,7 +120,7 @@ Contents: test::m1::Cup<test::m1::Pub> {
 
 task 11, line 72:
 //# view-object 8,2
-Owner: Account Address ( B )
+Owner: Address(B)
 Version: 5
 Contents: test::m1::Pub {
     id: iota::object::UID {

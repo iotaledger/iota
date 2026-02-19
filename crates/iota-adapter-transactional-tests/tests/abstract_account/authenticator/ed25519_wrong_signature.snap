@@ -28,7 +28,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 4, line 38:
 //# view-object 4,0
-Owner: Shared( 3 )
+Owner: Shared(3)
 Version: 3
 Contents: abstract_account_with_pub_key::abstract_account::AbstractAccount {
     id: iota::object::UID {
