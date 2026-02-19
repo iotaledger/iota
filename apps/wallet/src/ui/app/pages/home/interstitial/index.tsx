@@ -56,7 +56,7 @@ export function Interstitial({
                     <ExternalLink
                         href={bannerUrl}
                         onClick={() => {
-                            ampli.appsBannerCtaClicked({ sourceFlow: 'Interstitial' });
+                            ampli.appsBannerCtaClicked({ sourceFlow: 'Interstitial', bannerUrl });
                             closeInterstitial();
                         }}
                         className="h-full w-full"
