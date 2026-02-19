@@ -65,7 +65,6 @@ import {
     QueryEventsDocument,
     QueryTransactionBlocksDocument,
     TransactionBlockKindInput,
-    TransactionBlocksByDigestsDocument,
     TryGetPastObjectDocument,
     ViewDocument,
 } from './generated/queries.js';
@@ -762,19 +761,6 @@ export const RPC_METHODS: {
         return transactionBlocks.map((transactionBlock) =>
             mapGraphQLTransactionBlockToRpcTransactionBlock(transactionBlock, options),
         );
-    },
-    async transactionBlocksByDigests(transport, [digests]) {
-        const transactionBlocks = await transport.graphqlQuery(
-            {
-                query: TransactionBlocksByDigestsDocument,
-                variables: {
-                    digests: digests,
-                },
-            },
-            (data) => data.transactionBlocksByDigests,
-        );
-
-        return transactionBlocks.map((block) => (block ? { digest: block.digest! } : null));
     },
 
     async getTotalTransactionBlocks(transport): Promise<bigint> {

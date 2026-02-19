@@ -20,7 +20,6 @@ const LOCALNET_INDEXER = 'http:127.0.0.1:9124';
 describe('GraphQL IotaClient compatibility', () => {
     let toolbox: TestToolbox;
     let transactionBlockDigest: string;
-    let anotherTransactionBlockDigest: string;
     let packageId: string;
     let parentObjectId: string;
     const graphQLClient = new IotaClient({
@@ -60,22 +59,6 @@ describe('GraphQL IotaClient compatibility', () => {
 
         await graphQLClient.waitForTransaction({
             digest: transactionBlockDigest,
-            waitMode: 'checkpoint',
-        });
-
-        // create another transaction
-        const anotherTx = new Transaction();
-        const [coins] = anotherTx.splitCoins(anotherTx.gas, [1]);
-        anotherTx.transferObjects([coins], toolbox.address());
-        const anotherResult = await toolbox.client.signAndExecuteTransaction({
-            transaction: anotherTx as never,
-            signer: toolbox.keypair,
-        });
-
-        anotherTransactionBlockDigest = anotherResult.digest;
-
-        await graphQLClient.waitForTransaction({
-            digest: anotherTransactionBlockDigest,
             waitMode: 'checkpoint',
         });
     });
@@ -463,38 +446,6 @@ describe('GraphQL IotaClient compatibility', () => {
         });
 
         expect(graphQLTransactionBlock).toEqual(rpcTransactionBlock);
-    });
-
-    test('transactionBlocksByDigests - single digest', async () => {
-        const graphqlTransactionBlocksByDigests = await graphQLClient!.transactionBlocksByDigests({
-            digests: [transactionBlockDigest],
-        });
-
-        expect(graphqlTransactionBlocksByDigests).toHaveLength(1);
-        expect(graphqlTransactionBlocksByDigests[0]).toBeTruthy();
-        expect(graphqlTransactionBlocksByDigests[0]?.digest).toBe(transactionBlockDigest);
-    });
-
-    test('transactionBlocksByDigests - multiple digests', async () => {
-        const graphqlTransactionBlocksByDigests = await graphQLClient!.transactionBlocksByDigests({
-            digests: [transactionBlockDigest, anotherTransactionBlockDigest],
-        });
-
-        expect(graphqlTransactionBlocksByDigests).toHaveLength(2);
-        expect(graphqlTransactionBlocksByDigests[0]).toBeTruthy();
-        expect(graphqlTransactionBlocksByDigests[0]?.digest).toBe(transactionBlockDigest);
-        expect(graphqlTransactionBlocksByDigests[1]).toBeTruthy();
-        expect(graphqlTransactionBlocksByDigests[1]?.digest).toBe(anotherTransactionBlockDigest);
-    });
-
-    test('transactionBlocksByDigests - with non-existent digest', async () => {
-        const nonExistentDigest = 'C6G8PsqwNpMqrK7ApwuQUvDgzkFcUaUy6Y5ycrAN2q3F';
-        const graphqlTransactionBlocksByDigests = await graphQLClient!.transactionBlocksByDigests({
-            digests: [nonExistentDigest],
-        });
-
-        expect(graphqlTransactionBlocksByDigests).toHaveLength(1);
-        expect(graphqlTransactionBlocksByDigests[0]).toBeNull();
     });
 
     test('getTotalTransactionBlocks', async () => {
