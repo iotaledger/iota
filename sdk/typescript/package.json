@@ -26,7 +26,7 @@
         "verify"
     ],
     "engines": {
-        "node": ">=20"
+        "node": ">=24"
     },
     "type": "commonjs",
     "exports": {
@@ -128,7 +128,7 @@
         "@graphql-codegen/typescript-operations": "^4.2.3",
         "@iarna/toml": "^2.2.5",
         "@iota/build-scripts": "workspace:^",
-        "@types/node": "^20.14.10",
+        "@types/node": "^24.0.0",
         "@types/tmp": "^0.2.6",
         "@types/ws": "^8.5.10",
         "cross-env": "^7.0.3",

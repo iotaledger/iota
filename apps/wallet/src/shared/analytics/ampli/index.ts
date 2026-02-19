@@ -1038,6 +1038,10 @@ export class ViewedLedgerTutorial implements BaseEvent {
     event_type = 'viewed ledger tutorial';
 }
 
+export class WalletReset implements BaseEvent {
+    event_type = 'wallet reset';
+}
+
 export type PromiseResult<T> = { promise: Promise<T | void> };
 
 const getVoidPromiseResult = () => ({ promise: Promise.resolve() });
@@ -2042,6 +2046,21 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new ViewedLedgerTutorial(), options);
+  }
+
+  /**
+   * wallet reset
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/wallet%20reset)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param options Amplitude event options.
+   */
+  walletReset(
+    options?: EventOptions,
+  ) {
+    return this.track(new WalletReset(), options);
   }
 }
 
