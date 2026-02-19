@@ -37,7 +37,7 @@ use crate::{
 // future, and it simplifies the serialization logic.
 #[serde(transparent)]
 pub struct MoveAuthenticator {
-    inner: MoveAuthenticatorKind,
+    inner: MoveAuthenticatorVersioned,
     /// A bytes representation of [struct MoveAuthenticator]. This helps with
     /// implementing trait [AsRef](core::convert::AsRef).
     #[serde(skip)]
@@ -52,7 +52,11 @@ impl MoveAuthenticator {
         object_to_authenticate: CallArg,
     ) -> Self {
         Self {
-            inner: MoveAuthenticatorKind::new_v1(call_args, type_arguments, object_to_authenticate),
+            inner: MoveAuthenticatorVersioned::new_v1(
+                call_args,
+                type_arguments,
+                object_to_authenticate,
+            ),
             bytes: OnceCell::new(),
         }
     }
@@ -214,21 +218,21 @@ impl PartialEq for MoveAuthenticator {
 /// MoveAuthenticator level.
 impl Eq for MoveAuthenticator {}
 
-/// MoveAuthenticatorKind is an enum that represents the different versions of
-/// MoveAuthenticator.
+/// MoveAuthenticatorVersioned is an enum that represents the different versions
+/// of MoveAuthenticator.
 #[enum_dispatch(AuthenticatorTrait)]
 #[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
-pub enum MoveAuthenticatorKind {
+pub enum MoveAuthenticatorVersioned {
     V1(MoveAuthenticatorV1),
 }
 
-impl MoveAuthenticatorKind {
+impl MoveAuthenticatorVersioned {
     pub fn new_v1(
         call_args: Vec<CallArg>,
         type_arguments: Vec<TypeInput>,
         object_to_authenticate: CallArg,
     ) -> Self {
-        MoveAuthenticatorKind::V1(MoveAuthenticatorV1::new(
+        MoveAuthenticatorVersioned::V1(MoveAuthenticatorV1::new(
             call_args,
             type_arguments,
             object_to_authenticate,
@@ -237,31 +241,31 @@ impl MoveAuthenticatorKind {
 
     pub fn version(&self) -> u64 {
         match self {
-            MoveAuthenticatorKind::V1(_) => 1,
+            MoveAuthenticatorVersioned::V1(_) => 1,
         }
     }
 
     pub fn address(&self) -> IotaResult<IotaAddress> {
         match self {
-            MoveAuthenticatorKind::V1(v1) => v1.address(),
+            MoveAuthenticatorVersioned::V1(v1) => v1.address(),
         }
     }
 
     pub fn call_args(&self) -> &Vec<CallArg> {
         match self {
-            MoveAuthenticatorKind::V1(v1) => v1.call_args(),
+            MoveAuthenticatorVersioned::V1(v1) => v1.call_args(),
         }
     }
 
     pub fn type_arguments(&self) -> &Vec<TypeInput> {
         match self {
-            MoveAuthenticatorKind::V1(v1) => v1.type_arguments(),
+            MoveAuthenticatorVersioned::V1(v1) => v1.type_arguments(),
         }
     }
 
     pub fn object_to_authenticate(&self) -> &CallArg {
         match self {
-            MoveAuthenticatorKind::V1(v1) => v1.object_to_authenticate(),
+            MoveAuthenticatorVersioned::V1(v1) => v1.object_to_authenticate(),
         }
     }
 
@@ -269,31 +273,31 @@ impl MoveAuthenticatorKind {
         &self,
     ) -> UserInputResult<(ObjectID, Option<SequenceNumber>, Option<ObjectDigest>)> {
         match self {
-            MoveAuthenticatorKind::V1(v1) => v1.object_to_authenticate_components(),
+            MoveAuthenticatorVersioned::V1(v1) => v1.object_to_authenticate_components(),
         }
     }
 
     pub fn input_objects(&self) -> Vec<InputObjectKind> {
         match self {
-            MoveAuthenticatorKind::V1(v1) => v1.input_objects(),
+            MoveAuthenticatorVersioned::V1(v1) => v1.input_objects(),
         }
     }
 
     pub fn receiving_objects(&self) -> Vec<ObjectRef> {
         match self {
-            MoveAuthenticatorKind::V1(v1) => v1.receiving_objects(),
+            MoveAuthenticatorVersioned::V1(v1) => v1.receiving_objects(),
         }
     }
 
     pub fn shared_objects(&self) -> Vec<SharedInputObject> {
         match self {
-            MoveAuthenticatorKind::V1(v1) => v1.shared_objects(),
+            MoveAuthenticatorVersioned::V1(v1) => v1.shared_objects(),
         }
     }
 
     pub fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
         match self {
-            MoveAuthenticatorKind::V1(v1) => v1.validity_check(config),
+            MoveAuthenticatorVersioned::V1(v1) => v1.validity_check(config),
         }
     }
 }
