@@ -674,8 +674,7 @@ impl IndexStore {
             &self.tables.transactions_to_addr,
             mutated_objects.filter_map(|(_, owner)| {
                 owner
-                    .get_address_owner_address()
-                    .ok()
+                    .into_address_opt()
                     .map(|addr| ((addr, sequence), digest))
             }),
         )?;
@@ -1747,7 +1746,7 @@ mod tests {
                     version: object.version(),
                     digest: object.digest(),
                     type_: ObjectType::Struct(object.type_().unwrap().clone()),
-                    owner: Owner::AddressOwner(address),
+                    owner: Owner::Address(address),
                     previous_transaction: object.previous_transaction,
                 },
             ));

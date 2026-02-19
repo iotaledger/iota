@@ -28,7 +28,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 4, line 61:
 //# view-object 2,1
-Owner: Object ID: ( fake(2,0) )
+Owner: Object(fake(2,0))
 Version: 3
 Contents: iota::dynamic_field::Field<iota::deny_list::AddressKey, iota::config::Setting<bool>> {
     id: iota::object::UID {
@@ -60,7 +60,7 @@ Contents: iota::dynamic_field::Field<iota::deny_list::AddressKey, iota::config::
 
 task 5, lines 63-65:
 //# view-object 3,0
-Owner: Object ID: ( fake(2,0) )
+Owner: Object(fake(2,0))
 Version: 4
 Contents: iota::dynamic_field::Field<iota::deny_list::GlobalPauseKey, iota::config::Setting<bool>> {
     id: iota::object::UID {

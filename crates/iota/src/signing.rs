@@ -201,10 +201,7 @@ pub(crate) async fn get_shared_object_version(
     }
     let object = object_response.data.expect("missing object data");
 
-    if let Some(iota_types::object::Owner::Shared {
-        initial_shared_version,
-    }) = object.owner
-    {
+    if let Some(iota_types::object::Owner::Shared(initial_shared_version)) = object.owner {
         Ok(initial_shared_version)
     } else {
         bail!("signer_address {signer_address} is not a shared object")

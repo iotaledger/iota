@@ -653,10 +653,7 @@ pub async fn emit_new_random_u128(
         .owner
         .expect("Expect Randomness object to have an owner");
 
-    let Owner::Shared {
-        initial_shared_version,
-    } = random_obj_owner
-    else {
+    let Owner::Shared(initial_shared_version) = random_obj_owner else {
         panic!("Expect Randomness to be shared object")
     };
     let random_call_arg = CallArg::Object(ObjectArg::SharedObject {

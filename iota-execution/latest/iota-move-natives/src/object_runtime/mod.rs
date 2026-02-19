@@ -661,14 +661,12 @@ impl ObjectRuntimeState {
                     debug_assert!(!self.transfers.contains_key(&child));
                     debug_assert!(!self.new_ids.contains(&child));
                     debug_assert!(loaded_child_objects.contains_key(&child));
-                    self.transfers
-                        .insert(child, (Owner::ObjectOwner(parent.into()), ty, v));
+                    self.transfers.insert(child, (Owner::Object(parent), ty, v));
                 }
 
                 Op::New(v) => {
                     debug_assert!(!self.transfers.contains_key(&child));
-                    self.transfers
-                        .insert(child, (Owner::ObjectOwner(parent.into()), ty, v));
+                    self.transfers.insert(child, (Owner::Object(parent), ty, v));
                 }
 
                 Op::Delete => {
@@ -741,8 +739,7 @@ impl ObjectRuntimeState {
                                 || !self.new_ids.contains(&child)
                         );
                         // Mark the mutation of the new value and/or parent.
-                        self.transfers
-                            .insert(child, (Owner::ObjectOwner(parent.into()), ty, v));
+                        self.transfers.insert(child, (Owner::Object(parent), ty, v));
                     }
                 }
             } else {
@@ -787,9 +784,9 @@ fn check_circular_ownership(
     for (id, recipient) in transfers {
         object_owner_map.remove(&id);
         match recipient {
-            Owner::AddressOwner(_) | Owner::Shared { .. } | Owner::Immutable => (),
-            Owner::ObjectOwner(new_owner) => {
-                let new_owner: ObjectID = new_owner.into();
+            Owner::Address(_) | Owner::Shared { .. } | Owner::Immutable => (),
+            Owner::Object(new_owner) => {
+                let new_owner: ObjectID = new_owner;
                 let mut cur = new_owner;
                 loop {
                     if cur == id {
@@ -805,6 +802,7 @@ fn check_circular_ownership(
                 }
                 object_owner_map.insert(id, new_owner);
             }
+            _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
     }
     Ok(())

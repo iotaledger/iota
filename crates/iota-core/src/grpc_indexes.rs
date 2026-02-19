@@ -716,19 +716,20 @@ impl IndexStoreTables {
             // determine changes from removed objects
             for removed_object in tx.removed_objects_pre_version() {
                 match removed_object.owner() {
-                    Owner::AddressOwner(address) => {
+                    Owner::Address(address) => {
                         // owner: delete old entry
                         if let Some((owner_key, _)) = make_owner_key(*address, removed_object) {
                             batch.delete_batch(&self.owner, [owner_key])?;
                         }
                     }
-                    Owner::ObjectOwner(object_id) => {
+                    Owner::Object(object_id) => {
                         batch.delete_batch(
                             &self.dynamic_field,
                             [DynamicFieldKey::new(*object_id, removed_object.id())],
                         )?;
                     }
                     Owner::Shared { .. } | Owner::Immutable => {}
+                    _ => unimplemented!("a new enum variant was added and needs to be handled"),
                 }
             }
 
@@ -736,14 +737,13 @@ impl IndexStoreTables {
             for (object, old_object) in tx.changed_objects() {
                 if let Some(old_object) = old_object {
                     match old_object.owner() {
-                        Owner::AddressOwner(address) => {
+                        Owner::Address(address) => {
                             // owner: delete old entry
                             if let Some((owner_key, _)) = make_owner_key(*address, old_object) {
                                 batch.delete_batch(&self.owner, [owner_key])?;
                             }
                         }
-
-                        Owner::ObjectOwner(object_id) => {
+                        Owner::Object(object_id) => {
                             if old_object.owner() != object.owner() {
                                 batch.delete_batch(
                                     &self.dynamic_field,
@@ -751,24 +751,25 @@ impl IndexStoreTables {
                                 )?;
                             }
                         }
-
                         Owner::Shared { .. } | Owner::Immutable => {}
+                        _ => unimplemented!("a new enum variant was added and needs to be handled"),
                     }
                 }
 
                 match object.owner() {
-                    Owner::AddressOwner(owner) => {
+                    Owner::Address(owner) => {
                         if let Some((owner_key, owner_info)) = make_owner_key(*owner, object) {
                             batch.insert_batch(&self.owner, [(owner_key, owner_info)])?;
                         }
                     }
-                    Owner::ObjectOwner(parent) => {
+                    Owner::Object(parent) => {
                         if should_index_dynamic_field(object) {
                             let field_key = DynamicFieldKey::new(*parent, object.id());
                             batch.insert_batch(&self.dynamic_field, [(field_key, ())])?;
                         }
                     }
                     Owner::Shared { .. } | Owner::Immutable => {}
+                    _ => unimplemented!("a new enum variant was added and needs to be handled"),
                 }
             }
 
@@ -1253,23 +1254,22 @@ impl<'a> ParMakeLiveObjectIndexer for GrpcParLiveObjectSetIndexer<'a> {
 impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
     fn index_object(&mut self, object: Object) -> Result<(), StorageError> {
         match object.owner {
-            Owner::AddressOwner(owner) => {
+            Owner::Address(owner) => {
                 if let Some((owner_key, owner_info)) = make_owner_key(owner, &object) {
                     self.batch
                         .insert_batch(&self.tables.owner, [(owner_key, owner_info)])?;
                 }
             }
-
             // Dynamic Field Index
-            Owner::ObjectOwner(parent) => {
+            Owner::Object(parent) => {
                 if should_index_dynamic_field(&object) {
                     let field_key = DynamicFieldKey::new(parent, object.id());
                     self.batch
                         .insert_batch(&self.tables.dynamic_field, [(field_key, ())])?;
                 }
             }
-
             Owner::Shared { .. } | Owner::Immutable => {}
+            _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
 
         // Look for CoinMetadata<T> and TreasuryCap<T> objects

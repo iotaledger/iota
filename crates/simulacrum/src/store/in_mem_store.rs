@@ -170,9 +170,7 @@ impl InMemoryStore {
         self.live_objects
             .iter()
             .flat_map(|(id, version)| self.get_object_at_version(id, *version))
-            .filter(
-                move |object| matches!(object.owner, Owner::AddressOwner(addr) if addr == owner),
-            )
+            .filter(move |object| matches!(object.owner, Owner::Address(addr) if addr == owner))
     }
 
     pub fn update_last_checkpoint_by_epoch(
@@ -301,7 +299,7 @@ impl ChildObjectResolver for InMemoryStore {
         };
 
         let parent = *parent;
-        if child_object.owner != Owner::ObjectOwner(parent.into()) {
+        if child_object.owner != Owner::Object(parent) {
             return Err(IotaError::InvalidChildObjectAccess {
                 object: *child,
                 given_parent: parent,
@@ -331,7 +329,7 @@ impl ChildObjectResolver for InMemoryStore {
             None => return Ok(None),
             Some(obj) => obj,
         };
-        if recv_object.owner != Owner::AddressOwner((*owner).into()) {
+        if recv_object.owner != Owner::Address((*owner).into()) {
             return Ok(None);
         }
 

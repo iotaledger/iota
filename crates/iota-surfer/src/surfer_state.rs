@@ -216,7 +216,7 @@ impl SurferState {
     #[tracing::instrument(skip_all, fields(surfer_id = self.id))]
     async fn process_tx_effects(&mut self, effects: &IotaTransactionBlockEffects) {
         for (owned_ref, write_kind) in effects.all_changed_objects() {
-            if matches!(owned_ref.owner, Owner::ObjectOwner(_)) {
+            if matches!(owned_ref.owner, Owner::Object(_)) {
                 // For object owned objects, we don't need to do anything.
                 // We also cannot read them because in the case of shared objects, there can be
                 // races and the child object may no longer exist.
@@ -242,7 +242,7 @@ impl SurferState {
                         .or_default()
                         .push(obj_ref);
                 }
-                Owner::AddressOwner(address) => {
+                Owner::Address(address) => {
                     if address == self.address {
                         self.owned_objects
                             .entry(struct_tag)
@@ -250,10 +250,8 @@ impl SurferState {
                             .insert(obj_ref);
                     }
                 }
-                Owner::ObjectOwner(_) => (),
-                Owner::Shared {
-                    initial_shared_version,
-                } => {
+                Owner::Object(_) => (),
+                Owner::Shared(initial_shared_version) => {
                     if write_kind != WriteKind::Mutate {
                         self.shared_objects
                             .write()
@@ -266,6 +264,7 @@ impl SurferState {
                     // means we should already have it in
                     // the inventory.
                 }
+                _ => unimplemented!("a new enum variant was added and needs to be handled"),
             }
             if obj_ref.object_id == self.gas_object.object_id {
                 self.gas_object = obj_ref;

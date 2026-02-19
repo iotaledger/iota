@@ -227,7 +227,7 @@ impl UpgradeStateRunner {
         let cap = effects
             .created()
             .into_iter()
-            .find(|(_, owner)| matches!(owner, Owner::AddressOwner(_)))
+            .find(|(_, owner)| matches!(owner, Owner::Address(_)))
             .unwrap();
 
         (package.0, cap.0)
@@ -409,7 +409,7 @@ async fn test_upgrade_introduces_type_then_uses_it() {
     let created = effects
         .created()
         .into_iter()
-        .find_map(|(b, owner)| matches!(owner, Owner::AddressOwner(_)).then_some(b))
+        .find_map(|(b, owner)| matches!(owner, Owner::Address(_)).then_some(b))
         .unwrap();
 
     let b = runner
@@ -1211,7 +1211,7 @@ async fn test_upgraded_types_in_one_txn() {
     let created_b = effects
         .created()
         .into_iter()
-        .find_map(|(b, owner)| matches!(owner, Owner::AddressOwner(_)).then_some(b))
+        .find_map(|(b, owner)| matches!(owner, Owner::Address(_)).then_some(b))
         .unwrap();
 
     // Create an instance of the type introduced at version 3 using function from
@@ -1228,7 +1228,7 @@ async fn test_upgraded_types_in_one_txn() {
     let created_c = effects
         .created()
         .into_iter()
-        .find_map(|(c, owner)| matches!(owner, Owner::AddressOwner(_)).then_some(c))
+        .find_map(|(c, owner)| matches!(owner, Owner::Address(_)).then_some(c))
         .unwrap();
 
     // modify objects created of types introduced at versions 2 and 3 and emit

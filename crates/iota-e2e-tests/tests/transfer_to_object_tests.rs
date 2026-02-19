@@ -94,7 +94,7 @@ async fn delete_of_object_with_reconfiguration_receive_of_new_parent_and_old_chi
 }
 
 fn get_parent_and_child(created: Vec<(ObjectRef, Owner)>) -> (ObjectRef, ObjectRef) {
-    // make sure there is an object with an `AddressOwner` who matches the object ID
+    // make sure there is an object with an `Address` who matches the object ID
     // of another object.
     let created_addrs: HashSet<_> = created
         .iter()
@@ -103,7 +103,7 @@ fn get_parent_and_child(created: Vec<(ObjectRef, Owner)>) -> (ObjectRef, ObjectR
     let (child, parent_id) = created
         .iter()
         .find_map(|child @ (_, owner)| match owner {
-            Owner::AddressOwner(j) if created_addrs.contains(&ObjectID::from(*j)) => {
+            Owner::Address(j) if created_addrs.contains(&ObjectID::from(*j)) => {
                 Some((child, (*j).into()))
             }
             _ => None,

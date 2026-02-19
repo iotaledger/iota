@@ -32,10 +32,8 @@ use crate::{
 
 #[test]
 fn test_bcs_enum() {
-    let address = Owner::AddressOwner(IotaAddress::random());
-    let shared = Owner::Shared {
-        initial_shared_version: 1.into(),
-    };
+    let address = Owner::Address(IotaAddress::random());
+    let shared = Owner::Shared(1.into());
 
     let address_ser = bcs::to_bytes(&address).unwrap();
     let shared_ser = bcs::to_bytes(&shared).unwrap();

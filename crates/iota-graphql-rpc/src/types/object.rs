@@ -638,7 +638,7 @@ impl ObjectImpl<'_> {
         let native = self.0.native_impl()?;
 
         match native.owner {
-            O::AddressOwner(address) => {
+            O::Address(address) => {
                 let address = IotaAddress::from(address);
                 Some(ObjectOwner::Address(AddressOwner {
                     owner: Some(Owner {
@@ -649,7 +649,7 @@ impl ObjectImpl<'_> {
                 }))
             }
             O::Immutable => Some(ObjectOwner::Immutable(Immutable { dummy: None })),
-            O::ObjectOwner(address) => {
+            O::Object(address) => {
                 let parent = Object::query(
                     ctx,
                     address.into(),
@@ -661,11 +661,10 @@ impl ObjectImpl<'_> {
 
                 Some(ObjectOwner::Parent(Box::new(Parent { parent })))
             }
-            O::Shared {
-                initial_shared_version,
-            } => Some(ObjectOwner::Shared(Shared {
+            O::Shared(initial_shared_version) => Some(ObjectOwner::Shared(Shared {
                 initial_shared_version: initial_shared_version.as_u64().into(),
             })),
+            _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
     }
 

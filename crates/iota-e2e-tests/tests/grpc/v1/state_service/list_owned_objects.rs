@@ -547,7 +547,7 @@ async fn list_owned_objects_tto_indexing() {
         .created()
         .iter()
         .find_map(|(obj_ref, owner)| match owner {
-            Owner::AddressOwner(addr) if *addr == sender => Some(*obj_ref),
+            Owner::Address(addr) if *addr == sender => Some(*obj_ref),
             _ => None,
         })
         .expect("start should create an `A` object owned by the sender");

@@ -647,8 +647,7 @@ mod checked {
             obj: ObjectValue,
             addr: IotaAddress,
         ) -> Result<(), ExecutionError> {
-            self.additional_transfers
-                .push((Owner::AddressOwner(addr), obj));
+            self.additional_transfers.push((Owner::Address(addr), obj));
             Ok(())
         }
 
@@ -1451,13 +1450,14 @@ mod checked {
             "override_as_immutable should only be set for shared objects"
         );
         let is_mutable_input = match obj.owner {
-            Owner::AddressOwner(_) => true,
+            Owner::Address(_) => true,
             Owner::Shared { .. } => !override_as_immutable,
             Owner::Immutable => false,
-            Owner::ObjectOwner(_) => {
+            Owner::Object(_) => {
                 // protected by transaction input checker
-                invariant_violation!("ObjectOwner objects cannot be input")
+                invariant_violation!("Object-owned objects cannot be inputs")
             }
+            _ => unimplemented!("a new enum variant was added and needs to be handled"),
         };
         let owner = obj.owner;
         let version = obj.version();

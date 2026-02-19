@@ -220,13 +220,16 @@ impl SimulatorStore for PersistedStore {
     }
 
     fn owned_objects(&self, owner: IotaAddress) -> Box<dyn Iterator<Item = Object> + '_> {
-        Box::new(self.read_write.live_objects
-            .safe_iter()
-            .map(|result| result.expect("rocksdb iteration failed"))
-            .flat_map(|(id, version)| self.get_object_at_version(&id, version))
-            .filter(
-                move |object| matches!(object.owner, Owner::AddressOwner(addr) if addr == owner),
-            ))
+        Box::new(
+            self.read_write
+                .live_objects
+                .safe_iter()
+                .map(|result| result.expect("rocksdb iteration failed"))
+                .flat_map(|(id, version)| self.get_object_at_version(&id, version))
+                .filter(
+                    move |object| matches!(object.owner, Owner::Address(addr) if addr == owner),
+                ),
+        )
     }
 
     fn insert_checkpoint(&mut self, checkpoint: VerifiedCheckpoint) {
@@ -372,7 +375,7 @@ impl ChildObjectResolver for PersistedStore {
         };
 
         let parent = *parent;
-        if child_object.owner != Owner::ObjectOwner(parent.into()) {
+        if child_object.owner != Owner::Object(parent) {
             return Err(IotaError::InvalidChildObjectAccess {
                 object: *child,
                 given_parent: parent,
@@ -401,7 +404,7 @@ impl ChildObjectResolver for PersistedStore {
             None => return Ok(None),
             Some(obj) => obj,
         };
-        if recv_object.owner != Owner::AddressOwner((*owner).into()) {
+        if recv_object.owner != Owner::Address((*owner).into()) {
             return Ok(None);
         }
 

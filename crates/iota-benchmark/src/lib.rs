@@ -121,10 +121,7 @@ impl ExecutionEffects {
     }
 
     pub fn sender(&self) -> IotaAddress {
-        match self.gas_object().1 {
-            Owner::AddressOwner(a) => a,
-            Owner::ObjectOwner(_) | Owner::Shared { .. } | Owner::Immutable => unreachable!(), /* owner of gas object is always an address */
-        }
+        *self.gas_object().1.as_address()
     }
 
     pub fn is_ok(&self) -> bool {

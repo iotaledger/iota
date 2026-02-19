@@ -307,10 +307,11 @@ impl TryFrom<i16> for OwnerType {
 // Returns owner_type, owner_address
 pub fn owner_to_owner_info(owner: &Owner) -> (OwnerType, Option<IotaAddress>) {
     match owner {
-        Owner::AddressOwner(address) => (OwnerType::Address, Some(*address)),
-        Owner::ObjectOwner(address) => (OwnerType::Object, Some(*address)),
+        Owner::Address(address) => (OwnerType::Address, Some(*address)),
+        Owner::Object(object_id) => (OwnerType::Object, Some(*object_id.as_address())),
         Owner::Shared { .. } => (OwnerType::Shared, None),
         Owner::Immutable => (OwnerType::Immutable, None),
+        _ => unimplemented!("a new enum variant was added and needs to be handled"),
     }
 }
 

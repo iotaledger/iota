@@ -20,7 +20,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 3, line 27:
 //# view-object 2,0
-Owner: Shared( 3 )
+Owner: Shared(3)
 Version: 3
 Contents: t2::o2::Obj2 {
     id: iota::object::UID {

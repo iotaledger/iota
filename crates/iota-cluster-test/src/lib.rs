@@ -248,7 +248,7 @@ impl TestContext {
                 .iter()
                 .map(|coin_info| {
                     ObjectChecker::new(coin_info.id)
-                        .owner(Owner::AddressOwner(owner))
+                        .owner(Owner::Address(owner))
                         .check_into_gas_coin(self.get_fullnode_client())
                 })
                 .collect::<Vec<_>>(),

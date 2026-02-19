@@ -145,7 +145,10 @@ impl BenchmarkBank {
             .map_err(Error::msg)?;
 
         init_coin.0 = updated_gas.0;
-        init_coin.1 = updated_gas.1.get_owner_address()?;
+        init_coin.1 = *updated_gas
+            .1
+            .address()
+            .ok_or_else(|| Error::msg("not an address or object owner"))?;
         init_coin.2 = self.primary_coin.2.clone();
 
         let address_map: HashMap<IotaAddress, Arc<AccountKeyPair>> = coin_configs
@@ -157,7 +160,9 @@ impl BenchmarkBank {
             .created()
             .into_iter()
             .map(|c| {
-                let address = c.1.get_owner_address()?;
+                let address =
+                    *c.1.address()
+                        .ok_or_else(|| Error::msg("not an address or object owner"))?;
                 let keypair = address_map
                     .get(&address)
                     .ok_or("Owner address missing in the address map")
@@ -197,14 +202,20 @@ impl BenchmarkBank {
 
         self.primary_coin = (
             updated_gas.0,
-            updated_gas.1.get_owner_address()?,
+            *updated_gas
+                .1
+                .address()
+                .ok_or_else(|| Error::msg("not an address or object owner"))?,
             self.primary_coin.2.clone(),
         );
 
         match effects.created().first() {
             Some(created_coin) => Ok((
                 created_coin.0,
-                created_coin.1.get_owner_address()?,
+                *created_coin
+                    .1
+                    .address()
+                    .ok_or_else(|| Error::msg("not an address or object owner"))?,
                 self.primary_coin.2.clone(),
             )),
             None => panic!("Failed to create initialization coin for workload."),

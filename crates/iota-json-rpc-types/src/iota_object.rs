@@ -1343,10 +1343,10 @@ impl IotaObjectDataFilter {
                 matches!(&object.type_, ObjectType::Struct(s) if &ObjectID::from(s.address()) == p)
             }
             IotaObjectDataFilter::AddressOwner(a) => {
-                matches!(object.owner, Owner::AddressOwner(addr) if &addr == a)
+                matches!(object.owner, Owner::Address(addr) if &addr == a)
             }
             IotaObjectDataFilter::ObjectOwner(o) => {
-                matches!(object.owner, Owner::ObjectOwner(addr) if addr == IotaAddress::from(*o))
+                matches!(object.owner, Owner::Object(addr) if &addr == o)
             }
             IotaObjectDataFilter::ObjectId(id) => &object.object_id == id,
             IotaObjectDataFilter::ObjectIds(ids) => ids.contains(&object.object_id),

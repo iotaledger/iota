@@ -21,5 +21,5 @@ pub fn stardust_to_iota_address(
 pub fn stardust_to_iota_address_owner(
     stardust_address: impl Into<Address>,
 ) -> anyhow::Result<Owner> {
-    stardust_to_iota_address(stardust_address.into()).map(Owner::AddressOwner)
+    stardust_to_iota_address(stardust_address.into()).map(Owner::Address)
 }

@@ -1928,7 +1928,7 @@ impl AuthorityState {
                     gas_object_id,
                     SIMULATION_GAS_COIN_VALUE,
                 ),
-                Owner::AddressOwner(sender),
+                Owner::Address(sender),
                 TransactionDigest::GENESIS_MARKER,
             );
             let gas_object_ref = gas_object.compute_object_reference();
@@ -2128,7 +2128,7 @@ impl AuthorityState {
                     ObjectID::MAX,
                     SIMULATION_GAS_COIN_VALUE,
                 ),
-                Owner::AddressOwner(transaction.gas_data().owner),
+                Owner::Address(transaction.gas_data().owner),
                 TransactionDigest::GENESIS_MARKER,
             );
             let mock_gas_object_ref = mock_gas_object.compute_object_reference();
@@ -2561,9 +2561,9 @@ impl AuthorityState {
             match self.get_owner_at_version(&object_ref.object_id, *old_version).unwrap_or_else(
                 |e| panic!("tx_digest={tx_digest:?}, error processing object owner index, cannot find owner for object {:?} at version {old_version:?}. Err: {e:?}",object_ref.object_id)
             ) {
-                Owner::AddressOwner(addr) => deleted_owners.push((addr, object_ref.object_id)),
-                Owner::ObjectOwner(object_id) => {
-                    deleted_dynamic_fields.push((ObjectID::from(object_id), object_ref.object_id))
+                Owner::Address(addr) => deleted_owners.push((addr, object_ref.object_id)),
+                Owner::Object(object_id) => {
+                    deleted_dynamic_fields.push((object_id, object_ref.object_id))
                 }
                 _ => {}
             }
@@ -2594,19 +2594,17 @@ impl AuthorityState {
                 };
                 if old_object.owner != owner {
                     match old_object.owner {
-                        Owner::AddressOwner(addr) => {
+                        Owner::Address(addr) => {
                             deleted_owners.push((addr, *id));
                         }
-                        Owner::ObjectOwner(object_id) => {
-                            deleted_dynamic_fields.push((ObjectID::from(object_id), *id))
-                        }
+                        Owner::Object(object_id) => deleted_dynamic_fields.push((object_id, *id)),
                         _ => {}
                     }
                 }
             }
 
             match owner {
-                Owner::AddressOwner(addr) => {
+                Owner::Address(addr) => {
                     // TODO: We can remove the object fetching after we added ObjectType to
                     // TransactionEffects
                     let new_object = written.get(id).unwrap_or_else(
@@ -2639,7 +2637,7 @@ impl AuthorityState {
                         },
                     ));
                 }
-                Owner::ObjectOwner(owner) => {
+                Owner::Object(owner) => {
                     let new_object = written.get(id).unwrap_or_else(
                         || panic!("tx_digest={tx_digest:?}, error processing object owner index, written does not contain object {id:?}")
                     );
@@ -2664,7 +2662,7 @@ impl AuthorityState {
                             // Skip indexing for non dynamic field objects.
                             continue;
                         };
-                    new_dynamic_fields.push(((ObjectID::from(owner), *id), df_info))
+                    new_dynamic_fields.push(((owner, *id), df_info))
                 }
                 _ => {}
             }
@@ -3238,11 +3236,11 @@ impl AuthorityState {
             .type_layout_resolver(Box::new(self.get_backing_package_store().as_ref()));
         for o in genesis_objects.iter() {
             match o.owner {
-                Owner::AddressOwner(addr) => new_owners.push((
+                Owner::Address(addr) => new_owners.push((
                     (addr, o.id()),
                     ObjectInfo::new(&o.compute_object_reference(), o),
                 )),
-                Owner::ObjectOwner(object_id) => {
+                Owner::Object(object_id) => {
                     let id = o.id();
                     let info = match self.try_create_dynamic_field_info(
                         o,
@@ -3269,7 +3267,7 @@ impl AuthorityState {
                         }
                         Err(e) => return Err(e),
                     };
-                    new_dynamic_fields.push(((ObjectID::from(object_id), id), info));
+                    new_dynamic_fields.push(((object_id, id), info));
                 }
                 _ => {}
             }

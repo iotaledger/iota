@@ -56,9 +56,7 @@ fn generate_random_gas_data(
     let gas_coin_owners = gas_coin_owners
         .iter()
         .map(|o| match o {
-            Owner::ObjectOwner(_) | Owner::AddressOwner(_) if owned_by_sender => {
-                Owner::AddressOwner(sender)
-            }
+            Owner::Object(_) | Owner::Address(_) if owned_by_sender => Owner::Address(sender),
             _ => *o,
         })
         .collect::<Vec<_>>();

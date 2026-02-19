@@ -329,7 +329,7 @@ impl RpcExampleProvider {
                         )
                         .unwrap(),
                     ),
-                    owner: Some(Owner::AddressOwner(IotaAddress::from(ObjectID::new(
+                    owner: Some(Owner::Address(IotaAddress::from(ObjectID::new(
                         self.rng.gen(),
                     )))),
                     previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
@@ -373,7 +373,7 @@ impl RpcExampleProvider {
                 )
                 .unwrap(),
             ),
-            owner: Some(Owner::AddressOwner(IotaAddress::from(ObjectID::new(
+            owner: Some(Owner::Address(IotaAddress::from(ObjectID::new(
                 self.rng.gen(),
             )))),
             previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
@@ -473,7 +473,7 @@ impl RpcExampleProvider {
                 version: Default::default(),
                 digest: ObjectDigest::new(self.rng.gen()),
                 type_: Some(ObjectType::Struct(MoveObjectType::gas_coin())),
-                owner: Some(Owner::AddressOwner(owner)),
+                owner: Some(Owner::Address(owner)),
                 previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
                 storage_rebate: None,
                 display: None,
@@ -702,7 +702,7 @@ impl RpcExampleProvider {
         let tx_digest = tx.digest();
         let object_change = ObjectChange::Transferred {
             sender: signer,
-            recipient: Owner::AddressOwner(recipient),
+            recipient: Owner::Address(recipient),
             object_type: parse_iota_struct_tag("0x2::example::Object").unwrap(),
             object_id: object_ref.object_id,
             version: object_ref.version,
@@ -734,11 +734,11 @@ impl RpcExampleProvider {
                     created: vec![],
                     mutated: vec![
                         OwnedObjectRef {
-                            owner: Owner::AddressOwner(signer),
+                            owner: Owner::Address(signer),
                             reference: gas_ref,
                         },
                         OwnedObjectRef {
-                            owner: Owner::AddressOwner(recipient),
+                            owner: Owner::Address(recipient),
                             reference: object_ref,
                         },
                     ],
@@ -747,7 +747,7 @@ impl RpcExampleProvider {
                     unwrapped_then_deleted: vec![],
                     wrapped: vec![],
                     gas_object: OwnedObjectRef {
-                        owner: Owner::ObjectOwner(signer),
+                        owner: Owner::Object(ObjectID::from(signer)),
                         reference: gas_ref,
                     },
                     events_digest: Some(TransactionEventsDigest::new(self.rng.gen())),
@@ -1217,7 +1217,7 @@ impl RpcExampleProvider {
                 )
                 .unwrap(),
             ),
-            owner: Some(Owner::AddressOwner(IotaAddress::from(ObjectID::new(
+            owner: Some(Owner::Address(IotaAddress::from(ObjectID::new(
                 self.rng.gen(),
             )))),
             previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
@@ -1267,7 +1267,7 @@ impl RpcExampleProvider {
             .map(|_| {
                 IotaObjectResponse::new_with_data(IotaObjectData {
                     content: None,
-                    owner: Some(Owner::AddressOwner(owner)),
+                    owner: Some(Owner::Address(owner)),
                     previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
                     storage_rebate: Some(100),
                     object_id: ObjectID::new(self.rng.gen()),
@@ -1486,7 +1486,7 @@ impl RpcExampleProvider {
                     )
                     .unwrap(),
                 ),
-                owner: Some(Owner::AddressOwner(IotaAddress::from(ObjectID::new(
+                owner: Some(Owner::Address(IotaAddress::from(ObjectID::new(
                     self.rng.gen(),
                 )))),
                 previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
@@ -1506,7 +1506,7 @@ impl RpcExampleProvider {
                     )
                     .unwrap(),
                 ),
-                owner: Some(Owner::AddressOwner(IotaAddress::from(ObjectID::new(
+                owner: Some(Owner::Address(IotaAddress::from(ObjectID::new(
                     self.rng.gen(),
                 )))),
                 previous_transaction: Some(TransactionDigest::new(self.rng.gen())),

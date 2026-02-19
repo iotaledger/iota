@@ -149,7 +149,7 @@ fn foundry_with_simple_metadata() -> Result<()> {
         .as_coin_maybe()
         .expect("should be a coin object");
     assert_eq!(
-        coin_object.owner.get_owner_address().unwrap().to_string(),
+        coin_object.owner.address().unwrap().to_string(),
         alias_id.to_string()
     );
     assert_eq!(coin.balance, Balance::new(1_000_000));
@@ -238,7 +238,7 @@ fn foundry_with_special_metadata() -> Result<()> {
         .as_coin_maybe()
         .expect("should be a coin object");
     assert_eq!(
-        coin_object.owner.get_owner_address().unwrap().to_string(),
+        coin_object.owner.address().unwrap().to_string(),
         alias_id.to_string()
     );
     assert_eq!(coin.balance, Balance::new(1_000_000));
@@ -310,7 +310,7 @@ fn coin_ownership() -> Result<()> {
 
     // Check the owner of the coin object.
     assert_eq!(
-        coin_object.owner.get_owner_address().unwrap().to_string(),
+        coin_object.owner.address().unwrap().to_string(),
         alias_id.to_string()
     );
 
@@ -360,7 +360,7 @@ fn create_gas_coin() -> Result<()> {
 
     // Check if the owner of the gas coin is the package object.
     assert_eq!(
-        gas_coin_object.owner.get_owner_address().unwrap(),
+        *gas_coin_object.owner.address().unwrap(),
         stardust_to_iota_address(alias_address).unwrap()
     );
 

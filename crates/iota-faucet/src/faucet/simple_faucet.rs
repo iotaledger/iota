@@ -391,9 +391,7 @@ impl SimpleFaucet {
         let gas_obj = self.get_coin(coin_id).await?;
         info!(?coin_id, "Reading gas coin object: {gas_obj:?}");
         Ok(gas_obj.and_then(|(owner_opt, coin)| match owner_opt {
-            Some(Owner::AddressOwner(owner_addr)) if owner_addr == self.active_address => {
-                Some(coin)
-            }
+            Some(Owner::Address(owner_addr)) if owner_addr == self.active_address => Some(coin),
             _ => None,
         }))
     }
@@ -793,7 +791,7 @@ impl SimpleFaucet {
 
             // Insert the coins into the map based on the destination address
             address_coins_map
-                .entry(owner.get_owner_address().unwrap())
+                .entry(*owner.address().unwrap())
                 .or_default()
                 .push(coin_obj_ref);
         });

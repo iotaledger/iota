@@ -2226,7 +2226,7 @@ impl ChildObjectResolver for LocalExec {
                 )));
             }
             let parent = *parent;
-            if child_object.owner != Owner::ObjectOwner(parent.into()) {
+            if child_object.owner != Owner::Object(parent) {
                 return Err(IotaError::InvalidChildObjectAccess {
                     object: *child,
                     given_parent: parent,
@@ -2273,7 +2273,7 @@ impl ChildObjectResolver for LocalExec {
                     {receive_object_at_version} but expected the version to be == {receive_object_at_version}"
                 )));
             }
-            if recv_object.owner != Owner::AddressOwner((*owner).into()) {
+            if recv_object.owner != Owner::Address((*owner).into()) {
                 return Ok(None);
             }
             Ok(Some(recv_object))

@@ -1303,7 +1303,7 @@ macro_rules! implement_storage_traits {
                 };
 
                 let parent = *parent;
-                if child_object.owner != Owner::ObjectOwner(parent.into()) {
+                if child_object.owner != Owner::Object(parent.into()) {
                     return Err(IotaError::InvalidChildObjectAccess {
                         object: *child,
                         given_parent: parent,
@@ -1336,7 +1336,7 @@ macro_rules! implement_storage_traits {
                 // These two cases must remain indisguishable to the caller otherwise we risk
                 // forks in transaction replay due to possible reordering of
                 // transactions during replay.
-                if recv_object.owner != Owner::AddressOwner((*owner).into())
+                if recv_object.owner != Owner::Address((*owner).into())
                     || self.try_have_received_object_at_version(
                         receiving_object_id,
                         receive_object_at_version,

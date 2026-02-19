@@ -29,7 +29,7 @@ pub fn verify_indexes(store: &dyn GlobalStateHashStore, indexes: Arc<IndexStore>
         let LiveObject::Normal(object) = object else {
             continue;
         };
-        let Owner::AddressOwner(owner) = object.owner else {
+        let Owner::Address(owner) = object.owner else {
             continue;
         };
 
