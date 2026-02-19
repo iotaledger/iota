@@ -15,7 +15,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 2, lines 62-64:
 //# view-object 1,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 2
 Contents: iota::coin::Coin<test::regulated_coin1::REGULATED_COIN1> {
     id: iota::object::UID {
@@ -30,7 +30,7 @@ Contents: iota::coin::Coin<test::regulated_coin1::REGULATED_COIN1> {
 
 task 3, lines 65-67:
 //# view-object 1,1
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 2
 Contents: iota::coin::Coin<test::regulated_coin2::REGULATED_COIN2> {
     id: iota::object::UID {

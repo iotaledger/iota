@@ -23,7 +23,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 3, line 27:
 //# view-object 2,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 3
 Contents: iota::coin::Coin<test::fake::FAKE> {
     id: iota::object::UID {

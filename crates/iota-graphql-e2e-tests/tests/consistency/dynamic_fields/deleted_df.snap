@@ -20,7 +20,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 3, line 60:
 //# view-object 2,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 2
 Contents: Test::M1::Parent {
     id: iota::object::UID {
@@ -39,7 +39,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 5, line 64:
 //# view-object 2,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 3
 Contents: Test::M1::Parent {
     id: iota::object::UID {
@@ -58,7 +58,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 7, line 68:
 //# view-object 2,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 4
 Contents: Test::M1::Parent {
     id: iota::object::UID {

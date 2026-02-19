@@ -504,10 +504,7 @@ impl Workload<dyn Payload> for RandomizedTransactionWorkload {
                 .get_object(ObjectID::RANDOMNESS_STATE)
                 .await
                 .expect("Failed to get randomness object");
-            let Owner::Shared {
-                initial_shared_version,
-            } = obj.owner()
-            else {
+            let Owner::Shared(initial_shared_version) = obj.owner() else {
                 panic!("randomness object must be shared");
             };
             self.randomness_initial_shared_version = Some(*initial_shared_version);

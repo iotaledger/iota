@@ -516,7 +516,7 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
         .unwrap()
     };
     let timelock_iota = ObjectInner {
-        owner: Owner::AddressOwner(address),
+        owner: Owner::Address(address),
         data: Data::Move(timelock_iota),
         previous_transaction: TransactionDigest::GENESIS_MARKER,
         storage_rebate: 0,
@@ -668,7 +668,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
         .unwrap()
     };
     let timelock_iota = ObjectInner {
-        owner: Owner::AddressOwner(address),
+        owner: Owner::Address(address),
         data: Data::Move(timelock_iota),
         previous_transaction: TransactionDigest::GENESIS_MARKER,
         storage_rebate: 0,

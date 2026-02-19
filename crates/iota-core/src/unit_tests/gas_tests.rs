@@ -663,9 +663,7 @@ async fn test_invalid_gas_owners() {
         )
         .await,
         UserInputError::GasObjectNotOwnedObject {
-            owner: Owner::Shared {
-                initial_shared_version: OBJECT_START_VERSION
-            }
+            owner: Owner::Shared(OBJECT_START_VERSION)
         }
     );
     assert_eq!(
@@ -691,7 +689,7 @@ async fn test_invalid_gas_owners() {
         )
         .await,
         UserInputError::GasObjectNotOwnedObject {
-            owner: Owner::ObjectOwner(gas_object3.object_id.into())
+            owner: Owner::Object(gas_object3.object_id)
         }
     );
     assert!(matches!(
