@@ -12,6 +12,7 @@ use std::{
 use arc_swap::ArcSwap;
 use consensus_config::Committee as ConsensusCommittee;
 use consensus_core::{CommitConsumerMonitor, CommitIndex};
+use fastcrypto::hash::HashFunction;
 use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task};
 use iota_protocol_config::ProtocolConfig;
@@ -101,6 +102,34 @@ impl ConsensusHandlerInitializer {
         )
     }
 }
+
+mod additional_consensus_states {
+    use super::*;
+    #[derive(Serialize, Deserialize)]
+    pub struct AdditionalConsensusStates {}
+
+    impl AdditionalConsensusStates {
+        #[expect(unused)]
+        pub fn new() -> Self {
+            Self {}
+        }
+
+        #[expect(unused)]
+        pub fn new_for_tests() -> Self {
+            Self {}
+        }
+
+        #[expect(unused)]
+        /// Get the digest of the current state.
+        pub fn digest(&self) -> AdditionalConsensusStatesDigest {
+            let mut hash = iota_types::crypto::DefaultHash::new();
+            bcs::serialize_into(&mut hash, self).unwrap();
+            AdditionalConsensusStatesDigest::new(hash.finalize().into())
+        }
+    }
+}
+#[expect(unused)]
+pub(crate) use additional_consensus_states::AdditionalConsensusStates;
 
 pub struct ConsensusHandler<C> {
     /// A store created for each epoch. ConsensusHandler is recreated each
