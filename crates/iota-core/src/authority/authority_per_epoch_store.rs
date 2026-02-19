@@ -2277,12 +2277,19 @@ impl AuthorityPerEpochStore {
         self.tables()?
             .pending_consensus_transactions
             .multi_remove(keys)?;
+
         // TODO: lock once for all remove() calls.
         for key in keys {
-            if let ConsensusTransactionKey::Certificate(cert) = key {
-                self.pending_consensus_certificates.write().remove(cert);
+            let maybe_digest = match key {
+                ConsensusTransactionKey::Certificate(digest)
+                | ConsensusTransactionKey::UserTransaction(digest) => Some(digest),
+                _ => None,
+            };
+            if let Some(digest) = maybe_digest {
+                self.pending_consensus_certificates.write().remove(digest);
             }
         }
+
         Ok(())
     }
 
