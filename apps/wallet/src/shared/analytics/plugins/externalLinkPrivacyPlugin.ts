@@ -13,20 +13,19 @@ export function externalLinkOpenedPrivacyPlugin(): EnrichmentPlugin {
         type: 'enrichment',
 
         async execute(event: Event) {
-            if (event.event_type !== 'external link opened') return event;
+            if (!event.event_type?.endsWith('external link opened')) {
+                return event;
+            }
 
-            const props = { ...(event.event_properties ?? {}) } as Record<string, unknown>;
+            let props = { ...(event.event_properties ?? {}) } as Record<string, unknown>;
 
-            const type = typeof props.type === 'string' ? props.type : 'unknown';
+            const type =
+                typeof props.type === 'string' && props.type.trim() ? props.type : 'unknown';
 
             let visibility =
                 props.visibility === 'public' || props.visibility === 'private'
                     ? (props.visibility as 'public' | 'private')
                     : 'private';
-
-            if (!PUBLIC_TYPES.has(type)) {
-                visibility = 'private';
-            }
 
             if (PRIVATE_TYPES.has(type)) {
                 visibility = 'private';
@@ -35,11 +34,14 @@ export function externalLinkOpenedPrivacyPlugin(): EnrichmentPlugin {
             props.type = type;
             props.visibility = visibility;
 
-            if (visibility === 'private') delete props.value;
+            if (visibility === 'private') {
+                const { value, ...rest } = props;
+                props = rest;
+            }
 
             return {
                 ...event,
-                event_properties: props,
+                event_properties: { ...props },
             };
         },
     };
