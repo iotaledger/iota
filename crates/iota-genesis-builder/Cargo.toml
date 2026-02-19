@@ -54,11 +54,7 @@ iota-move-build.workspace = true
 iota-move-natives-latest = { path = "../../iota-execution/latest/iota-move-natives" }
 iota-protocol-config.workspace = true
 iota-sdk-types.workspace = true
-iota-stardust-types = { path = "../iota-stardust-types", features = [
-    "irc_27",
-    "irc_30",
-    "std",
-] }
+iota-stardust-types = { path = "../iota-stardust-types", features = ["irc_27", "irc_30", "std"] }
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-compiler.workspace = true
@@ -82,10 +78,7 @@ test-outputs = ["dep:iota-sdk-crypto"]
 
 [target.'cfg(not(msim))'.dependencies]
 # iota-sdk-crypto is only used when compiling test-outputs feature
-iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "e42877c8d37699e15f1439ec6b99b848a7a04f11", optional = true, features = [
-    "ed25519",
-    "mnemonic",
-] }
+iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "e42877c8d37699e15f1439ec6b99b848a7a04f11", optional = true, features = ["ed25519", "mnemonic"] }
 
 [[example]]
 name = "snapshot_add_test_outputs"
