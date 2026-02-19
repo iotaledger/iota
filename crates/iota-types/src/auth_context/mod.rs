@@ -191,7 +191,7 @@ mod tests {
                 module: "mod".to_string(),
                 function: "fun".to_string(),
                 type_arguments: vec![TypeInput::U8],
-                arguments: vec![Argument::GasCoin],
+                arguments: vec![Argument::Gas],
             }))],
         };
 
