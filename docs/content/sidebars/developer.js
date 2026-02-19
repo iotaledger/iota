@@ -433,7 +433,17 @@ const developer = [
                         type: 'category',
                         label: 'Account Abstraction',
                         items: [
-                            'developer/move/how-tos/account-abstraction/basic-account-authenticator',
+                            'developer/move/how-tos/account-abstraction/basic-account-authenticator',                    
+                            {
+                            type: 'category',
+                            label: 'Dynamic Multisig',
+                            items: [
+                                'developer/move/how-tos/account-abstraction/dynamic-multisig-account',
+                                'developer/move/how-tos/account-abstraction/multisig-members',
+                                'developer/move/how-tos/account-abstraction/transactions',
+                            ],
+                            },
+
                         ],
                     },
                     {

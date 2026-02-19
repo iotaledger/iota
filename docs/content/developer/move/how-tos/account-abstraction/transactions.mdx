@@ -1,0 +1,117 @@
+---
+title: Multisig Transactions
+description: "How transaction proposals and approvals are stored and managed for a dynamic multisig account"
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+---
+
+# Multisig Transactions
+
+## About account abstraction
+
+In an abstract account, transaction authorization logic is implemented in Move instead of relying on
+cryptographic signatures alone.  
+For multisig accounts, this requires tracking **which transactions are proposed** and **which members have approved them**.
+
+This module defines how transaction proposals and approvals are stored on-chain for a dynamic multisig account.
+
+
+## What this example shows
+
+This how-to demonstrates the **transaction lifecycle layer** of a dynamic multisig account:
+
+- Storing proposed transaction digests on-chain  
+- Recording member approvals for each transaction  
+- Preventing duplicate proposals and approvals  
+- Removing transactions after execution or cancellation  
+
+This module does not execute transactions itself; it only manages proposal and approval state.
+
+
+## Example code
+
+Below is the **minimal core code** required to manage multisig transactions.  
+The full module includes additional helpers, but this snippet highlights the essential logic.
+
+### Define transaction data structures
+
+```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/transactions.move#L20-L35
+```
+
+**What this does**
+
+- `Transaction` represents a proposed account transaction.
+- Only the transaction digest is stored, not the full transaction bytes.
+- `approves` tracks which members have approved the proposal.
+- `Transactions` stores all proposals in a table keyed by digest.
+
+### Create the transactions store
+
+```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/transactions.move#L36-L42
+```
+
+**What this does**
+
+- Initializes on-chain storage for transaction proposals.
+- Called once during multisig account creation.
+- Uses a table for efficient lookup by transaction digest.
+
+### Check and access transactions
+
+```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/transactions.move#L45-L53
+```
+
+**What this does**
+
+- Allows other modules to verify whether a transaction proposal exists.
+- Provides read-only access to proposal data.
+- Used by the authenticator to evaluate approvals.
+
+### Add a new transaction proposal
+
+```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/transactions.move#L60-L68
+```
+
+**What this does**
+
+- Creates a new transaction proposal.
+- Prevents duplicate transaction digests.
+- Automatically records the proposer as the first approver.
+
+### Approve an existing transaction
+
+```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/transactions.move#L94-L100
+```
+
+**What this does**
+
+- Records a member’s approval on-chain.
+- Prevents the same member from approving twice.
+- Approval data is later used to compute approval weight.
+
+## Code Outcome
+After using this transactions module:
+
+- Proposed transactions are represented on-chain by their digests.
+- Member approvals are tracked deterministically and transparently.
+- Duplicate proposals and approvals are rejected.
+- The multisig account can safely evaluate which transactions are eligible for execution.
+
+## Full Example Code
+The complete members module is available here:
+
+<Tabs groupId="language" queryString>
+
+<TabItem value="move" label="Move">
+
+```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/transactions.move
+```
+
+</TabItem>
+</Tabs>
+
+## Expected Behavior
+Transaction proposals and approvals are stored on-chain until execution or removal.
+The multisig authenticator relies on this data to decide whether a transaction is authorized.
