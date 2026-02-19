@@ -43,7 +43,11 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
             />
             <div className="flex flex-row space-x-xs pt-sm">
                 <div className="flex w-full [&_a]:w-full">
-                    <ExplorerLink transactionID={digest ?? ''} type={ExplorerLinkType.Transaction}>
+                    <ExplorerLink
+                        transactionID={digest ?? ''}
+                        type={ExplorerLinkType.Transaction}
+                        eventType="digest"
+                    >
                         <ViewTxnOnExplorerButton digest={digest} />
                     </ExplorerLink>
                 </div>

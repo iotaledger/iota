@@ -35,7 +35,7 @@
     },
     "devDependencies": {
         "@iota/build-scripts": "workspace:*",
-        "@types/node": "^20.14.10",
+        "@types/node": "^24.0.0",
         "dotenv": "^16.4.5",
         "ethers": "^6.13.5",
         "tsx": "^3.12.7",

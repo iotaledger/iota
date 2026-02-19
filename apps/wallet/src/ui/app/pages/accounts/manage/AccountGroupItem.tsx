@@ -56,6 +56,7 @@ export function AccountGroupItem({
     function handleOpen() {
         const newWindow = window.open(explorerHref!, '_blank', 'noopener,noreferrer');
         if (newWindow) newWindow.opener = null;
+        ampli.externalLinkOpened({ type: 'address' });
     }
 
     function handleToggleLock(e: React.MouseEvent<HTMLButtonElement>) {

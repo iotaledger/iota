@@ -70,6 +70,8 @@ export function MenuList() {
     const logoutMutation = useMutation({
         mutationKey: ['logout', 'clear wallet'],
         mutationFn: async () => {
+            await ampli.walletReset();
+            await ampli.client.flush?.();
             ampli.client.reset();
             queryClient.cancelQueries();
             queryClient.clear();
@@ -127,12 +129,15 @@ export function MenuList() {
     }
 
     function onSupportClick() {
-        ampli.openedLink({ url: DISCORD_SUPPORT_LINK });
+        ampli.externalLinkOpened({
+            value: DISCORD_SUPPORT_LINK,
+            type: 'support',
+        });
         window.open(DISCORD_SUPPORT_LINK, '_blank', 'noopener noreferrer');
     }
 
     function onFAQClick() {
-        ampli.openedLink({ url: FAQ_LINK });
+        ampli.externalLinkOpened({ value: FAQ_LINK, type: 'documentation' });
         window.open(FAQ_LINK, '_blank', 'noopener noreferrer');
     }
 

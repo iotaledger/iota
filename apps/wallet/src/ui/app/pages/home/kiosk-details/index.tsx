@@ -78,6 +78,7 @@ export function KioskDetailsPage() {
                                         className="text-hero-dark font-mono no-underline"
                                         objectID={kioskId!}
                                         type={ExplorerLinkType.Object}
+                                        eventType="object"
                                     >
                                         {formatAddress(kioskId!)}
                                     </ExplorerLink>
