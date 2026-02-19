@@ -110,7 +110,7 @@ pub(crate) enum TransactionBlockKindInput {
     ProgrammableTx = 1,
     /// The genesis transaction block.
     Genesis = 2,
-    /// The consensus commit prologue transaction block.
+    /// The consensus commit prologue transaction block (V1).
     ConsensusCommitPrologueV1 = 3,
     /// The authenticator state update transaction block.
     AuthenticatorStateUpdateV1 = 4,
@@ -118,6 +118,8 @@ pub(crate) enum TransactionBlockKindInput {
     RandomnessStateUpdate = 5,
     /// The end of epoch transaction block.
     EndOfEpochTx = 6,
+    /// The consensus commit prologue transaction block (V2).
+    ConsensusCommitPrologueV2 = 7,
 }
 
 type Query<ST, GB> = data::Query<ST, transactions::table, GB>;
