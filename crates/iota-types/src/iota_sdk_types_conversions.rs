@@ -33,8 +33,8 @@ use iota_sdk_types::{
     object::{GenesisObject, MovePackage, MoveStruct, Object, ObjectData, TypeOrigin, UpgradeInfo},
     object_id::ObjectId,
     transaction::{
-        Argument, CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4,
-        Command, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
+        CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
+        ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
         EndOfEpochTransactionKind, GasPayment, GenesisTransaction, Input, MakeMoveVector,
         MergeCoins, MoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate,
         SignedTransaction, SplitCoins, SystemPackage, Transaction, TransactionExpiration,
@@ -1601,25 +1601,17 @@ impl TryFrom<crate::transaction::Command> for Command {
                     .into_iter()
                     .map(|type_input| type_input.into_type_tag())
                     .collect::<Result<_, _>>()?,
-                arguments: programmable_move_call
-                    .arguments
-                    .into_iter()
-                    .map(Into::into)
-                    .collect(),
+                arguments: programmable_move_call.arguments,
             }),
             InternalCmd::TransferObjects(objects, address) => {
-                Self::TransferObjects(TransferObjects {
-                    objects: objects.into_iter().map(Into::into).collect(),
-                    address: address.into(),
-                })
+                Self::TransferObjects(TransferObjects { objects, address })
             }
-            InternalCmd::SplitCoins(coin, amounts) => Self::SplitCoins(SplitCoins {
-                coin: coin.into(),
-                amounts: amounts.into_iter().map(Into::into).collect(),
-            }),
+            InternalCmd::SplitCoins(coin, amounts) => {
+                Self::SplitCoins(SplitCoins { coin, amounts })
+            }
             InternalCmd::MergeCoins(argument, coins_to_merge) => Self::MergeCoins(MergeCoins {
-                coin: argument.into(),
-                coins_to_merge: coins_to_merge.into_iter().map(Into::into).collect(),
+                coin: argument,
+                coins_to_merge,
             }),
             InternalCmd::Publish(modules, dependencies) => Self::Publish(Publish {
                 modules,
@@ -1629,14 +1621,14 @@ impl TryFrom<crate::transaction::Command> for Command {
                 type_: type_tag
                     .map(|type_input| type_input.into_type_tag())
                     .transpose()?,
-                elements: elements.into_iter().map(Into::into).collect(),
+                elements,
             }),
             InternalCmd::Upgrade(modules, dependencies, package, ticket) => {
                 Self::Upgrade(Upgrade {
                     modules,
                     dependencies,
                     package,
-                    ticket: ticket.into(),
+                    ticket,
                 })
             }
         }
@@ -1654,71 +1646,30 @@ impl TryFrom<Command> for crate::transaction::Command {
                 move_call.module,
                 move_call.function,
                 move_call.type_arguments,
-                move_call.arguments.into_iter().map(Into::into).collect(),
+                move_call.arguments,
             ),
-            Command::TransferObjects(transfer_objects) => Self::TransferObjects(
-                transfer_objects
-                    .objects
-                    .into_iter()
-                    .map(Into::into)
-                    .collect(),
-                transfer_objects.address.into(),
-            ),
-            Command::SplitCoins(split_coins) => Self::SplitCoins(
-                split_coins.coin.into(),
-                split_coins.amounts.into_iter().map(Into::into).collect(),
-            ),
-            Command::MergeCoins(merge_coins) => Self::MergeCoins(
-                merge_coins.coin.into(),
-                merge_coins
-                    .coins_to_merge
-                    .into_iter()
-                    .map(Into::into)
-                    .collect(),
-            ),
+            Command::TransferObjects(transfer_objects) => {
+                Self::TransferObjects(transfer_objects.objects, transfer_objects.address)
+            }
+            Command::SplitCoins(split_coins) => {
+                Self::SplitCoins(split_coins.coin, split_coins.amounts)
+            }
+            Command::MergeCoins(merge_coins) => {
+                Self::MergeCoins(merge_coins.coin, merge_coins.coins_to_merge)
+            }
             Command::Publish(publish) => Self::Publish(publish.modules, publish.dependencies),
-            Command::MakeMoveVector(make_move_vector) => Self::make_move_vec(
-                make_move_vector.type_,
-                make_move_vector
-                    .elements
-                    .into_iter()
-                    .map(Into::into)
-                    .collect(),
-            ),
+            Command::MakeMoveVector(make_move_vector) => {
+                Self::make_move_vec(make_move_vector.type_, make_move_vector.elements)
+            }
             Command::Upgrade(upgrade) => Self::Upgrade(
                 upgrade.modules,
                 upgrade.dependencies,
                 upgrade.package,
-                upgrade.ticket.into(),
+                upgrade.ticket,
             ),
             _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
         .pipe(Ok)
-    }
-}
-
-impl From<crate::transaction::Argument> for Argument {
-    fn from(value: crate::transaction::Argument) -> Self {
-        match value {
-            crate::transaction::Argument::GasCoin => Self::Gas,
-            crate::transaction::Argument::Input(idx) => Self::Input(idx),
-            crate::transaction::Argument::Result(idx) => Self::Result(idx),
-            crate::transaction::Argument::NestedResult(idx1, idx2) => {
-                Self::NestedResult(idx1, idx2)
-            }
-        }
-    }
-}
-
-impl From<Argument> for crate::transaction::Argument {
-    fn from(value: Argument) -> Self {
-        match value {
-            Argument::Gas => Self::GasCoin,
-            Argument::Input(idx) => Self::Input(idx),
-            Argument::Result(idx) => Self::Result(idx),
-            Argument::NestedResult(idx1, idx2) => Self::NestedResult(idx1, idx2),
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
-        }
     }
 }
 

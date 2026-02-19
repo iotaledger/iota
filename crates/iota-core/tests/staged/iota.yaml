@@ -12,7 +12,7 @@ Address:
 Argument:
   ENUM:
     0:
-      GasCoin: UNIT
+      Gas: UNIT
     1:
       Input:
         NEWTYPE: U16
