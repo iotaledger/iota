@@ -9,9 +9,9 @@ use iota::ecdsa_k1;
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{assert_eq, assert_ref_eq};
 use iotaccount::iotaccount::{Self, IOTAccount};
-use iotaccount::public_key_authentication;
-use iotaccount::public_key_iotaccount::{Self, borrow_public_key};
 use iotaccount::test_utils::create_authenticator_function_ref_v1_for_testing;
+use public_key_authentication::public_key_authentication;
+use public_key_authentication::public_key_iotaccount::{Self, borrow_public_key};
 use std::ascii;
 
 // --------------------------------------- Create Basic Keyed Account ---------------------------------------

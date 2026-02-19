@@ -37,7 +37,7 @@ use iota::ptb_command::{
     ProgrammableMoveCall,
     input_index
 };
-use iotaccount::public_key_authentication;
+use public_key_authentication::public_key_authentication;
 use spending_limit::balance_reserve;
 use spending_limit::spending_limit_authentication;
 use std::ascii;

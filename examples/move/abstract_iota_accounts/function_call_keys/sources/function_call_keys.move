@@ -36,7 +36,7 @@ use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::ed25519;
 use iota::ptb_command::Command;
 use iotaccount::iotaccount::{Self, IOTAccountBuilder, IOTAccount};
-use iotaccount::public_key_iotaccount;
+use public_key_authentication::public_key_iotaccount;
 
 /// Allows calling `.with_public_key` on an `IOTAccountBuilder` to set a `public_key`.
 use fun public_key_iotaccount::with_public_key as IOTAccountBuilder.with_public_key;

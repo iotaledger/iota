@@ -10,11 +10,11 @@
 /// - ed25519 -> `ed25519_IOTAccount_authenticator`
 /// - secp256k1 -> `secp256k1_IOTAccount_authenticator`
 /// - secp256r1 -> `secp256r1_IOTAccount_authenticator`
-module iotaccount::public_key_iotaccount;
+module public_key_authentication::public_key_iotaccount;
 
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iotaccount::iotaccount::{Self, IOTAccount, IOTAccountBuilder};
-use iotaccount::public_key_authentication::{Self, public_key_field};
+use public_key_authentication::public_key_authentication::{Self, public_key_field};
 
 // === Errors ===
 

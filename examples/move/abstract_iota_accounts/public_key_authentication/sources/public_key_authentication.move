@@ -10,7 +10,7 @@
 /// - ed25519
 /// - secp256k1
 /// - secp256r1
-module iotaccount::public_key_authentication;
+module public_key_authentication::public_key_authentication;
 
 use iota::dynamic_field as df;
 use iota::ecdsa_k1;

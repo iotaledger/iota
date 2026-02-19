@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module iotaccount::public_key_authentication_tests;
+module public_key_authentication::public_key_authentication_tests;
 
 use iota::test_scenario;
 use iota::test_utils;
-use iotaccount::public_key_authentication;
+use public_key_authentication::public_key_authentication;
 use std::unit_test::assert_eq;
 
 #[test]

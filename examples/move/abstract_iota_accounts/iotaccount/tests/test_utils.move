@@ -13,6 +13,18 @@ public fun create_iotaccount_for_testing(scenario: &mut iota::test_scenario::Sce
     builder(authenticator, scenario.ctx()).with_field(b"SomeData".to_ascii_string(), 3u8).build()
 }
 
+public fun create_iotaccount_with_admin_for_testing(
+    scenario: &mut iota::test_scenario::Scenario,
+    admin: address,
+): address {
+    let authenticator = create_authenticator_function_ref_v1_for_testing();
+
+    builder(authenticator, scenario.ctx())
+        .with_field(b"SomeData".to_ascii_string(), 3u8)
+        .with_admin(admin)
+        .build()
+}
+
 public fun create_authenticator_function_ref_v1_for_testing(): AuthenticatorFunctionRefV1<
     IOTAccount,
 > {

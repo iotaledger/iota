@@ -10,7 +10,7 @@ use iota::iota::IOTA;
 use iota::ptb_call_arg;
 use iota::ptb_command;
 use iota::test_scenario::{Self, Scenario};
-use iotaccount::public_key_authentication;
+use public_key_authentication::public_key_authentication;
 use spending_limit::spending_limit_account::{Self, SpendingLimitAccount};
 use spending_limit::spending_limit_authentication;
 use std::ascii;
