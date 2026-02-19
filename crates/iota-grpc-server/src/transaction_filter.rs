@@ -31,6 +31,7 @@ pub enum TransactionKind {
     AuthenticatorStateUpdateV1 = 4,
     EndOfEpochTransaction = 5,
     RandomnessStateUpdate = 6,
+    ConsensusCommitPrologueV2 = 7,
 }
 
 impl From<&iota_types::transaction::TransactionKind> for TransactionKind {
@@ -42,6 +43,9 @@ impl From<&iota_types::transaction::TransactionKind> for TransactionKind {
             iota_types::transaction::TransactionKind::Genesis(_) => TransactionKind::Genesis,
             iota_types::transaction::TransactionKind::ConsensusCommitPrologueV1(_) => {
                 TransactionKind::ConsensusCommitPrologueV1
+            }
+            iota_types::transaction::TransactionKind::ConsensusCommitPrologueV2(_) => {
+                TransactionKind::ConsensusCommitPrologueV2
             }
             iota_types::transaction::TransactionKind::AuthenticatorStateUpdateV1(_) => {
                 TransactionKind::AuthenticatorStateUpdateV1
