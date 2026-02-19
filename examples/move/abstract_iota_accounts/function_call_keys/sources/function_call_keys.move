@@ -21,16 +21,16 @@
 ///
 /// This allows the true account owner to perform arbitrary programmable transactions while
 /// enabling granular function-level delegation to other keys.
-module function_call_keys::function_call_keys;
+module function_call_keys::function_call_keys_account;
 
-use function_call_keys::fk_store::{
+use function_call_keys::function_call_keys_store::{
     Self,
     FunctionRef,
     FunctionCallKeysStore,
     allow,
     disallow,
     is_allowed,
-    fk_store_field
+    function_call_keys_store_field
 };
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::ed25519;
@@ -48,7 +48,7 @@ use fun public_key_iotaccount::borrow_public_key as IOTAccount.borrow_public_key
 use fun has_permission as IOTAccount.has_permission;
 
 /// Allows calling `.extract_function_ref` on a `Command` to extract a `FunctionRef`.
-use fun fk_store::extract_function_ref as Command.extract_function_ref;
+use fun function_call_keys_store::extract_function_ref as Command.extract_function_ref;
 
 // === Errors ===
 
@@ -85,7 +85,10 @@ public fun create(
     // Create builder and attach the public key and the FunctionCallKeysStore field to the account.
     let builder = iotaccount::builder(authenticator, ctx)
         .with_public_key(public_key)
-        .with_field(fk_store_field(), fk_store::build_fn_keys_store(ctx));
+        .with_field(
+            function_call_keys_store_field(),
+            function_call_keys_store::build_fn_keys_store(ctx),
+        );
     // Optionally attach the admin
     let builder = if (admin.is_some()) {
         builder.with_admin(admin.destroy_some())
@@ -100,9 +103,9 @@ public fun create(
 /// Attach a FunctionCallKeysStore as a dynamic field to the account being built.
 public fun with_function_call_keys_store(
     builder: IOTAccountBuilder,
-    fk_store: FunctionCallKeysStore,
+    function_call_keys_store: FunctionCallKeysStore,
 ): IOTAccountBuilder {
-    builder.with_field(fk_store_field(), fk_store)
+    builder.with_field(function_call_keys_store_field(), function_call_keys_store)
 }
 
 // === Authenticators ===
@@ -143,7 +146,10 @@ public fun ed25519_IOTAccount_FunctionCallKeys_authenticator(
         assert!(is_ed25519_verified, EEd25519VerificationFailed);
     } else {
         // FUNCTION CALL KEY FLOW
-        assert!(account.has_field(fk_store_field()), EFunctionCallKeysNotInitialized);
+        assert!(
+            account.has_field(function_call_keys_store_field()),
+            EFunctionCallKeysNotInitialized,
+        );
         // Verify delegated signature against provided pub_key.
         assert!(is_ed25519_verified, EEd25519VerificationFailed);
 
@@ -167,10 +173,13 @@ public fun grant_permission(
     function_ref: FunctionRef,
     ctx: &TxContext,
 ) {
-    assert!(account.has_field(fk_store_field()), EFunctionCallKeysNotInitialized);
+    assert!(account.has_field(function_call_keys_store_field()), EFunctionCallKeysNotInitialized);
 
-    let fk_store = account.borrow_field_mut<_, FunctionCallKeysStore>(fk_store_field(), ctx);
-    fk_store.allow(pub_key, function_ref);
+    let function_call_keys_store = account.borrow_field_mut<_, FunctionCallKeysStore>(
+        function_call_keys_store_field(),
+        ctx,
+    );
+    function_call_keys_store.allow(pub_key, function_ref);
 }
 
 /// Revokes (disallows) a `FunctionRef` under a specific `pub_key`.
@@ -181,10 +190,13 @@ public fun revoke_permission(
     function_ref: &FunctionRef,
     ctx: &TxContext,
 ) {
-    assert!(account.has_field(fk_store_field()), EFunctionCallKeysNotInitialized);
+    assert!(account.has_field(function_call_keys_store_field()), EFunctionCallKeysNotInitialized);
 
-    let fk_store = account.borrow_field_mut<_, FunctionCallKeysStore>(fk_store_field(), ctx);
-    fk_store.disallow(pub_key, function_ref);
+    let function_call_keys_store = account.borrow_field_mut<_, FunctionCallKeysStore>(
+        function_call_keys_store_field(),
+        ctx,
+    );
+    function_call_keys_store.disallow(pub_key, function_ref);
 }
 
 // === View Functions ===
@@ -195,8 +207,10 @@ public fun has_permission(
     pub_key: vector<u8>,
     function_ref: &FunctionRef,
 ): bool {
-    if (!account.has_field(fk_store_field())) return false;
+    if (!account.has_field(function_call_keys_store_field())) return false;
 
-    let fk_store = account.borrow_field<_, FunctionCallKeysStore>(fk_store_field());
-    fk_store.is_allowed(pub_key, function_ref)
+    let function_call_keys_store = account.borrow_field<_, FunctionCallKeysStore>(
+        function_call_keys_store_field(),
+    );
+    function_call_keys_store.is_allowed(pub_key, function_ref)
 }

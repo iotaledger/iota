@@ -3,7 +3,7 @@ name = "function_call_keys"
 edition = "2024"
 
 [dependencies]
-Iota = { local = "../../../crates/iota-framework/packages/iota-framework" }
+Iota = { local = "../../../../crates/iota-framework/packages/iota-framework" }
 iotaccount = { local = "../iotaccount" }
 
 [addresses]

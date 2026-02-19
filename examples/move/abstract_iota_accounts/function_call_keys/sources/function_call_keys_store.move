@@ -9,7 +9,7 @@
 /// - A small store type backed by `VecSet<FunctionRef>` to model an **allow-set**.
 /// - Idempotent operations to **allow / disallow / query** a function call key.
 /// - A helper to **extract** a `FunctionRef` from a `Command::MoveCall`
-module function_call_keys::fk_store;
+module function_call_keys::function_call_keys_store;
 
 use iota::ptb_command::Command;
 use iota::table::{Self as tbl, Table};
@@ -121,4 +121,6 @@ public fun extract_function_ref(cmd: &Command): FunctionRef {
 // === Public Package ===
 
 /// An utility function to construct the dynamic field key for the Function Call Keys Store.
-public(package) fun fk_store_field(): FunctionCallKeysStoreField { FunctionCallKeysStoreField {} }
+public(package) fun function_call_keys_store_field(): FunctionCallKeysStoreField {
+    FunctionCallKeysStoreField {}
+}

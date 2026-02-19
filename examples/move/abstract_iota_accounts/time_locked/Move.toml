@@ -1,12 +1,13 @@
 [package]
-name = "spending_limit"
+name = "time_locked"
 edition = "2024"
+
 [dependencies]
-Iota = { local = "../../../crates/iota-framework/packages/iota-framework" }
+Iota = { local = "../../../../crates/iota-framework/packages/iota-framework" }
 iotaccount = { local = "../iotaccount" }
 
 [addresses]
-spending_limit = "0x0"
+time_locked = "0x0"
 
 [dev-dependencies]
 
