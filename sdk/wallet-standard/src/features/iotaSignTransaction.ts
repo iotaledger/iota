@@ -4,6 +4,9 @@
 
 import type { IdentifierString, WalletAccount } from '@wallet-standard/core';
 
+/** Name of the feature. */
+export const IotaSignTransaction = 'iota:signTransaction';
+
 /** The latest API version of the signTransaction API. */
 export type IotaSignTransactionVersion = '2.0.0';
 
@@ -13,7 +16,7 @@ export type IotaSignTransactionVersion = '2.0.0';
  */
 export type IotaSignTransactionFeature = {
     /** Namespace for the feature. */
-    'iota:signTransaction': {
+    [IotaSignTransaction]: {
         /** Version of the feature API. */
         version: IotaSignTransactionVersion;
         signTransaction: IotaSignTransactionMethod;

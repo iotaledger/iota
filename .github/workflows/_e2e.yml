@@ -180,6 +180,10 @@ jobs:
         if: (!cancelled()) && (steps.conditions.outputs.runWallet == 'true' || steps.conditions.outputs.runEvmBridge == 'true')
         run: cargo run --bin iota start --force-regenesis --with-faucet --epoch-duration-ms 10000 &
 
+      - name: Install Playwright Browsers for Wallet
+        if: (!cancelled()) && steps.conditions.outputs.runWallet == 'true'
+        run: pnpm --filter ./apps/wallet playwright install --with-deps chromium
+
       - name: Run Wallet e2e tests
         if: (!cancelled()) && steps.conditions.outputs.runWallet == 'true'
         run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- pnpm --filter iota-wallet playwright test

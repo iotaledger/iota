@@ -112,10 +112,9 @@ jobs:
           if [ "${{ inputs.testOnlyChangedCrates }}" = "true" ]; then
             ARGS="$ARGS --test-only-changed-crates"
           fi
+
           ARGS="$ARGS --changed-crates '${{ inputs.changedCrates }}'"
-          if [ -n "${{ inputs.changedExternalCrates }}" ]; then
-            ARGS="$ARGS --changed-crates-external '${{ inputs.changedExternalCrates }}'"
-          fi
+          ARGS="$ARGS --changed-crates-external '${{ inputs.changedExternalCrates }}'"
 
           eval "./scripts/ci_tests/rust_tests.sh $ARGS"
 
