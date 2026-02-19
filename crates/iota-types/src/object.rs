@@ -638,7 +638,7 @@ impl ObjectInner {
     }
 
     // It's a common pattern to retrieve both the owner and object ID
-    // together, if it's owned by a singler owner.
+    // together, if it's owned by a single owner.
     pub fn get_owner_and_id(&self) -> Option<(Owner, ObjectID)> {
         Some((self.owner, self.id()))
     }

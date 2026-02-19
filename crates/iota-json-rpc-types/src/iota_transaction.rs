@@ -2200,10 +2200,11 @@ impl Display for IotaArgument {
 impl From<Argument> for IotaArgument {
     fn from(value: Argument) -> Self {
         match value {
-            Argument::GasCoin => Self::GasCoin,
+            Argument::Gas => Self::GasCoin,
             Argument::Input(i) => Self::Input(i),
             Argument::Result(i) => Self::Result(i),
             Argument::NestedResult(i, j) => Self::NestedResult(i, j),
+            _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
     }
 }
