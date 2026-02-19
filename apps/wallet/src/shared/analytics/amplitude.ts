@@ -7,8 +7,7 @@ import { LogLevel } from '@amplitude/analytics-types';
 import { attachEnvironmentPlugin, getCustomNetwork } from '@iota/core';
 import { getNetwork, type Network } from '@iota/iota-sdk/client';
 import { ampli } from './ampli';
-import { elementCopiedPrivacyPlugin } from './plugins';
-import { externalLinkOpenedPrivacyPlugin } from './plugins';
+import { elementCopiedPrivacyPlugin, externalLinkOpenedPrivacyPlugin } from './plugins';
 import { dialogContextPlugin } from './plugins/dialogContextPlugin';
 
 const IS_ENABLED = process.env.BUILD_ENV === 'production';
