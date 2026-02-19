@@ -157,7 +157,11 @@ impl MysticetiScoringMetricsStore {
         // panic if authority_index >= committee_size. We run this check only to avoid
         // this panic.
         if authority_index.value() >= self.cached_metrics.faulty_blocks_provable().len() {
-            return;
+            panic!(
+                "Authority index {} inconsistent with metrics length ({}).",
+                authority_index.value(),
+                self.cached_metrics.faulty_blocks_provable().len()
+            );
         }
 
         match protocol_config.scorer_version_as_option() {

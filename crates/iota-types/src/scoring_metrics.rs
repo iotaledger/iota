@@ -51,7 +51,9 @@ impl<'de> Deserialize<'de> for VersionedScoringMetrics {
 }
 
 // Basic getters, setters and increments for the metrics. We also introduce
-// methods to convert to/from VersionedMisbehaviorReport.
+// methods to convert to/from VersionedMisbehaviorReport. For all increment and
+// store methods, validity checks for the authority_index are expected to be
+// done at a higher level.
 impl VersionedScoringMetrics {
     pub fn new(committee_size: usize, protocol_config: &ProtocolConfig) -> Self {
         // All metrics must be initialized to zero independently of the Misbehaviors
@@ -64,8 +66,6 @@ impl VersionedScoringMetrics {
         }
     }
 
-    // Validity checks are done at a higher level to ensure authority_index is
-    // valid.
     pub fn increment_faulty_blocks_provable(&self, authority_index: usize, increment: u64) {
         match self {
             VersionedScoringMetrics::V1(metrics) => {
@@ -75,8 +75,6 @@ impl VersionedScoringMetrics {
         }
     }
 
-    // Validity checks are done at a higher level to ensure authority_index is
-    // valid.
     pub fn increment_faulty_blocks_unprovable(&self, authority_index: usize, increment: u64) {
         match self {
             VersionedScoringMetrics::V1(metrics) => {
@@ -86,8 +84,6 @@ impl VersionedScoringMetrics {
         }
     }
 
-    // Validity checks are done at a higher level to ensure authority_index is
-    // valid.
     pub fn increment_equivocations(&self, authority_index: usize, increment: u64) {
         match self {
             VersionedScoringMetrics::V1(metrics) => {
@@ -96,8 +92,6 @@ impl VersionedScoringMetrics {
         }
     }
 
-    // Validity checks are done at a higher level to ensure authority_index is
-    // valid.
     pub fn increment_missing_proposals(&self, authority_index: usize, increment: u64) {
         match self {
             VersionedScoringMetrics::V1(metrics) => {
@@ -107,8 +101,6 @@ impl VersionedScoringMetrics {
         }
     }
 
-    // Validity checks are done at a higher level to ensure authority_index is
-    // valid.
     pub fn store_faulty_blocks_provable(&self, authority_index: usize, value: u64) {
         match self {
             VersionedScoringMetrics::V1(metrics) => {
@@ -117,8 +109,6 @@ impl VersionedScoringMetrics {
         }
     }
 
-    // Validity checks are done at a higher level to ensure authority_index is
-    // valid.
     pub fn store_faulty_blocks_unprovable(&self, authority_index: usize, value: u64) {
         match self {
             VersionedScoringMetrics::V1(metrics) => {
@@ -127,8 +117,6 @@ impl VersionedScoringMetrics {
         }
     }
 
-    // Validity checks are done at a higher level to ensure authority_index is
-    // valid.
     pub fn store_equivocations(&self, authority_index: usize, value: u64) {
         match self {
             VersionedScoringMetrics::V1(metrics) => {
@@ -137,8 +125,6 @@ impl VersionedScoringMetrics {
         }
     }
 
-    // Validity checks are done at a higher level to ensure authority_index is
-    // valid.
     pub fn store_missing_proposals(&self, authority_index: usize, value: u64) {
         match self {
             VersionedScoringMetrics::V1(metrics) => {
@@ -217,7 +203,7 @@ impl VersionedScoringMetrics {
         }
     }
 
-    pub fn iter(&self) -> std::vec::IntoIter<&Vec<AtomicU64>> {
+    pub fn iter(&self) -> impl Iterator<Item = &Vec<AtomicU64>> {
         match self {
             VersionedScoringMetrics::V1(metrics) => metrics.iter(),
         }

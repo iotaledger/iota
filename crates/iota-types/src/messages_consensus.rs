@@ -308,14 +308,14 @@ impl VersionedMisbehaviorReport {
         VersionedMisbehaviorReport::V1(misbehaviors, OnceCell::new())
     }
 
-    pub fn verify(&self, committee_size: usize) -> bool {
+    pub fn validate(&self, committee_size: usize) -> bool {
         match self {
-            VersionedMisbehaviorReport::V1(report, _) => report.verify(committee_size),
+            VersionedMisbehaviorReport::V1(report, _) => report.validate(committee_size),
         }
     }
 
     /// Returns an iterator over references to the fields in the report.
-    pub fn iter(&self) -> std::vec::IntoIter<&Vec<u64>> {
+    pub fn iter(&self) -> impl Iterator<Item = &Vec<u64>> {
         match self {
             VersionedMisbehaviorReport::V1(report, _) => report.iter(),
         }

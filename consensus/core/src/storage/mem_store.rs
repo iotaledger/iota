@@ -138,10 +138,12 @@ impl Store for MemStore {
         &self,
         _committee: &Committee,
     ) -> ConsensusResult<Option<VersionedScoringMetrics>> {
-        match &self.inner.read().scoring_metrics {
-            Some(metrics) => Ok(Some(metrics.snapshot())),
-            None => Ok(None),
-        }
+        Ok(self
+            .inner
+            .read()
+            .scoring_metrics
+            .as_ref()
+            .map(|metrics| metrics.snapshot()))
     }
 
     fn contains_block_at_slot(&self, slot: Slot) -> ConsensusResult<bool> {

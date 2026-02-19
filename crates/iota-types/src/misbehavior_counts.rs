@@ -60,7 +60,7 @@ impl<T> MisbehaviorsV1<T> {
     }
 
     // Returns an iterator over references to all misbehavior fields.
-    pub fn iter(&self) -> std::vec::IntoIter<&T> {
+    pub fn iter(&self) -> impl Iterator<Item = &T> {
         vec![
             &self.faulty_blocks_provable,
             &self.faulty_blocks_unprovable,
@@ -72,13 +72,13 @@ impl<T> MisbehaviorsV1<T> {
 
     // Returns an iterator over references to major misbehavior fields.
     // Major misbehaviors carry a higher penalty in the scoring system.
-    pub fn iter_major_misbehaviors(&self) -> std::vec::IntoIter<&T> {
+    pub fn iter_major_misbehaviors(&self) -> impl Iterator<Item = &T> {
         vec![&self.equivocations].into_iter()
     }
 
     // Returns an iterator over references to minor misbehavior fields.
     // Minor misbehaviors carry a lower penalty in the scoring system.
-    pub fn iter_minor_misbehaviors(&self) -> std::vec::IntoIter<&T> {
+    pub fn iter_minor_misbehaviors(&self) -> impl Iterator<Item = &T> {
         vec![
             &self.faulty_blocks_provable,
             &self.faulty_blocks_unprovable,
@@ -92,10 +92,16 @@ impl<T> FromIterator<T> for MisbehaviorsV1<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut iterator = iter.into_iter();
         Self {
-            faulty_blocks_provable: iterator.next().expect("Not enough elements in iterator"),
+            faulty_blocks_provable: iterator.next().expect(
+                "Not enough
+elements in iterator",
+            ),
             faulty_blocks_unprovable: iterator.next().expect("Not enough elements in iterator"),
             missing_proposals: iterator.next().expect("Not enough elements in iterator"),
-            equivocations: iterator.next().expect("Not enough elements in iterator"),
+            equivocations: iterator.next().expect(
+                "Not enough elements in
+iterator",
+            ),
         }
     }
 }
@@ -111,7 +117,7 @@ impl MisbehaviorsV1<Vec<u64>> {
     }
 
     // Verifies that all fields have the expected committee size.
-    pub fn verify(&self, committee_size: usize) -> bool {
+    pub fn validate(&self, committee_size: usize) -> bool {
         self.iter().all(|metric| metric.len() == committee_size)
     }
 

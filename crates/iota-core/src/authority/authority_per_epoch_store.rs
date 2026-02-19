@@ -4154,7 +4154,7 @@ impl AuthorityPerEpochStore {
                 match (report, self.protocol_config().scorer_version_as_option()) {
                     (VersionedMisbehaviorReport::V1(..), Some(1))
                     | (VersionedMisbehaviorReport::V1(..), None) => {
-                        if !report.verify(self.committee.num_members()) {
+                        if !report.validate(self.committee.num_members()) {
                             self.scorer.update_invalid_reports_count(authority_index);
                             warn!(
                                 "Received invalid misbehavior report from {:?}",
