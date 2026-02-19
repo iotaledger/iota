@@ -6,9 +6,9 @@ import * as amplitude from '@amplitude/analytics-browser';
 import { LogLevel } from '@amplitude/analytics-types';
 import { attachEnvironmentPlugin, getCustomNetwork } from '@iota/core';
 import { getNetwork, type Network } from '@iota/iota-sdk/client';
-
 import { ampli } from './ampli';
 import { elementCopiedPrivacyPlugin } from './plugins';
+import { externalLinkOpenedPrivacyPlugin } from './plugins';
 import { dialogContextPlugin } from './plugins/dialogContextPlugin';
 
 const IS_ENABLED = process.env.BUILD_ENV === 'production';
@@ -64,6 +64,7 @@ export async function initAmplitude() {
     ampli.client.add(attachEnvironmentPlugin(IS_DEV));
 
     ampli.client.add(elementCopiedPrivacyPlugin());
+    ampli.client.add(externalLinkOpenedPrivacyPlugin());
 }
 
 export function getUrlWithDeviceId(url: URL) {

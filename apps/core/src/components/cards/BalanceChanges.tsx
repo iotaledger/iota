@@ -81,7 +81,11 @@ function BalanceChangePanel({
                         keyText="Owner"
                         value={
                             <NamedAddressTooltip name={name} address={owner}>
-                                <ExplorerLink type={ExplorerLinkType.Address} address={owner}>
+                                <ExplorerLink
+                                    type={ExplorerLinkType.Address}
+                                    address={owner}
+                                    eventType="address"
+                                >
                                     {formatIotaName(name) || formatAddress(owner)}
                                 </ExplorerLink>
                             </NamedAddressTooltip>

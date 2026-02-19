@@ -26,6 +26,7 @@ export function NonVisualAssets({ items }: NonVisualAssetsProps) {
                                 objectID={item.objectId!}
                                 type={ExplorerLinkType.Object}
                                 key={item.objectId}
+                                eventType="object"
                             >
                                 <Card type={CardType.Default} isHoverable>
                                     <CardBody

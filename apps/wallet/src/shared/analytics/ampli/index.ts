@@ -400,6 +400,17 @@ export interface ElementCopiedProperties {
      */
     visibility?: 'private' | 'public';
 }
+
+export interface ExternalLinkOpenedProperties {
+    type: string;
+    value?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Enum Values | private, public |
+     */
+    visibility?: 'private' | 'public';
+}
 export interface IotaStakedProperties {
     /**
      * | Rule | Value |
@@ -904,6 +915,14 @@ export class ElementCopied implements BaseEvent {
     event_type = 'element copied';
 
     constructor(public event_properties: ElementCopiedProperties) {
+       this.event_properties = event_properties;
+    }
+}
+
+export class ExternalLinkOpened implements BaseEvent {
+    event_type = 'external link opened';
+
+    constructor(public event_properties: ExternalLinkOpenedProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -1733,7 +1752,26 @@ export class Ampli {
   ) {
     return this.track(new ElementCopied(properties), options);
   }
+
   /*
+  /**
+   * external link opened
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/external%20link%20opened)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. type)
+   * @param options Amplitude event options.
+   */
+  externalLinkOpened(
+    properties: ExternalLinkOpenedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ExternalLinkOpened(properties), options);
+  }
+
+  /**
    * iota staked
    *
    * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/iota%20staked)
