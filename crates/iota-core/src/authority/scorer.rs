@@ -42,6 +42,16 @@ pub struct ReceivedReportsStatePerAuthority {
     invalid_reports_count: AtomicU64,
 }
 
+impl ReceivedReportsStatePerAuthority {
+    fn has_not_sent_report_value(&self) -> bool {
+        self.has_not_sent_report.load(Ordering::Relaxed)
+    }
+
+    fn invalid_reports_count_value(&self) -> u64 {
+        self.invalid_reports_count.load(Ordering::Relaxed)
+    }
+}
+
 // Serializable counterpart of ReceivedReportsStatePerAuthority — converts
 // atomic types to plain types for DB storage.
 #[derive(Serialize, Deserialize)]
@@ -55,8 +65,8 @@ impl Serialize for ReceivedReportsStatePerAuthority {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let serializable = SerializableReceivedReportsStatePerAuthority {
             received_metrics: self.received_metrics.snapshot(),
-            has_not_sent_report: self.has_not_sent_report.load(Ordering::Relaxed),
-            invalid_reports_count: self.invalid_reports_count.load(Ordering::Relaxed),
+            has_not_sent_report: self.has_not_sent_report_value(),
+            invalid_reports_count: self.invalid_reports_count_value(),
         };
         serializable.serialize(serializer)
     }
@@ -222,12 +232,8 @@ impl Scorer {
             .iter()
             .map(|state| ReceivedReportsStatePerAuthority {
                 received_metrics: state.received_metrics.snapshot(),
-                has_not_sent_report: AtomicBool::new(
-                    state.has_not_sent_report.load(Ordering::Relaxed),
-                ),
-                invalid_reports_count: AtomicU64::new(
-                    state.invalid_reports_count.load(Ordering::Relaxed),
-                ),
+                has_not_sent_report: AtomicBool::new(state.has_not_sent_report_value()),
+                invalid_reports_count: AtomicU64::new(state.invalid_reports_count_value()),
             })
             .collect()
     }
@@ -251,15 +257,11 @@ impl Scorer {
                             .received_metrics
                             .update_from_snapshot(&persisted_state_for_authority.received_metrics);
                         scorer_state_for_authority.has_not_sent_report.store(
-                            persisted_state_for_authority
-                                .has_not_sent_report
-                                .load(Ordering::Relaxed),
+                            persisted_state_for_authority.has_not_sent_report_value(),
                             Ordering::Relaxed,
                         );
                         scorer_state_for_authority.invalid_reports_count.store(
-                            persisted_state_for_authority
-                                .invalid_reports_count
-                                .load(Ordering::Relaxed),
+                            persisted_state_for_authority.invalid_reports_count_value(),
                             Ordering::Relaxed,
                         );
                     },
@@ -281,7 +283,7 @@ impl Scorer {
             .received_reports_state
             .iter()
             .zip(self.voting_power.iter())
-            .filter(|(state, _)| !state.has_not_sent_report.load(Ordering::Relaxed))
+            .filter(|(state, _)| !state.has_not_sent_report_value())
             .map(|(state, voting_power)| (state.received_metrics.to_report(), *voting_power))
             .collect::<Vec<(VersionedMisbehaviorReport, VotingPower)>>();
         // Ensure that we have at least one report to calculate the scores, otherwise we
@@ -927,13 +929,10 @@ mod tests {
             .map(|i| epoch_store.scorer.received_metrics_snapshot(i))
             .collect();
         let pre_crash_invalid_counts: Vec<u64> = (0..committee_size)
-            .map(|i| epoch_store.scorer.received_reports_state[i].invalid_reports_count_value())
+            .map(|i| epoch_store.scorer.invalid_reports_count_value(i as u32))
             .collect();
-        let pre_crash_has_not_sent: Vec<bool> = epoch_store
-            .scorer
-            .received_reports_state
-            .iter()
-            .map(|s| s.has_not_sent_report_value())
+        let pre_crash_has_not_sent: Vec<bool> = (0..committee_size)
+            .map(|i| epoch_store.scorer.has_not_sent_report_value(i as u32))
             .collect();
 
         // Simulate crash recovery
@@ -973,15 +972,15 @@ mod tests {
         for i in 0..committee_size as u32 {
             assert_eq!(
                 pre_crash_invalid_counts[i as usize],
-                restored_scorer.received_reports_state[i as usize].invalid_reports_count_value(),
+                restored_scorer.invalid_reports_count_value(i),
                 "invalid_reports_count mismatch for authority {i}"
             );
         }
 
-        for i in 0..committee_size {
+        for i in 0..committee_size as u32 {
             assert_eq!(
-                pre_crash_has_not_sent[i],
-                restored_scorer.received_reports_state[i].has_not_sent_report_value(),
+                pre_crash_has_not_sent[i as usize],
+                restored_scorer.has_not_sent_report_value(i),
                 "has_not_sent_report mismatch for authority {i}"
             );
         }
@@ -1107,7 +1106,7 @@ mod tests {
             .map(|i| epoch_store.scorer.received_metrics_snapshot(i))
             .collect();
         let pre_crash_invalid_counts: Vec<u64> = (0..committee_size)
-            .map(|i| epoch_store.scorer.received_reports_state[i].invalid_reports_count_value())
+            .map(|i| epoch_store.scorer.invalid_reports_count_value(i as u32))
             .collect();
 
         // Simulate crash: restore from DB (only has commit 1 state)
@@ -1160,15 +1159,14 @@ mod tests {
         for i in 0..committee_size as u32 {
             assert_eq!(
                 pre_crash_invalid_counts[i as usize],
-                restored_scorer.received_reports_state[i as usize].invalid_reports_count_value(),
+                restored_scorer.invalid_reports_count_value(i),
                 "invalid_reports_count mismatch for authority {i}"
             );
         }
 
         // has_not_sent_report should be false for the authority that sent reports.
         assert!(
-            !restored_scorer.received_reports_state[authority_index as usize]
-                .has_not_sent_report_value(),
+            !restored_scorer.has_not_sent_report_value(authority_index),
             "has_not_sent_report should be false after restore + resync"
         );
     }
