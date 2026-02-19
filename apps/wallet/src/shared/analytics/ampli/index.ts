@@ -915,7 +915,7 @@ export class ElementCopied implements BaseEvent {
     event_type = 'element copied';
 
     constructor(public event_properties: ElementCopiedProperties) {
-       this.event_properties = event_properties;
+        this.event_properties = event_properties;
     }
 }
 
