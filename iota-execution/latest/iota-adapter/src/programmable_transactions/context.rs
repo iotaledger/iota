@@ -1665,7 +1665,10 @@ mod checked {
 
         fn get_module(&self, module_id: &ModuleId) -> Option<&Vec<u8>> {
             for package in self.new_packages {
-                let module = package.get_module(module_id.address(), module_id.name());
+                let module = package.get_module(
+                    &ObjectID::from(module_id.address().into_bytes()),
+                    &Identifier::new_unchecked(module_id.name().as_str()),
+                );
                 if module.is_some() {
                     return module;
                 }
