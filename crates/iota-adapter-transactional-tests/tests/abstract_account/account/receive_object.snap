@@ -21,7 +21,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 3, line 57:
 //# view-object 2,2
-Owner: Shared( 3 )
+Owner: Shared(3)
 Version: 3
 Contents: test::authenticate::AbstractAccount {
     id: iota::object::UID {
@@ -46,7 +46,7 @@ Debug of error: MoveAbort(MoveLocation { module: ModuleId { address: iota, name:
 
 task 7, line 68:
 //# view-object 5,0
-Owner: Account Address ( a_account )
+Owner: Address(a_account)
 Version: 4
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {

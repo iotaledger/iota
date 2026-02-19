@@ -502,7 +502,7 @@ impl Operations {
             .iter()
             .fold(balances, |mut balances, balance_change| {
                 // Rosetta only care about address owner
-                if let Owner::AddressOwner(owner) = balance_change.owner {
+                if let Owner::Address(owner) = balance_change.owner {
                     if balance_change.coin_type == GAS::type_tag() {
                         *balances.entry(owner).or_default() += balance_change.amount;
                     }
@@ -549,7 +549,11 @@ impl TryFrom<IotaTransactionBlockResponse> for Operations {
         let effect = response
             .effects
             .ok_or_else(|| anyhow!("Response effects should not be empty"))?;
-        let gas_owner = effect.gas_object().owner.get_owner_address()?;
+        let gas_owner = *effect
+            .gas_object()
+            .owner
+            .address()
+            .ok_or_else(|| anyhow!("Gas object is not address or object owned"))?;
         let gas_summary = effect.gas_cost_summary();
         let gas_used = gas_summary.storage_rebate as i128
             - gas_summary.storage_cost as i128

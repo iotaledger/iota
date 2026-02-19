@@ -338,9 +338,7 @@ pub(super) fn verify_address_owner(
 }
 
 pub(super) fn verify_shared_object(obj: &Object, name: &str) -> Result<()> {
-    let expected_owner = Owner::Shared {
-        initial_shared_version: Default::default(),
-    };
+    let expected_owner = Owner::Shared(Default::default());
     ensure!(
         obj.owner.is_shared(),
         "{name} shared owner mismatch: found {}, expected {}",

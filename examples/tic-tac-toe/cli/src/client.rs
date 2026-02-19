@@ -144,10 +144,7 @@ impl Client {
 
         // (4) Check whether the game has ended or not.
         let mut builder = ProgrammableTransactionBuilder::new();
-        let g = if let Owner::Shared {
-            initial_shared_version,
-        } = owner
-        {
+        let g = if let Owner::Shared(initial_shared_version) = owner {
             builder.obj(ObjectArg::SharedObject {
                 id,
                 initial_shared_version,
@@ -346,10 +343,7 @@ impl Client {
     pub async fn delete_shared_game(&mut self, game: &game::Shared, owner: Owner) -> Result<()> {
         let player = self.wallet.active_address()?;
 
-        let Owner::Shared {
-            initial_shared_version,
-        } = owner
-        else {
+        let Owner::Shared(initial_shared_version) = owner else {
             bail!("Game is not shared");
         };
 
@@ -426,10 +420,7 @@ impl Client {
     ) -> Result<()> {
         let player = self.wallet.active_address()?;
 
-        let Owner::Shared {
-            initial_shared_version,
-        } = owner
-        else {
+        let Owner::Shared(initial_shared_version) = owner else {
             bail!("Game is not shared");
         };
 

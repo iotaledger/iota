@@ -18,7 +18,7 @@ use crate::{
     dynamic_field::{DOFWrapper, get_dynamic_field_from_store},
     error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
     id::{ID, UID},
-    object::{Object, Owner},
+    object::Object,
     storage::{DenyListResult, ObjectStore},
     transaction::{CheckedInputObjects, ReceivingObjects},
 };
@@ -128,13 +128,13 @@ pub fn check_coin_deny_list_v1_during_execution(
         let Some(coin_type) = obj.coin_type_maybe() else {
             continue;
         };
-        let Ok(owner) = obj.owner.get_address_owner_address() else {
+        let Some(owner) = obj.owner.as_address_opt() else {
             continue;
         };
         new_coin_owners
             .entry(coin_type.to_canonical_string(false))
             .or_insert_with(BTreeSet::new)
-            .insert(owner);
+            .insert(*owner);
     }
     let num_non_gas_coin_owners = new_coin_owners.values().map(|v| v.len() as u64).sum();
     let new_regulated_coin_owners = new_coin_owners
@@ -236,11 +236,10 @@ pub fn get_deny_list_root_object(object_store: &dyn ObjectStore) -> Option<Objec
 
 pub fn get_deny_list_obj_initial_shared_version(object_store: &dyn ObjectStore) -> SequenceNumber {
     get_deny_list_root_object(object_store)
-        .map(|obj| match obj.owner {
-            Owner::Shared {
-                initial_shared_version,
-            } => initial_shared_version,
-            _ => unreachable!("Deny list object must be shared"),
+        .map(|obj| {
+            obj.owner
+                .into_shared_opt()
+                .expect("Deny list object must be shared")
         })
         .expect("Deny list object must exist")
 }

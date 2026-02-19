@@ -105,7 +105,7 @@ pub async fn publish_package_on_single_authority(
         .data()
         .created()
         .iter()
-        .find(|c| matches!(c.1, Owner::AddressOwner(..)))
+        .find(|c| matches!(c.1, Owner::Address(..)))
         .unwrap()
         .0;
     Ok((*effects.transaction_digest(), (package_id, cap_object)))
@@ -135,7 +135,7 @@ pub async fn upgrade_package_on_single_authority(
         package_id,
         modules,
         package.get_published_dependencies_ids(),
-        (upgrade_cap, Owner::AddressOwner(sender)),
+        (upgrade_cap, Owner::Address(sender)),
         UpgradePolicy::COMPATIBLE,
         digest,
         rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
