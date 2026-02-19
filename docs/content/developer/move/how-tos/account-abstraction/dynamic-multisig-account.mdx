@@ -1,0 +1,155 @@
+---
+title: Dynamic Multisig Account
+description: "How to create and use a dynamic multisig account (account abstraction) in Move"
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+---
+
+# Dynamic Multisig Account
+
+## About account abstraction
+
+Account Abstraction lets you attach a Move `authenticate` function to a shared account object. The runtime will call that function to decide whether a transaction where the account is the sender is allowed.
+
+In this example, the authenticator enforces **multi-party approval** by checking on-chain approvals stored as
+dynamic fields on the account object.
+
+## What this example shows
+
+This how-to demonstrates how Account Abstraction can be used to build a **dynamic multisig account**:
+
+- Create a shared account object with members, weights and threshold.  
+- Store per-account proposed transaction digests and approvals on-chain.  
+- An `authenticate` function that verifies a transaction digest has enough member approvals before allowing the account to send the TX.  
+- How to update members/threshold and rotate authenticators.
+
+## Example code
+
+Below is the **minimal core code** required to implement a dynamic multisig account.  
+The full package contains additional helpers and modules, but this snippet highlights only the essential logic.
+
+### Define the multisig account object
+
+```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/dynamic_multisig_account.move#L37-L40
+```
+
+**What this does**
+- Defines the abstract account object.
+- id becomes the account address.
+- All multisig state (members, threshold, txs) will live as dynamic fields under this object.
+
+### Define dynamic field keys (account state)
+
+```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/dynamic_multisig_account.move#L26-L34
+```
+
+**What this does**
+- Namespaces account state cleanly.
+- Each key maps to one logical piece of account data:
+  -  members list
+  -  approval threshold
+  -  proposed transactions
+
+### Create the multisig account and attach authenticator
+
+```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/dynamic_multisig_account.move#L41-L71
+```
+
+**What this does**
+- Creates members with weights.
+- Verifies `threshold ≤ total member weight`.
+- Creates a shared account object.
+- Stores all multisig state as dynamic fields.
+- Attaches the authenticator → converts it into an abstract account.
+
+### Track approvals for a transaction
+
+```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/dynamic_multisig_account.move#L95-L113
+```
+
+**What this does**
+- Computes approval weight, not count.
+- Ignores approvals from removed members.
+- This value is later checked by the authenticator.
+
+### Propose a transaction (on-chain)
+
+```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/dynamic_multisig_account.move#L126-L136
+```
+
+**What this does**
+- Any member can propose a transaction.
+- Stores only the digest, not full tx bytes.
+- Proposer is automatically the first approver.
+
+### Approve a transaction
+
+```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/dynamic_multisig_account.move#L138-L152
+```
+
+**What this does**
+- Records approval on-chain.
+- Prevents duplicate approvals.
+- Updates approval weight used during authentication.
+
+### Remove a transaction (account-only)
+
+```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/dynamic_multisig_account.move#L154-L167
+```
+
+**What this does**
+- Garbage-collects executed or cancelled proposals.
+- Can only be called via an **account-approved transaction**.
+
+### Update members, threshold, and authenticator
+
+```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/dynamic_multisig_account.move#L171-L199
+```
+
+**What this does**
+
+- Enables dynamic multisig:
+  -  add/remove members
+  -  change weights
+  -  update threshold
+- Keeps the same account address.
+- Old approvals from removed members are ignored automatically.
+
+### Core authenticator (account abstraction)
+
+```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/dynamic_multisig_account.move#L201-L217
+```
+
+## Code Outcome
+
+After deploying and using this dynamic multisig account implementation:
+
+- A shared abstract account address is created that represents the multisig wallet.
+- Account state (members, weights, threshold, proposed transactions) is stored as dynamic fields under the account object.
+- Members can propose transactions by submitting only the transaction digest on-chain.
+- Other members can approve the same transaction digest, and approvals are accumulated by weight, not by count.
+- When a transaction is submitted with the multisig account as the sender, the attached authenticator is executed automatically by the runtime.
+- The transaction is allowed only if total approval weight ≥ threshold; otherwise it is rejected during validation.
+- Members, weights, threshold, and even the authenticator itself can be updated without changing the account address.
+- Old approvals from removed members are automatically ignored, keeping the approval logic consistent.
+
+## Full Example Code
+
+The complete Move package, including comments and setup logic, is available here:
+
+<Tabs groupId="language" queryString>
+
+<TabItem value="move" label="Move">
+
+```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/dynamic_multisig_account.move
+```
+
+</TabItem>
+</Tabs>
+
+## Expected Behavior
+
+After the account is created, members propose and approve transaction digests on-chain.
+Any transaction sent from the account executes only if the attached authenticator confirms that the total approval weight meets the configured threshold.
