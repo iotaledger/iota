@@ -105,6 +105,11 @@ async fn execute_transaction(
                 _epoch,
                 checkpoint,
             ) => EffectsFinality::Checkpointed { checkpoint },
+            // QuorumExecuted means a quorum of validators acknowledged effects (TransactionDriver
+            // flow); treat it as a certified finality without a specific checkpoint.
+            iota_types::quorum_driver_types::EffectsFinalityInfo::QuorumExecuted(_epoch) => {
+                EffectsFinality::QuorumExecuted
+            }
         };
 
         (effects.try_into()?, finality)
@@ -212,6 +217,8 @@ pub enum EffectsFinality {
     Checkpointed {
         checkpoint: CheckpointSequenceNumber,
     },
+    /// A quorum of validators acknowledged effects (TransactionDriver flow).
+    QuorumExecuted,
 }
 
 impl serde::Serialize for EffectsFinality {
@@ -227,6 +234,7 @@ impl serde::Serialize for EffectsFinality {
                 EffectsFinality::Checkpointed { checkpoint } => {
                     ReadableEffectsFinality::Checkpointed { checkpoint }
                 }
+                EffectsFinality::QuorumExecuted => ReadableEffectsFinality::QuorumExecuted,
             };
             readable.serialize(serializer)
         } else {
@@ -237,6 +245,7 @@ impl serde::Serialize for EffectsFinality {
                 EffectsFinality::Checkpointed { checkpoint } => {
                     BinaryEffectsFinality::Checkpointed { checkpoint }
                 }
+                EffectsFinality::QuorumExecuted => BinaryEffectsFinality::QuorumExecuted,
             };
             binary.serialize(serializer)
         }
@@ -256,6 +265,7 @@ impl<'de> serde::Deserialize<'de> for EffectsFinality {
                 ReadableEffectsFinality::Checkpointed { checkpoint } => {
                     EffectsFinality::Checkpointed { checkpoint }
                 }
+                ReadableEffectsFinality::QuorumExecuted => EffectsFinality::QuorumExecuted,
             })
         } else {
             BinaryEffectsFinality::deserialize(deserializer).map(|binary| match binary {
@@ -265,6 +275,7 @@ impl<'de> serde::Deserialize<'de> for EffectsFinality {
                 BinaryEffectsFinality::Checkpointed { checkpoint } => {
                     EffectsFinality::Checkpointed { checkpoint }
                 }
+                BinaryEffectsFinality::QuorumExecuted => EffectsFinality::QuorumExecuted,
             })
         }
     }
@@ -295,6 +306,8 @@ enum ReadableEffectsFinality {
         #[schemars(with = "crate::_schemars::U64")]
         checkpoint: CheckpointSequenceNumber,
     },
+    /// A quorum of validators acknowledged effects (TransactionDriver flow).
+    QuorumExecuted,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -306,6 +319,8 @@ enum BinaryEffectsFinality {
     Checkpointed {
         checkpoint: CheckpointSequenceNumber,
     },
+    /// A quorum of validators acknowledged effects (TransactionDriver flow).
+    QuorumExecuted,
 }
 
 fn coins(objects: &[Object]) -> impl Iterator<Item = (&Address, Coin)> + '_ {

@@ -1444,9 +1444,14 @@ impl CheckpointBuilder {
                     _ => {
                         // All other tx should be included in the call to
                         // `consensus_messages_processed_notify`.
-                        transaction_keys.push(SequencedConsensusTransactionKey::External(
-                            ConsensusTransactionKey::Certificate(*effects.transaction_digest()),
-                        ));
+                        // In whiteflag flow, user transactions are submitted as UserTransaction,
+                        // not as Certificate.
+                        let key = if self.epoch_store.protocol_config().enable_white_flag_flow() {
+                            ConsensusTransactionKey::UserTransaction(*effects.transaction_digest())
+                        } else {
+                            ConsensusTransactionKey::Certificate(*effects.transaction_digest())
+                        };
+                        transaction_keys.push(SequencedConsensusTransactionKey::External(key));
                     }
                 }
                 transactions.push(transaction);

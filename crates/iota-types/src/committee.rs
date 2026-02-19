@@ -249,6 +249,14 @@ impl Committee {
         self.voting_rights.iter().map(|(_, stake)| *stake)
     }
 
+    /// Returns the stake of the authority at the given index, or `None` if out
+    /// of bounds.
+    pub fn stake_by_index(&self, index: u32) -> Option<StakeUnit> {
+        self.voting_rights
+            .get(index as usize)
+            .map(|(_, stake)| *stake)
+    }
+
     pub fn authority_exists(&self, name: &AuthorityName) -> bool {
         self.voting_rights
             .binary_search_by_key(name, |(a, _)| *a)

@@ -6321,6 +6321,8 @@ dependencies = [
  "starfish-config",
  "starfish-core",
  "static_assertions",
+ "strum 0.26.3",
+ "strum_macros 0.26.4",
  "tap",
  "telemetry-subscribers",
  "tempfile",

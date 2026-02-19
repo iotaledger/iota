@@ -81,10 +81,25 @@ impl IotaTxValidator {
                     authority_cap_batch.push(signed_cap);
                 }
 
+                ConsensusTransactionKind::UserTransactionV1(transaction) => {
+                    // TODO: Batch signature verification for UserTransactionV1.
+                    //  For now verify individually, but this should be batched for performance
+                    //  similar to how certificates are batch-verified above.
+                    self.epoch_store
+                        .signature_verifier
+                        .verify_tx(transaction.data())
+                        .tap_err(|e| {
+                            warn!("UserTransactionV1 signature verification failed: {}", e)
+                        })?;
+                }
+
                 ConsensusTransactionKind::EndOfPublish(_)
                 | ConsensusTransactionKind::NewJWKFetched(_, _, _)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_)
-                | ConsensusTransactionKind::MisbehaviorReport(_, _, _) => {}
+                | ConsensusTransactionKind::MisbehaviorReport(_, _, _) => {
+                    // No signature verification needed for these transaction
+                    // types
+                }
             }
         }
 
