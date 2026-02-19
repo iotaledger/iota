@@ -250,7 +250,7 @@ where
     pub fn parse_command_arg(&mut self) -> Result<Argument> {
         use super::token::CommandToken as Tok;
         Ok(match self.inner().advance_any()? {
-            (Tok::Ident, GAS_COIN) => Argument::GasCoin,
+            (Tok::Ident, GAS_COIN) => Argument::Gas,
             (Tok::Ident, INPUT) => {
                 self.inner().advance(Tok::LParen)?;
                 let num = self.parse_u16()?;
