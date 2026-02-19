@@ -12,6 +12,7 @@ use std::{
 use arc_swap::ArcSwap;
 use consensus_config::Committee as ConsensusCommittee;
 use consensus_core::{CommitConsumerMonitor, CommitIndex};
+use fastcrypto::hash::HashFunction;
 use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task};
 use iota_types::{
@@ -100,6 +101,73 @@ impl ConsensusHandlerInitializer {
         )
     }
 }
+
+mod additional_consensus_states {
+    use iota_protocol_config::ProtocolConfig;
+    use iota_types::digests::AdditionalConsensusStatesDigest;
+
+    use super::*;
+
+    // Trait for the state fields used in AdditionalConsensusStates.
+    pub(crate) trait AdditionalConsensusStatesTrait {
+        #[expect(unused)]
+        fn digest(&self) -> AdditionalConsensusStatesDigest;
+    }
+
+    // Implementation for any type that already has `Serialize`.
+    impl<T: Serialize> AdditionalConsensusStatesTrait for T {
+        fn digest(&self) -> AdditionalConsensusStatesDigest {
+            let mut hasher = iota_types::crypto::DefaultHash::default();
+            hasher.update(bcs::to_bytes(self).expect("BCS serialization should not fail"));
+            AdditionalConsensusStatesDigest::new(hasher.finalize().into())
+        }
+    }
+
+    // Holds additional consensus state fields that we want to include in the
+    // ConsensusCommitPrologueV2, or even only to track them across commits. To add
+    // a new field:
+    // - add it to the struct,
+    // - modify AdditionalConsensusStates::new() to initialize it,
+    // - implement a setter for the field.
+    // - add the field to AdditionalConsensusStates::iter() for debugging and
+    //   testing purposes.
+    //
+    // To use the field in ConsensusCommitPrologueV2:
+    // - add the field's to a new version of AdditionalConsensusStates::iter_v_(),
+    // - use the new iter_v_() method to compute the updated list of digests in
+    //   AdditionalConsensusStates::digests(), gated by a new protocol config flag.
+    //
+    // Example: if the new field is `new_state: NewState`, then we will add it to
+    // iter(). If we want to include it in ConsensusCommitPrologueV2, we will add a
+    // new iter_v1(), and compute the digests in digests() over iter_v1 if
+    // protocol_config.record_new_state_in_prologue() is true.
+    #[derive(Serialize, Deserialize)]
+    pub struct AdditionalConsensusStates {}
+
+    impl AdditionalConsensusStates {
+        #[expect(unused)]
+        pub fn new() -> Self {
+            Self {}
+        }
+
+        // Returns an iterator over all state fields. Used for debugging and testing.
+        #[expect(unused)]
+        fn iter(&self) -> impl Iterator<Item = &dyn AdditionalConsensusStatesTrait> {
+            [].into_iter()
+        }
+
+        /// Returns the ordered list of digests, one per tracked state field.
+        #[expect(unused)]
+        pub fn digests(
+            &self,
+            protocol_config: &ProtocolConfig,
+        ) -> Vec<AdditionalConsensusStatesDigest> {
+            vec![]
+        }
+    }
+}
+#[expect(unused)]
+pub(crate) use additional_consensus_states::AdditionalConsensusStates;
 
 pub struct ConsensusHandler<C> {
     /// A store created for each epoch. ConsensusHandler is recreated each
