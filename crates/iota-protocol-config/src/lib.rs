@@ -113,6 +113,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 20;
 //             decoupling on Testnet; Devnet and Mainnet behavior remain the
 //             same.
 //             Introduce Dynamic Minimum Commission (IIP-8) on all networks.
+// Version 21: Enable recording additional state digest in consensus commit
+//             prologue on devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -431,6 +433,10 @@ struct FeatureFlags {
     // If false, a default score (MAX_SCORE) is passed
     #[serde(skip_serializing_if = "is_false")]
     pass_calculated_validator_scores_to_advance_epoch: bool,
+
+    // If true, record the additional state digest in the consensus commit prologue.
+    #[serde(skip_serializing_if = "is_false")]
+    record_additional_states_digests_in_prologue: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1577,6 +1583,11 @@ impl ProtocolConfig {
         );
         pass
     }
+
+    pub fn record_additional_states_digests_in_prologue(&self) -> bool {
+        self.feature_flags
+            .record_additional_states_digests_in_prologue
+    }
 }
 
 #[cfg(not(msim))]
@@ -2509,6 +2520,12 @@ impl ProtocolConfig {
                     }
                 }
 
+                21 => {
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        cfg.feature_flags
+                            .record_additional_states_digests_in_prologue = true;
+                    }
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
