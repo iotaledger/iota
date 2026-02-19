@@ -325,7 +325,7 @@ where
         let tx_digest = *transaction.digest();
 
         // TODO: add transaction to some struct to prevent sending the same transaction
-        // multiple times in case client sends it mulitple times if self
+        // multiple times in case client sends it multiple times if self
         //     .pending_tx_log
         //     .write_pending_transaction_maybe(&transaction)
         //     .await

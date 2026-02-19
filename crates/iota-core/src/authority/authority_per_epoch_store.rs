@@ -3122,7 +3122,7 @@ impl AuthorityPerEpochStore {
         // Deferred txs from previous commits already have persistent locks,
         // giving them natural precedence over new transactions.
 
-        // TODO: how should defered transactions be handled in whiteflag? are they
+        // TODO: how should deferred transactions be handled in whiteflag? are they
         //  already locked? if a transaction is cancelled, is it unlocked or is gas
         //  object consumed anyway?
 
