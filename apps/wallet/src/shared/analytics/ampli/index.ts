@@ -390,6 +390,17 @@ export interface DisconnectedApplicationProperties {
     sourceFlow?: string;
 }
 
+export interface ExternalLinkOpenedProperties {
+    type: string;
+    value?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Enum Values | private, public |
+     */
+    visibility?: 'private' | 'public';
+}
+
 export interface IotaStakedProperties {
     /**
      * | Rule | Value |
@@ -565,6 +576,10 @@ export interface SentCollectibleProperties {
     objectId?: string;
 }
 
+export interface SidePanelChangedProperties {
+    enabled: boolean;
+}
+
 export interface StakeClickedProperties {
     isCurrentlyStaking?: boolean;
     /**
@@ -574,7 +589,6 @@ export interface StakeClickedProperties {
      */
     sourceFlow?: string;
 }
-
 export interface StakedIotaProperties {
     /**
      * | Rule | Value |
@@ -890,6 +904,13 @@ export class DisconnectedApplication implements BaseEvent {
     }
 }
 
+export class ExternalLinkOpened implements BaseEvent {
+    event_type = 'external link opened';
+
+    constructor(public event_properties: ExternalLinkOpenedProperties) {
+        this.event_properties = event_properties;
+    }
+}
 export class IotaStaked implements BaseEvent {
     event_type = 'iota staked';
 
@@ -998,6 +1019,14 @@ export class SentCollectible implements BaseEvent {
     event_type = 'sent collectible';
 
     constructor(public event_properties?: SentCollectibleProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class SidePanelChanged implements BaseEvent {
+    event_type = 'side panel changed';
+
+    constructor(public event_properties: SidePanelChangedProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -1701,6 +1730,23 @@ export class Ampli {
   }
 
   /**
+   * external link opened
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/external%20link%20opened)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. type)
+   * @param options Amplitude event options.
+   */
+  externalLinkOpened(
+    properties: ExternalLinkOpenedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ExternalLinkOpened(properties), options);
+  }
+
+  /**
    * iota staked
    *
    * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/iota%20staked)
@@ -1938,6 +1984,23 @@ export class Ampli {
     return this.track(new SentCollectible(properties), options);
   }
 
+  /**
+   * side panel changed
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/side%20panel%20changed)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. enabled)
+   * @param options Amplitude event options.
+   */
+  sidePanelChanged(
+    properties: SidePanelChangedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new SidePanelChanged(properties), options);
+  }
+  
   /**
    * stake clicked
    *
