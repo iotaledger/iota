@@ -47,7 +47,7 @@
 	},
 	"engines": {
 		"node": ">=24",
-		"pnpm": ">=9.6.0 <=9.15.9"
+		"pnpm": ">=10"
 	},
 	"manypkg": {
 		"ignoredRules": [
@@ -86,5 +86,5 @@
 	"dependencies": {
 		"copy-text-to-clipboard": "^3.2.0"
 	},
-	"packageManager": "pnpm@9.6.0"
+	"packageManager": "pnpm@10.30.0"
 }
