@@ -548,10 +548,12 @@ impl RestStateReader for RestReadStore {
 }
 
 impl RestIndexes for RestIndexStore {
+    // only used in "grpc-server"
     fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<iota_types::storage::EpochInfo>> {
         self.get_epoch_info(epoch).map_err(StorageError::custom)
     }
 
+    // used in both "grpc-server" and "rest-api"
     fn get_transaction_info(
         &self,
         digest: &TransactionDigest,
@@ -560,6 +562,7 @@ impl RestIndexes for RestIndexStore {
             .map_err(StorageError::custom)
     }
 
+    // only used in "rest-api"
     fn account_owned_objects_info_iter(
         &self,
         owner: IotaAddress,
@@ -582,6 +585,7 @@ impl RestIndexes for RestIndexStore {
         Ok(Box::new(iter) as _)
     }
 
+    // only used in "rest-api"
     fn dynamic_field_iter(
         &self,
         parent: ObjectID,
@@ -596,6 +600,7 @@ impl RestIndexes for RestIndexStore {
         Ok(Box::new(iter) as _)
     }
 
+    // only used in "rest-api"
     fn get_coin_info(
         &self,
         coin_type: &StructTag,
