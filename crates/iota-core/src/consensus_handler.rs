@@ -149,7 +149,7 @@ mod additional_consensus_states {
 
         // Setter for received_reports_state
         #[expect(unused)]
-        pub fn set_received_reports_state(&mut self, state: ReceivedReportsState) {
+        pub(crate) fn set_received_reports_state(&mut self, state: ReceivedReportsState) {
             self.received_reports_state = state;
         }
 
@@ -165,9 +165,9 @@ mod additional_consensus_states {
             [&self.received_reports_state as &dyn AdditionalConsensusStatesTrait].into_iter()
         }
 
-        /// Returns the ordered list of digests, one per tracked state field.
+        // Returns the ordered list of digests, one per tracked state field.
         #[expect(unused)]
-        pub fn digests(
+        pub(crate) fn digests(
             &self,
             protocol_config: &ProtocolConfig,
         ) -> Vec<AdditionalConsensusStatesDigest> {
@@ -211,6 +211,8 @@ pub struct ConsensusHandler<C> {
     processed_cache: LruCache<SequencedConsensusTransactionKey, ()>,
     transaction_scheduler: AsyncTransactionScheduler,
 
+    additional_consensus_states: AdditionalConsensusStates,
+
     backpressure_subscriber: BackpressureSubscriber,
 }
 
@@ -249,6 +251,7 @@ impl<C> ConsensusHandler<C> {
             metrics,
             processed_cache: LruCache::new(NonZeroUsize::new(PROCESSED_CACHE_CAP).unwrap()),
             transaction_scheduler,
+            additional_consensus_states: AdditionalConsensusStates::new(),
             backpressure_subscriber,
         }
     }
@@ -486,6 +489,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             .epoch_store
             .process_consensus_transactions_and_commit_boundary(
                 all_transactions,
+                &self.additional_consensus_states,
                 &self.last_consensus_stats,
                 &self.checkpoint_service,
                 self.cache_reader.as_ref(),
@@ -957,6 +961,7 @@ impl ConsensusCommitInfo {
         epoch: u64,
         protocol_config: &ProtocolConfig,
         cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+        _additional_states: &AdditionalConsensusStates,
     ) -> VerifiedExecutableTransaction {
         if protocol_config.record_additional_states_digests_in_prologue() {
             self.consensus_commit_prologue_v2_transaction(
