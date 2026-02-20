@@ -1,6 +1,6 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { type AddedAccountsProperties } from '_src/shared/analytics/ampli';
+import { type AccountsAddedProperties } from '_src/shared/analytics/ampli';
 import { AccountType } from '_src/background/accounts/account';
 import { AccountsFormType } from '_components/accounts';
 
@@ -13,9 +13,11 @@ enum AmpliAccountType {
     Seed = 'Seed',
 }
 
+type AccountOrigin = 'new' | 'import' | 'derived';
+
 export const ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE: Record<
     AccountsFormType,
-    AddedAccountsProperties['accountType']
+    AccountsAddedProperties['accountType']
 > = {
     [AccountsFormType.NewMnemonic]: AmpliAccountType.Mnemonic,
     [AccountsFormType.ImportMnemonic]: AmpliAccountType.Mnemonic,
@@ -29,9 +31,22 @@ export const ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE: Record<
     [AccountsFormType.ImportKeystone]: AmpliAccountType.Keystone,
 };
 
+export const ACCOUNT_FORM_TYPE_TO_ACCOUNT_ORIGIN: Record<AccountsFormType, AccountOrigin> = {
+    [AccountsFormType.NewMnemonic]: 'new',
+    [AccountsFormType.ImportMnemonic]: 'import',
+    [AccountsFormType.ImportSeed]: 'import',
+    [AccountsFormType.MnemonicSource]: 'derived',
+    [AccountsFormType.SeedSource]: 'derived',
+    [AccountsFormType.ImportPrivateKey]: 'import',
+    [AccountsFormType.Passkey]: 'new',
+    [AccountsFormType.ImportPasskey]: 'import',
+    [AccountsFormType.ImportLedger]: 'import',
+    [AccountsFormType.ImportKeystone]: 'import',
+};
+
 export const ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE: Record<
     AccountType,
-    AddedAccountsProperties['accountType']
+    AccountsAddedProperties['accountType']
 > = {
     [AccountType.MnemonicDerived]: AmpliAccountType.Mnemonic,
     [AccountType.SeedDerived]: AmpliAccountType.Seed,

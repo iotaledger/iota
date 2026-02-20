@@ -73,6 +73,7 @@ export function AccountGroup({
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
     const { data: accountSources } = useAccountSources();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceID);
+    const SOURCE_FLOW = 'Manage Accounts';
 
     async function handleAdd(e: React.MouseEvent<HTMLButtonElement>) {
         if (!accountSource) return;
@@ -93,6 +94,7 @@ export function AccountGroup({
         } else {
             createAccountMutation.mutate({
                 type: accountsFormType,
+                sourceFlow: SOURCE_FLOW
             });
         }
     }
@@ -304,6 +306,7 @@ export function AccountGroup({
                             await createAccountMutation.mutateAsync({
                                 type: accountsFormValues.current.type,
                                 password,
+                                sourceFlow: SOURCE_FLOW,
                             });
                         }
                         setPasswordModalVisible(false);

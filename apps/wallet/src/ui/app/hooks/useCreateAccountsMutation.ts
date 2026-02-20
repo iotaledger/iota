@@ -2,13 +2,12 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ampli, ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE } from '_src/shared/analytics';
+import { ampli, ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE, ACCOUNT_FORM_TYPE_TO_ACCOUNT_ORIGIN } from '_src/shared/analytics';
 import { useMutation } from '@tanstack/react-query';
-
 import { useAccountsFormContext, AccountsFormType, type AccountsFormValues } from '_components';
 import { useBackgroundClient } from './useBackgroundClient';
 import { AccountType } from '_src/background/accounts/account';
-
+import { useAccounts } from './useAccounts';
 import { useCreatePasskeyAccount } from './useCreatePasskeyAccount';
 
 function validateAccountFormValues<T extends AccountsFormType>(
@@ -36,10 +35,19 @@ export function useCreateAccountsMutation() {
     const backgroundClient = useBackgroundClient();
     const [accountsFormValuesRef, setAccountFormValues] = useAccountsFormContext();
     const { createPasskeyAccount } = useCreatePasskeyAccount();
+    const { data: existingAccounts } = useAccounts();
 
     return useMutation({
         mutationKey: ['create accounts'],
-        mutationFn: async ({ type, password }: { type: AccountsFormType; password?: string }) => {
+        mutationFn: async ({
+            type,
+            password,
+            sourceFlow,
+        }: {
+            type: AccountsFormType;
+            password?: string;
+            sourceFlow: string;
+        }) => {
             let createdAccounts;
             const accountsFormValues = accountsFormValuesRef.current;
             if (
@@ -195,7 +203,10 @@ export function useCreateAccountsMutation() {
             }
             ampli.accountsAdded({
                 accountType: ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE[type],
+                accountOrigin: ACCOUNT_FORM_TYPE_TO_ACCOUNT_ORIGIN[type],
                 numberOfAccounts: createdAccounts.length,
+                isFirstAccount: !existingAccounts?.length,
+                sourceFlow,
             });
             setAccountFormValues(null);
             const selectedAccount = createdAccounts[0];
