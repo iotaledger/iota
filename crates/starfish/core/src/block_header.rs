@@ -489,7 +489,6 @@ impl ShardWithProof {
                     round: block_ref.round,
                     author: block_ref.author,
                     transactions_commitment: transaction_commitment,
-                    block_digest: block_ref.digest,
                 },
             })
         } else {
@@ -921,7 +920,6 @@ impl VerifiedBlockHeader {
             round: self.round(),
             author: self.author(),
             transactions_commitment: self.signed_block_header.inner.transactions_commitment(),
-            block_digest: self.digest(),
         }
     }
 

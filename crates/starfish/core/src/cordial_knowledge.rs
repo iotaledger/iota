@@ -651,7 +651,6 @@ impl CordialKnowledge {
                         round: acknowledgment.round,
                         author: acknowledgment.author,
                         transactions_commitment,
-                        block_digest: acknowledgment.digest,
                     })
                 } else {
                     continue;

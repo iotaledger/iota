@@ -1028,9 +1028,7 @@ impl DagState {
             // Look up block digests from in-memory map
             let refs_with_indices: Vec<_> = missing
                 .iter()
-                .filter_map(|(idx, tx)| {
-                    self.resolve_block_ref(tx).map(|br| (*idx, br))
-                })
+                .filter_map(|(idx, tx)| self.resolve_block_ref(tx).map(|br| (*idx, br)))
                 .collect();
 
             if !refs_with_indices.is_empty() {
@@ -1381,7 +1379,6 @@ impl DagState {
                                 round: last.round,
                                 author: last.author,
                                 transactions_commitment: last_header.transactions_commitment(),
-                                block_digest: last.digest,
                             })
                         } else {
                             GenericTransactionRef::from(*last)
@@ -1451,7 +1448,6 @@ impl DagState {
                         round: block_ref.round,
                         author: block_ref.author,
                         transactions_commitment: header.transactions_commitment(),
-                        block_digest: block_ref.digest,
                     })
                 } else {
                     GenericTransactionRef::from(*block_ref)
@@ -1942,7 +1938,6 @@ impl DagState {
                     round: eviction_round + 1,
                     author: authority_index,
                     transactions_commitment: TransactionsCommitment::MIN,
-                    block_digest: BlockHeaderDigest::MIN,
                 })
             } else {
                 GenericTransactionRef::from(BlockRef::new(
@@ -1974,7 +1969,6 @@ impl DagState {
                     round: transaction_eviction_round,
                     author: authority_index,
                     transactions_commitment: TransactionsCommitment::MIN,
-                    block_digest: BlockHeaderDigest::MIN,
                 })
             } else {
                 GenericTransactionRef::from(BlockRef::new(
@@ -3711,7 +3705,6 @@ mod test {
                 round: 11,
                 author: AuthorityIndex::new_for_test(0),
                 transactions_commitment: TransactionsCommitment::default(),
-                block_digest: BlockHeaderDigest::default(),
             })
         } else {
             GenericTransactionRef::from(BlockRef::new(

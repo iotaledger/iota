@@ -40,7 +40,8 @@ struct Inner {
         BTreeMap<(Round, AuthorityIndex, TransactionsCommitment), VerifiedTransactions>,
     block_headers: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedBlockHeader>,
     digests_by_authorities: BTreeSet<(AuthorityIndex, Round, BlockHeaderDigest)>,
-    transaction_commitments_by_authorities: BTreeSet<(AuthorityIndex, Round, TransactionsCommitment)>,
+    transaction_commitments_by_authorities:
+        BTreeSet<(AuthorityIndex, Round, TransactionsCommitment)>,
     commits: BTreeMap<(CommitIndex, CommitDigest), TrustedCommit>,
     commit_votes: BTreeSet<(CommitIndex, CommitDigest, BlockRef)>,
     commit_info: BTreeMap<(CommitIndex, CommitDigest), CommitInfo>,
@@ -399,7 +400,6 @@ impl Store for MemStore {
                 round: *round,
                 author: *author,
                 transactions_commitment: *commitment,
-                block_digest: BlockHeaderDigest::default(),
             })
             .collect();
         Ok(res)

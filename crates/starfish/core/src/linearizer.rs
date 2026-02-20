@@ -162,7 +162,6 @@ impl Linearizer {
                             round: block_ref.round,
                             author: block_ref.author,
                             transactions_commitment,
-                            block_digest: block_ref.digest,
                         })
                     })
                     .collect()

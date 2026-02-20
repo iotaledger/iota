@@ -16,7 +16,7 @@ use starfish_config::{AuthorityIndex, DIGEST_LENGTH};
 #[cfg(test)]
 use crate::context::Context;
 use crate::{
-    block_header::{BlockHeaderDigest, BlockRef, Round, TransactionsCommitment},
+    block_header::{BlockRef, Round, TransactionsCommitment},
     error::{ConsensusError, ConsensusResult},
 };
 
@@ -25,7 +25,6 @@ pub struct TransactionRef {
     pub round: Round,
     pub author: AuthorityIndex,
     pub transactions_commitment: TransactionsCommitment,
-    pub block_digest: BlockHeaderDigest,
 }
 
 impl TransactionRef {
@@ -34,7 +33,6 @@ impl TransactionRef {
             round: block_ref.round,
             author: block_ref.author,
             transactions_commitment,
-            block_digest: block_ref.digest,
         }
     }
 }
@@ -205,7 +203,6 @@ pub(crate) fn convert_block_refs_to_generic_transaction_refs(
                     round: block_ref.round,
                     author: block_ref.author,
                     transactions_commitment: header.transactions_commitment(),
-                    block_digest: block_ref.digest,
                 })
             })
             .collect()

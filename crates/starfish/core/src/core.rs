@@ -1548,7 +1548,6 @@ mod test {
                         round: block.round(),
                         author: block.author(),
                         transactions_commitment: block.transactions_commitment(),
-                        block_digest: block.digest(),
                     })
                 } else {
                     // When disabled, use BlockRef variant
@@ -2611,7 +2610,7 @@ mod test {
                 GenericTransactionRef::TransactionRef(ref t) => {
                     // resolve_block_ref returns None iff the block header is absent from
                     // dag_state, which is exactly the condition we want to check.
-                    dag.resolve_block_ref(t).map_or(false, |block_ref| {
+                    dag.resolve_block_ref(t).is_some_and(|block_ref| {
                         dag.get_verified_block_headers(&[block_ref])[0].is_some()
                     })
                 }
@@ -3136,7 +3135,6 @@ mod test {
                         round: block.round(),
                         author: block.author(),
                         transactions_commitment: block.transactions_commitment(),
-                        block_digest: block.digest(),
                     })
                 } else {
                     // When disabled, use BlockRef variant

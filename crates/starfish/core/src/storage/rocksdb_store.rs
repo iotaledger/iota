@@ -244,7 +244,9 @@ impl Store for RocksDBStore {
                             (
                                 transaction_ref.round,
                                 transaction_ref.author,
-                                transaction.block_digest().expect("block digest should exist for consensus_transaction_ref=false"),
+                                transaction.block_digest().expect(
+                                    "block digest should exist for consensus_transaction_ref=false",
+                                ),
                             ),
                             transaction.serialized(),
                         )],
@@ -604,7 +606,6 @@ impl Store for RocksDBStore {
                     round,
                     author,
                     transactions_commitment: commitment,
-                    block_digest: BlockHeaderDigest::default(),
                 })
             })
             .collect()

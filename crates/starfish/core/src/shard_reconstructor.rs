@@ -22,8 +22,8 @@ use tracing::{debug, warn};
 use crate::{
     BlockRef, Round, Transaction,
     block_header::{
-        BlockHeaderDigest, GENESIS_ROUND, Shard, ShardWithProof, ShardWithProofAPI,
-        TransactionsCommitment, VerifiedBlock, VerifiedTransactions,
+        GENESIS_ROUND, Shard, ShardWithProof, ShardWithProofAPI, TransactionsCommitment,
+        VerifiedBlock, VerifiedTransactions,
     },
     context::Context,
     core_thread::CoreThreadDispatcher,
@@ -71,7 +71,6 @@ impl FullTransactionMessage {
             round: self.block_ref.round,
             author: self.block_ref.author,
             transactions_commitment: self.transactions_commitment,
-            block_digest: self.block_ref.digest,
         }
     }
 }
@@ -97,7 +96,6 @@ impl TransactionMessage {
             round: block_ref.round,
             author: block_ref.author,
             transactions_commitment: self.transactions_commitment(),
-            block_digest: block_ref.digest,
         }
     }
 
@@ -511,7 +509,6 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             round: transaction_gc_round,
             author: AuthorityIndex::ZERO,
             transactions_commitment: TransactionsCommitment::MIN,
-            block_digest: BlockHeaderDigest::MIN,
         };
 
         self.processed_transactions = self.processed_transactions.split_off(&lower_bound);
