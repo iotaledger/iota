@@ -820,7 +820,7 @@ mod tests {
     /// - Phase 6: Restart A, fast syncs N2-N3 → stores voting headers
     /// - Phase 7: Restart B, needs N1-N3 → should get N2-N3 from A's voting
     ///   storage
-    #[tokio::test(flavor = "current_thread")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     #[serial_test::serial]
     async fn test_fast_sync_voting_blocks_served_to_peer() {
         telemetry_subscribers::init_for_testing();
@@ -1198,7 +1198,7 @@ mod tests {
     ///   synchronizer + shard reconstructor stopped to prevent pending subdags
     ///   from being solidified
     /// - Phase 7: Verify fast sync was used and validator caught up
-    #[tokio::test(flavor = "current_thread")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     #[serial_test::serial]
     async fn test_fast_sync_with_pending_subdags() {
         telemetry_subscribers::init_for_testing();
