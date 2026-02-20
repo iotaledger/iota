@@ -6,9 +6,8 @@ module onesig::account_tests;
 
 use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
 use iota::hash;
-use iota::hex;
 use iota::test_scenario::{Self, Scenario};
-use onesig::account::{Self, Account};
+use onesig::account::{Self, OneSigAccount};
 use onesig::merkle;
 use std::ascii;
 
@@ -33,20 +32,19 @@ fun test_happy_path() {
     // This signature is used for authenticating all three transactions, as they are all part of the same Merkle tree with the same root.
     let signature =
         x"12f93594a9865bfef88faa1c728829712cf3f52a31bb268ab29cccb5e1db57db051c3650f9f5b8925509c8fcd07182ae41ffc8505e70becf866e72a091279802";
-    let signature_hex = hex::encode(signature);
 
     // Authenticate the first transaction
     test_scenario::next_tx(scenario, account_address);
     {
-        let account = test_scenario::take_shared<Account>(scenario);
+        let account = test_scenario::take_shared<OneSigAccount>(scenario);
         let ctx = create_tx_context_for_testing(account_address, tx1_digest);
         let auth_ctx = create_auth_context_for_testing();
 
-        account::authenticate(
+        account::onesig_authenticator(
             &account,
             merkle_root,
             tx1_proof,
-            signature_hex,
+            signature,
             &auth_ctx,
             &ctx,
         );
@@ -57,15 +55,15 @@ fun test_happy_path() {
     // Authenticate the second transaction
     test_scenario::next_tx(scenario, account_address);
     {
-        let account = test_scenario::take_shared<Account>(scenario);
+        let account = test_scenario::take_shared<OneSigAccount>(scenario);
         let ctx = create_tx_context_for_testing(account_address, tx2_digest);
         let auth_ctx = create_auth_context_for_testing();
 
-        account::authenticate(
+        account::onesig_authenticator(
             &account,
             merkle_root,
             tx2_proof,
-            signature_hex,
+            signature,
             &auth_ctx,
             &ctx,
         );
@@ -76,15 +74,15 @@ fun test_happy_path() {
     // Authenticate the third transaction
     test_scenario::next_tx(scenario, account_address);
     {
-        let account = test_scenario::take_shared<Account>(scenario);
+        let account = test_scenario::take_shared<OneSigAccount>(scenario);
         let ctx = create_tx_context_for_testing(account_address, tx3_digest);
         let auth_ctx = create_auth_context_for_testing();
 
-        account::authenticate(
+        account::onesig_authenticator(
             &account,
             merkle_root,
             tx3_proof,
-            signature_hex,
+            signature,
             &auth_ctx,
             &ctx,
         );
@@ -117,16 +115,16 @@ fun test_invalid_signature() {
     // Invalid signature: last byte changed from 0x02 to 0x00
     let signature =
         x"12f93594a9865bfef88faa1c728829712cf3f52a31bb268ab29cccb5e1db57db051c3650f9f5b8925509c8fcd07182ae41ffc8505e70becf866e72a091279800";
-    let signature_hex = hex::encode(signature);
+    let signature_hex = signature;
 
     // Authenticate the first transaction with an invalid signature
     test_scenario::next_tx(scenario, account_address);
     {
-        let account = test_scenario::take_shared<Account>(scenario);
+        let account = test_scenario::take_shared<OneSigAccount>(scenario);
         let ctx = create_tx_context_for_testing(account_address, tx1_digest);
         let auth_ctx = create_auth_context_for_testing();
 
-        account::authenticate(
+        account::onesig_authenticator(
             &account,
             merkle_root,
             tx1_proof,
@@ -162,16 +160,16 @@ fun test_invalid_merkle_proof() {
 
     let signature =
         x"12f93594a9865bfef88faa1c728829712cf3f52a31bb268ab29cccb5e1db57db051c3650f9f5b8925509c8fcd07182ae41ffc8505e70becf866e72a091279802";
-    let signature_hex = hex::encode(signature);
+    let signature_hex = signature;
 
     // Authenticate the first transaction with a wrong proof (tx2_proof instead of tx1_proof)
     test_scenario::next_tx(scenario, account_address);
     {
-        let account = test_scenario::take_shared<Account>(scenario);
+        let account = test_scenario::take_shared<OneSigAccount>(scenario);
         let ctx = create_tx_context_for_testing(account_address, tx1_digest);
         let auth_ctx = create_auth_context_for_testing();
 
-        account::authenticate(
+        account::onesig_authenticator(
             &account,
             merkle_root,
             tx2_proof,
@@ -195,14 +193,14 @@ fun create_account_for_testing(scenario: &mut Scenario, public_key: vector<u8>):
 
     test_scenario::next_tx(scenario, @0x0);
 
-    let account = test_scenario::take_shared<Account>(scenario);
+    let account = test_scenario::take_shared<OneSigAccount>(scenario);
     let account_address = account.account_address();
     test_scenario::return_shared(account);
 
     account_address
 }
 
-fun create_authenticator_function_ref_v1_for_testing(): AuthenticatorFunctionRefV1<Account> {
+fun create_authenticator_function_ref_v1_for_testing(): AuthenticatorFunctionRefV1<OneSigAccount> {
     authenticator_function::create_auth_function_ref_v1_for_testing(
         @0x1,
         ascii::string(b"module"),

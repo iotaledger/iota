@@ -1,4 +1,4 @@
-# iota-lean-imt-account
+# lean-imt-account
 
 An Abstract IOTA Account backed by a [Lean Incremental Merkle Tree](https://github.com/privacy-scaling-explorations/zk-kit.circom/issues/17) (LeanIMT). A set of IOTA addresses are hashed with [Poseidon](https://docs.rs/fastcrypto-zkp/latest/fastcrypto_zkp/) and inserted into the tree. Any address in the tree can authenticate as the account by submitting a [Groth16](https://docs.iota.org/developer/cryptography/on-chain/groth16) zero-knowledge proof of membership.
 

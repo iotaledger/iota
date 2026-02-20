@@ -15,8 +15,6 @@ const ETransactionSenderIsNotTheAccount: vector<u8> = b"Transaction must be sign
 #[error(code = 1)]
 const EEd25519VerificationFailed: vector<u8> = b"Ed25519 authenticator verification failed.";
 
-// === Constants ===
-
 // === Structs ===
 
 /// This struct represents an abstract IOTA account.
@@ -31,11 +29,7 @@ public struct LeanIMTAccount has key {
     root: vector<u8>,
 }
 
-// === Events ===
-
-// === Method Aliases ===
-
-// === Public Functions ===
+// === LeanIMTAccount Handling ===
 
 /// Creates a new `LeanIMTAccount` as a shared object with the given authenticator
 /// and sets a root.
@@ -50,11 +44,24 @@ public fun create(
     account::create_account_v1(account, authenticator);
 }
 
+/// Rotates the account root to a new one.
+/// This is unsafe as anyone with access to the account could call this function and change
+/// the root to an arbitrary value, potentially locking all the users out of the account.
+/// An admin cap could be used to limit this.
+public fun rotate_root(self: &mut LeanIMTAccount, root: vector<u8>, ctx: &TxContext) {
+    // Check that the sender of this transaction is the account.
+    ensure_tx_sender_is_account(self, ctx);
+
+    self.root = root;
+}
+
+// === Authenticators ===
+
 /// The lean-IMT's leaves are hashes of public keys, so a user can just pass a `leaf` in order to not disclose their
 /// main public key. This means that `signing_public_key` is different from the user's main public key and it is
 /// only used for securing the MoveAuthenticator (by signing the TX digest).
 #[authenticator]
-public fun authenticate_with_secret(
+public fun secret_ed25519_authenticator(
     account: &LeanIMTAccount,
     signature: vector<u8>,
     signing_public_key: vector<u8>,
@@ -64,7 +71,7 @@ public fun authenticate_with_secret(
     _: &AuthContext,
     ctx: &TxContext,
 ) {
-    authenticate_with_secret_inner(
+    authenticate_with_secret_ed25519(
         account,
         signature,
         signing_public_key,
@@ -78,7 +85,7 @@ public fun authenticate_with_secret(
 /// If the user wants to disclose their public key, a different signing key is not necessary. In this case,
 /// the `leaf` can be computed from the public key and passed to the proof verification.
 #[authenticator]
-public fun authenticate_with_public_key(
+public fun public_key_ed25519_authenticator(
     account: &LeanIMTAccount,
     signature: vector<u8>,
     public_key: vector<u8>,
@@ -87,7 +94,7 @@ public fun authenticate_with_public_key(
     _: &AuthContext,
     ctx: &TxContext,
 ) {
-    authenticate_with_public_key_inner(
+    authenticate_with_public_key_ed25519(
         account,
         signature,
         public_key,
@@ -97,15 +104,41 @@ public fun authenticate_with_public_key(
     );
 }
 
-/// Rotates the account root to a new one.
-/// This is unsafe as anyone with access to the account could call this function and change
-/// the root to an arbitrary value, potentially locking all the users out of the account.
-/// An admin cap could be used to limit this.
-public fun rotate_root(self: &mut LeanIMTAccount, root: vector<u8>, ctx: &TxContext) {
-    // Check that the sender of this transaction is the account.
-    ensure_tx_sender_is_account(self, ctx);
+// === Public Authenticators Helpers ===
 
-    self.root = root;
+// This function performs the actual authentication logic for `authenticate_with_secret`.
+// It checks the signature and then verifies that the provided leaf is part of the lean IMT
+//with the given root using the provided proof.
+public fun authenticate_with_secret_ed25519(
+    account: &LeanIMTAccount,
+    signature: vector<u8>,
+    signing_public_key: vector<u8>,
+    leaf: vector<u8>,
+    pvk: vector<u8>,
+    proof_points: vector<u8>,
+    ctx: &TxContext,
+) {
+    check_tx_digest_ed25519_signature(signature, signing_public_key, ctx);
+
+    lean_imt::verify_proof(pvk, proof_points, account.root, leaf);
+}
+
+// This function performs the actual authentication logic for `authenticate_with_public_key`.
+// It checks the signature, then it derives the leaf from the public key and then verifies that
+// the leaf is part of the lean IMT with the given root using the provided proof.
+public fun authenticate_with_public_key_ed25519(
+    account: &LeanIMTAccount,
+    signature: vector<u8>,
+    public_key: vector<u8>,
+    pvk: vector<u8>,
+    proof_points: vector<u8>,
+    ctx: &TxContext,
+) {
+    check_tx_digest_ed25519_signature(signature, public_key, ctx);
+
+    let leaf = lean_imt::derive_leaf_from_public_key(public_key);
+
+    lean_imt::verify_proof(pvk, proof_points, account.root, leaf);
 }
 
 // === Public-View Functions ===
@@ -123,100 +156,20 @@ public fun account_address(self: &LeanIMTAccount): address {
 // === Admin Functions ===
 
 /// Check that the sender of this transaction is the account.
-public fun ensure_tx_sender_is_account(self: &LeanIMTAccount, ctx: &TxContext) {
+fun ensure_tx_sender_is_account(self: &LeanIMTAccount, ctx: &TxContext) {
     assert!(self.id.uid_to_address() == ctx.sender(), ETransactionSenderIsNotTheAccount);
 }
-
-// === Public-Package Functions ===
 
 // === Private Functions ===
 
 // Checks that the signature is valid for the transaction digest and the given public key.
-fun check_tx_digest_signature(
+fun check_tx_digest_ed25519_signature(
     signature: vector<u8>,
     signing_public_key: vector<u8>,
     ctx: &TxContext,
 ) {
-    // Check the signature.
     assert!(
         ed25519::ed25519_verify(&signature, &signing_public_key, ctx.digest()),
         EEd25519VerificationFailed,
-    );
-}
-
-// This function performs the actual authentication logic for `authenticate_with_secret`.
-// It checks the signature and then verifies that the provided leaf is part of the lean IMT
-//with the given root using the provided proof.
-fun authenticate_with_secret_inner(
-    account: &LeanIMTAccount,
-    signature: vector<u8>,
-    signing_public_key: vector<u8>,
-    leaf: vector<u8>,
-    pvk: vector<u8>,
-    proof_points: vector<u8>,
-    ctx: &TxContext,
-) {
-    check_tx_digest_signature(signature, signing_public_key, ctx);
-
-    lean_imt::verify_proof(pvk, proof_points, account.root, leaf);
-}
-
-// This function performs the actual authentication logic for `authenticate_with_public_key`.
-// It checks the signature, then it derives the leaf from the public key and then verifies that
-// the leaf is part of the lean IMT with the given root using the provided proof.
-fun authenticate_with_public_key_inner(
-    account: &LeanIMTAccount,
-    signature: vector<u8>,
-    public_key: vector<u8>,
-    pvk: vector<u8>,
-    proof_points: vector<u8>,
-    ctx: &TxContext,
-) {
-    check_tx_digest_signature(signature, public_key, ctx);
-
-    let leaf = lean_imt::derive_leaf_from_public_key(public_key);
-
-    lean_imt::verify_proof(pvk, proof_points, account.root, leaf);
-}
-
-// === Test Functions ===
-
-#[test_only]
-public fun test_authenticate_with_secret(
-    account: &LeanIMTAccount,
-    signature: vector<u8>,
-    signing_public_key: vector<u8>,
-    leaf: vector<u8>,
-    pvk: vector<u8>,
-    proof_points: vector<u8>,
-    ctx: &TxContext,
-) {
-    authenticate_with_secret_inner(
-        account,
-        signature,
-        signing_public_key,
-        leaf,
-        pvk,
-        proof_points,
-        ctx,
-    );
-}
-
-#[test_only]
-public fun test_authenticate_with_public_key(
-    account: &LeanIMTAccount,
-    signature: vector<u8>,
-    public_key: vector<u8>,
-    pvk: vector<u8>,
-    proof_points: vector<u8>,
-    ctx: &TxContext,
-) {
-    authenticate_with_public_key_inner(
-        account,
-        signature,
-        public_key,
-        pvk,
-        proof_points,
-        ctx,
     );
 }

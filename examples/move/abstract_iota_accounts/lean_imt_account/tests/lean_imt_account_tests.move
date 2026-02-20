@@ -48,7 +48,7 @@ fun test_authenticate_with_secret() {
 
         let leaf = lean_imt::derive_leaf_from_public_key(PUB_KEY);
 
-        lean_imt_account::authenticate_with_secret(
+        lean_imt_account::secret_ed25519_authenticator(
             &account,
             SIGNATURE,
             PUB_KEY,
@@ -82,7 +82,7 @@ fun test_authenticate_with_public_key() {
         let ctx = create_tx_context_for_testing(account_address, DIGEST);
         let auth_ctx = create_auth_context_for_testing();
 
-        lean_imt_account::authenticate_with_public_key(
+        lean_imt_account::public_key_ed25519_authenticator(
             &account,
             SIGNATURE,
             PUB_KEY,
@@ -122,7 +122,7 @@ fun create_authenticate_with_secret_function_ref(): AuthenticatorFunctionRefV1<L
     authenticator_function::create_auth_function_ref_v1_for_testing(
         @0x1,
         std::ascii::string(b"lean_imt_account"),
-        std::ascii::string(b"authenticate_with_secret"),
+        std::ascii::string(b"secret_ed25519_authenticator"),
     )
 }
 
@@ -131,7 +131,7 @@ fun create_authenticate_with_public_key_function_ref(): AuthenticatorFunctionRef
     authenticator_function::create_auth_function_ref_v1_for_testing(
         @0x1,
         std::ascii::string(b"lean_imt_account"),
-        std::ascii::string(b"authenticate_with_public_key"),
+        std::ascii::string(b"public_key_ed25519_authenticator"),
     )
 }
 
