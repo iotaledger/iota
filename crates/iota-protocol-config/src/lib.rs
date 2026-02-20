@@ -118,6 +118,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 21;
 //             mechanism on testnet.
 //             Enable a separate gas price feedback mechanism for transactions
 //             using randomness on testnet.
+//             Enable fast commit syncer for faster recovery in devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2537,6 +2538,10 @@ impl ProtocolConfig {
                     }
                 }
                 21 => {
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable fast commit syncer for faster recovery in devnet
+                        cfg.feature_flags.enable_fast_commit_sync = true;
+                    }
                     if chain != Chain::Mainnet {
                         // Enable overshoot of 100 in congestion control on testnet.
                         // This allows bursts of shared-object transactions
