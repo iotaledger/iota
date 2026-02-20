@@ -1,5 +1,10 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+//
+// Portions of this file are derived from
+// https://github.com/dakaii/sui-merkle-verifier
+// Copyright (c) 2025 dakaii
+// SPDX-License-Identifier: MIT
 
 module onesig::merkle;
 
