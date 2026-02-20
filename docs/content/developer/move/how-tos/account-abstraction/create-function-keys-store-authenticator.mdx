@@ -1,0 +1,114 @@
+---
+title: Create Function Keys Authenticator (Function-Level Delegation with Account Abstraction)
+description: "How to attach Function Keys authenticator to an account in Move (to restrict delegated keys to specific Move function calls)"
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+---
+
+# Create Function Keys Authenticator (Function-Level Delegation with Account Abstraction)
+
+## About Function Keys
+
+Account Abstraction allows an account to define **custom authorization logic** via a Move
+`authenticate` function.  
+
+Instead of only checking signatures, the runtime executes this function to decide whether a
+transaction sent from the account is allowed.
+
+Function Keys enable per-delegated-key, **function-level authorization** for an account.  
+The authenticator implements two flows: **owner** (full-power bypass) and **delegated/function-key** (restricted single-command flow).
+
+### What this example shows
+
+- Create an account with an owner public key and an empty Function Keys store.  
+- Grant / revoke per-pubkey function permissions.  
+- A dual-flow `authenticate` that:
+  - verifies owner signatures (owner bypass), or
+  - verifies delegated signatures and enforces one PTB command and function allow-set membership.
+- Restrict delegated keys to exactly one allowed Move call per transaction
+
+## Example code (core functionality)
+
+Below is the **minimal core logic** required to implement function-level delegation using Account
+Abstraction.  
+The example is split into two logical parts:
+- the **authenticator & public API**
+- the **on-chain function-key store**
+
+### Create the account and initialize function-key storage
+
+```move file=<rootDir>/examples/move/function_keys/sources/function_keys.move#L61-L72
+```
+
+**What this does**
+- Creates a shared abstract account
+- Stores the owner public key on-chain
+- Attaches an empty **function-key allow-set** as a dynamic field
+- Converts the object into an Account-Abstracted account by attaching the authenticator
+
+
+### Grant and revoke function permissions (owner-only)
+
+```move file=<rootDir>/examples/move/function_keys/sources/function_keys.move#L73-L99
+```
+
+**What this does**
+- The account owner grants or revokes permission for a delegated public key
+- Each delegated key gets its own allow-set of Move functions
+- Permissions are stored fully on-chain
+
+### Core authenticator (Account Abstraction logic)
+
+```move file=<rootDir>/examples/move/function_keys/sources/function_keys.move#L130-L164
+```
+
+**What this does**
+- Runs automatically for every transaction sent from the account
+- Owner flow:
+    - Owner signature → full access, no restrictions
+- Delegated flow:
+    - Verifies delegated key signature
+    - Enforces exactly one Move call
+    - Extracts `(package, module, function)`
+    - Allows execution **only if the function is pre-approved**
+
+### Define and extract function keys (on-chain allow-set)
+
+```move file=<rootDir>/examples/move/function_keys/sources/fk_store.move#L72-L118
+```
+
+**What this does**
+- Represents an exact Move function identity
+- Extracts the function being called directly from the PTB
+- Prevents wildcard or multi-call transactions
+- Ensures delegated keys cannot escape allowed behavior
+
+## Code Outcome
+
+After deploying and using this implementation:
+- A shared abstract account is created with a custom authenticator
+- The owner can delegate limited permissions to other public keys
+- Delegated keys can execute only explicitly allowed Move functions
+- The owner retains unrestricted control
+- All authorization is enforced on-chain during transaction validation
+
+## Full Example Code
+
+The complete Move package is available here:
+
+`function_keys.move`
+```move file=<rootDir>/examples/move/function_keys/sources/function_keys.move
+```
+
+
+`fk_store.move`
+
+```move file=<rootDir>/examples/move/function_keys/sources/fk_store.move
+```
+
+## Expected Behavior
+
+- Owner-signed transactions always succeed if signatures are valid.
+- Delegated keys can execute transactions only when calling an explicitly allowed Move function.
