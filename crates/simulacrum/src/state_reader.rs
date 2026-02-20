@@ -70,45 +70,48 @@ impl GrpcStateReader for SimulacrumGrpcReader {
         Ok(self.chain_id)
     }
 
-    fn get_latest_checkpoint_sequence_number(&self) -> Option<u64> {
-        self.simulacrum.with_store(|store| {
+    fn get_latest_checkpoint_sequence_number(&self) -> Result<Option<u64>> {
+        Ok(self.simulacrum.with_store(|store| {
             store
                 .get_highest_checkpoint()
                 .map(|checkpoint| *checkpoint.sequence_number())
-        })
+        }))
     }
 
-    fn get_checkpoint_summary(&self, seq: u64) -> Option<CertifiedCheckpointSummary> {
-        self.simulacrum.with_store(|store| {
+    fn get_checkpoint_summary(&self, seq: u64) -> Result<Option<CertifiedCheckpointSummary>> {
+        Ok(self.simulacrum.with_store(|store| {
             store
                 .get_checkpoint_by_sequence_number(seq)
                 .cloned()
                 .map(CertifiedCheckpointSummary::from)
-        })
+        }))
     }
 
     fn get_checkpoint_sequence_number_by_digest(
         &self,
         digest: &iota_types::digests::CheckpointDigest,
-    ) -> Option<u64> {
-        self.simulacrum.with_store(|store| {
+    ) -> Result<Option<u64>> {
+        Ok(self.simulacrum.with_store(|store| {
             store
                 .get_checkpoint_by_digest(digest)
                 .map(|checkpoint| *checkpoint.sequence_number())
-        })
+        }))
     }
 
-    fn get_checkpoint_data(&self, seq: u64) -> Option<CheckpointData> {
+    fn get_checkpoint_data(&self, seq: u64) -> Result<Option<CheckpointData>> {
         self.simulacrum
             .with_store(|store| match store.get_checkpoint_by_sequence_number(seq) {
-                None => None,
+                None => Ok(None),
                 Some(checkpoint) => {
-                    let contents = store
+                    let Some(contents) = store
                         .get_checkpoint_contents(&checkpoint.content_digest)
-                        .cloned()?;
+                        .cloned()
+                    else {
+                        return Ok(None);
+                    };
                     store
                         .try_get_checkpoint_data(checkpoint.clone(), contents)
-                        .ok()
+                        .map(Some)
                 }
             })
     }
@@ -133,14 +136,20 @@ impl GrpcStateReader for SimulacrumGrpcReader {
         Ok(0)
     }
 
-    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
-        self.simulacrum
-            .with_store(|store| store.get_object(object_id).cloned())
+    fn get_object(&self, object_id: &ObjectID) -> Result<Option<Object>> {
+        Ok(self
+            .simulacrum
+            .with_store(|store| store.get_object(object_id).cloned()))
     }
 
-    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
-        self.simulacrum
-            .with_store(|store| store.get_object_at_version(object_id, version).cloned())
+    fn get_object_by_key(
+        &self,
+        object_id: &ObjectID,
+        version: VersionNumber,
+    ) -> Result<Option<Object>> {
+        Ok(self
+            .simulacrum
+            .with_store(|store| store.get_object_at_version(object_id, version).cloned()))
     }
 
     fn get_committee(&self, epoch: u64) -> Result<Option<Arc<Committee>>> {
@@ -154,8 +163,8 @@ impl GrpcStateReader for SimulacrumGrpcReader {
         Ok(self.simulacrum.with_store(|store| store.get_system_state()))
     }
 
-    fn get_epoch_info(&self, epoch: u64) -> Option<EpochInfo> {
-        self.simulacrum.with_store(|store| {
+    fn get_epoch_info(&self, epoch: u64) -> Result<Option<EpochInfo>> {
+        Ok(self.simulacrum.with_store(|store| {
             // Get the start checkpoint of the epoch
             let start_checkpoint_seq = if epoch != 0 {
                 store
@@ -202,7 +211,7 @@ impl GrpcStateReader for SimulacrumGrpcReader {
                 reference_gas_price: system_state.reference_gas_price(),
                 system_state,
             })
-        })
+        }))
     }
 
     fn get_type_layout(&self, type_tag: &TypeTag) -> Result<Option<MoveTypeLayout>> {
@@ -211,26 +220,35 @@ impl GrpcStateReader for SimulacrumGrpcReader {
             .map_err(Into::into)
     }
 
-    fn get_transaction(&self, digest: &TransactionDigest) -> Option<Arc<VerifiedTransaction>> {
-        self.simulacrum
-            .with_store(|store| store.get_transaction(digest).cloned().map(Arc::new))
+    fn get_transaction(
+        &self,
+        digest: &TransactionDigest,
+    ) -> Result<Option<Arc<VerifiedTransaction>>> {
+        Ok(self
+            .simulacrum
+            .with_store(|store| store.get_transaction(digest).cloned().map(Arc::new)))
     }
 
-    fn get_transaction_effects(&self, digest: &TransactionDigest) -> Option<TransactionEffects> {
-        self.simulacrum
-            .with_store(|store| store.get_transaction_effects(digest).cloned())
+    fn get_transaction_effects(
+        &self,
+        digest: &TransactionDigest,
+    ) -> Result<Option<TransactionEffects>> {
+        Ok(self
+            .simulacrum
+            .with_store(|store| store.get_transaction_effects(digest).cloned()))
     }
 
     fn get_transaction_events(
         &self,
         digest: &TransactionEventsDigest,
-    ) -> Option<TransactionEvents> {
-        self.simulacrum
-            .with_store(|store| store.get_transaction_events(digest).cloned())
+    ) -> Result<Option<TransactionEvents>> {
+        Ok(self
+            .simulacrum
+            .with_store(|store| store.get_transaction_events(digest).cloned()))
     }
 
-    fn get_transaction_checkpoint(&self, digest: &TransactionDigest) -> Option<u64> {
-        self.simulacrum.with_store(|store| {
+    fn get_transaction_checkpoint(&self, digest: &TransactionDigest) -> Result<Option<u64>> {
+        Ok(self.simulacrum.with_store(|store| {
             let highest_seq = store
                 .get_highest_checkpoint()
                 .map(|cp| *cp.sequence_number())?;
@@ -252,20 +270,20 @@ impl GrpcStateReader for SimulacrumGrpcReader {
                 }
             }
             None
-        })
+        }))
     }
 
     fn get_checkpoint_summary_and_contents(
         &self,
         seq: u64,
-    ) -> Option<(CertifiedCheckpointSummary, CheckpointContents)> {
-        self.simulacrum.with_store(|store| {
+    ) -> Result<Option<(CertifiedCheckpointSummary, CheckpointContents)>> {
+        Ok(self.simulacrum.with_store(|store| {
             let checkpoint = store.get_checkpoint_by_sequence_number(seq).cloned()?;
             let contents = store
                 .get_checkpoint_contents(&checkpoint.content_digest)
                 .cloned()?;
             Some((CertifiedCheckpointSummary::from(checkpoint), contents))
-        })
+        }))
     }
 
     fn stream_checkpoint_transactions(
@@ -296,11 +314,9 @@ impl GrpcStateReader for SimulacrumGrpcReader {
                         store.get_transaction_events(events_digest).cloned()
                     });
 
-                    // Extract input and output objects
-                    let input_objects =
-                        get_transaction_input_objects(store, &effects).unwrap_or_else(|_| vec![]);
-                    let output_objects =
-                        get_transaction_output_objects(store, &effects).unwrap_or_else(|_| vec![]);
+                    // Extract input and output objects with proper error propagation
+                    let input_objects = get_transaction_input_objects(store, &effects)?;
+                    let output_objects = get_transaction_output_objects(store, &effects)?;
 
                     Ok(CheckpointTransaction {
                         transaction,

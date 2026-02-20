@@ -4,6 +4,12 @@
 
 import type { IdentifierString, WalletAccount } from '@wallet-standard/core';
 
+/** Name of the feature. */
+export const IotaReportTransactionEffects = 'iota:reportTransactionEffects';
+
+/** The latest API version of the reportTransactionEffects API. */
+export type IotaReportTransactionEffectsVersion = '1.0.0';
+
 /**
  * A Wallet Standard feature for reporting the effects of a transaction block executed by a dapp
  * The feature allows wallets to updated their caches using the effects of the transaction
@@ -11,9 +17,9 @@ import type { IdentifierString, WalletAccount } from '@wallet-standard/core';
  */
 export type IotaReportTransactionEffectsFeature = {
     /** Namespace for the feature. */
-    'iota:reportTransactionEffects': {
+    [IotaReportTransactionEffects]: {
         /** Version of the feature API. */
-        version: '1.0.0';
+        version: IotaReportTransactionEffectsVersion;
         reportTransactionEffects: IotaReportTransactionEffectsMethod;
     };
 };

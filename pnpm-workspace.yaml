@@ -15,6 +15,7 @@ packages:
   - "!sdk/typescript/keypairs/secp256k1"
   - "!sdk/typescript/keypairs/secp256r1"
   - "!sdk/typescript/keypairs/passkey"
+  - "!sdk/typescript/keypairs/move-authenticator"
   - "!sdk/typescript/multisig"
   - "!sdk/typescript/signers/ledger"
   - "!sdk/typescript/scripts"
@@ -28,4 +29,5 @@ packages:
   - "!sdk/signers/ledger"
   - "!sdk/signers/webcrypto"
   - "!sdk/typescript/test/**/**"
+  - "!sdk/examples/src/**/build"
 minimumReleaseAge: 1440

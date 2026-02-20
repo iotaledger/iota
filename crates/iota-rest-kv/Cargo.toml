@@ -17,6 +17,7 @@ bcs.workspace = true
 bytes.workspace = true
 clap = { workspace = true, features = ["env"] }
 object_store.workspace = true
+rustls.workspace = true
 serde.workspace = true
 serde_yaml.workspace = true
 thiserror.workspace = true

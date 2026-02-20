@@ -34,7 +34,7 @@ await requestIotaFromFaucetV1({
 console.log('Building transfer transaction...');
 
 // Build a transaction to transfer 1000 NANOS (0.001 IOTA) to a recipient
-const recipient = '0x742d35Cc6E1Bf2A3b3F4f0b8a5c2e6f9d1a7e3b5c9f8d2e4a6b8c0e2f4g6h8i'; // Dummy recipient for demo
+const recipient = '0x14abc6dfbf9ae91106ccc21b1a7839704cc9932a8ab571b7f60a2894cea219e7'; // Dummy recipient for demo
 const tx = new Transaction();
 const [coin] = tx.splitCoins(tx.gas, [1000]);
 tx.transferObjects([coin], recipient);

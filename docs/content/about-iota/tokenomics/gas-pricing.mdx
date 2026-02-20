@@ -6,7 +6,7 @@ teams:
 ---
 
 import Quiz from '@site/src/components/Quiz';
-import {questions} from '../../../site/static/json/about-iota/tokenomics/gas-pricing.json';
+import quizData from '../../../site/static/json/about-iota/tokenomics/gas-pricing.json';
 
 The IOTA gas-pricing mechanism achieves two outcomes:
 1. Delivering low, predictable transaction fees (if the transaction does not operate on a [shared object]../../developer/iota-101/objects/shared-owned.mdx#shared-objects).
@@ -44,4 +44,4 @@ The storage gas price `storage_price` captures the costs of covering one unit of
 The `storage_price` is set exogenously through the governance proposal with the goal of targeting the off-chain dollar cost of data storage. In the long run, as the costs of storage fall due to technological improvements and the dollar price of the IOTA token evolves, governance proposals will update the price in order to reflect the new dollar target price.
 
 
-<Quiz questions={questions} />
+<Quiz questions={quizData.questions} />

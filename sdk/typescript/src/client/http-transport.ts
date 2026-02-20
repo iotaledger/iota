@@ -28,6 +28,7 @@ export interface IotaHTTPTransportOptions {
 export interface IotaTransportRequestOptions {
     method: string;
     params: unknown[];
+    signal?: AbortSignal;
 }
 
 // eslint-disable-next-line @typescript-eslint/ban-types
@@ -37,6 +38,7 @@ export interface IotaTransportSubscribeOptions<T> {
     unsubscribe: string;
     params: unknown[];
     onMessage: (event: T) => void;
+    signal?: AbortSignal;
 }
 
 export interface IotaTransport {
@@ -93,6 +95,7 @@ export class IotaHTTPTransport implements IotaTransport {
 
         const res = await this.fetch(this.#options.rpc?.url ?? this.#options.url, {
             method: 'POST',
+            signal: input.signal,
             headers: {
                 'Content-Type': 'application/json',
                 'Client-Sdk-Type': 'typescript',
@@ -127,6 +130,13 @@ export class IotaHTTPTransport implements IotaTransport {
 
     async subscribe<T>(input: IotaTransportSubscribeOptions<T>): Promise<() => Promise<boolean>> {
         const unsubscribe = await this.#getWebsocketClient().subscribe(input);
+
+        if (input.signal) {
+            input.signal.throwIfAborted();
+            input.signal.addEventListener('abort', () => {
+                unsubscribe();
+            });
+        }
 
         return async () => !!(await unsubscribe());
     }

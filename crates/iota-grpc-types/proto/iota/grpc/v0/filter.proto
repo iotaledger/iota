@@ -5,31 +5,42 @@ syntax = "proto3";
 
 package iota.grpc.v0.filter;
 
+import "iota/grpc/options.proto";
 import "iota/grpc/v0/bcs.proto";
 import "iota/grpc/v0/types.proto";
 
 // Logical AND of several filters.
 message AllEventFilter {
+  option (iota.grpc.message_accessors) = "with";
+
   repeated EventFilter filters = 1;
 }
 
 // Logical OR of several filters.
 message AnyEventFilter {
+  option (iota.grpc.message_accessors) = "with";
+
   repeated EventFilter filters = 1;
 }
 
 // Logical NOT of a filter.
 message NotEventFilter {
+  option (iota.grpc.message_accessors) = "with";
+
   EventFilter filter = 1;
 }
 
 // Filter by address.
 message AddressFilter {
+  option (iota.grpc.message_accessors) = "with";
+
   iota.grpc.v0.types.Address address = 1;
 }
 
 // Filter by Move package + module (optional).
 message MovePackageAndModuleFilter {
+  option (iota.grpc.message_accessors) = "with";
+
   iota.grpc.v0.types.Address package_id = 1;
   optional string module = 2;
 }
@@ -38,11 +49,15 @@ message MovePackageAndModuleFilter {
 // For example, if the event is defined in `0xabcd::MyModule`, and named
 // `Foo`, then the struct tag is `0xabcd::MyModule::Foo`.
 message MoveEventTypeFilter {
+  option (iota.grpc.message_accessors) = "with";
+
   string struct_tag = 1;
 }
 
 // Filter for events.
 message EventFilter {
+  option (iota.grpc.message_accessors) = "with";
+
   oneof filter {
     // Logical AND of several filters.
     AllEventFilter all = 1;
@@ -73,16 +88,22 @@ message EventFilter {
 
 // Logical AND of several filters.
 message AllTransactionFilter {
+  option (iota.grpc.message_accessors) = "with";
+
   repeated TransactionFilter filters = 1;
 }
 
 // Logical OR of several filters.
 message AnyTransactionFilter {
+  option (iota.grpc.message_accessors) = "with";
+
   repeated TransactionFilter filters = 1;
 }
 
 // Logical NOT of a filter.
 message NotTransactionFilter {
+  option (iota.grpc.message_accessors) = "with";
+
   TransactionFilter filter = 1;
 }
 
@@ -99,16 +120,22 @@ enum TransactionKind {
 
 // Filter by transaction kinds (any of the specified kinds).
 message TransactionKindsFilter {
+  option (iota.grpc.message_accessors) = "with";
+
   repeated TransactionKind kinds = 1;
 }
 
 // Filter by input object ID.
 message ObjectIdFilter {
+  option (iota.grpc.message_accessors) = "with";
+
   iota.grpc.v0.types.ObjectReference object_ref = 1;
 }
 
 // Filter by move package, module (optional) and function (optional).
 message MoveCallFilter {
+  option (iota.grpc.message_accessors) = "with";
+
   iota.grpc.v0.types.Address package_id = 1;
   optional string module = 2;
   optional string function = 3;
@@ -116,6 +143,8 @@ message MoveCallFilter {
 
 // Filter for transactions.
 message TransactionFilter {
+  option (iota.grpc.message_accessors) = "with";
+
   oneof filter {
     // Logical AND of several filters.
     AllTransactionFilter all = 1;

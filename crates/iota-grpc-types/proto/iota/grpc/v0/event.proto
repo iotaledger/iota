@@ -8,18 +8,21 @@ package iota.grpc.v0.event;
 
 import "google/protobuf/struct.proto";
 
+import "iota/grpc/options.proto";
 import "iota/grpc/v0/bcs.proto";
 import "iota/grpc/v0/types.proto";
 
 // An event.
 message Event {
+  option (iota.grpc.message_accessors) = "with";
+
   // This Event serialized as BCS.
   optional iota.grpc.v0.bcs.BcsData bcs = 1;
 
   // Package ID of the top-level function invoked by a `MoveCall` command that triggered this
   // event to be emitted.
   optional iota.grpc.v0.types.Address package_id = 2;
-  
+
   // Module name of the top-level function invoked by a `MoveCall` command that triggered this
   // event to be emitted.
   optional string module = 3;
@@ -39,5 +42,7 @@ message Event {
 
 // A list of events.
 message Events {
+  option (iota.grpc.message_accessors) = "with";
+
   repeated Event events = 1;
 }
