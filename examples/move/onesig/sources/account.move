@@ -58,7 +58,8 @@ public fun authenticate(
     verify_merkle_proof(&merkle_root, &merkle_proof, ctx);
 }
 
-/// Verify the Merkle root against the provided signatures.
+/// Verify the Merkle root against the provided signature.
+/// Ed25519 is used for simplicity. It can be extended to include a set of public keys to verify the signature.
 fun verify_merkle_root(self: &Account, root: &vector<u8>, signature: &vector<u8>) {
     assert!(
         ed25519::ed25519_verify(&decode(*signature), self.public_key(), root),
