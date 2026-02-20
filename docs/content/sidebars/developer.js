@@ -443,7 +443,7 @@ const developer = [
                                 'developer/move/how-tos/account-abstraction/transactions',
                             ],
                             },
-
+                            'developer/move/how-tos/account-abstraction/create-function-keys-store-authenticator'
                         ],
                     },
                     {
