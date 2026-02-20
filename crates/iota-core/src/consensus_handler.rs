@@ -108,10 +108,10 @@ mod additional_consensus_states {
     use iota_types::digests::AdditionalConsensusStatesDigest;
 
     use super::*;
+    use crate::authority::authority_per_epoch_store::scorer::ReceivedReportsState;
 
     // Trait for the state fields used in AdditionalConsensusStates.
     pub(crate) trait AdditionalConsensusStatesTrait {
-        #[expect(unused)]
         fn digest(&self) -> AdditionalConsensusStatesDigest;
     }
 
@@ -143,26 +143,44 @@ mod additional_consensus_states {
     // new iter_v1(), and compute the digests in digests() over iter_v1 if
     // protocol_config.record_new_state_in_prologue() is true.
     #[derive(Serialize, Deserialize)]
-    pub struct AdditionalConsensusStates {}
+    pub struct AdditionalConsensusStates {
+        received_reports_state: ReceivedReportsState,
+    }
 
     impl AdditionalConsensusStates {
         pub fn new() -> Self {
-            Self {}
+            Self {
+                received_reports_state: ReceivedReportsState::new(),
+            }
+        }
+
+        // Setter for received_reports_state
+        pub(crate) fn set_received_reports_state(&mut self, state: ReceivedReportsState) {
+            self.received_reports_state = state;
         }
 
         // Returns an iterator over all state fields. Used for debugging and testing.
         #[expect(unused)]
         fn iter(&self) -> impl Iterator<Item = &dyn AdditionalConsensusStatesTrait> {
-            [].into_iter()
+            [&self.received_reports_state as &dyn AdditionalConsensusStatesTrait].into_iter()
         }
 
-        /// Returns the ordered list of digests, one per tracked state field.
-        #[expect(unused)]
+        // Returns an iterator over each state field used in ConsensusCommitPrologueV2.
+        // Do not change these functions, only add new versions of them.
+        fn iter_v1(&self) -> impl Iterator<Item = &dyn AdditionalConsensusStatesTrait> {
+            [&self.received_reports_state as &dyn AdditionalConsensusStatesTrait].into_iter()
+        }
+
+        // Returns the ordered list of digests, one per tracked state field.
         pub(crate) fn digests(
             &self,
             protocol_config: &ProtocolConfig,
         ) -> Vec<AdditionalConsensusStatesDigest> {
-            vec![]
+            if protocol_config.record_received_reports_state_digest_in_prologue() {
+                self.iter_v1().map(|s| s.digest()).collect()
+            } else {
+                vec![]
+            }
         }
     }
 }
