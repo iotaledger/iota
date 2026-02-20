@@ -75,7 +75,7 @@ fun test_fk_authenticate_happy_path() {
         let signature =
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
 
-        function_call_keys_account::ed25519_IOTAccount_FunctionCallKeys_authenticator(
+        function_call_keys_account::ed25519_authenticator(
             &account,
             user_public_key, // delegated pubkey
             signature, // raw sig (like iotaccount tests)
@@ -111,7 +111,7 @@ fun test_fk_authenticate_happy_path_owner() {
         let signature =
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
 
-        function_call_keys_account::ed25519_IOTAccount_FunctionCallKeys_authenticator(
+        function_call_keys_account::ed25519_authenticator(
             &account,
             owner_pk, // owner pubkey
             signature, // raw sig (like iotaccount tests)
@@ -170,7 +170,7 @@ fun test_fk_authenticate_unauthorized() {
         let signature =
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
 
-        function_call_keys_account::ed25519_IOTAccount_FunctionCallKeys_authenticator(
+        function_call_keys_account::ed25519_authenticator(
             &account,
             user_public_key,
             signature,
@@ -237,7 +237,7 @@ fun test_fk_authenticate_too_many_commands() {
         let signature =
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
 
-        function_call_keys_account::ed25519_IOTAccount_FunctionCallKeys_authenticator(
+        function_call_keys_account::ed25519_authenticator(
             &account,
             user_public_key,
             signature,
@@ -292,7 +292,7 @@ fun test_fk_authenticate_wrong_command() {
         let signature =
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
 
-        function_call_keys_account::ed25519_IOTAccount_FunctionCallKeys_authenticator(
+        function_call_keys_account::ed25519_authenticator(
             &account,
             user_public_key,
             signature,
@@ -352,7 +352,7 @@ fun test_fk_revoke_then_fails() {
         let signature =
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
 
-        function_call_keys_account::ed25519_IOTAccount_FunctionCallKeys_authenticator(
+        function_call_keys_account::ed25519_authenticator(
             &account,
             user_public_key,
             signature,
@@ -480,7 +480,7 @@ fun test_fk_authenticate_without_init() {
         let signature =
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
 
-        function_call_keys_account::ed25519_IOTAccount_FunctionCallKeys_authenticator(
+        function_call_keys_account::ed25519_authenticator(
             &account,
             user_public_key,
             signature,

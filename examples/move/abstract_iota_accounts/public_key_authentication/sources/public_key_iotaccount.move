@@ -7,9 +7,9 @@
 /// It allows to set a public key as field of the account, such that the authenticators of this module can
 /// authenticate the account by verifying a signature.
 /// The public key schemes implemented in this module are:
-/// - ed25519 -> `ed25519_IOTAccount_authenticator`
-/// - secp256k1 -> `secp256k1_IOTAccount_authenticator`
-/// - secp256r1 -> `secp256r1_IOTAccount_authenticator`
+/// - ed25519 -> `ed25519_authenticator`
+/// - secp256k1 -> `secp256k1_authenticator`
+/// - secp256r1 -> `secp256r1_authenticator`
 module public_key_authentication::public_key_iotaccount;
 
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
@@ -93,7 +93,7 @@ public fun add_public_key(
 
 /// Ed25519 signature authenticator for `IOTAccount`.
 #[authenticator]
-public fun ed25519_IOTAccount_authenticator(
+public fun ed25519_authenticator(
     account: &IOTAccount,
     signature: vector<u8>,
     _: &AuthContext,
@@ -104,7 +104,7 @@ public fun ed25519_IOTAccount_authenticator(
 
 /// Secp256k1 signature authenticator for `IOTAccount`.
 #[authenticator]
-public fun secp256k1_IOTAccount_authenticator(
+public fun secp256k1_authenticator(
     account: &IOTAccount,
     signature: vector<u8>,
     _: &AuthContext,
@@ -115,7 +115,7 @@ public fun secp256k1_IOTAccount_authenticator(
 
 /// Secp256r1 signature authenticator for `IOTAccount`.
 #[authenticator]
-public fun secp256r1_IOTAccount_authenticator(
+public fun secp256r1_authenticator(
     account: &IOTAccount,
     signature: vector<u8>,
     _: &AuthContext,

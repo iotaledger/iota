@@ -108,7 +108,7 @@ public fun remove_unlock_time(account: &mut IOTAccount, ctx: &TxContext) {
 ///
 /// Uses an Ed25519 signature for authentication and checks the unlock time against the Clock.
 #[authenticator]
-public fun unlock_time_clock_ed25519_IOTAccount_authenticator(
+public fun unlock_time_clock_ed25519_authenticator(
     account: &IOTAccount,
     clock: &Clock,
     signature: vector<u8>,
@@ -127,7 +127,7 @@ public fun unlock_time_clock_ed25519_IOTAccount_authenticator(
 ///
 /// Uses an Ed25519 signature for authentication and checks the unlock time against the epoch timestamp.
 #[authenticator]
-public fun unlock_time_epoch_ed25519_IOTAccount_authenticator(
+public fun unlock_time_epoch_ed25519_authenticator(
     account: &IOTAccount,
     signature: vector<u8>,
     _auth_ctx: &AuthContext,

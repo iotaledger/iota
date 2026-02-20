@@ -53,7 +53,7 @@ fun account_fails_verification() {
 
         let signature: vector<u8> = b"32";
         let auth_context = create_auth_context_for_testing(account_address, 500, scenario.ctx());
-        spending_limit_account::ed25519_SpendingLimitAccount_authenticator(
+        spending_limit_account::ed25519_authenticator(
             &account,
             signature,
             &auth_context,
@@ -85,7 +85,7 @@ fun only_account_can_authenticate() {
 
         let signature: vector<u8> = b"32";
         let auth_context = create_auth_context_for_testing(account_address, 1001, &test_ctx);
-        spending_limit_account::ed25519_SpendingLimitAccount_authenticator(
+        spending_limit_account::ed25519_authenticator(
             &account,
             signature,
             &auth_context,
@@ -117,7 +117,7 @@ fun account_spending_limit_exceeded() {
         let auth_context = create_auth_context_for_testing(account_address, 1001, &test_ctx);
 
         // Try to spend 1001, which exceeds limit of 1000
-        spending_limit_account::ed25519_SpendingLimitAccount_authenticator(
+        spending_limit_account::ed25519_authenticator(
             &account,
             signature,
             &auth_context,
@@ -176,7 +176,7 @@ fun account_within_spending_limit() {
             &test_ctx,
         );
 
-        spending_limit_account::ed25519_SpendingLimitAccount_authenticator(
+        spending_limit_account::ed25519_authenticator(
             &account,
             signature,
             &auth_context,
@@ -227,7 +227,7 @@ fun account_zero_spending() {
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
         let auth_context = create_auth_context_for_testing(account_address, 0, &test_ctx);
         // Spend 0 (should always pass)
-        spending_limit_account::ed25519_SpendingLimitAccount_authenticator(
+        spending_limit_account::ed25519_authenticator(
             &account,
             signature,
             &auth_context,
@@ -280,7 +280,7 @@ fun test_missing_withdraw_call() {
         // AuthContext without withdraw_call
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), vector[], vector[]);
 
-        spending_limit_account::ed25519_SpendingLimitAccount_authenticator(
+        spending_limit_account::ed25519_authenticator(
             &account,
             signature,
             &auth_context,
@@ -316,7 +316,7 @@ fun test_multiple_withdraw_calls_within_limit() {
             &test_ctx,
         );
 
-        spending_limit_account::ed25519_SpendingLimitAccount_authenticator(
+        spending_limit_account::ed25519_authenticator(
             &account,
             signature,
             &auth_context,
@@ -351,7 +351,7 @@ fun test_multiple_withdraw_calls_at_limit() {
             &test_ctx,
         );
 
-        spending_limit_account::ed25519_SpendingLimitAccount_authenticator(
+        spending_limit_account::ed25519_authenticator(
             &account,
             signature,
             &auth_context,
@@ -387,7 +387,7 @@ fun test_multiple_withdraw_calls_over_limit() {
             &test_ctx,
         );
 
-        spending_limit_account::ed25519_SpendingLimitAccount_authenticator(
+        spending_limit_account::ed25519_authenticator(
             &account,
             signature,
             &auth_context,
@@ -419,7 +419,7 @@ fun test_withdraw_call_wrong_account() {
         let wrong_address = @0x9999;
         let auth_context = create_auth_context_for_testing(wrong_address, 500, &test_ctx);
 
-        spending_limit_account::ed25519_SpendingLimitAccount_authenticator(
+        spending_limit_account::ed25519_authenticator(
             &account,
             signature,
             &auth_context,
@@ -473,7 +473,7 @@ fun test_withdraw_call_wrong_package_id() {
 
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), inputs, commands);
 
-        spending_limit_account::ed25519_SpendingLimitAccount_authenticator(
+        spending_limit_account::ed25519_authenticator(
             &account,
             signature,
             &auth_context,
@@ -525,7 +525,7 @@ fun test_withdraw_call_wrong_module() {
 
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), inputs, commands);
 
-        spending_limit_account::ed25519_SpendingLimitAccount_authenticator(
+        spending_limit_account::ed25519_authenticator(
             &account,
             signature,
             &auth_context,
@@ -577,7 +577,7 @@ fun test_withdraw_call_wrong_function() {
 
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), inputs, commands);
 
-        spending_limit_account::ed25519_SpendingLimitAccount_authenticator(
+        spending_limit_account::ed25519_authenticator(
             &account,
             signature,
             &auth_context,
@@ -629,7 +629,7 @@ fun test_withdraw_invalid_bcs_amount() {
         let commands = vector[command];
 
         let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), inputs, commands);
-        spending_limit_account::ed25519_SpendingLimitAccount_authenticator(
+        spending_limit_account::ed25519_authenticator(
             &account,
             signature,
             &auth_context,

@@ -48,7 +48,7 @@ fun account_creation() {
 }
 
 #[test]
-fun unlock_time_clock_ed25519_IOTAccount_authenticator_success() {
+fun unlock_time_clock_ed25519_authenticator_success() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
     let public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
@@ -67,7 +67,7 @@ fun unlock_time_clock_ed25519_IOTAccount_authenticator_success() {
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
         let auth_context = create_auth_context_for_testing();
 
-        time_locked_iotaccount::unlock_time_clock_ed25519_IOTAccount_authenticator(
+        time_locked_iotaccount::unlock_time_clock_ed25519_authenticator(
             &account,
             &clock,
             signature,
@@ -83,7 +83,7 @@ fun unlock_time_clock_ed25519_IOTAccount_authenticator_success() {
 }
 
 #[test]
-fun unlock_time_epoch_ed25519_IOTAccount_authenticator_success() {
+fun unlock_time_epoch_ed25519_authenticator_success() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
     let public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
@@ -100,7 +100,7 @@ fun unlock_time_epoch_ed25519_IOTAccount_authenticator_success() {
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
         let auth_context = create_auth_context_for_testing();
 
-        time_locked_iotaccount::unlock_time_epoch_ed25519_IOTAccount_authenticator(
+        time_locked_iotaccount::unlock_time_epoch_ed25519_authenticator(
             &account,
             signature,
             &auth_context,
@@ -128,7 +128,7 @@ fun account_fails_verification() {
 
         let signature: vector<u8> = b"32";
         let auth_context = create_auth_context_for_testing();
-        time_locked_iotaccount::unlock_time_clock_ed25519_IOTAccount_authenticator(
+        time_locked_iotaccount::unlock_time_clock_ed25519_authenticator(
             &account,
             &clock,
             signature,
@@ -164,7 +164,7 @@ fun account_time_locked_clock() {
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
         let auth_context = create_auth_context_for_testing();
 
-        time_locked_iotaccount::unlock_time_clock_ed25519_IOTAccount_authenticator(
+        time_locked_iotaccount::unlock_time_clock_ed25519_authenticator(
             &account,
             &clock,
             signature,
@@ -199,7 +199,7 @@ fun account_time_locked_epoch() {
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
         let auth_context = create_auth_context_for_testing();
 
-        time_locked_iotaccount::unlock_time_epoch_ed25519_IOTAccount_authenticator(
+        time_locked_iotaccount::unlock_time_epoch_ed25519_authenticator(
             &account,
             signature,
             &auth_context,

@@ -150,7 +150,7 @@ public fun rotate_public_key(
 /// Validates the signature and the withdrawal commands in the transaction.
 /// Calculates the total withdrawal amount and checks against the spending limit.
 #[authenticator]
-public fun ed25519_SpendingLimitAccount_authenticator(
+public fun ed25519_authenticator(
     account: &SpendingLimitAccount,
     signature: vector<u8>,
     auth_ctx: &AuthContext,

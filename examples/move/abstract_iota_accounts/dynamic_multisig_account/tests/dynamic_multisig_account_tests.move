@@ -85,7 +85,7 @@ fun test_account_creation() {
             // with total weight which is enough to reach the threshold.
             assert_eq(account.total_approves(TRANSACTION_DIGEST), 3);
 
-            dynamic_multisig_account::approval_DynamicMultisigAccount_authenticator(
+            dynamic_multisig_account::approval_authenticator(
                 &account,
                 &auth_ctx,
                 &tx_ctx,
@@ -696,7 +696,7 @@ fun test_authenticate_not_enough_total_weight() {
             let tx_ctx = create_tx_context_for_testing(account_address, TRANSACTION_DIGEST);
             let auth_ctx = create_auth_context_for_testing();
 
-            dynamic_multisig_account::approval_DynamicMultisigAccount_authenticator(
+            dynamic_multisig_account::approval_authenticator(
                 &account,
                 &auth_ctx,
                 &tx_ctx,
@@ -760,7 +760,7 @@ fun test_authenticate_not_enough_total_weight_after_update() {
             let tx_ctx = create_tx_context_for_testing(account_address, TRANSACTION_DIGEST);
             let auth_ctx = create_auth_context_for_testing();
 
-            dynamic_multisig_account::approval_DynamicMultisigAccount_authenticator(
+            dynamic_multisig_account::approval_authenticator(
                 &account,
                 &auth_ctx,
                 &tx_ctx,
@@ -834,7 +834,7 @@ fun test_authenticate_member_removed_during_update() {
             let tx_ctx = create_tx_context_for_testing(account_address, TRANSACTION_DIGEST);
             let auth_ctx = create_auth_context_for_testing();
 
-            dynamic_multisig_account::approval_DynamicMultisigAccount_authenticator(
+            dynamic_multisig_account::approval_authenticator(
                 &account,
                 &auth_ctx,
                 &tx_ctx,
@@ -898,7 +898,7 @@ fun test_authenticate_threshold_changed_during_update() {
             let tx_ctx = create_tx_context_for_testing(account_address, TRANSACTION_DIGEST);
             let auth_ctx = create_auth_context_for_testing();
 
-            dynamic_multisig_account::approval_DynamicMultisigAccount_authenticator(
+            dynamic_multisig_account::approval_authenticator(
                 &account,
                 &auth_ctx,
                 &tx_ctx,

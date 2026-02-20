@@ -161,11 +161,7 @@ public fun remove_transaction(
 /// If the members list is changed after the transaction proposal, only the members who are still in the list
 /// are considered for the approval. Their weights are taken from the current members list.
 #[authenticator]
-public fun approval_DynamicMultisigAccount_authenticator(
-    self: &DynamicMultisigAccount,
-    _: &AuthContext,
-    ctx: &TxContext,
-) {
+public fun approval_authenticator(self: &DynamicMultisigAccount, _: &AuthContext, ctx: &TxContext) {
     assert!(
         self.total_approves(*ctx.digest()) >= self.threshold(),
         ETransactionDoesNotHaveSufficientApprovals,

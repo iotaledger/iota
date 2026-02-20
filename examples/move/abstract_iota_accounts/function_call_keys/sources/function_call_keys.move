@@ -130,7 +130,7 @@ public fun with_function_call_keys_store(
 /// - `EInvalidAmountOfCommands` if the PTB has ≠ 1 command (delegated flow).
 /// - `EUnauthorized` if the function is not authorized for the delegated key (delegated flow).
 #[authenticator]
-public fun ed25519_IOTAccount_FunctionCallKeys_authenticator(
+public fun ed25519_authenticator(
     account: &IOTAccount,
     pub_key: vector<u8>,
     signature: vector<u8>,
