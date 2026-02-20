@@ -437,6 +437,10 @@ struct FeatureFlags {
     // If true, record the additional state digest in the consensus commit prologue.
     #[serde(skip_serializing_if = "is_false")]
     record_additional_states_digests_in_prologue: bool,
+
+    // If true, record the received reports state digest in the consensus commit prologue.
+    #[serde(skip_serializing_if = "is_false")]
+    record_received_reports_state_digest_in_prologue: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1588,6 +1592,17 @@ impl ProtocolConfig {
         self.feature_flags
             .record_additional_states_digests_in_prologue
     }
+
+    pub fn record_received_reports_state_digest_in_prologue(&self) -> bool {
+        let record = self
+            .feature_flags
+            .record_received_reports_state_digest_in_prologue;
+        assert!(
+            !record || self.record_additional_states_digests_in_prologue(),
+            "record_received_reports_state_digest_in_prologue requires record_additional_states_digests_in_prologue to be enabled"
+        );
+        record
+    }
 }
 
 #[cfg(not(msim))]
@@ -2519,7 +2534,6 @@ impl ProtocolConfig {
                             .pass_calculated_validator_scores_to_advance_epoch = true;
                     }
                 }
-
                 21 => {
                     if chain != Chain::Mainnet && chain != Chain::Testnet {
                         cfg.feature_flags
