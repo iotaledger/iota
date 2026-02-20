@@ -34,7 +34,24 @@ impl Client {
     /// - `start` - Epoch start timestamp
     /// - `end` - Epoch end timestamp
     /// - `reference_gas_price` - Reference gas price in NANOS
-    /// - `protocol_config` - Protocol configuration for this epoch
+    /// - `protocol_config` - Protocol configuration for this epoch. The
+    ///   sub-fields use a two-level path because each map is wrapped in its own
+    ///   message:
+    ///   - `protocol_config.protocol_version` - the protocol version number
+    ///   - `protocol_config.feature_flags.flags` - all feature flags
+    ///     (`map<string, bool>`)
+    ///   - `protocol_config.feature_flags.flags.<name>` - a single named flag
+    ///   - `protocol_config.attributes.attributes` - all numeric attributes
+    ///     (`map<string, string>`)
+    ///   - `protocol_config.attributes.attributes.<name>` - a single named
+    ///     attribute
+    ///
+    ///   > **Note:** Requesting just `protocol_config.feature_flags` (without
+    ///   > `.flags`) or just `protocol_config.attributes` (without
+    ///   > `.attributes`) results in the respective wrapper field being `None`
+    ///   > in the response. This lets clients distinguish "field not requested"
+    ///   > from "empty map". Always include the inner field name to receive
+    ///   > data.
     ///
     /// # Example
     ///
@@ -50,6 +67,28 @@ impl Client {
     /// // Get specific epoch with custom fields
     /// let epoch = client
     ///     .get_epoch(Some(0), Some("epoch,reference_gas_price,first_checkpoint"))
+    ///     .await?;
+    ///
+    /// // Get all feature flags for the current epoch
+    /// let epoch = client
+    ///     .get_epoch(None, Some("protocol_config.feature_flags.flags"))
+    ///     .await?;
+    /// let flags = epoch.protocol_config.unwrap().feature_flags.unwrap().flags;
+    ///
+    /// // Get a single named feature flag
+    /// let epoch = client
+    ///     .get_epoch(
+    ///         None,
+    ///         Some("protocol_config.feature_flags.flags.zklogin_auth"),
+    ///     )
+    ///     .await?;
+    ///
+    /// // Get a single named attribute
+    /// let epoch = client
+    ///     .get_epoch(
+    ///         None,
+    ///         Some("protocol_config.attributes.attributes.max_tx_gas"),
+    ///     )
     ///     .await?;
     /// # Ok(())
     /// # }
