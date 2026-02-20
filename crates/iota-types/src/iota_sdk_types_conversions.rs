@@ -866,7 +866,7 @@ impl TryFrom<crate::effects::TransactionEffects> for TransactionEffects {
                         })
                         .collect(),
                     auxiliary_data_digest: effects.aux_data_digest,
-                    status: effects.status.into(),
+                    status: effects.status,
                 }))
                 .pipe(Ok)
             }
@@ -882,7 +882,7 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
             TransactionEffects::V1(transaction_effects_v1) => {
                 let effects: crate::effects::TransactionEffects =
                     crate::effects::effects_v1::TransactionEffectsV1 {
-                        status: transaction_effects_v1.status.into(),
+                        status: transaction_effects_v1.status,
                         executed_epoch: transaction_effects_v1.epoch,
                         gas_used: crate::gas::GasCostSummary::new(
                             transaction_effects_v1.gas_used.computation_cost,
