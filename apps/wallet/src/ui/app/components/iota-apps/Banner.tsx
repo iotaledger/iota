@@ -32,6 +32,8 @@ export function AppsPageBanner() {
                             bannerUrl: AppsBannerConfig.value?.bannerUrl,
                         })
                     }
+                    type="application"
+                    isPublic
                 >
                     <img
                         className="w-full"
