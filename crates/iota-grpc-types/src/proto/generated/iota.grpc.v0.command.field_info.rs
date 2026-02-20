@@ -201,6 +201,9 @@ mod _field_impls {
             message_fields: Some(Result::FIELDS),
         };
     }
+    impl Argument {
+        pub const KIND_ONEOF: &'static str = "kind";
+    }
     impl MessageFields for Argument {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::UNKNOWN_FIELD,

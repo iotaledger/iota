@@ -443,6 +443,9 @@ mod _field_impls {
             message_fields: Some(ExecutionError::FIELDS),
         };
     }
+    impl ExecutionResult {
+        pub const RESULT_ONEOF: &'static str = "result";
+    }
     impl MessageFields for ExecutionResult {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::COMMAND_RESULTS_FIELD,

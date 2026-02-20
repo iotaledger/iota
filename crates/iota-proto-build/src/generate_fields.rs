@@ -369,6 +369,7 @@ fn generate_field_info_for_message(
 
     let constants =
         generate_field_constants(package, message, boxed_types, dependency_graph, &map_types);
+    let oneof_constants = generate_oneof_name_constants(message);
     let message_fields_impl = generate_message_fields_impl(message);
     let field_path_builders = generate_field_path_builders_impl(
         package,
@@ -380,8 +381,60 @@ fn generate_field_info_for_message(
 
     quote! {
         #constants
+        #oneof_constants
         #message_fields_impl
         #field_path_builders
+    }
+}
+
+/// Generates `pub const {NAME}_ONEOF: &'static str = "{name}";` constants for
+/// each real `oneof` declaration in a message. Synthetic oneofs created by the
+/// proto3-optional feature are excluded.
+fn generate_oneof_name_constants(message: &DescriptorProto) -> TokenStream {
+    if message.oneof_decl.is_empty() {
+        return TokenStream::new();
+    }
+
+    // Determine which oneof indices are "real" (not synthetic proto3-optional
+    // oneofs). A synthetic oneof only contains fields with proto3_optional = true.
+    let real_oneof_indices: HashSet<i32> = message
+        .field
+        .iter()
+        .filter_map(|field| {
+            if field.oneof_index.is_some() && !field.proto3_optional() {
+                field.oneof_index
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    if real_oneof_indices.is_empty() {
+        return TokenStream::new();
+    }
+
+    let message_ident = quote::format_ident!("{}", message.name());
+    let mut consts = TokenStream::new();
+
+    for (idx, oneof) in message.oneof_decl.iter().enumerate() {
+        if !real_oneof_indices.contains(&(idx as i32)) {
+            continue;
+        }
+        let name = oneof.name();
+        let ident = quote::format_ident!("{}_ONEOF", name.to_ascii_uppercase());
+        consts.extend(quote! {
+            pub const #ident: &'static str = #name;
+        });
+    }
+
+    if consts.is_empty() {
+        return TokenStream::new();
+    }
+
+    quote! {
+        impl #message_ident {
+            #consts
+        }
     }
 }
 
