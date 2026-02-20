@@ -989,8 +989,9 @@ pub struct VerifiedTransactions {
     transaction_ref: TransactionRef,
 
     /// Digest of the block this transaction batch belongs to.
-    /// `None` when created via the `consensus_transaction_ref` path where no
-    /// block header is available.
+    /// It is necessary when we use BlockRef to fetch transactions.
+    /// When we use TransactionRef, i.e. when `consensus_transaction_ref` is
+    /// true, then it is set to `None`.
     block_digest: Option<BlockHeaderDigest>,
 
     /// The serialized bytes of the transactions.
@@ -1030,6 +1031,8 @@ impl VerifiedTransactions {
         self.transaction_ref.author
     }
 
+    /// Returns the block ref if `block_digest` is set (i.e., when using
+    /// BlockRef-based fetching).
     pub fn block_ref(&self) -> Option<BlockRef> {
         self.block_digest.map(|digest| BlockRef {
             round: self.transaction_ref.round,
@@ -1038,6 +1041,8 @@ impl VerifiedTransactions {
         })
     }
 
+    /// Returns the block digest if available; `None` when using
+    /// TransactionRef-based fetching.
     pub fn block_digest(&self) -> Option<BlockHeaderDigest> {
         self.block_digest
     }
