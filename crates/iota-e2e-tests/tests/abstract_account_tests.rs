@@ -408,7 +408,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
             summary.status.unwrap_err().0,
             ExecutionFailureStatus::MoveAbort{location: MoveLocation { module, function_name, .. }, code: abort_code}
             if module.as_str() == "basic_keyed_aa"
-            && function_name.is_some_and(|f|f.as_str() == "authenticate_ed25519")
+            && function_name.as_ref().is_some_and(|f|f.as_str() == "authenticate_ed25519")
             && ErrorBitset::from_u64(abort_code).unwrap().error_code() == Some(0)
         ),
         "Expected failure to be a Move abort in basic_keyed_aa::authenticate_ed25519",
