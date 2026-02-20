@@ -14,6 +14,8 @@ const IS_ENABLED =
 
 const IS_DEV = import.meta.env.VITE_BUILD_ENV !== 'production';
 
+let IS_BOT_CLEARED = false;
+
 export async function initAmplitude() {
     // Check consent status to determine initial opt-out state
     const consentStatus = getAmplitudeConsentStatus();
@@ -21,42 +23,64 @@ export async function initAmplitude() {
     if (ampli.isLoaded || consentStatus === 'declined') {
         return;
     }
-    // Delay initialization by 1s to filter out immediate ghost sessions
-    setTimeout(async () => {
-        // Abort if the user closed the tab or backgrounded the app during the delay
-        if (document.visibilityState === 'hidden') {
-            return;
-        }
 
-        // Load Amplitude normally for valid sessions
-        await ampli.load({
-            environment: 'iotaexplorer',
-            // Flip this if you'd like to test Amplitude locally
-            disabled: !IS_ENABLED,
-            client: {
-                configuration: {
-                    optOut: false,
-                    autocapture: {
-                        attribution: IS_ENABLED,
-                        fileDownloads: IS_ENABLED,
-                        formInteractions: IS_ENABLED,
-                        pageViews: IS_ENABLED,
-                        sessions: IS_ENABLED,
-                    },
-                    // set LogLevel to Debug for more verbose logging during development
-                    logLevel: LogLevel.None,
-                    flushIntervalMillis: 1000,
-                    flushQueueSize: 30,
+    // Load Amplitude with anti-bot configuration
+    await ampli.load({
+        environment: 'iotaexplorer',
+        disabled: !IS_ENABLED,
+        client: {
+            configuration: {
+                optOut: false,
+                autocapture: {
+                    attribution: IS_ENABLED,
+                    fileDownloads: IS_ENABLED,
+                    formInteractions: IS_ENABLED,
+                    pageViews: IS_ENABLED,
+                    sessions: IS_ENABLED,
                 },
+                logLevel: LogLevel.None,
+                // Anti-bot: Hold events initially to filter crawlers
+                flushIntervalMillis: 3600000, // 1 hour - effectively disabled
+                flushQueueSize: 50, // Small queue sufficient for 2s of events
+                identityStorage: 'localStorage',
             },
-        }).promise;
+        },
+    }).promise;
 
-        window.addEventListener('pagehide', () => {
-            amplitude.setTransport('beacon');
-            amplitude.flush();
-        });
-    }, 1000);
+    // Add environment plugin
+    amplitude.add(attachEnvironmentPlugin(IS_DEV));
 
-    // Add environment plugin to set prefix dev events
-    ampli.client.add(attachEnvironmentPlugin(IS_DEV));
+    let flushInterval: ReturnType<typeof setInterval> | null = null;
+
+    // Always register pagehide listener (only flushes if bot check passed)
+    window.addEventListener(
+        'pagehide',
+        () => {
+            if (flushInterval) {
+                clearInterval(flushInterval);
+            }
+            if (IS_BOT_CLEARED) {
+                amplitude.setTransport('beacon');
+                ampli.flush();
+            }
+        },
+        { once: true },
+    );
+
+    // Anti-bot delay: Wait to verify user is not a bot
+    const BOT_WAIT_TIME = 2000; // 2 seconds
+    setTimeout(() => {
+        IS_BOT_CLEARED = true;
+
+        // Flush queued events immediately
+        ampli.flush();
+
+        // Set up regular flushing every second for the rest of the session
+        const FLUSH_INTERVAL = 1000; // 1 second
+        flushInterval = setInterval(() => {
+            if (ampli.isLoaded) {
+                ampli.flush();
+            }
+        }, FLUSH_INTERVAL);
+    }, BOT_WAIT_TIME);
 }
