@@ -857,8 +857,8 @@ impl ConsensusAdapter {
             || matches!(
                 transactions[0].kind,
                 // NOTE: We need to check both because `CertifiedTransaction` (scenario with
-                // certificates) and `UserTransactionV1` (certificate-less scenario) are user
-                // transactions.
+                // certificates) and `UserTransactionV1` (certificate-less scenario) are both
+                // user transactions.
                 ConsensusTransactionKind::CertifiedTransaction(_)
                     | ConsensusTransactionKind::UserTransactionV1(_)
             );
