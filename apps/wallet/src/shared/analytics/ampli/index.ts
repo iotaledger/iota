@@ -129,6 +129,7 @@ export interface ApplicationDisconnectedProperties {
      * | Type | number |
      */
     disconnectedAccounts?: number;
+    partial?: boolean;
     /**
      * | Rule | Value |
      * |---|---|
@@ -929,6 +930,7 @@ export class ExternalLinkOpened implements BaseEvent {
         this.event_properties = event_properties;
     }
 }
+
 export class IotaStaked implements BaseEvent {
     event_type = 'iota staked';
 

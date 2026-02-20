@@ -43,6 +43,7 @@ export function DisconnectApp({
         [permission],
     );
     const backgroundClient = useBackgroundClient();
+
     const disconnectMutation = useMutation({
         mutationFn: async () => {
             const origin = permission?.origin;
@@ -52,11 +53,18 @@ export function DisconnectApp({
 
             await backgroundClient.disconnectApp(origin, accountsToDisconnect);
             await backgroundClient.sendGetPermissionRequests();
+
+            // If connected only one account - accountsToDisconnect array is empty
+            const isPartialDisconnect =
+                connectedAccounts.length > 1 &&
+                accountsToDisconnect.length < connectedAccounts.length;
+
             ampli.applicationDisconnected({
                 sourceFlow: 'Application page',
                 disconnectedAccounts: accountsToDisconnect.length || 1,
                 applicationName: permission.name,
                 applicationUrl: origin,
+                partial: isPartialDisconnect,
             });
         },
         onSuccess: () => {
