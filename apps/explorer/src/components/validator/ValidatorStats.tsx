@@ -66,6 +66,15 @@ export function ValidatorStats({
                         />
                     </div>
                     <div className="grid grid-rows-1 gap-md">
+                        {hasEffectiveCommissionRate && (
+                            <LabelText
+                                size={LabelTextSize.Medium}
+                                label="Effective Commission Rate"
+                                text={effectiveCommissionRate}
+                                tooltipText="The share of rewards retained by the validator. This rate includes a protocol-enforced minimum to help maintain network decentralization."
+                                tooltipPosition={TooltipPosition.Right}
+                            />
+                        )}
                         <LabelText
                             size={LabelTextSize.Medium}
                             label="Commission"
@@ -73,15 +82,6 @@ export function ValidatorStats({
                             tooltipText="The charge imposed by the validator for their staking services."
                             tooltipPosition={TooltipPosition.Right}
                         />
-                        {hasEffectiveCommissionRate && (
-                            <LabelText
-                                size={LabelTextSize.Medium}
-                                label="Effective Commission rate"
-                                text={effectiveCommissionRate}
-                                tooltipText="The share of rewards retained by the validator. This rate includes a protocol-enforced minimum to help maintain network decentralization."
-                                tooltipPosition={TooltipPosition.Right}
-                            />
-                        )}
                     </div>
                 </div>
             </Panel>
