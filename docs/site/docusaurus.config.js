@@ -30,6 +30,9 @@ const config = {
   onBrokenAnchors: "throw",
 
   future: {
+    v4: {
+      removeLegacyPostBuildHeadAttribute: true,
+    },
     experimental_faster: true,
   },
 
