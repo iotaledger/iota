@@ -105,26 +105,77 @@ impl ConsensusHandlerInitializer {
 
 mod additional_consensus_states {
     use super::*;
+    use crate::authority::authority_per_epoch_store::scorer::ReceivedReportsState;
+
+    // Trait for the state fields used in AdditionalConsensusStates.
+    pub(crate) trait AdditionalConsensusStatesTrait {
+        fn digest(&self) -> AdditionalConsensusStatesDigest;
+    }
+
+    // Implementation for any type that already has `Serialize`.
+    impl<T: Serialize> AdditionalConsensusStatesTrait for T {
+        fn digest(&self) -> AdditionalConsensusStatesDigest {
+            let mut hasher = iota_types::crypto::DefaultHash::default();
+            hasher.update(bcs::to_bytes(self).expect("BCS serialization should not fail"));
+            AdditionalConsensusStatesDigest::new(hasher.finalize().into())
+        }
+    }
+
+    // Holds additional consensus state fields that we want to include in the
+    // ConsensusCommitPrologueV2, or even only to track them across commits. To add
+    // a new field:
+    // - add it to the struct,
+    // - modify AdditionalConsensusStates::new() to initialize it,
+    // - implement a setter for the field.
+    // - add the field to AdditionalConsensusStates::iter() for debugging and
+    //   testing purposes.
+    //
+    // To use the field in ConsensusCommitPrologueV2:
+    // - add the field's to a new verstion of AdditionalConsensusStates::iter_v_(),
+    // - use the new iter_v_() method to compute the updated list of digests in
+    //   AdditionalConsensusStates::digests(), gated by a new protocol config flag.
     #[derive(Serialize, Deserialize)]
-    pub struct AdditionalConsensusStates {}
+    pub struct AdditionalConsensusStates {
+        received_reports_state: ReceivedReportsState,
+    }
 
     impl AdditionalConsensusStates {
         #[expect(unused)]
         pub fn new() -> Self {
-            Self {}
+            Self {
+                received_reports_state: ReceivedReportsState::new(),
+            }
         }
 
+        // Setter for received_reports_state
         #[expect(unused)]
-        pub fn new_for_tests() -> Self {
-            Self {}
+        pub fn set_received_reports_state(&mut self, state: ReceivedReportsState) {
+            self.received_reports_state = state;
         }
 
+        // Returns an iterator over all state fields. Used for debugging and testing.
         #[expect(unused)]
-        /// Get the digest of the current state.
-        pub fn digest(&self) -> AdditionalConsensusStatesDigest {
-            let mut hash = iota_types::crypto::DefaultHash::new();
-            bcs::serialize_into(&mut hash, self).unwrap();
-            AdditionalConsensusStatesDigest::new(hash.finalize().into())
+        fn iter(&self) -> impl Iterator<Item = &dyn AdditionalConsensusStatesTrait> {
+            [&self.received_reports_state as &dyn AdditionalConsensusStatesTrait].into_iter()
+        }
+
+        // Returns an iterator over each state field used in ConsensusCommitPrologueV2.
+        // Do not change these functions, only add new versions of them.
+        fn iter_v1(&self) -> impl Iterator<Item = &dyn AdditionalConsensusStatesTrait> {
+            [&self.received_reports_state as &dyn AdditionalConsensusStatesTrait].into_iter()
+        }
+
+        /// Returns the ordered list of digests, one per tracked state field.
+        #[expect(unused)]
+        pub fn digests(
+            &self,
+            protocol_config: &ProtocolConfig,
+        ) -> Vec<AdditionalConsensusStatesDigest> {
+            if protocol_config.record_received_reports_state_digest_in_prologue() {
+                self.iter_v1().map(|s| s.digest()).collect()
+            } else {
+                vec![]
+            }
         }
     }
 }
