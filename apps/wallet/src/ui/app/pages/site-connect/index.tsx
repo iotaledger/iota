@@ -14,13 +14,17 @@ import type { RootState } from '_src/ui/app/redux/rootReducer';
 import { permissionsSelectors, respondToPermissionRequest } from '_redux/slices/permissions';
 import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { ampli } from '_src/shared/analytics/ampli';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { PageMainLayoutTitle } from '../../shared/page-main-layout/PageMainLayoutTitle';
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import { Warning, Info } from '@iota/apps-ui-icons';
 import { ExtensionViewType } from '../../redux/slices/app/appType';
 import { SidePanel } from '_src/polyfills/sidepanel';
+import { resolveApplicationName } from '_src/shared/utils';
+import { useFeature } from '@growthbook/growthbook-react';
+import { Feature } from '@iota/core';
+import { type DAppEntry } from '../../components/iota-apps/IotaApp';
 
 export function SiteConnectPage() {
     const { requestID } = useParams();
@@ -39,6 +43,10 @@ export function SiteConnectPage() {
     const accounts = accountGroups.list();
     const unlockedAccounts = accounts.filter((account) => !account.isLocked);
     const lockedAccounts = accounts.filter((account) => account.isLocked);
+    const ecosystemApps = useFeature<DAppEntry[]>(Feature.WalletDapps).value ?? [];
+
+    // Track which request IDs have already fired the dappConnectStarted event
+    const trackedRequestIDs = useRef<Set<string>>(new Set());
 
     const [accountsToConnect, setAccountsToConnect] = useState<SerializedUIAccount[]>(() => {
         const preselectedAccounts = activeAccount && !activeAccount.isLocked ? [activeAccount] : [];
@@ -70,15 +78,21 @@ export function SiteConnectPage() {
                         allowed,
                     }),
                 );
+                const resolvedName = resolveApplicationName(
+                    permissionRequest.name,
+                    permissionRequest.origin,
+                    permissionRequest.pagelink,
+                    ecosystemApps,
+                );
                 ampli.respondedToConnectionRequest({
-                    applicationName: permissionRequest.name,
+                    applicationName: resolvedName,
                     applicationUrl: permissionRequest.origin,
                     approvedConnection: allowed,
                 });
                 handleOnFinish();
             }
         },
-        [requestID, accountsToConnect, permissionRequest, dispatch],
+        [requestID, accountsToConnect, permissionRequest, dispatch, ecosystemApps],
     );
     useEffect(() => {
         if (!loading && !permissionRequest) {
@@ -108,6 +122,22 @@ export function SiteConnectPage() {
     useEffect(() => {
         setDisplayWarning(!isSecure);
     }, [isSecure]);
+
+    useEffect(() => {
+        if (permissionRequest && requestID && !trackedRequestIDs.current.has(requestID)) {
+            trackedRequestIDs.current.add(requestID);
+            const resolvedName = resolveApplicationName(
+                permissionRequest.name,
+                permissionRequest.origin,
+                permissionRequest.pagelink,
+                ecosystemApps,
+            );
+            ampli.dappConnectStarted({
+                applicationName: resolvedName,
+                applicationUrl: permissionRequest.origin,
+            });
+        }
+    }, [permissionRequest, requestID, ecosystemApps]);
     return (
         <Loading loading={loading}>
             {permissionRequest &&
