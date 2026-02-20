@@ -142,7 +142,7 @@ impl IotaNodeProvider {
     fn update_pending_validator_set(&self, pending_validators: Vec<ValidatorV1>) {
         let summaries = pending_validators
             .into_iter()
-            .map(|v| v.into_iota_validator_summary())
+            .map(|v| v.into_iota_validator_summary(self.))
             .collect_vec();
         let validators = extract_validators_from_summaries(&summaries);
         let mut allow = self.pending_validator_nodes.write().unwrap();

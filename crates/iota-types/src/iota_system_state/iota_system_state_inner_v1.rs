@@ -357,6 +357,7 @@ impl ValidatorV1 {
             next_epoch_commission_rate,
             extra_fields: _,
         } = self;
+        let effective_commission_rate = Some(commission_rate.max(voting_power));
         IotaValidatorSummary {
             iota_address,
             authority_pubkey_bytes,
@@ -392,6 +393,7 @@ impl ValidatorV1 {
             pending_total_iota_withdraw,
             pending_pool_token_withdraw,
             commission_rate,
+            effective_commission_rate,
             next_epoch_stake,
             next_epoch_gas_price,
             next_epoch_commission_rate,

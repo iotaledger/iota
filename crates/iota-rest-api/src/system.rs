@@ -379,6 +379,7 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaValidato
             pending_pool_token_withdraw,
             exchange_rates_id,
             exchange_rates_size,
+            effective_commission_rate: _,
         } = value;
 
         Self {
