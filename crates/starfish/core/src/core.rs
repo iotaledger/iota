@@ -2590,12 +2590,6 @@ mod test {
             .find(|(a, _)| a.author() == authority_to_skip)
             .unwrap()
             .0;
-        let block_ref_for_first_missing_tx = match first_missing_transaction_from_skipped {
-            GenericTransactionRef::BlockRef(ref b) => BlockRef::new(b.round, b.author, b.digest),
-            GenericTransactionRef::TransactionRef(ref t) => {
-                BlockRef::new(t.round, t.author, t.block_digest)
-            }
-        };
         if commit_only_for_traversed_headers {
             assert_eq!(
                 first_missing_transaction_from_skipped.round(),
@@ -2607,14 +2601,23 @@ mod test {
         // Ensure that the block header corresponding to the
         // first_missing_transaction_from_skipped is not in dag_state
         // if commit_only_for_traversed_headers=false and in dag_state otherwise
-        assert_eq!(
-            core_catch_up
-                .dag_state
-                .read()
-                .get_verified_block_headers(&[block_ref_for_first_missing_tx])[0]
-                .is_some(),
-            commit_only_for_traversed_headers
-        );
+        let is_in_dag_state = {
+            let dag = core_catch_up.dag_state.read();
+            match first_missing_transaction_from_skipped {
+                GenericTransactionRef::BlockRef(ref b) => {
+                    let block_ref = BlockRef::new(b.round, b.author, b.digest);
+                    dag.get_verified_block_headers(&[block_ref])[0].is_some()
+                }
+                GenericTransactionRef::TransactionRef(ref t) => {
+                    // resolve_block_ref returns None iff the block header is absent from
+                    // dag_state, which is exactly the condition we want to check.
+                    dag.resolve_block_ref(t).map_or(false, |block_ref| {
+                        dag.get_verified_block_headers(&[block_ref])[0].is_some()
+                    })
+                }
+            }
+        };
+        assert_eq!(is_in_dag_state, commit_only_for_traversed_headers);
         let last_solid_commit_round = core_catch_up
             .dag_state
             .read()
