@@ -2240,33 +2240,24 @@ impl AuthorityPerEpochStore {
 
         // TODO: lock once for all insert() calls.
         for transaction in transactions {
-            let digest_cert_or_tx = match &transaction.kind {
-                ConsensusTransactionKind::CertifiedTransaction(cert) => {
-                    // Branch WITH certification: `CertifiedTransaction` digest will be tracked
-                    // in the pending set
-                    Some((*cert.digest(), "certificate"))
-                }
-                ConsensusTransactionKind::UserTransactionV1(tx) => {
-                    // Branch WITHOUT certification: `UserTransactionV1` digest will be tracked
-                    // in the pending set
-                    Some((*tx.digest(), "transaction"))
-                }
-                _ => None,
-            };
-
-            if let Some((digest, cert_or_tx)) = digest_cert_or_tx {
-                let state = lock.unwrap_or_else(|| {
-                    panic!("Must pass reconfiguration lock when storing {cert_or_tx}");
-                });
+            if let ConsensusTransactionKind::CertifiedTransaction(cert) = &transaction.kind {
+                let state = lock.expect("Must pass reconfiguration lock when storing certificate");
                 // Caller is responsible for performing graceful check
                 assert!(
                     state.should_accept_user_certs(),
-                    "Reconfiguration state should allow accepting user {cert_or_tx}s"
+                    "Reconfiguration state should allow accepting user transactions"
                 );
-                self.pending_consensus_certificates.write().insert(digest);
+                self.pending_consensus_certificates
+                    .write()
+                    .insert(*cert.digest());
             }
+            // NOTE: We do not insert
+            // `ConsensusTransactionKind::UserTransactionV1` into
+            // `self.pending_consensus_certificates` because, in the
+            // certificate-less scenario, there is no pre-consensus
+            // "promise" (certificate) that `UserTransactionV1` will
+            // be executed before the end of epoch.
         }
-
         Ok(())
     }
 
@@ -2277,19 +2268,17 @@ impl AuthorityPerEpochStore {
         self.tables()?
             .pending_consensus_transactions
             .multi_remove(keys)?;
-
         // TODO: lock once for all remove() calls.
         for key in keys {
-            let maybe_digest = match key {
-                ConsensusTransactionKey::Certificate(digest)
-                | ConsensusTransactionKey::UserTransaction(digest) => Some(digest),
-                _ => None,
-            };
-            if let Some(digest) = maybe_digest {
-                self.pending_consensus_certificates.write().remove(digest);
+            if let ConsensusTransactionKey::Certificate(cert) = key {
+                self.pending_consensus_certificates.write().remove(cert);
             }
+            // NOTE: We do not need the
+            // `ConsensusTransactionKey::UserTransaction` branch
+            // (certificate-less scenario) here because `UserTransactionV1` are
+            // not inserted into
+            // `self.pending_consensus_certificates`.
         }
-
         Ok(())
     }
 

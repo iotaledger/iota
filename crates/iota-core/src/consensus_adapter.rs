@@ -856,6 +856,9 @@ impl ConsensusAdapter {
         let is_user_tx = is_soft_bundle
             || matches!(
                 transactions[0].kind,
+                // NOTE: We need to check both because `CertifiedTransaction` (scenario with
+                // certificates) and `UserTransactionV1` (certificate-less scenario) are user
+                // transactions.
                 ConsensusTransactionKind::CertifiedTransaction(_)
                     | ConsensusTransactionKind::UserTransactionV1(_)
             );
@@ -873,6 +876,10 @@ impl ConsensusAdapter {
                 .get_reconfig_state_read_lock_guard()
                 .is_reject_user_certs()
             {
+                // NOTE: In the certificate-less case, `pending_consensus_certificates_count`
+                // is always zero because we do not insert anything into the set of pending
+                // consensus certificates, so there might be room for minor optimization: avoid
+                // reading `pending_consensus_certificates` in the certificate-less scenario.
                 let pending_count = epoch_store.pending_consensus_certificates_count();
                 debug!(epoch=?epoch_store.epoch(), ?pending_count, "Deciding whether to send EndOfPublish");
                 pending_count == 0 // send end of epoch if empty
@@ -1115,6 +1122,10 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
                 // Allow caller to call this method multiple times
                 return;
             }
+            // NOTE: In the certificate-less case, `pending_consensus_certificates_count`
+            // is always zero because we do not insert anything into the set of pending
+            // consensus certificates, so there might be room for minor optimization: avoid
+            // reading `pending_consensus_certificates` in the certificate-less scenario.
             let pending_count = epoch_store.pending_consensus_certificates_count();
             debug!(epoch=?epoch_store.epoch(), ?pending_count, "Trying to close epoch");
             let send_end_of_publish = pending_count == 0;
