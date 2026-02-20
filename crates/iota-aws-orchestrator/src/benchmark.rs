@@ -168,6 +168,8 @@ pub struct BenchmarkParameters<T> {
     pub run_interval: RunInterval,
     /// AA workload: which authenticator kind to use.
     pub aa_authenticator: AbstractAccountAuthenticator,
+    /// AA workload: whether the transactions should fail.
+    pub should_fail: bool,
     /// AA workload: which authenticator kind to use.
     pub tx_payload_obj_type: TxPayloadObjType,
     /// AA workload: number of worker tasks inside stress.
@@ -224,6 +226,7 @@ impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
             load: 500,
             run_interval: RunInterval::Time(Duration::from_secs(60)),
             aa_authenticator: AbstractAccountAuthenticator::default(),
+            should_fail: false,
             tx_payload_obj_type: TxPayloadObjType::default(),
             aa_split_amount: 1_000,
             aa_num_workers: 2,
@@ -285,6 +288,7 @@ impl<T> BenchmarkParameters<T> {
         load: usize,
         run_interval: RunInterval,
         aa_authenticator: AbstractAccountAuthenticator,
+        should_fail: bool,
         tx_payload_obj_type: TxPayloadObjType,
         aa_num_workers: u64,
         aa_split_amount: u64,
@@ -312,6 +316,7 @@ impl<T> BenchmarkParameters<T> {
             load,
             run_interval,
             aa_authenticator,
+            should_fail,
             tx_payload_obj_type,
             aa_split_amount,
             aa_num_workers,
@@ -382,6 +387,9 @@ pub struct BenchmarkParametersGenerator<T> {
     /// AA workload authenticator.
     aa_authenticator: AbstractAccountAuthenticator,
 
+    /// AA workload: whether the transactions should fail.
+    should_fail: bool,
+
     /// Type of object transaction uses - owned or shared.
     tx_payload_obj_type: TxPayloadObjType,
 
@@ -444,6 +452,7 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
                 load,
                 self.run_interval,
                 self.aa_authenticator.clone(),
+                self.should_fail,
                 self.tx_payload_obj_type.clone(),
                 self.aa_num_workers,
                 self.aa_split_amount,
@@ -510,6 +519,7 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
             shared_counter_hotness_factor: None,
             num_shared_counters: None,
             aa_authenticator: AbstractAccountAuthenticator::default(),
+            should_fail: false,
             tx_payload_obj_type: TxPayloadObjType::default(),
             aa_num_workers: 2,
             aa_in_flight_ratio: 5,
@@ -521,6 +531,11 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
 
     pub fn with_aa_authenticator(mut self, aa_authenticator: AbstractAccountAuthenticator) -> Self {
         self.aa_authenticator = aa_authenticator;
+        self
+    }
+
+    pub fn with_should_fail(mut self, should_fail: bool) -> Self {
+        self.should_fail = should_fail;
         self
     }
 

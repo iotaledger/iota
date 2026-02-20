@@ -438,6 +438,9 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                         stress_args.push(format!("--num-workers {}", parameters.aa_num_workers));
                         stress_args.push(format!("--in-flight-ratio {}", parameters.aa_in_flight_ratio));
                         stress_args.push(format!("--split-amount {}", parameters.aa_split_amount));
+                        if parameters.should_fail {
+                            stress_args.push("--should-fail".to_string());
+                        }
                     }
                 }
 

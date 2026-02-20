@@ -83,6 +83,10 @@ pub enum Operation {
         #[arg(long, default_value = "ed25519", global = true)]
         aa_authenticator: AbstractAccountAuthenticator,
 
+        /// Whether the AA transactions should fail.
+        #[arg(long, default_value = "false", global = true)]
+        should_fail: bool,
+
         /// Type of object transaction uses - owned or shared.
         #[arg(long, default_value = "owned-object", global = true)]
         tx_payload_obj_type: TxPayloadObjType,
@@ -476,6 +480,7 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             use_current_timestamp_for_genesis,
             max_pipeline_delay,
             aa_authenticator,
+            should_fail,
             tx_payload_obj_type,
             aa_num_workers,
             aa_split_amount,
@@ -572,6 +577,7 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             .with_current_timestamp_for_genesis(use_current_timestamp_for_genesis)
             .with_faults(fault_type)
             .with_aa_authenticator(aa_authenticator)
+            .with_should_fail(should_fail)
             .with_tx_payload_obj_type(tx_payload_obj_type)
             .with_aa_num_workers(aa_num_workers)
             .with_aa_split_amount(aa_split_amount)
