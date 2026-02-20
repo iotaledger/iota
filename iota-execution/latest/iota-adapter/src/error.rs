@@ -49,7 +49,7 @@ pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
                     module: Identifier::new_unchecked(abort_location_id.name().as_str()),
                     function,
                     instruction,
-                    function_name: function_name.map(Identifier::new_unchecked)
+                    function_name: function_name.map(Identifier::new_unchecked),
                 },
                 code,
             }
@@ -76,8 +76,7 @@ pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
                             module: Identifier::new_unchecked(id.name().as_str()),
                             function,
                             instruction,
-                            function_name: function_name
-                                .map(Identifier::new_unchecked),
+                            function_name: function_name.map(Identifier::new_unchecked),
                         })
                     }
                     _ => None,
