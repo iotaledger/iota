@@ -45,44 +45,52 @@ impl Merge<&IotaProtocolConfig> for ProtocolConfig {
         }
 
         if let Some(submask) = mask.subtree(Self::FEATURE_FLAGS_FIELD.name) {
-            let flags = match submask.map_field_filter(ProtocolFeatureFlags::FLAGS_FIELD.name) {
-                // If the inner field is not requested at all, don't include any entries
-                None => Default::default(),
-                // wildcard: if the inner field is requested without specific keys (e.g.
-                // `feature_flags.flags`), include all entries
-                Some(None) => source.feature_map().into_iter().collect(),
-                // If specific keys are requested (e.g. `feature_flags.flags.flag_a`), include
-                // only those entries
-                Some(Some(keys)) => source
-                    .feature_map()
-                    .into_iter()
-                    .filter(|(k, _)| keys.contains(k.as_str()))
-                    .collect(),
-            };
-            self.feature_flags = Some(ProtocolFeatureFlags::default().with_flags(flags));
+            if let Some(filter) = submask.map_field_filter(ProtocolFeatureFlags::FLAGS_FIELD.name) {
+                let flags = match filter {
+                    // wildcard: if the inner field is requested without specific keys (e.g.
+                    // `feature_flags.flags`), include all entries
+                    None => source.feature_map().into_iter().collect(),
+                    // If specific keys are requested (e.g. `feature_flags.flags.flag_a`), include
+                    // only those entries
+                    Some(keys) => source
+                        .feature_map()
+                        .into_iter()
+                        .filter(|(k, _)| keys.contains(k.as_str()))
+                        .collect(),
+                };
+                self.feature_flags = Some(ProtocolFeatureFlags::default().with_flags(flags));
+            }
+            // If the inner flags field was not requested (bare `feature_flags`
+            // in mask), leave feature_flags as None so the client
+            // knows no data was returned.
         }
 
         if let Some(submask) = mask.subtree(Self::ATTRIBUTES_FIELD.name) {
-            let attrs = match submask.map_field_filter(ProtocolAttributes::ATTRIBUTES_FIELD.name) {
-                // If the inner field is not requested at all, don't include any entries
-                None => Default::default(),
-                // wildcard: if the inner field is requested without specific keys (e.g.
-                // `attributes.attributes`), include all entries
-                Some(None) => source
-                    .attr_map()
-                    .into_iter()
-                    .filter_map(|(k, v)| v.map(|v| (k, protocol_config_value_to_string(v))))
-                    .collect(),
-                // If specific keys are requested (e.g. `attributes.attributes.key_a`), include
-                // only those entries
-                Some(Some(keys)) => source
-                    .attr_map()
-                    .into_iter()
-                    .filter(|(k, _)| keys.contains(k.as_str()))
-                    .filter_map(|(k, v)| v.map(|v| (k, protocol_config_value_to_string(v))))
-                    .collect(),
-            };
-            self.attributes = Some(ProtocolAttributes::default().with_attributes(attrs));
+            if let Some(filter) =
+                submask.map_field_filter(ProtocolAttributes::ATTRIBUTES_FIELD.name)
+            {
+                let attrs = match filter {
+                    // wildcard: if the inner field is requested without specific keys (e.g.
+                    // `attributes.attributes`), include all entries
+                    None => source
+                        .attr_map()
+                        .into_iter()
+                        .filter_map(|(k, v)| v.map(|v| (k, protocol_config_value_to_string(v))))
+                        .collect(),
+                    // If specific keys are requested (e.g. `attributes.attributes.key_a`), include
+                    // only those entries
+                    Some(keys) => source
+                        .attr_map()
+                        .into_iter()
+                        .filter(|(k, _)| keys.contains(k.as_str()))
+                        .filter_map(|(k, v)| v.map(|v| (k, protocol_config_value_to_string(v))))
+                        .collect(),
+                };
+                self.attributes = Some(ProtocolAttributes::default().with_attributes(attrs));
+            }
+            // If the inner attributes field was not requested (bare
+            // `attributes` in mask), leave attributes as None so
+            // the client knows no data was returned.
         }
 
         Ok(())
@@ -815,12 +823,12 @@ mod tests {
     // ── attributes ──────────────────────────────────────────────────────────
 
     #[test]
-    fn test_protocol_config_merge_wrapper_only_gives_empty_attributes() {
-        // "attributes" (bare wrapper) → ProtocolAttributes present but map is empty
+    fn test_protocol_config_merge_wrapper_only_gives_none_attributes() {
+        // "attributes" (bare wrapper, no inner field) → attributes is None
         let source = make_iota_protocol_config();
         let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths(["attributes"]));
         let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
-        assert!(result.attributes.unwrap().attributes.is_empty());
+        assert!(result.attributes.is_none());
     }
 
     #[test]
@@ -885,13 +893,12 @@ mod tests {
     // ── feature_flags ────────────────────────────────────────────────────────
 
     #[test]
-    fn test_protocol_config_merge_wrapper_only_gives_empty_flags() {
-        // "feature_flags" (bare wrapper) → ProtocolFeatureFlags present but map is
-        // empty
+    fn test_protocol_config_merge_wrapper_only_gives_none_flags() {
+        // "feature_flags" (bare wrapper, no inner field) → feature_flags is None
         let source = make_iota_protocol_config();
         let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths(["feature_flags"]));
         let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
-        assert!(result.feature_flags.unwrap().flags.is_empty());
+        assert!(result.feature_flags.is_none());
     }
 
     #[test]

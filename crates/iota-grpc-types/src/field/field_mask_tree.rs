@@ -168,7 +168,9 @@ impl FieldMaskTree {
     /// to put in the resulting map:
     ///
     /// - `None` — the wrapper itself was a wildcard *or* the inner field was
-    ///   not explicitly requested → include an **empty map**.
+    ///   not explicitly requested → **omit the wrapper field entirely** (leave
+    ///   it as `None` in the response so clients can distinguish "not
+    ///   requested" from "empty").
     /// - `Some(None)` — the inner field was requested without specific keys
     ///   (e.g. `feature_flags.flags`) → include **all entries**.
     /// - `Some(Some(keys))` — only these specific keys were requested (e.g.
