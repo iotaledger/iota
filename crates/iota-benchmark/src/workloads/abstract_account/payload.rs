@@ -55,6 +55,7 @@ pub struct AbstractAccountPayload {
     recipient: IotaAddress,
     shared_object: Option<ObjectRef>,
     split_amount: u64,
+    should_fail: bool,
 
     tx_payload_obj_type: TxPayloadObjType,
 
@@ -154,6 +155,7 @@ impl Payload for AbstractAccountPayload {
             &tx_data,
             &self.owner,
             &self.bench_objects,
+            self.should_fail,
         )
         .expect("build_move_auth_args failed");
 
@@ -167,7 +169,11 @@ impl Payload for AbstractAccountPayload {
     }
 
     fn get_failure_type(&self) -> Option<ExpectedFailureType> {
-        None
+        if self.should_fail {
+            Some(ExpectedFailureType::MoveAuthenticatorFailure)
+        } else {
+            None
+        }
     }
 }
 
@@ -184,6 +190,7 @@ impl AbstractAccountPayload {
         recipient: IotaAddress,
         shared_object: Option<ObjectRef>,
         split_amount: u64,
+        should_fail: bool,
         tx_payload_obj_type: TxPayloadObjType,
         bench_objects: Vec<ObjectRef>,
         system_state_observer: Arc<SystemStateObserver>,
@@ -200,6 +207,7 @@ impl AbstractAccountPayload {
             recipient,
             shared_object,
             split_amount,
+            should_fail,
             tx_payload_obj_type,
             bench_objects,
             system_state_observer,
@@ -257,6 +265,7 @@ impl AbstractAccountPayload {
         pt
     }
 }
+
 /// ------------------------------
 /// Auth args builder (MoveAuthenticator)
 /// ------------------------------
@@ -265,6 +274,7 @@ fn build_move_auth_args(
     tx_data: &TransactionData,
     owner: &(IotaAddress, Arc<AccountKeyPair>),
     bench_objects: &[ObjectRef],
+    should_fail: bool,
 ) -> Result<Vec<CallArg>> {
     let mut auth_args = Vec::new();
 
@@ -273,10 +283,14 @@ fn build_move_auth_args(
             let digest = tx_data.digest().into_inner();
             let sig: Ed25519Signature = owner.1.sign(&digest);
 
-            let hex_encoded: String = Hex::encode(sig.as_ref())
-                .chars()
-                .take(Ed25519Signature::LENGTH * 2)
-                .collect();
+            let hex_encoded = if !should_fail {
+                Hex::encode(sig.as_ref())
+                    .chars()
+                    .take(Ed25519Signature::LENGTH * 2)
+                    .collect()
+            } else {
+                Hex::encode("".to_string())
+            };
 
             auth_args.push(CallArg::Pure(bcs::to_bytes(&hex_encoded)?));
         }
@@ -287,7 +301,7 @@ fn build_move_auth_args(
             ));
         }
 
-        AuthenticatorKind::MaxArgs128 => {
+        AuthenticatorKind::MaxArgs125 => {
             // These modes assume that bench_objects are already created and belong to the
             // AA address.
             for obj in bench_objects.iter() {

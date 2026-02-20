@@ -75,7 +75,7 @@ public fun authenticate_ed25519_heavy(
     ctx: &TxContext,
 ) {
     let mut i = 0;
-    while (i < 250) {
+    while (i < 100) {
          ed25519::ed25519_verify(
             &decode(signature),
             account.borrow_public_key(),
@@ -101,28 +101,17 @@ public struct BenchObject has key {
     counter: u64,
 }
 
-public entry fun create_bench_objects(objects_amount: u64, ctx: &mut TxContext) {
+public entry fun create_bench_objects(objects_amount: u64, is_shared: bool, ctx: &mut TxContext) {
     let mut i = 0;
     while (i < objects_amount) {
         let o = BenchObject { id: object::new(ctx), counter: 0 };
-        transfer::share_object(o);
+        if (is_shared) {
+            transfer::share_object(o);
+        } else {
+            transfer::freeze_object(o);
+        };
         i = i + 1;
     }
-}
-
-
-public entry fun create_125_bench_objects(ctx: &mut TxContext) {
-    let mut i = 0;
-    while (i < 125) {
-        let obj = BenchObject { id: object::new(ctx), counter: 0 };
-        transfer::freeze_object(obj);
-        i = i + 1;
-    }
-}
-
-public fun create_shared(ctx: &mut TxContext) {
-    let obj = BenchObject { id: object::new(ctx), counter: 0 };
-    transfer::share_object(obj);
 }
 
 public fun touch(obj: &mut BenchObject, _ctx: &mut TxContext) {
@@ -130,7 +119,7 @@ public fun touch(obj: &mut BenchObject, _ctx: &mut TxContext) {
 }
 
 #[authenticator]
-public fun authenticate_max_args_128(
+public fun authenticate_max_args_125(
     _account: &AbstractAccount,
     _o1: &BenchObject,  _o2: &BenchObject,  _o3: &BenchObject,  _o4: &BenchObject,
     _o5: &BenchObject,  _o6: &BenchObject,  _o7: &BenchObject,  _o8: &BenchObject,
@@ -162,8 +151,7 @@ public fun authenticate_max_args_128(
     _o109: &BenchObject, _o110: &BenchObject, _o111: &BenchObject, _o112: &BenchObject,
     _o113: &BenchObject, _o114: &BenchObject, _o115: &BenchObject, _o116: &BenchObject,
     _o117: &BenchObject, _o118: &BenchObject, _o119: &BenchObject, _o120: &BenchObject,
-    _o121: &BenchObject, _o122: &BenchObject, _o123: &BenchObject, _o124: &BenchObject,
-    _o125: &BenchObject,
+    _o121: &BenchObject, _o122: &BenchObject,
     _auth_ctx: &AuthContext,
     _ctx: &TxContext,
 ) {}

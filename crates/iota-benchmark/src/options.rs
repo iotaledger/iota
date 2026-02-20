@@ -255,6 +255,9 @@ pub enum RunSpec {
         #[arg(long, default_value = "1000")]
         split_amount: u64,
 
+        #[arg(long, default_value = "false")]
+        should_fail: bool,
+
         // It determines whether to use owned object transactions
         // or shared object transactions in the benchmark.
         #[arg(long, default_value = "owned-object")]

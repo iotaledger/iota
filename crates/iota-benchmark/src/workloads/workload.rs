@@ -43,6 +43,10 @@ pub enum ExpectedFailureType {
     // This is not a failure type, but a placeholder for no failure. Marking no failure asserts
     // that the transaction must succeed.
     NoFailure,
+
+    // This is not a failure type, but a placeholder to test MoveAuthenticator failures. Marking
+    // this asserts that the transaction must fail with MoveAuthenticator failure.
+    MoveAuthenticatorFailure,
 }
 
 impl TryFrom<u32> for ExpectedFailureType {

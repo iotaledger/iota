@@ -144,6 +144,7 @@ impl WorkloadConfiguration {
             }
             RunSpec::AbstractAccountBench {
                 authenticator,
+                should_fail,
                 split_amount,
                 tx_payload_obj_type,
                 target_qps,
@@ -166,6 +167,7 @@ impl WorkloadConfiguration {
                     authenticator,
                     tx_payload_obj_type,
                     split_amount,
+                    should_fail,
                     duration,
                     // group
                     0,

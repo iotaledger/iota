@@ -299,6 +299,7 @@ pub async fn init_bench_objects(
     gas_price: u64,
     aa_package_id: ObjectID,
     amount: u64,
+    is_shared: bool,
 ) -> Result<Vec<ObjectRef>> {
     let module = ident_str!(AA_MODULE_NAME).to_owned();
     let function = Identifier::new("create_bench_objects")?;
@@ -306,7 +307,14 @@ pub async fn init_bench_objects(
     let pt = {
         let mut b = ProgrammableTransactionBuilder::new();
         let amount_arg: Argument = b.pure(amount)?;
-        b.programmable_move_call(aa_package_id, module, function, vec![], vec![amount_arg]);
+        let is_shared_arg: Argument = b.pure(is_shared)?;
+        b.programmable_move_call(
+            aa_package_id,
+            module,
+            function,
+            vec![],
+            vec![amount_arg, is_shared_arg],
+        );
         b.finish()
     };
 

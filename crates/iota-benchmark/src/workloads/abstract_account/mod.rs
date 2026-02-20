@@ -73,6 +73,7 @@ const PAY_CHUNK_SIZE: usize = 250;
 pub struct AbstractAccountWorkload {
     authenticator: AuthenticatorKind,
     split_amount: u64,
+    should_fail: bool,
     num_payloads: u64,
     owner: (IotaAddress, Arc<AccountKeyPair>),
 
@@ -88,7 +89,7 @@ pub struct AbstractAccountWorkload {
     // Transaction type: owned-object or shared-object in transaction.
     tx_payload_obj_type: TxPayloadObjType,
 
-    // Bench objects for MaxArgs128 (if required).
+    // Bench objects for MaxArgs125 (if required).
     bench_objects: Vec<ObjectRef>,
 
     shared_objects: Vec<ObjectRef>,
@@ -172,7 +173,8 @@ impl Workload<dyn Payload> for AbstractAccountWorkload {
                     &self.owner,
                     gas_price,
                     package_id,
-                    125, // for MaxArgs128
+                    122, // for MaxArgs125
+                    false,
                 )
                 .await
                 .expect("init_bench_objects failed");
@@ -191,8 +193,9 @@ impl Workload<dyn Payload> for AbstractAccountWorkload {
                     "[{WORKLOAD_LABEL}] prepared bench_objects: count={}",
                     objs.len()
                 );
-                self.shared_objects = objs;
-            } else if self.tx_payload_obj_type == TxPayloadObjType::SharedObject {
+                self.bench_objects = objs;
+            }
+            if self.tx_payload_obj_type == TxPayloadObjType::SharedObject {
                 let shared_objects = init_bench_objects(
                     proxy.clone(),
                     &mut init_coin,
@@ -200,6 +203,7 @@ impl Workload<dyn Payload> for AbstractAccountWorkload {
                     gas_price,
                     package_id,
                     self.num_payloads,
+                    true, // shared objects for payloads
                 )
                 .await
                 .expect("init_shared_objects failed");
@@ -281,6 +285,7 @@ impl Workload<dyn Payload> for AbstractAccountWorkload {
                         recipient,
                         None,
                         self.split_amount,
+                        self.should_fail,
                         self.tx_payload_obj_type,
                         self.bench_objects.clone(),
                         system_state_observer.clone(),
@@ -313,6 +318,7 @@ impl Workload<dyn Payload> for AbstractAccountWorkload {
                             recipient,
                             Some(*shared_object),
                             self.split_amount,
+                            self.should_fail,
                             self.tx_payload_obj_type,
                             self.bench_objects.clone(),
                             system_state_observer.clone(),
@@ -333,6 +339,7 @@ pub struct AbstractAccountWorkloadBuilder {
     authenticator: AuthenticatorKind,
     tx_payload_obj_type: TxPayloadObjType,
     split_amount: u64,
+    should_fail: bool,
     num_payloads: u64,
 
     // We create a separate “owner” (a regular ed25519 address),
@@ -349,6 +356,7 @@ impl AbstractAccountWorkloadBuilder {
         authenticator: AuthenticatorKind,
         tx_payload_obj_type: TxPayloadObjType,
         split_amount: u64,
+        should_fail: bool,
         duration: Interval,
         group: u32,
     ) -> Option<WorkloadBuilderInfo> {
@@ -381,6 +389,7 @@ impl AbstractAccountWorkloadBuilder {
                 split_amount,
                 num_payloads: max_ops,
                 owner: (owner_addr, owner_kp),
+                should_fail,
             },
         ));
 
@@ -426,6 +435,7 @@ impl WorkloadBuilder<dyn Payload> for AbstractAccountWorkloadBuilder {
         Box::<dyn Workload<dyn Payload>>::from(Box::new(AbstractAccountWorkload {
             authenticator: self.authenticator,
             split_amount: self.split_amount,
+            should_fail: self.should_fail,
             num_payloads: self.num_payloads,
             owner: self.owner.clone(),
             init_coin: init_gas.into_iter().next(),

@@ -13,7 +13,7 @@ pub enum AuthenticatorKind {
     Ed25519,
     Ed25519Heavy,
     HelloWorld,
-    MaxArgs128,
+    MaxArgs125,
 }
 
 impl AuthenticatorKind {
@@ -26,17 +26,17 @@ impl AuthenticatorKind {
             AuthenticatorKind::Ed25519 => "authenticate_ed25519",
             AuthenticatorKind::Ed25519Heavy => "authenticate_ed25519_heavy",
             AuthenticatorKind::HelloWorld => "authenticate_hello_world",
-            AuthenticatorKind::MaxArgs128 => "authenticate_max_args_128",
+            AuthenticatorKind::MaxArgs125 => "authenticate_max_args_125",
         }
     }
 
     pub fn requires_bench_objects(&self) -> bool {
-        matches!(self, AuthenticatorKind::MaxArgs128)
+        matches!(self, AuthenticatorKind::MaxArgs125)
     }
 
     pub fn expected_bench_objects_count(&self) -> Option<usize> {
         match self {
-            AuthenticatorKind::MaxArgs128 => Some(125),
+            AuthenticatorKind::MaxArgs125 => Some(122),
             _ => None,
         }
     }
@@ -50,7 +50,7 @@ impl FromStr for AuthenticatorKind {
             "ed25519" => Ok(AuthenticatorKind::Ed25519),
             "ed25519heavy" => Ok(AuthenticatorKind::Ed25519Heavy),
             "helloworld" => Ok(AuthenticatorKind::HelloWorld),
-            "maxargs128" => Ok(AuthenticatorKind::MaxArgs128),
+            "maxargs125" => Ok(AuthenticatorKind::MaxArgs125),
             _ => bail!("unknown AuthenticatorKind: {}", s),
         }
     }
@@ -62,7 +62,7 @@ impl std::fmt::Display for AuthenticatorKind {
             AuthenticatorKind::Ed25519 => "ed25519",
             AuthenticatorKind::Ed25519Heavy => "ed25519heavy",
             AuthenticatorKind::HelloWorld => "helloworld",
-            AuthenticatorKind::MaxArgs128 => "maxargs128",
+            AuthenticatorKind::MaxArgs125 => "maxargs125",
         };
         f.write_str(s)
     }

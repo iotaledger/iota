@@ -188,6 +188,10 @@ enum NextOp {
     // The transaction failed and could not be retried
     Failure,
     Retry(RetryType),
+    ExpectedFailure {
+        latency: Duration,
+        payload: Box<dyn Payload>,
+    },
 }
 
 async fn print_and_start_benchmark() -> &'static Instant {
@@ -822,6 +826,16 @@ async fn run_bench_worker(
                     Some(ExpectedFailureType::NoFailure) => {
                         panic!("Transaction failed unexpectedly");
                     }
+                    Some(ExpectedFailureType::MoveAuthenticatorFailure) => {
+                        metrics_cloned
+                            .num_expected_error
+                            .with_label_values(&[&payload.to_string()])
+                            .inc();
+                        NextOp::ExpectedFailure {
+                            latency: start.elapsed(),
+                            payload,
+                        }
+                    }
                     Some(_) => {
                         metrics_cloned
                             .num_expected_error
@@ -949,6 +963,8 @@ async fn run_bench_worker(
                     }
                     num_submitted += 1;
                     metrics_cloned.num_submitted.with_label_values(&[&payload.to_string()]).inc();
+                    num_in_flight += 1;
+                    metrics_cloned.num_in_flight.with_label_values(&[&payload.to_string()]).inc();
                     // TODO: clone committee for each request is not ideal.
                     let committee = worker.proxy.clone_committee();
                     let start = Arc::new(Instant::now());
@@ -999,6 +1015,21 @@ async fn run_bench_worker(
                         if update_progress(1) {
                             break;
                         }
+                    }
+                    NextOp::ExpectedFailure { latency, payload } => {
+                        error!(
+                            "Transaction failed with expected failure type {:?}",
+                            payload.get_failure_type()
+                        );
+                        num_in_flight = num_in_flight.saturating_sub(1);
+                        metrics_cloned.num_in_flight.with_label_values(&[&payload.to_string()]).dec();
+
+                        num_expected_error_txes += 1;
+
+                        free_pool.push_back(payload);
+                        latency_histogram.saturating_record(latency.as_millis().try_into().unwrap());
+
+                        if update_progress(1) { break; }
                     }
                     NextOp::Response { latency, num_commands, payload, gas_used } => {
                         num_success_txes += 1;
@@ -1065,6 +1096,10 @@ async fn run_bench_worker(
                 payload,
             } => payload,
             NextOp::Retry(b) => b.1,
+            NextOp::ExpectedFailure {
+                latency: _,
+                payload,
+            } => payload,
         };
         free_pool.push_back(p);
     }
