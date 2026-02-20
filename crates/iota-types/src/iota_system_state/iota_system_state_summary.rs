@@ -891,9 +891,20 @@ pub struct IotaValidatorSummary {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub gas_price: u64,
+    /// The fee set by the validator for providing staking services.
+    ///
+    /// This might be overriden by the protocol, that uses instead
+    /// an effective commission rate. See more on the associated field.
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub commission_rate: u64,
+    /// The effective fee charged by the validator for staking services.
+    ///
+    /// This follows [IIP8](https://github.com/iotaledger/IIPs/blob/main/iips/IIP-0008/IIP-0008.md).
+    #[schemars(with = "Option<BigInt<u64>>")]
+    #[serde_as(as = "Readable<Option<BigInt<u64>>, _>")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effective_commission_rate: Option<u64>,
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub next_epoch_stake: u64,
@@ -1025,6 +1036,7 @@ impl Default for IotaValidatorSummary {
             operation_cap_id: ObjectID::ZERO,
             gas_price: 0,
             commission_rate: 0,
+            effective_commission_rate: None,
             next_epoch_stake: 0,
             next_epoch_gas_price: 0,
             next_epoch_commission_rate: 0,
