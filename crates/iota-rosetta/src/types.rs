@@ -905,11 +905,11 @@ impl InternalOperation {
                 let (validator, system_state, amount) = if let Some(amount) = amount {
                     let amount = builder.pure(amount)?;
                     let validator = builder.input(CallArg::pure(&validator))?;
-                    let state = builder.input(CallArg::IOTA_SYSTEM_MUT)?;
+                    let state = builder.input(CallArg::IOTA_SYSTEM_MUTABLE)?;
                     (validator, state, amount)
                 } else {
                     let amount = builder.pure(metadata.total_coin_value - metadata.budget)?;
-                    let state = builder.input(CallArg::IOTA_SYSTEM_MUT)?;
+                    let state = builder.input(CallArg::IOTA_SYSTEM_MUTABLE)?;
                     let validator = builder.input(CallArg::pure(&validator))?;
                     (validator, state, amount)
                 };
@@ -935,12 +935,12 @@ impl InternalOperation {
                     // if stake_ids is not empty, id input will be created after the system object
                     // input
                     let (system_state, id) = if !stake_ids.is_empty() {
-                        let system_state = builder.input(CallArg::IOTA_SYSTEM_MUT)?;
+                        let system_state = builder.input(CallArg::IOTA_SYSTEM_MUTABLE)?;
                         let id = builder.obj(CallArg::ImmutableOrOwned(stake_id))?;
                         (system_state, id)
                     } else {
                         let id = builder.obj(CallArg::ImmutableOrOwned(stake_id))?;
-                        let system_state = builder.input(CallArg::IOTA_SYSTEM_MUT)?;
+                        let system_state = builder.input(CallArg::IOTA_SYSTEM_MUTABLE)?;
                         (system_state, id)
                     };
 

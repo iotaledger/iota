@@ -277,7 +277,7 @@ fn test_timelocked_staking() {
             };
 
             let validator = builder.input(CallArg::pure(&validator)).unwrap();
-            let state = builder.input(CallArg::IOTA_SYSTEM_MUT).unwrap();
+            let state = builder.input(CallArg::IOTA_SYSTEM_MUTABLE).unwrap();
 
             let _ = builder.programmable_move_call(
                 ObjectID::SYSTEM,
@@ -389,7 +389,7 @@ fn test_timelocked_unstaking() {
             };
 
             let validator = builder.input(CallArg::pure(&validator)).unwrap();
-            let state = builder.input(CallArg::IOTA_SYSTEM_MUT).unwrap();
+            let state = builder.input(CallArg::IOTA_SYSTEM_MUTABLE).unwrap();
 
             let _ = builder.programmable_move_call(
                 ObjectID::SYSTEM,
@@ -439,7 +439,7 @@ fn test_timelocked_unstaking() {
                 .input(CallArg::ImmutableOrOwned(timelocked_stake_id_ref))
                 .expect("valid obj");
 
-            let state = builder.input(CallArg::IOTA_SYSTEM_MUT).unwrap();
+            let state = builder.input(CallArg::IOTA_SYSTEM_MUTABLE).unwrap();
 
             let _ = builder.programmable_move_call(
                 ObjectID::SYSTEM,

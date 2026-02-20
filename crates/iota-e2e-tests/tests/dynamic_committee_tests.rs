@@ -310,7 +310,7 @@ mod add_stake {
         async fn run(&mut self, runner: &mut StressTestRunner) -> Result<TransactionEffects> {
             let pt = {
                 let mut builder = ProgrammableTransactionBuilder::new();
-                builder.obj(CallArg::IOTA_SYSTEM_MUT).unwrap();
+                builder.obj(CallArg::IOTA_SYSTEM_MUTABLE).unwrap();
                 builder.pure(self.staked_with).unwrap();
                 let coin = StressTestRunner::split_off(&mut builder, self.stake_amount);
                 move_call! {

@@ -2907,7 +2907,7 @@ async fn test_invalid_mutable_clock_parameter() {
         // type_args
         vec![],
         gas_ref,
-        vec![CallArg::CLOCK_MUT],
+        vec![CallArg::CLOCK_MUTABLE],
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
         rgp,
     )
@@ -2956,7 +2956,7 @@ async fn test_invalid_authenticator_state_parameter() {
         // type_args
         vec![],
         gas_ref,
-        vec![CallArg::AUTHENTICATOR_MUT],
+        vec![CallArg::AUTHENTICATOR_MUTABLE],
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
         rgp,
     )
@@ -3104,7 +3104,7 @@ async fn test_valid_immutable_clock_parameter() {
         // type_args
         vec![],
         gas_ref,
-        vec![CallArg::CLOCK_IMM],
+        vec![CallArg::CLOCK_IMMUTABLE],
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
         rgp,
     )
@@ -4739,7 +4739,7 @@ async fn test_consensus_commit_prologue_generation() {
         // type_args
         vec![],
         gas_objects[0].compute_object_reference(),
-        vec![CallArg::CLOCK_IMM],
+        vec![CallArg::CLOCK_IMMUTABLE],
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
         rgp * 2, // User transaction that uses the clock has the highest gas price.
     )

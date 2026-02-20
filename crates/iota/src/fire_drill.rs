@@ -291,7 +291,7 @@ async fn update_metadata_on_chain(
         .governance_api()
         .get_reference_gas_price()
         .await?;
-    let mut args = vec![CallArg::IOTA_SYSTEM_MUT];
+    let mut args = vec![CallArg::IOTA_SYSTEM_MUTABLE];
     args.extend(call_args);
     let tx_data = TransactionData::new_move_call(
         iota_address,

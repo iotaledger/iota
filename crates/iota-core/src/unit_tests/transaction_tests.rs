@@ -302,7 +302,7 @@ pub fn init_move_call_transaction(
         Identifier::from_static("request_add_validator"),
         vec![],
         gas_object_ref,
-        vec![CallArg::IOTA_SYSTEM_MUT],
+        vec![CallArg::IOTA_SYSTEM_MUTABLE],
         gas_budget,
         gas_price,
     )

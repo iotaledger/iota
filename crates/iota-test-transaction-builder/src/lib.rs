@@ -176,7 +176,7 @@ impl TestTransactionBuilder {
             Identifier::IOTA_SYSTEM_MODULE.as_str(),
             "request_add_stake",
             vec![
-                CallArg::IOTA_SYSTEM_MUT,
+                CallArg::IOTA_SYSTEM_MUTABLE,
                 CallArg::ImmutableOrOwned(stake_coin),
                 CallArg::pure(&validator),
             ],
@@ -205,7 +205,7 @@ impl TestTransactionBuilder {
             ObjectID::SYSTEM,
             Identifier::IOTA_SYSTEM_MODULE.as_str(),
             "request_add_validator",
-            vec![CallArg::IOTA_SYSTEM_MUT],
+            vec![CallArg::IOTA_SYSTEM_MUTABLE],
         )
     }
 
@@ -218,7 +218,7 @@ impl TestTransactionBuilder {
             Identifier::IOTA_SYSTEM_MODULE.as_str(),
             "request_add_validator_candidate",
             vec![
-                CallArg::IOTA_SYSTEM_MUT,
+                CallArg::IOTA_SYSTEM_MUTABLE,
                 CallArg::pure(&validator.authority_public_key),
                 CallArg::pure(&validator.network_public_key),
                 CallArg::pure(&validator.protocol_public_key),
@@ -241,7 +241,7 @@ impl TestTransactionBuilder {
             ObjectID::SYSTEM,
             Identifier::IOTA_SYSTEM_MODULE.as_str(),
             "request_remove_validator",
-            vec![CallArg::IOTA_SYSTEM_MUT],
+            vec![CallArg::IOTA_SYSTEM_MUTABLE],
         )
     }
 

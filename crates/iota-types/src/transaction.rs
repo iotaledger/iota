@@ -620,7 +620,7 @@ impl EndOfEpochTransactionKind {
 pub fn call_arg_input_objects(arg: &CallArg) -> Option<InputObjectKind> {
     if let Some(object_ref) = arg.as_immutable_or_owned_opt() {
         Some(InputObjectKind::ImmOrOwnedMoveObject(*object_ref))
-    } else if let Some((object_id, initial_shared_version, mutable)) = arg.as_shared() {
+    } else if let Some((object_id, initial_shared_version, mutable)) = arg.as_shared_opt() {
         Some(InputObjectKind::SharedMoveObject {
             id: *object_id,
             initial_shared_version,
@@ -640,7 +640,7 @@ pub fn call_arg_receiving_object(arg: &CallArg) -> Option<ObjectRef> {
 /// Returns the shared input object for a `CallArg`, if it is a `Shared`
 /// variant.
 pub fn call_arg_shared_object(arg: &CallArg) -> Option<SharedInputObject> {
-    arg.as_shared().map(
+    arg.as_shared_opt().map(
         |(object_id, initial_shared_version, mutable)| SharedInputObject {
             id: *object_id,
             initial_shared_version,

@@ -1392,7 +1392,7 @@ mod checked {
         // common to both v1 and v2 and are added in `construct_advance_epoch_pt_impl`.
         // The remaining arguments are added here.
         let call_arg_vec = vec![
-            CallArg::IOTA_SYSTEM_MUT,     // wrapper: &mut IotaSystemState
+            CallArg::IOTA_SYSTEM_MUTABLE, // wrapper: &mut IotaSystemState
             CallArg::pure(&params.epoch), // new_epoch: u64
             CallArg::pure(&params.next_protocol_version.as_u64()), // next_protocol_version: u64
             CallArg::pure(&params.storage_rebate), // storage_rebate: u64
@@ -1413,7 +1413,7 @@ mod checked {
         // The remaining arguments are added here.
         let call_arg_vec = vec![
             CallArg::pure(&params.computation_charge_burned), // computation_charge_burned: u64
-            CallArg::IOTA_SYSTEM_MUT,                         // wrapper: &mut IotaSystemState
+            CallArg::IOTA_SYSTEM_MUTABLE,                     // wrapper: &mut IotaSystemState
             CallArg::pure(&params.epoch),                     // new_epoch: u64
             CallArg::pure(&params.next_protocol_version.as_u64()), // next_protocol_version: u64
             CallArg::pure(&params.storage_rebate),            // storage_rebate: u64
@@ -1436,7 +1436,7 @@ mod checked {
         // here.
         let call_arg_vec = vec![
             CallArg::pure(&params.computation_charge_burned), // computation_charge_burned: u64
-            CallArg::IOTA_SYSTEM_MUT,                         // wrapper: &mut IotaSystemState
+            CallArg::IOTA_SYSTEM_MUTABLE,                     // wrapper: &mut IotaSystemState
             CallArg::pure(&params.epoch),                     // new_epoch: u64
             CallArg::pure(&params.next_protocol_version.as_u64()), // next_protocol_version: u64
             CallArg::pure(&params.storage_rebate),            // storage_rebate: u64
@@ -1461,7 +1461,7 @@ mod checked {
         // here.
         let call_arg_vec = vec![
             CallArg::pure(&params.computation_charge_burned), // computation_charge_burned: u64
-            CallArg::IOTA_SYSTEM_MUT,                         // wrapper: &mut IotaSystemState
+            CallArg::IOTA_SYSTEM_MUTABLE,                     // wrapper: &mut IotaSystemState
             CallArg::pure(&params.epoch),                     // new_epoch: u64
             CallArg::pure(&params.next_protocol_version.as_u64()), // next_protocol_version: u64
             CallArg::pure(&params.storage_rebate),            // storage_rebate: u64
@@ -1820,7 +1820,7 @@ mod checked {
                 CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
                 vec![],
                 vec![
-                    CallArg::CLOCK_MUT,
+                    CallArg::CLOCK_MUTABLE,
                     CallArg::pure(&consensus_commit_timestamp_ms),
                 ],
             );

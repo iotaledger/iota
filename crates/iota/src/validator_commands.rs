@@ -572,7 +572,7 @@ async fn construct_unsigned_0x5_txn(
     gas_budget: u64,
 ) -> anyhow::Result<TransactionData> {
     let iota_client = context.get_client().await?;
-    let mut args = vec![CallArg::IOTA_SYSTEM_MUT];
+    let mut args = vec![CallArg::IOTA_SYSTEM_MUTABLE];
     args.extend(call_args);
     let rgp = iota_client
         .governance_api()

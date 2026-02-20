@@ -58,7 +58,7 @@ impl TransactionBuilder {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let arguments = vec![
-                builder.input(CallArg::IOTA_SYSTEM_MUT).unwrap(),
+                builder.input(CallArg::IOTA_SYSTEM_MUTABLE).unwrap(),
                 builder.make_obj_vec(obj_vec)?,
                 builder.input(CallArg::pure(&amount.into())).unwrap(),
                 builder.input(CallArg::pure(&validator)).unwrap(),
@@ -102,7 +102,7 @@ impl TransactionBuilder {
             vec![],
             gas,
             vec![
-                CallArg::IOTA_SYSTEM_MUT,
+                CallArg::IOTA_SYSTEM_MUTABLE,
                 CallArg::ImmutableOrOwned(staked_iota),
             ],
             gas_budget,
@@ -137,7 +137,7 @@ impl TransactionBuilder {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let arguments = vec![
-                builder.input(CallArg::IOTA_SYSTEM_MUT)?,
+                builder.input(CallArg::IOTA_SYSTEM_MUTABLE)?,
                 builder.input(CallArg::ImmutableOrOwned(oref))?,
                 builder.input(CallArg::pure(&validator))?,
             ];
@@ -180,7 +180,7 @@ impl TransactionBuilder {
             vec![],
             gas,
             vec![
-                CallArg::IOTA_SYSTEM_MUT,
+                CallArg::IOTA_SYSTEM_MUTABLE,
                 CallArg::ImmutableOrOwned(timelocked_staked_iota),
             ],
             gas_budget,

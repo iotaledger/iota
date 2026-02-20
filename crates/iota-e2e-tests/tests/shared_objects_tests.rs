@@ -488,7 +488,12 @@ async fn access_clock_object_test() {
         &test_cluster
             .test_transaction_builder()
             .await
-            .move_call(package_id, "clock", "access", vec![CallArg::CLOCK_IMM])
+            .move_call(
+                package_id,
+                "clock",
+                "access",
+                vec![CallArg::CLOCK_IMMUTABLE],
+            )
             .build(),
     );
     let digest = *transaction.digest();
