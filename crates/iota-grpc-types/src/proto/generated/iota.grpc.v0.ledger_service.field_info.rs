@@ -57,6 +57,7 @@ mod _field_impls {
                 json_name: "sequenceNumber",
                 number: 1i32,
                 is_optional: true,
+                is_map: false,
                 message_fields: None,
             };
         }
@@ -97,6 +98,7 @@ mod _field_impls {
             json_name: "readMask",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -134,6 +136,7 @@ mod _field_impls {
             json_name: "chainId",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(Digest::FIELDS),
         };
         pub const CHAIN_FIELD: &'static MessageField = &MessageField {
@@ -141,6 +144,7 @@ mod _field_impls {
             json_name: "chain",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const EPOCH_FIELD: &'static MessageField = &MessageField {
@@ -148,6 +152,7 @@ mod _field_impls {
             json_name: "epoch",
             number: 3i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const EXECUTED_CHECKPOINT_HEIGHT_FIELD: &'static MessageField = &MessageField {
@@ -155,6 +160,7 @@ mod _field_impls {
             json_name: "executedCheckpointHeight",
             number: 4i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const EXECUTED_CHECKPOINT_TIMESTAMP_FIELD: &'static MessageField = &MessageField {
@@ -162,6 +168,7 @@ mod _field_impls {
             json_name: "executedCheckpointTimestamp",
             number: 5i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const LOWEST_AVAILABLE_CHECKPOINT_FIELD: &'static MessageField = &MessageField {
@@ -169,6 +176,7 @@ mod _field_impls {
             json_name: "lowestAvailableCheckpoint",
             number: 6i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const LOWEST_AVAILABLE_CHECKPOINT_OBJECTS_FIELD: &'static MessageField = &MessageField {
@@ -176,6 +184,7 @@ mod _field_impls {
             json_name: "lowestAvailableCheckpointObjects",
             number: 7i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const SERVER_FIELD: &'static MessageField = &MessageField {
@@ -183,6 +192,7 @@ mod _field_impls {
             json_name: "server",
             number: 8i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -264,6 +274,7 @@ mod _field_impls {
             json_name: "objectRef",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(ObjectReference::FIELDS),
         };
     }
@@ -301,6 +312,7 @@ mod _field_impls {
             json_name: "requests",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(ObjectRequest::FIELDS),
         };
     }
@@ -338,6 +350,7 @@ mod _field_impls {
             json_name: "requests",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(ObjectRequests::FIELDS),
         };
         pub const READ_MASK_FIELD: &'static MessageField = &MessageField {
@@ -345,6 +358,7 @@ mod _field_impls {
             json_name: "readMask",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const MAX_MESSAGE_SIZE_BYTES_FIELD: &'static MessageField = &MessageField {
@@ -352,6 +366,7 @@ mod _field_impls {
             json_name: "maxMessageSizeBytes",
             number: 3i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -401,6 +416,7 @@ mod _field_impls {
             json_name: "object",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(Object::FIELDS),
         };
         pub const ERROR_FIELD: &'static MessageField = &MessageField {
@@ -408,6 +424,7 @@ mod _field_impls {
             json_name: "error",
             number: 2i32,
             is_optional: false,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -452,6 +469,7 @@ mod _field_impls {
             json_name: "objects",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(ObjectResult::FIELDS),
         };
         pub const HAS_NEXT_FIELD: &'static MessageField = &MessageField {
@@ -459,6 +477,7 @@ mod _field_impls {
             json_name: "hasNext",
             number: 2i32,
             is_optional: false,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -503,6 +522,7 @@ mod _field_impls {
             json_name: "digest",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(Digest::FIELDS),
         };
     }
@@ -540,6 +560,7 @@ mod _field_impls {
             json_name: "requests",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(TransactionRequest::FIELDS),
         };
     }
@@ -577,6 +598,7 @@ mod _field_impls {
             json_name: "requests",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(TransactionRequests::FIELDS),
         };
         pub const READ_MASK_FIELD: &'static MessageField = &MessageField {
@@ -584,6 +606,7 @@ mod _field_impls {
             json_name: "readMask",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const MAX_MESSAGE_SIZE_BYTES_FIELD: &'static MessageField = &MessageField {
@@ -591,6 +614,7 @@ mod _field_impls {
             json_name: "maxMessageSizeBytes",
             number: 3i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -640,6 +664,7 @@ mod _field_impls {
             json_name: "transaction",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(ExecutedTransaction::FIELDS),
         };
         pub const ERROR_FIELD: &'static MessageField = &MessageField {
@@ -647,6 +672,7 @@ mod _field_impls {
             json_name: "error",
             number: 2i32,
             is_optional: false,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -691,6 +717,7 @@ mod _field_impls {
             json_name: "transactions",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(TransactionResult::FIELDS),
         };
         pub const HAS_NEXT_FIELD: &'static MessageField = &MessageField {
@@ -698,6 +725,7 @@ mod _field_impls {
             json_name: "hasNext",
             number: 2i32,
             is_optional: false,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -742,6 +770,7 @@ mod _field_impls {
             json_name: "latest",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: None,
         };
         pub const SEQUENCE_NUMBER_FIELD: &'static MessageField = &MessageField {
@@ -749,6 +778,7 @@ mod _field_impls {
             json_name: "sequenceNumber",
             number: 2i32,
             is_optional: false,
+            is_map: false,
             message_fields: None,
         };
         pub const DIGEST_FIELD: &'static MessageField = &MessageField {
@@ -756,6 +786,7 @@ mod _field_impls {
             json_name: "digest",
             number: 3i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(Digest::FIELDS),
         };
         pub const READ_MASK_FIELD: &'static MessageField = &MessageField {
@@ -763,6 +794,7 @@ mod _field_impls {
             json_name: "readMask",
             number: 4i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const TRANSACTIONS_FILTER_FIELD: &'static MessageField = &MessageField {
@@ -770,6 +802,7 @@ mod _field_impls {
             json_name: "transactionsFilter",
             number: 5i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(TransactionFilter::FIELDS),
         };
         pub const EVENTS_FILTER_FIELD: &'static MessageField = &MessageField {
@@ -777,6 +810,7 @@ mod _field_impls {
             json_name: "eventsFilter",
             number: 6i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(EventFilter::FIELDS),
         };
         pub const MAX_MESSAGE_SIZE_BYTES_FIELD: &'static MessageField = &MessageField {
@@ -784,6 +818,7 @@ mod _field_impls {
             json_name: "maxMessageSizeBytes",
             number: 7i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -853,6 +888,7 @@ mod _field_impls {
             json_name: "startSequenceNumber",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const END_SEQUENCE_NUMBER_FIELD: &'static MessageField = &MessageField {
@@ -860,6 +896,7 @@ mod _field_impls {
             json_name: "endSequenceNumber",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const READ_MASK_FIELD: &'static MessageField = &MessageField {
@@ -867,6 +904,7 @@ mod _field_impls {
             json_name: "readMask",
             number: 3i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const TRANSACTIONS_FILTER_FIELD: &'static MessageField = &MessageField {
@@ -874,6 +912,7 @@ mod _field_impls {
             json_name: "transactionsFilter",
             number: 4i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(TransactionFilter::FIELDS),
         };
         pub const EVENTS_FILTER_FIELD: &'static MessageField = &MessageField {
@@ -881,6 +920,7 @@ mod _field_impls {
             json_name: "eventsFilter",
             number: 5i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(EventFilter::FIELDS),
         };
         pub const MAX_MESSAGE_SIZE_BYTES_FIELD: &'static MessageField = &MessageField {
@@ -888,6 +928,7 @@ mod _field_impls {
             json_name: "maxMessageSizeBytes",
             number: 6i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -954,6 +995,7 @@ mod _field_impls {
             json_name: "checkpoint",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(Checkpoint::FIELDS),
         };
         pub const TRANSACTIONS_FIELD: &'static MessageField = &MessageField {
@@ -961,6 +1003,7 @@ mod _field_impls {
             json_name: "transactions",
             number: 2i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(ExecutedTransactions::FIELDS),
         };
         pub const EVENTS_FIELD: &'static MessageField = &MessageField {
@@ -968,6 +1011,7 @@ mod _field_impls {
             json_name: "events",
             number: 3i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(Events::FIELDS),
         };
         pub const END_MARKER_FIELD: &'static MessageField = &MessageField {
@@ -975,6 +1019,7 @@ mod _field_impls {
             json_name: "endMarker",
             number: 4i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(EndMarker::FIELDS),
         };
     }
@@ -1029,6 +1074,7 @@ mod _field_impls {
             json_name: "epoch",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const READ_MASK_FIELD: &'static MessageField = &MessageField {
@@ -1036,6 +1082,7 @@ mod _field_impls {
             json_name: "readMask",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -1080,6 +1127,7 @@ mod _field_impls {
             json_name: "epoch",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(Epoch::FIELDS),
         };
     }

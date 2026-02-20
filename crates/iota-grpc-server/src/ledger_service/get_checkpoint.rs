@@ -64,6 +64,7 @@ impl CheckpointDataResponse {
         json_name: "checkpoint",
         number: 1i32,
         is_optional: true,
+        is_map: false,
         message_fields: Some(Checkpoint::FIELDS),
     };
 
@@ -72,6 +73,7 @@ impl CheckpointDataResponse {
         json_name: "transactions",
         number: 2i32,
         is_optional: true,
+        is_map: false,
         message_fields: Some(ExecutedTransaction::FIELDS),
     };
 
@@ -80,6 +82,7 @@ impl CheckpointDataResponse {
         json_name: "events",
         number: 3i32,
         is_optional: true,
+        is_map: false,
         message_fields: Some(Event::FIELDS),
     };
 }

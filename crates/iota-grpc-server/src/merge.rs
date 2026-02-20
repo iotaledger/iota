@@ -9,7 +9,7 @@ use iota_grpc_types::{
     v0::{
         bcs::BcsData,
         checkpoint::{Checkpoint, CheckpointContents, CheckpointSummary},
-        epoch::{Epoch, ProtocolConfig},
+        epoch::{Epoch, ProtocolAttributes, ProtocolConfig, ProtocolFeatureFlags},
         event::{Event, Events},
         object::{Object, Objects},
         signatures::{UserSignature, UserSignatures},
@@ -113,41 +113,56 @@ impl Merge<&ProtocolConfig> for ProtocolConfig {
             self.protocol_version = *protocol_version;
         }
 
-        if mask.contains(Self::FEATURE_FLAGS_FIELD.name) {
-            self.feature_flags = feature_flags.to_owned();
+        if let Some(submask) = mask.subtree(Self::FEATURE_FLAGS_FIELD.name) {
+            let flags = match submask.map_field_filter(ProtocolFeatureFlags::FLAGS_FIELD.name) {
+                // If the inner field is not requested at all, don't include any entries
+                None => Default::default(),
+                // wildcard: if the inner field is requested without specific keys (e.g.
+                // `feature_flags.flags`), include all entries
+                Some(None) => feature_flags
+                    .as_ref()
+                    .map(|ff| ff.flags.clone())
+                    .unwrap_or_default(),
+                // If specific keys are requested (e.g. `feature_flags.flags.flag_a`), include only
+                // those entries
+                Some(Some(keys)) => feature_flags
+                    .as_ref()
+                    .map(|ff| {
+                        ff.flags
+                            .iter()
+                            .filter(|(k, _)| keys.contains(*k))
+                            .map(|(k, v)| (k.clone(), *v))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+            };
+            self.feature_flags = Some(ProtocolFeatureFlags::default().with_flags(flags));
         }
 
-        if mask.contains(Self::ATTRIBUTES_FIELD.name) {
-            self.attributes = attributes.to_owned();
-        }
-
-        Ok(())
-    }
-}
-
-impl Merge<ProtocolConfig> for ProtocolConfig {
-    fn merge(
-        &mut self,
-        source: ProtocolConfig,
-        mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let ProtocolConfig {
-            protocol_version,
-            feature_flags,
-            attributes,
-            ..
-        } = source;
-
-        if mask.contains(Self::PROTOCOL_VERSION_FIELD.name) {
-            self.protocol_version = protocol_version;
-        }
-
-        if mask.contains(Self::FEATURE_FLAGS_FIELD.name) {
-            self.feature_flags = feature_flags;
-        }
-
-        if mask.contains(Self::ATTRIBUTES_FIELD.name) {
-            self.attributes = attributes;
+        if let Some(submask) = mask.subtree(Self::ATTRIBUTES_FIELD.name) {
+            let attrs = match submask.map_field_filter(ProtocolAttributes::ATTRIBUTES_FIELD.name) {
+                // If the inner field is not requested at all, don't include any entries
+                None => Default::default(),
+                // wildcard: if the inner field is requested without specific keys (e.g.
+                // `attributes.attributes`), include all entries
+                Some(None) => attributes
+                    .as_ref()
+                    .map(|a| a.attributes.clone())
+                    .unwrap_or_default(),
+                // If specific keys are requested (e.g. `attributes.attributes.key_a`), include only
+                // those entries
+                Some(Some(keys)) => attributes
+                    .as_ref()
+                    .map(|a| {
+                        a.attributes
+                            .iter()
+                            .filter(|(k, _)| keys.contains(*k))
+                            .map(|(k, v)| (k.clone(), v.clone()))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+            };
+            self.attributes = Some(ProtocolAttributes::default().with_attributes(attrs));
         }
 
         Ok(())
@@ -853,5 +868,166 @@ impl Merge<&Transaction> for Transaction {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use iota_grpc_types::{
+        field::FieldMaskUtil,
+        v0::epoch::{Epoch, ProtocolAttributes, ProtocolConfig, ProtocolFeatureFlags},
+    };
+    use prost_types::FieldMask;
+
+    use super::*;
+
+    fn make_protocol_config() -> ProtocolConfig {
+        let mut flags = BTreeMap::new();
+        flags.insert("flag_a".to_string(), true);
+        flags.insert("flag_b".to_string(), false);
+        flags.insert("flag_c".to_string(), true);
+
+        let mut attrs = BTreeMap::new();
+        attrs.insert("max_tx_gas".to_string(), "1000".to_string());
+        attrs.insert("max_num_events".to_string(), "256".to_string());
+        attrs.insert("other_attr".to_string(), "42".to_string());
+
+        ProtocolConfig::default()
+            .with_protocol_version(42)
+            .with_feature_flags(ProtocolFeatureFlags::default().with_flags(flags))
+            .with_attributes(ProtocolAttributes::default().with_attributes(attrs))
+    }
+
+    // ── attributes ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_protocol_config_merge_wrapper_only_gives_empty_attributes() {
+        // "attributes" (no inner field) → ProtocolAttributes present but map is empty
+        let source = make_protocol_config();
+        let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths(["attributes"]));
+        let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
+        assert!(result.attributes.unwrap().attributes.is_empty());
+    }
+
+    #[test]
+    fn test_protocol_config_merge_attributes_field_returns_all() {
+        // "attributes.attributes" → all entries
+        let source = make_protocol_config();
+        let mask =
+            FieldMaskTree::from_field_mask(&FieldMask::from_paths(["attributes.attributes"]));
+        let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
+        let attrs = result.attributes.unwrap();
+        assert_eq!(attrs.attributes.len(), 3);
+        assert_eq!(attrs.attributes["max_tx_gas"], "1000");
+        assert_eq!(attrs.attributes["max_num_events"], "256");
+        assert_eq!(attrs.attributes["other_attr"], "42");
+    }
+
+    #[test]
+    fn test_protocol_config_merge_explicit_attribute_keys() {
+        // "attributes.attributes.key" → only that key
+        let source = make_protocol_config();
+        let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths([
+            "protocol_version",
+            "attributes.attributes.max_tx_gas",
+        ]));
+        let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
+        assert_eq!(result.protocol_version, Some(42));
+        let attrs = result.attributes.unwrap();
+        assert_eq!(attrs.attributes.len(), 1);
+        assert_eq!(attrs.attributes["max_tx_gas"], "1000");
+    }
+
+    #[test]
+    fn test_protocol_config_merge_multiple_attribute_keys() {
+        // Multiple "attributes.attributes.keyN" → only those keys
+        let source = make_protocol_config();
+        let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths([
+            "attributes.attributes.max_tx_gas",
+            "attributes.attributes.max_num_events",
+        ]));
+        let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
+        let attrs = result.attributes.unwrap();
+        assert_eq!(attrs.attributes.len(), 2);
+        assert!(attrs.attributes.contains_key("max_tx_gas"));
+        assert!(attrs.attributes.contains_key("max_num_events"));
+        assert!(!attrs.attributes.contains_key("other_attr"));
+    }
+
+    // ── feature_flags ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_protocol_config_merge_wrapper_only_gives_empty_flags() {
+        // "feature_flags" (no inner field) → ProtocolFeatureFlags present but map is
+        // empty
+        let source = make_protocol_config();
+        let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths(["feature_flags"]));
+        let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
+        assert!(result.feature_flags.unwrap().flags.is_empty());
+    }
+
+    #[test]
+    fn test_protocol_config_merge_flags_field_returns_all() {
+        // "feature_flags.flags" → all flags
+        let source = make_protocol_config();
+        let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths(["feature_flags.flags"]));
+        let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
+        let flags = result.feature_flags.unwrap();
+        assert_eq!(flags.flags.len(), 3);
+        assert!(flags.flags["flag_a"]);
+        assert!(!flags.flags["flag_b"]);
+        assert!(flags.flags["flag_c"]);
+    }
+
+    #[test]
+    fn test_protocol_config_merge_explicit_flag_keys() {
+        // "feature_flags.flags.keyN" → only those flags
+        let source = make_protocol_config();
+        let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths([
+            "feature_flags.flags.flag_a",
+            "feature_flags.flags.flag_c",
+        ]));
+        let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
+        let flags = result.feature_flags.unwrap();
+        assert_eq!(flags.flags.len(), 2);
+        assert!(flags.flags["flag_a"]);
+        assert!(flags.flags["flag_c"]);
+        assert!(!flags.flags.contains_key("flag_b"));
+    }
+
+    // ── misc ─────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_protocol_config_merge_no_map_fields_when_not_requested() {
+        let source = make_protocol_config();
+        let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths(["protocol_version"]));
+        let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
+        assert_eq!(result.protocol_version, Some(42));
+        assert!(result.feature_flags.is_none());
+        assert!(result.attributes.is_none());
+    }
+
+    #[test]
+    fn test_epoch_merge_protocol_config_with_key_filter() {
+        let mut epoch = Epoch::default();
+        epoch.epoch = Some(1);
+        epoch.protocol_config = Some(make_protocol_config());
+
+        let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths([
+            "epoch",
+            "protocol_config.protocol_version",
+            "protocol_config.attributes.attributes.max_tx_gas",
+        ]));
+
+        let result = Epoch::merge_from(&epoch, &mask).unwrap();
+
+        assert_eq!(result.epoch, Some(1));
+        let pc = result.protocol_config.unwrap();
+        assert_eq!(pc.protocol_version, Some(42));
+        let attrs = pc.attributes.unwrap();
+        assert_eq!(attrs.attributes.len(), 1);
+        assert_eq!(attrs.attributes["max_tx_gas"], "1000");
     }
 }

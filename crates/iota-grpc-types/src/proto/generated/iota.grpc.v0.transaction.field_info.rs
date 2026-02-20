@@ -33,6 +33,7 @@ mod _field_impls {
             json_name: "digest",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(Digest::FIELDS),
         };
         pub const BCS_FIELD: &'static MessageField = &MessageField {
@@ -40,6 +41,7 @@ mod _field_impls {
             json_name: "bcs",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(BcsData::FIELDS),
         };
     }
@@ -84,6 +86,7 @@ mod _field_impls {
             json_name: "digest",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(Digest::FIELDS),
         };
         pub const BCS_FIELD: &'static MessageField = &MessageField {
@@ -91,6 +94,7 @@ mod _field_impls {
             json_name: "bcs",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(BcsData::FIELDS),
         };
     }
@@ -135,6 +139,7 @@ mod _field_impls {
             json_name: "digest",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(Digest::FIELDS),
         };
         pub const EVENTS_FIELD: &'static MessageField = &MessageField {
@@ -142,6 +147,7 @@ mod _field_impls {
             json_name: "events",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(Events::FIELDS),
         };
     }
@@ -186,6 +192,7 @@ mod _field_impls {
             json_name: "transaction",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(Transaction::FIELDS),
         };
         pub const SIGNATURES_FIELD: &'static MessageField = &MessageField {
@@ -193,6 +200,7 @@ mod _field_impls {
             json_name: "signatures",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(UserSignatures::FIELDS),
         };
         pub const EFFECTS_FIELD: &'static MessageField = &MessageField {
@@ -200,6 +208,7 @@ mod _field_impls {
             json_name: "effects",
             number: 3i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(TransactionEffects::FIELDS),
         };
         pub const EVENTS_FIELD: &'static MessageField = &MessageField {
@@ -207,6 +216,7 @@ mod _field_impls {
             json_name: "events",
             number: 4i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(TransactionEvents::FIELDS),
         };
         pub const CHECKPOINT_FIELD: &'static MessageField = &MessageField {
@@ -214,6 +224,7 @@ mod _field_impls {
             json_name: "checkpoint",
             number: 5i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const TIMESTAMP_FIELD: &'static MessageField = &MessageField {
@@ -221,6 +232,7 @@ mod _field_impls {
             json_name: "timestamp",
             number: 6i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const INPUT_OBJECTS_FIELD: &'static MessageField = &MessageField {
@@ -228,6 +240,7 @@ mod _field_impls {
             json_name: "inputObjects",
             number: 7i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(Objects::FIELDS),
         };
         pub const OUTPUT_OBJECTS_FIELD: &'static MessageField = &MessageField {
@@ -235,6 +248,7 @@ mod _field_impls {
             json_name: "outputObjects",
             number: 8i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(Objects::FIELDS),
         };
     }
@@ -309,6 +323,7 @@ mod _field_impls {
             json_name: "transactions",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(ExecutedTransaction::FIELDS),
         };
     }
