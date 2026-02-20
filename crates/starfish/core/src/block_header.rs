@@ -1040,6 +1040,10 @@ impl VerifiedTransactions {
         })
     }
 
+    pub fn block_digest(&self) -> Option<BlockHeaderDigest> {
+        self.block_digest
+    }
+
     pub fn transaction_ref(&self) -> TransactionRef {
         self.transaction_ref
     }

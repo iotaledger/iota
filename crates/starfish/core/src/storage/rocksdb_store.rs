@@ -244,7 +244,7 @@ impl Store for RocksDBStore {
                             (
                                 transaction_ref.round,
                                 transaction_ref.author,
-                                transaction_ref.block_digest,
+                                transaction.block_digest().expect("block digest should exist for consensus_transaction_ref=false"),
                             ),
                             transaction.serialized(),
                         )],
