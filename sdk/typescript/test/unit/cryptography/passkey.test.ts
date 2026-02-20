@@ -79,13 +79,13 @@ class MockPasskeySigner implements PasskeyProvider {
                 pk
                     ? compressedPubKeyToDerSPKI(pk).slice().buffer
                     : new Uint8Array([
-                          48, 89, 48, 19, 6, 7, 42, 134, 72, 206, 61, 2, 1, 6, 8, 42, 134, 72, 206,
-                          61, 3, 1, 7, 3, 66, 0, 4, 150, 14, 177, 148, 129, 92, 179, 77, 32, 147,
-                          160, 100, 10, 70, 62, 88, 35, 97, 203, 9, 152, 174, 47, 126, 59, 185, 217,
-                          4, 103, 35, 139, 198, 0, 115, 207, 97, 251, 66, 114, 9, 49, 140, 24, 141,
-                          189, 167, 45, 10, 99, 115, 155, 55, 107, 64, 72, 60, 149, 208, 198, 252,
-                          60, 223, 215, 229,
-                      ]).slice().buffer,
+                        48, 89, 48, 19, 6, 7, 42, 134, 72, 206, 61, 2, 1, 6, 8, 42, 134, 72, 206,
+                        61, 3, 1, 7, 3, 66, 0, 4, 150, 14, 177, 148, 129, 92, 179, 77, 32, 147,
+                        160, 100, 10, 70, 62, 88, 35, 97, 203, 9, 152, 174, 47, 126, 59, 185, 217,
+                        4, 103, 35, 139, 198, 0, 115, 207, 97, 251, 66, 114, 9, 49, 140, 24, 141,
+                        189, 167, 45, 10, 99, 115, 155, 55, 107, 64, 72, 60, 149, 208, 198, 252,
+                        60, 223, 215, 229,
+                    ]).slice().buffer,
             getPublicKeyAlgorithm: () => -7,
             getTransports: () => ['usb', 'ble', 'nfc'],
             getAuthenticatorData: () => this.authenticatorData.slice().buffer,
@@ -111,17 +111,17 @@ class MockPasskeySigner implements PasskeyProvider {
 
         const clientDataJSON = this.changeClientDataJson
             ? JSON.stringify({
-                  type: 'webauthn.create', // Wrong type for clientDataJson.
-                  challenge: Buffer.from(challenge).toString('base64'),
-                  origin: 'https://www.iota.org',
-                  crossOrigin: false,
-              })
+                type: 'webauthn.create', // Wrong type for clientDataJson.
+                challenge: Buffer.from(challenge).toString('base64'),
+                origin: 'https://www.iota.org',
+                crossOrigin: false,
+            })
             : JSON.stringify({
-                  type: 'webauthn.get',
-                  challenge: Buffer.from(challenge).toString('base64'),
-                  origin: 'https://www.iota.org',
-                  crossOrigin: false,
-              });
+                type: 'webauthn.get',
+                challenge: Buffer.from(challenge).toString('base64'),
+                origin: 'https://www.iota.org',
+                crossOrigin: false,
+            });
 
         // Sign authenticatorData || sha256(clientDataJSON).
         const dataToSign = new Uint8Array([
@@ -363,5 +363,53 @@ describe('passkey signer E2E testing', () => {
 
         // the address from recovered pk is the same as the one constructed from the same mock provider
         expect(signer2.getPublicKey().toIotaAddress()).toEqual(address);
+    });
+
+    describe('PasskeyPublicKey normalization', () => {
+        const compressed = fromBase64('A25OtZSBXLMdIJOgZApGPtgjYcsJmK4ve0+52QRnI4vG'); // 33 bytes
+
+        it('should handle compressed public key (33 bytes)', () => {
+            const pk = new PasskeyPublicKey(compressed);
+            expect(pk.toRawBytes()).toEqual(compressed);
+            expect(pk.toRawBytes().length).toBe(33);
+        });
+
+        it('should handle uncompressed public key (65 bytes)', () => {
+            const sk = secp256r1.utils.randomPrivateKey();
+            const pkUncompressed = secp256r1.getPublicKey(sk, false);
+            const pkCompressed = secp256r1.getPublicKey(sk, true);
+
+            const pk = new PasskeyPublicKey(pkUncompressed);
+            expect(pk.toRawBytes()).toEqual(pkCompressed);
+            expect(pk.toRawBytes().length).toBe(33);
+        });
+
+        it('should handle raw public key (64 bytes)', () => {
+            const sk = secp256r1.utils.randomPrivateKey();
+            const pkUncompressed = secp256r1.getPublicKey(sk, false);
+            const pkRaw = pkUncompressed.slice(1);
+            const pkCompressed = secp256r1.getPublicKey(sk, true);
+
+            const pk = new PasskeyPublicKey(pkRaw);
+            expect(pk.toRawBytes()).toEqual(pkCompressed);
+            expect(pk.toRawBytes().length).toBe(33);
+        });
+
+        it('should handle DER SPKI public key (91 bytes)', () => {
+            const sk = secp256r1.utils.randomPrivateKey();
+            const pkUncompressed = secp256r1.getPublicKey(sk, false);
+            const pkCompressed = secp256r1.getPublicKey(sk, true);
+
+            const der = new Uint8Array([...SECP256R1_SPKI_HEADER, ...pkUncompressed]);
+            const pk = new PasskeyPublicKey(der);
+            expect(pk.toRawBytes()).toEqual(pkCompressed);
+            expect(pk.toRawBytes().length).toBe(33);
+        });
+
+        it('should throw error for invalid length', () => {
+            expect(() => new PasskeyPublicKey(new Uint8Array(32))).toThrow(
+                'Unsupported passkey public key length: 32',
+            );
+        });
     });
 });

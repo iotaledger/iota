@@ -15,23 +15,23 @@ export const PASSKEY_PUBLIC_KEY_SIZE = 33;
 export const PASSKEY_UNCOMPRESSED_PUBLIC_KEY_SIZE = 65;
 export const PASSKEY_SIGNATURE_SIZE = 64;
 /** Fixed DER header for secp256r1 SubjectPublicKeyInfo
-DER structure for P-256 SPKI:
-30 -- SEQUENCE
-  59 -- length (89 bytes)
-  30 -- SEQUENCE
-    13 -- length (19 bytes)
-    06 -- OBJECT IDENTIFIER
-      07 -- length
-      2A 86 48 CE 3D 02 01 -- id-ecPublicKey
-    06 -- OBJECT IDENTIFIER
-      08 -- length
-      2A 86 48 CE 3D 03 01 07 -- secp256r1/prime256v1
-  03 -- BIT STRING
-    42 -- length (66 bytes)
-    00 -- padding
-	===== above bytes are considered header =====
-    04 || x || y -- uncompressed point (65 bytes: 0x04 || 32-byte x || 32-byte y)
-*/
+ DER structure for P-256 SPKI:
+ 30 -- SEQUENCE
+ 59 -- length (89 bytes)
+ 30 -- SEQUENCE
+ 13 -- length (19 bytes)
+ 06 -- OBJECT IDENTIFIER
+ 07 -- length
+ 2A 86 48 CE 3D 02 01 -- id-ecPublicKey
+ 06 -- OBJECT IDENTIFIER
+ 08 -- length
+ 2A 86 48 CE 3D 03 01 07 -- secp256r1/prime256v1
+ 03 -- BIT STRING
+ 42 -- length (66 bytes)
+ 00 -- padding
+ ===== above bytes are considered header =====
+ 04 || x || y -- uncompressed point (65 bytes: 0x04 || 32-byte x || 32-byte y)
+ */
 export const SECP256R1_SPKI_HEADER = new Uint8Array([
     0x30,
     0x59, // SEQUENCE, length 89
@@ -75,13 +75,16 @@ export class PasskeyPublicKey extends PublicKey {
     constructor(value: PublicKeyInitData) {
         super();
 
+        let bytes: Uint8Array;
         if (typeof value === 'string') {
-            this.data = fromB64(value);
+            bytes = fromB64(value);
         } else if (value instanceof Uint8Array) {
-            this.data = value;
+            bytes = value;
         } else {
-            this.data = Uint8Array.from(value);
+            bytes = Uint8Array.from(value);
         }
+
+        this.data = normalizePasskeyPublicKey(bytes);
 
         if (this.data.length !== PASSKEY_PUBLIC_KEY_SIZE) {
             throw new Error(
@@ -168,6 +171,35 @@ export function parseDerSPKI(derBytes: Uint8Array): Uint8Array {
 
     // Returns the last 65 bytes `04 || x || y`
     return derBytes.slice(SECP256R1_SPKI_HEADER.length);
+}
+
+export function normalizePasskeyPublicKey(input: Uint8Array): Uint8Array {
+    // 33 bytes compressed (already ok)
+    if (input.length === PASSKEY_PUBLIC_KEY_SIZE) return input;
+
+    // DER SPKI (26 header + 65 point = 91)
+    if (input.length === SECP256R1_SPKI_HEADER.length + PASSKEY_UNCOMPRESSED_PUBLIC_KEY_SIZE) {
+        const uncompressed65 = parseDerSPKI(input); // 0x04 || x || y
+        const p = secp256r1.ProjectivePoint.fromHex(uncompressed65);
+        return p.toRawBytes(true); // 33 compressed
+    }
+
+    // 65 bytes uncompressed 0x04 || x || y
+    if (input.length === PASSKEY_UNCOMPRESSED_PUBLIC_KEY_SIZE && input[0] === 0x04) {
+        const p = secp256r1.ProjectivePoint.fromHex(input);
+        return p.toRawBytes(true);
+    }
+
+    // 64 bytes raw x || y -> add 0x04 prefix
+    if (input.length === PASSKEY_UNCOMPRESSED_PUBLIC_KEY_SIZE - 1) {
+        const uncompressed65 = new Uint8Array(PASSKEY_UNCOMPRESSED_PUBLIC_KEY_SIZE);
+        uncompressed65[0] = 0x04;
+        uncompressed65.set(input, 1);
+        const p = secp256r1.ProjectivePoint.fromHex(uncompressed65);
+        return p.toRawBytes(true);
+    }
+
+    throw new Error(`Unsupported passkey public key length: ${input.length}`);
 }
 
 /**
