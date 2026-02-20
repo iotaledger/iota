@@ -52,7 +52,6 @@ export function AccountGroupItem({
     async function handleCopySuccess() {
         ampli.elementCopied({
             type: 'address',
-            value: account.address,
         });
         toast('Address copied');
     }

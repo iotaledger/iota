@@ -65,6 +65,7 @@ export function BackupMnemonicPage() {
                                     <HideShowDisplayBox
                                         value={passphraseMutation.data.join(' ')}
                                         copiedMessage="Mnemonic copied"
+                                        eventType="mnemonic"
                                     />
                                 ) : (
                                     <InfoBox

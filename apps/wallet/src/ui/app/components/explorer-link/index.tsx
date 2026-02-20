@@ -17,7 +17,6 @@ export type ExplorerLinkProps = ExplorerLinkConfig & {
     title?: string;
     showIcon?: boolean;
     eventType?: string;
-    isEventPublic?: boolean;
 };
 
 export function ExplorerLink({
@@ -27,7 +26,6 @@ export function ExplorerLink({
     title,
     showIcon,
     eventType,
-    isEventPublic,
     ...linkConfig
 }: ExplorerLinkProps) {
     const explorerHref = useExplorerLink(linkConfig);
@@ -44,7 +42,6 @@ export function ExplorerLink({
             )}
             title={title}
             type={eventType}
-            isPublic={isEventPublic}
         >
             <>
                 {children} {showIcon && <ArrowTopRight className={st.explorerIcon} />}

@@ -26,8 +26,7 @@ export function SupplyIncreaseVestingStakingDialog({
 
     function navigateToDashboard() {
         ampli.externalLinkOpened({
-            value: WALLET_DASHBOARD_URL,
-            type: 'application',
+            type: 'wallet dashboard application',
         });
         window.open(WALLET_DASHBOARD_URL, '_blank', 'noopener noreferrer');
     }

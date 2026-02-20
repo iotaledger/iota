@@ -10,12 +10,11 @@ export type CopyOptions = {
     copySuccessMessage?: string;
     textType: string;
     trackEvent?: boolean;
-    isPublic?: boolean;
 };
 
 export function useCopyToClipboard(
     textToCopy: string,
-    { copySuccessMessage = 'Copied', textType, isPublic = false, trackEvent = true }: CopyOptions,
+    { copySuccessMessage = 'Copied', textType, trackEvent = true }: CopyOptions,
 ) {
     return useCallback<MouseEventHandler>(
         async (e) => {
@@ -27,14 +26,12 @@ export function useCopyToClipboard(
                 if (trackEvent) {
                     ampli.elementCopied({
                         type: textType,
-                        value: isPublic ? textToCopy : undefined,
-                        visibility: isPublic ? 'public' : 'private',
                     });
                 }
             } catch (e) {
                 // silence clipboard errors
             }
         },
-        [textToCopy, copySuccessMessage, textType, isPublic, trackEvent],
+        [textToCopy, copySuccessMessage, textType, trackEvent],
     );
 }
