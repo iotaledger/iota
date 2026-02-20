@@ -432,7 +432,7 @@ impl Core {
         for transaction in transactions {
             dag_state_guard.add_transactions(transaction, source);
         }
-        // Safe to drop the guard here as the write/read locks will be asquired in
+        // Safe to drop the guard here as the write/read locks will be acquired in
         // commit_observer
         drop(dag_state_guard);
 
@@ -450,7 +450,7 @@ impl Core {
         &mut self,
         serialized_shards: Vec<VerifiedOwnShard>,
     ) -> ConsensusResult<()> {
-        let _scope = monitored_scope("Core::add_transactions");
+        let _scope = monitored_scope("Core::add_shards");
         let _s = self
             .context
             .metrics
@@ -464,7 +464,7 @@ impl Core {
         for serialized_shard in serialized_shards {
             dag_state_guard.add_shard(serialized_shard);
         }
-        // Safe to drop the guard here as the write/read locks will be asquired in
+        // Safe to drop the guard here as the write/read locks will be acquired in
         // commit_observer
         drop(dag_state_guard);
         Ok(())

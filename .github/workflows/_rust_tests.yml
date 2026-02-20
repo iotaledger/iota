@@ -94,28 +94,30 @@ jobs:
       - run: sleep 5
       - name: rust tests
         # test using filters, to only include changed crates and all their dependent crates.
-        # "CI_IS_EXTERNAL_CRATES" is set "isRust" because we also want to test the external crates when rust code changes.
-        # "RESTART_POSTGRES" are set in the env variables above.
+        # "--tests-crates-external" is added when "isRust" is set because we also want to test the
+        # external crates when rust code changes.
+        # "RESTART_POSTGRES" is set in the env variables above.
         run: |
-          export CI_IS_RUST=${{ inputs.isRust }}
-          export CI_IS_EXTERNAL_CRATES=${{ inputs.isRust }}
-          export CI_IS_PG_INTEGRATION=${{ inputs.isPgIntegration }}
-          export CI_IS_MOVE_EXAMPLE_USED_BY_OTHERS=${{ inputs.isMoveExampleUsedByOthers }}
-          export TEST_ONLY_CHANGED_CRATES=${{ inputs.testOnlyChangedCrates }}
-
-          if [ -n "${{ inputs.changedCrates }}" ]; then
-            export CI_CHANGED_CRATES="${{ inputs.changedCrates }}"
-          else
-            unset CI_CHANGED_CRATES
+          ARGS="--run-tests"
+          if [ "${{ inputs.isRust }}" = "true" ]; then
+            ARGS="$ARGS --tests-crates-workspace"
+            ARGS="$ARGS --tests-crates-external"
           fi
-
+          if [ "${{ inputs.isPgIntegration }}" = "true" ]; then
+            ARGS="$ARGS --tests-pg-integration"
+          fi
+          if [ "${{ inputs.isMoveExampleUsedByOthers }}" = "true" ]; then
+            ARGS="$ARGS --tests-move-examples-rdeps"
+          fi
+          if [ "${{ inputs.testOnlyChangedCrates }}" = "true" ]; then
+            ARGS="$ARGS --test-only-changed-crates"
+          fi
+          ARGS="$ARGS --changed-crates '${{ inputs.changedCrates }}'"
           if [ -n "${{ inputs.changedExternalCrates }}" ]; then
-            export CI_CHANGED_EXTERNAL_CRATES="${{ inputs.changedExternalCrates }}"
-          else
-            unset CI_CHANGED_EXTERNAL_CRATES
+            ARGS="$ARGS --changed-crates-external '${{ inputs.changedExternalCrates }}'"
           fi
 
-          ./scripts/ci_tests/rust_tests.sh run_tests
+          eval "./scripts/ci_tests/rust_tests.sh $ARGS"
 
   rust-simtests:
     name: Run rust simtests
@@ -150,24 +152,30 @@ jobs:
       - run: sleep 5
       - name: rust tests
         # test using filters, to only include changed crates and all their dependent crates.
-        # "RESTART_POSTGRES" are set in the env variables above.
+        # "RESTART_POSTGRES" is set in the env variables above.
         run: |
-          export CI_IS_RUST=${{ inputs.isRust }}
-          export CI_IS_PG_INTEGRATION=${{ inputs.isPgIntegration }}
-          export CI_IS_MOVE_EXAMPLE_USED_BY_OTHERS=${{ inputs.isMoveExampleUsedByOthers }}
-          export TEST_ONLY_CHANGED_CRATES=${{ inputs.testOnlyChangedCrates }}
-
-          if [ -n "${{ inputs.changedCrates }}" ]; then
-            export CI_CHANGED_CRATES="${{ inputs.changedCrates }}"
-          else
-            unset CI_CHANGED_CRATES
+          ARGS="--run-sim-tests"
+          if [ "${{ inputs.isRust }}" = "true" ]; then
+            ARGS="$ARGS --tests-crates-workspace"
           fi
+          if [ "${{ inputs.isPgIntegration }}" = "true" ]; then
+            ARGS="$ARGS --tests-pg-integration"
+          fi
+          if [ "${{ inputs.isMoveExampleUsedByOthers }}" = "true" ]; then
+            ARGS="$ARGS --tests-move-examples-rdeps"
+          fi
+          if [ "${{ inputs.testOnlyChangedCrates }}" = "true" ]; then
+            ARGS="$ARGS --test-only-changed-crates"
+          fi
+          ARGS="$ARGS --changed-crates '${{ inputs.changedCrates }}'"
 
-          ./scripts/ci_tests/rust_tests.sh run_simtests
+          eval "./scripts/ci_tests/rust_tests.sh $ARGS"
       - name: check new tests for flakiness
         run: |
-          export CHANGED_CRATES="${{ inputs.changedCrates }}"
-          ./scripts/ci_tests/rust_tests.sh stress_new_tests_check_for_flakiness
+          ARGS="--run-stress-new-tests-check-for-flakiness"
+          ARGS="$ARGS --changed-crates '${{ inputs.changedCrates }}'"
+
+          eval "./scripts/ci_tests/rust_tests.sh $ARGS"
 
   check-unused-deps:
     name: Check Unused Dependencies (${{ matrix.flags }})

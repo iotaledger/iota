@@ -15,5 +15,5 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 2, lines 24-25:
 //# programmable --sender A --inputs struct(@empty,0) --dry-run
 //> 0: test::m::take_s(Input(0));
-Error: Transaction Effects Status: CommandArgumentError { arg_idx: 0, kind: InvalidUsageOfPureArg } in command 0
-Execution Error: CommandArgumentError { arg_idx: 0, kind: InvalidUsageOfPureArg } in command 0
+Error: Transaction Effects Status: Invalid command argument at 0. The argument cannot be instantiated from raw bytes in command 0
+Execution Error: Invalid command argument at 0. The argument cannot be instantiated from raw bytes in command 0

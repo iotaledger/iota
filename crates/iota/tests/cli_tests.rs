@@ -29,7 +29,7 @@ use iota::{
         SwitchResponse, TxProcessingArgs, estimate_gas_budget,
     },
     client_ptb::ptb::{PTB, PTBCommandResult},
-    iota_commands::{IotaCommand, parse_host_port},
+    iota_commands::{IotaCommand, IotaEnvConfig, parse_host_port},
     key_identity::{KeyIdentity, get_identity_address},
 };
 use iota_config::{
@@ -2896,12 +2896,11 @@ async fn test_package_management_on_upgrade_command_conflict() -> Result<(), any
     let err_string = err_string.replace(&package.object_id().to_string(), "<elided-for-test>");
 
     let expect = expect![[r#"
-        Conflicting published package address: `Move.toml` contains published-at address 0x0000000000000000000000000000000000000000000000000000000000000bad but `Move.lock` file contains published-at address <elided-for-test>. You may want to:
-
-                         - delete the published-at address in the `Move.toml` if the `Move.lock` address is correct; OR
-                         - update the `Move.lock` address using the `iota manage-package` command to be the same as the `Move.toml`; OR
-                         - check that your `iota active-env` (currently localnet) corresponds to the chain on which the package is published (i.e., devnet, testnet, mainnet); OR
-                         - contact the maintainer if this package is a dependency and request resolving the conflict."#]];
+Conflicting published package address: `Move.toml` contains published-at address 0x0000000000000000000000000000000000000000000000000000000000000bad but `Move.lock` file contains published-at address <elided-for-test>. You may want to:
+ - delete the published-at address in the `Move.toml` if the `Move.lock` address is correct; OR
+ - update the `Move.lock` address using the `iota manage-package` command to be the same as the `Move.toml`; OR
+ - check that your `iota active-env` (currently localnet) corresponds to the chain on which the package is published (i.e., devnet, testnet, mainnet); OR
+ - contact the maintainer if this package is a dependency and request resolving the conflict."#]];
     expect.assert_eq(&err_string);
     Ok(())
 }
@@ -5271,7 +5270,7 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
     // Wait for the faucet to be up
     sleep(Duration::from_secs(1)).await;
     let wallet_config = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
-    let mut context = WalletContext::new(&wallet_config, None, None)?;
+    let mut context = WalletContext::new(&wallet_config)?;
 
     let (address, _): (_, AccountKeyPair) = get_key_pair();
 
@@ -5332,7 +5331,7 @@ async fn test_faucet_batch() -> Result<(), anyhow::Error> {
     // Wait for the faucet to be up
     sleep(Duration::from_secs(1)).await;
     let wallet_config = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
-    let mut context = WalletContext::new(&wallet_config, None, None)?;
+    let mut context = WalletContext::new(&wallet_config)?;
 
     let (address_1, _): (_, AccountKeyPair) = get_key_pair();
     let (address_2, _): (_, AccountKeyPair) = get_key_pair();
@@ -5460,7 +5459,7 @@ async fn test_faucet_batch_concurrent_requests() -> Result<(), anyhow::Error> {
     sleep(Duration::from_secs(1)).await;
 
     let wallet_config = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
-    let context = WalletContext::new(&wallet_config, None, None)?; // Use immutable context
+    let context = WalletContext::new(&wallet_config)?; // Use immutable context
 
     // Generate multiple addresses
     let addresses: Vec<_> = (0..6)
@@ -5483,7 +5482,7 @@ async fn test_faucet_batch_concurrent_requests() -> Result<(), anyhow::Error> {
     let first_batch_results: Vec<_> = futures::future::join_all(addresses.iter().map(|address| {
         let wallet_config = wallet_config.clone();
         async move {
-            let mut context = WalletContext::new(&wallet_config, None, None)?; // Use mutable context (for faucet requests)
+            let mut context = WalletContext::new(&wallet_config)?; // Use mutable context (for faucet requests)
             IotaClientCommands::Faucet {
                 address: Some(KeyIdentity::Address(*address)),
                 url: Some("http://127.0.0.1:5003/v1/gas".to_string()),
@@ -5518,7 +5517,7 @@ async fn test_faucet_batch_concurrent_requests() -> Result<(), anyhow::Error> {
     let second_batch_results: Vec<_> = futures::future::join_all(addresses.iter().map(|address| {
         let wallet_config = wallet_config.clone();
         async move {
-            let mut context = WalletContext::new(&wallet_config, None, None)?; // Use mutable context
+            let mut context = WalletContext::new(&wallet_config)?; // Use mutable context
             IotaClientCommands::Faucet {
                 address: Some(KeyIdentity::Address(*address)),
                 url: Some("http://127.0.0.1:5003/v1/gas".to_string()),
@@ -5558,7 +5557,10 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
     let package_name = "test_move_new";
     IotaCommand::Move {
         package_path: None,
-        config: None,
+        config: IotaEnvConfig {
+            config: None,
+            env: None,
+        },
         build_config: move_package::BuildConfig::default(),
         cmd: iota_move::Command::New(iota_move::new::New {
             new: move_cli::base::new::New {
@@ -5586,7 +5588,10 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
     // Test if the generated files are valid to build a package
     IotaCommand::Move {
         package_path: Some(package_name.parse()?),
-        config: None,
+        config: IotaEnvConfig {
+            config: None,
+            env: None,
+        },
         build_config: move_package::BuildConfig::default(),
         cmd: iota_move::Command::Build(iota_move::build::Build {
             chain_id: None,
@@ -5605,7 +5610,10 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
 
     IotaCommand::Move {
         package_path: Some(package_name.parse()?),
-        config: None,
+        config: IotaEnvConfig {
+            config: None,
+            env: None,
+        },
         build_config: move_package::BuildConfig::default(),
         cmd: iota_move::Command::Test(iota_move::unit_test::Test {
             test: move_cli::base::test::Test {

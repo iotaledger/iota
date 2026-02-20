@@ -16,8 +16,6 @@ Create new addresses to handle coins, tokens, and NFTs.
 * **Transfer assets:** Send coins and NFTs easily to another address with a user-friendly interface.
 * **Monitor your assets:** View your coins, tokens, and NFTs in one place for a complete overview.
 
-## Install IOTA Wallet
-
 ## Installing the IOTA Wallet
 
 1. Open a Chromium-based browser and visit the [IOTA Wallet page](https://chromewebstore.google.com/detail/iota-wallet/iidjkmdceolghepehaaddojmnjnkkija) in the Chrome Web Store.
@@ -28,27 +26,32 @@ Create new addresses to handle coins, tokens, and NFTs.
 
 ## Creating a New Wallet
 
-1. Open IOTA Wallet, create a new profile by clicking `Add Profile`.
+1. Open IOTA Wallet, create a new profile by clicking `Get Started`.
+
+   ![Add Profile](/img/users/iota-wallet/getting-started/getting-started.png)
+
+2. Choose `Create a new wallet`.
 
    ![Add Profile](/img/users/iota-wallet/getting-started/add-profile.png)
 
-2. Choose **Create a New Mnemonic Profile**.
+<Tabs groupId='account-type' queryString>
+<TabItem value="mnemonic" label="Mnemonic" default>
 
-   ![Create Mnemonic Profile](/img/users/iota-wallet/how-to/multi-account/select-profile-type.png)
+3. Choose **Mnemonic**.
 
+   ![New Mnemonic Profile](/img/users/iota-wallet/getting-started/select-profile-type.png)
 
-3. Enter your desired password.
-
+4. Enter your desired password.
    ![Create Password](/img/users/iota-wallet/getting-started/create-password.png)
 
-4. Carefully read and accept the Terms of Service, and click `Create Wallet`.
+5. Carefully read and accept the Terms of Service, and click `Create Wallet`.
    
    ![Create Wallet](/img/users/iota-wallet/getting-started/create-wallet.png)
 
-5. Copy and securely save your recovery phrase (mnemonic). This phrase is crucial for recovering your wallet in the
+6. Copy and securely save your recovery phrase (mnemonic). This phrase is crucial for recovering your wallet in the
    future.
 
-6. Confirm that you have saved your mnemonic phrase, and then access your newly created wallet by clicking `Open Wallet`.
+7. Confirm that you have saved your mnemonic phrase, and then access your newly created wallet by clicking `Open Wallet`.
 
    ![Open Wallet](/img/users/iota-wallet/getting-started/open-wallet.png)
 
@@ -57,3 +60,45 @@ Create new addresses to handle coins, tokens, and NFTs.
 Your mnemonic recovery phrase is essential for regaining access to your wallet if you forget your password or switch devices. If lost, access to your assets cannot be recovered.
 
 :::
+
+</TabItem>
+<TabItem value="passkey" label="Passkey">
+
+:::info Passkey
+
+Passkeys provide a modern, secure authentication method using biometric or device-based verification instead of traditional seed phrases
+
+:::
+
+3. Choose **Passkey**.
+
+   ![New Passkey Profile](/img/users/iota-wallet/getting-started/select-profile-type.png)
+
+4. Enter a nickname for your wallet and select your preferred passkey storage method.
+
+   ![Create Password](/img/users/iota-wallet/getting-started/passkey.png)
+
+:::warning Password Manager Support
+
+If you want to use a third-party password manager (such as 1Password, Bitwarden, etc.) to store your passkey, select the cross-platform authenticator option and ensure the password manager is installed and enabled on your mobile device. Browser extension-based password managers are not supported for device-bound passkeys.
+
+:::
+
+5. Enter your desired password which is used to encrypt your wallet.
+
+   ![Create Password](/img/users/iota-wallet/getting-started/create-password.png)
+
+6. Carefully read and accept the Terms of Service, and click `Create Wallet`.
+   
+   ![Create Wallet](/img/users/iota-wallet/getting-started/create-wallet.png)
+
+7. Follow the on-screen instructions to set up your passkey using your device's supported authentication method.
+
+:::danger Irrecoverable
+
+Your passkey is essential for gaining access to your wallet. Depending on your chosen storage method, losing access to your device or account results in the inability to access your wallet and assets.
+
+:::
+
+</TabItem>
+</Tabs>
