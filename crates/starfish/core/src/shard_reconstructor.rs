@@ -20,10 +20,10 @@ use tokio::{
 use tracing::{debug, warn};
 
 use crate::{
-    BlockRef, Round, Transaction,
+    Round, Transaction,
     block_header::{
-        GENESIS_ROUND, Shard, ShardWithProof, ShardWithProofAPI, TransactionsCommitment,
-        VerifiedBlock, VerifiedTransactions,
+        BlockHeaderDigest, GENESIS_ROUND, Shard, ShardWithProof, ShardWithProofAPI,
+        TransactionsCommitment, VerifiedBlock, VerifiedTransactions,
     },
     context::Context,
     core_thread::CoreThreadDispatcher,
@@ -47,55 +47,35 @@ pub(crate) enum TransactionMessage {
     Shard(ShardMessage),
 }
 
-/// Shard message contains shard with index and the reference to a block
-/// corresponding to the shard and the commitment in the respected block header
+/// Shard message contains shard with index and the reference to the
+/// transactions the shard was erasure-coded from, plus an optional block digest
+/// (present for V1 shards, absent for V2 shards that use TransactionRef).
 #[derive(Clone, Debug)]
 pub(crate) struct ShardMessage {
-    block_ref: BlockRef,
-    transactions_commitment: TransactionsCommitment,
+    transaction_ref: TransactionRef,
+    block_digest: Option<BlockHeaderDigest>,
     shard: Shard,
     shard_index: usize,
 }
 
-/// Full transaction message acknowledge that the respected transactions from a
+/// Full transaction message acknowledges that the respected transactions from a
 /// given block were verified and locally available
 #[derive(Clone, Debug)]
 pub(crate) struct FullTransactionMessage {
-    block_ref: BlockRef,
-    transactions_commitment: TransactionsCommitment,
+    transaction_ref: TransactionRef,
 }
 
 impl FullTransactionMessage {
     pub fn transaction_ref(&self) -> TransactionRef {
-        TransactionRef {
-            round: self.block_ref.round,
-            author: self.block_ref.author,
-            transactions_commitment: self.transactions_commitment,
-        }
+        self.transaction_ref
     }
 }
 
 impl TransactionMessage {
-    pub fn block_ref(&self) -> BlockRef {
-        match self {
-            TransactionMessage::FullTransaction(msg) => msg.block_ref,
-            TransactionMessage::Shard(msg) => msg.block_ref,
-        }
-    }
-
-    pub fn transactions_commitment(&self) -> TransactionsCommitment {
-        match self {
-            TransactionMessage::FullTransaction(msg) => msg.transactions_commitment,
-            TransactionMessage::Shard(msg) => msg.transactions_commitment,
-        }
-    }
-
     pub fn transaction_ref(&self) -> TransactionRef {
-        let block_ref = self.block_ref();
-        TransactionRef {
-            round: block_ref.round,
-            author: block_ref.author,
-            transactions_commitment: self.transactions_commitment(),
+        match self {
+            TransactionMessage::FullTransaction(msg) => msg.transaction_ref,
+            TransactionMessage::Shard(msg) => msg.transaction_ref,
         }
     }
 
@@ -108,18 +88,22 @@ impl TransactionMessage {
     ) -> Vec<TransactionMessage> {
         let mut messages = Vec::new();
 
-        // Full transaction message
+        // Full transaction message — refers to the carrier block's own transactions
         let full_msg = FullTransactionMessage {
-            block_ref: block.reference(),
-            transactions_commitment: block.transactions_commitment(),
+            transaction_ref: block.transaction_ref(),
         };
         messages.push(TransactionMessage::FullTransaction(full_msg));
 
-        // Shard messages
+        // Shard messages — each shard belongs to its own source block, not the
+        // carrier block, so we derive the reference from the shard itself.
         for shard_with_proof in shards {
             let shard_msg = ShardMessage {
-                block_ref: block.reference(),
-                transactions_commitment: shard_with_proof.transaction_commitment(),
+                transaction_ref: TransactionRef {
+                    round: shard_with_proof.round(),
+                    author: shard_with_proof.author(),
+                    transactions_commitment: shard_with_proof.transaction_commitment(),
+                },
+                block_digest: shard_with_proof.block_digest(),
                 shard: shard_with_proof.shard().clone(),
                 shard_index,
             };
@@ -130,15 +114,15 @@ impl TransactionMessage {
     }
 }
 
-/// A basic structure that represents the collection of shards for a given block
-/// reference and transaction commitment. We track the number of shards and the
-/// shard themselves
+/// A basic structure that represents the collection of shards for a given
+/// transaction reference. We track the number of shards and the shards
+/// themselves.
 #[derive(Clone)]
 pub struct ShardAccumulator {
-    /// Reference to the block these shards correspond to
-    block_ref: BlockRef,
-    /// Commitment to the transactions in the block
-    transactions_commitment: TransactionsCommitment,
+    /// Reference to the transactions these shards were erasure-coded from
+    transaction_ref: TransactionRef,
+    /// Block digest of the source block (present for V1, absent for V2)
+    block_digest: Option<BlockHeaderDigest>,
     /// Collected shards, indexed by their shard index
     collected_shards: Vec<Option<Shard>>,
     /// Number of collected data shards
@@ -149,16 +133,16 @@ impl ShardAccumulator {
     /// Create a new accumulator initialized with the first shard
     fn new_with_shard(msg: ShardMessage, total_length: usize) -> Self {
         let ShardMessage {
-            block_ref,
-            transactions_commitment,
+            transaction_ref,
+            block_digest,
             shard,
             shard_index,
         } = msg;
         let mut collected_shards = vec![None; total_length];
         collected_shards[shard_index] = Some(shard);
         Self {
-            block_ref,
-            transactions_commitment,
+            transaction_ref,
+            block_digest,
             collected_shards,
             number_shards: 1,
         }
@@ -200,16 +184,16 @@ impl ShardAccumulator {
             &codec.context.clone(),
             &mut codec.encoder,
         )?;
-        if computed_commitment != self.transactions_commitment {
+        if computed_commitment != self.transaction_ref.transactions_commitment {
             return Err(ConsensusError::TransactionCommitmentMismatch {
-                block_ref: self.block_ref,
+                transaction_ref: self.transaction_ref,
             });
         }
 
         Ok(VerifiedTransactions::new(
             transactions,
-            TransactionRef::new(self.block_ref, self.transactions_commitment),
-            Some(self.block_ref.digest),
+            self.transaction_ref,
+            self.block_digest,
             serialized,
         ))
     }
@@ -387,8 +371,8 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                             match shard_accumulator.decode_by_codec(&mut codec) {
                                 Ok(verified_transactions) => {
                                     debug!(
-                                        "Successfully reconstructed transactions for block {:?}",
-                                        shard_accumulator.block_ref
+                                        "Successfully reconstructed transactions for {:?}",
+                                        shard_accumulator.transaction_ref
                                     );
                                     if let Err(err) = result_tx.send(verified_transactions).await {
                                         warn!(
@@ -398,8 +382,8 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                                 }
                                 Err(err) => {
                                     warn!(
-                                        "Failed to reconstruct transactions for block {:?}: {:?}",
-                                        shard_accumulator.block_ref, err
+                                        "Failed to reconstruct transactions for {:?}: {:?}",
+                                        shard_accumulator.transaction_ref, err
                                     );
                                 }
                             }
@@ -683,7 +667,7 @@ mod tests {
             FullTransactionMessage, ShardMessage, ShardReconstructor, TransactionMessage,
         },
         storage::mem_store::MemStore,
-        transaction_ref::GenericTransactionRef,
+        transaction_ref::{GenericTransactionRef, TransactionRef},
     };
 
     #[derive(Default)]
@@ -817,8 +801,7 @@ mod tests {
         // 1. FullTransaction for round i (authority j)
         msgs.push(TransactionMessage::FullTransaction(
             FullTransactionMessage {
-                block_ref: header_cur.reference(),
-                transactions_commitment: header_cur.transactions_commitment(),
+                transaction_ref: header_cur.transaction_ref(),
             },
         ));
 
@@ -827,8 +810,8 @@ mod tests {
         for (auth_index, shards) in shards_prev.iter().enumerate() {
             if let Some(shard) = shards.get(j_index) {
                 msgs.push(TransactionMessage::Shard(ShardMessage {
-                    block_ref: headers_prev[auth_index].reference(),
-                    transactions_commitment: headers_prev[auth_index].transactions_commitment(),
+                    transaction_ref: headers_prev[auth_index].transaction_ref(),
+                    block_digest: Some(headers_prev[auth_index].digest()),
                     shard: shard.clone(),
                     shard_index: j_index,
                 }));
@@ -891,8 +874,8 @@ mod tests {
         let mut batch = Vec::new();
         for &i in first_subset {
             batch.push(TransactionMessage::Shard(ShardMessage {
-                block_ref,
-                transactions_commitment: commitment,
+                transaction_ref: TransactionRef::new(block_ref, commitment),
+                block_digest: Some(block_ref.digest),
                 shard: all_shards[i].clone(),
                 shard_index: i,
             }));
@@ -912,8 +895,8 @@ mod tests {
         let extra_shard_index = indices[info_length - 1];
         transaction_message_sender
             .send(vec![TransactionMessage::Shard(ShardMessage {
-                block_ref,
-                transactions_commitment: commitment,
+                transaction_ref: TransactionRef::new(block_ref, commitment),
+                block_digest: Some(block_ref.digest),
                 shard: all_shards[extra_shard_index].clone(),
                 shard_index: extra_shard_index,
             })])
@@ -998,8 +981,8 @@ mod tests {
         // Add all shards except the missing one
         for &i in almost_all {
             batch.push(TransactionMessage::Shard(ShardMessage {
-                block_ref,
-                transactions_commitment,
+                transaction_ref: TransactionRef::new(block_ref, transactions_commitment),
+                block_digest: Some(block_ref.digest),
                 shard: all_shards[i].clone(),
                 shard_index: i,
             }));
@@ -1020,8 +1003,7 @@ mod tests {
         transaction_message_sender
             .send(vec![TransactionMessage::FullTransaction(
                 FullTransactionMessage {
-                    block_ref,
-                    transactions_commitment,
+                    transaction_ref: TransactionRef::new(block_ref, transactions_commitment),
                 },
             )])
             .await
@@ -1031,8 +1013,8 @@ mod tests {
         let extra_shard_index = indices[missing_index];
         transaction_message_sender
             .send(vec![TransactionMessage::Shard(ShardMessage {
-                block_ref,
-                transactions_commitment,
+                transaction_ref: TransactionRef::new(block_ref, transactions_commitment),
+                block_digest: Some(block_ref.digest),
                 shard: all_shards[extra_shard_index].clone(),
                 shard_index: extra_shard_index,
             })])
@@ -1194,17 +1176,18 @@ mod tests {
     /// the carrier block passed to `create_transaction_messages`.
     #[test]
     fn test_create_transaction_messages_shard_uses_shard_block_ref_not_carrier_block_ref() {
-        // GIVEN: a carrier block (round 2, authority 0) — the block in the current bundle.
+        // GIVEN: a carrier block (round 2, authority 0) — the block in the current
+        // bundle.
         let carrier_block = VerifiedBlock::new_for_test(TestBlockHeader::new(2, 0).build());
 
         // GIVEN: a shard-source block (round 1, authority 1) — the block the shard
         // was erasure-coded from. It is from a *different* round and author than the
         // carrier block, which is the normal situation inside a BlockBundle.
-        let shard_source =
-            VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 1).build());
+        let shard_source = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 1).build());
         let shard_source_ref = shard_source.reference();
 
-        // Sanity: the two blocks must have distinct references for the test to be meaningful.
+        // Sanity: the two blocks must have distinct references for the test to be
+        // meaningful.
         assert_ne!(
             carrier_block.reference(),
             shard_source_ref,
@@ -1223,25 +1206,28 @@ mod tests {
 
         // WHEN: build transaction messages using the carrier block together with a
         // shard that belongs to shard_source.
-        let messages = TransactionMessage::create_transaction_messages(
-            &carrier_block,
-            &[shard_with_proof],
-            1,
-        );
+        let messages =
+            TransactionMessage::create_transaction_messages(&carrier_block, &[shard_with_proof], 1);
 
-        // THEN: the shard message must carry the shard's own block reference
-        // (round=1, authority=1), not the carrier block's reference (round=2, authority=0).
+        // THEN: the shard message must carry the shard's own transaction reference
+        // (round=1, authority=1), not the carrier block's reference (round=2,
+        // authority=0).
         let shard_msgs: Vec<_> = messages
             .iter()
             .filter(|m| matches!(m, TransactionMessage::Shard(_)))
             .collect();
 
         assert_eq!(shard_msgs.len(), 1, "Expected exactly one shard message");
+
+        let shard_tx_ref = shard_msgs[0].transaction_ref();
         assert_eq!(
-            shard_msgs[0].block_ref(),
-            shard_source_ref,
-            "ShardMessage.block_ref must point to the block the shard belongs to \
-             (round=1, authority=1), not to the carrier block (round=2, authority=0)"
+            shard_tx_ref.round, shard_source_ref.round,
+            "ShardMessage.transaction_ref.round must match the shard-source block's round"
+        );
+        assert_eq!(
+            shard_tx_ref.author, shard_source_ref.author,
+            "ShardMessage.transaction_ref.author must point to the shard-source block's author \
+             (authority=1), not the carrier block's author (authority=0)"
         );
     }
 }

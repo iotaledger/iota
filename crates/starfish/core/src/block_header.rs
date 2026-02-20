@@ -462,6 +462,8 @@ pub(crate) trait ShardWithProofAPI {
     fn proof(&self) -> &MerkleProofBytes;
     fn transaction_commitment(&self) -> TransactionsCommitment;
     fn round(&self) -> Round;
+    fn author(&self) -> AuthorityIndex;
+    fn block_digest(&self) -> Option<BlockHeaderDigest>;
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -518,6 +520,14 @@ impl ShardWithProofAPI for ShardWithProofV1 {
     fn round(&self) -> Round {
         self.block_ref.round
     }
+
+    fn author(&self) -> AuthorityIndex {
+        self.block_ref.author
+    }
+
+    fn block_digest(&self) -> Option<BlockHeaderDigest> {
+        Some(self.block_ref.digest)
+    }
 }
 
 impl ShardWithProofAPI for ShardWithProofV2 {
@@ -535,6 +545,14 @@ impl ShardWithProofAPI for ShardWithProofV2 {
 
     fn round(&self) -> Round {
         self.transaction_ref.round
+    }
+
+    fn author(&self) -> AuthorityIndex {
+        self.transaction_ref.author
+    }
+
+    fn block_digest(&self) -> Option<BlockHeaderDigest> {
+        None
     }
 }
 

@@ -11,7 +11,7 @@ use typed_store::TypedStoreError;
 use crate::{
     block_header::{BlockRef, GENESIS_ROUND, Round},
     commit::{Commit, CommitIndex},
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
 };
 
 /// Errors that can occur when processing blocks, reading from storage, or
@@ -110,10 +110,10 @@ pub(crate) enum ConsensusError {
         peer: AuthorityIndex,
     },
     #[error(
-        "After reconstruction, the transaction commitment does not match the commitment in the block {}",
-        block_ref
+        "After reconstruction, the transaction commitment does not match the commitment in {}",
+        transaction_ref
     )]
-    TransactionCommitmentMismatch { block_ref: BlockRef },
+    TransactionCommitmentMismatch { transaction_ref: TransactionRef },
 
     #[error("Synchronizer for fetching blocks directly from {0} is saturated")]
     SynchronizerSaturated(AuthorityIndex),
