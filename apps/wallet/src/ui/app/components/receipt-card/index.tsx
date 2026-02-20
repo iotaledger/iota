@@ -15,6 +15,7 @@ import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 import { ExplorerLinkHelper } from '../ExplorerLinkHelper';
 import { ExplorerLink } from '../explorer-link';
+import { ampli } from '_src/shared/analytics/ampli';
 
 interface ReceiptCardProps {
     txn: IotaTransactionBlockResponse;
@@ -43,16 +44,24 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
             />
             <div className="flex flex-row space-x-xs pt-sm">
                 <div className="flex w-full [&_a]:w-full">
-                    <ExplorerLink transactionID={digest ?? ''} type={ExplorerLinkType.Transaction}>
+                    <ExplorerLink
+                        transactionID={digest ?? ''}
+                        type={ExplorerLinkType.Transaction}
+                        eventType="digest"
+                    >
                         <ViewTxnOnExplorerButton digest={digest} />
                     </ExplorerLink>
                 </div>
                 <div className="self-center">
                     <OutlinedCopyButton
                         textToCopy={digest ?? ''}
-                        onCopySuccess={() =>
-                            toast.success('Transaction digest copied to clipboard')
-                        }
+                        onCopySuccess={() => {
+                            ampli.elementCopied({
+                                type: 'digest',
+                                value: digest,
+                            });
+                            toast.success('Transaction digest copied to clipboard');
+                        }}
                     />
                 </div>
             </div>

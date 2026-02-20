@@ -12,6 +12,8 @@ const IS_ENABLED =
     import.meta.env.VITE_BUILD_ENV === 'production' &&
     import.meta.env.VITE_AMPLITUDE_ENABLED === 'true';
 
+const IS_DEV = import.meta.env.VITE_BUILD_ENV !== 'production';
+
 export const persistableStorage = new PersistableStorage<UserSession>();
 
 export enum BridgeDirection {
@@ -63,7 +65,7 @@ export async function initAmplitude() {
     });
 
     // Add environment plugin to set prefix dev events
-    ampli.client.add(attachEnvironmentPlugin());
+    ampli.client.add(attachEnvironmentPlugin(IS_DEV));
 }
 
 export function getUrlWithDeviceId(url: URL) {

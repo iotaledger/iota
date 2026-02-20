@@ -1,0 +1,55 @@
+name: Publish Choco package
+run-name: Publishing iota cli version ${{ inputs.iota_tag }} to choco
+
+on:
+  workflow_dispatch:
+    inputs:
+      iota_tag:
+        description: "Tag of release to publish"
+        type: string
+        required: true
+
+env:
+  # Path to temporary build directory. If this gets changed the chocolatey nuspec files needs to be updated
+  TMP_BUILD_DIR: "./tmp/release"
+
+jobs:
+  publish-chocolatey:
+    name: Publish Chocolatey package
+    runs-on: windows-latest
+    steps:
+      - name: Set artifact name
+        id: artifact
+        shell: bash
+        run: echo "artifact_name=iota-${{ inputs.iota_tag }}-windows-x86_64" >> $GITHUB_OUTPUT
+
+      - name: Download Windows artifact
+        shell: bash
+        run: |
+          wget https://github.com/iotaledger/iota/releases/download/${{ inputs.iota_tag }}/${{ steps.artifact.outputs.artifact_name }}.tgz ./tmp
+
+      - name: Extract Windows artifact
+        shell: bash
+        run: |
+          mkdir -p ${{ env.TMP_BUILD_DIR }}
+          tar -xvzf ./tmp/${{ steps.artifact.outputs.artifact_name }}.tgz -C ${{ env.TMP_BUILD_DIR }}
+
+      - name: Publish Windows iota binary to Chocolatey
+        shell: bash
+        run: |
+          choco install checksum
+          export iota_sha=$(checksum -t sha256 ${{ env.TMP_BUILD_DIR }}/iota.exe)
+          # It is not allowed to have a 'v' in the choco version
+          export choco_version=$(echo "${{ inputs.iota_tag }}" | sed s/'^v'//)
+          cd chocolatey
+
+          cat <<EOF >>VERIFICATION.txt
+          IOTA Binary verification steps
+          1. Download https://github.com/iotaledger/iota/releases/download/${{ inputs.iota_tag }}/${{ steps.artifact.outputs.artifact_name }}.tgz
+          2. Extract iota.exe
+          3. Verify binary: checksum.exe -t sha256 iota.exe: ${iota_sha}
+          4. Verify file 'LICENSE.txt': https://github.com/iotaledger/iota/blob/develop/LICENSE
+          EOF
+
+          choco pack --version ${choco_version} configuration=release
+          choco push --source https://push.chocolatey.org/ --api-key ${{ secrets.CHOCO_API_KEY }}

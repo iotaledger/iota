@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 20;
+pub const MAX_PROTOCOL_VERSION: u64 = 21;
 
 // Record history of protocol version allocations here:
 //
@@ -113,6 +113,11 @@ pub const MAX_PROTOCOL_VERSION: u64 = 20;
 //             decoupling on Testnet; Devnet and Mainnet behavior remain the
 //             same.
 //             Introduce Dynamic Minimum Commission (IIP-8) on all networks.
+// Version 21: Enable overshoot of 100 in congestion control on testnet.
+//             Enable congestion limit overshoot in the gas price feedback
+//             mechanism on testnet.
+//             Enable a separate gas price feedback mechanism for transactions
+//             using randomness on testnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2506,6 +2511,23 @@ impl ProtocolConfig {
                         // Passes the calculated validator scores to advance epoch only on Devnet
                         cfg.feature_flags
                             .pass_calculated_validator_scores_to_advance_epoch = true;
+                    }
+                }
+                21 => {
+                    if chain != Chain::Mainnet {
+                        // Enable overshoot of 100 in congestion control on testnet.
+                        // This allows bursts of shared-object transactions
+                        // up to 10 times the average allowable load set by
+                        // `max_accumulated_txn_cost_per_object_in_mysticeti_commit`.
+                        cfg.max_congestion_limit_overshoot_per_commit = Some(100);
+                        // Enable congestion limit overshoot in the gas price feedback
+                        // mechanism on testnet.
+                        cfg.feature_flags
+                            .congestion_limit_overshoot_in_gas_price_feedback_mechanism = true;
+                        // Enable a separate gas price feedback mechanism for transactions using
+                        // randomness on testnet.
+                        cfg.feature_flags
+                            .separate_gas_price_feedback_mechanism_for_randomness = true;
                     }
                 }
 

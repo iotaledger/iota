@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { bech32 } from 'bech32';
+import { bech32 } from '@scure/base';
 import { hexToBytes } from '@noble/hashes/utils';
 
 const STARDUST_MAINNET_HRP = 'iota';
