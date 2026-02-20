@@ -77,6 +77,50 @@ mod _accessor_impls {
             self
         }
     }
+    impl super::ExecutionError {
+        /// Sets `bcs_kind` with the provided value.
+        pub fn with_bcs_kind<T: Into<super::super::bcs::BcsData>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.bcs_kind = Some(field.into());
+            self
+        }
+        /// Sets `source` with the provided value.
+        pub fn with_source<T: Into<String>>(mut self, field: T) -> Self {
+            self.source = Some(field.into());
+            self
+        }
+        /// Sets `command_index` with the provided value.
+        pub fn with_command_index(mut self, field: u64) -> Self {
+            self.command_index = Some(field);
+            self
+        }
+    }
+    impl super::ExecutionResult {
+        /// Sets `command_results` with the provided value.
+        /// If any other oneof field in the same oneof is set, it will be cleared.
+        pub fn with_command_results<T: Into<super::super::command::CommandResults>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.result = Some(
+                super::execution_result::Result::CommandResults(field.into()),
+            );
+            self
+        }
+        /// Sets `execution_error` with the provided value.
+        /// If any other oneof field in the same oneof is set, it will be cleared.
+        pub fn with_execution_error<T: Into<super::ExecutionError>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.result = Some(
+                super::execution_result::Result::ExecutionError(field.into()),
+            );
+            self
+        }
+    }
     impl super::Transaction {
         /// Sets `digest` with the provided value.
         pub fn with_digest<T: Into<super::super::types::Digest>>(

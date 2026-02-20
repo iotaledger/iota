@@ -8,9 +8,8 @@ use iota_grpc_types::{
     field::FieldMaskTree,
     google::rpc::bad_request::FieldViolation,
     v0::{
-        command::CommandResults,
         error_reason::ErrorReason,
-        transaction::ExecutedTransaction,
+        transaction::{ExecutedTransaction, ExecutionResult},
         transaction_execution_service::{
             SimulateTransactionRequest, SimulateTransactionResponse,
             simulate_transaction_request::TransactionCheckModes,
@@ -25,8 +24,11 @@ use iota_types::{
     transaction_executor::{SimulateTransactionResult, TransactionExecutor, VmChecks},
 };
 
-use super::{CommandResultsReadSource, TransactionReadSource};
-use crate::{error::RpcError, merge::Merge, types::GrpcReader};
+use super::TransactionReadSource;
+use crate::{
+    error::RpcError, merge::Merge,
+    transaction_execution_service::transaction::ExecutionResultReadSource, types::GrpcReader,
+};
 
 pub const SIMULATE_TRANSACTION_READ_MASK_DEFAULT: &str = crate::field_mask!(
     "transaction.digest",
@@ -236,33 +238,22 @@ pub async fn simulate_transaction(
         })?);
     }
 
-    // Only include command results if requested
-    if let Some(cmd_mask) =
-        read_mask.subtree(SimulateTransactionResponse::COMMAND_RESULTS_FIELD.name)
-    {
-        match execution_result {
-            Ok(execution_results) => {
-                // Only build command results if the execution was successful
-                // Create a source for the merge
-                let source = CommandResultsReadSource {
-                    reader: reader.clone(),
-                    config,
-                    execution_results,
-                };
+    // Only include the result if requested
+    if let Some(result_mask) = read_mask.subtree(SimulateTransactionResponse::RESULT_FIELD.name) {
+        let execution_result_source = ExecutionResultReadSource {
+            reader: reader.clone(),
+            config,
+            execution_result,
+        };
 
-                response.command_results =
-                    Some(CommandResults::merge_from(&source, &cmd_mask).map_err(|e| {
-                        RpcError::new(
-                            tonic::Code::Internal,
-                            format!("failed to build command results in simulation response: {e}"),
-                        )
-                    })?);
-            }
-            Err(_) => {
-                // If execution failed, return empty results
-                response.command_results = Some(CommandResults::default());
-            }
-        }
+        response.result = Some(
+            ExecutionResult::merge_from(&execution_result_source, &result_mask).map_err(|e| {
+                RpcError::new(
+                    tonic::Code::Internal,
+                    format!("failed to build execution result in simulation response: {e}"),
+                )
+            })?,
+        );
     }
 
     Ok(response)

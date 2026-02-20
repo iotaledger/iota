@@ -93,7 +93,7 @@ pub struct SimulateTransactionResponse {
     #[prost(uint64, optional, tag = "2")]
     pub suggested_gas_price: ::core::option::Option<u64>,
     #[prost(message, optional, tag = "3")]
-    pub command_results: ::core::option::Option<super::command::CommandResults>,
+    pub result: ::core::option::Option<super::transaction::ExecutionResult>,
 }
 /// Generated client implementations.
 pub mod transaction_execution_service_client {

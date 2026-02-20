@@ -39,12 +39,12 @@ impl SimulateTransactionResponse {
             .ok_or_else(|| TryFromProtoError::missing(Self::SUGGESTED_GAS_PRICE_FIELD.name))
     }
 
-    /// Get the command results.
-    pub fn command_results(
+    /// Get the execution result.
+    pub fn execution_result(
         &self,
-    ) -> Result<&crate::v0::command::CommandResults, TryFromProtoError> {
-        self.command_results
+    ) -> Result<&crate::v0::transaction::ExecutionResult, TryFromProtoError> {
+        self.result
             .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::COMMAND_RESULTS_FIELD.name))
+            .ok_or_else(|| TryFromProtoError::missing(Self::RESULT_FIELD.name))
     }
 }

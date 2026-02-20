@@ -8,10 +8,6 @@ mod _field_impls {
     use crate::field::MessageFields;
     use crate::field::MessageField;
     #[allow(unused_imports)]
-    use crate::v0::command::CommandResults;
-    #[allow(unused_imports)]
-    use crate::v0::command::CommandResultsFieldPathBuilder;
-    #[allow(unused_imports)]
     use crate::v0::signatures::UserSignatures;
     #[allow(unused_imports)]
     use crate::v0::signatures::UserSignaturesFieldPathBuilder;
@@ -19,6 +15,10 @@ mod _field_impls {
     use crate::v0::transaction::ExecutedTransaction;
     #[allow(unused_imports)]
     use crate::v0::transaction::ExecutedTransactionFieldPathBuilder;
+    #[allow(unused_imports)]
+    use crate::v0::transaction::ExecutionResult;
+    #[allow(unused_imports)]
+    use crate::v0::transaction::ExecutionResultFieldPathBuilder;
     #[allow(unused_imports)]
     use crate::v0::transaction::Transaction;
     #[allow(unused_imports)]
@@ -223,20 +223,20 @@ mod _field_impls {
             is_map: false,
             message_fields: None,
         };
-        pub const COMMAND_RESULTS_FIELD: &'static MessageField = &MessageField {
-            name: "command_results",
-            json_name: "commandResults",
+        pub const RESULT_FIELD: &'static MessageField = &MessageField {
+            name: "result",
+            json_name: "result",
             number: 3i32,
             is_optional: true,
             is_map: false,
-            message_fields: Some(CommandResults::FIELDS),
+            message_fields: Some(ExecutionResult::FIELDS),
         };
     }
     impl MessageFields for SimulateTransactionResponse {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::TRANSACTION_FIELD,
             Self::SUGGESTED_GAS_PRICE_FIELD,
-            Self::COMMAND_RESULTS_FIELD,
+            Self::RESULT_FIELD,
         ];
     }
     impl SimulateTransactionResponse {
@@ -267,9 +267,9 @@ mod _field_impls {
             self.path.push(SimulateTransactionResponse::SUGGESTED_GAS_PRICE_FIELD.name);
             self.finish()
         }
-        pub fn command_results(mut self) -> CommandResultsFieldPathBuilder {
-            self.path.push(SimulateTransactionResponse::COMMAND_RESULTS_FIELD.name);
-            CommandResultsFieldPathBuilder::new_with_base(self.path)
+        pub fn result(mut self) -> ExecutionResultFieldPathBuilder {
+            self.path.push(SimulateTransactionResponse::RESULT_FIELD.name);
+            ExecutionResultFieldPathBuilder::new_with_base(self.path)
         }
     }
 }

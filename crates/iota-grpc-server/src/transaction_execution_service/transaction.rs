@@ -11,9 +11,10 @@ use iota_grpc_types::{
         bcs::{self as grpc_bcs, BcsData},
         command::{CommandOutput, CommandOutputs, CommandResult, CommandResults},
         event as grpc_event, object as grpc_obj, signatures as grpc_sig, transaction as grpc_tx,
+        transaction::{ExecutionError, ExecutionResult},
     },
 };
-use iota_types::{execution::ExecutionResult, iota_sdk_types_conversions::type_tag_core_to_sdk};
+use iota_types::iota_sdk_types_conversions::type_tag_core_to_sdk;
 
 use crate::{GrpcReader, merge::Merge, utils::render_json};
 
@@ -195,11 +196,101 @@ impl Merge<&TransactionReadSource<'_>> for grpc_sig::UserSignatures {
     }
 }
 
+/// Source for building ExecutionResult using the Merge trait
+pub struct ExecutionResultReadSource<'a> {
+    pub reader: Arc<GrpcReader>,
+    pub config: &'a iota_config::node::GrpcApiConfig,
+    pub execution_result:
+        Result<Vec<iota_types::execution::ExecutionResult>, iota_types::error::ExecutionError>,
+}
+
+// ExecutionResult implementations
+impl Merge<&ExecutionResultReadSource<'_>> for ExecutionResult {
+    fn merge(
+        &mut self,
+        source: &ExecutionResultReadSource<'_>,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        match source.execution_result {
+            Ok(ref execution_results) => {
+                if let Some(command_results_mask) = mask.subtree(Self::COMMAND_RESULTS_FIELD.name) {
+                    // Only build command results if the execution was successful
+                    // Create a source for the merge
+                    let cmd_source = CommandResultsReadSource {
+                        reader: source.reader.clone(),
+                        config: source.config,
+                        execution_results: execution_results.clone(),
+                    };
+
+                    self.result = Some(
+                        iota_grpc_types::v0::transaction::execution_result::Result::CommandResults(
+                            CommandResults::merge_from(&cmd_source, &command_results_mask)
+                                .map_err(|e| {
+                                    format!(
+                                        "failed to build command results in execution result: {e}"
+                                    )
+                                })?,
+                        ),
+                    );
+                }
+            }
+            Err(ref execution_error) => {
+                if let Some(error_mask) = mask.subtree(Self::EXECUTION_ERROR_FIELD.name) {
+                    let mut exec_error = ExecutionError::default();
+
+                    // Serialize the execution error kind as BCS
+                    if error_mask.contains(ExecutionError::BCS_KIND_FIELD.name) {
+                        exec_error.bcs_kind =
+                            Some(grpc_bcs::BcsData::serialize(execution_error.kind())?);
+                    }
+
+                    if error_mask.contains(ExecutionError::SOURCE_FIELD.name) {
+                        exec_error.source = execution_error
+                            .source()
+                            .as_ref()
+                            .map(|source| source.to_string());
+                    }
+
+                    // Set the command index if available
+                    if error_mask.contains(ExecutionError::COMMAND_INDEX_FIELD.name) {
+                        if let Some(command_idx) = execution_error.command() {
+                            exec_error.command_index = Some(command_idx as u64);
+                        }
+                    }
+
+                    self.result = Some(
+                        iota_grpc_types::v0::transaction::execution_result::Result::ExecutionError(
+                            exec_error,
+                        ),
+                    );
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl Merge<&ExecutionResult> for ExecutionResult {
+    fn merge(
+        &mut self,
+        source: &ExecutionResult,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        // Copy the result field based on the mask
+        if mask.contains("result") {
+            self.result = source.result.clone();
+        }
+
+        Ok(())
+    }
+}
+
 /// Source for building CommandResults using the Merge trait
 pub struct CommandResultsReadSource<'a> {
     pub reader: Arc<GrpcReader>,
     pub config: &'a iota_config::node::GrpcApiConfig,
-    pub execution_results: Vec<ExecutionResult>,
+    pub execution_results: Vec<iota_types::execution::ExecutionResult>,
 }
 
 impl Merge<&CommandResultsReadSource<'_>> for CommandResults {
