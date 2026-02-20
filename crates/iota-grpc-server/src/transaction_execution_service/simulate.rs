@@ -185,6 +185,7 @@ pub async fn simulate_transaction(
         output_objects,
         execution_result,
         mock_gas_id: _,
+        suggested_gas_price,
     } = executor
         .simulate_transaction(transaction_data.clone(), vm_checks)
         .map_err(|e| {
@@ -223,6 +224,16 @@ pub async fn simulate_transaction(
                 )
             },
         )?);
+    }
+
+    // Only include suggested gas price if requested
+    if read_mask.contains(SimulateTransactionResponse::SUGGESTED_GAS_PRICE_FIELD.name) {
+        response.suggested_gas_price = Some(suggested_gas_price.ok_or_else(|| {
+            RpcError::new(
+                tonic::Code::Internal,
+                "suggested gas price is not available".to_string(),
+            )
+        })?);
     }
 
     // Only include command results if requested

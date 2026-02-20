@@ -215,10 +215,18 @@ mod _field_impls {
             is_map: false,
             message_fields: Some(ExecutedTransaction::FIELDS),
         };
+        pub const SUGGESTED_GAS_PRICE_FIELD: &'static MessageField = &MessageField {
+            name: "suggested_gas_price",
+            json_name: "suggestedGasPrice",
+            number: 2i32,
+            is_optional: true,
+            is_map: false,
+            message_fields: None,
+        };
         pub const COMMAND_RESULTS_FIELD: &'static MessageField = &MessageField {
             name: "command_results",
             json_name: "commandResults",
-            number: 2i32,
+            number: 3i32,
             is_optional: true,
             is_map: false,
             message_fields: Some(CommandResults::FIELDS),
@@ -227,6 +235,7 @@ mod _field_impls {
     impl MessageFields for SimulateTransactionResponse {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::TRANSACTION_FIELD,
+            Self::SUGGESTED_GAS_PRICE_FIELD,
             Self::COMMAND_RESULTS_FIELD,
         ];
     }
@@ -253,6 +262,10 @@ mod _field_impls {
         pub fn transaction(mut self) -> ExecutedTransactionFieldPathBuilder {
             self.path.push(SimulateTransactionResponse::TRANSACTION_FIELD.name);
             ExecutedTransactionFieldPathBuilder::new_with_base(self.path)
+        }
+        pub fn suggested_gas_price(mut self) -> String {
+            self.path.push(SimulateTransactionResponse::SUGGESTED_GAS_PRICE_FIELD.name);
+            self.finish()
         }
         pub fn command_results(mut self) -> CommandResultsFieldPathBuilder {
             self.path.push(SimulateTransactionResponse::COMMAND_RESULTS_FIELD.name);

@@ -33,6 +33,12 @@ impl SimulateTransactionResponse {
             .ok_or_else(|| TryFromProtoError::missing(Self::TRANSACTION_FIELD.name))
     }
 
+    /// Get the suggested gas price.
+    pub fn gas_price_suggested(&self) -> Result<u64, TryFromProtoError> {
+        self.suggested_gas_price
+            .ok_or_else(|| TryFromProtoError::missing(Self::SUGGESTED_GAS_PRICE_FIELD.name))
+    }
+
     /// Get the command results.
     pub fn command_results(
         &self,

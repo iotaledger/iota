@@ -90,7 +90,9 @@ pub mod simulate_transaction_request {
 pub struct SimulateTransactionResponse {
     #[prost(message, optional, tag = "1")]
     pub transaction: ::core::option::Option<super::transaction::ExecutedTransaction>,
-    #[prost(message, optional, tag = "2")]
+    #[prost(uint64, optional, tag = "2")]
+    pub suggested_gas_price: ::core::option::Option<u64>,
+    #[prost(message, optional, tag = "3")]
     pub command_results: ::core::option::Option<super::command::CommandResults>,
 }
 /// Generated client implementations.
