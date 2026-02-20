@@ -49,6 +49,8 @@ export async function initAmplitude() {
 
     let flushInterval: ReturnType<typeof setInterval> | null = null;
 
+    // Flush events on page hide, if the bot has been cleared
+    // to ensure events are sent before the page unloads
     window.addEventListener(
         'pagehide',
         () => {
@@ -63,6 +65,7 @@ export async function initAmplitude() {
         { once: true },
     );
 
+    // Restore default flush behavior after a short delay to filter out bot traffic
     const BOT_WAIT_TIME = 2000;
     setTimeout(() => {
         IS_BOT_CLEARED = true;
