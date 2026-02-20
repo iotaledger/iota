@@ -306,23 +306,14 @@ async fn test_submit_transaction_v1_feature_flag_disabled() {
         ))
         .await;
 
-    // Should return Ok with Rejected result (feature not enabled)
-    assert!(result.is_ok(), "Should return Ok with Rejected result");
-    let response = result.unwrap().into_inner();
-    assert_eq!(response.results.len(), 1, "Should have one result");
-    match &response.results[0] {
-        iota_types::messages_grpc::SubmitTxResult::Rejected { error } => {
-            assert!(
-                matches!(
-                    error,
-                    iota_types::error::IotaError::UnsupportedFeature { .. }
-                ),
-                "Expected UnsupportedFeature error, got: {:?}",
-                error
-            );
-        }
-        other => panic!("Expected Rejected result, got {:?}", other),
-    }
+    // Should return Err as the feature is not supported
+    assert!(result.is_err(), "Expected an error but got Ok");
+    let err = result.unwrap_err();
+    assert_eq!(err.code(), tonic::Code::Internal);
+    assert!(
+        err.message()
+            .contains("White flag flow is not enabled in this protocol version")
+    );
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
