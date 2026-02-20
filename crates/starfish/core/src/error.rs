@@ -295,7 +295,13 @@ pub(crate) enum ConsensusError {
     FailedToFetchBlockHeaders { num_requested: usize },
 
     #[error("Voting block header {block_ref:?} for commit certification was not found in storage")]
-    MissingVoringBlockHeaderInStorage { block_ref: BlockRef },
+    MissingVotingBlockHeaderInStorage { block_ref: BlockRef },
+
+    // TODO: This error can be removed once enable_fast_commit_sync is enabled on all networks.
+    // It's currently used to gate fast commit sync endpoints and features during the gradual
+    // rollout phase.
+    #[error("Fast commit sync is not enabled in the current protocol version")]
+    FastCommitSyncNotEnabled,
 }
 
 impl ConsensusError {

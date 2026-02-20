@@ -1013,6 +1013,15 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
     ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
         fail_point_async!("consensus-rpc-response");
 
+        // TODO: This gate can be removed once enable_fast_commit_sync is enabled on all networks.
+        // Fast commit sync type is controlled by the client, so we need to validate that the
+        // protocol supports it before processing.
+        if matches!(commit_sync_type, CommitSyncType::Fast)
+            && !self.context.protocol_config.enable_fast_commit_sync()
+        {
+            return Err(ConsensusError::FastCommitSyncNotEnabled);
+        }
+
         // Bound the range based on sync type.
         let batch_size = commit_sync_type.commit_sync_batch_size(&self.context);
         let inclusive_bound = commit_range
@@ -1110,7 +1119,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .zip(certifier_block_refs.iter())
             .map(|(h, block_ref)| {
                 h.or_else(|| fallback_iter.next().flatten()).ok_or(
-                    ConsensusError::MissingVoringBlockHeaderInStorage {
+                    ConsensusError::MissingVotingBlockHeaderInStorage {
                         block_ref: *block_ref,
                     },
                 )
@@ -1126,6 +1135,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         commit_range: CommitRange,
     ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
         fail_point_async!("consensus-rpc-response");
+
+        // TODO: This gate can be removed once enable_fast_commit_sync is enabled on all networks.
+        // This endpoint is gated by the enable_fast_commit_sync feature flag as it is
+        // more expensive than just fetching commits or headers.
+        if !self.context.protocol_config.enable_fast_commit_sync() {
+            return Err(ConsensusError::FastCommitSyncNotEnabled);
+        }
 
         let (commits, certifier_block_headers) = self
             .handle_fetch_commits(peer, commit_range, CommitSyncType::Fast)
@@ -1215,8 +1231,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // Apply truncation based on fetch mode
         match fetch_mode {
             TransactionFetchMode::FastCommitSync => {
-                // No truncation for fast commit sync - all transactions
-                // referenced by commits must be fetched
+                // TODO: This gate can be removed once enable_fast_commit_sync is enabled on all networks.
+                // FastCommitSync mode is controlled by the client, so we need to validate that the
+                // protocol supports it before processing.
+                // No truncation for fast commit sync - all transactions referenced by
+                // commits must be fetched.
+                if !self.context.protocol_config.enable_fast_commit_sync() {
+                    return Err(ConsensusError::FastCommitSyncNotEnabled);
+                }
             }
             TransactionFetchMode::TransactionSync => {
                 let max_transactions = max(

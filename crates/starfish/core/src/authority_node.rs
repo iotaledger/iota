@@ -46,7 +46,7 @@ pub struct ConsensusAuthority {
     shard_reconstructor: Arc<ShardReconstructorHandle>,
     cordial_knowledge: Arc<CordialKnowledgeHandle>,
     regular_commit_syncer_handle: CommitSyncerHandle,
-    fast_commit_syncer_handle: CommitSyncerHandle,
+    fast_commit_syncer_handle: Option<CommitSyncerHandle>,
     leader_timeout_handle: LeaderTimeoutTaskHandle,
     core_thread_handle: CoreThreadHandle,
     subscriber: Subscriber<TonicClient, AuthorityService<ChannelCoreThreadDispatcher>>,
@@ -227,16 +227,29 @@ impl ConsensusAuthority {
         )
         .start();
 
-        let fast_commit_syncer_handle = FastCommitSyncer::new(
-            context.clone(),
-            core_dispatcher.clone(),
-            commit_vote_monitor.clone(),
-            commit_consumer_monitor.clone(),
-            network_client.clone(),
-            block_verifier.clone(),
-            dag_state.clone(),
-        )
-        .start();
+        // FastCommitSyncer is enabled when BOTH conditions are met:
+        // 1. Protocol-level flag is enabled (controls gRPC endpoint availability)
+        // 2. Local config flag is enabled (allows operators to disable locally)
+        // This two-level control allows the protocol to expose endpoints while allowing
+        // operators to disable the syncer locally for testing or bug mitigation.
+        let fast_commit_syncer_handle = if context.protocol_config.enable_fast_commit_sync()
+            && context.parameters.enable_fast_commit_syncer
+        {
+            Some(
+                FastCommitSyncer::new(
+                    context.clone(),
+                    core_dispatcher.clone(),
+                    commit_vote_monitor.clone(),
+                    commit_consumer_monitor.clone(),
+                    network_client.clone(),
+                    block_verifier.clone(),
+                    dag_state.clone(),
+                )
+                .start(),
+            )
+        } else {
+            None
+        };
 
         let network_service = Arc::new(AuthorityService::new(
             context.clone(),
@@ -343,7 +356,9 @@ impl ConsensusAuthority {
         }
 
         self.regular_commit_syncer_handle.stop().await;
-        self.fast_commit_syncer_handle.stop().await;
+        if let Some(handle) = self.fast_commit_syncer_handle.take() {
+            handle.stop().await;
+        }
         self.leader_timeout_handle.stop().await;
         // Shutdown Core to stop block productions and broadcast.
         // When using streaming, all subscribers to broadcast blocks stop after this.

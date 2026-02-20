@@ -439,6 +439,12 @@ struct FeatureFlags {
     // If true, then TransactionRef is used in commit instead of BlockRef
     #[serde(skip_serializing_if = "is_false")]
     consensus_transaction_ref: bool,
+
+    // If true, enables the fast commit syncer in Starfish consensus for faster recovery
+    // from large commit gaps. This also enables the associated gRPC endpoints for fetching
+    // commits and transactions.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_fast_commit_sync: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1593,6 +1599,10 @@ impl ProtocolConfig {
         );
         res
     }
+
+    pub fn enable_fast_commit_sync(&self) -> bool {
+        self.feature_flags.enable_fast_commit_sync
+    }
 }
 
 #[cfg(not(msim))]
@@ -2522,6 +2532,8 @@ impl ProtocolConfig {
                         // Passes the calculated validator scores to advance epoch only on Devnet
                         cfg.feature_flags
                             .pass_calculated_validator_scores_to_advance_epoch = true;
+                        // Enable fast commit syncer for faster recovery in devnet
+                        cfg.feature_flags.enable_fast_commit_sync = true;
                     }
                 }
                 21 => {
@@ -2761,6 +2773,9 @@ impl ProtocolConfig {
     }
     pub fn set_consensus_transaction_ref_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_transaction_ref = val;
+    }
+    pub fn set_enable_fast_commit_sync_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_fast_commit_sync = val;
     }
 }
 
