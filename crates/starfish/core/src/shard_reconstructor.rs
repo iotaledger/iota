@@ -670,7 +670,8 @@ mod tests {
     use crate::{
         BlockRef, Round, TestBlockHeader, Transaction, VerifiedBlockHeader,
         block_header::{
-            Shard, TransactionsCommitment, VerifiedBlock, VerifiedOwnShard, VerifiedTransactions,
+            Shard, ShardWithProof, TransactionsCommitment, VerifiedBlock, VerifiedOwnShard,
+            VerifiedTransactions,
         },
         commit::CertifiedCommits,
         context::Context,
@@ -1185,5 +1186,62 @@ mod tests {
         }
 
         handle.stop().await.unwrap();
+    }
+
+    /// In a `BlockBundle` the shards belong to blocks from *previous* rounds,
+    /// not to the bundle's own (`carrier`) block. The correct `block_ref` for
+    /// each `ShardMessage` must therefore come from the shard itself, not from
+    /// the carrier block passed to `create_transaction_messages`.
+    #[test]
+    fn test_create_transaction_messages_shard_uses_shard_block_ref_not_carrier_block_ref() {
+        // GIVEN: a carrier block (round 2, authority 0) — the block in the current bundle.
+        let carrier_block = VerifiedBlock::new_for_test(TestBlockHeader::new(2, 0).build());
+
+        // GIVEN: a shard-source block (round 1, authority 1) — the block the shard
+        // was erasure-coded from. It is from a *different* round and author than the
+        // carrier block, which is the normal situation inside a BlockBundle.
+        let shard_source =
+            VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 1).build());
+        let shard_source_ref = shard_source.reference();
+
+        // Sanity: the two blocks must have distinct references for the test to be meaningful.
+        assert_ne!(
+            carrier_block.reference(),
+            shard_source_ref,
+            "Test pre-condition: carrier and shard-source blocks must differ"
+        );
+
+        // GIVEN: a ShardWithProof whose block_ref points to shard_source (V1 variant,
+        // transaction_ref_enabled = false).
+        let shard_with_proof = ShardWithProof::new(
+            vec![0u8; 32],
+            vec![],
+            shard_source_ref,
+            shard_source.transactions_commitment(),
+            false,
+        );
+
+        // WHEN: build transaction messages using the carrier block together with a
+        // shard that belongs to shard_source.
+        let messages = TransactionMessage::create_transaction_messages(
+            &carrier_block,
+            &[shard_with_proof],
+            1,
+        );
+
+        // THEN: the shard message must carry the shard's own block reference
+        // (round=1, authority=1), not the carrier block's reference (round=2, authority=0).
+        let shard_msgs: Vec<_> = messages
+            .iter()
+            .filter(|m| matches!(m, TransactionMessage::Shard(_)))
+            .collect();
+
+        assert_eq!(shard_msgs.len(), 1, "Expected exactly one shard message");
+        assert_eq!(
+            shard_msgs[0].block_ref(),
+            shard_source_ref,
+            "ShardMessage.block_ref must point to the block the shard belongs to \
+             (round=1, authority=1), not to the carrier block (round=2, authority=0)"
+        );
     }
 }
