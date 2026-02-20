@@ -4,12 +4,8 @@
 
 import '@fontsource-variable/inter';
 import { ErrorBoundary } from '_components';
-import { initAppType, setAppViewType } from '_redux/slices/app';
-import {
-    getFromLocationSearch,
-    getAppViewType,
-    ExtensionViewType,
-} from '_src/ui/app/redux/slices/app/appType';
+import { setAppViewType } from '_redux/slices/app';
+import { getAppViewType, ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 import { initAmplitude } from '_src/shared/analytics/amplitude';
 import { setAttributes } from '_src/shared/experimentation/features';
 import { initSentry } from '_src/ui/app/helpers';
@@ -47,7 +43,6 @@ async function init() {
     if (process.env.NODE_ENV === 'development') {
         Object.defineProperty(window, 'store', { value: store });
     }
-    store.dispatch(initAppType(getFromLocationSearch()));
     store.dispatch(setAppViewType(getAppViewType()));
     await thunkExtras.background.init(store.dispatch);
     const { network, customRpc } = store.getState().app;

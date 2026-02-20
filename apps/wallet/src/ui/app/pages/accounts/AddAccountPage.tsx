@@ -74,10 +74,8 @@ export function AddAccountPage() {
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(forceShowLedger);
     const createAccountsMutation = useCreateAccountsMutation();
     const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';
-    const isPopupOrSidePanel = useAppSelector((state) =>
-        [ExtensionViewType.Popup, ExtensionViewType.SidePanel].includes(
-            state.app.extensionViewType,
-        ),
+    const isPopupOrSidePanel = useAppSelector(
+        (state) => state.app.extensionViewType !== ExtensionViewType.FullScreen,
     );
     const [cameraPermissionStatus] = useCheckCameraPermissionStatus();
     const network = useAppSelector(({ app }) => app.network);
