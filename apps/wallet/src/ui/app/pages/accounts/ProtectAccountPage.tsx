@@ -84,7 +84,7 @@ export function ProtectAccountPage() {
                 const createdAccounts = await createMutation.mutateAsync({
                     type,
                     password,
-                    sourceFlow: accountsFormType
+                    sourceFlow: accountsFormType,
                 });
                 if (autoLockToTrack) {
                     trackAutoLockUpdated(autoLockToTrack);

@@ -2,7 +2,11 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ampli, ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE, ACCOUNT_FORM_TYPE_TO_ACCOUNT_ORIGIN } from '_src/shared/analytics';
+import {
+    ampli,
+    ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE,
+    ACCOUNT_FORM_TYPE_TO_ACCOUNT_ORIGIN,
+} from '_src/shared/analytics';
 import { useMutation } from '@tanstack/react-query';
 import { useAccountsFormContext, AccountsFormType, type AccountsFormValues } from '_components';
 import { useBackgroundClient } from './useBackgroundClient';

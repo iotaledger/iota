@@ -94,7 +94,7 @@ export function AccountGroup({
         } else {
             createAccountMutation.mutate({
                 type: accountsFormType,
-                sourceFlow: SOURCE_FLOW
+                sourceFlow: SOURCE_FLOW,
             });
         }
     }
