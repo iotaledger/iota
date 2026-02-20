@@ -13,6 +13,7 @@ import { Form } from '_src/ui/app/shared/forms/Form';
 import { useZodForm, toast } from '@iota/core';
 import { useNavigate } from 'react-router-dom';
 import { Button, ButtonHtmlType, ButtonType } from '@iota/apps-ui-kit';
+import { trackAutoLockUpdated } from '_src/shared/analytics/helpers';
 
 export function AutoLockAccounts() {
     const mainMenuUrl = useNextMenuUrl(true, '/');
@@ -36,6 +37,7 @@ export function AutoLockAccounts() {
             { minutes: autoLockDataToMinutes(data.autoLock) },
             {
                 onSuccess: () => {
+                    trackAutoLockUpdated(data.autoLock);
                     toast.success('Saved');
                     navigate(mainMenuUrl);
                 },

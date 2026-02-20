@@ -56,6 +56,7 @@ export function PreviewTransfer({
                         <ExplorerLink
                             type={ExplorerLinkType.Address}
                             address={accountAddress || ''}
+                            eventType="address"
                         >
                             {formatAddress(accountAddress || '')}
                         </ExplorerLink>
@@ -74,6 +75,7 @@ export function PreviewTransfer({
                             <ExplorerLink
                                 type={ExplorerLinkType.Address}
                                 address={nameRecord?.targetAddress || to}
+                                eventType="address"
                             >
                                 {nameRecord ? nameRecord.name : formatAddress(to || '')}
                             </ExplorerLink>

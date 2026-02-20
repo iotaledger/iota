@@ -61,6 +61,7 @@ export function GasSummary({
                             <ExplorerLink
                                 type={ExplorerLinkType.Address}
                                 address={gasSummary.owner}
+                                eventType="address"
                             >
                                 {formatAddress(gasSummary.owner)}
                             </ExplorerLink>
