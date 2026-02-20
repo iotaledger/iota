@@ -17,14 +17,12 @@ const IS_DEV = import.meta.env.VITE_BUILD_ENV !== 'production';
 let IS_BOT_CLEARED = false;
 
 export async function initAmplitude() {
-    // Check consent status to determine initial opt-out state
     const consentStatus = getAmplitudeConsentStatus();
 
     if (ampli.isLoaded || consentStatus === 'declined') {
         return;
     }
 
-    // Load Amplitude with anti-bot configuration
     await ampli.load({
         environment: 'iotaexplorer',
         disabled: !IS_ENABLED,
@@ -47,12 +45,10 @@ export async function initAmplitude() {
         },
     }).promise;
 
-    // Add environment plugin
     amplitude.add(attachEnvironmentPlugin(IS_DEV));
 
     let flushInterval: ReturnType<typeof setInterval> | null = null;
 
-    // Always register pagehide listener (only flushes if bot check passed)
     window.addEventListener(
         'pagehide',
         () => {
@@ -67,16 +63,13 @@ export async function initAmplitude() {
         { once: true },
     );
 
-    // Anti-bot delay: Wait to verify user is not a bot
-    const BOT_WAIT_TIME = 2000; // 2 seconds
+    const BOT_WAIT_TIME = 2000;
     setTimeout(() => {
         IS_BOT_CLEARED = true;
 
-        // Flush queued events immediately
         ampli.flush();
 
-        // Set up regular flushing every second for the rest of the session
-        const FLUSH_INTERVAL = 1000; // 1 second
+        const FLUSH_INTERVAL = 1000;
         flushInterval = setInterval(() => {
             if (ampli.isLoaded) {
                 ampli.flush();
