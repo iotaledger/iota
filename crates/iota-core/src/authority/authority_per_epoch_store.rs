@@ -2315,8 +2315,13 @@ impl AuthorityPerEpochStore {
                         .insert(*cert.digest());
                 }
             }
+            // NOTE: We do not insert
+            // `ConsensusTransactionKind::UserTransactionV1` into
+            // `self.pending_consensus_certificates` because, in the
+            // certificate-less scenario, there is no pre-consensus
+            // "promise" (certificate) that `UserTransactionV1` will
+            // be executed before the end of epoch.
         }
-
         Ok(())
     }
 
@@ -2345,8 +2350,12 @@ impl AuthorityPerEpochStore {
                     self.pending_consensus_certificates.write().remove(cert);
                 }
             }
+            // NOTE: We do not need the
+            // `ConsensusTransactionKey::UserTransaction` branch
+            // (certificate-less scenario) here because `UserTransactionV1` are
+            // not inserted into
+            // `self.pending_consensus_certificates`.
         }
-
         Ok(())
     }
 
