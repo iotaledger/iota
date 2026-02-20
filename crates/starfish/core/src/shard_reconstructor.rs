@@ -43,7 +43,7 @@ const NUMBER_OF_RECONSTRUCTION_WORKERS: usize = 5;
 /// Two types of messages are supported: full transaction and shard
 #[derive(Clone, Debug)]
 pub(crate) enum TransactionMessage {
-    FullTransaction(FullTransactionMessage),
+    FullTransaction(TransactionRef),
     Shard(ShardMessage),
 }
 
@@ -58,23 +58,10 @@ pub(crate) struct ShardMessage {
     shard_index: usize,
 }
 
-/// Full transaction message acknowledges that the respected transactions from a
-/// given block were verified and locally available
-#[derive(Clone, Debug)]
-pub(crate) struct FullTransactionMessage {
-    transaction_ref: TransactionRef,
-}
-
-impl FullTransactionMessage {
-    pub fn transaction_ref(&self) -> TransactionRef {
-        self.transaction_ref
-    }
-}
-
 impl TransactionMessage {
     pub fn transaction_ref(&self) -> TransactionRef {
         match self {
-            TransactionMessage::FullTransaction(msg) => msg.transaction_ref,
+            TransactionMessage::FullTransaction(tx_ref) => *tx_ref,
             TransactionMessage::Shard(msg) => msg.transaction_ref,
         }
     }
@@ -86,31 +73,24 @@ impl TransactionMessage {
         shards: &[ShardWithProof],
         shard_index: usize,
     ) -> Vec<TransactionMessage> {
-        let mut messages = Vec::new();
-
-        // Full transaction message — refers to the carrier block's own transactions
-        let full_msg = FullTransactionMessage {
-            transaction_ref: block.transaction_ref(),
-        };
-        messages.push(TransactionMessage::FullTransaction(full_msg));
+        let full = TransactionMessage::FullTransaction(block.transaction_ref());
 
         // Shard messages — each shard belongs to its own source block, not the
         // carrier block, so we derive the reference from the shard itself.
-        for shard_with_proof in shards {
-            let shard_msg = ShardMessage {
+        let shard_msgs = shards.iter().map(|swp| {
+            TransactionMessage::Shard(ShardMessage {
                 transaction_ref: TransactionRef {
-                    round: shard_with_proof.round(),
-                    author: shard_with_proof.author(),
-                    transactions_commitment: shard_with_proof.transaction_commitment(),
+                    round: swp.round(),
+                    author: swp.author(),
+                    transactions_commitment: swp.transaction_commitment(),
                 },
-                block_digest: shard_with_proof.block_digest(),
-                shard: shard_with_proof.shard().clone(),
+                block_digest: swp.block_digest(),
+                shard: swp.shard().clone(),
                 shard_index,
-            };
-            messages.push(TransactionMessage::Shard(shard_msg));
-        }
+            })
+        });
 
-        messages
+        std::iter::once(full).chain(shard_msgs).collect()
     }
 }
 
@@ -592,9 +572,8 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                 }
             },
 
-            TransactionMessage::FullTransaction(full_msg) => {
-                self.processed_transactions
-                    .insert(full_msg.transaction_ref());
+            TransactionMessage::FullTransaction(tx_ref) => {
+                self.processed_transactions.insert(tx_ref);
                 return Ok(());
             }
         }
@@ -649,7 +628,7 @@ mod tests {
     use parking_lot::RwLock;
     use rand::{seq::SliceRandom, thread_rng};
     use starfish_config::AuthorityIndex;
-    use tokio::sync::Mutex;
+    use tokio::sync::{Mutex, mpsc::Sender};
 
     use crate::{
         BlockRef, Round, TestBlockHeader, Transaction, VerifiedBlockHeader,
@@ -664,11 +643,40 @@ mod tests {
         dag_state::{DagState, DataSource},
         encoder::create_encoder,
         shard_reconstructor::{
-            FullTransactionMessage, ShardMessage, ShardReconstructor, TransactionMessage,
+            ShardMessage, ShardReconstructor, ShardReconstructorHandle, TransactionMessage,
         },
         storage::mem_store::MemStore,
         transaction_ref::{GenericTransactionRef, TransactionRef},
     };
+
+    struct TestHarness {
+        context: Arc<Context>,
+        core_dispatcher: Arc<MockCoreThreadDispatcher>,
+        handle: Arc<ShardReconstructorHandle>,
+        tx: Sender<Vec<TransactionMessage>>,
+    }
+
+    impl TestHarness {
+        fn new(committee_size: usize) -> Self {
+            let (context, _) = Context::new_for_test(committee_size);
+            let context = Arc::new(context);
+            let store = Arc::new(MemStore::new(context.clone()));
+            let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+            let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
+            let handle = ShardReconstructor::start(
+                context.clone(),
+                dag_state.clone(),
+                core_dispatcher.clone(),
+            );
+            let tx = handle.transaction_message_sender();
+            Self {
+                context,
+                core_dispatcher,
+                handle,
+                tx,
+            }
+        }
+    }
 
     #[derive(Default)]
     struct MockCoreThreadDispatcher {
@@ -800,9 +808,7 @@ mod tests {
 
         // 1. FullTransaction for round i (authority j)
         msgs.push(TransactionMessage::FullTransaction(
-            FullTransactionMessage {
-                transaction_ref: header_cur.transaction_ref(),
-            },
+            header_cur.transaction_ref(),
         ));
 
         // 2. The j-th shard of every authority’s transaction data from round i-1
@@ -828,18 +834,9 @@ mod tests {
         telemetry_subscribers::init_for_testing();
 
         // GIVEN
-        let committee_size = 10;
-        let (context, _) = Context::new_for_test(committee_size);
-        let context = Arc::new(context);
-
-        let store = Arc::new(MemStore::new(context.clone()));
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-
-        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
-
-        let handle =
-            ShardReconstructor::start(context.clone(), dag_state.clone(), core_dispatcher.clone());
-        let transaction_message_sender = handle.transaction_message_sender();
+        let h = TestHarness::new(10);
+        let context = &h.context;
+        let transaction_message_sender = h.tx.clone();
 
         // Create block header & transactions
         let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 1).build());
@@ -848,10 +845,10 @@ mod tests {
         let txs = Transaction::random_transactions(4, 48);
         let serialized = Transaction::serialize(&txs).unwrap();
 
-        let mut encoder = create_encoder(&context);
+        let mut encoder = create_encoder(context);
         let commitment = TransactionsCommitment::compute_transactions_commitment(
             &serialized,
-            &context,
+            context,
             &mut encoder,
         )
         .unwrap();
@@ -885,7 +882,7 @@ mod tests {
 
         // Wait — should not reconstruct yet
         tokio::time::sleep(Duration::from_millis(400)).await;
-        let fetched = core_dispatcher.get_and_drain_transactions().await;
+        let fetched = h.core_dispatcher.get_and_drain_transactions().await;
         assert!(
             fetched.is_empty(),
             "With header + (info_length - 1) shards, no reconstruction should happen"
@@ -905,7 +902,7 @@ mod tests {
 
         // THEN: reconstruction should happen
         tokio::time::sleep(Duration::from_millis(600)).await;
-        let fetched = core_dispatcher.get_and_drain_transactions().await;
+        let fetched = h.core_dispatcher.get_and_drain_transactions().await;
 
         assert_eq!(
             fetched.len(),
@@ -919,7 +916,7 @@ mod tests {
         );
         assert_eq!(vt.transactions(), txs);
 
-        handle
+        h.handle
             .stop()
             .await
             .expect("We should expect graceful shutdown");
@@ -933,18 +930,9 @@ mod tests {
         telemetry_subscribers::init_for_testing();
 
         // GIVEN
-        let committee_size = 15;
-        let (context, _) = Context::new_for_test(committee_size);
-        let context = Arc::new(context);
-
-        let store = Arc::new(MemStore::new(context.clone()));
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-
-        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
-
-        let handle =
-            ShardReconstructor::start(context.clone(), dag_state.clone(), core_dispatcher.clone());
-        let transaction_message_sender = handle.transaction_message_sender();
+        let h = TestHarness::new(15);
+        let context = &h.context;
+        let transaction_message_sender = h.tx.clone();
 
         // Create block header & transactions
         let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(7, 1).build());
@@ -953,10 +941,10 @@ mod tests {
         let txs = Transaction::random_transactions(5, 64);
         let serialized = Transaction::serialize(&txs).unwrap();
 
-        let mut encoder = create_encoder(&context);
+        let mut encoder = create_encoder(context);
         let transactions_commitment = TransactionsCommitment::compute_transactions_commitment(
             &serialized,
-            &context,
+            context,
             &mut encoder,
         )
         .unwrap();
@@ -992,7 +980,7 @@ mod tests {
 
         // Wait — should not reconstruct yet
         tokio::time::sleep(Duration::from_millis(600)).await;
-        let fetched = core_dispatcher.get_and_drain_transactions().await;
+        let fetched = h.core_dispatcher.get_and_drain_transactions().await;
         assert!(
             fetched.is_empty(),
             "With header + (info_length - 1) shards, no reconstruction should happen"
@@ -1002,9 +990,7 @@ mod tests {
         // collecting shards
         transaction_message_sender
             .send(vec![TransactionMessage::FullTransaction(
-                FullTransactionMessage {
-                    transaction_ref: TransactionRef::new(block_ref, transactions_commitment),
-                },
+                TransactionRef::new(block_ref, transactions_commitment),
             )])
             .await
             .unwrap();
@@ -1023,14 +1009,14 @@ mod tests {
 
         // Wait and check that no reconstruction happens
         tokio::time::sleep(Duration::from_millis(600)).await;
-        let fetched = core_dispatcher.get_and_drain_transactions().await;
+        let fetched = h.core_dispatcher.get_and_drain_transactions().await;
         assert!(
             fetched.is_empty(),
             "Once FullTransaction is received, reconstructor should ignore shards and not reconstruct"
         );
 
         // Clean up
-        handle
+        h.handle
             .stop()
             .await
             .expect("We should expect graceful shutdown");
@@ -1044,19 +1030,11 @@ mod tests {
 
         // GIVEN
         let committee_size = 4;
-        let (context, _) = Context::new_for_test(committee_size);
-        let context = Arc::new(context);
+        let h = TestHarness::new(committee_size);
+        let context = &h.context;
+        let tx = h.tx.clone();
 
-        let store = Arc::new(MemStore::new(context.clone()));
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-
-        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
-
-        let handle =
-            ShardReconstructor::start(context.clone(), dag_state.clone(), core_dispatcher.clone());
-        let tx = handle.transaction_message_sender();
-
-        let mut encoder = create_encoder(&context);
+        let mut encoder = create_encoder(context);
         let info_len = context.committee.info_length();
         let parity_len = context.committee.parity_length();
 
@@ -1071,7 +1049,7 @@ mod tests {
             let serialized = Transaction::serialize(&txs).unwrap();
             let commitment = TransactionsCommitment::compute_transactions_commitment(
                 &serialized,
-                &context,
+                context,
                 &mut encoder,
             )
             .unwrap();
@@ -1101,7 +1079,7 @@ mod tests {
                 let serialized = Transaction::serialize(&txs).unwrap();
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized,
-                    &context,
+                    context,
                     &mut encoder,
                 )
                 .unwrap();
@@ -1151,7 +1129,7 @@ mod tests {
 
         // THEN: we should have reconstructed exactly 9 missing sets (from round 1 to 9)
         // for the blocked authority
-        let fetched = core_dispatcher.get_and_drain_transactions().await;
+        let fetched = h.core_dispatcher.get_and_drain_transactions().await;
         assert_eq!(
             fetched.len(),
             9,
@@ -1167,7 +1145,7 @@ mod tests {
             );
         }
 
-        handle.stop().await.unwrap();
+        h.handle.stop().await.unwrap();
     }
 
     /// In a `BlockBundle` the shards belong to blocks from *previous* rounds,
