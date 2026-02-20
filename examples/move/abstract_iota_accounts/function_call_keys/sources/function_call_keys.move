@@ -87,7 +87,7 @@ public fun create(
         .with_public_key(public_key)
         .with_field(
             function_call_keys_store_field_name(),
-            function_call_keys_store::build_fn_keys_store(ctx),
+            function_call_keys_store::build(ctx),
         );
     // Optionally attach the admin
     let builder = if (admin.is_some()) {

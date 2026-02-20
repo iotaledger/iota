@@ -54,7 +54,7 @@ public struct FunctionCallKeysStoreFieldName has copy, drop, store {}
 
 // === Helpers ===
 
-public fun build_fn_keys_store(ctx: &mut TxContext): FunctionCallKeysStore {
+public fun build(ctx: &mut TxContext): FunctionCallKeysStore {
     FunctionCallKeysStore { function_keys: tbl::new<vector<u8>, VecSet<FunctionRef>>(ctx) }
 }
 
