@@ -11,7 +11,7 @@ use iota_grpc_types::{
         ledger_service::{GetEpochRequest, GetEpochResponse},
     },
 };
-use iota_protocol_config::{Chain, ProtocolConfig as IotaProtocolConfig, ProtocolConfigValue};
+use iota_protocol_config::ProtocolConfig as IotaProtocolConfig;
 use iota_types::committee::EpochId;
 use prost_types::FieldMask;
 use tonic::Status;
@@ -98,12 +98,15 @@ pub fn get_epoch(
         }
 
         if let Some(submask) = read_mask.subtree(Epoch::PROTOCOL_CONFIG_FIELD.name) {
+            let iota_config = IotaProtocolConfig::get_for_version_if_supported(
+                epoch_info.protocol_version.into(),
+                service.chain,
+            )
+            .ok_or_else(|| ProtocolVersionNotFoundError::new(epoch_info.protocol_version))?;
             message = message.with_protocol_config(
-                ProtocolConfig::merge_from(
-                    &get_protocol_config(epoch_info.protocol_version, service.chain)?,
-                    &submask,
-                )
-                .map_err(|e| Status::internal(format!("Failed to merge protocol config: {e}")))?,
+                ProtocolConfig::merge_from(&iota_config, &submask).map_err(|e| {
+                    Status::internal(format!("Failed to merge protocol config: {e}"))
+                })?,
             );
         }
 
@@ -184,41 +187,4 @@ impl From<ProtocolVersionNotFoundError> for Status {
     fn from(value: ProtocolVersionNotFoundError) -> Self {
         Status::not_found(value.to_string())
     }
-}
-
-fn get_protocol_config(
-    version: u64,
-    chain: Chain,
-) -> std::result::Result<ProtocolConfig, ProtocolVersionNotFoundError> {
-    let config = IotaProtocolConfig::get_for_version_if_supported(version.into(), chain)
-        .ok_or_else(|| ProtocolVersionNotFoundError::new(version))?;
-    Ok(protocol_config_to_proto(config))
-}
-
-pub fn protocol_config_to_proto(config: IotaProtocolConfig) -> ProtocolConfig {
-    let protocol_version = config.version.as_u64();
-    let attributes = config
-        .attr_map()
-        .into_iter()
-        .filter_map(|(k, maybe_v)| {
-            maybe_v.map(move |v| {
-                let v = match v {
-                    ProtocolConfigValue::u16(x) => x.to_string(),
-                    ProtocolConfigValue::u32(y) => y.to_string(),
-                    ProtocolConfigValue::u64(z) => z.to_string(),
-                    ProtocolConfigValue::bool(b) => b.to_string(),
-                };
-                (k, v)
-            })
-        })
-        .collect();
-    ProtocolConfig::default()
-        .with_protocol_version(protocol_version)
-        .with_feature_flags(
-            iota_grpc_types::v0::epoch::ProtocolFeatureFlags::default()
-                .with_flags(config.feature_map().into_iter().collect()),
-        )
-        .with_attributes(
-            iota_grpc_types::v0::epoch::ProtocolAttributes::default().with_attributes(attributes),
-        )
 }

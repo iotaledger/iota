@@ -9,7 +9,7 @@ use iota_grpc_types::{
     v0::{
         bcs::BcsData,
         checkpoint::{Checkpoint, CheckpointContents, CheckpointSummary},
-        epoch::{Epoch, ProtocolAttributes, ProtocolConfig, ProtocolFeatureFlags},
+        epoch::{ProtocolAttributes, ProtocolConfig, ProtocolFeatureFlags},
         event::{Event, Events},
         object::{Object, Objects},
         signatures::{UserSignature, UserSignatures},
@@ -18,6 +18,7 @@ use iota_grpc_types::{
         versioned::{VersionedCheckpointSummary, VersionedEvent, VersionedObject},
     },
 };
+use iota_protocol_config::{ProtocolConfig as IotaProtocolConfig, ProtocolConfigValue};
 use iota_types::iota_sdk_types_conversions::SdkTypeConversionError;
 
 pub trait Merge<T> {
@@ -33,84 +34,14 @@ pub trait Merge<T> {
     }
 }
 
-// Epoch implementations
-impl Merge<&Epoch> for Epoch {
+impl Merge<&IotaProtocolConfig> for ProtocolConfig {
     fn merge(
         &mut self,
-        source: &Epoch,
+        source: &IotaProtocolConfig,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let Epoch {
-            epoch,
-            committee,
-            bcs_system_state,
-            first_checkpoint,
-            last_checkpoint,
-            start,
-            end,
-            reference_gas_price,
-            protocol_config,
-            ..
-        } = source;
-
-        if mask.contains(Self::EPOCH_FIELD.name) {
-            self.epoch = *epoch;
-        }
-
-        if mask.contains(Self::COMMITTEE_FIELD.name) {
-            self.committee = committee.to_owned();
-        }
-
-        if mask.contains(Self::BCS_SYSTEM_STATE_FIELD.name) {
-            self.bcs_system_state = bcs_system_state.to_owned();
-        }
-
-        if mask.contains(Self::FIRST_CHECKPOINT_FIELD.name) {
-            self.first_checkpoint = first_checkpoint.to_owned();
-        }
-
-        if mask.contains(Self::LAST_CHECKPOINT_FIELD.name) {
-            self.last_checkpoint = last_checkpoint.to_owned();
-        }
-
-        if mask.contains(Self::START_FIELD.name) {
-            self.start = start.to_owned();
-        }
-
-        if mask.contains(Self::END_FIELD.name) {
-            self.end = end.to_owned();
-        }
-
-        if mask.contains(Self::REFERENCE_GAS_PRICE_FIELD.name) {
-            self.reference_gas_price = reference_gas_price.to_owned();
-        }
-
-        if let Some(submask) = mask.subtree(Self::PROTOCOL_CONFIG_FIELD.name) {
-            self.protocol_config = protocol_config
-                .as_ref()
-                .map(|config| ProtocolConfig::merge_from(config, &submask))
-                .transpose()?;
-        }
-
-        Ok(())
-    }
-}
-
-impl Merge<&ProtocolConfig> for ProtocolConfig {
-    fn merge(
-        &mut self,
-        source: &ProtocolConfig,
-        mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let ProtocolConfig {
-            protocol_version,
-            feature_flags,
-            attributes,
-            ..
-        } = source;
-
         if mask.contains(Self::PROTOCOL_VERSION_FIELD.name) {
-            self.protocol_version = *protocol_version;
+            self.protocol_version = Some(source.version.as_u64());
         }
 
         if let Some(submask) = mask.subtree(Self::FEATURE_FLAGS_FIELD.name) {
@@ -119,22 +50,14 @@ impl Merge<&ProtocolConfig> for ProtocolConfig {
                 None => Default::default(),
                 // wildcard: if the inner field is requested without specific keys (e.g.
                 // `feature_flags.flags`), include all entries
-                Some(None) => feature_flags
-                    .as_ref()
-                    .map(|ff| ff.flags.clone())
-                    .unwrap_or_default(),
-                // If specific keys are requested (e.g. `feature_flags.flags.flag_a`), include only
-                // those entries
-                Some(Some(keys)) => feature_flags
-                    .as_ref()
-                    .map(|ff| {
-                        ff.flags
-                            .iter()
-                            .filter(|(k, _)| keys.contains(*k))
-                            .map(|(k, v)| (k.clone(), *v))
-                            .collect()
-                    })
-                    .unwrap_or_default(),
+                Some(None) => source.feature_map().into_iter().collect(),
+                // If specific keys are requested (e.g. `feature_flags.flags.flag_a`), include
+                // only those entries
+                Some(Some(keys)) => source
+                    .feature_map()
+                    .into_iter()
+                    .filter(|(k, _)| keys.contains(k.as_str()))
+                    .collect(),
             };
             self.feature_flags = Some(ProtocolFeatureFlags::default().with_flags(flags));
         }
@@ -145,27 +68,33 @@ impl Merge<&ProtocolConfig> for ProtocolConfig {
                 None => Default::default(),
                 // wildcard: if the inner field is requested without specific keys (e.g.
                 // `attributes.attributes`), include all entries
-                Some(None) => attributes
-                    .as_ref()
-                    .map(|a| a.attributes.clone())
-                    .unwrap_or_default(),
-                // If specific keys are requested (e.g. `attributes.attributes.key_a`), include only
-                // those entries
-                Some(Some(keys)) => attributes
-                    .as_ref()
-                    .map(|a| {
-                        a.attributes
-                            .iter()
-                            .filter(|(k, _)| keys.contains(*k))
-                            .map(|(k, v)| (k.clone(), v.clone()))
-                            .collect()
-                    })
-                    .unwrap_or_default(),
+                Some(None) => source
+                    .attr_map()
+                    .into_iter()
+                    .filter_map(|(k, v)| v.map(|v| (k, protocol_config_value_to_string(v))))
+                    .collect(),
+                // If specific keys are requested (e.g. `attributes.attributes.key_a`), include
+                // only those entries
+                Some(Some(keys)) => source
+                    .attr_map()
+                    .into_iter()
+                    .filter(|(k, _)| keys.contains(k.as_str()))
+                    .filter_map(|(k, v)| v.map(|v| (k, protocol_config_value_to_string(v))))
+                    .collect(),
             };
             self.attributes = Some(ProtocolAttributes::default().with_attributes(attrs));
         }
 
         Ok(())
+    }
+}
+
+fn protocol_config_value_to_string(v: ProtocolConfigValue) -> String {
+    match v {
+        ProtocolConfigValue::u16(x) => x.to_string(),
+        ProtocolConfigValue::u32(x) => x.to_string(),
+        ProtocolConfigValue::u64(x) => x.to_string(),
+        ProtocolConfigValue::bool(x) => x.to_string(),
     }
 }
 
@@ -873,39 +802,22 @@ impl Merge<&Transaction> for Transaction {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
-    use iota_grpc_types::{
-        field::FieldMaskUtil,
-        v0::epoch::{Epoch, ProtocolAttributes, ProtocolConfig, ProtocolFeatureFlags},
-    };
+    use iota_grpc_types::{field::FieldMaskUtil, v0::epoch::ProtocolConfig};
+    use iota_protocol_config::{Chain, ProtocolConfig as IotaProtocolConfig};
     use prost_types::FieldMask;
 
     use super::*;
 
-    fn make_protocol_config() -> ProtocolConfig {
-        let mut flags = BTreeMap::new();
-        flags.insert("flag_a".to_string(), true);
-        flags.insert("flag_b".to_string(), false);
-        flags.insert("flag_c".to_string(), true);
-
-        let mut attrs = BTreeMap::new();
-        attrs.insert("max_tx_gas".to_string(), "1000".to_string());
-        attrs.insert("max_num_events".to_string(), "256".to_string());
-        attrs.insert("other_attr".to_string(), "42".to_string());
-
-        ProtocolConfig::default()
-            .with_protocol_version(42)
-            .with_feature_flags(ProtocolFeatureFlags::default().with_flags(flags))
-            .with_attributes(ProtocolAttributes::default().with_attributes(attrs))
+    fn make_iota_protocol_config() -> IotaProtocolConfig {
+        IotaProtocolConfig::get_for_version(1.into(), Chain::Testnet)
     }
 
     // ── attributes ──────────────────────────────────────────────────────────
 
     #[test]
     fn test_protocol_config_merge_wrapper_only_gives_empty_attributes() {
-        // "attributes" (no inner field) → ProtocolAttributes present but map is empty
-        let source = make_protocol_config();
+        // "attributes" (bare wrapper) → ProtocolAttributes present but map is empty
+        let source = make_iota_protocol_config();
         let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths(["attributes"]));
         let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
         assert!(result.attributes.unwrap().attributes.is_empty());
@@ -913,56 +825,70 @@ mod tests {
 
     #[test]
     fn test_protocol_config_merge_attributes_field_returns_all() {
-        // "attributes.attributes" → all entries
-        let source = make_protocol_config();
+        // "attributes.attributes" → all non-None entries from attr_map()
+        let source = make_iota_protocol_config();
+        let expected_count = source
+            .attr_map()
+            .into_values()
+            .filter(Option::is_some)
+            .count();
         let mask =
             FieldMaskTree::from_field_mask(&FieldMask::from_paths(["attributes.attributes"]));
         let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
-        let attrs = result.attributes.unwrap();
-        assert_eq!(attrs.attributes.len(), 3);
-        assert_eq!(attrs.attributes["max_tx_gas"], "1000");
-        assert_eq!(attrs.attributes["max_num_events"], "256");
-        assert_eq!(attrs.attributes["other_attr"], "42");
+        assert_eq!(result.attributes.unwrap().attributes.len(), expected_count);
     }
 
     #[test]
-    fn test_protocol_config_merge_explicit_attribute_keys() {
-        // "attributes.attributes.key" → only that key
-        let source = make_protocol_config();
-        let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths([
-            "protocol_version",
-            "attributes.attributes.max_tx_gas",
-        ]));
+    fn test_protocol_config_merge_explicit_attribute_key() {
+        // "attributes.attributes.<key>" → only that one attribute
+        let source = make_iota_protocol_config();
+        let key = source
+            .attr_map()
+            .into_iter()
+            .find(|(_, v)| v.is_some())
+            .map(|(k, _)| k)
+            .unwrap();
+        let path = format!("attributes.attributes.{key}");
+        let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths([&path]));
         let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
-        assert_eq!(result.protocol_version, Some(42));
-        let attrs = result.attributes.unwrap();
-        assert_eq!(attrs.attributes.len(), 1);
-        assert_eq!(attrs.attributes["max_tx_gas"], "1000");
+        let attrs = result.attributes.unwrap().attributes;
+        assert_eq!(attrs.len(), 1);
+        assert!(attrs.contains_key(&key));
     }
 
     #[test]
     fn test_protocol_config_merge_multiple_attribute_keys() {
-        // Multiple "attributes.attributes.keyN" → only those keys
-        let source = make_protocol_config();
-        let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths([
-            "attributes.attributes.max_tx_gas",
-            "attributes.attributes.max_num_events",
-        ]));
+        // Multiple "attributes.attributes.<key>" → only those keys
+        let source = make_iota_protocol_config();
+        let keys: Vec<String> = source
+            .attr_map()
+            .into_iter()
+            .filter(|(_, v)| v.is_some())
+            .map(|(k, _)| k)
+            .take(2)
+            .collect();
+        assert_eq!(keys.len(), 2, "expected at least 2 non-None attributes");
+        let paths: Vec<String> = keys
+            .iter()
+            .map(|k| format!("attributes.attributes.{k}"))
+            .collect();
+        let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths(
+            paths.iter().map(String::as_str),
+        ));
         let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
-        let attrs = result.attributes.unwrap();
-        assert_eq!(attrs.attributes.len(), 2);
-        assert!(attrs.attributes.contains_key("max_tx_gas"));
-        assert!(attrs.attributes.contains_key("max_num_events"));
-        assert!(!attrs.attributes.contains_key("other_attr"));
+        let attrs = result.attributes.unwrap().attributes;
+        assert_eq!(attrs.len(), 2);
+        assert!(attrs.contains_key(&keys[0]));
+        assert!(attrs.contains_key(&keys[1]));
     }
 
     // ── feature_flags ────────────────────────────────────────────────────────
 
     #[test]
     fn test_protocol_config_merge_wrapper_only_gives_empty_flags() {
-        // "feature_flags" (no inner field) → ProtocolFeatureFlags present but map is
+        // "feature_flags" (bare wrapper) → ProtocolFeatureFlags present but map is
         // empty
-        let source = make_protocol_config();
+        let source = make_iota_protocol_config();
         let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths(["feature_flags"]));
         let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
         assert!(result.feature_flags.unwrap().flags.is_empty());
@@ -970,64 +896,58 @@ mod tests {
 
     #[test]
     fn test_protocol_config_merge_flags_field_returns_all() {
-        // "feature_flags.flags" → all flags
-        let source = make_protocol_config();
+        // "feature_flags.flags" → all entries from feature_map()
+        let source = make_iota_protocol_config();
+        let expected_count = source.feature_map().len();
         let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths(["feature_flags.flags"]));
         let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
-        let flags = result.feature_flags.unwrap();
-        assert_eq!(flags.flags.len(), 3);
-        assert!(flags.flags["flag_a"]);
-        assert!(!flags.flags["flag_b"]);
-        assert!(flags.flags["flag_c"]);
+        assert_eq!(result.feature_flags.unwrap().flags.len(), expected_count);
     }
 
     #[test]
-    fn test_protocol_config_merge_explicit_flag_keys() {
-        // "feature_flags.flags.keyN" → only those flags
-        let source = make_protocol_config();
-        let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths([
-            "feature_flags.flags.flag_a",
-            "feature_flags.flags.flag_c",
-        ]));
+    fn test_protocol_config_merge_explicit_flag_key() {
+        // "feature_flags.flags.<key>" → only that one flag
+        let source = make_iota_protocol_config();
+        let key = source.feature_map().into_keys().next().unwrap();
+        let path = format!("feature_flags.flags.{key}");
+        let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths([&path]));
         let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
-        let flags = result.feature_flags.unwrap();
-        assert_eq!(flags.flags.len(), 2);
-        assert!(flags.flags["flag_a"]);
-        assert!(flags.flags["flag_c"]);
-        assert!(!flags.flags.contains_key("flag_b"));
+        let flags = result.feature_flags.unwrap().flags;
+        assert_eq!(flags.len(), 1);
+        assert!(flags.contains_key(&key));
+    }
+
+    #[test]
+    fn test_protocol_config_merge_multiple_flag_keys() {
+        // Multiple "feature_flags.flags.<key>" → only those keys
+        let source = make_iota_protocol_config();
+        let keys: Vec<String> = source.feature_map().into_keys().take(2).collect();
+        assert_eq!(keys.len(), 2, "expected at least 2 feature flags");
+        let paths: Vec<String> = keys
+            .iter()
+            .map(|k| format!("feature_flags.flags.{k}"))
+            .collect();
+        let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths(
+            paths.iter().map(String::as_str),
+        ));
+        let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
+        let flags = result.feature_flags.unwrap().flags;
+        assert_eq!(flags.len(), 2);
+        assert!(flags.contains_key(&keys[0]));
+        assert!(flags.contains_key(&keys[1]));
     }
 
     // ── misc ─────────────────────────────────────────────────────────────────
 
     #[test]
-    fn test_protocol_config_merge_no_map_fields_when_not_requested() {
-        let source = make_protocol_config();
+    fn test_protocol_config_merge_version_only() {
+        // "protocol_version" → version set, no map fields populated
+        let source = make_iota_protocol_config();
+        let expected_version = source.version.as_u64();
         let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths(["protocol_version"]));
         let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
-        assert_eq!(result.protocol_version, Some(42));
+        assert_eq!(result.protocol_version, Some(expected_version));
         assert!(result.feature_flags.is_none());
         assert!(result.attributes.is_none());
-    }
-
-    #[test]
-    fn test_epoch_merge_protocol_config_with_key_filter() {
-        let mut epoch = Epoch::default();
-        epoch.epoch = Some(1);
-        epoch.protocol_config = Some(make_protocol_config());
-
-        let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths([
-            "epoch",
-            "protocol_config.protocol_version",
-            "protocol_config.attributes.attributes.max_tx_gas",
-        ]));
-
-        let result = Epoch::merge_from(&epoch, &mask).unwrap();
-
-        assert_eq!(result.epoch, Some(1));
-        let pc = result.protocol_config.unwrap();
-        assert_eq!(pc.protocol_version, Some(42));
-        let attrs = pc.attributes.unwrap();
-        assert_eq!(attrs.attributes.len(), 1);
-        assert_eq!(attrs.attributes["max_tx_gas"], "1000");
     }
 }
