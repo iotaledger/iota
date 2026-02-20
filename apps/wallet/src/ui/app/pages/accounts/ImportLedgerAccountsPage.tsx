@@ -13,6 +13,7 @@ import {
     type DerivedLedgerAccount,
     Overlay,
 } from '_components';
+import { useAccounts } from '_hooks';
 import { getIotaApplicationErrorMessage } from '../../helpers/errorMessages';
 import { Button, ButtonType, LoadingIndicator } from '@iota/apps-ui-kit';
 
@@ -58,7 +59,11 @@ export function ImportLedgerAccountsPage() {
         [setSelectedLedgerAccounts],
     );
 
-    const numImportableAccounts = accounts?.length;
+    const { data: existingAccounts } = useAccounts();
+    const existingAddresses = new Set((existingAccounts ?? []).map((acc) => acc.address));
+
+    const importableAccounts = accounts?.filter((acc) => !existingAddresses.has(acc.address));
+    const numImportableAccounts = importableAccounts?.length ?? 0;
     const numSelectedAccounts = selectedLedgerAccounts.size;
     const isUnlockButtonDisabled = numSelectedAccounts === 0;
     const [, setAccountsFormValues] = useAccountsFormContext();
@@ -82,10 +87,10 @@ export function ImportLedgerAccountsPage() {
     }
 
     function selectAllAccounts() {
-        const areAllAccountsSelected = numSelectedAccounts === numImportableAccounts;
-        if (accounts && !areAllAccountsSelected) {
-            setSelectedLedgerAccounts(new Set(accounts.map((acc) => acc.address)));
-        } else if (areAllAccountsSelected) {
+        const areAllImportableAccountsSelected = numSelectedAccounts === numImportableAccounts;
+        if (importableAccounts && !areAllImportableAccountsSelected) {
+            setSelectedLedgerAccounts(new Set(importableAccounts.map((acc) => acc.address)));
+        } else if (areAllImportableAccountsSelected) {
             setSelectedLedgerAccounts(new Set());
         }
     }
