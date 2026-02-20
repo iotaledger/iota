@@ -32,14 +32,14 @@ const ETransactionDoesNotHaveSufficientApprovals: vector<u8> =
 
 // === Structs ===
 
-/// A dynamic field key for the account members.
-public struct MembersField has copy, drop, store {}
+/// A dynamic field name for the account members.
+public struct MembersFieldName has copy, drop, store {}
 
-/// A dynamic field key for the threshold.
-public struct ThresholdField has copy, drop, store {}
+/// A dynamic field name for the threshold.
+public struct ThresholdFieldName has copy, drop, store {}
 
-/// A dynamic field key for the transactions.
-public struct TransactionsField has copy, drop, store {}
+/// A dynamic field name for the transactions.
+public struct TransactionsFieldName has copy, drop, store {}
 
 /// This struct represents a dynamic multisig account.
 public struct DynamicMultisigAccount has key {
@@ -67,9 +67,9 @@ public fun create(
     let mut id = object::new(ctx);
 
     // Add all the data as dynamic fields.
-    df::add(&mut id, members_field(), members);
-    df::add(&mut id, threshold_field(), threshold);
-    df::add(&mut id, transactions_field(), transactions::create(ctx));
+    df::add(&mut id, members_field_name(), members);
+    df::add(&mut id, threshold_field_name(), threshold);
+    df::add(&mut id, transactions_field_name(), transactions::create(ctx));
 
     let account = DynamicMultisigAccount { id };
 
@@ -101,8 +101,8 @@ public fun update_account_data(
     let account_id = &mut self.id;
 
     // Update the dynamic fields. It is expected that the fields already exist.
-    update_df(account_id, members_field(), members);
-    update_df(account_id, threshold_field(), threshold);
+    update_df(account_id, members_field_name(), members);
+    update_df(account_id, threshold_field_name(), threshold);
 
     account::rotate_auth_function_ref_v1(self, authenticator);
 }
@@ -181,17 +181,17 @@ public fun get_address(self: &DynamicMultisigAccount): address {
 
 /// Borrows the account threshold.
 public fun threshold(self: &DynamicMultisigAccount): u64 {
-    *df::borrow(&self.id, threshold_field())
+    *df::borrow(&self.id, threshold_field_name())
 }
 
 /// Immutably borrows the account members.
 public fun members(self: &DynamicMultisigAccount): &Members {
-    df::borrow(&self.id, members_field())
+    df::borrow(&self.id, members_field_name())
 }
 
 /// Immutably borrows the account transactions.
 public fun transactions(self: &DynamicMultisigAccount): &Transactions {
-    df::borrow(&self.id, transactions_field())
+    df::borrow(&self.id, transactions_field_name())
 }
 
 /// Returns the total weight of the members who approved the transaction with the provided digest.
@@ -229,23 +229,23 @@ fun ensure_tx_sender_is_account(self: &DynamicMultisigAccount, ctx: &TxContext) 
 }
 
 /// Returns the dynamic field name used to store the members information.
-fun members_field(): MembersField {
-    MembersField {}
+fun members_field_name(): MembersFieldName {
+    MembersFieldName {}
 }
 
 /// Returns the dynamic field name used to store the threshold.
-fun threshold_field(): ThresholdField {
-    ThresholdField {}
+fun threshold_field_name(): ThresholdFieldName {
+    ThresholdFieldName {}
 }
 
 /// Returns the dynamic field name used to store the transactions.
-fun transactions_field(): TransactionsField {
-    TransactionsField {}
+fun transactions_field_name(): TransactionsFieldName {
+    TransactionsFieldName {}
 }
 
 /// Mutably borrows the account transactions.
 fun transactions_mut(self: &mut DynamicMultisigAccount): &mut Transactions {
-    df::borrow_mut(&mut self.id, transactions_field())
+    df::borrow_mut(&mut self.id, transactions_field_name())
 }
 
 /// Verifies the threshold.

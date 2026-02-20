@@ -34,8 +34,8 @@ const ESecp256r1VerificationFailed: vector<u8> = b"Secp256r1 authenticator verif
 
 // === Structs ===
 
-/// A dynamic field key for the account owner public key.
-public struct PublicKeyField has copy, drop, store {}
+/// A dynamic field name for the account owner public key.
+public struct PublicKeyFieldName has copy, drop, store {}
 
 // === Public Functions ===
 
@@ -43,22 +43,22 @@ public struct PublicKeyField has copy, drop, store {}
 public fun attach_public_key(account_id: &mut UID, public_key: vector<u8>) {
     assert!(!has_public_key(account_id), EPublicKeyAlreadyAttached);
 
-    df::add(account_id, PublicKeyField {}, public_key)
+    df::add(account_id, PublicKeyFieldName {}, public_key)
 }
 
 /// Detach public key data from the account.
 public fun detach_public_key(account_id: &mut UID): vector<u8> {
     assert!(has_public_key(account_id), EPublicKeyMissing);
 
-    df::remove(account_id, PublicKeyField {})
+    df::remove(account_id, PublicKeyFieldName {})
 }
 
 /// Update the public key attached to the account.
 public fun rotate_public_key(account_id: &mut UID, public_key: vector<u8>): vector<u8> {
     assert!(has_public_key(account_id), EPublicKeyMissing);
 
-    let prev_public_key = df::remove(account_id, PublicKeyField {});
-    df::add(account_id, PublicKeyField {}, public_key);
+    let prev_public_key = df::remove(account_id, PublicKeyFieldName {});
+    df::add(account_id, PublicKeyFieldName {}, public_key);
     prev_public_key
 }
 
@@ -95,21 +95,21 @@ public fun authenticate_secp256r1(account_id: &UID, signature: vector<u8>, ctx: 
 
 /// An utility function to check if the account has a public key set.
 public fun has_public_key(account_id: &UID): bool {
-    df::exists_(account_id, PublicKeyField {})
+    df::exists_(account_id, PublicKeyFieldName {})
 }
 
 /// An utility function to borrow the account-related public key.
 public fun borrow_public_key(account_id: &UID): &vector<u8> {
-    df::borrow(account_id, PublicKeyField {})
+    df::borrow(account_id, PublicKeyFieldName {})
 }
 
 // === Admin Functions ===
 
 // === Package Functions ===
 
-/// An utility function to construct the dynamic field key for the public key field.
-public(package) fun public_key_field(): PublicKeyField {
-    PublicKeyField {}
+/// An utility function to construct the dynamic field name for the public key field.
+public(package) fun public_key_field_name(): PublicKeyFieldName {
+    PublicKeyFieldName {}
 }
 
 // === Private Functions ===

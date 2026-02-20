@@ -17,7 +17,7 @@ use iota::clock::Clock;
 use iotaccount::iotaccount::{Self, IOTAccount, IOTAccountBuilder};
 use iotaccount::public_key_iotaccount;
 use public_key_authentication::public_key_authentication;
-use time_locked::unlock_time_authentication::{Self, unlock_time_field};
+use time_locked::unlock_time_authentication::{Self, unlock_time_field_name};
 
 /// Allows calling `.with_public_key` on an `IOTAccountBuilder` to set a `public_key`.
 use fun public_key_iotaccount::with_public_key as IOTAccountBuilder.with_public_key;
@@ -50,7 +50,7 @@ public fun create(
     // Create builder and attach the public key and the unlock time field to the account.
     let builder = iotaccount::builder(authenticator, ctx)
         .with_public_key(public_key)
-        .with_field(unlock_time_field(), unlock_time);
+        .with_field(unlock_time_field_name(), unlock_time);
     // Optionally attach the admin
     let builder = if (admin.is_some()) {
         builder.with_admin(admin.destroy_some())
@@ -64,7 +64,7 @@ public fun create(
 
 /// Attach an unlock time as a dynamic field to the account being built.
 public fun with_unlock_time(builder: IOTAccountBuilder, unlock_time: u64): IOTAccountBuilder {
-    builder.with_field(unlock_time_field(), unlock_time)
+    builder.with_field(unlock_time_field_name(), unlock_time)
 }
 
 /// Rotates the account unlock time to a new one as well as the authenticator. It rotates the account public key if
@@ -78,7 +78,7 @@ public fun rotate_unlock_time(
     ctx: &TxContext,
 ) {
     // Update the account owner unlock time dynamic field. It is expected that the field already exists.
-    account.rotate_field(unlock_time_field(), unlock_time, ctx);
+    account.rotate_field(unlock_time_field_name(), unlock_time, ctx);
 
     if (public_key.is_some()) {
         // Optionally update the account owner public key dynamic field. It is expected that the field already exists
@@ -93,13 +93,13 @@ public fun rotate_unlock_time(
 // Attach unlock time data to the account with the provided `unlock_time`.
 // `unlock_time` is the unix timestamp in millisecond.
 public fun add_unlock_time(account: &mut IOTAccount, unlock_time: u64, ctx: &TxContext) {
-    account.add_field(unlock_time_field(), unlock_time, ctx);
+    account.add_field(unlock_time_field_name(), unlock_time, ctx);
 }
 
 // Detach unlock time data from the account, disabling unlock time based authentication
 // for the account.
 public fun remove_unlock_time(account: &mut IOTAccount, ctx: &TxContext) {
-    account.remove_field<_, u64>(unlock_time_field(), ctx);
+    account.remove_field<_, u64>(unlock_time_field_name(), ctx);
 }
 
 // === Authenticators ===
@@ -145,10 +145,10 @@ public fun unlock_time_epoch_ed25519_IOTAccount_authenticator(
 
 /// An utility function to check if the account has an unlock time set.
 public fun has_unlock_time(account: &IOTAccount): bool {
-    account.has_field(unlock_time_field())
+    account.has_field(unlock_time_field_name())
 }
 
 /// An utility function to borrow the account-related unlock time.
 public fun borrow_unlock_time(account: &IOTAccount): &u64 {
-    account.borrow_field(unlock_time_field())
+    account.borrow_field(unlock_time_field_name())
 }

@@ -23,8 +23,8 @@ const EUnlockTimeMissing: vector<u8> = b"Unlock time missing.";
 
 // === Structs ===
 
-// A dynamic field key used for storing the "unlock time" for an account.
-public struct UnlockTimeField has copy, drop, store {}
+// A dynamic field name used for storing the "unlock time" for an account.
+public struct UnlockTimeFieldName has copy, drop, store {}
 
 // === Public Functions ===
 
@@ -32,7 +32,7 @@ public struct UnlockTimeField has copy, drop, store {}
 // `unlock_time` is the unix timestamp in millisecond.
 public fun attach_unlock_time(account_id: &mut UID, unlock_time: u64) {
     assert!(!has_unlock_time(account_id), EUnlockTimeAttached);
-    df::add(account_id, UnlockTimeField {}, unlock_time)
+    df::add(account_id, UnlockTimeFieldName {}, unlock_time)
 }
 
 // Detach unlock time data from the account, disabling unlock time based authentication
@@ -40,15 +40,15 @@ public fun attach_unlock_time(account_id: &mut UID, unlock_time: u64) {
 public fun detach_unlock_time(account_id: &mut UID): u64 {
     assert!(has_unlock_time(account_id), EUnlockTimeMissing);
 
-    df::remove(account_id, UnlockTimeField {})
+    df::remove(account_id, UnlockTimeFieldName {})
 }
 
 // Update the unlock time after which the account will unlock.
 public fun rotate_unlock_time(account_id: &mut UID, unlock_time: u64): u64 {
     assert!(has_unlock_time(account_id), EUnlockTimeMissing);
 
-    let prev_unlock_time = df::remove(account_id, UnlockTimeField {});
-    df::add(account_id, UnlockTimeField {}, unlock_time);
+    let prev_unlock_time = df::remove(account_id, UnlockTimeFieldName {});
+    df::add(account_id, UnlockTimeFieldName {}, unlock_time);
     prev_unlock_time
 }
 
@@ -81,18 +81,18 @@ public fun authenticate_unlock_time(account_id: &UID, current_time: u64) {
 
 // Check if the account has an unlock time set.
 public fun has_unlock_time(account_id: &UID): bool {
-    df::exists_(account_id, UnlockTimeField {})
+    df::exists_(account_id, UnlockTimeFieldName {})
 }
 
 // Borrow the unix timestamp in milliseconds after which (including) the account
 // will be accessible.
 public fun borrow_unlock_time(account_id: &UID): &u64 {
-    df::borrow(account_id, UnlockTimeField {})
+    df::borrow(account_id, UnlockTimeFieldName {})
 }
 
 // === Package Functions ===
 
-// An utility function to construct the dynamic field key for the unlock time field.
-public(package) fun unlock_time_field(): UnlockTimeField {
-    UnlockTimeField {}
+// An utility function to construct the dynamic field name for the unlock time field.
+public(package) fun unlock_time_field_name(): UnlockTimeFieldName {
+    UnlockTimeFieldName {}
 }

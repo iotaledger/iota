@@ -14,7 +14,7 @@ module public_key_authentication::public_key_iotaccount;
 
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iotaccount::iotaccount::{Self, IOTAccount, IOTAccountBuilder};
-use public_key_authentication::public_key_authentication::{Self, public_key_field};
+use public_key_authentication::public_key_authentication::{Self, public_key_field_name};
 
 // === Errors ===
 
@@ -33,7 +33,7 @@ public fun create(
     authenticator: AuthenticatorFunctionRefV1<IOTAccount>,
     ctx: &mut TxContext,
 ) {
-    iotaccount::builder(authenticator, ctx).with_field(public_key_field(), public_key).build();
+    iotaccount::builder(authenticator, ctx).with_field(public_key_field_name(), public_key).build();
 }
 
 /// Creates a new `IOTAccount` as a shared object with the given authenticator.
@@ -47,14 +47,14 @@ public fun create_with_admin(
     ctx: &mut TxContext,
 ) {
     iotaccount::builder(authenticator, ctx)
-        .with_field(public_key_field(), public_key)
+        .with_field(public_key_field_name(), public_key)
         .with_admin(admin)
         .build();
 }
 
 /// Attach a PublicKey as a dynamic field to the account being built.
 public fun with_public_key(self: IOTAccountBuilder, public_key: vector<u8>): IOTAccountBuilder {
-    self.with_field(public_key_field(), public_key)
+    self.with_field(public_key_field_name(), public_key)
 }
 
 /// Rotates the account owner public key to a new one as well as the authenticator.
@@ -67,7 +67,7 @@ public fun rotate_public_key(
     ctx: &TxContext,
 ) {
     // Update the account owner public key dynamic field. It is expected that the field already exists.
-    account.rotate_field(public_key_field(), public_key, ctx);
+    account.rotate_field(public_key_field_name(), public_key, ctx);
 
     // Update the account authenticator dynamic field. It is expected that the field already exists.
     account.rotate_auth_function_ref_v1(authenticator, ctx);
@@ -83,7 +83,7 @@ public fun add_public_key(
     ctx: &TxContext,
 ) {
     // Update the account owner public key dynamic field. It is expected that the field does not exist.
-    account.add_field(public_key_field(), public_key, ctx);
+    account.add_field(public_key_field_name(), public_key, ctx);
 
     // Update the account authenticator dynamic field. It is expected that the field already exists.
     account.rotate_auth_function_ref_v1(authenticator, ctx);
@@ -128,12 +128,12 @@ public fun secp256r1_IOTAccount_authenticator(
 
 /// An utility function to check if the account has a public key set.
 public fun has_public_key(account: &IOTAccount): bool {
-    account.has_field(public_key_field())
+    account.has_field(public_key_field_name())
 }
 
 /// An utility function to borrow the account-related public key.
 public fun borrow_public_key(account: &IOTAccount): &vector<u8> {
-    account.borrow_field(public_key_field())
+    account.borrow_field(public_key_field_name())
 }
 
 // === Admin Functions ===

@@ -50,7 +50,7 @@ public struct FunctionCallKeysStore has store {
 }
 
 /// Dynamic-field name for the Function Call Keys Store.
-public struct FunctionCallKeysStoreField has copy, drop, store {}
+public struct FunctionCallKeysStoreFieldName has copy, drop, store {}
 
 // === Helpers ===
 
@@ -121,6 +121,6 @@ public fun extract_function_ref(cmd: &Command): FunctionRef {
 // === Public Package ===
 
 /// An utility function to construct the dynamic field key for the Function Call Keys Store.
-public(package) fun function_call_keys_store_field(): FunctionCallKeysStoreField {
-    FunctionCallKeysStoreField {}
+public(package) fun function_call_keys_store_field_name(): FunctionCallKeysStoreFieldName {
+    FunctionCallKeysStoreFieldName {}
 }

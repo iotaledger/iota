@@ -23,8 +23,8 @@ const EInvalidLimit: vector<u8> = b"Invalid spending limit.";
 
 // === Structs ===
 
-/// A dynamic field key for the spending limit.
-public struct SpendingLimitField has copy, drop, store {}
+/// A dynamic field name for the spending limit.
+public struct SpendingLimitFieldName has copy, drop, store {}
 
 // === Events ===
 
@@ -36,21 +36,21 @@ public struct SpendingLimitField has copy, drop, store {}
 public fun attach_spending_limit(account_id: &mut UID, amount: u64) {
     assert!(!has_spending_limit(account_id), ESpendingLimitAlreadyAttached);
     assert!(amount > 0, EInvalidLimit);
-    df::add(account_id, SpendingLimitField {}, amount)
+    df::add(account_id, SpendingLimitFieldName {}, amount)
 }
 
 /// Detaches the spending limit from the given account ID and returns the previous limit.
 public fun detach_spending_limit(account_id: &mut UID): u64 {
     assert!(has_spending_limit(account_id), ESpendingLimitMissing);
-    df::remove(account_id, SpendingLimitField {})
+    df::remove(account_id, SpendingLimitFieldName {})
 }
 
 /// Rotates the spending limit to a new amount, returning the previous limit.
 public fun rotate_spending_limit(account_id: &mut UID, amount: u64): u64 {
     assert!(has_spending_limit(account_id), ESpendingLimitMissing);
     assert!(amount > 0, EInvalidLimit);
-    let prev_limit = df::remove(account_id, SpendingLimitField {});
-    df::add(account_id, SpendingLimitField {}, amount);
+    let prev_limit = df::remove(account_id, SpendingLimitFieldName {});
+    df::add(account_id, SpendingLimitFieldName {}, amount);
     prev_limit
 }
 
@@ -68,12 +68,12 @@ public fun authenticate_spending_limit(account_id: &UID, amount: u64) {
 
 /// An utility function to check if the account has a spending limit set.
 public fun has_spending_limit(account_id: &UID): bool {
-    df::exists_(account_id, SpendingLimitField {})
+    df::exists_(account_id, SpendingLimitFieldName {})
 }
 
 /// An utility function to borrow the spending limit value for the given account ID.
 public fun borrow_spending_limit(account_id: &UID): &u64 {
-    df::borrow(account_id, SpendingLimitField {})
+    df::borrow(account_id, SpendingLimitFieldName {})
 }
 
 // === Admin Functions ===
@@ -82,12 +82,12 @@ public fun borrow_spending_limit(account_id: &UID): &u64 {
 
 /// Returns a mutable reference to the spending limit for the given account ID.
 public(package) fun borrow_mut_spending_limit(account_id: &mut UID): &mut u64 {
-    df::borrow_mut(account_id, SpendingLimitField {})
+    df::borrow_mut(account_id, SpendingLimitFieldName {})
 }
 
-// An utility function to construct the dynamic field key for the spending limit field.
-public(package) fun spending_limit_field(): SpendingLimitField {
-    SpendingLimitField {}
+// An utility function to construct the dynamic field name for the spending limit field.
+public(package) fun spending_limit_field_name(): SpendingLimitFieldName {
+    SpendingLimitFieldName {}
 }
 
 // === Private Functions ===

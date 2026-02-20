@@ -11,7 +11,7 @@ use iotaccount::test_utils::create_authenticator_function_ref_v1_for_testing;
 
 // -------------------------------- Create IOTAccount --------------------------------
 
-public struct DynamicFieldKey has copy, drop, store {}
+public struct DynamicFieldName has copy, drop, store {}
 
 #[test]
 fun builder_all_mandatory_fields_set() {
@@ -19,12 +19,12 @@ fun builder_all_mandatory_fields_set() {
     let mut scenario_val = test_scenario::begin(test_sender);
     let scenario = &mut scenario_val;
 
-    let dynamic_field_key = DynamicFieldKey {};
+    let dynamic_field_name = DynamicFieldName {};
 
     let authenticator = create_authenticator_function_ref_v1_for_testing();
     // Any field value can be set as a dynamic field, and for the purposes of this test
     // the exact value doesn't matter.
-    iotaccount::builder(authenticator, scenario.ctx()).with_field(dynamic_field_key, 6).build();
+    iotaccount::builder(authenticator, scenario.ctx()).with_field(dynamic_field_name, 6).build();
 
     scenario.next_tx(@0x0);
     {
@@ -37,8 +37,8 @@ fun builder_all_mandatory_fields_set() {
         );
 
         // Check the added dynamic field contains the set value.
-        assert!(account.has_field(dynamic_field_key));
-        assert_eq(*account.borrow_field(dynamic_field_key), 6);
+        assert!(account.has_field(dynamic_field_name));
+        assert_eq(*account.borrow_field(dynamic_field_name), 6);
 
         test_scenario::return_shared(account);
     };

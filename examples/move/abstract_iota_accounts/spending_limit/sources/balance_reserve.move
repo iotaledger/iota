@@ -25,7 +25,7 @@ public struct BalanceReserve<phantom T> has store {
 }
 
 /// Marker for the gas reserve balance (outside balance reserve).
-public struct BalanceReserveField has copy, drop, store {}
+public struct BalanceReserveFieldName has copy, drop, store {}
 
 // === Public Functions ===
 
@@ -55,14 +55,14 @@ public fun deposit_to_balance_reserve<T>(self: &mut BalanceReserve<T>, balance: 
 public fun attach_balance_reserve<T>(account_id: &mut UID, reserve: BalanceReserve<T>) {
     assert!(!has_balance_reserve(account_id), EBalanceReserveAlreadyAttached);
 
-    df::add(account_id, BalanceReserveField {}, reserve)
+    df::add(account_id, BalanceReserveFieldName {}, reserve)
 }
 
 /// Detaches the balance reserve from the given account ID and returns the previous reserve.
 public fun detach_balance_reserve<T>(account_id: &mut UID): BalanceReserve<T> {
     assert!(has_balance_reserve(account_id), EBalanceReserveMissing);
 
-    df::remove(account_id, BalanceReserveField {})
+    df::remove(account_id, BalanceReserveFieldName {})
 }
 
 /// Rotates the balance reserve to a new amount, returning the previous reserve.
@@ -72,10 +72,10 @@ public fun rotate_balance_reserve<T>(
 ): BalanceReserve<T> {
     assert!(has_balance_reserve(account_id), EBalanceReserveMissing);
 
-    let prev_reserve = df::remove(account_id, BalanceReserveField {});
+    let prev_reserve = df::remove(account_id, BalanceReserveFieldName {});
     df::add(
         account_id,
-        BalanceReserveField {},
+        BalanceReserveFieldName {},
         reserve,
     );
     prev_reserve
@@ -85,12 +85,12 @@ public fun rotate_balance_reserve<T>(
 
 /// An utility function to check if the account has a balance reserve set.
 public fun has_balance_reserve(account_id: &UID): bool {
-    df::exists_(account_id, BalanceReserveField {})
+    df::exists_(account_id, BalanceReserveFieldName {})
 }
 
 /// An utility function to borrow the balance reserve value for the given account ID.
 public fun borrow_balance_reserve<T>(account_id: &UID): &BalanceReserve<T> {
-    df::borrow(account_id, BalanceReserveField {})
+    df::borrow(account_id, BalanceReserveFieldName {})
 }
 
 // === Admin Functions ===
@@ -99,12 +99,12 @@ public fun borrow_balance_reserve<T>(account_id: &UID): &BalanceReserve<T> {
 
 /// Returns a mutable reference to the balance reserve for the given account ID.
 public(package) fun borrow_mut_balance_reserve<T>(account_id: &mut UID): &mut BalanceReserve<T> {
-    df::borrow_mut(account_id, BalanceReserveField {})
+    df::borrow_mut(account_id, BalanceReserveFieldName {})
 }
 
-/// An utility function to construct the dynamic field key for the balance reserve field.
-public(package) fun balance_reserve_field(): BalanceReserveField {
-    BalanceReserveField {}
+/// An utility function to construct the dynamic field name for the balance reserve field.
+public(package) fun balance_reserve_field_name(): BalanceReserveFieldName {
+    BalanceReserveFieldName {}
 }
 
 // === Private Functions ===

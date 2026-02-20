@@ -30,7 +30,7 @@ use function_call_keys::function_call_keys_store::{
     allow,
     disallow,
     is_allowed,
-    function_call_keys_store_field
+    function_call_keys_store_field_name
 };
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::ed25519;
@@ -86,7 +86,7 @@ public fun create(
     let builder = iotaccount::builder(authenticator, ctx)
         .with_public_key(public_key)
         .with_field(
-            function_call_keys_store_field(),
+            function_call_keys_store_field_name(),
             function_call_keys_store::build_fn_keys_store(ctx),
         );
     // Optionally attach the admin
@@ -105,7 +105,7 @@ public fun with_function_call_keys_store(
     builder: IOTAccountBuilder,
     function_call_keys_store: FunctionCallKeysStore,
 ): IOTAccountBuilder {
-    builder.with_field(function_call_keys_store_field(), function_call_keys_store)
+    builder.with_field(function_call_keys_store_field_name(), function_call_keys_store)
 }
 
 // === Authenticators ===
@@ -147,7 +147,7 @@ public fun ed25519_IOTAccount_FunctionCallKeys_authenticator(
     } else {
         // FUNCTION CALL KEY FLOW
         assert!(
-            account.has_field(function_call_keys_store_field()),
+            account.has_field(function_call_keys_store_field_name()),
             EFunctionCallKeysNotInitialized,
         );
         // Verify delegated signature against provided pub_key.
@@ -173,10 +173,13 @@ public fun grant_permission(
     function_ref: FunctionRef,
     ctx: &TxContext,
 ) {
-    assert!(account.has_field(function_call_keys_store_field()), EFunctionCallKeysNotInitialized);
+    assert!(
+        account.has_field(function_call_keys_store_field_name()),
+        EFunctionCallKeysNotInitialized,
+    );
 
     let function_call_keys_store = account.borrow_field_mut<_, FunctionCallKeysStore>(
-        function_call_keys_store_field(),
+        function_call_keys_store_field_name(),
         ctx,
     );
     function_call_keys_store.allow(pub_key, function_ref);
@@ -190,10 +193,13 @@ public fun revoke_permission(
     function_ref: &FunctionRef,
     ctx: &TxContext,
 ) {
-    assert!(account.has_field(function_call_keys_store_field()), EFunctionCallKeysNotInitialized);
+    assert!(
+        account.has_field(function_call_keys_store_field_name()),
+        EFunctionCallKeysNotInitialized,
+    );
 
     let function_call_keys_store = account.borrow_field_mut<_, FunctionCallKeysStore>(
-        function_call_keys_store_field(),
+        function_call_keys_store_field_name(),
         ctx,
     );
     function_call_keys_store.disallow(pub_key, function_ref);
@@ -207,10 +213,10 @@ public fun has_permission(
     pub_key: vector<u8>,
     function_ref: &FunctionRef,
 ): bool {
-    if (!account.has_field(function_call_keys_store_field())) return false;
+    if (!account.has_field(function_call_keys_store_field_name())) return false;
 
     let function_call_keys_store = account.borrow_field<_, FunctionCallKeysStore>(
-        function_call_keys_store_field(),
+        function_call_keys_store_field_name(),
     );
     function_call_keys_store.is_allowed(pub_key, function_ref)
 }
