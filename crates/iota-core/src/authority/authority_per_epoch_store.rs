@@ -2980,7 +2980,7 @@ impl AuthorityPerEpochStore {
     >(
         &self,
         transactions: Vec<SequencedConsensusTransaction>,
-        additional_states: &AdditionalConsensusStates,
+        additional_consensus_states: &AdditionalConsensusStates,
         consensus_stats: &ExecutionIndicesWithStats,
         checkpoint_service: &Arc<C>,
         cache_reader: &dyn ObjectCacheRead,
@@ -3190,7 +3190,7 @@ impl AuthorityPerEpochStore {
         ) = self
             .process_consensus_transactions(
                 &mut output,
-                additional_states,
+                additional_consensus_states,
                 &consensus_transactions,
                 &end_of_publish_transactions,
                 checkpoint_service,
@@ -3361,7 +3361,7 @@ impl AuthorityPerEpochStore {
         transactions: &mut VecDeque<VerifiedExecutableTransaction>,
         consensus_commit_info: &ConsensusCommitInfo,
         cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusCertificateReason>,
-        additional_states: &AdditionalConsensusStates,
+        additional_consensus_states: &AdditionalConsensusStates,
     ) -> IotaResult<Option<TransactionKey>> {
         {
             if consensus_commit_info.skip_consensus_commit_prologue_in_test() {
@@ -3404,7 +3404,7 @@ impl AuthorityPerEpochStore {
             self.epoch(),
             self.protocol_config(),
             version_assignment,
-            additional_states,
+            additional_consensus_states,
         );
         let consensus_commit_prologue_root = match self
             .process_consensus_system_transaction(&transaction)
@@ -3539,7 +3539,7 @@ impl AuthorityPerEpochStore {
     pub(crate) async fn process_consensus_transactions<C: CheckpointServiceNotify>(
         &self,
         output: &mut ConsensusCommitOutput,
-        additional_states: &AdditionalConsensusStates,
+        additional_consensus_states: &AdditionalConsensusStates,
         transactions: &[VerifiedSequencedConsensusTransaction],
         end_of_publish_transactions: &[VerifiedSequencedConsensusTransaction],
         checkpoint_service: &Arc<C>,
@@ -3796,7 +3796,7 @@ impl AuthorityPerEpochStore {
             &mut verified_certificates,
             consensus_commit_info,
             &cancelled_txns,
-            additional_states,
+            additional_consensus_states,
         )?;
 
         let verified_certificates: Vec<_> = verified_certificates.into();
