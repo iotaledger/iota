@@ -131,7 +131,7 @@ mod additional_consensus_states {
     //   testing purposes.
     //
     // To use the field in ConsensusCommitPrologueV2:
-    // - add the field's to a new verstion of AdditionalConsensusStates::iter_v_(),
+    // - add the field's to a new version of AdditionalConsensusStates::iter_v_(),
     // - use the new iter_v_() method to compute the updated list of digests in
     //   AdditionalConsensusStates::digests(), gated by a new protocol config flag.
     #[derive(Serialize, Deserialize)]

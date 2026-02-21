@@ -3209,14 +3209,11 @@ impl AuthorityPerEpochStore {
             .await?;
         // Snapshot the full received reports state into the output so it gets persisted
         // when the quarantine flushes this commit. Also snapshot it into
-        // AdditionalConsensus States.
+        // AdditionalConsensus States. We snapshot the snapshot instead of the state to
+        // ensure consistency between what gets persisted and what gets put into
+        // AdditionalConsensusStates.
         let snapshot = self.scorer.received_reports_state_snapshot();
-        output.set_received_reports_state(
-            snapshot
-                .iter()
-                .map(|state_per_authority| state_per_authority.snapshot())
-                .collect(),
-        );
+        output.set_received_reports_state(snapshot.iter().map(|s| s.snapshot()).collect());
         additional_consensus_states.set_received_reports_state(snapshot);
         self.finish_consensus_certificate_process(&verified_transactions);
         output.record_consensus_commit_stats(consensus_stats.clone());
