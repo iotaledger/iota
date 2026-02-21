@@ -2980,7 +2980,7 @@ impl AuthorityPerEpochStore {
     >(
         &self,
         transactions: Vec<SequencedConsensusTransaction>,
-        additional_consensus_states: &AdditionalConsensusStates,
+        additional_consensus_states: &mut AdditionalConsensusStates,
         consensus_stats: &ExecutionIndicesWithStats,
         checkpoint_service: &Arc<C>,
         cache_reader: &dyn ObjectCacheRead,
@@ -3215,11 +3215,13 @@ impl AuthorityPerEpochStore {
             )
             .await?;
         // Snapshot the full received reports state into the output so it gets persisted
-        // when the quarantine flushes this commit. Only snapshot when at least one
-        // misbehavior report was seen, to avoid unnecessary work.
-        if misbehavior_report_seen {
-            output.set_received_reports_state(self.scorer.received_reports_state_snapshot());
-        }
+        // when the quarantine flushes this commit. Also snapshot it into
+        // AdditionalConsensusStates. We snapshot the snapshot instead of the state to
+        // ensure consistency between what gets persisted and what is added to
+        // AdditionalConsensusStates (and potentially to ConsensusCommitPrologueV2).
+        let snapshot = self.scorer.received_reports_state_snapshot();
+        output.set_received_reports_state(snapshot.iter().map(|s| s.snapshot()).collect());
+        additional_consensus_states.set_received_reports_state(snapshot);
         self.finish_consensus_certificate_process(&verified_transactions);
         output.record_consensus_commit_stats(consensus_stats.clone());
 
@@ -3490,7 +3492,7 @@ impl AuthorityPerEpochStore {
     ) -> IotaResult<Vec<VerifiedExecutableTransaction>> {
         self.process_consensus_transactions_and_commit_boundary(
             transactions,
-            &AdditionalConsensusStates::new(),
+            &mut AdditionalConsensusStates::new(),
             &ExecutionIndicesWithStats::default(),
             checkpoint_service,
             cache_reader,

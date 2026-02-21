@@ -50,6 +50,14 @@ impl ReceivedReportsStatePerAuthority {
     fn invalid_reports_count_value(&self) -> u64 {
         self.invalid_reports_count.load(Ordering::Relaxed)
     }
+
+    pub(crate) fn snapshot(&self) -> ReceivedReportsStatePerAuthority {
+        ReceivedReportsStatePerAuthority {
+            received_metrics: self.received_metrics.snapshot(),
+            has_not_sent_report: AtomicBool::new(self.has_not_sent_report_value()),
+            invalid_reports_count: AtomicU64::new(self.invalid_reports_count_value()),
+        }
+    }
 }
 
 // Serializable counterpart of ReceivedReportsStatePerAuthority — converts
@@ -230,11 +238,7 @@ impl Scorer {
     pub(crate) fn received_reports_state_snapshot(&self) -> ReceivedReportsState {
         self.received_reports_state
             .iter()
-            .map(|state| ReceivedReportsStatePerAuthority {
-                received_metrics: state.received_metrics.snapshot(),
-                has_not_sent_report: AtomicBool::new(state.has_not_sent_report_value()),
-                invalid_reports_count: AtomicU64::new(state.invalid_reports_count_value()),
-            })
+            .map(|state_per_authority| state_per_authority.snapshot())
             .collect()
     }
 
