@@ -147,7 +147,6 @@ mod additional_consensus_states {
         }
 
         // Setter for received_reports_state
-        #[expect(unused)]
         pub(crate) fn set_received_reports_state(&mut self, state: ReceivedReportsState) {
             self.received_reports_state = state;
         }
@@ -486,7 +485,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             .epoch_store
             .process_consensus_transactions_and_commit_boundary(
                 all_transactions,
-                &self.additional_consensus_states,
+                &mut self.additional_consensus_states,
                 &self.last_consensus_stats,
                 &self.checkpoint_service,
                 self.cache_reader.as_ref(),
