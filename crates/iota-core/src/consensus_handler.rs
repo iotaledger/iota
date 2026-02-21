@@ -165,7 +165,6 @@ mod additional_consensus_states {
         }
 
         // Returns the ordered list of digests, one per tracked state field.
-        #[expect(unused)]
         pub(crate) fn digests(
             &self,
             protocol_config: &ProtocolConfig,
@@ -959,13 +958,13 @@ impl ConsensusCommitInfo {
         epoch: u64,
         protocol_config: &ProtocolConfig,
         cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
-        _additional_consensus_states: &AdditionalConsensusStates,
+        additional_consensus_states: &AdditionalConsensusStates,
     ) -> VerifiedExecutableTransaction {
         if protocol_config.record_additional_states_digests_in_prologue() {
             self.consensus_commit_prologue_v2_transaction(
                 epoch,
                 cancelled_txn_version_assignment,
-                Vec::new(),
+                additional_consensus_states.digests(protocol_config),
             )
         } else {
             self.consensus_commit_prologue_v1_transaction(epoch, cancelled_txn_version_assignment)
