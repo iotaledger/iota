@@ -140,7 +140,6 @@ mod additional_consensus_states {
     }
 
     impl AdditionalConsensusStates {
-        #[expect(unused)]
         pub fn new() -> Self {
             Self {
                 received_reports_state: ReceivedReportsState::new(),
@@ -179,7 +178,6 @@ mod additional_consensus_states {
         }
     }
 }
-#[expect(unused)]
 pub(crate) use additional_consensus_states::AdditionalConsensusStates;
 
 pub struct ConsensusHandler<C> {
