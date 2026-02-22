@@ -31,7 +31,7 @@ pub struct Scorer {
     // The current scores of the authorities, updated after each received report. This score is
     // calculated based on the information in the received reports and the validity of the reports
     // themselves.
-    pub(crate) current_scores: Scores,
+    current_scores: Scores,
     // The count of invalid reports received from each authority. Validity here must be checked in
     // a deterministic way, since this information will not be propagated again to the rest of the
     // committee.
@@ -203,6 +203,13 @@ impl Scorer {
     pub(crate) fn mark_end_of_epoch_report_sent(&self) {
         self.has_sent_end_of_epoch_report
             .store(true, Ordering::Relaxed);
+    }
+
+    pub(crate) fn current_scores(&self) -> Vec<u64> {
+        self.current_scores
+            .iter()
+            .map(|x| x.load(std::sync::atomic::Ordering::Relaxed))
+            .collect()
     }
 }
 
@@ -580,9 +587,10 @@ mod tests {
         let scorer = Scorer::new(voting_power, &protocol_config);
 
         // Before calling update_scores, all scores should be MAX_SCORE
-        for score in scorer.current_scores.iter() {
-            assert_eq!(score.load(Ordering::Relaxed), MAX_SCORE,);
-        }
+        scorer
+            .current_scores
+            .iter()
+            .for_each(|score| assert_eq!(score.load(Ordering::Relaxed), MAX_SCORE));
 
         // Set some reports for testing
         let reports_and_authorities = vec![
@@ -622,11 +630,7 @@ mod tests {
 
         let expected_score = vec![0, 65536, 45876];
         // After calling update_scores, scores should be updated
-        let actual_score = scorer
-            .current_scores
-            .iter()
-            .map(|value| value.load(Ordering::Relaxed))
-            .collect::<Vec<u64>>();
+        let actual_score = scorer.current_scores();
         assert_eq!(actual_score, expected_score);
     }
 
