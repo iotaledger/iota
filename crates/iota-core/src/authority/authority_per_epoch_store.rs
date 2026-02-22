@@ -2986,10 +2986,17 @@ impl AuthorityPerEpochStore {
         consensus_commit_info: &ConsensusCommitInfo,
         authority_metrics: &Arc<AuthorityMetrics>,
     ) -> IotaResult<Vec<VerifiedExecutableTransaction>> {
+        // Track whether any misbehavior report was seen (valid or invalid) so we
+        // only snapshot the scorer state when needed.
+        let mut misbehavior_report_seen = false;
+
         // Split transactions into different types for processing.
         let verified_transactions: Vec<_> = transactions
             .into_iter()
             .filter_map(|transaction| {
+                if transaction.is_misbehavior_report() {
+                    misbehavior_report_seen = true;
+                }
                 self.verify_consensus_transaction(
                     transaction,
                     &authority_metrics.skipped_consensus_txns,
@@ -3205,8 +3212,11 @@ impl AuthorityPerEpochStore {
             )
             .await?;
         // Snapshot the full received reports state into the output so it gets persisted
-        // when the quarantine flushes this commit.
-        output.set_received_reports_state(self.scorer.received_reports_state_snapshot());
+        // when the quarantine flushes this commit. Only snapshot when at least one
+        // misbehavior report was seen, to avoid unnecessary work.
+        if misbehavior_report_seen {
+            output.set_received_reports_state(self.scorer.received_reports_state_snapshot());
+        }
         self.finish_consensus_certificate_process(&verified_transactions);
         output.record_consensus_commit_stats(consensus_stats.clone());
 
