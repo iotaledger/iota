@@ -211,6 +211,10 @@ impl Scorer {
             .map(|x| x.load(std::sync::atomic::Ordering::Relaxed))
             .collect()
     }
+
+    pub(crate) fn generate_report_with_current_local_metrics(&self) -> VersionedMisbehaviorReport {
+        self.current_local_metrics_count.to_report()
+    }
 }
 
 // Methods for ScorerVersion::V1
