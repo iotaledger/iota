@@ -46,6 +46,8 @@ pub struct Scorer {
     // Indicates the sequence number of the last checkpoint for which the authority sent a report.
     // This is used as part of the MisbehaviorReport rate limiting mechanism.
     last_report_checkpoint_seq: AtomicU64,
+    // Indicates whether the authority sent a report close to the epoch end.
+    has_sent_end_of_epoch_report: AtomicBool,
     // The version of the scorer being used with its parameters.
     version: ScorerVersion,
 }
@@ -140,6 +142,7 @@ impl Scorer {
                     voting_power,
                     last_report_summary: AtomicU64::new(0),
                     last_report_checkpoint_seq: AtomicU64::new(0),
+                    has_sent_end_of_epoch_report: AtomicBool::new(false),
                     version: ScorerVersion::V1(parameters),
                 }
             }
@@ -191,6 +194,15 @@ impl Scorer {
 
     pub(crate) fn store_last_report_summary(&self, summary: u64) {
         self.last_report_summary.store(summary, Ordering::Relaxed)
+    }
+
+    pub(crate) fn has_sent_end_of_epoch_report(&self) -> bool {
+        self.has_sent_end_of_epoch_report.load(Ordering::Relaxed)
+    }
+
+    pub(crate) fn mark_end_of_epoch_report_sent(&self) {
+        self.has_sent_end_of_epoch_report
+            .store(true, Ordering::Relaxed);
     }
 }
 

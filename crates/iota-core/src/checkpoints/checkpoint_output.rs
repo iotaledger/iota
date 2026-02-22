@@ -140,8 +140,9 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
         // is coming to an end. Since `close_epoch` is called according to local clocks,
         // we use an analogous rule for the last reports, requiring that the checkpoint
         // is close to the next reconfiguration timestamp.
-        let should_send_last_report =
-            checkpoint_timestamp >= self.next_reconfiguration_timestamp_ms - 2000;
+        let should_send_last_report = checkpoint_timestamp
+            >= self.next_reconfiguration_timestamp_ms - 2000
+            && !epoch_store.scorer.has_sent_end_of_epoch_report();
         if epoch_store.protocol_config().calculate_validator_scores()
             && ((checkpoint_seq - epoch_store.scorer.last_report_checkpoint_seq() >= 1000
                 && Some(checkpoint_seq + 100) >= highest_verified_checkpoint)
@@ -166,6 +167,9 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
                 epoch_store
                     .scorer
                     .store_last_report_checkpoint_seq(checkpoint_seq);
+                if should_send_last_report {
+                    epoch_store.scorer.mark_end_of_epoch_report_sent();
+                }
             }
         }
 
