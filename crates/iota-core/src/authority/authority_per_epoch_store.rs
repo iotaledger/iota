@@ -2941,7 +2941,7 @@ impl AuthorityPerEpochStore {
                         authority, transaction.certificate_author_index
                     );
                     self.scorer
-                        .update_invalid_reports_count(transaction.certificate_author_index);
+                        .increment_invalid_reports_count(transaction.certificate_author_index);
                     return None;
                 }
             }
@@ -4290,7 +4290,7 @@ impl AuthorityPerEpochStore {
                         (VersionedMisbehaviorReport::V1(..), Some(1))
                         | (VersionedMisbehaviorReport::V1(..), None) => {
                             if !report.verify(self.committee.num_members()) {
-                                self.scorer.update_invalid_reports_count(authority_index);
+                                self.scorer.increment_invalid_reports_count(authority_index);
                                 warn!(
                                     "Received invalid misbehavior report from {:?}",
                                     authority.concise()
@@ -4302,7 +4302,7 @@ impl AuthorityPerEpochStore {
                             }
                         }
                         _ => {
-                            self.scorer.update_invalid_reports_count(authority_index);
+                            self.scorer.increment_invalid_reports_count(authority_index);
                             warn!(
                                 "Received misbehavior report with unsupported version from {:?}",
                                 authority.concise()

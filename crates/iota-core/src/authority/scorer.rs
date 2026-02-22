@@ -155,7 +155,7 @@ impl Scorer {
 
     // Boundary checks for this functions are done at a higher level. `authority``
     // should always be derived from a valid AuthorityIndex
-    pub(crate) fn update_invalid_reports_count(&self, authority: u32) {
+    pub(crate) fn increment_invalid_reports_count(&self, authority: u32) {
         self.invalid_reports_count[authority as usize].fetch_add(1, Ordering::Relaxed);
     }
 
@@ -509,7 +509,7 @@ mod tests {
     }
 
     #[test]
-    fn test_update_invalid_reports_count() {
+    fn test_increment_invalid_reports_count() {
         let voting_power = vec![10, 20, 30];
 
         let protocol_config = mock_protocol_config(ConsensusChoice::Mysticeti);
@@ -525,7 +525,7 @@ mod tests {
         );
 
         // Call the method
-        scorer.update_invalid_reports_count(authority_index);
+        scorer.increment_invalid_reports_count(authority_index);
 
         // After update
         assert_eq!(
@@ -543,8 +543,8 @@ mod tests {
 
         let authority_index = 1;
         // Call the method twice
-        scorer.update_invalid_reports_count(authority_index);
-        scorer.update_invalid_reports_count(authority_index);
+        scorer.increment_invalid_reports_count(authority_index);
+        scorer.increment_invalid_reports_count(authority_index);
 
         // After update
         assert_eq!(
