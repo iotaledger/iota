@@ -14,6 +14,7 @@ use byteorder::{BigEndian, ReadBytesExt};
 use fastcrypto::{error::FastCryptoResult, groups::bls12381, hash::HashFunction};
 use fastcrypto_tbls::dkg_v1;
 use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::crypto::IntentScope;
 use once_cell::sync::OnceCell;
 use schemars::JsonSchema;
@@ -341,6 +342,15 @@ impl VersionedMisbehaviorReport {
             warn!("MisbehaviorReport summary reached its maximum value.");
         }
         summary
+    }
+
+    pub fn is_valid_version(&self, protocol_config: &ProtocolConfig) -> bool {
+        let scorer_version = protocol_config.scorer_version_as_option();
+        match (self, scorer_version) {
+            (VersionedMisbehaviorReport::V1(_, _), None) => true,
+            (VersionedMisbehaviorReport::V1(_, _), Some(1)) => true,
+            (VersionedMisbehaviorReport::V1(_, _), _) => false,
+        }
     }
 }
 

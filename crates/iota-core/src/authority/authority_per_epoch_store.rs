@@ -4286,9 +4286,8 @@ impl AuthorityPerEpochStore {
 
                     // Check validity of the report and update scores depending on the result. We
                     // already have consensus on inclusion of this report in the DAG.
-                    match (report, self.protocol_config().scorer_version_as_option()) {
-                        (VersionedMisbehaviorReport::V1(..), Some(1))
-                        | (VersionedMisbehaviorReport::V1(..), None) => {
+                    match report.is_valid_version(self.protocol_config()) {
+                        true => {
                             if !report.verify(self.committee.num_members()) {
                                 self.scorer.increment_invalid_reports_count(authority_index);
                                 warn!(
@@ -4301,7 +4300,7 @@ impl AuthorityPerEpochStore {
                                 self.scorer.update_received_reports(authority_index, report);
                             }
                         }
-                        _ => {
+                        false => {
                             self.scorer.increment_invalid_reports_count(authority_index);
                             warn!(
                                 "Received misbehavior report with unsupported version from {:?}",
