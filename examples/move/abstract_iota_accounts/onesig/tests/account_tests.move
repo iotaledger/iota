@@ -5,7 +5,6 @@
 module onesig::account_tests;
 
 use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
-use iota::hash;
 use iota::test_scenario::{Self, Scenario};
 use onesig::account::{Self, OneSigAccount};
 use onesig::merkle;
@@ -23,11 +22,14 @@ fun test_happy_path() {
     let tx2_digest = b"00000000000000000000000000000002";
     let tx3_digest = b"00000000000000000000000000000003";
 
-    let (merkle_root, tx1_proof, tx2_proof, tx3_proof) = create_merkle_tree_for_testing(
+    let (merkle_root, proofs) = merkle::build_merkle_tree_with_proofs(vector[
         tx1_digest,
         tx2_digest,
         tx3_digest,
-    );
+    ]);
+    let tx1_proof = proofs[0];
+    let tx2_proof = proofs[1];
+    let tx3_proof = proofs[2];
 
     // This signature is used for authenticating all three transactions, as they are all part of the same Merkle tree with the same root.
     let signature =
@@ -106,11 +108,12 @@ fun test_invalid_signature() {
     let tx2_digest = b"00000000000000000000000000000002";
     let tx3_digest = b"00000000000000000000000000000003";
 
-    let (merkle_root, tx1_proof, _, _) = create_merkle_tree_for_testing(
+    let (merkle_root, proofs) = merkle::build_merkle_tree_with_proofs(vector[
         tx1_digest,
         tx2_digest,
         tx3_digest,
-    );
+    ]);
+    let tx1_proof = proofs[0];
 
     // Invalid signature: last byte changed from 0x02 to 0x00
     let signature =
@@ -152,11 +155,12 @@ fun test_invalid_merkle_proof() {
     let tx2_digest = b"00000000000000000000000000000002";
     let tx3_digest = b"00000000000000000000000000000003";
 
-    let (merkle_root, _, tx2_proof, _) = create_merkle_tree_for_testing(
+    let (merkle_root, proofs) = merkle::build_merkle_tree_with_proofs(vector[
         tx1_digest,
         tx2_digest,
         tx3_digest,
-    );
+    ]);
+    let tx2_proof = proofs[1];
 
     let signature =
         x"12f93594a9865bfef88faa1c728829712cf3f52a31bb268ab29cccb5e1db57db051c3650f9f5b8925509c8fcd07182ae41ffc8505e70becf866e72a091279802";
@@ -214,23 +218,4 @@ fun create_tx_context_for_testing(sender: address, digest: vector<u8>): TxContex
 
 fun create_auth_context_for_testing(): AuthContext {
     auth_context::new_with_tx_inputs(vector::empty(), vector::empty(), vector::empty())
-}
-
-fun create_merkle_tree_for_testing(
-    tx1_digest: vector<u8>,
-    tx2_digest: vector<u8>,
-    tx3_digest: vector<u8>,
-): (vector<u8>, vector<vector<u8>>, vector<vector<u8>>, vector<vector<u8>>) {
-    let tx1_hash = hash::keccak256(&tx1_digest);
-    let tx2_hash = hash::keccak256(&tx2_digest);
-    let tx3_hash = hash::keccak256(&tx3_digest);
-
-    let h12 = merkle::hash_pair_sorted(&tx1_hash, &tx2_hash);
-    let merkle_root = merkle::hash_pair_sorted(&h12, &tx3_hash);
-
-    let tx1_proof = vector[tx2_hash, tx3_hash];
-    let tx2_proof = vector[tx1_hash, tx3_hash];
-    let tx3_proof = vector[h12];
-
-    (merkle_root, tx1_proof, tx2_proof, tx3_proof)
 }

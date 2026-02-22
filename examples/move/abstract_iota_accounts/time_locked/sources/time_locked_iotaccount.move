@@ -15,8 +15,8 @@ module time_locked::time_locked_iotaccount;
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::clock::Clock;
 use iotaccount::iotaccount::{Self, IOTAccount, IOTAccountBuilder};
-use iotaccount::public_key_iotaccount;
 use public_key_authentication::public_key_authentication;
+use public_key_authentication::public_key_iotaccount;
 use time_locked::unlock_time_authentication::{Self, unlock_time_field_name};
 
 /// Allows calling `.with_public_key` on an `IOTAccountBuilder` to set a `public_key`.

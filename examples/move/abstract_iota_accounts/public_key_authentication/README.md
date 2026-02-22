@@ -1,13 +1,13 @@
-# IOTAccount Move Example
+# Public key authentication (IOTAccount) Move Example
 
 This example shows how to create and use an IOTAccount Move smart contract that uses an Ed25519 public key for authentication.
 
-This package only includes the module to represent the IOTAccount. Thus, for the following example the `../public_key_authentication` package will be used as dependency. 
-
-The IOTAccount module defines a generic account struct that can be used as a base for different types of accounts in the IOTA ecosystem. The account data is stored as dynamic fields, which allows for flexible updates and extensions without needing to change the underlying struct definition. 
-The module also defines a builder for safely constructing accounts with the necessary authenticator function reference and dynamic fields. The module includes functions for modifying the account (adding/removing/rotating fields and admins) as well as public-view functions for reading the account's address, fields and attached authenticator. 
-
-Authenticator functions are expected to be defined separately and passed as a reference when creating an account. Whilst, rotating the authenticator function reference is handeled within this module. An admin can be optionally set for an account, in order to enable a more complex rotation of the authenticator function reference. This can be useful in the case in which the main authenticator function cannot be invoked to rotate itself, for example, because of a key loss. The admin account is not necessarily expected to be owned by a different entity; it can be used as another way to authenticate the account, in addition to the main authenticator function, e.g., an admin account using a social recovery mechanism.
+It defines a set of authenticators helpers that use public key cryptography to implement authenticators.
+It allows to set a public key as field of an account, such that any authenticator can authenticate the account by verifying a signature against the public key.
+The public key schemes implemented in this module are:
+- ed25519
+- secp256k1
+- secp256r1
 
 ## How to run
 

@@ -21,7 +21,7 @@
 ///
 /// This allows the true account owner to perform arbitrary programmable transactions while
 /// enabling granular function-level delegation to other keys.
-module function_call_keys::function_call_keys_account;
+module function_call_keys::function_call_keys;
 
 use function_call_keys::function_call_keys_store::{
     Self,

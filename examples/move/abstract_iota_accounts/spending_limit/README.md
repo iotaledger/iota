@@ -1,13 +1,11 @@
-# IOTAccount Move Example
+# Spending Limit Account Move Example
 
-This example shows how to create and use an IOTAccount Move smart contract that uses an Ed25519 public key for authentication.
+The SpendingLimitAccount module defines an account struct that can be used as a programmable account with a spending limit. The account data, stored as dynamic fields, includes a spending limit value and a balance reserve. 
+The spending limit is a u64 value that represents the maximum amount that can be withdrawn from the account in a single transaction. The balance reserve is a struct that holds the current balance reserved for spending and allows withdrawing and depositing funds to it. The account also has an owner public key. 
 
-This package only includes the module to represent the IOTAccount. Thus, for the following example the `../public_key_authentication` package will be used as dependency. 
+The module includes functions to create a new `SpendingLimitAccount`, rotate the account's authenticator, rotate the account's owner public key, withdraw from the balance reserve, and deposit to the balance reserve. 
 
-The IOTAccount module defines a generic account struct that can be used as a base for different types of accounts in the IOTA ecosystem. The account data is stored as dynamic fields, which allows for flexible updates and extensions without needing to change the underlying struct definition. 
-The module also defines a builder for safely constructing accounts with the necessary authenticator function reference and dynamic fields. The module includes functions for modifying the account (adding/removing/rotating fields and admins) as well as public-view functions for reading the account's address, fields and attached authenticator. 
-
-Authenticator functions are expected to be defined separately and passed as a reference when creating an account. Whilst, rotating the authenticator function reference is handeled within this module. An admin can be optionally set for an account, in order to enable a more complex rotation of the authenticator function reference. This can be useful in the case in which the main authenticator function cannot be invoked to rotate itself, for example, because of a key loss. The admin account is not necessarily expected to be owned by a different entity; it can be used as another way to authenticate the account, in addition to the main authenticator function, e.g., an admin account using a social recovery mechanism.
+The authenticator function for the `SpendingLimitAccount` validates the signature and checks for withdrawal commands in the transaction PTB. It looks into the PTB commands to find calls to the `withdraw_from_balance_reserve` function, calculates the total amount to be withdrawn in the transaction, and checks that the total amount does not exceed the spending limit.
 
 ## How to run
 
@@ -25,12 +23,12 @@ In another terminal run the rest of the commands:
 # Commands assume the active address is from an Ed25519 key
 
 # Useful names for this example
-export EXAMPLE_DIR="public_key_authentication"
-export ACCOUNT_MODULE_NAME="iotaccount"
-export ACCOUNT_TYPE_NAME="IOTAccount"
-export AUTH_MODULE_NAME="public_key_iotaccount"
+export EXAMPLE_DIR="spending_limit"
+export ACCOUNT_MODULE_NAME="spending_limit_account"
+export ACCOUNT_TYPE_NAME="SpendingLimitAccount"
+export AUTH_MODULE_NAME="spending_limit_account"
 export AUTH_FUNCTION_NAME="ed25519_authenticator"
-export CREATE_MODULE_NAME="public_key_iotaccount"
+export CREATE_MODULE_NAME="spending_limit_account"
 export CREATE_FUNCTION_NAME="create"
 
 # Get the signing address 
@@ -57,10 +55,11 @@ echo "Package ID: $PACKAGE_ID"
 echo "Package Metadata Object ID: $METADATA_ID"
 
 # Create a new account through a PTB which firstly builds an authenticator function ref for the ed25519 authenticator
+export LIMIT=999
 export PTB_JSON=$(iota client ptb \
 --move-call 0x2::authenticator_function::create_auth_function_ref_v1 '<'$PACKAGE_ID'::'$ACCOUNT_MODULE_NAME'::'$ACCOUNT_TYPE_NAME'>' @$METADATA_ID '"'$AUTH_MODULE_NAME'"' '"'$AUTH_FUNCTION_NAME'"' \
 --assign ref \
---move-call $PACKAGE_ID::$CREATE_MODULE_NAME::$CREATE_FUNCTION_NAME vector"$SIGN_PUB_KEY_BYTES" ref \
+--move-call $PACKAGE_ID::$CREATE_MODULE_NAME::$CREATE_FUNCTION_NAME vector"$SIGN_PUB_KEY_BYTES" $LIMIT ref \
 --json)
 export ABSTRACTACCOUNT=$(echo $PTB_JSON | jq -r '.objectChanges[] | select(.type == "created" and (.objectType | endswith("::'$ACCOUNT_MODULE_NAME'::'$ACCOUNT_TYPE_NAME'"))) | .objectId')
 echo "Account Object ID: $ABSTRACTACCOUNT"
@@ -73,6 +72,12 @@ OBJECT_JSON=$(iota client object $PUBLIC_KEY_FIELD_ID --json)
 HEX=$(echo $OBJECT_JSON | jq -r '.content.fields.value[]' | xargs printf "%02x")
 echo "Dynamic field public key: $HEX"
 
+# Fund the account balance
+iota client ptb \
+--split-coins gas "[1000]" \
+--assign new_coins \
+--move-call $PACKAGE_ID::$CREATE_MODULE_NAME::deposit_to_balance_reserve @$ABSTRACTACCOUNT new_coins
+
 # Add the newly created account to the CLI keystore and set is as active
 iota client add-account $ABSTRACTACCOUNT
 iota client switch --address $ABSTRACTACCOUNT
@@ -80,7 +85,11 @@ iota client switch --address $ABSTRACTACCOUNT
 iota client faucet
 
 # Create a transaction where the sender is the account, but don't issue it; just take the bytes
-UNSIGNED_TX_BYTES=$(iota client pay-iota --recipients 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 --amounts 1 --serialize-unsigned-transaction)
+UNSIGNED_TX_BYTES=$(iota client ptb \
+--move-call $PACKAGE_ID::$CREATE_MODULE_NAME::withdraw_from_balance_reserve @$ABSTRACTACCOUNT 998 \
+--assign withdrawn_coin \
+--transfer-objects "[withdrawn_coin]" @0x0 \
+--serialize-unsigned-transaction)
 echo "Unsigned TX: $UNSIGNED_TX_BYTES"
 # Analyze the the TX just created
 # iota keytool decode-or-verify-tx --tx-bytes $UNSIGNED_TX_BYTES
@@ -97,7 +106,12 @@ export SIGNATURE_HEX=$(echo $IOTA_SIGNATURE_HEX | cut -c 3-130)
 echo "Signature hex: $SIGNATURE_HEX"
 
 # Finally, execute the TX using the signature just created as auth-call-arg
-export SIGNED_TX_BYTES=$(iota client pay-iota --recipients 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 --amounts 1 --auth-call-args 0x$SIGNATURE_HEX --serialize-signed-transaction)
+export SIGNED_TX_BYTES=$(iota client ptb \
+--move-call $PACKAGE_ID::$CREATE_MODULE_NAME::withdraw_from_balance_reserve @$ABSTRACTACCOUNT 998 \
+--assign withdrawn_coin \
+--transfer-objects "[withdrawn_coin]" @0x0 \
+--auth-call-args 0x$SIGNATURE_HEX  \
+--serialize-signed-transaction)
 echo "Signed tx bytes: $SIGNED_TX_BYTES"
 iota client execute-combined-signed-tx --signed-tx-bytes $SIGNED_TX_BYTES
 

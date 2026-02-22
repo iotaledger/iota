@@ -14,6 +14,7 @@ module function_call_keys::function_call_keys_store;
 use iota::ptb_command::Command;
 use iota::table::{Self as tbl, Table};
 use iota::vec_set::{Self, VecSet};
+use std::ascii;
 
 // === Errors ===
 
@@ -39,8 +40,8 @@ const EProgrammableMoveCallExpected: vector<u8> = b"The command is not a program
 /// Doc: We keep these as raw bytes to match PTB.
 public struct FunctionRef has copy, drop, store {
     package: address,
-    module_name: vector<u8>,
-    function_name: vector<u8>,
+    module_name: ascii::String,
+    function_name: ascii::String,
 }
 
 /// Value stored under the `FunctionCallKeysName` dynamic field of an account.
@@ -60,8 +61,8 @@ public fun build(ctx: &mut TxContext): FunctionCallKeysStore {
 
 public fun make_function_ref(
     package: address,
-    module_name: vector<u8>,
-    function_name: vector<u8>,
+    module_name: ascii::String,
+    function_name: ascii::String,
 ): FunctionRef {
     FunctionRef { package, module_name, function_name }
 }
@@ -112,8 +113,8 @@ public fun extract_function_ref(cmd: &Command): FunctionRef {
 
     let mc = cmd.as_move_call().destroy_some();
     let package = mc.package().to_address();
-    let module_name = mc.module_name().as_bytes();
-    let function_name = mc.function().as_bytes();
+    let module_name = mc.module_name();
+    let function_name = mc.function();
 
     make_function_ref(package, *module_name, *function_name)
 }
