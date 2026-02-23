@@ -227,6 +227,8 @@ fn calculate_median_report(
     // process.
     assert!(!reports_and_voting_power.is_empty());
 
+    // TODO: create a new function to calculate this, or rework a bit on this part
+    // of the code.
     let number_of_metrics = reports_and_voting_power[0].0.iter().count();
 
     // In the case of the example in the method documentation,
