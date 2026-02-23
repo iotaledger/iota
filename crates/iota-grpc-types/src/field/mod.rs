@@ -62,6 +62,7 @@ pub struct MessageField {
     pub json_name: &'static str,
     pub number: i32,
     pub is_optional: bool,
+    pub is_map: bool,
     pub message_fields: Option<&'static [&'static MessageField]>,
 }
 
@@ -100,6 +101,7 @@ impl MessageField {
             json_name: "",
             number: 0,
             is_optional: false,
+            is_map: false,
             message_fields: None,
         }
     }
@@ -114,6 +116,11 @@ impl MessageField {
 
     pub const fn with_optional(mut self, is_optional: bool) -> Self {
         self.is_optional = is_optional;
+        self
+    }
+
+    pub const fn with_is_map(mut self, is_map: bool) -> Self {
+        self.is_map = is_map;
         self
     }
 }

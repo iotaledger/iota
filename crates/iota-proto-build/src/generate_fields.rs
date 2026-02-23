@@ -447,7 +447,7 @@ fn generate_field_constant(
     // Check if the field is optional in the proto definition
     let is_proto3_optional = field.proto3_optional.unwrap_or(false);
 
-    let message_fields =
+    let (is_map, message_fields) =
         if matches!(field.r#type(), Type::Message) && !field.type_name().contains("google") {
             let field_message_name = field.type_name().split('.').next_back().unwrap();
 
@@ -468,17 +468,16 @@ fn generate_field_constant(
             let is_circular_reference = is_boxed
                 && dependency_graph.has_circular_dependency(message_name, field_message_name);
 
-            if field_message_name == message_name
-                || map_types.contains(field_message_name)
-                || is_circular_reference
-            {
-                quote! { None }
+            if field_message_name == message_name || is_circular_reference {
+                (quote! { false }, quote! { None })
+            } else if map_types.contains(field_message_name) {
+                (quote! { true }, quote! { None })
             } else {
                 let field_message = quote::format_ident!("{field_message_name}");
-                quote! { Some(#field_message::FIELDS) }
+                (quote! { false }, quote! { Some(#field_message::FIELDS) })
             }
         } else {
-            quote! { None }
+            (quote! { false }, quote! { None })
         };
 
     quote! {
@@ -487,6 +486,7 @@ fn generate_field_constant(
             json_name: #json_name,
             number: #number,
             is_optional: #is_proto3_optional,
+            is_map: #is_map,
             message_fields: #message_fields,
         };
     }

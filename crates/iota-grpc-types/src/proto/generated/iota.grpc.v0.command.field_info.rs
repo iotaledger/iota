@@ -81,6 +81,7 @@ mod _field_impls {
                 json_name: "index",
                 number: 1i32,
                 is_optional: true,
+                is_map: false,
                 message_fields: None,
             };
         }
@@ -118,6 +119,7 @@ mod _field_impls {
                 json_name: "index",
                 number: 1i32,
                 is_optional: true,
+                is_map: false,
                 message_fields: None,
             };
             pub const NESTED_RESULT_INDEX_FIELD: &'static MessageField = &MessageField {
@@ -125,6 +127,7 @@ mod _field_impls {
                 json_name: "nestedResultIndex",
                 number: 2i32,
                 is_optional: true,
+                is_map: false,
                 message_fields: None,
             };
         }
@@ -170,6 +173,7 @@ mod _field_impls {
             json_name: "unknown",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(Unknown::FIELDS),
         };
         pub const GAS_COIN_FIELD: &'static MessageField = &MessageField {
@@ -177,6 +181,7 @@ mod _field_impls {
             json_name: "gasCoin",
             number: 2i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(GasCoin::FIELDS),
         };
         pub const INPUT_FIELD: &'static MessageField = &MessageField {
@@ -184,6 +189,7 @@ mod _field_impls {
             json_name: "input",
             number: 3i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(Input::FIELDS),
         };
         pub const RESULT_FIELD: &'static MessageField = &MessageField {
@@ -191,6 +197,7 @@ mod _field_impls {
             json_name: "result",
             number: 4i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(Result::FIELDS),
         };
     }
@@ -245,6 +252,7 @@ mod _field_impls {
             json_name: "argument",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(Argument::FIELDS),
         };
         pub const TYPE_TAG_FIELD: &'static MessageField = &MessageField {
@@ -252,6 +260,7 @@ mod _field_impls {
             json_name: "typeTag",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(TypeTag::FIELDS),
         };
         pub const BCS_FIELD: &'static MessageField = &MessageField {
@@ -259,6 +268,7 @@ mod _field_impls {
             json_name: "bcs",
             number: 3i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(BcsData::FIELDS),
         };
         pub const JSON_FIELD: &'static MessageField = &MessageField {
@@ -266,6 +276,7 @@ mod _field_impls {
             json_name: "json",
             number: 4i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -320,6 +331,7 @@ mod _field_impls {
             json_name: "outputs",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(CommandOutput::FIELDS),
         };
     }
@@ -357,6 +369,7 @@ mod _field_impls {
             json_name: "mutatedByRef",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(CommandOutputs::FIELDS),
         };
         pub const RETURN_VALUES_FIELD: &'static MessageField = &MessageField {
@@ -364,6 +377,7 @@ mod _field_impls {
             json_name: "returnValues",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(CommandOutputs::FIELDS),
         };
     }
@@ -408,6 +422,7 @@ mod _field_impls {
             json_name: "results",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(CommandResult::FIELDS),
         };
     }
