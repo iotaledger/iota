@@ -4752,6 +4752,67 @@ async fn test_consensus_commit_prologue_generation() {
 }
 
 #[tokio::test]
+async fn test_consensus_commit_prologue_v2_digests() {
+    telemetry_subscribers::init_for_testing();
+
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+
+    let gas_objects = create_gas_objects(2, sender);
+    let shared_object_id = ObjectID::random();
+    let shared_object = {
+        let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
+        let owner = Owner::Shared {
+            initial_shared_version: obj.version(),
+        };
+        Object::new_move(obj, owner, TransactionDigest::genesis_marker())
+    };
+    let initial_shared_version = shared_object.version();
+
+    let protocol_config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+
+    let authority_state = TestAuthorityBuilder::new()
+        .with_protocol_config(protocol_config)
+        .build()
+        .await;
+    for obj in [&[shared_object], gas_objects.as_slice()].concat() {
+        authority_state.insert_genesis_object(obj).await;
+    }
+
+    let mut certificates = vec![];
+    certificates.push(
+        make_test_transaction(
+            &sender,
+            &sender_key,
+            &[],
+            &[(shared_object_id, initial_shared_version, true)],
+            &gas_objects[0].compute_object_reference(),
+            &[&authority_state],
+            0,
+            None,
+            None,
+        )
+        .await,
+    );
+
+    let processed_consensus_transactions =
+        send_batch_consensus_no_execution(&authority_state, &certificates, false).await;
+
+    // The first transaction should be a ConsensusCommitPrologueV2
+    assert!(processed_consensus_transactions.len() >= 2);
+    match processed_consensus_transactions[0]
+        .data()
+        .transaction_data()
+        .kind()
+    {
+        TransactionKind::ConsensusCommitPrologueV2(v2) => {
+            // We expect an empty vector of digests.
+            assert!(v2.additional_states_digests.is_empty());
+        }
+        other => panic!("expected ConsensusCommitPrologueV2, got {other:?}"),
+    }
+}
+
+#[tokio::test]
 async fn test_consensus_message_processed() {
     telemetry_subscribers::init_for_testing();
 
