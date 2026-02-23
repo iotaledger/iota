@@ -496,3 +496,66 @@ impl AuthenticatorTrait for MoveAuthenticatorV1 {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use fastcrypto::traits::ToFromBytes;
+
+    use super::*;
+    use crate::{
+        base_types::{ObjectID, SequenceNumber},
+        digests::ObjectDigest,
+        transaction::{CallArg, ObjectArg},
+    };
+
+    fn make_simple_authenticator() -> MoveAuthenticator {
+        let object_to_authenticate = CallArg::Object(ObjectArg::ImmOrOwnedObject((
+            ObjectID::ZERO,
+            SequenceNumber::default(),
+            ObjectDigest::MIN,
+        )));
+        MoveAuthenticator::new_v1(vec![], vec![], object_to_authenticate)
+    }
+
+    #[test]
+    fn round_trip() {
+        let auth = make_simple_authenticator();
+        let bytes = auth.as_ref().to_vec();
+        let decoded = MoveAuthenticator::from_bytes(&bytes).expect("round-trip should succeed");
+        assert_eq!(auth, decoded);
+    }
+
+    #[test]
+    fn as_ref_starts_with_flag_byte() {
+        let auth = make_simple_authenticator();
+        let bytes = auth.as_ref();
+        assert_eq!(bytes[0], SignatureScheme::MoveAuthenticator.flag());
+    }
+
+    #[test]
+    fn as_ref_is_cached() {
+        let auth = make_simple_authenticator();
+        let bytes1 = auth.as_ref();
+        let bytes2 = auth.as_ref();
+        assert!(std::ptr::eq(bytes1.as_ptr(), bytes2.as_ptr()));
+    }
+
+    #[test]
+    fn from_bytes_rejects_wrong_flag() {
+        let auth = make_simple_authenticator();
+        let mut bytes = auth.as_ref().to_vec();
+        bytes[0] = SignatureScheme::ED25519.flag();
+        assert!(MoveAuthenticator::from_bytes(&bytes).is_err());
+    }
+
+    #[test]
+    fn from_bytes_rejects_empty_input() {
+        assert!(MoveAuthenticator::from_bytes(&[]).is_err());
+    }
+
+    #[test]
+    fn from_bytes_rejects_flag_only() {
+        let flag = SignatureScheme::MoveAuthenticator.flag();
+        assert!(MoveAuthenticator::from_bytes(&[flag]).is_err());
+    }
+}
