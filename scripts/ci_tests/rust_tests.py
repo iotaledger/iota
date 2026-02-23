@@ -98,6 +98,8 @@ class RustTestOrchestrator:
                 'tests_crates_external',
                 'tests_pg_integration',
                 'tests_move_examples_rdeps',
+                'filter_overwrite',
+                'filter_overwrite_external',
             }
             
             self.logger.info("Additional command line arguments:")
@@ -589,6 +591,8 @@ class RustTestOrchestrator:
                              tests_crates_external=False,
                              tests_pg_integration=False,
                              tests_move_example_used_by_others=False,
+                             filter_overwrite: str = None,
+                             filter_overwrite_external: str = None,
                              ) -> int:
         
         if test_type not in [self.TEST_TYPE_NEXTEST, self.TEST_TYPE_SIMTEST]:
@@ -607,16 +611,28 @@ class RustTestOrchestrator:
         restart_postgres = config['restart_postgres']
         
         # Early return if no conditions are set
-        if not any([tests_crates_workspace, tests_crates_external, tests_pg_integration, tests_move_example_used_by_others]):
+        if not any([
+            tests_crates_workspace,
+            tests_crates_external,
+            tests_pg_integration,
+            tests_move_example_used_by_others,
+            filter_overwrite,
+            filter_overwrite_external
+        ]):
             self.logger.error("No conditions are set to run tests. Exiting.")
             return 1
         
         # check if external crates are set
-        if tests_crates_external:
-            external_filter = self.build_filterset_changed_crates(
-                test_only_changed_crates, changed_crates_external, changed_crates_external_given,
-                "external-crates/move/crates/", ".github/external-crates-filters.yml"
-            )
+        if tests_crates_external or filter_overwrite_external:
+            external_filter = ""
+            if filter_overwrite_external:
+                self.logger.info(f"Using filter overwrite for external crates tests: \"{filter_overwrite_external}\"")
+                external_filter = filter_overwrite_external
+            else:
+                external_filter = self.build_filterset_changed_crates(
+                    test_only_changed_crates, changed_crates_external, changed_crates_external_given,
+                    "external-crates/move/crates/", ".github/external-crates-filters.yml"
+                )
             
             # If external_filter is None, it means no external crates changed,
             # so we shouldn't add any external tests
@@ -638,14 +654,26 @@ class RustTestOrchestrator:
                 self.logger.info("Skipping external crates tests - no external crates changed")
         
         # check again if any of the other conditions are set, in case only external crates were set
-        if not any([tests_crates_workspace, tests_pg_integration, tests_move_example_used_by_others]):
+        if not any([
+            tests_crates_workspace,
+            tests_pg_integration,
+            tests_move_example_used_by_others,
+            filter_overwrite,
+        ]):
             return 0
         
         # Build main test filter set
-        combined_set, tests_added = self.build_filterset_tests(
-            tests_crates_workspace, tests_pg_integration, tests_move_example_used_by_others,
-            test_only_changed_crates, changed_crates, changed_crates_given
-        )
+        combined_set, tests_added = "", False
+
+        if filter_overwrite:
+            self.logger.info(f"Using filter overwrite for main tests: \"{filter_overwrite}\"")
+            combined_set = filter_overwrite
+            tests_added = True
+        else:
+            combined_set, tests_added = self.build_filterset_tests(
+                tests_crates_workspace, tests_pg_integration, tests_move_example_used_by_others,
+                test_only_changed_crates, changed_crates, changed_crates_given
+            )
         
         if not tests_added:
             self.logger.error("No tests to run after building filter set. Exiting.")
@@ -691,13 +719,18 @@ class RustTestOrchestrator:
                   tests_crates_workspace=False,
                   tests_crates_external=False,
                   tests_pg_integration=False,
-                  tests_move_example_used_by_others=False) -> int:
+                  tests_move_example_used_by_others=False,
+                  filter_overwrite: str = None,
+                  filter_overwrite_external: str = None,
+                  ) -> int:
         return self.filter_and_run_tests(
             self.TEST_TYPE_NEXTEST,
             tests_crates_workspace,
             tests_crates_external,
             tests_pg_integration,
             tests_move_example_used_by_others,
+            filter_overwrite,
+            filter_overwrite_external,
         )
     
     # run simtest with current configuration
@@ -705,13 +738,17 @@ class RustTestOrchestrator:
                      tests_crates_workspace=False,
                      tests_crates_external=False,
                      tests_pg_integration=False,
-                     tests_move_example_used_by_others=False) -> int:
+                     tests_move_example_used_by_others=False,
+                     filter_overwrite: str = None,
+                     filter_overwrite_external: str = None) -> int:
         return self.filter_and_run_tests(
             self.TEST_TYPE_SIMTEST,
             tests_crates_workspace,
             tests_crates_external,
             tests_pg_integration,
-            tests_move_example_used_by_others
+            tests_move_example_used_by_others,
+            filter_overwrite,
+            filter_overwrite_external,
         )
     
     # run stress tests for new tests to check for flakiness
@@ -818,6 +855,10 @@ PostgreSQL Environment variables (infrastructure config):
     parser.add_argument('--tests-pg-integration', action='store_true', help='Run PostgreSQL-dependent tests (in combination with `--run-tests` or `--run-sim-tests`)')
     parser.add_argument('--tests-move-examples-rdeps', action='store_true', help='Run tests for crates dependent on Move examples (in combination with `--run-tests` or `--run-sim-tests`)')
     
+    # Filter overwrite flags for "run-tests" and "run-sim-tests"
+    parser.add_argument('--filter-overwrite', type=str, help='Directly specify a filter set to overwrite the automatically built filter for main tests (in combination with `--run-tests` or `--run-sim-tests`). Example: --filter-overwrite "crate_a or rdeps(crate_b) or test(test_a)"')
+    parser.add_argument('--filter-overwrite-external', type=str, help='Directly specify a filter set to overwrite the automatically built filter for external crates tests (in combination with `--run-tests` or `--run-sim-tests`). Example: --filter-overwrite-external "crate_c or rdeps(crate_d) or test(test_b)"')
+
     # Configuration arguments
     parser.add_argument('--test-only-changed-crates', action='store_true', help='Only test changed crates (default: test all crates)')
     parser.add_argument('--changed-crates', type=str, help='Space-separated list of changed crates to test')
@@ -846,16 +887,20 @@ PostgreSQL Environment variables (infrastructure config):
         args.tests_crates_workspace, 
         args.tests_crates_external, 
         args.tests_pg_integration, 
-        args.tests_move_examples_rdeps
+        args.tests_move_examples_rdeps,
+        args.filter_overwrite,
+        args.filter_overwrite_external,
     ]):
-        parser.error("When using --run-tests or --run-sim-tests, at least one of the specific test type flags must be set: --tests-crates-workspace, --tests-crates-external, --tests-pg-integration, --tests-move-examples-rdeps")
+        parser.error("When using --run-tests or --run-sim-tests, at least one of the specific test type flags must be set: --tests-crates-workspace, --tests-crates-external, --tests-pg-integration, --tests-move-examples-rdeps, --filter-overwrite, --filter-overwrite-external")
 
     # Verify if any specific test type flag is set without "run_tests" or "run_sim_tests"
     if any([
         args.tests_crates_workspace, 
         args.tests_crates_external, 
         args.tests_pg_integration, 
-        args.tests_move_examples_rdeps
+        args.tests_move_examples_rdeps,
+        args.filter_overwrite,
+        args.filter_overwrite_external,
     ]) and not (args.run_tests or args.run_sim_tests):
         parser.error("Specific test type flags cannot be used without --run-tests or --run-sim-tests. Please specify which test type to run with the specific test type flags.")
 
@@ -896,7 +941,9 @@ PostgreSQL Environment variables (infrastructure config):
                         tests_crates_workspace=args.tests_crates_workspace,
                         tests_crates_external=args.tests_crates_external,
                         tests_pg_integration=args.tests_pg_integration,
-                        tests_move_example_used_by_others=args.tests_move_examples_rdeps
+                        tests_move_example_used_by_others=args.tests_move_examples_rdeps,
+                        filter_overwrite=args.filter_overwrite,
+                        filter_overwrite_external=args.filter_overwrite_external,
                     )
                 else:
                     result = step_method()
