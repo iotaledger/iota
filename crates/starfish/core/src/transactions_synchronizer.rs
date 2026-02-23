@@ -2388,18 +2388,18 @@ mod tests {
             let mut filtered: BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>> =
                 BTreeMap::new();
 
-            for (block_ref, authority_set) in missing.iter() {
+            for (gen_tr_ref, authority_set) in missing.iter() {
                 let exists = transactions.iter().any(|txn| {
                     let tx_ref_match =
-                        GenericTransactionRef::TransactionRef(txn.transaction_ref()) == *block_ref;
+                        GenericTransactionRef::TransactionRef(txn.transaction_ref()) == *gen_tr_ref;
                     let block_ref_match = txn
                         .block_ref()
-                        .is_some_and(|br| GenericTransactionRef::BlockRef(br) == *block_ref);
+                        .is_some_and(|br| GenericTransactionRef::BlockRef(br) == *gen_tr_ref);
                     tx_ref_match || block_ref_match
                 });
 
                 if !exists {
-                    filtered.insert(*block_ref, authority_set.clone());
+                    filtered.insert(*gen_tr_ref, authority_set.clone());
                 }
             }
 

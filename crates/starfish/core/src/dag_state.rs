@@ -573,7 +573,7 @@ impl DagState {
             .insert(gen_transaction_ref, shard.serialized_shard)
             .is_none()
         {
-            debug!("Adding shard for block ref: {}", gen_transaction_ref);
+            debug!("Adding shard for transaction ref: {}", gen_transaction_ref);
             if let Some((sender, _)) = &self.cordial_knowledge_senders {
                 let cordial_message = CordialKnowledgeMessage::NewShard(gen_transaction_ref);
                 if let Err(TrySendError::Closed(_)) = sender.try_send(cordial_message) {
