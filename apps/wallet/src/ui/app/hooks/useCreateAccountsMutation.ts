@@ -193,7 +193,7 @@ export function useCreateAccountsMutation() {
                     password,
                 });
             }
-            ampli.addedAccounts({
+            ampli.accountsAdded({
                 accountType: ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE[type],
                 numberOfAccounts: createdAccounts.length,
             });
