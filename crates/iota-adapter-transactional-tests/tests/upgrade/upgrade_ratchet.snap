@@ -25,7 +25,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 4, lines 22-27:
 //# upgrade --package V1 --upgrade-capability 1,1 --sender A --policy compatible
-Error: Transaction Effects Status: Move Runtime Abort. Location: MoveLocation { package: ObjectId("iota"), module: Identifier("package"), function: 21, instruction: 24, function_name: Some(Identifier("authorize_upgrade")) }, Abort Code: 1
+Error: Transaction Effects Status: Move Runtime Abort. Location: iota::package::authorize_upgrade (function index 21) at offset 24, Abort Code: 1
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("iota"), module: Identifier("package"), function: 21, instruction: 24, function_name: Some(Identifier("authorize_upgrade")) }, code: 1 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(1), message: Some("iota::package::authorize_upgrade at offset 24"), exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("package") }), indices: [], offsets: [(FunctionDefinitionIndex(21), 24)] }), command: Some(0) } }
 
 task 5, lines 28-33:
@@ -47,12 +47,12 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 8, lines 42-47:
 //# upgrade --package V3 --upgrade-capability 1,1 --sender A --policy compatible
-Error: Transaction Effects Status: Move Runtime Abort. Location: MoveLocation { package: ObjectId("iota"), module: Identifier("package"), function: 21, instruction: 24, function_name: Some(Identifier("authorize_upgrade")) }, Abort Code: 1
+Error: Transaction Effects Status: Move Runtime Abort. Location: iota::package::authorize_upgrade (function index 21) at offset 24, Abort Code: 1
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("iota"), module: Identifier("package"), function: 21, instruction: 24, function_name: Some(Identifier("authorize_upgrade")) }, code: 1 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(1), message: Some("iota::package::authorize_upgrade at offset 24"), exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("package") }), indices: [], offsets: [(FunctionDefinitionIndex(21), 24)] }), command: Some(0) } }
 
 task 9, lines 48-53:
 //# upgrade --package V3 --upgrade-capability 1,1 --sender A --policy additive
-Error: Transaction Effects Status: Move Runtime Abort. Location: MoveLocation { package: ObjectId("iota"), module: Identifier("package"), function: 21, instruction: 24, function_name: Some(Identifier("authorize_upgrade")) }, Abort Code: 1
+Error: Transaction Effects Status: Move Runtime Abort. Location: iota::package::authorize_upgrade (function index 21) at offset 24, Abort Code: 1
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("iota"), module: Identifier("package"), function: 21, instruction: 24, function_name: Some(Identifier("authorize_upgrade")) }, code: 1 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(1), message: Some("iota::package::authorize_upgrade at offset 24"), exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("package") }), indices: [], offsets: [(FunctionDefinitionIndex(21), 24)] }), command: Some(0) } }
 
 task 10, lines 54-59:
@@ -63,7 +63,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 11, lines 60-62:
 //# run iota::package::only_additive_upgrades --args object(1,1) --sender A
-Error: Transaction Effects Status: Move Runtime Abort. Location: MoveLocation { package: ObjectId("iota"), module: Identifier("package"), function: 23, instruction: 10, function_name: Some(Identifier("restrict")) }, Abort Code: 1
+Error: Transaction Effects Status: Move Runtime Abort. Location: iota::package::restrict (function index 23) at offset 10, Abort Code: 1
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("iota"), module: Identifier("package"), function: 23, instruction: 10, function_name: Some(Identifier("restrict")) }, code: 1 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(1), message: Some("iota::package::restrict at offset 10"), exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("package") }), indices: [], offsets: [(FunctionDefinitionIndex(23), 10)] }), command: Some(0) } }
 
 task 12, line 63:

@@ -104,7 +104,7 @@ task 11, lines 94-98:
 //> 0: MakeMoveVec<iota::transfer::Receiving<tto::M1::B>>([Input(1), Input(2), Input(3), Input(4)]);
 //> 1: tto::M1::receive_all(Input(0), Result(0));
 // Try to spoof a receiving object
-Error: Transaction Effects Status: Move Runtime Abort. Location: MoveLocation { package: ObjectId("iota"), module: Identifier("transfer"), function: 12, instruction: 0, function_name: Some(Identifier("receive_impl")) }, Abort Code: 2
+Error: Transaction Effects Status: Move Runtime Abort. Location: iota::transfer::receive_impl (function index 12) at offset 0, Abort Code: 2
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("iota"), module: Identifier("transfer"), function: 12, instruction: 0, function_name: Some(Identifier("receive_impl")) }, code: 2 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(2), message: None, exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("transfer") }), indices: [], offsets: [(FunctionDefinitionIndex(12), 0)] }), command: Some(1) } }
 
 task 12, lines 99-101:
