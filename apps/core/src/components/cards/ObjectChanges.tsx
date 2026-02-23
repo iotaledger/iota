@@ -76,6 +76,7 @@ export function ObjectDetail({ change, renderExplorerLink: ExplorerLink }: Objec
                                     <ExplorerLink
                                         type={ExplorerLinkType.Object}
                                         objectID={change.objectId}
+                                        eventType="object"
                                     >
                                         {formatAddress(packageId)}
                                     </ExplorerLink>
@@ -95,6 +96,7 @@ export function ObjectDetail({ change, renderExplorerLink: ExplorerLink }: Objec
                             objectID={packageId}
                             type={ExplorerLinkType.Object}
                             moduleName={moduleName}
+                            eventType="object"
                         >
                             {formatAddress(packageId)}
                         </ExplorerLink>
@@ -108,6 +110,7 @@ export function ObjectDetail({ change, renderExplorerLink: ExplorerLink }: Objec
                             objectID={packageId}
                             type={ExplorerLinkType.Object}
                             moduleName={moduleName}
+                            eventType="object"
                         >
                             {moduleName}
                         </ExplorerLink>
@@ -120,6 +123,7 @@ export function ObjectDetail({ change, renderExplorerLink: ExplorerLink }: Objec
                             objectID={packageId}
                             type={ExplorerLinkType.Object}
                             moduleName={moduleName}
+                            eventType="object"
                         >
                             {typeName}
                         </ExplorerLink>
@@ -236,7 +240,11 @@ function ObjectChangeByOwnerPanel({
                             keyText="Owner"
                             value={
                                 <NamedAddressTooltip name={iotaName} address={owner}>
-                                    <ExplorerLink type={ExplorerLinkType.Address} address={owner}>
+                                    <ExplorerLink
+                                        type={ExplorerLinkType.Address}
+                                        address={owner}
+                                        eventType="address"
+                                    >
                                         {formatIotaName(iotaName) || formatAddress(owner)}
                                     </ExplorerLink>
                                 </NamedAddressTooltip>

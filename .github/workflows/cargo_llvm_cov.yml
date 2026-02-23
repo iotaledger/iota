@@ -50,7 +50,12 @@ jobs:
         with:
           ref: ${{ github.event.inputs.branch-or-commit || github.ref }}
 
-      - uses: bmwill/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # v1.4.0
+      - name: Setup caching
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+        with:
+          shared-key: "rust-llvm-cov"
+          cache-on-failure: true
+          cache-bin: "false"
 
       - name: Set Swap Space
         uses: actionhippie/swap-space@73376950a0019f8e1f6a3d3d2673fe2aed74ae17 # v1.0.2
