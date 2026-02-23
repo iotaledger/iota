@@ -1173,7 +1173,7 @@ version = "0.1.0"
 dependencies = [
  "fastcrypto",
  "iota-network-stack",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=c75736d0849daa99ed411c0ff27caad645edc7de)",
  "rand 0.8.5",
  "serde",
 ]
@@ -1701,7 +1701,7 @@ dependencies = [
  "iota-keys",
  "iota-move-build",
  "iota-sdk",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=a26b6371a87e30533007a934911b309d1c70268b)",
  "iota-types",
  "move-binary-format",
  "move-core-types",
@@ -3122,7 +3122,7 @@ dependencies = [
  "anyhow",
  "bip32",
  "fastcrypto",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=c75736d0849daa99ed411c0ff27caad645edc7de)",
  "iota-types",
  "rand 0.8.5",
  "regex",
@@ -3350,7 +3350,7 @@ dependencies = [
  "fastcrypto",
  "iota-network-stack",
  "iota-protocol-config",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=c75736d0849daa99ed411c0ff27caad645edc7de)",
  "iota-types",
  "itertools 0.13.0",
  "mime",
@@ -3387,7 +3387,7 @@ dependencies = [
  "iota-json-rpc-api",
  "iota-json-rpc-types",
  "iota-keys",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=c75736d0849daa99ed411c0ff27caad645edc7de)",
  "iota-transaction-builder",
  "iota-types",
  "jsonrpsee",
@@ -3406,6 +3406,24 @@ dependencies = [
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
 source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=a26b6371a87e30533007a934911b309d1c70268b#a26b6371a87e30533007a934911b309d1c70268b"
+dependencies = [
+ "base64ct",
+ "bnum",
+ "bs58 0.5.1",
+ "bytestring",
+ "derive_more 2.1.1",
+ "hex",
+ "paste",
+ "roaring",
+ "strum 0.27.2",
+ "thiserror 2.0.18",
+ "winnow",
+]
+
+[[package]]
+name = "iota-sdk-types"
+version = "0.0.1-alpha.1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=c75736d0849daa99ed411c0ff27caad645edc7de#c75736d0849daa99ed411c0ff27caad645edc7de"
 dependencies = [
  "base64ct",
  "bcs",
@@ -3474,7 +3492,7 @@ dependencies = [
  "iota-macros",
  "iota-network-stack",
  "iota-protocol-config",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=c75736d0849daa99ed411c0ff27caad645edc7de)",
  "itertools 0.13.0",
  "lru",
  "move-binary-format",
@@ -6664,7 +6682,7 @@ dependencies = [
  "blake3",
  "fastcrypto",
  "iota-network-stack",
- "iota-sdk-types",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=c75736d0849daa99ed411c0ff27caad645edc7de)",
  "rand 0.8.5",
  "rs_merkle",
  "serde",
