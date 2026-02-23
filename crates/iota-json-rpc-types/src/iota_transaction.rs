@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 use std::fmt::{self, Display, Formatter, Write};
 
 use enum_dispatch::enum_dispatch;
@@ -38,8 +37,8 @@ use iota_types::{
     transaction::{
         Argument, CallArg, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
         EndOfEpochTransactionKind, GenesisObject, InputObjectKind, ProgrammableMoveCall,
-        ProgrammableTransaction, SenderSignedData, TransactionData, TransactionDataAPI,
-        TransactionKind,
+        ProgrammableTransaction, SenderSignedData, SharedInputObject, TransactionData,
+        TransactionDataAPI, TransactionKind,
     },
 };
 use move_binary_format::CompiledModule;
@@ -2503,7 +2502,7 @@ impl IotaCallArg {
         layout: Option<&MoveTypeLayout>,
     ) -> Result<Self, anyhow::Error> {
         Ok(match value {
-            CallArg::Pure { value: p } => IotaCallArg::Pure(IotaPureValue {
+            CallArg::Pure(p) => IotaCallArg::Pure(IotaPureValue {
                 value_type: layout.map(|l| type_tag_core_to_sdk(&l.into())),
                 value: IotaJsonValue::from_bcs_bytes(layout, &p)?,
             }),
@@ -2514,11 +2513,11 @@ impl IotaCallArg {
                     digest: object_ref.digest,
                 })
             }
-            CallArg::Shared {
+            CallArg::Shared(SharedInputObject {
                 object_id: id,
                 initial_shared_version,
                 mutable,
-            } => IotaCallArg::Object(IotaObjectArg::SharedObject {
+            }) => IotaCallArg::Object(IotaObjectArg::SharedObject {
                 object_id: id,
                 initial_shared_version,
                 mutable,

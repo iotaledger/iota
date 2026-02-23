@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 use std::collections::{BTreeMap, HashMap};
 
 use axum::{
@@ -16,7 +15,10 @@ use iota_types::{
     gas::GasCostSummary,
     gas_coin::GasCoin,
     move_package::{MovePackage, normalize_move_package},
-    transaction::{CallArg, GasData, ProgrammableTransaction, TransactionData, TransactionDataAPI},
+    transaction::{
+        CallArg, GasData, ProgrammableTransaction, SharedInputObject, TransactionData,
+        TransactionDataAPI,
+    },
     transaction_executor::VmChecks,
 };
 use itertools::Itertools;
@@ -398,7 +400,7 @@ fn resolve_arg(
     arg_idx: usize,
 ) -> Result<CallArg> {
     match arg {
-        UnresolvedInputArgument::Pure { value } => CallArg::Pure { value },
+        UnresolvedInputArgument::Pure { value } => CallArg::Pure(value),
         UnresolvedInputArgument::ImmutableOrOwned(obj_ref) => {
             CallArg::ImmutableOrOwned(resolve_object_reference(reader, obj_ref)?)
         }
@@ -482,11 +484,11 @@ fn resolve_arg(
                 }
             }
 
-            CallArg::Shared {
+            CallArg::Shared(SharedInputObject {
                 object_id: id,
                 initial_shared_version,
                 mutable,
-            }
+            })
         }
         UnresolvedInputArgument::Receiving(obj_ref) => {
             CallArg::Receiving(resolve_object_reference(reader, obj_ref)?)

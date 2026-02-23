@@ -14,7 +14,8 @@ use iota_types::{
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        CallArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, VerifiedCertificate,
+        CallArg, ProgrammableTransaction, SharedInputObject, TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        VerifiedCertificate,
     },
 };
 
@@ -1669,11 +1670,11 @@ async fn receive_and_dof_interleave() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     let parent = builder
-                        .obj(CallArg::Shared {
+                        .obj(CallArg::Shared(SharedInputObject {
                             object_id: shared.0.object_id,
                             initial_shared_version,
                             mutable: true,
-                        })
+                        }))
                         .unwrap();
                     let child = builder.obj(CallArg::Receiving(owned.0)).unwrap();
                     move_call! {
@@ -1691,11 +1692,11 @@ async fn receive_and_dof_interleave() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     let parent = builder
-                        .obj(CallArg::Shared {
+                        .obj(CallArg::Shared(SharedInputObject {
                             object_id: shared.0.object_id,
                             initial_shared_version,
                             mutable: true,
-                        })
+                        }))
                         .unwrap();
                     let child = builder.obj(CallArg::ImmutableOrOwned(owned.0)).unwrap();
                     move_call! {

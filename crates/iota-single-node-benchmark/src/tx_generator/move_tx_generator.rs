@@ -8,7 +8,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, DEFAULT_VALIDATOR_GAS_PRICE, Transaction},
+    transaction::{CallArg, DEFAULT_VALIDATOR_GAS_PRICE, SharedInputObject, Transaction},
 };
 
 use crate::{mock_account::Account, tx_generator::TxGenerator};
@@ -81,11 +81,11 @@ impl TxGenerator for MoveTxGenerator {
                         Identifier::from_static("benchmark"),
                         Identifier::from_static("increment_shared_counter"),
                         vec![],
-                        vec![CallArg::Shared {
+                        vec![CallArg::Shared(SharedInputObject {
                             object_id: shared_object.0,
                             initial_shared_version: shared_object.1,
                             mutable: true,
-                        }],
+                        })],
                     )
                     .unwrap();
             }

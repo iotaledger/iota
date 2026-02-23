@@ -45,7 +45,7 @@ use iota_types::{
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::{QuorumDriverError, QuorumDriverResponse},
-    transaction::{Argument, CallArg, Transaction},
+    transaction::{Argument, CallArg, SharedInputObject, Transaction},
 };
 use prometheus::Registry;
 use rand::Rng;
@@ -615,13 +615,13 @@ impl From<ObjectRef> for BenchMoveCallArg {
 impl From<CallArg> for BenchMoveCallArg {
     fn from(ca: CallArg) -> Self {
         match ca {
-            CallArg::Pure { value } => BenchMoveCallArg::Pure(value),
+            CallArg::Pure(value) => BenchMoveCallArg::Pure(value),
             CallArg::ImmutableOrOwned(obj_ref) => BenchMoveCallArg::ImmOrOwnedObject(obj_ref),
-            CallArg::Shared {
+            CallArg::Shared(SharedInputObject {
                 object_id,
                 initial_shared_version,
                 mutable,
-            } => BenchMoveCallArg::Shared((object_id, initial_shared_version, mutable)),
+            }) => BenchMoveCallArg::Shared((object_id, initial_shared_version, mutable)),
             CallArg::Receiving(_) => {
                 unimplemented!("Receiving is not supported for benchmarks")
             }
@@ -637,17 +637,15 @@ pub fn convert_move_call_args(
 ) -> Vec<Argument> {
     args.iter()
         .map(|arg| match arg {
-            BenchMoveCallArg::Pure(bytes) => pt_builder
-                .input(CallArg::Pure {
-                    value: bytes.clone(),
-                })
-                .unwrap(),
+            BenchMoveCallArg::Pure(bytes) => {
+                pt_builder.input(CallArg::Pure(bytes.clone())).unwrap()
+            }
             BenchMoveCallArg::Shared((id, initial_shared_version, mutable)) => pt_builder
-                .input(CallArg::Shared {
+                .input(CallArg::Shared(SharedInputObject {
                     object_id: *id,
                     initial_shared_version: *initial_shared_version,
                     mutable: *mutable,
-                })
+                }))
                 .unwrap(),
             BenchMoveCallArg::ImmOrOwnedObject(obj_ref) => pt_builder
                 .input(CallArg::ImmutableOrOwned(*obj_ref))
@@ -659,10 +657,12 @@ pub fn convert_move_call_args(
                 .make_obj_vec(
                     obj_refs
                         .iter()
-                        .map(|(id, initial_shared_version, mutable)| CallArg::Shared {
-                            object_id: *id,
-                            initial_shared_version: *initial_shared_version,
-                            mutable: *mutable,
+                        .map(|(id, initial_shared_version, mutable)| {
+                            CallArg::Shared(SharedInputObject {
+                                object_id: *id,
+                                initial_shared_version: *initial_shared_version,
+                                mutable: *mutable,
+                            })
                         }),
                 )
                 .unwrap(),

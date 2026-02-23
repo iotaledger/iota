@@ -7,7 +7,7 @@ use std::time::Duration;
 use iota_types::{
     base_types::{ObjectRef, StructTag},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
-    transaction::CallArg,
+    transaction::{CallArg, SharedInputObject},
 };
 use move_binary_format::normalized;
 use rand::{Rng, seq::SliceRandom};
@@ -167,11 +167,11 @@ impl SurfStrategy {
         n -= owned;
         if n < shared {
             let (id, initial_shared_version) = state.choose_nth_shared_object(&type_tag, n).await;
-            return Some(CallArg::Shared {
+            return Some(CallArg::Shared(SharedInputObject {
                 object_id: id,
                 initial_shared_version,
                 mutable: matches!(kind, InputObjectPassKind::MutRef),
-            });
+            }));
         }
         n -= shared;
         let obj_ref = state.choose_nth_immutable_object(&type_tag, n).await;

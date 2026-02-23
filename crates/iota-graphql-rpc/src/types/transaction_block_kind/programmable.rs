@@ -10,7 +10,7 @@ use iota_json_rpc_types::IotaArgument;
 use iota_types::transaction::{
     Argument as NativeArgument, CallArg as NativeCallArg, Command as NativeProgrammableTransaction,
     ProgrammableMoveCall as NativeMoveCallTransaction,
-    ProgrammableTransaction as NativeProgrammableTransactionBlock,
+    ProgrammableTransaction as NativeProgrammableTransactionBlock, SharedInputObject,
 };
 
 use crate::{
@@ -330,7 +330,7 @@ impl TransactionInput {
         use TransactionInput as I;
 
         match argument {
-            N::Pure { value: bytes } => I::Pure(Pure {
+            N::Pure(bytes) => I::Pure(Pure {
                 bytes: Base64::from(bytes),
             }),
 
@@ -341,11 +341,11 @@ impl TransactionInput {
                 },
             }),
 
-            N::Shared {
+            N::Shared(SharedInputObject {
                 object_id: id,
                 initial_shared_version,
                 mutable,
-            } => I::SharedInput(SharedInput {
+            }) => I::SharedInput(SharedInput {
                 address: id.into(),
                 initial_shared_version: initial_shared_version.as_u64().into(),
                 mutable,

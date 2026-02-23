@@ -162,7 +162,7 @@ impl SurferState {
         args: Vec<CallArg>,
     ) {
         let rgp = self.cluster.get_reference_gas_price().await;
-        let use_shared_object = args.iter().any(|arg| matches!(arg, CallArg::Shared { .. }));
+        let use_shared_object = args.iter().any(|arg| matches!(arg, CallArg::Shared(_)));
         let tx_data = TransactionData::new_move_call(
             self.address,
             package,

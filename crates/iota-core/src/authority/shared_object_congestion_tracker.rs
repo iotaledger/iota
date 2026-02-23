@@ -256,7 +256,7 @@ impl SharedObjectCongestionTracker {
     ) {
         for obj in shared_input_objects {
             self.object_execution_slots
-                .entry(obj.id)
+                .entry(obj.object_id)
                 .or_insert(ObjectExecutionSlots::new());
         }
     }
@@ -302,7 +302,7 @@ impl SharedObjectCongestionTracker {
                 .map(|obj| {
                     // `start_time`
                     self.object_execution_slots
-                        .get(&obj.id)
+                        .get(&obj.object_id)
                         .expect("object should have been inserted at the start of this function.")
                         .max_object_free_slot_start_time(tx_duration)
                 })
@@ -332,7 +332,7 @@ impl SharedObjectCongestionTracker {
 
         for intersection_slot in self
             .object_execution_slots
-            .get(&obj.id)
+            .get(&obj.object_id)
             .expect("object should have been inserted before.")
             .0
             .iter()
@@ -423,7 +423,10 @@ impl SharedObjectCongestionTracker {
             // If `congestion_control_min_free_execution_slot` is true, we return all the
             // shared input objects as no individual object can be identified as
             // the cause of congestion.
-            shared_input_objects.iter().map(|obj| obj.id).collect()
+            shared_input_objects
+                .iter()
+                .map(|obj| obj.object_id)
+                .collect()
         } else {
             // If `congestion_control_min_free_execution_slot` is false, we return
             // only shared objects that can be identified as the cause of congestion.
@@ -432,13 +435,13 @@ impl SharedObjectCongestionTracker {
                 .filter(|obj| {
                     let (end_time, overflow) = self
                         .object_execution_slots
-                        .get(&obj.id)
+                        .get(&obj.object_id)
                         .expect("object should have been inserted before.")
                         .max_object_occupied_slot_end_time()
                         .overflowing_add(tx_duration);
                     overflow || end_time > congestion_limit
                 })
-                .map(|obj| obj.id)
+                .map(|obj| obj.object_id)
                 .collect()
         };
 
@@ -492,7 +495,7 @@ impl SharedObjectCongestionTracker {
         let object_ids = cert
             .shared_input_objects()
             .into_iter()
-            .filter_map(|obj| obj.mutable.then_some(obj.id))
+            .filter_map(|obj| obj.mutable.then_some(obj.object_id))
             .collect::<Vec<_>>();
 
         object_ids.iter().for_each(|obj_id| {
@@ -793,10 +796,12 @@ pub mod shared_object_test_utils {
                         "unimportant_function",
                         objects
                             .iter()
-                            .map(|(id, mutable)| CallArg::Shared {
-                                object_id: *id,
-                                initial_shared_version: SequenceNumber::default(),
-                                mutable: *mutable,
+                            .map(|(id, mutable)| {
+                                CallArg::Shared(SharedInputObject {
+                                    object_id: *id,
+                                    initial_shared_version: SequenceNumber::default(),
+                                    mutable: *mutable,
+                                })
                             })
                             .collect(),
                     )
@@ -844,7 +849,7 @@ pub mod shared_object_test_utils {
         objects
             .iter()
             .map(|(id, mutable)| SharedInputObject {
-                id: *id,
+                object_id: *id,
                 initial_shared_version: SequenceNumber::default(),
                 mutable: *mutable,
             })

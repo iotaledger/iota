@@ -1431,7 +1431,7 @@ impl IotaTestAdapter {
         let aa_call_arg = aa_arg.into_call_arg(self)?;
         let aa_id = match &aa_call_arg {
             CallArg::ImmutableOrOwned(obj_ref) => obj_ref.object_id,
-            CallArg::Shared { object_id, .. } => *object_id,
+            CallArg::Shared(shared) => shared.object_id,
             _ => {
                 return Err(anyhow::anyhow!(
                     "abstract: account must be an object representing the abstract account"

@@ -52,12 +52,10 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
                 Identifier::from_static("create"),
                 vec![],
                 vec![
-                    CallArg::Pure {
-                        value: 16u64.to_le_bytes().to_vec(),
-                    },
-                    CallArg::Pure {
-                        value: bcs::to_bytes(&AccountAddress::new(sender.into_bytes())).unwrap(),
-                    },
+                    CallArg::Pure(16u64.to_le_bytes().to_vec()),
+                    CallArg::Pure(
+                        bcs::to_bytes(&AccountAddress::new(sender.into_bytes())).unwrap(),
+                    ),
                 ],
             )
             .unwrap();
@@ -194,12 +192,10 @@ async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
                 Identifier::from_static("create"),
                 vec![],
                 vec![
-                    CallArg::Pure {
-                        value: 16u64.to_le_bytes().to_vec(),
-                    },
-                    CallArg::Pure {
-                        value: bcs::to_bytes(&AccountAddress::new(sender.into_bytes())).unwrap(),
-                    },
+                    CallArg::Pure(16u64.to_le_bytes().to_vec()),
+                    CallArg::Pure(
+                        bcs::to_bytes(&AccountAddress::new(sender.into_bytes())).unwrap(),
+                    ),
                 ],
             )
             .unwrap();

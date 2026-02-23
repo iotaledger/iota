@@ -34,7 +34,7 @@ mod checked {
         },
         object::{Data, MoveObject, Object, ObjectInner, Owner},
         storage::{BackingPackageStore, DenyListResult, PackageObject},
-        transaction::{Argument, CallArg},
+        transaction::{Argument, CallArg, SharedInputObject},
     };
     use move_binary_format::{
         CompiledModule,
@@ -1504,7 +1504,7 @@ mod checked {
         call_arg: CallArg,
     ) -> Result<InputValue, ExecutionError> {
         Ok(match call_arg {
-            CallArg::Pure { value } => InputValue::new_raw(RawValueType::Any, value),
+            CallArg::Pure(value) => InputValue::new_raw(RawValueType::Any, value),
             other => load_object_arg(
                 vm,
                 state_view,
@@ -1537,11 +1537,11 @@ mod checked {
                 false,
                 object_ref.object_id,
             ),
-            CallArg::Shared {
+            CallArg::Shared(SharedInputObject {
                 object_id: id,
                 mutable,
                 ..
-            } => load_object(
+            }) => load_object(
                 vm,
                 state_view,
                 linkage_view,
@@ -1555,7 +1555,7 @@ mod checked {
                 object_ref.object_id,
                 object_ref.version,
             )),
-            CallArg::Pure { .. } => Err(ExecutionError::invariant_violation(
+            CallArg::Pure(_) => Err(ExecutionError::invariant_violation(
                 "unexpected pure CallArg in load_object_arg",
             )),
             _ => Err(ExecutionError::invariant_violation(

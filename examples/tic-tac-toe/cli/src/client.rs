@@ -26,8 +26,8 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
     transaction::{
-        CallArg, InputObjectKind, ProgrammableTransaction, Transaction, TransactionData,
-        TransactionKind,
+        CallArg, InputObjectKind, ProgrammableTransaction, SharedInputObject, Transaction,
+        TransactionData, TransactionKind,
     },
 };
 
@@ -145,11 +145,11 @@ impl Client {
         // (4) Check whether the game has ended or not.
         let mut builder = ProgrammableTransactionBuilder::new();
         let g = if let Owner::Shared(initial_shared_version) = owner {
-            builder.obj(CallArg::Shared {
+            builder.obj(CallArg::Shared(SharedInputObject {
                 object_id: id,
                 initial_shared_version,
                 mutable: false,
-            })?
+            }))?
         } else {
             builder.obj(CallArg::ImmutableOrOwned(ObjectRef::new(
                 object_id, version, digest,
@@ -349,11 +349,11 @@ impl Client {
 
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let g = builder.obj(CallArg::Shared {
+        let g = builder.obj(CallArg::Shared(SharedInputObject {
             object_id: game.board.id,
             initial_shared_version,
             mutable: true,
-        })?;
+        }))?;
 
         builder.programmable_move_call(
             self.package,
@@ -426,11 +426,11 @@ impl Client {
 
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let g = builder.obj(CallArg::Shared {
+        let g = builder.obj(CallArg::Shared(SharedInputObject {
             object_id: game.board.id,
             initial_shared_version,
             mutable: true,
-        })?;
+        }))?;
 
         let r = builder.pure(row)?;
         let c = builder.pure(col)?;

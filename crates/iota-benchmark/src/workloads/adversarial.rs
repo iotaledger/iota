@@ -13,7 +13,7 @@ use iota_types::{
     crypto::get_key_pair,
     effects::TransactionEffectsAPI,
     object::Owner,
-    transaction::{CallArg, Command, Transaction, TransactionData},
+    transaction::{CallArg, Command, SharedInputObject, Transaction, TransactionData},
     utils::to_sender_signed_transaction,
 };
 use rand::{
@@ -297,11 +297,11 @@ impl AdversarialTestPayload {
             AdversarialPayloadType::DynamicFieldReads => AdversarialPayloadArgs {
                 fn_name: "read_n_dynamic_fields".to_owned(),
                 args: [
-                    CallArg::Shared {
+                    CallArg::Shared(SharedInputObject {
                         object_id: self.df_parent_obj_ref.object_id,
                         initial_shared_version: self.df_parent_obj_ref.version,
                         mutable: true,
-                    }
+                    })
                     .into(),
                     self.get_pct_of(protocol_config.object_runtime_max_num_store_entries())
                         .into(),

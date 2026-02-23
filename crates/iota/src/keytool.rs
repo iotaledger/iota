@@ -660,7 +660,7 @@ impl KeyToolCommand {
                     GenericSignature::MoveAuthenticator(move_auth) => {
                         let call_arguments: Vec<String> = move_auth.call_args().iter().map(|arg| {
                             match arg {
-                                CallArg::Pure { value: bytes } => format!("0x{}", Hex::encode(bytes)),
+                                CallArg::Pure(bytes) => format!("0x{}", Hex::encode(bytes)),
                                 other => serde_json::to_string(&other).unwrap_or_else(|_| format!("{other:?}")),
                             }
                         }).collect();

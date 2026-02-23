@@ -11,7 +11,7 @@ use iota_types::{
     move_package::MovePackage,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, CallArg, TransactionData, TransactionKind},
+    transaction::{Argument, CallArg, SharedInputObject, TransactionData, TransactionKind},
 };
 
 use crate::TransactionBuilder;
@@ -83,11 +83,11 @@ impl TransactionBuilder {
             let mut builder = ProgrammableTransactionBuilder::new();
             let capability_arg = match capability_owner {
                 Owner::Address(_) => CallArg::ImmutableOrOwned(upgrade_capability.object_ref()),
-                Owner::Shared(initial_shared_version) => CallArg::Shared {
+                Owner::Shared(initial_shared_version) => CallArg::Shared(SharedInputObject {
                     object_id: upgrade_capability.object_ref().object_id,
                     initial_shared_version,
                     mutable: true,
-                },
+                }),
                 Owner::Immutable => {
                     bail!("Upgrade capability is stored immutably and cannot be used for upgrades")
                 }

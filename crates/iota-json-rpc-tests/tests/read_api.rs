@@ -1572,9 +1572,7 @@ async fn try_get_past_object_deleted() {
                     "create",
                     vec![
                         CallArg::pure(&1u64),
-                        CallArg::Pure {
-                            value: address.as_bytes().to_vec(),
-                        },
+                        CallArg::Pure(address.as_bytes().to_vec()),
                     ],
                 )
                 .build(),

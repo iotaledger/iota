@@ -230,7 +230,7 @@ impl SuggestedGasPriceCalculator {
             .into_iter()
             .filter_map(|object| {
                 self.congestion_info
-                    .get(&object.id)
+                    .get(&object.object_id)
                     .and_then(|per_object_congestion_info| {
                         per_object_congestion_info
                             .iter()

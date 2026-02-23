@@ -54,7 +54,7 @@ mod checked {
             Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, CallArg, ChangeEpoch,
             ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, CheckedInputObjects, Command,
             EndOfEpochTransactionKind, GenesisTransaction, InputObjects, ProgrammableTransaction,
-            RandomnessStateUpdate, TransactionKind,
+            RandomnessStateUpdate, SharedInputObject, TransactionKind,
         },
     };
     use move_binary_format::CompiledModule;
@@ -1884,11 +1884,11 @@ mod checked {
                 AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME,
                 vec![],
                 vec![
-                    CallArg::Shared {
+                    CallArg::Shared(SharedInputObject {
                         object_id: ObjectID::AUTHENTICATOR_STATE,
                         initial_shared_version: update.authenticator_obj_initial_shared_version,
                         mutable: true,
-                    },
+                    }),
                     CallArg::pure(&update.new_active_jwks),
                 ],
             );
@@ -1925,11 +1925,11 @@ mod checked {
                 AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME,
                 vec![],
                 vec![
-                    CallArg::Shared {
+                    CallArg::Shared(SharedInputObject {
                         object_id: ObjectID::AUTHENTICATOR_STATE,
                         initial_shared_version: expire.authenticator_obj_initial_shared_version,
                         mutable: true,
-                    },
+                    }),
                     CallArg::pure(&expire.min_epoch),
                 ],
             )
@@ -1960,11 +1960,11 @@ mod checked {
                 RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
                 vec![],
                 vec![
-                    CallArg::Shared {
+                    CallArg::Shared(SharedInputObject {
                         object_id: ObjectID::RANDOMNESS_STATE,
                         initial_shared_version: update.randomness_obj_initial_shared_version,
                         mutable: true,
-                    },
+                    }),
                     CallArg::pure(&update.randomness_round),
                     CallArg::pure(&update.random_bytes),
                 ],

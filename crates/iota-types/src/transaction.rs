@@ -15,7 +15,10 @@ use anyhow::bail;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
-pub use iota_sdk_types::{Argument, AuthenticatorStateUpdateV1, RandomnessStateUpdate};
+pub use iota_sdk_types::{
+    Argument, AuthenticatorStateUpdateV1, RandomnessStateUpdate,
+    SharedObjectReference as SharedInputObject,
+};
 use iota_sdk_types::{
     Identifier, Input, ObjectId, TypeTag,
     crypto::{Intent, IntentMessage, IntentScope},
@@ -509,7 +512,7 @@ impl EndOfEpochTransactionKind {
             }
             Self::AuthenticatorStateExpire(expire) => Either::Left(
                 vec![SharedInputObject {
-                    id: ObjectID::AUTHENTICATOR_STATE,
+                    object_id: ObjectID::AUTHENTICATOR_STATE,
                     initial_shared_version: expire.authenticator_obj_initial_shared_version(),
                     mutable: true,
                 }]
@@ -620,27 +623,20 @@ impl EndOfEpochTransactionKind {
 pub fn call_arg_input_objects(arg: &CallArg) -> Option<InputObjectKind> {
     if let Some(object_ref) = arg.as_immutable_or_owned_opt() {
         Some(InputObjectKind::ImmOrOwnedMoveObject(*object_ref))
-    } else if let Some((object_id, initial_shared_version, mutable)) = arg.as_shared_opt() {
+    } else if let Some(&SharedInputObject {
+        object_id,
+        initial_shared_version,
+        mutable,
+    }) = arg.as_shared_opt()
+    {
         Some(InputObjectKind::SharedMoveObject {
-            id: *object_id,
+            id: object_id,
             initial_shared_version,
             mutable,
         })
     } else {
         None
     }
-}
-
-/// Returns the shared input object for a `CallArg`, if it is a `Shared`
-/// variant.
-pub fn call_arg_shared_object(arg: &CallArg) -> Option<SharedInputObject> {
-    arg.as_shared_opt().map(
-        |(object_id, initial_shared_version, mutable)| SharedInputObject {
-            id: *object_id,
-            initial_shared_version,
-            mutable,
-        },
-    )
 }
 
 /// Validity check for a `CallArg` input.
@@ -1031,7 +1027,7 @@ impl ProgrammableTransaction {
         // A command that uses Random can only be followed by TransferObjects or
         // MergeCoins.
         if let Some(random_index) = inputs.iter().position(|obj| {
-            matches!(obj, CallArg::Shared { object_id, .. } if *object_id == ObjectID::RANDOMNESS_STATE)
+            matches!(obj, CallArg::Shared(SharedInputObject { object_id, .. }) if *object_id == ObjectID::RANDOMNESS_STATE)
         }) {
             let mut used_random_object = false;
             let random_index = random_index.try_into().unwrap();
@@ -1057,16 +1053,8 @@ impl ProgrammableTransaction {
         self.inputs
             .iter()
             .filter_map(|arg| match arg {
-                CallArg::Pure { .. } | CallArg::Receiving(_) | CallArg::ImmutableOrOwned(_) => None,
-                CallArg::Shared {
-                    object_id,
-                    initial_shared_version,
-                    mutable,
-                } => Some(vec![SharedInputObject {
-                    id: *object_id,
-                    initial_shared_version: *initial_shared_version,
-                    mutable: *mutable,
-                }]),
+                CallArg::Pure(_) | CallArg::Receiving(_) | CallArg::ImmutableOrOwned(_) => None,
+                CallArg::Shared(shared) => Some(vec![shared.clone()]),
                 _ => None,
             })
             .flatten()
@@ -1170,44 +1158,27 @@ impl Display for ProgrammableTransaction {
     }
 }
 
-#[derive(Clone, Hash, Debug, PartialEq, Eq)]
-pub struct SharedInputObject {
-    pub id: ObjectID,
-    pub initial_shared_version: SequenceNumber,
-    pub mutable: bool,
-}
+/// Merges `other` into `this` shared input object.
+/// If there is a conflict in mutability, the resulting object will be
+/// mutable. Errors if the id or initial_shared_version do not match.
+pub fn left_union_shared_input_objects(
+    this: &mut SharedInputObject,
+    other: &SharedInputObject,
+) -> UserInputResult<()> {
+    fp_ensure!(
+        this.object_id == other.object_id,
+        UserInputError::SharedObjectIdMismatch
+    );
+    fp_ensure!(
+        this.initial_shared_version == other.initial_shared_version,
+        UserInputError::SharedObjectStartingVersionMismatch
+    );
 
-impl SharedInputObject {
-    pub const IOTA_SYSTEM_OBJ: Self = Self {
-        id: ObjectID::SYSTEM_STATE,
-        initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
-        mutable: true,
-    };
-
-    pub fn id(&self) -> ObjectID {
-        self.id
+    if !this.mutable && other.mutable {
+        this.mutable = other.mutable;
     }
 
-    pub fn into_id_and_version(self) -> (ObjectID, SequenceNumber) {
-        (self.id, self.initial_shared_version)
-    }
-
-    /// Merges another SharedInputObject into self.
-    /// If there is a conflict in mutability, the resulting object will be
-    /// mutable. Errors if the id or initial_shared_version do not match.
-    pub fn left_union(&mut self, other: &SharedInputObject) -> UserInputResult<()> {
-        fp_ensure!(self.id == other.id, UserInputError::SharedObjectIdMismatch);
-        fp_ensure!(
-            self.initial_shared_version == other.initial_shared_version,
-            UserInputError::SharedObjectStartingVersionMismatch
-        );
-
-        if !self.mutable && other.mutable {
-            self.mutable = other.mutable;
-        }
-
-        Ok(())
-    }
+    Ok(())
 }
 
 impl TransactionKind {
@@ -1273,21 +1244,21 @@ impl TransactionKind {
         match &self {
             Self::ConsensusCommitPrologueV1(_) => {
                 Either::Left(Either::Left(iter::once(SharedInputObject {
-                    id: ObjectID::CLOCK,
+                    object_id: ObjectID::CLOCK,
                     initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
                     mutable: true,
                 })))
             }
             Self::AuthenticatorStateUpdateV1(update) => {
                 Either::Left(Either::Left(iter::once(SharedInputObject {
-                    id: ObjectID::AUTHENTICATOR_STATE,
+                    object_id: ObjectID::AUTHENTICATOR_STATE,
                     initial_shared_version: update.authenticator_obj_initial_shared_version,
                     mutable: true,
                 })))
             }
             Self::RandomnessStateUpdate(update) => {
                 Either::Left(Either::Left(iter::once(SharedInputObject {
-                    id: ObjectID::RANDOMNESS_STATE,
+                    object_id: ObjectID::RANDOMNESS_STATE,
                     initial_shared_version: update.randomness_obj_initial_shared_version,
                     mutable: true,
                 })))
@@ -1818,11 +1789,11 @@ impl TransactionData {
             let mut builder = ProgrammableTransactionBuilder::new();
             let capability_arg = match capability_owner {
                 Owner::Address(_) => CallArg::ImmutableOrOwned(upgrade_capability),
-                Owner::Shared(initial_shared_version) => CallArg::Shared {
+                Owner::Shared(initial_shared_version) => CallArg::Shared(SharedInputObject {
                     object_id: upgrade_capability.object_id,
                     initial_shared_version,
                     mutable: true,
-                },
+                }),
                 Owner::Immutable => {
                     bail!("Upgrade capability is stored immutably and cannot be used for upgrades");
                 }
@@ -1916,7 +1887,7 @@ impl TransactionData {
     pub fn uses_randomness(&self) -> bool {
         self.shared_input_objects()
             .iter()
-            .any(|obj| obj.id() == ObjectID::RANDOMNESS_STATE)
+            .any(|obj| obj.object_id == ObjectID::RANDOMNESS_STATE)
     }
 
     pub fn digest(&self) -> TransactionDigest {
@@ -2535,13 +2506,14 @@ impl SenderSignedData {
             for auth_shared_object in move_authenticator.shared_objects() {
                 let entry = input_objects
                     .iter_mut()
-                    .find(|o| o.id == auth_shared_object.id);
+                    .find(|o| o.object_id == auth_shared_object.object_id);
 
                 match entry {
                     None => input_objects.push(auth_shared_object),
-                    Some(existing) => existing
-                        .left_union(&auth_shared_object)
-                        .expect("union of shared objects should not fail"),
+                    Some(existing) => {
+                        left_union_shared_input_objects(existing, &auth_shared_object)
+                            .expect("union of shared objects should not fail")
+                    }
                 }
             }
         }
@@ -2588,7 +2560,7 @@ impl SenderSignedData {
     pub fn uses_randomness(&self) -> bool {
         self.shared_input_objects()
             .iter()
-            .any(|obj| obj.id() == ObjectId::RANDOMNESS_STATE)
+            .any(|obj| obj.object_id == ObjectId::RANDOMNESS_STATE)
     }
 
     fn move_authenticators_validity_check(&self, config: &ProtocolConfig) -> IotaResult {

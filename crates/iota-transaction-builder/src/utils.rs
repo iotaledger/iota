@@ -23,7 +23,7 @@ use iota_types::{
     move_package::{MovePackage, deserialize_move_package_module},
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, CallArg},
+    transaction::{Argument, CallArg, SharedInputObject},
 };
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
@@ -119,11 +119,11 @@ impl TransactionBuilder {
             return Ok(CallArg::Receiving(obj_ref));
         }
         Ok(match owner {
-            Owner::Shared(initial_shared_version) => CallArg::Shared {
+            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedInputObject {
                 object_id: id,
                 initial_shared_version,
                 mutable: is_mutable_ref,
-            },
+            }),
             Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
                 CallArg::ImmutableOrOwned(obj_ref)
             }
@@ -140,9 +140,9 @@ impl TransactionBuilder {
         module: &CompiledModule,
     ) -> Result<ResolvedCallArgResult, anyhow::Error> {
         match resolved_arg {
-            ResolvedCallArg::Pure(bytes) => Ok(ResolvedCallArgResult::CallArg(CallArg::Pure {
-                value: bytes,
-            })),
+            ResolvedCallArg::Pure(bytes) => {
+                Ok(ResolvedCallArgResult::CallArg(CallArg::Pure(bytes)))
+            }
             ResolvedCallArg::Object(id) => {
                 let is_mutable =
                     matches!(param, SignatureToken::MutableReference(_)) || !param.is_reference();
@@ -317,7 +317,7 @@ impl TransactionBuilder {
         for (arg, expected_type) in json_args_and_tokens {
             args.push(match arg {
                 // Move View Functions can accept pure arguments.
-                ResolvedCallArg::Pure(p) => builder.input(CallArg::Pure { value: p }),
+                ResolvedCallArg::Pure(p) => builder.input(CallArg::Pure(p)),
                 // Move View Functions can accept only immutable object references.
                 ResolvedCallArg::Object(id) => {
                     fp_ensure!(

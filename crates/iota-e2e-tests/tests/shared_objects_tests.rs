@@ -22,7 +22,7 @@ use iota_types::{
     event::Event,
     execution_status::ExecutionStatus,
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest},
-    transaction::CallArg,
+    transaction::{CallArg, SharedInputObject},
 };
 use rand::distributions::Distribution;
 use test_cluster::TestClusterBuilder;
@@ -325,16 +325,16 @@ async fn call_shared_object_contract() {
     let package_id = package.object_id;
     let counter_id = counter.object_id;
     let counter_initial_shared_version = counter.version;
-    let counter_object_arg = CallArg::Shared {
+    let counter_object_arg = CallArg::Shared(SharedInputObject {
         object_id: counter_id,
         initial_shared_version: counter_initial_shared_version,
         mutable: true,
-    };
-    let counter_object_arg_imm = CallArg::Shared {
+    });
+    let counter_object_arg_imm = CallArg::Shared(SharedInputObject {
         object_id: counter_id,
         initial_shared_version: counter_initial_shared_version,
         mutable: false,
-    };
+    });
     let counter_creation_transaction = test_cluster
         .get_object_from_fullnode_store(&counter_id)
         .await
@@ -354,9 +354,7 @@ async fn call_shared_object_contract() {
                 "assert_value",
                 vec![
                     counter_object_arg_imm.clone(),
-                    CallArg::Pure {
-                        value: 0u64.to_le_bytes().to_vec(),
-                    },
+                    CallArg::Pure(0u64.to_le_bytes().to_vec()),
                 ],
             )
             .build();
@@ -424,9 +422,7 @@ async fn call_shared_object_contract() {
                     } else {
                         counter_object_arg.clone()
                     },
-                    CallArg::Pure {
-                        value: 1u64.to_le_bytes().to_vec(),
-                    },
+                    CallArg::Pure(1u64.to_le_bytes().to_vec()),
                 ],
             )
             .build();

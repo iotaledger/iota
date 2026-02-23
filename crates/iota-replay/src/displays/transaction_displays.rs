@@ -49,7 +49,7 @@ impl Display for Pretty<'_, FullPTB> {
             let mut builder = TableBuilder::default();
             for (i, input) in inputs.iter().enumerate() {
                 match input {
-                    CallArg::Pure { value: v } => {
+                    CallArg::Pure(v) => {
                         if v.len() <= 16 {
                             builder.push_record(vec![format!("{i:<3} Pure Arg          {:?}", v)]);
                         } else {
@@ -80,8 +80,11 @@ impl Display for Pretty<'_, FullPTB> {
                             o.object_id
                         )]);
                     }
-                    CallArg::Shared { object_id: id, .. } => {
-                        builder.push_record(vec![format!("{i:<3} Shared Object     ID: {}", id)]);
+                    CallArg::Shared(obj_ref) => {
+                        builder.push_record(vec![format!(
+                            "{i:<3} Shared Object     ID: {}",
+                            obj_ref.object_id
+                        )]);
                     }
                     CallArg::Receiving(o) => {
                         builder.push_record(vec![format!(

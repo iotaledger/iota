@@ -24,7 +24,7 @@ use crate::{
     signature_verification::VerifiedDigestCache,
     transaction::{
         CallArg, InputObjectKind, SharedInputObject, call_arg_input_objects,
-        call_arg_shared_object, call_arg_validity_check,
+        call_arg_validity_check,
     },
     type_input::TypeInput,
 };
@@ -106,9 +106,9 @@ impl MoveAuthenticator {
                 Some(object_ref.version),
                 Some(object_ref.digest),
             ),
-            CallArg::Shared {
+            CallArg::Shared(SharedInputObject {
                 object_id, mutable, ..
-            } => {
+            }) => {
                 if *mutable {
                     return Err(UserInputError::Unsupported(
                         "MoveAuthenticator cannot authenticate mutable shared objects".to_string(),
@@ -152,8 +152,9 @@ impl MoveAuthenticator {
     pub fn shared_objects(&self) -> Vec<SharedInputObject> {
         self.call_args
             .iter()
-            .filter_map(call_arg_shared_object)
-            .chain(call_arg_shared_object(self.object_to_authenticate()))
+            .filter_map(|e| e.as_shared_opt())
+            .chain(self.object_to_authenticate().as_shared_opt())
+            .cloned()
             .collect()
     }
 

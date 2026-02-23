@@ -78,7 +78,7 @@ impl TestCallArg {
         state: &AuthorityState,
     ) -> Argument {
         match self {
-            Self::Pure(value) => builder.input(CallArg::Pure { value }).unwrap(),
+            Self::Pure(value) => builder.input(CallArg::Pure(value)).unwrap(),
             Self::Object(object_id) => builder
                 .input(Self::call_arg_from_id(object_id, state).await)
                 .unwrap(),
@@ -98,11 +98,11 @@ impl TestCallArg {
             Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
                 CallArg::ImmutableOrOwned(object.compute_object_reference())
             }
-            Owner::Shared(initial_shared_version) => CallArg::Shared {
+            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedInputObject {
                 object_id,
                 initial_shared_version: *initial_shared_version,
                 mutable: true,
-            },
+            }),
             _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
     }
@@ -175,14 +175,12 @@ async fn construct_shared_object_transaction_with_sequence_number(
         gas_object_ref,
         // args
         vec![
-            CallArg::Shared {
+            CallArg::Shared(SharedInputObject {
                 object_id: shared_object_id,
                 initial_shared_version,
                 mutable: true,
-            },
-            CallArg::Pure {
-                value: 16u64.to_le_bytes().to_vec(),
-            },
+            }),
+            CallArg::Pure(16u64.to_le_bytes().to_vec()),
         ],
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
         rgp,
@@ -530,12 +528,8 @@ async fn test_dev_inspect_dynamic_field() {
     // add a dynamic field to itself
     let pt = ProgrammableTransaction {
         inputs: vec![
-            CallArg::Pure {
-                value: test_object1_bytes.clone(),
-            },
-            CallArg::Pure {
-                value: test_object1_bytes.clone(),
-            },
+            CallArg::Pure(test_object1_bytes.clone()),
+            CallArg::Pure(test_object1_bytes.clone()),
         ],
         commands: vec![Command::move_call(
             object_basics.object_id,
@@ -2994,11 +2988,11 @@ async fn test_invalid_randomness_parameter() {
     let init_random_version =
         get_randomness_state_obj_initial_shared_version(authority_state.get_object_store())
             .unwrap();
-    let random_mut = CallArg::Shared {
+    let random_mut = CallArg::Shared(SharedInputObject {
         object_id: ObjectID::RANDOMNESS_STATE,
         initial_shared_version: init_random_version,
         mutable: true,
-    };
+    });
 
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
     let gas_ref = gas_object.compute_object_reference();
@@ -4560,21 +4554,19 @@ async fn make_test_transaction(
         // args
         shared_objects
             .iter()
-            .map(
-                |(shared_object_id, initial_shared_version, mutable)| CallArg::Shared {
+            .map(|(shared_object_id, initial_shared_version, mutable)| {
+                CallArg::Shared(SharedInputObject {
                     object_id: *shared_object_id,
                     initial_shared_version: *initial_shared_version,
                     mutable: *mutable,
-                },
-            )
+                })
+            })
             .chain(
                 owned_objects
                     .iter()
                     .map(|object| CallArg::ImmutableOrOwned(object.compute_object_reference())),
             )
-            .chain(vec![CallArg::Pure {
-                value: arg_value.to_le_bytes().to_vec(),
-            }])
+            .chain(vec![CallArg::Pure(arg_value.to_le_bytes().to_vec())])
             .collect(),
         gas_budget.unwrap_or(TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp),
         gas_price.unwrap_or(rgp),
@@ -6331,7 +6323,7 @@ async fn test_consensus_handler_per_object_congestion_control(
                 || cert
                     .shared_input_objects()
                     .into_iter()
-                    .any(|obj| { obj.id() == shared_objects[1].id() })
+                    .any(|obj| { obj.object_id == shared_objects[1].id() })
         );
     }
 
@@ -6389,7 +6381,7 @@ async fn test_consensus_handler_per_object_congestion_control(
                 || cert
                     .shared_input_objects()
                     .into_iter()
-                    .any(|obj| { obj.id() == shared_objects[1].id() })
+                    .any(|obj| { obj.object_id == shared_objects[1].id() })
         );
     }
 

@@ -15,7 +15,7 @@ use iota_types::{
     coin::{COIN_JOIN_FUNC_NAME, PAY_SPLIT_VEC_FUNC_NAME},
     gas::GasCostSummary,
     gas_coin::GAS,
-    transaction::{CallArg, TransactionData},
+    transaction::{CallArg, SharedInputObject, TransactionData},
 };
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
@@ -187,14 +187,12 @@ async fn create_txes(
             "counter",
             "assert_value",
             vec![
-                CallArg::Shared {
+                CallArg::Shared(SharedInputObject {
                     object_id: counter_id,
                     initial_shared_version: counter_initial_shared_version,
                     mutable: true,
-                },
-                CallArg::Pure {
-                    value: 0u64.to_le_bytes().to_vec(),
-                },
+                }),
+                CallArg::Pure(0u64.to_le_bytes().to_vec()),
             ],
         )
         .build();

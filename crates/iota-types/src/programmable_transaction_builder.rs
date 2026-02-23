@@ -12,7 +12,7 @@ use serde::Serialize;
 
 use crate::{
     base_types::{IotaAddress, ObjectID, ObjectRef},
-    transaction::{Argument, CallArg, Command, ProgrammableTransaction},
+    transaction::{Argument, CallArg, Command, ProgrammableTransaction, SharedInputObject},
 };
 
 #[derive(PartialEq, Eq, Hash)]
@@ -45,7 +45,7 @@ impl ProgrammableTransactionBuilder {
         } else {
             BuilderArg::Pure(bytes.clone())
         };
-        let (i, _) = self.inputs.insert_full(arg, CallArg::Pure { value: bytes });
+        let (i, _) = self.inputs.insert_full(arg, CallArg::Pure(bytes));
         Argument::Input(i as u16)
     }
 
@@ -73,16 +73,27 @@ impl ProgrammableTransactionBuilder {
             .ok_or_else(|| anyhow::anyhow!("expected object CallArg, found pure argument"))?;
         let obj_arg = if let Some(old_value) = self.inputs.get(&BuilderArg::Object(id)) {
             match (old_value.as_shared_opt(), obj_arg.as_shared_opt()) {
-                (Some((id1, v1, mut1)), Some((id2, v2, mut2))) if v1 == v2 => {
+                (
+                    Some(&SharedInputObject {
+                        object_id: id1,
+                        initial_shared_version: v1,
+                        mutable: mut1,
+                    }),
+                    Some(&SharedInputObject {
+                        object_id: id2,
+                        initial_shared_version: v2,
+                        mutable: mut2,
+                    }),
+                ) if v1 == v2 => {
                     anyhow::ensure!(
-                        id1 == id2 && id == *id2,
+                        id1 == id2 && id == id2,
                         "invariant violation! object has id does not match call arg"
                     );
-                    CallArg::Shared {
+                    CallArg::Shared(SharedInputObject {
                         object_id: id,
                         initial_shared_version: v2,
                         mutable: mut1 || mut2,
-                    }
+                    })
                 }
                 _ => {
                     anyhow::ensure!(
@@ -102,7 +113,7 @@ impl ProgrammableTransactionBuilder {
 
     pub fn input(&mut self, call_arg: CallArg) -> anyhow::Result<Argument> {
         match call_arg {
-            CallArg::Pure { value } => Ok(self.pure_bytes(value, /* force separate */ false)),
+            CallArg::Pure(value) => Ok(self.pure_bytes(value, /* force separate */ false)),
             other => self.obj(other),
         }
     }

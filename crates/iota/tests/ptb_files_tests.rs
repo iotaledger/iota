@@ -104,10 +104,10 @@ async fn test_ptb_files(path: &Path) -> datatest_stable::Result<()> {
 #[cfg(not(msim))]
 fn stable_call_arg_display(ca: &CallArg) -> String {
     match ca {
-        CallArg::Pure { value: v } => format!("Pure({v:?})"),
+        CallArg::Pure(v) => format!("Pure({v:?})"),
         CallArg::ImmutableOrOwned(_) => "ImmutableOrOwnedObject".to_string(),
-        CallArg::Shared { mutable, .. } => {
-            format!("SharedObject(mutable: {mutable})")
+        CallArg::Shared(shared) => {
+            format!("SharedObject(mutable: {})", shared.mutable)
         }
         CallArg::Receiving(_) => "Receiving".to_string(),
         _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),

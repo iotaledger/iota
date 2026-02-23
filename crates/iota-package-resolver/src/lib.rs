@@ -514,7 +514,7 @@ impl<S: PackageStore> Resolver<S> {
                 return Ok(());
             };
 
-            if !matches!(tx.inputs.get(ix as usize), Some(CallArg::Pure { .. })) {
+            if !matches!(tx.inputs.get(ix as usize), Some(CallArg::Pure(_))) {
                 return Ok(());
             }
 
@@ -2861,18 +2861,12 @@ mod tests {
             ProgrammableTransaction {
                 inputs: vec![
                     I::ImmutableOrOwned(random_object_ref()),
-                    I::Pure {
-                        value: bcs::to_bytes(&42u64).unwrap(),
-                    },
+                    I::Pure(bcs::to_bytes(&42u64).unwrap()),
                     I::ImmutableOrOwned(random_object_ref()),
                     y,
                     I::ImmutableOrOwned(random_object_ref()),
-                    I::Pure {
-                        value: bcs::to_bytes("hello").unwrap(),
-                    },
-                    I::Pure {
-                        value: bcs::to_bytes("world").unwrap(),
-                    },
+                    I::Pure(bcs::to_bytes("hello").unwrap()),
+                    I::Pure(bcs::to_bytes("world").unwrap()),
                 ],
                 commands: vec![Command::move_call(
                     obj_id("0xe0"),
@@ -2884,12 +2878,7 @@ mod tests {
             }
         }
 
-        let ptb_u64 = ptb(
-            T::U64,
-            I::Pure {
-                value: bcs::to_bytes(&1u64).unwrap(),
-            },
-        );
+        let ptb_u64 = ptb(T::U64, I::Pure(bcs::to_bytes(&1u64).unwrap()));
 
         let ptb_opt = ptb(
             TypeTag::Struct(Box::new(StructTag::new(
@@ -2898,9 +2887,7 @@ mod tests {
                 Identifier::from_static("Option"),
                 vec![TypeTag::U64],
             ))),
-            I::Pure {
-                value: bcs::to_bytes(&[vec![1u64], vec![], vec![3]]).unwrap(),
-            },
+            I::Pure(bcs::to_bytes(&[vec![1u64], vec![], vec![3]]).unwrap()),
         );
 
         let ptb_obj = ptb(
@@ -2952,20 +2939,12 @@ mod tests {
         let ptb = ProgrammableTransaction {
             inputs: vec![
                 I::ImmutableOrOwned(random_object_ref()),
-                I::Pure {
-                    value: bcs::to_bytes(&42u64).unwrap(),
-                },
+                I::Pure(bcs::to_bytes(&42u64).unwrap()),
                 I::ImmutableOrOwned(random_object_ref()),
-                I::Pure {
-                    value: bcs::to_bytes(&43u64).unwrap(),
-                },
+                I::Pure(bcs::to_bytes(&43u64).unwrap()),
                 I::ImmutableOrOwned(random_object_ref()),
-                I::Pure {
-                    value: bcs::to_bytes("hello").unwrap(),
-                },
-                I::Pure {
-                    value: bcs::to_bytes("world").unwrap(),
-                },
+                I::Pure(bcs::to_bytes("hello").unwrap()),
+                I::Pure(bcs::to_bytes("world").unwrap()),
             ],
             commands: vec![
                 Command::move_call(
@@ -3016,20 +2995,12 @@ mod tests {
         let ptb = ProgrammableTransaction {
             inputs: vec![
                 I::ImmutableOrOwned(random_object_ref()),
-                I::Pure {
-                    value: bcs::to_bytes(&42u64).unwrap(),
-                },
+                I::Pure(bcs::to_bytes(&42u64).unwrap()),
                 I::ImmutableOrOwned(random_object_ref()),
-                I::Pure {
-                    value: bcs::to_bytes(&43u64).unwrap(),
-                },
+                I::Pure(bcs::to_bytes(&43u64).unwrap()),
                 I::ImmutableOrOwned(random_object_ref()),
-                I::Pure {
-                    value: bcs::to_bytes("hello").unwrap(),
-                },
-                I::Pure {
-                    value: bcs::to_bytes("world").unwrap(),
-                },
+                I::Pure(bcs::to_bytes("hello").unwrap()),
+                I::Pure(bcs::to_bytes("world").unwrap()),
             ],
             commands: vec![
                 Command::move_call(

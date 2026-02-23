@@ -12,7 +12,7 @@ use iota_types::{
     move_package::UpgradePolicy,
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, CallArg},
+    transaction::{Argument, CallArg, SharedInputObject},
 };
 use move_compiler::editions::Flavor;
 use move_core_types::{
@@ -556,11 +556,11 @@ impl IotaValue {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
         let id = obj.id();
         if let Owner::Shared(initial_shared_version) = obj.owner {
-            Ok(CallArg::Shared {
+            Ok(CallArg::Shared(SharedInputObject {
                 object_id: id,
                 initial_shared_version,
                 mutable: false,
-            })
+            }))
         } else {
             bail!("{fake_id} is not a shared object.")
         }
@@ -574,11 +574,11 @@ impl IotaValue {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
         let id = obj.id();
         match obj.owner {
-            Owner::Shared(initial_shared_version) => Ok(CallArg::Shared {
+            Owner::Shared(initial_shared_version) => Ok(CallArg::Shared(SharedInputObject {
                 object_id: id,
                 initial_shared_version,
                 mutable: true,
-            }),
+            })),
             Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
                 let obj_ref = obj.compute_object_reference();
                 Ok(CallArg::ImmutableOrOwned(obj_ref))
@@ -592,9 +592,7 @@ impl IotaValue {
             IotaValue::Object(fake_id, version) => {
                 Self::object_arg(fake_id, version, test_adapter)?
             }
-            IotaValue::MoveValue(v) => CallArg::Pure {
-                value: v.simple_serialize().unwrap(),
-            },
+            IotaValue::MoveValue(v) => CallArg::Pure(v.simple_serialize().unwrap()),
             IotaValue::Receiving(fake_id, version) => {
                 Self::receiving_arg(fake_id, version, test_adapter)?
             }

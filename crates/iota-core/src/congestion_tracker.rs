@@ -234,7 +234,7 @@ impl CongestionTracker {
                 .shared_input_objects()
                 .into_iter()
                 .filter(|obj| obj.mutable)
-                .map(|obj| obj.id),
+                .map(|obj| obj.object_id),
         )
     }
 
@@ -247,7 +247,7 @@ impl CongestionTracker {
                     .shared_input_objects()
                     .into_iter()
                     .filter(|id| id.mutable)
-                    .map(|id| id.id),
+                    .map(|id| id.object_id),
             )
             .unwrap_or((ObjectID::random(), 0.0));
 

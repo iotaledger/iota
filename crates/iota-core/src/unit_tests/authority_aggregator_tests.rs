@@ -97,9 +97,7 @@ pub fn create_object_move_transaction(
     // When creating an object_basics object, we provide the value (u64) and address
     // which will own the object
     let arguments = vec![
-        CallArg::Pure {
-            value: value.to_le_bytes().to_vec(),
-        },
+        CallArg::Pure(value.to_le_bytes().to_vec()),
         CallArg::pure(&AccountAddress::new(dest.into_bytes())),
     ];
 

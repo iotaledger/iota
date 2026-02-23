@@ -844,9 +844,7 @@ async fn test_move_call_gas() -> IotaResult {
     let module = Identifier::from_static("object_basics");
     let function = Identifier::from_static("create");
     let args = vec![
-        CallArg::Pure {
-            value: 16u64.to_le_bytes().to_vec(),
-        },
+        CallArg::Pure(16u64.to_le_bytes().to_vec()),
         CallArg::pure(&AccountAddress::new(sender.into_bytes())),
     ];
     let data = TransactionData::new_move_call(
