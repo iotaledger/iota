@@ -769,18 +769,9 @@ impl DagState {
         }
     }
 
-    /// Helper to find an item matching a TransactionRef in a BTreeMap keyed by
-    /// BlockRef. Uses range query on (round, author) with
-    /// transactions_commitment filtering.
-    fn find_by_transaction_ref<'a, T, F>(
-        &self,
-        tx_ref: &TransactionRef,
-        data: &'a BTreeMap<BlockRef, T>,
-        get_commitment: F,
-    ) -> Option<&'a T>
-    where
-        F: Fn(&T) -> TransactionsCommitment,
-    {
+    /// Finds a genesis block matching the given TransactionRef. Uses a range
+    /// query on (round, author) with transactions_commitment filtering.
+    fn find_genesis_by_transaction_ref(&self, tx_ref: &TransactionRef) -> Option<&VerifiedBlock> {
         let author = tx_ref.author();
         let round = tx_ref.round;
         let min_ref = BlockRef {
@@ -794,9 +785,10 @@ impl DagState {
             digest: BlockHeaderDigest::MAX,
         };
 
-        let matching: Vec<_> = data
+        let matching: Vec<_> = self
+            .genesis
             .range(min_ref..=max_ref)
-            .filter(|(_, item)| get_commitment(item) == tx_ref.transactions_commitment)
+            .filter(|(_, block)| block.transactions_commitment() == tx_ref.transactions_commitment)
             .collect();
 
         match matching.len() {
@@ -804,7 +796,7 @@ impl DagState {
             0 => None,
             n => {
                 error!(
-                    "Found {} items matching slot ({}, {}) and transactions_commitment, expected 1",
+                    "Found {} genesis items matching slot ({}, {}) and transactions_commitment, expected 1 or 0",
                     n, round, author
                 );
                 None
@@ -819,9 +811,7 @@ impl DagState {
         match tx_ref {
             GenericTransactionRef::BlockRef(block_ref) => self.genesis.get(&block_ref),
             GenericTransactionRef::TransactionRef(tx_ref) => {
-                self.find_by_transaction_ref(&tx_ref, &self.genesis, |block| {
-                    block.transactions_commitment()
-                })
+                self.find_genesis_by_transaction_ref(&tx_ref)
             }
         }
     }
@@ -1000,19 +990,17 @@ impl DagState {
 
             // Check genesis blocks
             if round == GENESIS_ROUND {
-                results[index] = self
-                    .find_by_transaction_ref(tx_ref, &self.genesis, |block| {
-                        block.transactions_commitment()
-                    })
-                    .is_some();
+                results[index] = self.find_genesis_by_transaction_ref(tx_ref).is_some();
                 continue;
             }
 
-            // Check recent block headers
+            // Check recent block headers. We are guaranteed to have the block
+            // digest in tx_ref_to_block_digest_by_authority if the header is
+            // still in recent_block_headers, because both are inserted together
+            // and headers are evicted first.
             results[index] = self
-                .find_by_transaction_ref(tx_ref, &self.recent_block_headers, |header| {
-                    header.transactions_commitment()
-                })
+                .resolve_block_ref(tx_ref)
+                .and_then(|block_ref| self.recent_block_headers.get(&block_ref))
                 .is_some();
         }
 
@@ -1242,14 +1230,16 @@ impl DagState {
     ) -> Vec<Option<VerifiedBlockHeader>> {
         let mut block_headers: Vec<Option<VerifiedBlockHeader>> = vec![None; tx_refs.len()];
         for (index, tx_ref) in tx_refs.iter().enumerate() {
+            if tx_ref.round == GENESIS_ROUND {
+                if let Some(block) = self.find_genesis_by_transaction_ref(tx_ref) {
+                    block_headers[index] = Some(block.verified_block_header.clone());
+                }
+                continue;
+            }
             let Some(block_ref) = self.resolve_block_ref(tx_ref) else {
                 continue;
             };
-            if tx_ref.round == GENESIS_ROUND {
-                if let Some(block) = self.genesis.get(&block_ref) {
-                    block_headers[index] = Some(block.verified_block_header.clone());
-                }
-            } else if let Some(block) = self.recent_block_headers.get(&block_ref) {
+            if let Some(block) = self.recent_block_headers.get(&block_ref) {
                 block_headers[index] = Some(block.clone());
             }
         }
