@@ -81,5 +81,6 @@ impl_field_presence_checker!(CommandResults {
 });
 impl_field_presence_checker!(SimulateTransactionResponse {
     transaction: ExecutedTransaction,
+    suggested_gas_price,
     command_results: CommandResults,
 });
