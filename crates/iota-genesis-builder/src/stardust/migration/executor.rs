@@ -858,7 +858,7 @@ impl FoundryLedgerData {
                 .package
                 .to_canonical_string(with_prefix),
             self.coin_type_origin.module_name,
-            self.coin_type_origin.datatype_name
+            self.coin_type_origin.struct_name
         )
     }
 }
