@@ -4077,23 +4077,6 @@ pub async fn init_state_with_objects_and_object_basics<I: IntoIterator<Item = Ob
 }
 
 #[cfg(test)]
-pub async fn init_state_with_config_and_objects_and_object_basics<
-    I: IntoIterator<Item = Object>,
->(
-    config: ProtocolConfig,
-    objects: I,
-) -> (Arc<AuthorityState>, ObjectRef) {
-    let state = TestAuthorityBuilder::new()
-        .with_protocol_config(config)
-        .build()
-        .await;
-    for obj in objects {
-        state.insert_genesis_object(obj).await;
-    }
-    publish_object_basics(state).await
-}
-
-#[cfg(test)]
 pub async fn init_state_with_ids_and_object_basics<
     I: IntoIterator<Item = (IotaAddress, ObjectID)>,
 >(
@@ -4691,12 +4674,10 @@ async fn test_consensus_commit_prologue_generation() {
         Object::new_move(obj, owner, TransactionDigest::genesis_marker())
     };
     let initial_shared_version = shared_object.version();
-    let (authority_state, package_object_ref) =
-        init_state_with_config_and_objects_and_object_basics(
-            ProtocolConfig::get_for_max_version_UNSAFE(),
-            [&[shared_object], gas_objects.as_slice()].concat(),
-        )
-        .await;
+    let (authority_state, package_object_ref) = init_state_with_objects_and_object_basics(
+        [&[shared_object], gas_objects.as_slice()].concat(),
+    )
+    .await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
     let mut certificates = vec![];

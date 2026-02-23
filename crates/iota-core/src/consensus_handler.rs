@@ -960,10 +960,14 @@ impl ConsensusCommitInfo {
         epoch: u64,
         protocol_config: &ProtocolConfig,
         cancelled_transactions: Vec<CancelledTransactionV2>,
-        _additional_states: &AdditionalConsensusStates,
+        additional_consensus_states: &AdditionalConsensusStates,
     ) -> VerifiedExecutableTransaction {
         if protocol_config.record_additional_states_digests_in_prologue() {
-            self.consensus_commit_prologue_v2_transaction(epoch, cancelled_transactions, Vec::new())
+            self.consensus_commit_prologue_v2_transaction(
+                epoch,
+                cancelled_transactions,
+                additional_consensus_states.digests(protocol_config),
+            )
         } else {
             self.consensus_commit_prologue_v1_transaction(epoch, cancelled_transactions)
         }
