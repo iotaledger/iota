@@ -32,11 +32,8 @@ use crate::{
 /// This function represents the data received by the Move authenticate function
 /// during the Account Abstraction authentication flow.
 #[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
-// The `transparent` attribute allows us to get rid of one level of nesting in the serialized form,
-// which is reasonable since `MoveAuthenticator` will not be extended with more fields in the
-// future, and it simplifies the serialization logic.
-#[serde(transparent)]
 pub struct MoveAuthenticator {
+    #[serde(flatten)]
     inner: MoveAuthenticatorVersioned,
     /// A bytes representation of [struct MoveAuthenticator]. This helps with
     /// implementing trait [AsRef](core::convert::AsRef).
@@ -174,9 +171,12 @@ impl ToFromBytes for MoveAuthenticator {
             return Err(FastCryptoError::InvalidInput);
         }
 
-        let move_auth =
+        let inner: MoveAuthenticatorVersioned =
             bcs::from_bytes(&bytes[1..]).map_err(|_| FastCryptoError::InvalidSignature)?;
-        Ok(move_auth)
+        Ok(Self {
+            inner,
+            bytes: OnceCell::new(),
+        })
     }
 }
 
@@ -189,7 +189,7 @@ impl ToFromBytes for MoveAuthenticator {
 impl AsRef<[u8]> for MoveAuthenticator {
     fn as_ref(&self) -> &[u8] {
         self.bytes.get_or_init(|| {
-            let as_bytes = bcs::to_bytes(self).expect("BCS serialization should not fail");
+            let as_bytes = bcs::to_bytes(&self.inner).expect("BCS serialization should not fail");
             let mut bytes = Vec::with_capacity(1 + as_bytes.len());
             bytes.push(SignatureScheme::MoveAuthenticator.flag());
             bytes.extend_from_slice(as_bytes.as_slice());

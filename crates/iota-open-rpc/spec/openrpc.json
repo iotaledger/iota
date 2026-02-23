@@ -7740,7 +7740,7 @@
             ],
             "properties": {
               "MoveAuthenticator": {
-                "$ref": "#/components/schemas/MoveAuthenticatorVersioned"
+                "$ref": "#/components/schemas/MoveAuthenticator"
               }
             },
             "additionalProperties": false
@@ -10138,6 +10138,24 @@
           }
         }
       },
+      "MoveAuthenticator": {
+        "description": "MoveAuthenticator is a GenericSignature variant that enables a new method of authentication through Move code. This function represents the data received by the Move authenticate function during the Account Abstraction authentication flow.",
+        "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "V1"
+            ],
+            "properties": {
+              "V1": {
+                "$ref": "#/components/schemas/MoveAuthenticatorV1"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
       "MoveAuthenticatorAsBytes": {
         "$ref": "#/components/schemas/Base64"
       },
@@ -10173,23 +10191,6 @@
             }
           }
         }
-      },
-      "MoveAuthenticatorVersioned": {
-        "description": "MoveAuthenticatorVersioned is an enum that represents the different versions of MoveAuthenticator.",
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "V1"
-            ],
-            "properties": {
-              "V1": {
-                "$ref": "#/components/schemas/MoveAuthenticatorV1"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
       },
       "MoveCallMetrics": {
         "type": "object",
