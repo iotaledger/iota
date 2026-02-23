@@ -5779,7 +5779,7 @@ async fn test_function_not_found() {
     assert_eq!(
         effects.status(),
         &IotaExecutionStatus::Failure {
-            error: "Function Not Found. in command 0".to_string(),
+            error: "Function Not Found in command 0".to_string(),
         }
     );
 
