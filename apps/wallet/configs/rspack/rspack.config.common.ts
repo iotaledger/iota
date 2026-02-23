@@ -6,6 +6,7 @@ import { exec } from 'child_process';
 import { resolve } from 'path';
 import { randomBytes } from '@noble/hashes/utils';
 import SentryWebpackPlugin from '@sentry/webpack-plugin';
+import { LicenseWebpackPlugin } from 'license-webpack-plugin';
 import dotenv from 'dotenv';
 import gitRevSync from 'git-rev-sync';
 import { rspack } from '@rspack/core';
@@ -271,6 +272,15 @@ const commonConfig: () => Promise<Configuration> = async () => {
             new rspack.ProvidePlugin({
                 Buffer: ['buffer', 'Buffer'],
             }),
+            ...(IS_DEV
+                ? []
+                : [
+                      new LicenseWebpackPlugin({
+                          stats: { warnings: false, errors: true },
+                          outputFilename: '[name].js.LICENSE.txt',
+                          perChunkOutput: true,
+                      }),
+                  ]),
             new SentryWebpackPlugin({
                 org: 'iota-foundation-eu',
                 project: 'iota-wallet', // Sentry dev hint: use 'iota-wallet-dev' project for testing
