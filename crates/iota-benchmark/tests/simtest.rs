@@ -54,6 +54,7 @@ mod test {
     use iota_types::{
         base_types::{ConciseableName, ObjectID, SequenceNumber},
         digests::TransactionDigest,
+        messages_consensus::{CancelledTransactionV2, VersionAssignmentV2},
         full_checkpoint_content::CheckpointData,
         messages_checkpoint::VerifiedCheckpoint,
         supported_protocol_versions::SupportedProtocolVersions,
@@ -698,14 +699,16 @@ mod test {
         // determinism.
         for _ in 0..num_txns {
             let num_objs = thread_rng().gen_range(1..15);
-            let mut assigned_object_versions = Vec::new();
-            for _ in 0..num_objs {
-                assigned_object_versions.push((
-                    ObjectID::random(),
-                    SequenceNumber::new_congested_with_suggested_gas_price(1_000),
-                ));
-            }
-            additional_cancelled_txns.push((TransactionDigest::random(), assigned_object_versions));
+            let version_assignments = (0..num_objs)
+                .map(|_| VersionAssignmentV2 {
+                    object_id: ObjectID::random(),
+                    version: SequenceNumber::new_congested_with_suggested_gas_price(1_000),
+                })
+                .collect();
+            additional_cancelled_txns.push(CancelledTransactionV2 {
+                digest: TransactionDigest::random(),
+                version_assignments,
+            });
         }
 
         register_fail_point_arg("additional_cancelled_txns_for_tests", move || {
