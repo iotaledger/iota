@@ -15,6 +15,7 @@ import {
     useIsValidatorCommitteeMember,
     NO_BALANCE_GENERIC_MESSAGE,
     getGasBudgetErrorMessage,
+    useGetValidatorsApy,
 } from '@iota/core';
 import * as Sentry from '@sentry/react';
 import { ampli } from '_src/shared/analytics/ampli';
@@ -28,6 +29,7 @@ import {
 } from 'formik';
 import { memo, useMemo } from 'react';
 import { useActiveAccount, useSigner } from '_hooks';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 import {
     Button,
     ButtonPill,
@@ -70,7 +72,12 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     const decimals = metadata?.decimals ?? 0;
     const coinSymbol = metadata?.symbol ?? '';
 
-    // set minimum stake amount to 1 IOTA
+    const { data: rollingAverageApys } = useGetValidatorsApy();
+    const validatorApy = rollingAverageApys?.[validatorAddress]?.apy ?? 0;
+    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
+    const validatorName =
+        systemState?.activeValidators.find((v) => v.iotaAddress === validatorAddress)?.name ?? '';
+
     const minimumStake = parseAmount(MIN_NUMBER_IOTA_TO_STAKE.toString(), decimals);
 
     const { data: minAmountTransactionData } = useNewStakeTransaction(
@@ -133,12 +140,6 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                     },
                 );
             },
-            onSuccess: (_) => {
-                ampli.iotaStaked({
-                    stakedAmount: Number(stakedAmountFormatted),
-                    validatorAddress: validatorAddress || '',
-                });
-            },
             onError: (error) => {
                 throw error;
             },
@@ -149,8 +150,10 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
             await stakeTokenMutateAsync(undefined, {
                 onSuccess(data) {
                     ampli.iotaStaked({
-                        stakedAmount: Number(amount),
+                        stakedAmount: Number(stakedAmountFormatted),
                         validatorAddress: validatorAddress || '',
+                        validatorAPY: validatorApy,
+                        validatorName,
                     });
                     formikHelpers.resetForm();
                     onSuccess(data.tx);

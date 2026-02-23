@@ -5,6 +5,7 @@
 import type { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { LabelText, LabelTextSize, Panel, Title, TooltipPosition } from '@iota/apps-ui-kit';
 import { getValidatorCommission, useFormatCoin } from '@iota/core';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 type StatsCardProps = {
     validatorData: IotaValidatorSummary;
@@ -20,13 +21,19 @@ export function ValidatorStats({
     apy,
     tallyingScore,
 }: StatsCardProps): JSX.Element {
+    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
     // TODO: Add logic for validator stats https://github.com/iotaledger/iota/issues/2449
-    const numberOfDelegators = 0;
     const networkStakingParticipation = 0;
     const votedLastRound = 0;
 
     const totalStake = Number(validatorData.stakingPoolIotaBalance);
 
+    // Temporarily needed to compute the effectiveCommissionRate until infra exposes it in commissionRate directly
+    const hasEffectiveCommissionRate = Number(systemState?.protocolVersion ?? 0) >= 20;
+    const effectiveCommissionRate = getValidatorCommission(
+        validatorData,
+        hasEffectiveCommissionRate,
+    );
     const commission = getValidatorCommission(validatorData);
     const rewardsPoolBalance = Number(validatorData.rewardsPool);
 
@@ -59,22 +66,20 @@ export function ValidatorStats({
                         />
                     </div>
                     <div className="grid grid-rows-1 gap-md">
+                        {hasEffectiveCommissionRate && (
+                            <LabelText
+                                size={LabelTextSize.Medium}
+                                label="Effective Commission Rate"
+                                text={effectiveCommissionRate}
+                                tooltipText="The share of rewards retained by the validator. This rate includes a protocol-enforced minimum to help maintain network decentralization."
+                                tooltipPosition={TooltipPosition.Right}
+                            />
+                        )}
                         <LabelText
                             size={LabelTextSize.Medium}
                             label="Commission"
                             text={commission}
                             tooltipText="The charge imposed by the validator for their staking services."
-                            tooltipPosition={TooltipPosition.Right}
-                        />
-                        <LabelText
-                            size={LabelTextSize.Medium}
-                            label="Delegators"
-                            text={numberOfDelegators || '--'}
-                            tooltipText={
-                                !numberOfDelegators
-                                    ? 'Coming soon'
-                                    : 'The number of delegators who have staked on this validator.'
-                            }
                             tooltipPosition={TooltipPosition.Right}
                         />
                     </div>
