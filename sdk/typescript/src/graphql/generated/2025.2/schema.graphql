@@ -4731,7 +4731,7 @@ enum TransactionBlockKindInput {
 	"""
 	GENESIS
 	"""
-	The consensus commit prologue transaction block.
+	The consensus commit prologue transaction block (V1).
 	"""
 	CONSENSUS_COMMIT_PROLOGUE_V1
 	"""
@@ -4746,6 +4746,10 @@ enum TransactionBlockKindInput {
 	The end of epoch transaction block.
 	"""
 	END_OF_EPOCH_TX
+	"""
+	The consensus commit prologue transaction block (V2).
+	"""
+	CONSENSUS_COMMIT_PROLOGUE_V2
 }
 
 """
