@@ -64,5 +64,6 @@ message SimulateTransactionRequest {
 
 message SimulateTransactionResponse {
   optional iota.grpc.v0.transaction.ExecutedTransaction transaction = 1;
-  optional iota.grpc.v0.command.CommandResults command_results = 2;
+  optional uint64 suggested_gas_price = 2;
+  optional iota.grpc.v0.command.CommandResults command_results = 3;
 }
