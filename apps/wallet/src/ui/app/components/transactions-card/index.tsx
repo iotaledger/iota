@@ -27,6 +27,7 @@ import {
     ImageShape,
 } from '@iota/apps-ui-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { ampli } from '_src/shared/analytics/ampli';
 
 interface TransactionCardProps {
     txn: IotaTransactionBlockResponse;
@@ -84,6 +85,15 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
         ? '--'
         : formatDate(Number(txn.timestampMs), ['day', 'month', 'year', 'hour', 'minute']);
 
+    const handleTransactionClick = () => {
+        const transactionAction = getTransactionAction(txn, address);
+
+        ampli.transactionOpened({
+            transactionType: transactionAction,
+            success: executionStatus === 'success' && !error,
+        });
+    };
+
     return (
         <Link
             data-testid="link-to-txn"
@@ -91,6 +101,7 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
                 txdigest: txn.digest,
             }).toString()}`}
             className="flex w-full flex-col items-center no-underline"
+            onClick={handleTransactionClick}
         >
             <Card type={CardType.Default} isHoverable>
                 <CardImage type={ImageType.BgSolid} shape={ImageShape.SquareRounded}>

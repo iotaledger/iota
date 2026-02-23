@@ -636,6 +636,11 @@ export interface ThemeChangedProperties {
     theme: string;
 }
 
+export interface TransactionOpenedProperties {
+    success?: boolean;
+    transactionType?: string;
+}
+
 export interface UnpinnedCoinProperties {
     /**
      * | Rule | Value |
@@ -1094,6 +1099,14 @@ export class ThemeChanged implements BaseEvent {
     event_type = 'theme changed';
 
     constructor(public event_properties: ThemeChangedProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class TransactionOpened implements BaseEvent {
+    event_type = 'transaction opened';
+
+    constructor(public event_properties?: TransactionOpenedProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -2137,6 +2150,23 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new ThemeChanged(properties), options);
+  }
+
+  /**
+   * transaction opened
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/transaction%20opened)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. success)
+   * @param options Amplitude event options.
+   */
+  transactionOpened(
+    properties?: TransactionOpenedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new TransactionOpened(properties), options);
   }
 
   /**
