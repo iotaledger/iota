@@ -52,7 +52,7 @@
         "@rspack/cli": "^1.7.6",
         "@rspack/core": "^1.7.6",
         "@sentry/react": "^7.120.3",
-        "@sentry/webpack-plugin": "^1.21.0",
+        "@sentry/webpack-plugin": "^2.23.1",
         "@svgr/webpack": "^7.0.0",
         "@types/chrome": "^0.1.27",
         "@types/git-rev-sync": "^2.0.0",

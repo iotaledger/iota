@@ -5,7 +5,7 @@
 import { exec } from 'child_process';
 import { resolve } from 'path';
 import { randomBytes } from '@noble/hashes/utils';
-import SentryWebpackPlugin from '@sentry/webpack-plugin';
+import { sentryWebpackPlugin } from '@sentry/webpack-plugin';
 import { LicenseWebpackPlugin } from 'license-webpack-plugin';
 import dotenv from 'dotenv';
 import gitRevSync from 'git-rev-sync';
@@ -281,13 +281,17 @@ const commonConfig: () => Promise<Configuration> = async () => {
                           perChunkOutput: true,
                       }),
                   ]),
-            new SentryWebpackPlugin({
+            sentryWebpackPlugin({
                 org: 'iota-foundation-eu',
                 project: 'iota-wallet', // Sentry dev hint: use 'iota-wallet-dev' project for testing
-                include: OUTPUT_ROOT,
-                dryRun: !IS_PROD || !sentryAuthToken,
+                sourcemaps: {
+                    assets: OUTPUT_ROOT,
+                },
+                disable: !IS_PROD || !sentryAuthToken,
                 authToken: sentryAuthToken,
-                release: walletVersionDetails.version,
+                release: {
+                    name: walletVersionDetails.version,
+                },
                 silent: true,
             }),
         ],
