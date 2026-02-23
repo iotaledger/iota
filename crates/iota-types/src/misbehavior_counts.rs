@@ -148,7 +148,7 @@ impl MisbehaviorsV1<Vec<AtomicU64>> {
         for (current_field, other_field) in self.iter().zip(other.iter()) {
             if current_field.len() != other_field.len() {
                 panic!(
-                    "Mismatched commitee sizes: {} vs {}",
+                    "Mismatched committee sizes: {} vs {}",
                     current_field.len(),
                     other_field.len()
                 );
