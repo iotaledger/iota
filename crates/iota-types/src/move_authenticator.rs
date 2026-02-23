@@ -34,7 +34,7 @@ use crate::{
 #[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
 pub struct MoveAuthenticator {
     #[serde(flatten)]
-    inner: MoveAuthenticatorInner,
+    pub(crate) inner: MoveAuthenticatorInner,
     /// A bytes representation of [struct MoveAuthenticator]. This helps with
     /// implementing trait [AsRef](core::convert::AsRef).
     #[serde(skip)]
@@ -54,6 +54,15 @@ impl MoveAuthenticator {
                 type_arguments,
                 object_to_authenticate,
             ),
+            bytes: OnceCell::new(),
+        }
+    }
+
+    /// Constructs a `MoveAuthenticator` from a deserialized
+    /// [`MoveAuthenticatorInner`].
+    pub(crate) fn from_inner(inner: MoveAuthenticatorInner) -> Self {
+        Self {
+            inner,
             bytes: OnceCell::new(),
         }
     }
