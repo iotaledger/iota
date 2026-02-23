@@ -8,13 +8,12 @@ import { ampli } from '_src/shared/analytics/ampli';
 
 export type CopyOptions = {
     copySuccessMessage?: string;
-    textType: string;
-    trackEvent?: boolean;
+    textType?: string;
 };
 
 export function useCopyToClipboard(
     textToCopy: string,
-    { copySuccessMessage = 'Copied', textType, trackEvent = true }: CopyOptions,
+    { copySuccessMessage = 'Copied', textType }: CopyOptions,
 ) {
     return useCallback<MouseEventHandler>(
         async (e) => {
@@ -23,7 +22,7 @@ export function useCopyToClipboard(
             try {
                 await navigator.clipboard.writeText(textToCopy);
                 toast(copySuccessMessage);
-                if (trackEvent) {
+                if (textType) {
                     ampli.elementCopied({
                         type: textType,
                     });
@@ -32,6 +31,6 @@ export function useCopyToClipboard(
                 // silence clipboard errors
             }
         },
-        [textToCopy, copySuccessMessage, textType, trackEvent],
+        [textToCopy, copySuccessMessage, textType],
     );
 }

@@ -27,8 +27,7 @@ export function AppsPageBanner() {
                 <ExternalLink
                     href={AppsBannerConfig.value?.bannerUrl}
                     onClick={() => ampli.appsBannerCtaClicked({ sourceFlow: 'Banner - Apps tab' })}
-                    type="application"
-                    trackEvent={false}
+                    // Omit 'type' prop to disable default tracking since custom analytics event is triggered above
                 >
                     <img
                         className="w-full"

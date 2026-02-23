@@ -60,8 +60,7 @@ export function Interstitial({
                             closeInterstitial();
                         }}
                         className="h-full w-full"
-                        type="application"
-                        trackEvent={false}
+                        // Omit 'type' prop to disable default tracking since custom analytics event is triggered above
                     >
                         <img src={imageUrl} alt="interstitial-banner" />
                     </ExternalLink>

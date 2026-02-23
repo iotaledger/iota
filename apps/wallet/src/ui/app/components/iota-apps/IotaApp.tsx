@@ -133,9 +133,7 @@ export function IotaApp({
             onClick={() => {
                 ampli.applicationOpened({ applicationName: name });
             }}
-            type="application"
-            // Disable tracking for this link since application opened event is triggered here
-            trackEvent={false}
+            // Omit 'type' prop to disable default tracking since custom analytics event is triggered above
         >
             {AppDetails}
         </ExternalLink>
