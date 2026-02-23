@@ -1593,9 +1593,12 @@ fn test_query_transaction_blocks_tx_kind_filter() -> Result<(), anyhow::Error> {
             .data;
         assert_eq!(tx_data_v1.sender, IotaAddress::ZERO);
 
-        // Test `ConsensusCommitPrologueV1` transaction kind filter
+        // Test `ConsensusCommitPrologueV2` transaction kind filter
+        // The default test cluster runs at MAX_PROTOCOL_VERSION with Chain::Unknown,
+        // which enables `record_additional_states_digests_in_prologue and therefore
+        // produces V2 prologues.
         let filter =
-            TransactionFilterV2::TransactionKind(IotaTransactionKind::ConsensusCommitPrologueV1);
+            TransactionFilterV2::TransactionKind(IotaTransactionKind::ConsensusCommitPrologueV2);
         let query = IotaTransactionBlockResponseQueryV2::new(Some(filter), Some(options.clone()));
         let res = client
             .query_transaction_blocks_v2(query, None, Some(1), Some(true))
@@ -1616,12 +1619,12 @@ fn test_query_transaction_blocks_tx_kind_filter() -> Result<(), anyhow::Error> {
             .data;
         assert!(matches!(
             tx_data_v1.transaction,
-            IotaTransactionBlockKind::ConsensusCommitPrologueV1(_)
+            IotaTransactionBlockKind::ConsensusCommitPrologueV2(_)
         ));
 
         // Test `TransactionKindIn` filter
         let filter = TransactionFilterV2::TransactionKindIn(vec![
-            IotaTransactionKind::ConsensusCommitPrologueV1,
+            IotaTransactionKind::ConsensusCommitPrologueV2,
             IotaTransactionKind::ProgrammableTransaction,
         ]);
         let query = IotaTransactionBlockResponseQueryV2::new(Some(filter), Some(options));
@@ -1638,7 +1641,7 @@ fn test_query_transaction_blocks_tx_kind_filter() -> Result<(), anyhow::Error> {
                 &tb_res.transaction.as_ref().unwrap().data;
             assert!(matches!(
                 tx_data_v1.transaction,
-                IotaTransactionBlockKind::ConsensusCommitPrologueV1(_)
+                IotaTransactionBlockKind::ConsensusCommitPrologueV2(_)
                     | IotaTransactionBlockKind::ProgrammableTransaction(_)
             ));
         }
