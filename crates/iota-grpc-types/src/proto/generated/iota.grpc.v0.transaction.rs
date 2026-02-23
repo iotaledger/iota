@@ -77,33 +77,3 @@ pub struct ExecutedTransactions {
     #[prost(message, repeated, tag = "1")]
     pub transactions: ::prost::alloc::vec::Vec<ExecutedTransaction>,
 }
-#[non_exhaustive]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct ExecutionError {
-    /// The execution error kind as BCS-encoded data
-    #[prost(message, optional, tag = "1")]
-    pub bcs_kind: ::core::option::Option<super::bcs::BcsData>,
-    /// Optional error source as string
-    #[prost(string, optional, tag = "2")]
-    pub source: ::core::option::Option<::prost::alloc::string::String>,
-    /// Optional command index
-    #[prost(uint64, optional, tag = "3")]
-    pub command_index: ::core::option::Option<u64>,
-}
-#[non_exhaustive]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ExecutionResult {
-    #[prost(oneof = "execution_result::Result", tags = "1, 2")]
-    pub result: ::core::option::Option<execution_result::Result>,
-}
-/// Nested message and enum types in `ExecutionResult`.
-pub mod execution_result {
-    #[non_exhaustive]
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
-    pub enum Result {
-        #[prost(message, tag = "1")]
-        CommandResults(super::super::command::CommandResults),
-        #[prost(message, tag = "2")]
-        ExecutionError(super::ExecutionError),
-    }
-}

@@ -12,10 +12,6 @@ mod _field_impls {
     #[allow(unused_imports)]
     use crate::v0::bcs::BcsDataFieldPathBuilder;
     #[allow(unused_imports)]
-    use crate::v0::command::CommandResults;
-    #[allow(unused_imports)]
-    use crate::v0::command::CommandResultsFieldPathBuilder;
-    #[allow(unused_imports)]
     use crate::v0::event::Events;
     #[allow(unused_imports)]
     use crate::v0::event::EventsFieldPathBuilder;
@@ -357,128 +353,6 @@ mod _field_impls {
         pub fn transactions(mut self) -> ExecutedTransactionFieldPathBuilder {
             self.path.push(ExecutedTransactions::TRANSACTIONS_FIELD.name);
             ExecutedTransactionFieldPathBuilder::new_with_base(self.path)
-        }
-    }
-    impl ExecutionError {
-        pub const BCS_KIND_FIELD: &'static MessageField = &MessageField {
-            name: "bcs_kind",
-            json_name: "bcsKind",
-            number: 1i32,
-            is_optional: true,
-            is_map: false,
-            message_fields: Some(BcsData::FIELDS),
-        };
-        pub const SOURCE_FIELD: &'static MessageField = &MessageField {
-            name: "source",
-            json_name: "source",
-            number: 2i32,
-            is_optional: true,
-            is_map: false,
-            message_fields: None,
-        };
-        pub const COMMAND_INDEX_FIELD: &'static MessageField = &MessageField {
-            name: "command_index",
-            json_name: "commandIndex",
-            number: 3i32,
-            is_optional: true,
-            is_map: false,
-            message_fields: None,
-        };
-    }
-    impl MessageFields for ExecutionError {
-        const FIELDS: &'static [&'static MessageField] = &[
-            Self::BCS_KIND_FIELD,
-            Self::SOURCE_FIELD,
-            Self::COMMAND_INDEX_FIELD,
-        ];
-    }
-    impl ExecutionError {
-        pub fn path_builder() -> ExecutionErrorFieldPathBuilder {
-            ExecutionErrorFieldPathBuilder::new()
-        }
-    }
-    pub struct ExecutionErrorFieldPathBuilder {
-        path: Vec<&'static str>,
-    }
-    impl ExecutionErrorFieldPathBuilder {
-        #[allow(clippy::new_without_default)]
-        pub fn new() -> Self {
-            Self { path: Default::default() }
-        }
-        #[doc(hidden)]
-        pub fn new_with_base(base: Vec<&'static str>) -> Self {
-            Self { path: base }
-        }
-        pub fn finish(self) -> String {
-            self.path.join(".")
-        }
-        pub fn bcs_kind(mut self) -> BcsDataFieldPathBuilder {
-            self.path.push(ExecutionError::BCS_KIND_FIELD.name);
-            BcsDataFieldPathBuilder::new_with_base(self.path)
-        }
-        pub fn source(mut self) -> String {
-            self.path.push(ExecutionError::SOURCE_FIELD.name);
-            self.finish()
-        }
-        pub fn command_index(mut self) -> String {
-            self.path.push(ExecutionError::COMMAND_INDEX_FIELD.name);
-            self.finish()
-        }
-    }
-    impl ExecutionResult {
-        pub const COMMAND_RESULTS_FIELD: &'static MessageField = &MessageField {
-            name: "command_results",
-            json_name: "commandResults",
-            number: 1i32,
-            is_optional: false,
-            is_map: false,
-            message_fields: Some(CommandResults::FIELDS),
-        };
-        pub const EXECUTION_ERROR_FIELD: &'static MessageField = &MessageField {
-            name: "execution_error",
-            json_name: "executionError",
-            number: 2i32,
-            is_optional: false,
-            is_map: false,
-            message_fields: Some(ExecutionError::FIELDS),
-        };
-    }
-    impl ExecutionResult {
-        pub const RESULT_ONEOF: &'static str = "result";
-    }
-    impl MessageFields for ExecutionResult {
-        const FIELDS: &'static [&'static MessageField] = &[
-            Self::COMMAND_RESULTS_FIELD,
-            Self::EXECUTION_ERROR_FIELD,
-        ];
-    }
-    impl ExecutionResult {
-        pub fn path_builder() -> ExecutionResultFieldPathBuilder {
-            ExecutionResultFieldPathBuilder::new()
-        }
-    }
-    pub struct ExecutionResultFieldPathBuilder {
-        path: Vec<&'static str>,
-    }
-    impl ExecutionResultFieldPathBuilder {
-        #[allow(clippy::new_without_default)]
-        pub fn new() -> Self {
-            Self { path: Default::default() }
-        }
-        #[doc(hidden)]
-        pub fn new_with_base(base: Vec<&'static str>) -> Self {
-            Self { path: base }
-        }
-        pub fn finish(self) -> String {
-            self.path.join(".")
-        }
-        pub fn command_results(mut self) -> CommandResultsFieldPathBuilder {
-            self.path.push(ExecutionResult::COMMAND_RESULTS_FIELD.name);
-            CommandResultsFieldPathBuilder::new_with_base(self.path)
-        }
-        pub fn execution_error(mut self) -> ExecutionErrorFieldPathBuilder {
-            self.path.push(ExecutionResult::EXECUTION_ERROR_FIELD.name);
-            ExecutionErrorFieldPathBuilder::new_with_base(self.path)
         }
     }
 }

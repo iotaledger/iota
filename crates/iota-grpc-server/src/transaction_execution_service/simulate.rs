@@ -8,11 +8,14 @@ use iota_grpc_types::{
     field::FieldMaskTree,
     google::rpc::bad_request::FieldViolation,
     v0::{
+        bcs::{self as grpc_bcs},
+        command::CommandResults,
         error_reason::ErrorReason,
-        transaction::{ExecutedTransaction, ExecutionResult},
+        transaction::ExecutedTransaction,
         transaction_execution_service::{
-            SimulateTransactionRequest, SimulateTransactionResponse,
+            ExecutionError, SimulateTransactionRequest, SimulateTransactionResponse,
             simulate_transaction_request::TransactionCheckModes,
+            simulate_transaction_response::ExecutionResult,
         },
     },
 };
@@ -26,15 +29,16 @@ use iota_types::{
 
 use super::TransactionReadSource;
 use crate::{
-    error::RpcError, merge::Merge,
-    transaction_execution_service::transaction::ExecutionResultReadSource, types::GrpcReader,
+    error::RpcError, merge::Merge, transaction_execution_service::CommandResultsReadSource,
+    types::GrpcReader,
 };
 
 pub const SIMULATE_TRANSACTION_READ_MASK_DEFAULT: &str = crate::field_mask!(
     "transaction.digest",
     "transaction.transaction",
     "transaction.effects",
-    "command_results"
+    "suggested_gas_price",
+    "execution_result",
 );
 
 pub async fn simulate_transaction(
@@ -239,21 +243,68 @@ pub async fn simulate_transaction(
     }
 
     // Only include the result if requested
-    if let Some(result_mask) = read_mask.subtree(SimulateTransactionResponse::RESULT_FIELD.name) {
-        let execution_result_source = ExecutionResultReadSource {
-            reader: reader.clone(),
-            config,
-            execution_result,
-        };
+    if let Some(result_mask) =
+        read_mask.subtree(SimulateTransactionResponse::EXECUTION_RESULT_ONEOF)
+    {
+        match execution_result {
+            Ok(ref execution_results) => {
+                if let Some(command_results_mask) = result_mask.subtree("command_results") {
+                    // Only build command results if the execution was successful
+                    let cmd_source = CommandResultsReadSource {
+                        reader: reader.clone(),
+                        config,
+                        execution_results: execution_results.clone(),
+                    };
 
-        response.result = Some(
-            ExecutionResult::merge_from(&execution_result_source, &result_mask).map_err(|e| {
-                RpcError::new(
-                    tonic::Code::Internal,
-                    format!("failed to build execution result in simulation response: {e}"),
-                )
-            })?,
-        );
+                    let command_results = CommandResults::merge_from(
+                        &cmd_source,
+                        &command_results_mask,
+                    )
+                    .map_err(|e| {
+                        RpcError::new(
+                            tonic::Code::Internal,
+                            format!("failed to build command results in execution result: {e}"),
+                        )
+                    })?;
+
+                    response.execution_result =
+                        Some(ExecutionResult::CommandResults(command_results));
+                }
+            }
+            Err(ref execution_error) => {
+                if let Some(error_mask) = result_mask.subtree("execution_error") {
+                    let mut exec_error = ExecutionError::default();
+
+                    // Serialize the execution error kind as BCS
+                    if error_mask.contains(ExecutionError::BCS_KIND_FIELD.name) {
+                        exec_error.bcs_kind = Some(
+                            grpc_bcs::BcsData::serialize(execution_error.kind()).map_err(|e| {
+                                RpcError::new(
+                                    tonic::Code::Internal,
+                                    format!("failed to serialize execution error kind: {e}"),
+                                )
+                            })?,
+                        );
+                    }
+
+                    if error_mask.contains(ExecutionError::SOURCE_FIELD.name) {
+                        exec_error.source = execution_error
+                            .source()
+                            .as_ref()
+                            .map(|source| source.to_string());
+                    }
+
+                    // Set the command index if available
+                    if error_mask.contains(ExecutionError::COMMAND_INDEX_FIELD.name) {
+                        if let Some(command_idx) = execution_error.command() {
+                            exec_error.command_index = Some(command_idx as u64);
+                        }
+                    }
+
+                    response.execution_result = Some(ExecutionResult::ExecutionError(exec_error));
+                }
+            }
+        }
     }
 
     Ok(response)

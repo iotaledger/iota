@@ -10,7 +10,6 @@ import "google/protobuf/timestamp.proto";
 
 import "iota/grpc/options.proto";
 import "iota/grpc/v0/bcs.proto";
-import "iota/grpc/v0/command.proto";
 import "iota/grpc/v0/event.proto";
 import "iota/grpc/v0/object.proto";
 import "iota/grpc/v0/signatures.proto";
@@ -88,26 +87,4 @@ message ExecutedTransactions {
   option (iota.grpc.message_accessors) = "with";
 
   repeated ExecutedTransaction transactions = 1;
-}
-
-message ExecutionError {
-  option (iota.grpc.message_accessors) = "with";
-
-  // The execution error kind as BCS-encoded data
-  optional iota.grpc.v0.bcs.BcsData bcs_kind = 1;
-  
-  // Optional error source as string
-  optional string source = 2;
-  
-  // Optional command index
-  optional uint64 command_index = 3;
-}
-
-message ExecutionResult {
-  option (iota.grpc.message_accessors) = "with";
-  
-  oneof result {
-    iota.grpc.v0.command.CommandResults command_results = 1;
-    ExecutionError execution_error = 2;
-  }
 }
