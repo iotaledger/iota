@@ -54,9 +54,9 @@ mod test {
     use iota_types::{
         base_types::{ConciseableName, ObjectID, SequenceNumber},
         digests::TransactionDigest,
-        messages_consensus::{CancelledTransactionV2, VersionAssignmentV2},
         full_checkpoint_content::CheckpointData,
         messages_checkpoint::VerifiedCheckpoint,
+        messages_consensus::{CancelledTransactionV2, VersionAssignmentV2},
         supported_protocol_versions::SupportedProtocolVersions,
         traffic_control::{FreqThresholdConfig, PolicyConfig, PolicyType},
         transaction::{
