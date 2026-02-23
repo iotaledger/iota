@@ -5,7 +5,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use iota_protocol_config::ProtocolConfig;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use tracing::warn;
 
 use crate::{messages_consensus::VersionedMisbehaviorReport, misbehavior_counts::MisbehaviorsV1};
 
@@ -218,13 +217,10 @@ impl VersionedScoringMetrics {
     // is monotonically increasing by design; average faulty blocks per minute is
     // not.
     pub fn update_from_report(&self, report: &VersionedMisbehaviorReport) {
-        if !self.has_compatible_version(report) {
-            warn!(
-                "Metrics counts being updated according to a report with incompatible version, but report versions were already checked before this point!"
-            );
-        }
-        for (current_value, new_value) in self.iter().flatten().zip(report.iter().flatten()) {
-            current_value.fetch_max(*new_value, Ordering::Relaxed);
+        match (self, report) {
+            (VersionedScoringMetrics::V1(metrics), VersionedMisbehaviorReport::V1(report, _)) => {
+                metrics.element_wise_fetch_max(report);
+            }
         }
     }
 
@@ -249,14 +245,6 @@ impl VersionedScoringMetrics {
                 let non_atomic_metrics = atomic_metrics.as_non_atomic();
                 VersionedMisbehaviorReport::new_v1(non_atomic_metrics)
             }
-        }
-    }
-
-    // Checks if the version of the scoring metrics is compatible with the version
-    // of the misbehavior report.
-    pub fn has_compatible_version(&self, report: &VersionedMisbehaviorReport) -> bool {
-        match (self, report) {
-            (VersionedScoringMetrics::V1(_), VersionedMisbehaviorReport::V1(_, _)) => true,
         }
     }
 

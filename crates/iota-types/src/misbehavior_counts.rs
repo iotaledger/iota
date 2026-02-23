@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::{Deserialize, Serialize};
 
@@ -141,6 +141,22 @@ impl MisbehaviorsV1<Vec<AtomicU64>> {
             (0..committee_size).map(|_| AtomicU64::new(0)).collect(),
             (0..committee_size).map(|_| AtomicU64::new(0)).collect(),
         )
+    }
+
+    // Applies element-wise `fetch_max` from a `MisbehaviorsV1<Vec<u64>>`.
+    pub fn element_wise_fetch_max(&self, other: &MisbehaviorsV1<Vec<u64>>) {
+        for (current_field, other_field) in self.iter().zip(other.iter()) {
+            if current_field.len() != other_field.len() {
+                panic!(
+                    "Mismatched commitee sizes: {} vs {}",
+                    current_field.len(),
+                    other_field.len()
+                );
+            }
+            for (current_value, new_value) in current_field.iter().zip(other_field.iter()) {
+                current_value.fetch_max(*new_value, Ordering::Relaxed);
+            }
+        }
     }
 
     pub fn as_non_atomic(&self) -> MisbehaviorsV1<Vec<u64>> {
