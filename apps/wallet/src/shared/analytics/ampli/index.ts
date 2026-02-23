@@ -333,12 +333,6 @@ export interface CollectibleCardClickedProperties {
      * | Regex |  |
      */
     collectibleType?: string;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    objectId?: string;
 }
 
 export interface CollectibleHiddenProperties {
