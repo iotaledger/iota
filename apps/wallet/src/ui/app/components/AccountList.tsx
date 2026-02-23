@@ -54,12 +54,10 @@ export function AccountList<A extends { address: string }>({
         return set;
     }, new Set<number>());
 
-    const selectableRowIndexes = rowsData
-        .map((_, i) => i)
-        .filter((i) => !existingAddresses.has(accounts[i].address));
+    const rowIndexes = rowsData.map((_, i) => i);
 
     return (
-        <Table selectedRowIndexes={selectedRowIndexes} rowIndexes={selectableRowIndexes}>
+        <Table selectedRowIndexes={selectedRowIndexes} rowIndexes={rowIndexes}>
             <TableHeader>
                 <TableRow leading={<TableHeaderCheckbox onCheckboxChange={() => selectAll()} />}>
                     {headersData.map((header, index) => (
