@@ -366,29 +366,38 @@ await fs.writeFile(
 
 async function createMethodParams(method: OpenRpcMethod) {
     const methodOptions = options.methods[method.name] ?? {};
-    const params = await Promise.all(
-        method.params
-            .filter((param) => {
-                return !methodOptions.flattenParams?.includes(param.name);
-            })
-            .map(async (param) => {
-                const paramOptions =
-                    methodOptions.params?.[normalizeParamName(method.name, param.name)] ?? {};
-                return withDescription(
-                    paramOptions.deprecated
-                        ? { description: `@deprecated ${paramOptions.deprecated}` }
-                        : param,
-                    ts.factory.createPropertySignature(
-                        undefined,
-                        normalizeParamName(method.name, param.name),
-                        param.required
-                            ? undefined
-                            : ts.factory.createToken(ts.SyntaxKind.QuestionToken),
-                        await createMethodParam(method, param),
-                    ),
-                );
-            }),
-    );
+    const params = (
+        await Promise.all(
+            method.params
+                .filter((param) => {
+                    return !methodOptions.flattenParams?.includes(param.name);
+                })
+                .map(async (param) => {
+                    const paramOptions =
+                        methodOptions.params?.[normalizeParamName(method.name, param.name)] ?? {};
+                    return withDescription(
+                        paramOptions.deprecated
+                            ? { description: `@deprecated ${paramOptions.deprecated}` }
+                            : param,
+                        ts.factory.createPropertySignature(
+                            undefined,
+                            normalizeParamName(method.name, param.name),
+                            param.required
+                                ? undefined
+                                : ts.factory.createToken(ts.SyntaxKind.QuestionToken),
+                            await createMethodParam(method, param),
+                        ),
+                    );
+                }),
+        )
+    ).concat([
+        ts.factory.createPropertySignature(
+            undefined,
+            'signal',
+            ts.factory.createToken(ts.SyntaxKind.QuestionToken),
+            ts.factory.createTypeReferenceNode('AbortSignal'),
+        ),
+    ]);
 
     if (methodOptions.flattenParams && methodOptions.flattenParams?.length > 0) {
         return withDescription(

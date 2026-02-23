@@ -1034,7 +1034,8 @@ pub async fn download_db_snapshot(
     files.extend(epoch_manifest.filter_by_prefix("epochs").lines);
     files.extend(epoch_manifest.filter_by_prefix("checkpoints").lines);
     if !skip_indexes {
-        files.extend(epoch_manifest.filter_by_prefix("indexes").lines)
+        files.extend(epoch_manifest.filter_by_prefix("indexes").lines);
+        files.extend(epoch_manifest.filter_by_prefix("grpc_indexes").lines);
     }
     let local_store = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
@@ -1091,6 +1092,17 @@ pub async fn download_db_snapshot(
         .collect::<Result<Vec<_>, _>>()?
         .into_iter()
         .for_each(|result| result.expect("Task failed"));
+
+    // The rest index is stored under the name "grpc_indexes" in the snapshot but
+    // must live at "rest_index" on disk so that RestIndexStore can open it.
+    let grpc_indexes_dir = path.join(format!("epoch_{epoch}")).join("grpc_indexes");
+    if grpc_indexes_dir.exists() {
+        fs::rename(
+            &grpc_indexes_dir,
+            path.join(format!("epoch_{epoch}")).join("rest_index"),
+        )
+        .map_err(|e| anyhow::anyhow!("Failed to rename grpc_indexes to rest_index: {e}"))?;
+    }
 
     let store_dir = path.join("store");
     if store_dir.exists() {
