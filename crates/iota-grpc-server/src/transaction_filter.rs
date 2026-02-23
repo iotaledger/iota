@@ -75,6 +75,9 @@ impl TryFrom<proto_filter::TransactionKind> for TransactionKind {
             proto_filter::TransactionKind::ConsensusCommitPrologueV1 => {
                 Ok(TransactionKind::ConsensusCommitPrologueV1)
             }
+            proto_filter::TransactionKind::ConsensusCommitPrologueV2 => {
+                Ok(TransactionKind::ConsensusCommitPrologueV2)
+            }
             proto_filter::TransactionKind::AuthenticatorStateUpdateV1 => {
                 Ok(TransactionKind::AuthenticatorStateUpdateV1)
             }
@@ -222,6 +225,7 @@ fn is_system_transaction(transaction_kind: &TransactionKind) -> bool {
     match transaction_kind {
         TransactionKind::Genesis
         | TransactionKind::ConsensusCommitPrologueV1
+        | TransactionKind::ConsensusCommitPrologueV2
         | TransactionKind::AuthenticatorStateUpdateV1
         | TransactionKind::EndOfEpochTransaction
         | TransactionKind::RandomnessStateUpdate => true,
