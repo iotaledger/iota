@@ -6174,39 +6174,6 @@
         "description": "A struct that stores a Bn254 Fr field element as 32 bytes.",
         "type": "string"
       },
-      "CallArg": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "Pure"
-            ],
-            "properties": {
-              "Pure": {
-                "type": "array",
-                "items": {
-                  "type": "integer",
-                  "format": "uint8",
-                  "minimum": 0.0
-                }
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Object"
-            ],
-            "properties": {
-              "Object": {
-                "$ref": "#/components/schemas/ObjectArg"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
-      },
       "Checkpoint": {
         "type": "object",
         "required": [
@@ -7767,6 +7734,92 @@
         ],
         "type": "string",
         "pattern": "(?:[a-zA-Z][a-zA-Z0-9_]{0,127})|(?:_[a-zA-Z0-9_]{0,127})"
+      },
+      "Input": {
+        "description": "An input to a user transaction\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text input = input-pure / input-immutable-or-owned / input-shared / input-receiving\n\ninput-pure                  = %x00 bytes input-immutable-or-owned    = %x01 object-ref input-shared                = %x02 object-id u64 bool input-receiving             = %x04 object-ref ```",
+        "oneOf": [
+          {
+            "description": "A move value serialized as BCS.\n\nFor normal operations this is required to be a move primitive type and not contain structs or objects.",
+            "type": "object",
+            "required": [
+              "pure"
+            ],
+            "properties": {
+              "pure": {
+                "type": "object",
+                "required": [
+                  "value"
+                ],
+                "properties": {
+                  "value": {
+                    "description": "Base64 encoded data",
+                    "type": "string",
+                    "format": "base64"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "A move object that is either immutable or address owned",
+            "type": "object",
+            "required": [
+              "immutable_or_owned"
+            ],
+            "properties": {
+              "immutable_or_owned": {
+                "$ref": "#/components/schemas/ObjectReference"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "A move object whose owner is \"Shared\"",
+            "type": "object",
+            "required": [
+              "shared"
+            ],
+            "properties": {
+              "shared": {
+                "type": "object",
+                "required": [
+                  "initialSharedVersion",
+                  "mutable",
+                  "objectId"
+                ],
+                "properties": {
+                  "initialSharedVersion": {
+                    "description": "Radix-10 encoded 64-bit unsigned integer",
+                    "type": "string",
+                    "format": "u64"
+                  },
+                  "mutable": {
+                    "description": "Controls whether the caller asks for a mutable reference to the shared object.",
+                    "type": "boolean"
+                  },
+                  "objectId": {
+                    "$ref": "#/components/schemas/ObjectId"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "A move object that is attempted to be received in this transaction.",
+            "type": "object",
+            "required": [
+              "receiving"
+            ],
+            "properties": {
+              "receiving": {
+                "$ref": "#/components/schemas/ObjectReference"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
       },
       "InputObjectKind": {
         "oneOf": [
@@ -10144,14 +10197,14 @@
             "description": "Input objects or primitive values",
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/CallArg"
+              "$ref": "#/components/schemas/Input"
             }
           },
           "object_to_authenticate": {
             "description": "The object that is authenticated. Represents the account being the sender of the transaction.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/CallArg"
+                "$ref": "#/components/schemas/Input"
               }
             ]
           },
@@ -10547,64 +10600,6 @@
             "format": "double"
           }
         }
-      },
-      "ObjectArg": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "ImmOrOwnedObject"
-            ],
-            "properties": {
-              "ImmOrOwnedObject": {
-                "$ref": "#/components/schemas/ObjectReference"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "SharedObject"
-            ],
-            "properties": {
-              "SharedObject": {
-                "type": "object",
-                "required": [
-                  "id",
-                  "initial_shared_version",
-                  "mutable"
-                ],
-                "properties": {
-                  "id": {
-                    "$ref": "#/components/schemas/ObjectId"
-                  },
-                  "initial_shared_version": {
-                    "type": "integer",
-                    "format": "uint64",
-                    "minimum": 0.0
-                  },
-                  "mutable": {
-                    "type": "boolean"
-                  }
-                }
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Receiving"
-            ],
-            "properties": {
-              "Receiving": {
-                "$ref": "#/components/schemas/ObjectReference"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
       },
       "ObjectChange": {
         "description": "ObjectChange are derived from the object mutations in the TransactionEffect to provide richer object information.",
