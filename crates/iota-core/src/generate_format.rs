@@ -54,6 +54,26 @@ use roaring::RoaringBitmap;
 use serde_reflection::{ContainerFormat, Registry, Result, Samples, Tracer, TracerConfig};
 use typed_store::TypedStoreError;
 
+/// Proxy for the `ObjectArg` helper enum defined in the `iota-sdk-types`
+/// serialization module. `CallArg` (= `iota_sdk_types::Input`) has a custom
+/// binary `Serialize`/`Deserialize` that maps through this local `ObjectArg`
+/// type. serde_reflection's `trace_type` loop only iterates until the
+/// **top-level** type (`CallArg`) is complete, so `ObjectArg` ends up in
+/// `incomplete_enums`. By tracing this proxy (which calls
+/// `deserialize_enum("ObjectArg", ...)`) we drive all of ObjectArg's variants
+/// to completion before tracing `CallArg`.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename = "ObjectArg")]
+enum ObjectArgProxy {
+    ImmutableOrOwned(iota_types::base_types::ObjectRef),
+    Shared {
+        object_id: iota_types::base_types::ObjectID,
+        initial_shared_version: iota_types::base_types::SequenceNumber,
+        mutable: bool,
+    },
+    Receiving(iota_types::base_types::ObjectRef),
+}
+
 /// Generate a type format registry for IOTA types
 ///
 /// Used for regression testing.
@@ -389,6 +409,16 @@ fn get_registry() -> Result<Registry> {
         .unwrap();
 
     tracer.trace_type::<CheckpointData>(&samples).unwrap();
+
+    // `CallArg` (= `iota_sdk_types::Input`) has a custom binary Serialize that maps
+    // through a private `ObjectArg` helper enum. Every `trace_type` call for a type
+    // that (transitively) contains `CallArg` may leave `ObjectArg` in
+    // `incomplete_enums`, because serde_reflection's loop only iterates for the
+    // top-level type being traced. Calling `trace_type::<ObjectArgProxy>` last
+    // clears any residual `incomplete_enums["ObjectArg"]` entry before we call
+    // `registry()`, which would otherwise fail with
+    // `MissingVariants(["ObjectArg"])`.
+    tracer.trace_type::<ObjectArgProxy>(&samples).unwrap();
 
     // Use registry_unchecked() because trace_type::<TransactionEffects>
     // re-encounters ExecutionStatus during deserialization and marks it as
