@@ -18,37 +18,24 @@ const config = {
   tagline:
     "IOTA is a next-generation smart contract platform with high throughput, low latency, and an asset-oriented programming model powered by Move",
   favicon: "/icons/favicon.ico",
-
-  // Set the production url of your site here
   url: "https://docs.iota.org",
-  // Set the /<baseUrl>/ pathname under which your site is served
-  // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: "/",
+  
   customFields: {
     amplitudeKey: process.env.AMPLITUDE_KEY,
   },
 
-  // TODO: Revert the changes when the docs are ready
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "throw",
   onBrokenAnchors: "throw",
 
-  // Even if you don't use internationalization, you can use this field to set
-  // useful metadata like html lang. For example, if your site is Chinese, you
-  // may want to replace "en" with "zh-Hans".
-  /*  i18n: {
-    defaultLocale: "en",
-    locales: [
-      "en",
-      "el",
-      "fr",
-      "ko",
-      "tr",
-      "vi",
-      "zh-CN",
-      "zh-TW",
-    ],
-  },*/
+  future: {
+    v4: {
+      removeLegacyPostBuildHeadAttribute: true,
+    },
+    experimental_faster: true,
+  },
+
   markdown: {
     format: "detect",
     mermaid: true,
@@ -115,6 +102,7 @@ const config = {
       'docusaurus-plugin-typedoc',
       // Options
       {
+        skipErrorChecking: true,
         tsconfig: '../../sdk/typescript/tsconfig.json',
         entryPoints: [
           "../../sdk/typescript/src/bcs",
