@@ -33,21 +33,21 @@ You can always get the most up-to-date description of the config parameters by r
 wasp -h --full
 ```
 
-## <a id="app"></a> 1. Application
+## 1. Application {#app}
 
 | Name                      | Description                                            | Type    | Default value |
 | ------------------------- | ------------------------------------------------------ | ------- | ------------- |
 | checkForUpdates           | Whether to check for updates of the application or not | boolean | true          |
 | [shutdown](#app_shutdown) | Configuration for shutdown                             | object  |               |
 
-### <a id="app_shutdown"></a> Shutdown
+### Shutdown {#app_shutdown}
 
 | Name                     | Description                                                                                            | Type   | Default value |
 | ------------------------ | ------------------------------------------------------------------------------------------------------ | ------ | ------------- |
 | stopGracePeriod          | The maximum time to wait for background processes to finish during shutdown before terminating the app | string | "5m"          |
 | [log](#app_shutdown_log) | Configuration for Shutdown Log                                                                         | object |               |
 
-### <a id="app_shutdown_log"></a> Shutdown Log
+### Shutdown Log {#app_shutdown_log}
 
 | Name     | Description                                         | Type    | Default value  |
 | -------- | --------------------------------------------------- | ------- | -------------- |
@@ -71,7 +71,7 @@ Example:
 }
 ```
 
-## <a id="logger"></a> 2. Logger
+## 2. Logger {#logger}
 
 | Name        | Description                                                                                                    | Type   | Default value |
 | ----------- | -------------------------------------------------------------------------------------------------------------- | ------ | ------------- |
@@ -95,7 +95,7 @@ Example:
 }
 ```
 
-## <a id="l1"></a> 3. L1
+## 3. L1 {#l1}
 
 | Name                  | Description                                                                                        | Type   | Default value           |
 | --------------------- | -------------------------------------------------------------------------------------------------- | ------ | ----------------------- |
@@ -119,7 +119,7 @@ Example:
 }
 ```
 
-## <a id="cache"></a> 4. Cache
+## 4. Cache {#cache}
 
 | Name               | Description                            | Type    | Default value |
 | ------------------ | -------------------------------------- | ------- | ------------- |
@@ -139,7 +139,7 @@ Example:
 }
 ```
 
-## <a id="db"></a> 5. Database
+## 5. Database {#db}
 
 | Name                         | Description                              | Type    | Default value |
 | ---------------------------- | ---------------------------------------- | ------- | ------------- |
@@ -147,7 +147,7 @@ Example:
 | [chainState](#db_chainstate) | Configuration for chainState             | object  |               |
 | debugSkipHealthCheck         | Ignore the check for corrupted databases | boolean | true          |
 
-### <a id="db_chainstate"></a> ChainState
+### ChainState {#db_chainstate}
 
 | Name      | Description                                  | Type   | Default value        |
 | --------- | -------------------------------------------- | ------ | -------------------- |
@@ -169,21 +169,21 @@ Example:
 }
 ```
 
-## <a id="p2p"></a> 6. P2p
+## 6. P2p {#p2p}
 
 | Name                      | Description                | Type   | Default value |
 | ------------------------- | -------------------------- | ------ | ------------- |
 | [identity](#p2p_identity) | Configuration for identity | object |               |
 | [db](#p2p_db)             | Configuration for Database | object |               |
 
-### <a id="p2p_identity"></a> Identity
+### Identity {#p2p_identity}
 
 | Name       | Description                                             | Type   | Default value                  |
 | ---------- | ------------------------------------------------------- | ------ | ------------------------------ |
 | privateKey | Private key used to derive the node identity (optional) | string | ""                             |
 | filePath   | The path to the node identity PEM file                  | string | "waspdb/identity/identity.key" |
 
-### <a id="p2p_db"></a> Database
+### Database {#p2p_db}
 
 | Name | Description                  | Type   | Default value     |
 | ---- | ---------------------------- | ------ | ----------------- |
@@ -205,7 +205,7 @@ Example:
 }
 ```
 
-## <a id="registries"></a> 7. Registries
+## 7. Registries {#registries}
 
 | Name                                         | Description                      | Type   | Default value |
 | -------------------------------------------- | -------------------------------- | ------ | ------------- |
@@ -214,25 +214,25 @@ Example:
 | [trustedPeers](#registries_trustedpeers)     | Configuration for trustedPeers   | object |               |
 | [consensusState](#registries_consensusstate) | Configuration for consensusState | object |               |
 
-### <a id="registries_chains"></a> Chains
+### Chains {#registries_chains}
 
 | Name     | Description                         | Type   | Default value                       |
 | -------- | ----------------------------------- | ------ | ----------------------------------- |
 | filePath | The path to the chain registry file | string | "waspdb/chains/chain_registry.json" |
 
-### <a id="registries_dkshares"></a> DkShares
+### DkShares {#registries_dkshares}
 
 | Name | Description                                              | Type   | Default value     |
 | ---- | -------------------------------------------------------- | ------ | ----------------- |
 | path | The path to the distributed key shares registries folder | string | "waspdb/dkshares" |
 
-### <a id="registries_trustedpeers"></a> TrustedPeers
+### TrustedPeers {#registries_trustedpeers}
 
 | Name     | Description                                 | Type   | Default value               |
 | -------- | ------------------------------------------- | ------ | --------------------------- |
 | filePath | The path to the trusted peers registry file | string | "waspdb/trusted_peers.json" |
 
-### <a id="registries_consensusstate"></a> ConsensusState
+### ConsensusState {#registries_consensusstate}
 
 | Name | Description                                       | Type   | Default value             |
 | ---- | ------------------------------------------------- | ------ | ------------------------- |
@@ -259,7 +259,7 @@ Example:
 }
 ```
 
-## <a id="peering"></a> 8. Peering
+## 8. Peering {#peering}
 
 | Name       | Description                                          | Type   | Default value  |
 | ---------- | ---------------------------------------------------- | ------ | -------------- |
@@ -277,7 +277,7 @@ Example:
 }
 ```
 
-## <a id="chains"></a> 9. Chains
+## 9. Chains {#chains}
 
 | Name                              | Description                                                                                                                                                                                                                   | Type    | Default value |
 | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------------- |
@@ -333,7 +333,7 @@ Example:
 }
 ```
 
-## <a id="snapshots"></a> 10. Snapshots
+## 10. Snapshots {#snapshots}
 
 | Name            | Description                                                                                                                                                                   | Type   | Default value |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------------- |
@@ -357,7 +357,7 @@ Example:
 }
 ```
 
-## <a id="statemanager"></a> 11. StateManager
+## 11. StateManager {#statemanager}
 
 | Name                              | Description                                                                                                                                                                                                                          | Type   | Default value |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ | ------------- |
@@ -391,7 +391,7 @@ Example:
 }
 ```
 
-## <a id="validator"></a> 12. Validator
+## 12. Validator {#validator}
 
 | Name    | Description                                                                                                        | Type   | Default value |
 | ------- | ------------------------------------------------------------------------------------------------------------------ | ------ | ------------- |
@@ -407,7 +407,7 @@ Example:
 }
 ```
 
-## <a id="wal"></a> 13. Write-Ahead Logging
+## 13. Write-Ahead Logging {#wal}
 
 | Name        | Description                                                      | Type    | Default value |
 | ----------- | ---------------------------------------------------------------- | ------- | ------------- |
@@ -427,7 +427,7 @@ Example:
 }
 ```
 
-## <a id="webapi"></a> 14. Web API
+## 14. Web API {#webapi}
 
 | Name                      | Description                                                                                | Type    | Default value          |
 | ------------------------- | ------------------------------------------------------------------------------------------ | ------- | ---------------------- |
@@ -439,20 +439,20 @@ Example:
 | [limits](#webapi_limits)  | Configuration for limits                                                                   | object  |                        |
 | debugRequestLoggerEnabled | Whether the debug logging for requests should be enabled                                   | boolean | false                  |
 
-### <a id="webapi_auth"></a> Auth
+### Auth {#webapi_auth}
 
 | Name                    | Description                            | Type   | Default value |
 | ----------------------- | -------------------------------------- | ------ | ------------- |
 | scheme                  | Selects which authentication to choose | string | "jwt"         |
 | [jwt](#webapi_auth_jwt) | Configuration for JWT Auth             | object |               |
 
-### <a id="webapi_auth_jwt"></a> JWT Auth
+### JWT Auth {#webapi_auth_jwt}
 
 | Name     | Description        | Type   | Default value |
 | -------- | ------------------ | ------ | ------------- |
 | duration | Jwt token lifetime | string | "24h"         |
 
-### <a id="webapi_limits"></a> Limits
+### Limits {#webapi_limits}
 
 | Name                              | Description                                                                   | Type   | Default value |
 | --------------------------------- | ----------------------------------------------------------------------------- | ------ | ------------- |
@@ -464,7 +464,7 @@ Example:
 | confirmedStateLagThreshold        | The threshold that define a chain is unsynchronized                           | uint   | 2             |
 | [jsonrpc](#webapi_limits_jsonrpc) | Configuration for jsonrpc                                                     | object |               |
 
-### <a id="webapi_limits_jsonrpc"></a> Jsonrpc
+### Jsonrpc {#webapi_limits_jsonrpc}
 
 | Name                                | Description                                                    | Type    | Default value |
 | ----------------------------------- | -------------------------------------------------------------- | ------- | ------------- |
@@ -513,7 +513,7 @@ Example:
 }
 ```
 
-## <a id="profiling"></a> 15. Profiling
+## 15. Profiling {#profiling}
 
 | Name        | Description                                       | Type    | Default value    |
 | ----------- | ------------------------------------------------- | ------- | ---------------- |
@@ -531,7 +531,7 @@ Example:
 }
 ```
 
-## <a id="profilingrecorder"></a> 16. ProfilingRecorder
+## 16. ProfilingRecorder {#profilingrecorder}
 
 | Name    | Description                                     | Type    | Default value |
 | ------- | ----------------------------------------------- | ------- | ------------- |
@@ -547,7 +547,7 @@ Example:
 }
 ```
 
-## <a id="prometheus"></a> 17. Prometheus
+## 17. Prometheus {#prometheus}
 
 | Name        | Description                                                  | Type    | Default value  |
 | ----------- | ------------------------------------------------------------ | ------- | -------------- |

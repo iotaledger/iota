@@ -26,7 +26,11 @@ export function Input({ input }: InputProps) {
                 <KeyValueInfo
                     keyText="Object"
                     value={
-                        <ExplorerLink type={ExplorerLinkType.Object} objectID={objectId || ''}>
+                        <ExplorerLink
+                            type={ExplorerLinkType.Object}
+                            objectID={objectId || ''}
+                            eventType="object"
+                        >
                             {formatAddress(objectId || '')}
                         </ExplorerLink>
                     }

@@ -29,7 +29,17 @@ export function useValidatorInfo({ validatorAddress }: { validatorAddress: strin
         apy: null,
     };
 
-    const commission = validatorSummary ? Number(validatorSummary.commissionRate) / 100 : 0;
+    // Temporarily needed to compute the effectiveCommissionRate until infra exposes it in commissionRate directly
+    const hasEffectiveCommissionRate = Number(system?.protocolVersion ?? 0) >= 20;
+
+    const commission = validatorSummary
+        ? hasEffectiveCommissionRate
+            ? Math.max(
+                  Number(validatorSummary.commissionRate),
+                  Number(validatorSummary.votingPower),
+              ) / 100
+            : Number(validatorSummary.commissionRate) / 100
+        : 0;
 
     return {
         system,
