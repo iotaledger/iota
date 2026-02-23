@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { bcs } from '../../../src/bcs';
 import { messageWithIntent } from '../../../src/cryptography';
 import { PasskeyKeypair } from '../../../src/keypairs/passkey';
-import { findCommonPublicKey, PasskeyProvider } from '../../../src/keypairs/passkey/keypair';
+import { findCommonPublicKey, PasskeyProvider } from '../../../src/keypairs/passkey';
 import {
     parseSerializedPasskeySignature,
     PasskeyPublicKey,
@@ -79,13 +79,13 @@ class MockPasskeySigner implements PasskeyProvider {
                 pk
                     ? compressedPubKeyToDerSPKI(pk).slice().buffer
                     : new Uint8Array([
-                        48, 89, 48, 19, 6, 7, 42, 134, 72, 206, 61, 2, 1, 6, 8, 42, 134, 72, 206,
-                        61, 3, 1, 7, 3, 66, 0, 4, 150, 14, 177, 148, 129, 92, 179, 77, 32, 147,
-                        160, 100, 10, 70, 62, 88, 35, 97, 203, 9, 152, 174, 47, 126, 59, 185, 217,
-                        4, 103, 35, 139, 198, 0, 115, 207, 97, 251, 66, 114, 9, 49, 140, 24, 141,
-                        189, 167, 45, 10, 99, 115, 155, 55, 107, 64, 72, 60, 149, 208, 198, 252,
-                        60, 223, 215, 229,
-                    ]).slice().buffer,
+                          48, 89, 48, 19, 6, 7, 42, 134, 72, 206, 61, 2, 1, 6, 8, 42, 134, 72, 206,
+                          61, 3, 1, 7, 3, 66, 0, 4, 150, 14, 177, 148, 129, 92, 179, 77, 32, 147,
+                          160, 100, 10, 70, 62, 88, 35, 97, 203, 9, 152, 174, 47, 126, 59, 185, 217,
+                          4, 103, 35, 139, 198, 0, 115, 207, 97, 251, 66, 114, 9, 49, 140, 24, 141,
+                          189, 167, 45, 10, 99, 115, 155, 55, 107, 64, 72, 60, 149, 208, 198, 252,
+                          60, 223, 215, 229,
+                      ]).slice().buffer,
             getPublicKeyAlgorithm: () => -7,
             getTransports: () => ['usb', 'ble', 'nfc'],
             getAuthenticatorData: () => this.authenticatorData.slice().buffer,
@@ -111,17 +111,17 @@ class MockPasskeySigner implements PasskeyProvider {
 
         const clientDataJSON = this.changeClientDataJson
             ? JSON.stringify({
-                type: 'webauthn.create', // Wrong type for clientDataJson.
-                challenge: Buffer.from(challenge).toString('base64'),
-                origin: 'https://www.iota.org',
-                crossOrigin: false,
-            })
+                  type: 'webauthn.create', // Wrong type for clientDataJson.
+                  challenge: Buffer.from(challenge).toString('base64'),
+                  origin: 'https://www.iota.org',
+                  crossOrigin: false,
+              })
             : JSON.stringify({
-                type: 'webauthn.get',
-                challenge: Buffer.from(challenge).toString('base64'),
-                origin: 'https://www.iota.org',
-                crossOrigin: false,
-            });
+                  type: 'webauthn.get',
+                  challenge: Buffer.from(challenge).toString('base64'),
+                  origin: 'https://www.iota.org',
+                  crossOrigin: false,
+              });
 
         // Sign authenticatorData || sha256(clientDataJSON).
         const dataToSign = new Uint8Array([
