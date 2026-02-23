@@ -21,6 +21,7 @@ mod _field_impls {
             json_name: "filters",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -58,6 +59,7 @@ mod _field_impls {
             json_name: "filters",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -95,6 +97,7 @@ mod _field_impls {
             json_name: "filter",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -132,6 +135,7 @@ mod _field_impls {
             json_name: "address",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(Address::FIELDS),
         };
     }
@@ -169,6 +173,7 @@ mod _field_impls {
             json_name: "packageId",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(Address::FIELDS),
         };
         pub const MODULE_FIELD: &'static MessageField = &MessageField {
@@ -176,6 +181,7 @@ mod _field_impls {
             json_name: "module",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -220,6 +226,7 @@ mod _field_impls {
             json_name: "structTag",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -257,6 +264,7 @@ mod _field_impls {
             json_name: "all",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(AllEventFilter::FIELDS),
         };
         pub const ANY_FIELD: &'static MessageField = &MessageField {
@@ -264,6 +272,7 @@ mod _field_impls {
             json_name: "any",
             number: 2i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(AnyEventFilter::FIELDS),
         };
         pub const NEGATION_FIELD: &'static MessageField = &MessageField {
@@ -271,6 +280,7 @@ mod _field_impls {
             json_name: "negation",
             number: 3i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(NotEventFilter::FIELDS),
         };
         pub const SENDER_FIELD: &'static MessageField = &MessageField {
@@ -278,6 +288,7 @@ mod _field_impls {
             json_name: "sender",
             number: 4i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(AddressFilter::FIELDS),
         };
         pub const MOVE_PACKAGE_AND_MODULE_FIELD: &'static MessageField = &MessageField {
@@ -285,6 +296,7 @@ mod _field_impls {
             json_name: "movePackageAndModule",
             number: 5i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(MovePackageAndModuleFilter::FIELDS),
         };
         pub const MOVE_EVENT_PACKAGE_AND_MODULE_FIELD: &'static MessageField = &MessageField {
@@ -292,6 +304,7 @@ mod _field_impls {
             json_name: "moveEventPackageAndModule",
             number: 6i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(MovePackageAndModuleFilter::FIELDS),
         };
         pub const MOVE_EVENT_TYPE_FIELD: &'static MessageField = &MessageField {
@@ -299,6 +312,7 @@ mod _field_impls {
             json_name: "moveEventType",
             number: 7i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(MoveEventTypeFilter::FIELDS),
         };
     }
@@ -372,6 +386,7 @@ mod _field_impls {
             json_name: "filters",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -409,6 +424,7 @@ mod _field_impls {
             json_name: "filters",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -446,6 +462,7 @@ mod _field_impls {
             json_name: "filter",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -483,6 +500,7 @@ mod _field_impls {
             json_name: "kinds",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -520,6 +538,7 @@ mod _field_impls {
             json_name: "objectRef",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(ObjectReference::FIELDS),
         };
     }
@@ -557,6 +576,7 @@ mod _field_impls {
             json_name: "packageId",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(Address::FIELDS),
         };
         pub const MODULE_FIELD: &'static MessageField = &MessageField {
@@ -564,6 +584,7 @@ mod _field_impls {
             json_name: "module",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const FUNCTION_FIELD: &'static MessageField = &MessageField {
@@ -571,6 +592,7 @@ mod _field_impls {
             json_name: "function",
             number: 3i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -620,6 +642,7 @@ mod _field_impls {
             json_name: "all",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(AllTransactionFilter::FIELDS),
         };
         pub const ANY_FIELD: &'static MessageField = &MessageField {
@@ -627,6 +650,7 @@ mod _field_impls {
             json_name: "any",
             number: 2i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(AnyTransactionFilter::FIELDS),
         };
         pub const NEGATION_FIELD: &'static MessageField = &MessageField {
@@ -634,6 +658,7 @@ mod _field_impls {
             json_name: "negation",
             number: 3i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(NotTransactionFilter::FIELDS),
         };
         pub const TRANSACTION_KINDS_FIELD: &'static MessageField = &MessageField {
@@ -641,6 +666,7 @@ mod _field_impls {
             json_name: "transactionKinds",
             number: 4i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(TransactionKindsFilter::FIELDS),
         };
         pub const SENDER_FIELD: &'static MessageField = &MessageField {
@@ -648,6 +674,7 @@ mod _field_impls {
             json_name: "sender",
             number: 5i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(AddressFilter::FIELDS),
         };
         pub const RECEIVER_FIELD: &'static MessageField = &MessageField {
@@ -655,6 +682,7 @@ mod _field_impls {
             json_name: "receiver",
             number: 6i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(AddressFilter::FIELDS),
         };
         pub const AFFECTED_OBJECT_FIELD: &'static MessageField = &MessageField {
@@ -662,6 +690,7 @@ mod _field_impls {
             json_name: "affectedObject",
             number: 7i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(ObjectIdFilter::FIELDS),
         };
         pub const MOVE_CALL_FIELD: &'static MessageField = &MessageField {
@@ -669,6 +698,7 @@ mod _field_impls {
             json_name: "moveCall",
             number: 8i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(MoveCallFilter::FIELDS),
         };
         pub const EVENT_FIELD: &'static MessageField = &MessageField {
@@ -676,6 +706,7 @@ mod _field_impls {
             json_name: "event",
             number: 9i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(EventFilter::FIELDS),
         };
     }

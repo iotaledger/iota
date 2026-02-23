@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use iota_grpc_types::{
     field::{FieldMaskTree, FieldMaskUtil},
     proto::timestamp_ms_to_proto,
@@ -11,12 +13,12 @@ use iota_grpc_types::{
         ledger_service::{GetEpochRequest, GetEpochResponse},
     },
 };
-use iota_protocol_config::{Chain, ProtocolConfig as IotaProtocolConfig, ProtocolConfigValue};
+use iota_protocol_config::{Chain, ProtocolConfig as IotaProtocolConfig};
 use iota_types::committee::EpochId;
 use prost_types::FieldMask;
 use tonic::Status;
 
-use crate::{ledger_service::LedgerGrpcService, merge::Merge};
+use crate::{ledger_service::LedgerGrpcService, merge::Merge, types::GrpcReader};
 
 pub const READ_MASK_DEFAULT: &str = crate::field_mask!(
     "epoch",
@@ -27,6 +29,113 @@ pub const READ_MASK_DEFAULT: &str = crate::field_mask!(
     "reference_gas_price",
     "protocol_config.protocol_version"
 );
+
+/// Source for building `Epoch` using the `Merge` trait.
+pub struct EpochReadSource {
+    pub reader: Arc<GrpcReader>,
+    pub chain: Chain,
+    pub epoch: u64,
+    pub current_epoch: u64,
+}
+
+impl Merge<&EpochReadSource> for Epoch {
+    fn merge(
+        &mut self,
+        source: &EpochReadSource,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if mask.contains(Self::EPOCH_FIELD.name) {
+            self.epoch = Some(source.epoch);
+        }
+
+        // Fetch epoch_info once for all fields that depend on it.
+        let needs_epoch_info = mask.contains(Self::FIRST_CHECKPOINT_FIELD.name)
+            || mask.contains(Self::LAST_CHECKPOINT_FIELD.name)
+            || mask.contains(Self::START_FIELD.name)
+            || mask.contains(Self::END_FIELD.name)
+            || mask.contains(Self::REFERENCE_GAS_PRICE_FIELD.name)
+            || mask.subtree(Self::PROTOCOL_CONFIG_FIELD.name).is_some()
+            || (mask.contains(Self::BCS_SYSTEM_STATE_FIELD.name)
+                && source.epoch != source.current_epoch);
+
+        let epoch_info = if needs_epoch_info {
+            source
+                .reader
+                .get_epoch_info(source.epoch)
+                .map_err(|e| format!("Failed to get epoch info: {e}"))?
+        } else {
+            None
+        };
+
+        if let Some(ref epoch_info) = epoch_info {
+            if mask.contains(Self::FIRST_CHECKPOINT_FIELD.name) {
+                self.first_checkpoint = Some(epoch_info.start_checkpoint);
+            }
+
+            if mask.contains(Self::LAST_CHECKPOINT_FIELD.name) {
+                if let Some(end_checkpoint) = epoch_info.end_checkpoint {
+                    self.last_checkpoint = Some(end_checkpoint);
+                }
+            }
+
+            if mask.contains(Self::START_FIELD.name) {
+                self.start = Some(timestamp_ms_to_proto(epoch_info.start_timestamp_ms));
+            }
+
+            if mask.contains(Self::END_FIELD.name) {
+                if let Some(end_timestamp_ms) = epoch_info.end_timestamp_ms {
+                    self.end = Some(timestamp_ms_to_proto(end_timestamp_ms));
+                }
+            }
+
+            if mask.contains(Self::REFERENCE_GAS_PRICE_FIELD.name) {
+                self.reference_gas_price = Some(epoch_info.reference_gas_price);
+            }
+
+            if let Some(submask) = mask.subtree(Self::PROTOCOL_CONFIG_FIELD.name) {
+                let iota_config = IotaProtocolConfig::get_for_version_if_supported(
+                    epoch_info.protocol_version.into(),
+                    source.chain,
+                )
+                .ok_or_else(|| ProtocolVersionNotFoundError::new(epoch_info.protocol_version))?;
+                self.protocol_config = Some(ProtocolConfig::merge_from(&iota_config, &submask)?);
+            }
+        }
+
+        if mask.contains(Self::BCS_SYSTEM_STATE_FIELD.name) {
+            // For the current epoch use the live system state; for historical
+            // epochs use the snapshot stored at the start of the epoch.
+            let system_state = if source.epoch == source.current_epoch {
+                source
+                    .reader
+                    .get_system_state()
+                    .map_err(|e| format!("Failed to get system state: {e}"))?
+            } else if let Some(ref info) = epoch_info {
+                info.system_state.clone()
+            } else {
+                return Err(format!(
+                    "Cannot get system state for historical epoch {}: epoch info not available",
+                    source.epoch
+                )
+                .into());
+            };
+            self.bcs_system_state = Some(BcsData::serialize(&system_state)?);
+        }
+
+        if mask.contains(Self::COMMITTEE_FIELD.name) {
+            let committee = source
+                .reader
+                .get_committee(source.epoch)
+                .map_err(|e| format!("Failed to get committee: {e}"))?
+                .ok_or_else(|| CommitteeNotFoundError::new(source.epoch))?;
+            let sdk_committee: iota_sdk_types::ValidatorCommittee =
+                committee.as_ref().clone().into();
+            self.committee = Some(sdk_committee.into());
+        }
+
+        Ok(())
+    }
+}
 
 #[tracing::instrument(skip(service))]
 pub fn get_epoch(
@@ -43,8 +152,6 @@ pub fn get_epoch(
         FieldMaskTree::from(read_mask)
     };
 
-    let mut message = Epoch::default();
-
     let current_epoch = service
         .reader
         .get_latest_checkpoint()
@@ -52,86 +159,15 @@ pub fn get_epoch(
         .epoch();
     let epoch = request.epoch.unwrap_or(current_epoch);
 
-    let mut system_state =
-        if epoch == current_epoch && read_mask.contains(Epoch::BCS_SYSTEM_STATE_FIELD.name) {
-            Some(
-                service
-                    .reader
-                    .get_system_state()
-                    .map_err(|e| Status::internal(format!("Failed to get system state: {e}")))?,
-            )
-        } else {
-            None
-        };
+    let source = EpochReadSource {
+        reader: service.reader.clone(),
+        chain: service.chain,
+        epoch,
+        current_epoch,
+    };
 
-    if read_mask.contains(Epoch::EPOCH_FIELD.name) {
-        message = message.with_epoch(epoch);
-    }
-
-    if let Some(epoch_info) = service
-        .reader
-        .get_epoch_info(epoch)
-        .map_err(|e| Status::internal(format!("Failed to get epoch info: {e}")))?
-    {
-        if read_mask.contains(Epoch::FIRST_CHECKPOINT_FIELD.name) {
-            message = message.with_first_checkpoint(epoch_info.start_checkpoint);
-        }
-
-        if read_mask.contains(Epoch::LAST_CHECKPOINT_FIELD.name) {
-            if let Some(end_checkpoint) = epoch_info.end_checkpoint {
-                message = message.with_last_checkpoint(end_checkpoint);
-            }
-        }
-
-        if read_mask.contains(Epoch::START_FIELD.name) {
-            message = message.with_start(timestamp_ms_to_proto(epoch_info.start_timestamp_ms));
-        }
-
-        if read_mask.contains(Epoch::END_FIELD.name) {
-            if let Some(end_timestamp_ms) = epoch_info.end_timestamp_ms {
-                message = message.with_end(timestamp_ms_to_proto(end_timestamp_ms));
-            }
-        }
-
-        if read_mask.contains(Epoch::REFERENCE_GAS_PRICE_FIELD.name) {
-            message = message.with_reference_gas_price(epoch_info.reference_gas_price);
-        }
-
-        if let Some(submask) = read_mask.subtree(Epoch::PROTOCOL_CONFIG_FIELD.name) {
-            message = message.with_protocol_config(
-                ProtocolConfig::merge_from(
-                    get_protocol_config(epoch_info.protocol_version, service.chain)?,
-                    &submask,
-                )
-                .map_err(|e| Status::internal(format!("Failed to merge protocol config: {e}")))?,
-            );
-        }
-
-        // If we're not loading the current epoch then grab the indexed snapshot of the
-        // system state at the start of the epoch.
-        if system_state.is_none() {
-            system_state = Some(epoch_info.system_state);
-        }
-    }
-
-    if let Some(system_state) = system_state {
-        if read_mask.contains(Epoch::BCS_SYSTEM_STATE_FIELD.name) {
-            message =
-                message.with_bcs_system_state(BcsData::serialize(&system_state).map_err(|e| {
-                    Status::internal(format!("Failed to serialize system state: {e}"))
-                })?);
-        }
-    }
-
-    if read_mask.contains(Epoch::COMMITTEE_FIELD.name) {
-        let committee = service
-            .reader
-            .get_committee(epoch)
-            .map_err(|e| Status::internal(format!("Failed to get committee: {e}")))?
-            .ok_or_else(|| CommitteeNotFoundError::new(epoch))?;
-        let sdk_committee: iota_sdk_types::ValidatorCommittee = committee.as_ref().clone().into();
-        message = message.with_committee(sdk_committee);
-    }
+    let message = Epoch::merge_from(&source, &read_mask)
+        .map_err(|e| Status::internal(format!("Failed to build epoch response: {e}")))?;
 
     Ok(GetEpochResponse::default().with_epoch(message))
 }
@@ -184,41 +220,4 @@ impl From<ProtocolVersionNotFoundError> for Status {
     fn from(value: ProtocolVersionNotFoundError) -> Self {
         Status::not_found(value.to_string())
     }
-}
-
-fn get_protocol_config(
-    version: u64,
-    chain: Chain,
-) -> std::result::Result<ProtocolConfig, ProtocolVersionNotFoundError> {
-    let config = IotaProtocolConfig::get_for_version_if_supported(version.into(), chain)
-        .ok_or_else(|| ProtocolVersionNotFoundError::new(version))?;
-    Ok(protocol_config_to_proto(config))
-}
-
-pub fn protocol_config_to_proto(config: IotaProtocolConfig) -> ProtocolConfig {
-    let protocol_version = config.version.as_u64();
-    let attributes = config
-        .attr_map()
-        .into_iter()
-        .filter_map(|(k, maybe_v)| {
-            maybe_v.map(move |v| {
-                let v = match v {
-                    ProtocolConfigValue::u16(x) => x.to_string(),
-                    ProtocolConfigValue::u32(y) => y.to_string(),
-                    ProtocolConfigValue::u64(z) => z.to_string(),
-                    ProtocolConfigValue::bool(b) => b.to_string(),
-                };
-                (k, v)
-            })
-        })
-        .collect();
-    ProtocolConfig::default()
-        .with_protocol_version(protocol_version)
-        .with_feature_flags(
-            iota_grpc_types::v0::epoch::ProtocolFeatureFlags::default()
-                .with_flags(config.feature_map().into_iter().collect()),
-        )
-        .with_attributes(
-            iota_grpc_types::v0::epoch::ProtocolAttributes::default().with_attributes(attributes),
-        )
 }
