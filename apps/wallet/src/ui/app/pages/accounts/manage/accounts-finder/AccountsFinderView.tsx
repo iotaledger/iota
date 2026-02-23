@@ -43,6 +43,7 @@ import { MigrationDialog } from '../../../home/tokens/MigrationDialog';
 import { SupplyIncreaseVestingStakingDialog } from '../../../home/tokens/SupplyIncreaseVestingStakingDialog';
 import { ampli } from '_src/shared/analytics/ampli';
 import { ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE } from '_src/shared/analytics';
+import type { AccountsAddedProperties } from '_src/shared/analytics/ampli';
 
 function getAccountSourceType(
     accountSource?: AccountSourceSerializedUI,
@@ -150,7 +151,21 @@ export function AccountsFinderView(): JSX.Element {
             ampli.balanceFinderUsed({
                 accountType: getAmplitudeAccountType(accountSource),
             });
-            await find();
+            const numberOfAccountsCreated = await find();
+
+            // Fire accountsAdded event if accounts were created
+            if (numberOfAccountsCreated > 0) {
+                const accountType: AccountsAddedProperties['accountType'] =
+                    getAmplitudeAccountType(accountSource);
+
+                ampli.accountsAdded({
+                    accountType,
+                    accountOrigin: 'import',
+                    numberOfAccounts: numberOfAccountsCreated,
+                    isFirstAccount: !accounts || accounts.length === 0,
+                    sourceFlow: 'Balance Finder',
+                });
+            }
         } finally {
             setSearchPhase(SearchPhase.Idle);
         }

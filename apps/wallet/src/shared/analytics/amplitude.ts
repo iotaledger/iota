@@ -10,7 +10,7 @@ import { ampli } from './ampli';
 import { elementCopiedPrivacyPlugin, externalLinkOpenedPrivacyPlugin } from './plugins';
 import { dialogContextPlugin } from './plugins/dialogContextPlugin';
 
-const IS_ENABLED = process.env.BUILD_ENV === 'production';
+const IS_ENABLED = true;
 
 const IS_DEV = process.env.BUILD_ENV !== 'production';
 
