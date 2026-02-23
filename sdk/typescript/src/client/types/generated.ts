@@ -48,6 +48,13 @@ export type CallArg =
     | {
           Object: ObjectArg;
       };
+/** Holds digest of cancelled transaction and cancelled shared object version assignments. */
+export interface CancelledTransactionV2 {
+    /** Digest of cancelled transaction. */
+    digest: string;
+    /** List of cancelled shared objects and versions assigned to them. */
+    version_assignments: VersionAssignmentV2[];
+}
 export interface Checkpoint {
     /** Commitments to checkpoint state */
     checkpointCommitments: CheckpointCommitment[];
@@ -121,10 +128,18 @@ export type CompressedSignature =
     | {
           Move: string;
       };
-/** Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments. */
-export type ConsensusDeterminedVersionAssignments = {
-    CancelledTransactions: [string, [string, string][]][];
-};
+/** Uses an enum to allow for future expansion of the `ConsensusDeterminedVersionAssignments`. */
+export type ConsensusDeterminedVersionAssignments =
+    /** Cancelled transaction version assignments. */
+    | {
+          CancelledTransactions: [string, [string, string][]][];
+      } /** Cancelled transaction version assignments. Introduced and used in `ConsensusCommitPrologueV2`. */
+    | {
+          CancelledTransactionsV2: {
+              /** List of cancelled transactions. */
+              cancelled_transactions: CancelledTransactionV2[];
+          };
+      };
 export type IotaParsedData =
     | {
           dataType: 'moveObject';
@@ -1961,6 +1976,13 @@ export interface ValidatorApy {
 export interface ValidatorsApy {
     apys: ValidatorApy[];
     epoch: string;
+}
+/** Holds object ID and assigned version for a shared object appearing in a cancelled transaction. */
+export interface VersionAssignmentV2 {
+    /** ID of shared object that appear in the cancelled transaction. */
+    object_id: string;
+    /** Version assigned to the cancelled shared object. It embeds the cancellation reason. */
+    version: string;
 }
 /** An zk login authenticator with all the necessary fields. */
 export interface ZkLoginAuthenticator {
