@@ -64,7 +64,7 @@ pub enum AbstractAccountAuthenticator {
     Ed25519,
     Ed25519Heavy,
     HelloWorld,
-    MaxArgs128,
+    MaxArgs125,
 }
 
 impl Default for AbstractAccountAuthenticator {
@@ -79,7 +79,7 @@ impl AbstractAccountAuthenticator {
             Self::Ed25519 => "ed25519",
             Self::Ed25519Heavy => "ed25519heavy",
             Self::HelloWorld => "helloworld",
-            Self::MaxArgs128 => "maxargs128",
+            Self::MaxArgs125 => "maxargs125",
         }
     }
 }
