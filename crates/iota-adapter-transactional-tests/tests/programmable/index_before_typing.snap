@@ -17,14 +17,14 @@ task 2, lines 20-23:
 //> test::m::take_b(Input(0), Input(1))
 // input out of bounds
 Error: Transaction Effects Status: Invalid command argument at 1. Out of bounds access to input or result vector 1
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: IndexOutOfBounds { idx: 1 } }, source: None, command: Some(0) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: IndexOutOfBounds { index: 1 } }, source: None, command: Some(0) } }
 
 task 3, lines 24-27:
 //# programmable --inputs 0u8
 //> test::m::take_b(Input(0), Input(100))
 // result out of bounds at len
 Error: Transaction Effects Status: Invalid command argument at 1. Out of bounds access to input or result vector 100
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: IndexOutOfBounds { idx: 100 } }, source: None, command: Some(0) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: IndexOutOfBounds { index: 100 } }, source: None, command: Some(0) } }
 
 task 4, lines 28-32:
 //# programmable
@@ -32,7 +32,7 @@ task 4, lines 28-32:
 //> test::m::take_b(Result(0), Result(1))
 // result out of bounds
 Error: Transaction Effects Status: Invalid command argument at 1. Out of bounds access to input or result vector 1
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: IndexOutOfBounds { idx: 1 } }, source: None, command: Some(1) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: IndexOutOfBounds { index: 1 } }, source: None, command: Some(1) } }
 
 task 5, lines 33-37:
 //# programmable
@@ -40,7 +40,7 @@ task 5, lines 33-37:
 //> test::m::take_b(Result(0), Result(5123))
 // nested results out of bounds at len
 Error: Transaction Effects Status: Invalid command argument at 1. Out of bounds access to input or result vector 5123
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: IndexOutOfBounds { idx: 5123 } }, source: None, command: Some(1) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: IndexOutOfBounds { index: 5123 } }, source: None, command: Some(1) } }
 
 task 6, lines 38-43:
 //# programmable
@@ -49,7 +49,7 @@ task 6, lines 38-43:
 //> test::m::take_b(Result(0), NestedResult(2, 0))
 // nested results out of bounds
 Error: Transaction Effects Status: Invalid command argument at 1. Out of bounds access to input or result vector 2
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: IndexOutOfBounds { idx: 2 } }, source: None, command: Some(2) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: IndexOutOfBounds { index: 2 } }, source: None, command: Some(2) } }
 
 task 7, lines 44-49:
 //# programmable
@@ -58,7 +58,7 @@ task 7, lines 44-49:
 //> test::m::take_b(Result(0), NestedResult(115, 0))
 // nested secondary out of bounds barely
 Error: Transaction Effects Status: Invalid command argument at 1. Out of bounds access to input or result vector 115
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: IndexOutOfBounds { idx: 115 } }, source: None, command: Some(2) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: IndexOutOfBounds { index: 115 } }, source: None, command: Some(2) } }
 
 task 8, lines 50-55:
 //# programmable
@@ -67,7 +67,7 @@ task 8, lines 50-55:
 //> test::m::take_b(Result(0), NestedResult(1, 2))
 // nested secondary out of bounds
 Error: Transaction Effects Status: Invalid command argument at 1. Out of bounds secondary access to result vector 1 at secondary index 2
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: SecondaryIndexOutOfBounds { result_idx: 1, secondary_idx: 2 } }, source: None, command: Some(2) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: SecondaryIndexOutOfBounds { result: 1, subresult: 2 } }, source: None, command: Some(2) } }
 
 task 9, lines 56-59:
 //# programmable
@@ -75,4 +75,4 @@ task 9, lines 56-59:
 //> test::m::a2();
 //> test::m::take_b(Result(0), NestedResult(1, 2104))
 Error: Transaction Effects Status: Invalid command argument at 1. Out of bounds secondary access to result vector 1 at secondary index 2104
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: SecondaryIndexOutOfBounds { result_idx: 1, secondary_idx: 2104 } }, source: None, command: Some(2) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: SecondaryIndexOutOfBounds { result: 1, subresult: 2104 } }, source: None, command: Some(2) } }
