@@ -8,7 +8,10 @@ use std::{
 };
 
 use consensus_core::{BlockRef, BlockStatus};
-use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
+use fastcrypto::{
+    ed25519::Ed25519KeyPair,
+    traits::{AggregateAuthenticator, KeyPair},
+};
 use fastcrypto_zkp::bn254::zk_login::{OIDCProvider, ZkLoginInputs, parse_jwks};
 use iota_macros::sim_test;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
@@ -21,11 +24,15 @@ use iota_types::{
         AccountKeyPair, IotaKeyPair, IotaSignature, PublicKey, Signature, ToFromBytes,
         ZkLoginPublicIdentifier, get_key_pair,
     },
+    digests::ConsensusCommitDigest,
     error::{IotaError, UserInputError},
     iota_system_state::IOTA_SYSTEM_MODULE_NAME,
-    messages_consensus::{ConsensusCommitPrologueV2, ConsensusDeterminedVersionAssignments},
-    messages_grpc::HandleSoftBundleCertificatesRequestV1,
+    messages_consensus::{
+        ConsensusCommitPrologueV1, ConsensusCommitPrologueV2, ConsensusDeterminedVersionAssignments,
+    },
+    messages_grpc::{HandleCertificateRequestV1, HandleSoftBundleCertificatesRequestV1},
     multisig::{MultiSig, MultiSigPublicKey},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
     transaction::{
         AuthenticatorStateUpdateV1, GenesisTransaction, TransactionDataAPI, TransactionKind,
@@ -59,14 +66,6 @@ macro_rules! assert_matches {
         }
     };
 }
-
-use fastcrypto::traits::AggregateAuthenticator;
-use iota_types::{
-    digests::ConsensusCommitDigest,
-    messages_consensus::{ConsensusCommitPrologueV1, ConsensusCommitPrologueV2},
-    messages_grpc::HandleCertificateRequestV1,
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-};
 
 use super::*;
 pub use crate::authority::authority_test_utils::init_state_with_ids;
