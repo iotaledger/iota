@@ -262,9 +262,7 @@ fn get_registry() -> Result<Registry> {
         instruction: 0,
         function_name: Some(Identifier::from_static("foo")),
     };
-    tracer
-        .trace_value(&mut samples, &move_location)
-        .unwrap();
+    tracer.trace_value(&mut samples, &move_location).unwrap();
     tracer.trace_type::<MoveLocation>(&samples).unwrap();
 
     tracer
@@ -286,12 +284,8 @@ fn get_registry() -> Result<Registry> {
     tracer
         .trace_type::<ExecutionFailureStatus>(&samples)
         .unwrap();
-    tracer
-        .trace_type::<CommandArgumentError>(&samples)
-        .unwrap();
-    tracer
-        .trace_type::<PackageUpgradeError>(&samples)
-        .unwrap();
+    tracer.trace_type::<CommandArgumentError>(&samples).unwrap();
+    tracer.trace_type::<PackageUpgradeError>(&samples).unwrap();
 
     // 2. Trace the main entry point(s) + every enum separately.
     tracer.trace_type::<StructInput>(&samples).unwrap();
@@ -369,9 +363,9 @@ fn get_registry() -> Result<Registry> {
 
     tracer.trace_type::<CheckpointData>(&samples).unwrap();
 
-    // Use registry_unchecked() because trace_type::<TransactionEffects> re-encounters
-    // ExecutionStatus during deserialization and marks it as incomplete, even though
-    // all variants were already discovered above.
+    // Use registry_unchecked() because trace_type::<TransactionEffects>
+    // re-encounters ExecutionStatus during deserialization and marks it as
+    // incomplete, even though all variants were already discovered above.
     let mut registry = tracer.registry_unchecked();
 
     // Clean up spurious high-index variants injected by serde_reflection's
