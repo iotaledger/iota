@@ -212,7 +212,7 @@ impl AsRef<[u8]> for MoveAuthenticator {
 /// implemented only for MoveAuthenticator and not for specific versions of
 /// MoveAuthenticator (e.g., MoveAuthenticatorV1) because the custom
 /// serialization/deserialization signature logic is defined on the
-/// MoveAuthenticator level. This trait is
+/// MoveAuthenticator level.
 impl PartialEq for MoveAuthenticator {
     fn eq(&self, other: &Self) -> bool {
         self.as_ref() == other.as_ref()
