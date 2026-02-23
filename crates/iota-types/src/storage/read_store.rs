@@ -880,22 +880,27 @@ pub trait RestStateReader: ObjectStore + ReadStore + Send + Sync {
 pub type DynamicFieldIteratorItem =
     Result<(DynamicFieldKey, DynamicFieldIndexInfo), TypedStoreError>;
 pub trait RestIndexes: Send + Sync {
+    // only used in "grpc-server"
     fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<EpochInfo>>;
 
+    // used in both "grpc-server" and "rest-api"
     fn get_transaction_info(&self, digest: &TransactionDigest) -> Result<Option<TransactionInfo>>;
 
+    // only used in "rest-api"
     fn account_owned_objects_info_iter(
         &self,
         owner: IotaAddress,
         cursor: Option<ObjectID>,
     ) -> Result<Box<dyn Iterator<Item = Result<AccountOwnedObjectInfo, TypedStoreError>> + '_>>;
 
+    // only used in "rest-api"
     fn dynamic_field_iter(
         &self,
         parent: ObjectID,
         cursor: Option<ObjectID>,
     ) -> Result<Box<dyn Iterator<Item = DynamicFieldIteratorItem> + '_>>;
 
+    // only used in "rest-api"
     fn get_coin_info(&self, coin_type: &StructTag) -> Result<Option<CoinInfo>>;
 }
 

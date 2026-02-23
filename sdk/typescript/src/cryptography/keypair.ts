@@ -4,7 +4,7 @@
 
 import { bcs, toBase64 } from '@iota/bcs';
 import { blake2b } from '@noble/hashes/blake2b';
-import { bech32 } from 'bech32';
+import { bech32 } from '@scure/base';
 
 import type { IntentScope } from './intent.js';
 import { messageWithIntent } from './intent.js';
@@ -110,7 +110,7 @@ export abstract class Keypair extends Signer {
  * parse out the signature scheme and the private key in bytes.
  */
 export function decodeIotaPrivateKey(value: string): ParsedKeypair {
-    const { prefix, words } = bech32.decode(value);
+    const { prefix, words } = bech32.decode(value as `${string}1${string}`);
     if (prefix !== IOTA_PRIVATE_KEY_PREFIX) {
         throw new Error('invalid private key prefix');
     }

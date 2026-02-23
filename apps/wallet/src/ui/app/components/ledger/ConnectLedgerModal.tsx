@@ -9,6 +9,7 @@ import { Button, ButtonType, Dialog, DialogBody, DialogContent, Header } from '@
 import { Link } from 'react-router-dom';
 import { ArrowTopRight } from '@iota/apps-ui-icons';
 
+const LEDGER_SUPPORT_LINK = 'https://support.ledger.com/article/360011633353-zd';
 interface ConnectLedgerModalProps {
     onClose: () => void;
     onConfirm: () => void;
@@ -88,8 +89,13 @@ export function ConnectLedgerModal({
                                 Need more help?
                             </span>
                             <Link
-                                to="https://support.ledger.com/article/360011633353-zd"
-                                onClick={() => ampli.viewedLedgerTutorial()}
+                                to={LEDGER_SUPPORT_LINK}
+                                onClick={() =>
+                                    ampli.externalLinkOpened({
+                                        value: LEDGER_SUPPORT_LINK,
+                                        type: 'support',
+                                    })
+                                }
                                 className="text-body-md text-iota-primary-30 no-underline dark:text-iota-primary-80"
                                 target="_blank"
                                 rel="noreferrer"

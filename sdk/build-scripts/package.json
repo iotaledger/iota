@@ -6,7 +6,7 @@
     "version": "0.0.0",
     "license": "Apache-2.0",
     "engines": {
-        "node": ">=20"
+        "node": ">=24"
     },
     "bin": {
         "build-package": "./src/build-package.ts",
@@ -32,6 +32,6 @@
         "typescript": "^5.5.3"
     },
     "dependencies": {
-        "@types/node": "^20.14.10"
+        "@types/node": "^24.0.0"
     }
 }

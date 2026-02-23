@@ -47,7 +47,7 @@
         "@graphql-codegen/typescript-operations": "^4.2.3",
         "@iota/build-scripts": "workspace:*",
         "@parcel/watcher": "^2.4.1",
-        "@types/node": "^20.14.10",
+        "@types/node": "^24.0.0",
         "cross-env": "^7.0.3",
         "dotenv": "^16.4.5",
         "graphql-config": "^5.0.3",
