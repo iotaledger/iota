@@ -1503,7 +1503,7 @@ where
     }
 }
 
-/// Manual [`Signable`] impl for [`MoveAuthenticator`].
+/// Manual [`Signable`] impl for MoveAuthenticator.
 ///
 /// `serde_name::trace_name` returns `None` for types that carry
 /// `#[serde(flatten)]`, so the blanket impl via `BcsSignable` panics.
