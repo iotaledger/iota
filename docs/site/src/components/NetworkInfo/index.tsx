@@ -38,49 +38,51 @@ function L1(props: NetworkProps) {
           <th>JSON RPC URL</th>
           <td>
             <CodeBlock>{props.rpc.json.official.core}</CodeBlock>
-            <tr>
-              <th>Websocket</th>
-              <td>
-                <CodeBlock>{props.rpc.json.official.websocket}</CodeBlock>
-              </td>
-            </tr>
-            <tr>
-              <th>Indexer</th>
-              <td>
-                <CodeBlock>{props.rpc.json.official.indexer}</CodeBlock>
-              </td>
-            </tr>
+            <table>
+              <tbody>
+                <tr>
+                  <th>Websocket</th>
+                  <td>
+                    <CodeBlock>{props.rpc.json.official.websocket}</CodeBlock>
+                  </td>
+                </tr>
+                <tr>
+                  <th>Indexer</th>
+                  <td>
+                    <CodeBlock>{props.rpc.json.official.indexer}</CodeBlock>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
             {props.rpc.json.thirdParty && props.rpc.json.thirdParty.length > 0 && (
-              <>
-                <Admonition type='info' title='Third Party Providers'>
-                  The following is a list of high quality third party RPC providers supporting IOTA
-                </Admonition>
-                {props.rpc.json.thirdParty.map((provider, index) => (
-                  <React.Fragment key={index}>
-                    <strong>{provider.provider}</strong>
-                    {provider.core && (
-                      <CodeBlock>{provider.core}</CodeBlock>
-                    )}
-                    {provider.websocket && (
-                      <tr>
-                        <th>Websocket</th>
-                        <td>
-                          <CodeBlock>{provider.websocket}</CodeBlock>
-                        </td>
-                      </tr>
-                    )}
-                    {provider.indexer && (
-                      <tr>
-                        <th>Indexer</th>
-                        <td>
-                          <CodeBlock>{provider.indexer}</CodeBlock>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                ))}
-              </>
+              <Admonition type='info' title='Third Party Providers'>
+                The following is a list of high quality third party RPC providers supporting IOTA
+              </Admonition>
             )}
+
+            {props.rpc.json.thirdParty?.map((provider, index) => (
+              <React.Fragment key={index}>
+                {provider.core && (
+                  <>
+                    <div><strong>{provider.provider}</strong></div>
+                    <CodeBlock>{provider.core}</CodeBlock>
+                  </>
+                )}
+                {provider.websocket && (
+                  <>
+                    <div><strong>{provider.provider} Websocket</strong></div>
+                    <CodeBlock>{provider.websocket}</CodeBlock>
+                  </>
+                )}
+                {provider.indexer && (
+                  <>
+                    <div><strong>{provider.provider} Indexer</strong></div>
+                    <CodeBlock>{provider.indexer}</CodeBlock>
+                  </>
+                )}
+              </React.Fragment>
+            ))}
           </td>
         </tr>
         <tr>

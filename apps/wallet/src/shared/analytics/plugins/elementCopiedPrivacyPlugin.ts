@@ -3,17 +3,16 @@
 
 import type { EnrichmentPlugin, Event } from '@amplitude/analytics-types';
 
-export const PUBLIC_TYPES = new Set<string>(['documentation', 'application', 'support']);
 // these are the types that are always private
-export const PRIVATE_TYPES = new Set<string>(['address', 'digest', 'object']);
+const PRIVATE_TYPES = new Set<string>(['address', 'digest', 'object', 'mnemonic']);
 
-export function externalLinkOpenedPrivacyPlugin(): EnrichmentPlugin {
+export function elementCopiedPrivacyPlugin(): EnrichmentPlugin {
     return {
-        name: 'external-link-opened-privacy',
+        name: 'element-copied-privacy',
         type: 'enrichment',
 
         async execute(event: Event) {
-            if (!event.event_type?.endsWith('external link opened')) {
+            if (!event.event_type?.endsWith('element copied')) {
                 return event;
             }
 
@@ -22,10 +21,8 @@ export function externalLinkOpenedPrivacyPlugin(): EnrichmentPlugin {
             const type =
                 typeof props.type === 'string' && props.type.trim() ? props.type : 'unknown';
 
-            let visibility =
-                props.visibility === 'public' || props.visibility === 'private'
-                    ? (props.visibility as 'public' | 'private')
-                    : 'private';
+            let visibility: 'private' | 'public' =
+                props.visibility === 'public' ? 'public' : 'private';
 
             if (PRIVATE_TYPES.has(type)) {
                 visibility = 'private';
