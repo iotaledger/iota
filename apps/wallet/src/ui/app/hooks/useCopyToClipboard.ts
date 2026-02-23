@@ -8,25 +8,17 @@ import { ampli } from '_src/shared/analytics/ampli';
 
 export type CopyOptions = {
     copySuccessMessage?: string;
-    /**
-     * Type of text being copied for analytics tracking.
-     * When provided, automatically tracks the copy event.
-     * Omit this prop to disable tracking (e.g., when using custom analytics).
-     */
     textType?: string;
+    disableAnalytics?: boolean;
 };
 
-/**
- * Wrapper around @iota/core's useCopyToClipboard that adds toast notifications and analytics tracking.
- * This provides a generic solution for copy functionality across the wallet.
- */
 export function useCopyToClipboard(
     textToCopy: string,
-    { copySuccessMessage = 'Copied', textType }: CopyOptions,
+    { copySuccessMessage = 'Copied', textType, disableAnalytics }: CopyOptions,
 ) {
     const copyToClipboardCore = useCopyToClipboardCore(() => {
         toast(copySuccessMessage);
-        if (textType) {
+        if (textType && !disableAnalytics) {
             ampli.elementCopied({
                 type: textType,
             });
