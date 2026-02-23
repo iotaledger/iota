@@ -1501,26 +1501,23 @@ impl IotaExecutionStatus {
                         "'".to_string()
                     };
 
+                    let module_id = ModuleId::new(
+                        AccountAddress::from(location.package.into_bytes()),
+                        move_core_types::identifier::Identifier::new(location.module.as_str())
+                            .unwrap(),
+                    );
+
                     let Some(CleverError {
                         module_id,
                         source_line_number,
                         error_info,
                     }) = resolver
-                        .resolve_clever_error(
-                            ModuleId::new(
-                                AccountAddress::from(location.package.into_bytes()),
-                                move_core_types::identifier::Identifier::new(
-                                    location.module.as_str(),
-                                )
-                                .unwrap(),
-                            ),
-                            *code,
-                        )
+                        .resolve_clever_error(module_id.clone(), *code)
                         .await
                     else {
                         break 'error format!(
                             "from '{}{fname_string} (instruction {}), abort code: {code}",
-                            location.module.as_str(),
+                            module_id.to_canonical_display(true),
                             location.instruction,
                         );
                     };
