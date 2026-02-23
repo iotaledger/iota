@@ -222,8 +222,8 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_value(&mut samples, &ccd).unwrap();
 
     let tot = TypeOrigin {
-        module_name: "module_name".to_string(),
-        datatype_name: "datatype_name".to_string(),
+        module_name: Identifier::from_static("module_name"),
+        struct_name: Identifier::from_static("struct_name"),
         package: ObjectID::random(),
     };
     tracer.trace_value(&mut samples, &tot).unwrap();

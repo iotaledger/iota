@@ -23,7 +23,7 @@ macro_rules! type_origin_table {
     {$($module:ident :: $type:ident => $pkg:expr),* $(,)?} => {{
         vec![$(TypeOrigin {
             module_name: stringify!($module).to_string(),
-            datatype_name: stringify!($type).to_string(),
+            struct_name: stringify!($type).to_string(),
             package: $pkg,
         },)*]
     }}
@@ -533,7 +533,7 @@ fn test_fail_on_upgrade_missing_type() {
     .unwrap();
 
     let c_id2 = ObjectID::from_u16(0xc2);
-    let err = new_upgraded_move_package_move_package(
+    let err = new_upgraded_move_package(
         &c_pkg,
         c_id2,
         &build_test_modules("Cv1"),
