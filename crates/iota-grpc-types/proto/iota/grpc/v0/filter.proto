@@ -116,6 +116,7 @@ enum TransactionKind {
   AUTHENTICATOR_STATE_UPDATE_V1 = 4;
   END_OF_EPOCH_TRANSACTION = 5;
   RANDOMNESS_STATE_UPDATE = 6;
+  CONSENSUS_COMMIT_PROLOGUE_V2 = 7;
 }
 
 // Filter by transaction kinds (any of the specified kinds).
