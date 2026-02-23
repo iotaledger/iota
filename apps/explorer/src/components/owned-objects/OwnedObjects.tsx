@@ -191,17 +191,13 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
 
     const effectiveViewMode = filter === FilterValue.Other ? ObjectViewMode.List : viewMode;
 
-    const availableViewModes = useMemo(
-        () =>
-            filter === FilterValue.Other
-                ? VIEW_MODES.filter((mode) => mode.value === ObjectViewMode.List)
-                : VIEW_MODES,
-        [filter],
-    );
+    const availableViewModes =
+        filter === FilterValue.Other
+            ? VIEW_MODES.filter((mode) => mode.value === ObjectViewMode.List)
+            : VIEW_MODES;
 
-    const filteredData = useMemo(() => {
+    const filteredData = (() => {
         if (!data?.data && filter !== FilterValue.Kiosk) return [];
-
         switch (filter) {
             case FilterValue.Kiosk:
                 return categorizedObjects.kiosk;
@@ -214,7 +210,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
             default:
                 return [];
         }
-    }, [filter, data?.data, categorizedObjects]);
+    })();
 
     const { start, end } = useMemo(
         () => getItemsRangeFromCurrentPage(pagination.currentPage, limit, filteredData?.length),
@@ -241,18 +237,14 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
         return [...hasImageUrl, ...noImageUrl];
     }, [filteredData]);
 
-    const ownedObjectsContainerHeight = useMemo(() => {
-        const ownedObjectsCount = sortedDataByDisplayImages.length;
-        let nextHeight = OwnedObjectsContainerHeight.Small;
+    const ownedObjectsCount = sortedDataByDisplayImages.length;
+    let ownedObjectsContainerHeight = OwnedObjectsContainerHeight.Small;
 
-        Object.keys(MIN_OBJECT_COUNT_TO_HEIGHT_MAP).forEach((minObjectCount) => {
-            if (ownedObjectsCount >= Number(minObjectCount)) {
-                nextHeight = MIN_OBJECT_COUNT_TO_HEIGHT_MAP[Number(minObjectCount)];
-            }
-        });
-
-        return nextHeight;
-    }, [sortedDataByDisplayImages.length]);
+    for (const minObjectCount of Object.keys(MIN_OBJECT_COUNT_TO_HEIGHT_MAP)) {
+        if (ownedObjectsCount >= Number(minObjectCount)) {
+            ownedObjectsContainerHeight = MIN_OBJECT_COUNT_TO_HEIGHT_MAP[Number(minObjectCount)];
+        }
+    }
 
     const showPagination = getShowPagination(
         filter,
