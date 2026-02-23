@@ -2758,6 +2758,11 @@ impl ProtocolConfig {
         self.feature_flags.enable_move_authentication = val;
     }
 
+    pub fn set_record_additional_states_digests_in_prologue_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .record_additional_states_digests_in_prologue = val;
+    }
+
     pub fn set_record_received_reports_state_digest_in_prologue_for_testing(&mut self, val: bool) {
         self.feature_flags
             .record_received_reports_state_digest_in_prologue = val;
