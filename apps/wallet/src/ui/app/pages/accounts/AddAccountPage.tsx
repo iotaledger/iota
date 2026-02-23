@@ -22,11 +22,20 @@ import {
 } from '@iota/apps-ui-kit';
 import { AccountsFormType, ConnectLedgerModal, PageTemplate } from '_components';
 import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
-import { useAppSelector, useCheckCameraPermissionStatus, useCreateAccountsMutation } from '_hooks';
+import {
+    useAppSelector,
+    useCheckCameraPermissionStatus,
+    useCreateAccountsMutation,
+    useAccounts,
+} from '_hooks';
 import { Create, Ledger, Keystone, Wallet } from '@iota/apps-ui-icons';
 import { ExtensionViewType } from '../../redux/slices/app/appType';
 import Browser from 'webextension-polyfill';
 import clsx from 'clsx';
+import {
+    ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE,
+    ACCOUNT_FORM_TYPE_TO_ACCOUNT_ORIGIN,
+} from '_src/shared/analytics';
 
 export interface ActionCardItem {
     title: string;
@@ -82,6 +91,8 @@ export function AddAccountPage() {
     const [cameraPermissionStatus] = useCheckCameraPermissionStatus();
     const network = useAppSelector(({ app }) => app.network);
     const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
+    const { data: accounts } = useAccounts();
+    const isFirstAccount = !accounts || accounts.length === 0;
 
     const cardLinks: CardLinkItem[] = [
         {
@@ -114,9 +125,17 @@ export function AddAccountPage() {
     async function handleCardAction(
         actionType: (typeof hardwareWalletOptions)[number]['actionType'],
     ) {
+        const ampliAccountType = ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE[actionType];
+        const ampliAccountOrigin = ACCOUNT_FORM_TYPE_TO_ACCOUNT_ORIGIN[actionType];
+
         switch (actionType) {
             case AccountsFormType.ImportLedger:
-                ampli.openedConnectLedgerFlow({ sourceFlow });
+                ampli.accountCreationStarted({
+                    accountType: ampliAccountType,
+                    accountOrigin: ampliAccountOrigin,
+                    isFirstAccount,
+                    sourceFlow,
+                });
                 if (isPopupOrSidePanel) {
                     await openTabWithSearchParam('showLedger', 'true');
                     window.close();
@@ -125,7 +144,12 @@ export function AddAccountPage() {
                 }
                 break;
             case AccountsFormType.ImportKeystone:
-                ampli.clickedImportKeystone({ sourceFlow });
+                ampli.accountCreationStarted({
+                    accountType: ampliAccountType,
+                    accountOrigin: ampliAccountOrigin,
+                    isFirstAccount,
+                    sourceFlow,
+                });
                 if (isPopupOrSidePanel && cameraPermissionStatus === 'prompt') {
                     await openTabOnImportKeystone();
                     window.close();
@@ -221,7 +245,6 @@ export function AddAccountPage() {
                         );
                     }}
                     onConfirm={() => {
-                        ampli.connectedHardwareWallet({ hardwareWalletType: 'Ledger' });
                         navigate('/accounts/import-ledger-accounts');
                     }}
                     requestLedgerPermissionsFirst
