@@ -54,10 +54,10 @@ use iota_types::{
         CheckpointContents, CheckpointSequenceNumber, CheckpointSignatureMessage, CheckpointSummary,
     },
     messages_consensus::{
-        AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKey,
-        ConsensusTransactionKind, SignedAuthorityCapabilitiesV1, TimestampMs,
-        VerifiedAuthorityCapabilitiesV1, VersionedDkgConfirmation, VersionedMisbehaviorReport,
-        check_total_jwk_size,
+        AuthorityCapabilitiesV1, CancelledTransactionV2, ConsensusTransaction,
+        ConsensusTransactionKey, ConsensusTransactionKind, SignedAuthorityCapabilitiesV1,
+        TimestampMs, VerifiedAuthorityCapabilitiesV1, VersionAssignmentV2,
+        VersionedDkgConfirmation, VersionedMisbehaviorReport, check_total_jwk_size,
     },
     signature::GenericSignature,
     storage::{BackingPackageStore, InputKey, ObjectStore},
@@ -3374,22 +3374,28 @@ impl AuthorityPerEpochStore {
             }
         }
 
-        let mut version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)> =
-            Vec::new();
+        let mut cancelled_transactions: Vec<CancelledTransactionV2> = Vec::new();
 
         let mut shared_input_next_version = HashMap::new();
         for txn in transactions.iter() {
             match cancelled_txns.get(txn.digest()) {
                 Some(CancelConsensusCertificateReason::CongestionOnObjects { .. })
                 | Some(CancelConsensusCertificateReason::DkgFailed) => {
-                    let assigned_versions = SharedObjVerManager::assign_versions_for_certificate(
+                    let version_assignments = SharedObjVerManager::assign_versions_for_certificate(
                         txn,
                         &mut shared_input_next_version,
                         cancelled_txns,
                         self.protocol_config
                             .congestion_control_gas_price_feedback_mechanism(),
-                    );
-                    version_assignment.push((*txn.digest(), assigned_versions));
+                    )
+                    .into_iter()
+                    .map(|(object_id, version)| VersionAssignmentV2 { object_id, version })
+                    .collect();
+
+                    cancelled_transactions.push(CancelledTransactionV2 {
+                        digest: *txn.digest(),
+                        version_assignments,
+                    });
                 }
                 None => {}
             }
@@ -3397,18 +3403,15 @@ impl AuthorityPerEpochStore {
 
         fail_point_arg!(
             "additional_cancelled_txns_for_tests",
-            |additional_cancelled_txns: Vec<(
-                TransactionDigest,
-                Vec<(ObjectID, SequenceNumber)>
-            )>| {
-                version_assignment.extend(additional_cancelled_txns);
+            |additional_cancelled_txns: Vec<CancelledTransactionV2>| {
+                cancelled_transactions.extend(additional_cancelled_txns);
             }
         );
 
         let transaction = consensus_commit_info.create_consensus_commit_prologue_transaction(
             self.epoch(),
             self.protocol_config(),
-            version_assignment,
+            cancelled_transactions,
             additional_consensus_states,
         );
         let consensus_commit_prologue_root = match self

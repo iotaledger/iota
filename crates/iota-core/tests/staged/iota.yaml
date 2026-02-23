@@ -63,6 +63,13 @@ CallArg:
       Object:
         NEWTYPE:
           TYPENAME: ObjectArg
+CancelledTransactionV2:
+  STRUCT:
+    - digest:
+        TYPENAME: TransactionDigest
+    - version_assignments:
+        SEQ:
+          TYPENAME: VersionAssignmentV2
 ChangeEpoch:
   STRUCT:
     - epoch: U64
@@ -367,6 +374,12 @@ ConsensusDeterminedVersionAssignments:
                   TUPLE:
                     - TYPENAME: ObjectID
                     - TYPENAME: SequenceNumber
+    1:
+      CancelledTransactionsV2:
+        STRUCT:
+          - cancelled_transactions:
+              SEQ:
+                TYPENAME: CancelledTransactionV2
 Data:
   ENUM:
     0:
@@ -1189,6 +1202,12 @@ UpgradeInfo:
     - upgraded_id:
         TYPENAME: ObjectID
     - upgraded_version:
+        TYPENAME: SequenceNumber
+VersionAssignmentV2:
+  STRUCT:
+    - object_id:
+        TYPENAME: ObjectID
+    - version:
         TYPENAME: SequenceNumber
 ZkLoginAuthenticatorAsBytes:
   NEWTYPESTRUCT:

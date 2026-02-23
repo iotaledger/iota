@@ -33,7 +33,9 @@ use iota_types::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
         CheckpointContentsDigest, CheckpointDigest, CheckpointSummary, FullCheckpointContents,
     },
-    messages_consensus::ConsensusDeterminedVersionAssignments,
+    messages_consensus::{
+        CancelledTransactionV2, ConsensusDeterminedVersionAssignments, VersionAssignmentV2,
+    },
     messages_grpc::ObjectInfoRequestKind,
     move_package::TypeOrigin,
     multisig::{MultiSig, MultiSigPublicKey},
@@ -261,6 +263,10 @@ fn get_registry() -> Result<Registry> {
     tracer
         .trace_type::<ConsensusDeterminedVersionAssignments>(&samples)
         .unwrap();
+    tracer
+        .trace_type::<CancelledTransactionV2>(&samples)
+        .unwrap();
+    tracer.trace_type::<VersionAssignmentV2>(&samples).unwrap();
 
     let sender_data = SenderSignedData::new(
         TransactionData::new_with_gas_coins(

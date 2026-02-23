@@ -23,7 +23,7 @@ use iota_types::{
     },
     error::{IotaError, UserInputError},
     iota_system_state::IOTA_SYSTEM_MODULE_NAME,
-    messages_consensus::ConsensusDeterminedVersionAssignments,
+    messages_consensus::{ConsensusCommitPrologueV2, ConsensusDeterminedVersionAssignments},
     messages_grpc::HandleSoftBundleCertificatesRequestV1,
     multisig::{MultiSig, MultiSigPublicKey},
     signature::GenericSignature,
@@ -255,7 +255,9 @@ async fn test_user_sends_consensus_commit_prologue_v2() {
             commit_timestamp_ms: 42,
             consensus_commit_digest: ConsensusCommitDigest::default(),
             consensus_determined_version_assignments:
-                ConsensusDeterminedVersionAssignments::CancelledTransactions(Vec::new()),
+                ConsensusDeterminedVersionAssignments::CancelledTransactionsV2 {
+                    cancelled_transactions: Vec::new(),
+                },
             additional_states_digests: Vec::new(),
         },
     ))
@@ -1586,11 +1588,12 @@ async fn test_handle_certificate_errors() {
 
     let committee = epoch_store.committee().deref().clone();
 
-    let tx = VerifiedTransaction::new_consensus_commit_prologue_v1(
+    let tx = VerifiedTransaction::new_consensus_commit_prologue_v2(
         0,
         0,
         42,
         ConsensusCommitDigest::default(),
+        Vec::new(),
         Vec::new(),
     );
     let ct = CertifiedTransaction::new(

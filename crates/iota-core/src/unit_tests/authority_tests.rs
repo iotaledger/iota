@@ -33,7 +33,10 @@ use iota_types::{
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     gas_coin::GasCoin,
     iota_system_state::IotaSystemStateWrapper,
-    messages_consensus::{AuthorityCapabilitiesV1, ConsensusDeterminedVersionAssignments},
+    messages_consensus::{
+        AuthorityCapabilitiesV1, CancelledTransactionV2, ConsensusDeterminedVersionAssignments,
+        VersionAssignmentV2,
+    },
     object::{Data, GAS_VALUE_FOR_TESTING, OBJECT_START_VERSION, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::get_randomness_state_obj_initial_shared_version,
@@ -4074,6 +4077,23 @@ pub async fn init_state_with_objects_and_object_basics<I: IntoIterator<Item = Ob
 }
 
 #[cfg(test)]
+pub async fn init_state_with_config_and_objects_and_object_basics<
+    I: IntoIterator<Item = Object>,
+>(
+    config: ProtocolConfig,
+    objects: I,
+) -> (Arc<AuthorityState>, ObjectRef) {
+    let state = TestAuthorityBuilder::new()
+        .with_protocol_config(config)
+        .build()
+        .await;
+    for obj in objects {
+        state.insert_genesis_object(obj).await;
+    }
+    publish_object_basics(state).await
+}
+
+#[cfg(test)]
 pub async fn init_state_with_ids_and_object_basics<
     I: IntoIterator<Item = (IotaAddress, ObjectID)>,
 >(
@@ -4671,10 +4691,12 @@ async fn test_consensus_commit_prologue_generation() {
         Object::new_move(obj, owner, TransactionDigest::genesis_marker())
     };
     let initial_shared_version = shared_object.version();
-    let (authority_state, package_object_ref) = init_state_with_objects_and_object_basics(
-        [&[shared_object], gas_objects.as_slice()].concat(),
-    )
-    .await;
+    let (authority_state, package_object_ref) =
+        init_state_with_config_and_objects_and_object_basics(
+            ProtocolConfig::get_for_max_version_UNSAFE(),
+            [&[shared_object], gas_objects.as_slice()].concat(),
+        )
+        .await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
     let mut certificates = vec![];
@@ -4720,13 +4742,17 @@ async fn test_consensus_commit_prologue_generation() {
     // Tests that new consensus commit prologue transaction is added to the batch,
     // and it is the first transaction.
     assert_eq!(processed_consensus_transactions.len(), 3);
-    assert!(matches!(
+    assert!(
+        matches!(
+            processed_consensus_transactions[0]
+                .data()
+                .transaction_data()
+                .kind(),
+            TransactionKind::ConsensusCommitPrologueV2(..)
+        ),
+        "{:#?}",
         processed_consensus_transactions[0]
-            .data()
-            .transaction_data()
-            .kind(),
-        TransactionKind::ConsensusCommitPrologueV2(..)
-    ));
+    );
 
     // Tests that the system clock object is updated by the new consensus commit
     // prologue transaction.
@@ -6659,24 +6685,24 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     {
         assert!(matches!(
             &prologue_txn.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions(assignment)
-            if assignment == &vec![(
-                *cancelled_txn.digest(),
-                vec![
-                    (
-                        shared_objects[0].id(),
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+            ConsensusDeterminedVersionAssignments::CancelledTransactionsV2{ cancelled_transactions }
+            if cancelled_transactions == &vec![CancelledTransactionV2 {
+                digest: *cancelled_txn.digest(),
+                version_assignments: vec![ VersionAssignmentV2
+                    {
+                        object_id: shared_objects[0].id(),
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             suggested_gas_price
                         ),
-                    ),
-                    (
-                        shared_objects[1].id(),
-                        SequenceNumber::new_congested_with_suggested_gas_price(
+                    },
+                    VersionAssignmentV2{
+                        object_id: shared_objects[1].id(),
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(
                             suggested_gas_price
                         ),
-                    )
+                    }
                 ]
-            )]
+            }]
         ));
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV2 transaction.");

@@ -51,7 +51,8 @@ use crate::{
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
     messages_consensus::{
-        ConsensusCommitPrologueV1, ConsensusCommitPrologueV2, ConsensusDeterminedVersionAssignments,
+        CancelledTransactionV2, ConsensusCommitPrologueV1, ConsensusCommitPrologueV2,
+        ConsensusDeterminedVersionAssignments, VersionAssignmentV2,
     },
     move_authenticator::MoveAuthenticator,
     object::{MoveObject, Object, Owner},
@@ -3040,7 +3041,7 @@ impl VerifiedTransaction {
         round: u64,
         commit_timestamp_ms: CheckpointTimestamp,
         consensus_commit_digest: ConsensusCommitDigest,
-        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+        cancelled_transactions: Vec<CancelledTransactionV2>,
     ) -> Self {
         ConsensusCommitPrologueV1 {
             epoch,
@@ -3051,7 +3052,25 @@ impl VerifiedTransaction {
             consensus_commit_digest,
             consensus_determined_version_assignments:
                 ConsensusDeterminedVersionAssignments::CancelledTransactions(
-                    cancelled_txn_version_assignment,
+                    cancelled_transactions
+                        .into_iter()
+                        .map(
+                            |CancelledTransactionV2 {
+                                 digest,
+                                 version_assignments,
+                             }| {
+                                (
+                                    digest,
+                                    version_assignments
+                                        .into_iter()
+                                        .map(|VersionAssignmentV2 { object_id, version }| {
+                                            (object_id, version)
+                                        })
+                                        .collect(),
+                                )
+                            },
+                        )
+                        .collect(),
                 ),
         }
         .pipe(TransactionKind::ConsensusCommitPrologueV1)
@@ -3063,7 +3082,7 @@ impl VerifiedTransaction {
         round: u64,
         commit_timestamp_ms: CheckpointTimestamp,
         consensus_commit_digest: ConsensusCommitDigest,
-        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+        cancelled_transactions: Vec<CancelledTransactionV2>,
         additional_states_digests: Vec<AdditionalConsensusStatesDigest>,
     ) -> Self {
         ConsensusCommitPrologueV2 {
@@ -3074,9 +3093,9 @@ impl VerifiedTransaction {
             commit_timestamp_ms,
             consensus_commit_digest,
             consensus_determined_version_assignments:
-                ConsensusDeterminedVersionAssignments::CancelledTransactions(
-                    cancelled_txn_version_assignment,
-                ),
+                ConsensusDeterminedVersionAssignments::CancelledTransactionsV2 {
+                    cancelled_transactions,
+                },
             additional_states_digests,
         }
         .pipe(TransactionKind::ConsensusCommitPrologueV2)

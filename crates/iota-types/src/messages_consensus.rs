@@ -39,12 +39,39 @@ use crate::{
 /// Non-decreasing timestamp produced by consensus in ms.
 pub type TimestampMs = u64;
 
+/// Holds object ID and assigned version for a shared object appearing
+/// in a cancelled transaction.
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct VersionAssignmentV2 {
+    /// ID of shared object that appear in the cancelled transaction.
+    pub object_id: ObjectID,
+    /// Version assigned to the cancelled shared object. It embeds
+    /// the cancellation reason.
+    pub version: SequenceNumber,
+}
+
+/// Holds digest of cancelled transaction and cancelled shared object
+/// version assignments.
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CancelledTransactionV2 {
+    /// Digest of cancelled transaction.
+    pub digest: TransactionDigest,
+    /// List of cancelled shared objects and versions assigned to them.
+    pub version_assignments: Vec<VersionAssignmentV2>,
+}
+
 /// Uses an enum to allow for future expansion of the
-/// ConsensusDeterminedVersionAssignments.
+/// `ConsensusDeterminedVersionAssignments`.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
 pub enum ConsensusDeterminedVersionAssignments {
-    // Cancelled transaction version assignment.
+    /// Cancelled transaction version assignments.
     CancelledTransactions(Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>),
+    /// Cancelled transaction version assignments.
+    /// Introduced and used in `ConsensusCommitPrologueV2`.
+    CancelledTransactionsV2 {
+        /// List of cancelled transactions.
+        cancelled_transactions: Vec<CancelledTransactionV2>,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]

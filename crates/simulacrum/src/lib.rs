@@ -270,11 +270,12 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         drop(inner);
 
         let consensus_commit_prologue_transaction =
-            VerifiedTransaction::new_consensus_commit_prologue_v1(
+            VerifiedTransaction::new_consensus_commit_prologue_v2(
                 epoch,
                 round,
                 timestamp_ms,
                 ConsensusCommitDigest::default(),
+                Vec::new(),
                 Vec::new(),
             );
 

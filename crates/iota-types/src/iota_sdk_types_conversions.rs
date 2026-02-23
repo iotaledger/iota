@@ -104,6 +104,27 @@ impl From<crate::messages_consensus::ConsensusDeterminedVersionAssignments>
                     })
                     .collect(),
             },
+            // `CancelledTransactionsV2` is just a refactored version `CancelledTransactions`
+            // with better ergonomics and readability; both hold the same data, so there is
+            // no need for introducing a new SDK type.
+            crate::messages_consensus::ConsensusDeterminedVersionAssignments::CancelledTransactionsV2 {
+                cancelled_transactions,
+            } => ConsensusDeterminedVersionAssignments::CancelledTransactions {
+                cancelled_transactions: cancelled_transactions
+                    .into_iter()
+                    .map(|value| CancelledTransaction {
+                        digest: value.digest.into(),
+                        version_assignments: value
+                            .version_assignments
+                            .into_iter()
+                            .map(|value| VersionAssignment {
+                                object_id: value.object_id.into(),
+                                version: value.version.into(),
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+            },
         }
     }
 }
@@ -116,21 +137,25 @@ impl From<ConsensusDeterminedVersionAssignments>
             ConsensusDeterminedVersionAssignments::CancelledTransactions {
                 cancelled_transactions,
             } => {
-                crate::messages_consensus::ConsensusDeterminedVersionAssignments::CancelledTransactions(
-                    cancelled_transactions
+                // Convert SDK's `CancelledTransactions` to `CancelledTransactionsV2` since
+                // the later is just a refactored version of `CancelledTransactions` with
+                // better ergonomics and readability, but holds the same underlying data.
+                crate::messages_consensus::ConsensusDeterminedVersionAssignments::CancelledTransactionsV2{
+                    cancelled_transactions: cancelled_transactions
                         .into_iter()
-                        .map(|value| {
-                            (
-                                value.digest.into(),
-                                value
-                                    .version_assignments
-                                    .into_iter()
-                                    .map(|value| (value.object_id.into(), value.version.into()))
-                                    .collect(),
-                            )
+                        .map(|value| crate::messages_consensus::CancelledTransactionV2 {
+                            digest: value.digest.into(),
+                            version_assignments: value
+                                .version_assignments
+                                .into_iter()
+                                .map(|value| crate::messages_consensus::VersionAssignmentV2 {
+                                    object_id: value.object_id.into(),
+                                    version: value.version.into(),
+                                })
+                                .collect(),
                         })
                         .collect(),
-                )
+                }
             }
             _ => unreachable!("a new enum variant was added and needs to be handled"),
         }

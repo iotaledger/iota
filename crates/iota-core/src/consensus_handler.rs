@@ -18,11 +18,14 @@ use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_mon
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     authenticator_state::ActiveJwk,
-    base_types::{AuthorityName, EpochId, ObjectID, SequenceNumber, TransactionDigest},
+    base_types::{AuthorityName, EpochId, TransactionDigest},
     digests::{AdditionalConsensusStatesDigest, ConsensusCommitDigest},
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
-    messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
+    messages_consensus::{
+        CancelledTransactionV2, ConsensusTransaction, ConsensusTransactionKey,
+        ConsensusTransactionKind,
+    },
     transaction::{SenderSignedData, VerifiedTransaction},
 };
 use lru::LruCache;
@@ -923,14 +926,14 @@ impl ConsensusCommitInfo {
     fn consensus_commit_prologue_v1_transaction(
         &self,
         epoch: u64,
-        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+        cancelled_transactions: Vec<CancelledTransactionV2>,
     ) -> VerifiedExecutableTransaction {
         let transaction = VerifiedTransaction::new_consensus_commit_prologue_v1(
             epoch,
             self.round,
             self.timestamp,
             self.consensus_commit_digest,
-            cancelled_txn_version_assignment,
+            cancelled_transactions,
         );
         VerifiedExecutableTransaction::new_system(transaction, epoch)
     }
@@ -938,16 +941,16 @@ impl ConsensusCommitInfo {
     fn consensus_commit_prologue_v2_transaction(
         &self,
         epoch: u64,
-        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
-        additional_consensus_states_digests: Vec<AdditionalConsensusStatesDigest>,
+        cancelled_transactions: Vec<CancelledTransactionV2>,
+        additional_states_digests: Vec<AdditionalConsensusStatesDigest>,
     ) -> VerifiedExecutableTransaction {
         let transaction = VerifiedTransaction::new_consensus_commit_prologue_v2(
             epoch,
             self.round,
             self.timestamp,
             self.consensus_commit_digest,
-            cancelled_txn_version_assignment,
-            additional_consensus_states_digests,
+            cancelled_transactions,
+            additional_states_digests,
         );
         VerifiedExecutableTransaction::new_system(transaction, epoch)
     }
@@ -956,17 +959,13 @@ impl ConsensusCommitInfo {
         &self,
         epoch: u64,
         protocol_config: &ProtocolConfig,
-        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
-        additional_consensus_states: &AdditionalConsensusStates,
+        cancelled_transactions: Vec<CancelledTransactionV2>,
+        _additional_states: &AdditionalConsensusStates,
     ) -> VerifiedExecutableTransaction {
         if protocol_config.record_additional_states_digests_in_prologue() {
-            self.consensus_commit_prologue_v2_transaction(
-                epoch,
-                cancelled_txn_version_assignment,
-                additional_consensus_states.digests(protocol_config),
-            )
+            self.consensus_commit_prologue_v2_transaction(epoch, cancelled_transactions, Vec::new())
         } else {
-            self.consensus_commit_prologue_v1_transaction(epoch, cancelled_txn_version_assignment)
+            self.consensus_commit_prologue_v1_transaction(epoch, cancelled_transactions)
         }
     }
 }

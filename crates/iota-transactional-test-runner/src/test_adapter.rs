@@ -797,11 +797,12 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             IotaSubcommand::ConsensusCommitPrologue(ConsensusCommitPrologueCommand {
                 timestamp_ms,
             }) => {
-                let transaction = VerifiedTransaction::new_consensus_commit_prologue_v1(
+                let transaction = VerifiedTransaction::new_consensus_commit_prologue_v2(
                     0,
                     0,
                     timestamp_ms,
                     ConsensusCommitDigest::default(),
+                    Vec::new(),
                     Vec::new(),
                 );
                 let summary = self.execute_txn(transaction.into()).await?;
