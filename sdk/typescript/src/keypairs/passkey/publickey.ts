@@ -173,7 +173,7 @@ export function parseDerSPKI(derBytes: Uint8Array): Uint8Array {
     return derBytes.slice(SECP256R1_SPKI_HEADER.length);
 }
 
-export function normalizePasskeyPublicKey(input: Uint8Array): Uint8Array {
+function normalizePasskeyPublicKey(input: Uint8Array): Uint8Array {
     // 33 bytes compressed (already ok)
     if (input.length === PASSKEY_PUBLIC_KEY_SIZE) return input;
 
