@@ -1516,8 +1516,7 @@ where
     fn write(&self, writer: &mut W) {
         let name = "MoveAuthenticator";
         write!(writer, "{name}::").expect("Hasher should not fail");
-        bcs::serialize_into(writer, &self.inner)
-            .expect("Message serialization should not fail");
+        bcs::serialize_into(writer, &self.inner).expect("Message serialization should not fail");
     }
 }
 
