@@ -10,10 +10,10 @@ use crate::{
     cli::{AuthenticatorKind, SubmitMode, TxType, WaitMode},
     registry_state::{AccountState, DeploymentState, load_registry, save_registry},
     tempo_query::print_tempo_traceql_queries,
-    tx_type::{submit_aa_tx, submit_standard_tx},
+    tx_type::{CoinRefs, submit_aa_tx, submit_standard_tx},
     utils::{
-        build_client, canonical_path_str, create_immutable_bench_objects, publish_move_package,
-        request_tokens,
+        build_client, canonical_path_str, create_immutable_bench_objects, get_two_distinct_coins,
+        publish_move_package, request_tokens,
     },
 };
 
@@ -279,6 +279,24 @@ pub async fn handle_submit_command(
 
     let mut digests: Vec<String> = Vec::with_capacity(count);
 
+    let mut coins: CoinRefs = match mode {
+        SubmitMode::Standard => {
+            let (gas_coin, pay_coin) = get_two_distinct_coins(&client, sender).await?;
+            CoinRefs {
+                gas: gas_coin.object_ref(),
+                pay: pay_coin.object_ref(),
+            }
+        }
+        SubmitMode::Aa => {
+            let aa_addr: IotaAddress = acc.aa_address.parse().context("bad aa_address")?;
+            let (gas_coin, pay_coin) = get_two_distinct_coins(&client, aa_addr).await?;
+            CoinRefs {
+                gas: gas_coin.object_ref(),
+                pay: pay_coin.object_ref(),
+            }
+        }
+    };
+
     for _ in 0..count {
         let r = match mode {
             SubmitMode::Standard => submit_standard_tx(
@@ -290,6 +308,7 @@ pub async fn handle_submit_command(
                 split_amount,
                 tx_type,
                 wait_mode.clone(),
+                &mut coins,
             )
             .await
             .context("submit_standard_tx failed")?,
@@ -303,6 +322,7 @@ pub async fn handle_submit_command(
                 split_amount,
                 tx_type,
                 wait_mode.clone(),
+                &mut coins,
             )
             .await
             .context("submit_aa_tx failed")?,
@@ -316,6 +336,7 @@ pub async fn handle_submit_command(
         SubmitMode::Aa => acc.aa_address.clone(),
     };
 
+    println!("\n=== Digests === {:?}", digests);
     print_tempo_traceql_queries(
         "iota-node",
         "handle_transaction",

@@ -11,7 +11,7 @@ use anyhow::{Context, Result};
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_sdk::{
     IotaClient,
-    rpc_types::IotaTransactionBlockResponseOptions,
+    rpc_types::{IotaTransactionBlockResponseOptions, ObjectChange},
     types::{
         IOTA_FRAMEWORK_ADDRESS,
         base_types::IotaAddress,
@@ -21,7 +21,7 @@ use iota_sdk::{
 };
 use iota_types::{
     IOTA_SYSTEM_PACKAGE_ID, TypeTag,
-    base_types::ObjectRef,
+    base_types::{ObjectID, ObjectRef},
     iota_system_state::IOTA_SYSTEM_MODULE_NAME,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, ObjectArg},
@@ -112,14 +112,19 @@ pub async fn execute_and_measure(
     tx_data: TransactionData,
     signatures: Vec<iota_types::signature::GenericSignature>,
     wait_mode: ExecuteTransactionRequestType,
+    coins: &mut CoinRefs,
 ) -> Result<SubmitResult> {
     let start = std::time::Instant::now();
+
+    let opts = IotaTransactionBlockResponseOptions::new()
+        .with_effects()
+        .with_object_changes();
 
     let resp = client
         .quorum_driver_api()
         .execute_transaction_block(
             Transaction::from_generic_sig_data(tx_data, signatures),
-            IotaTransactionBlockResponseOptions::full_content(),
+            opts,
             Some(wait_mode),
         )
         .await
@@ -132,6 +137,8 @@ pub async fn execute_and_measure(
         );
     }
 
+    refresh_coin_refs_from_changes(resp.object_changes.as_ref(), coins);
+
     let elapsed_ms = start.elapsed().as_millis();
     Ok(SubmitResult {
         digest: resp.digest.to_string(),
@@ -141,4 +148,30 @@ pub async fn execute_and_measure(
             .map(|e| format!("{:?}", e.gas_cost_summary())),
         elapsed_ms,
     })
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CoinRefs {
+    pub gas: ObjectRef,
+    pub pay: ObjectRef,
+}
+
+fn find_updated_ref(changes: &[ObjectChange], id: ObjectID) -> Option<ObjectRef> {
+    changes.iter().find_map(|ch| {
+        let obj_ref = ch.object_ref();
+        (obj_ref.0 == id).then_some(obj_ref)
+    })
+}
+
+pub fn refresh_coin_refs_from_changes(changes: Option<&Vec<ObjectChange>>, coins: &mut CoinRefs) {
+    let Some(ch) = changes else {
+        return;
+    };
+
+    if let Some(new_gas) = find_updated_ref(ch, coins.gas.0) {
+        coins.gas = new_gas;
+    }
+    if let Some(new_pay) = find_updated_ref(ch, coins.pay.0) {
+        coins.pay = new_pay;
+    }
 }
