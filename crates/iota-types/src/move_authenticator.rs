@@ -24,7 +24,7 @@ use crate::{
     signature_verification::VerifiedDigestCache,
     transaction::{
         CallArg, InputObjectKind, SharedInputObject, call_arg_input_objects,
-        call_arg_receiving_object, call_arg_shared_object, call_arg_validity_check,
+        call_arg_shared_object, call_arg_validity_check,
     },
     type_input::TypeInput,
 };
@@ -143,7 +143,7 @@ impl MoveAuthenticator {
     pub fn receiving_objects(&self) -> Vec<ObjectRef> {
         self.call_args
             .iter()
-            .filter_map(call_arg_receiving_object)
+            .filter_map(|arg| arg.receiving_objects().copied())
             .collect()
     }
 

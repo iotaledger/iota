@@ -631,12 +631,6 @@ pub fn call_arg_input_objects(arg: &CallArg) -> Option<InputObjectKind> {
     }
 }
 
-/// Returns the receiving object ref for a `CallArg`, if it is a `Receiving`
-/// variant.
-pub fn call_arg_receiving_object(arg: &CallArg) -> Option<ObjectRef> {
-    arg.receiving_objects().copied()
-}
-
 /// Returns the shared input object for a `CallArg`, if it is a `Shared`
 /// variant.
 pub fn call_arg_shared_object(arg: &CallArg) -> Option<SharedInputObject> {
@@ -992,7 +986,7 @@ impl ProgrammableTransaction {
         let ProgrammableTransaction { inputs, .. } = self;
         inputs
             .iter()
-            .filter_map(call_arg_receiving_object)
+            .filter_map(|arg| arg.receiving_objects().copied())
             .collect()
     }
 
