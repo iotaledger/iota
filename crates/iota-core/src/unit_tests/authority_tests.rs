@@ -4768,7 +4768,10 @@ async fn test_consensus_commit_prologue_v2_digests() {
     };
     let initial_shared_version = shared_object.version();
 
-    let protocol_config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    let mut protocol_config =
+        ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    protocol_config.set_record_additional_states_digests_in_prologue_for_testing(true);
+    protocol_config.set_record_received_reports_state_digest_in_prologue_for_testing(true);
 
     let authority_state = TestAuthorityBuilder::new()
         .with_protocol_config(protocol_config)
@@ -4805,8 +4808,8 @@ async fn test_consensus_commit_prologue_v2_digests() {
         .kind()
     {
         TransactionKind::ConsensusCommitPrologueV2(v2) => {
-            // We expect an empty vector of digests.
-            assert!(v2.additional_states_digests.is_empty());
+            // Both flags are on, so we expect exactly 1 digest.
+            assert_eq!(v2.additional_states_digests.len(), 1);
         }
         other => panic!("expected ConsensusCommitPrologueV2, got {other:?}"),
     }
