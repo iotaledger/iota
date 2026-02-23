@@ -75,8 +75,6 @@ impl TransactionMessage {
     ) -> Vec<TransactionMessage> {
         let full = TransactionMessage::FullTransaction(block.transaction_ref());
 
-        // Shard messages — each shard belongs to its own source block, not the
-        // carrier block, so we derive the reference from the shard itself.
         let shard_msgs = shards.iter().map(|swp| {
             TransactionMessage::Shard(ShardMessage {
                 transaction_ref: TransactionRef {

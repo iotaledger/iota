@@ -110,7 +110,7 @@ pub(crate) enum ConsensusError {
         peer: AuthorityIndex,
     },
     #[error(
-        "After reconstruction, the transaction commitment does not match the commitment in {}",
+        "After reconstruction, the transaction commitment does not match the commitment in transaction ref {}",
         transaction_ref
     )]
     TransactionCommitmentMismatch { transaction_ref: TransactionRef },
