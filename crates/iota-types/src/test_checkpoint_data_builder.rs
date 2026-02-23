@@ -163,9 +163,7 @@ impl TestCheckpointDataBuilder {
     pub fn create_shared_object(self, object_idx: u64) -> Self {
         self.create_coin_object_with_owner(
             object_idx,
-            Owner::Shared {
-                initial_shared_version: SequenceNumber::MIN_VALID_INCL,
-            },
+            Owner::Shared(SequenceNumber::MIN_VALID_INCL),
             GAS_VALUE_FOR_TESTING,
             GAS::type_tag(),
         )
@@ -198,7 +196,7 @@ impl TestCheckpointDataBuilder {
     ) -> Self {
         self.create_coin_object_with_owner(
             object_idx,
-            Owner::AddressOwner(Self::derive_address(owner_idx)),
+            Owner::Address(Self::derive_address(owner_idx)),
             balance,
             coin_type,
         )
@@ -251,7 +249,7 @@ impl TestCheckpointDataBuilder {
     pub fn transfer_object(self, object_idx: u64, recipient_idx: u8) -> Self {
         self.change_object_owner(
             object_idx,
-            Owner::AddressOwner(Self::derive_address(recipient_idx)),
+            Owner::Address(Self::derive_address(recipient_idx)),
         )
     }
 
@@ -684,8 +682,7 @@ mod tests {
                 .created()
                 .iter()
                 .any(|(object_ref, owner)| object_ref.object_id == created_obj_id
-                    && owner.get_owner_address().unwrap()
-                        == TestCheckpointDataBuilder::derive_address(0))
+                    && owner.address().unwrap() == &TestCheckpointDataBuilder::derive_address(0))
         );
     }
 
@@ -811,8 +808,7 @@ mod tests {
                 .mutated()
                 .iter()
                 .any(|(object_ref, owner)| object_ref.object_id == obj_id
-                    && owner.get_owner_address().unwrap()
-                        == TestCheckpointDataBuilder::derive_address(1))
+                    && owner.address().unwrap() == &TestCheckpointDataBuilder::derive_address(1))
         );
     }
 

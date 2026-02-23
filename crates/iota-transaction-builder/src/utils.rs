@@ -119,16 +119,15 @@ impl TransactionBuilder {
             return Ok(ObjectArg::Receiving(obj_ref));
         }
         Ok(match owner {
-            Owner::Shared {
-                initial_shared_version,
-            } => ObjectArg::SharedObject {
+            Owner::Shared(initial_shared_version) => ObjectArg::SharedObject {
                 id,
                 initial_shared_version,
                 mutable: is_mutable_ref,
             },
-            Owner::AddressOwner(_) | Owner::ObjectOwner(_) | Owner::Immutable => {
+            Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
                 ObjectArg::ImmOrOwnedObject(obj_ref)
             }
+            _ => unimplemented!("a new enum variant was added and needs to be handled"),
         })
     }
 
@@ -265,7 +264,7 @@ impl TransactionBuilder {
                     }
                 }
                 PtbInput::PtbRef(iota_arg) => match iota_arg {
-                    IotaArgument::GasCoin => Argument::GasCoin,
+                    IotaArgument::GasCoin => Argument::Gas,
                     IotaArgument::Input(idx) => Argument::Input(idx),
                     IotaArgument::Result(idx) => Argument::Result(idx),
                     IotaArgument::NestedResult(idx, nested_idx) => {

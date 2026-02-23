@@ -28,7 +28,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 4, line 46:
 //# view-object 3,0
-Owner: Object ID: ( fake(3,1) )
+Owner: Object(fake(3,1))
 Version: 3
 Contents: a::m::Obj {
     id: iota::object::UID {
@@ -66,7 +66,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 9, line 59:
 //# view-object 7,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 7
 Contents: a::m::Obj {
     id: iota::object::UID {

@@ -112,14 +112,7 @@ async fn shared_object_not_found() {
 }
 
 fn is_shared_at(owner: &Owner, version: SequenceNumber) -> bool {
-    if let Owner::Shared {
-        initial_shared_version,
-    } = owner
-    {
-        &version == initial_shared_version
-    } else {
-        false
-    }
+    matches!(owner, Owner::Shared(initial_shared_version) if *initial_shared_version == version)
 }
 
 struct TestEnvironment {
@@ -167,7 +160,7 @@ impl TestEnvironment {
 
         *fx.created()
             .iter()
-            .find(|(_, owner)| matches!(owner, Owner::AddressOwner(_)))
+            .find(|(_, owner)| matches!(owner, Owner::Address(_)))
             .expect("Owned object created")
     }
 

@@ -251,7 +251,7 @@ impl StressTestRunner {
 
     fn split_off(builder: &mut ProgrammableTransactionBuilder, amount: u64) -> Argument {
         let amt_arg = builder.pure(amount).unwrap();
-        builder.command(Command::SplitCoins(Argument::GasCoin, vec![amt_arg]))
+        builder.command(Command::SplitCoins(Argument::Gas, vec![amt_arg]))
     }
 
     async fn get_from_effects(&self, effects: &[(ObjectRef, Owner)], name: &str) -> Option<Object> {
@@ -344,7 +344,7 @@ mod add_stake {
             let staked_amount =
                 object.get_total_iota(layout_resolver.as_mut()).unwrap() - object.storage_rebate;
             assert_eq!(staked_amount, self.stake_amount);
-            assert_eq!(object.owner.get_owner_address().unwrap(), self.sender);
+            assert_eq!(*object.owner.address().unwrap(), self.sender);
             runner.display_effects(effects);
         }
 

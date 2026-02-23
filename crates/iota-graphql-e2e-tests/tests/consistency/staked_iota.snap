@@ -68,7 +68,7 @@ Epoch advanced: 1
 
 task 10, line 41:
 //# view-object 3,1
-Owner: Account Address ( C )
+Owner: Address(C)
 Version: 3
 Contents: iota_system::staking_pool::StakedIota {
     id: iota::object::UID {
@@ -87,7 +87,7 @@ Contents: iota_system::staking_pool::StakedIota {
 
 task 11, line 43:
 //# view-object 7,0
-Owner: Account Address ( C )
+Owner: Address(C)
 Version: 5
 Contents: iota_system::staking_pool::StakedIota {
     id: iota::object::UID {

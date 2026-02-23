@@ -415,17 +415,12 @@ fn resolve_arg(
                 .try_get_object(&id)?
                 .ok_or_else(|| ObjectNotFoundError::new(object_id))?;
 
-            let initial_shared_version = if let iota_types::object::Owner::Shared {
-                initial_shared_version,
-            } = object.owner()
-            {
-                *initial_shared_version
-            } else {
-                return Err(RestError::new(
+            let initial_shared_version = *object.owner().as_shared_opt().ok_or_else(|| {
+                RestError::new(
                     axum::http::StatusCode::BAD_REQUEST,
                     format!("object {object_id} is not a shared object"),
-                ));
-            };
+                )
+            })?;
 
             let mut mutable = false;
 

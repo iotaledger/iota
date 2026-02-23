@@ -60,29 +60,23 @@ pub trait AnalyticsHandler<S>: Worker<Message = (), Error = anyhow::Error> {
 
 fn initial_shared_version(object: &Object) -> Option<u64> {
     match object.owner {
-        Owner::Shared {
-            initial_shared_version,
-        } => Some(initial_shared_version.as_u64()),
+        Owner::Shared(initial_shared_version) => Some(initial_shared_version.as_u64()),
         _ => None,
     }
 }
 
 fn get_owner_type(object: &Object) -> OwnerType {
     match object.owner {
-        Owner::AddressOwner(_) => OwnerType::AddressOwner,
-        Owner::ObjectOwner(_) => OwnerType::ObjectOwner,
+        Owner::Address(_) => OwnerType::AddressOwner,
+        Owner::Object(_) => OwnerType::ObjectOwner,
         Owner::Shared { .. } => OwnerType::Shared,
         Owner::Immutable => OwnerType::Immutable,
+        _ => unimplemented!("a new enum variant was added and needs to be handled"),
     }
 }
 
 fn get_owner_address(object: &Object) -> Option<String> {
-    match object.owner {
-        Owner::AddressOwner(address) => Some(address.to_string()),
-        Owner::ObjectOwner(address) => Some(address.to_string()),
-        Owner::Shared { .. } => None,
-        Owner::Immutable => None,
-    }
+    object.owner.address().map(ToString::to_string)
 }
 
 // Helper class to track input object kind.

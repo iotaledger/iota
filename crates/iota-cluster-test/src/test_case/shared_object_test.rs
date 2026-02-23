@@ -65,20 +65,13 @@ impl TestCaseImpl for SharedCounterTest {
             .mutated()
             .iter()
             .find_map(|obj| {
-                let Owner::Shared {
-                    initial_shared_version,
-                } = obj.owner
-                else {
-                    return None;
-                };
-
-                if obj.reference.object_id == counter_ref.object_id
-                    && initial_shared_version == counter_ref.version
-                {
-                    Some(obj.reference.version)
-                } else {
-                    None
-                }
+                obj.owner
+                    .as_shared_opt()
+                    .and_then(|initial_shared_version| {
+                        (obj.reference.object_id == counter_ref.object_id
+                            && *initial_shared_version == counter_ref.version)
+                            .then_some(obj.reference.version)
+                    })
             })
             .unwrap_or_else(|| panic!("expect obj {} in mutated", counter_ref.object_id));
 
@@ -86,9 +79,7 @@ impl TestCaseImpl for SharedCounterTest {
         ctx.let_fullnode_sync(vec![response.digest], 5).await;
 
         let counter_object = ObjectChecker::new(counter_ref.object_id)
-            .owner(Owner::Shared {
-                initial_shared_version: counter_ref.version,
-            })
+            .owner(Owner::Shared(counter_ref.version))
             .check_into_object(ctx.get_fullnode_client())
             .await;
 

@@ -322,7 +322,7 @@ mod checked {
                 continue;
             };
 
-            if !(object.owner.is_address_owned()
+            if !(object.owner.is_address()
                 && object.version() == object_ref.version
                 && object.digest() == object_ref.digest)
             {
@@ -357,7 +357,7 @@ mod checked {
                 );
 
                 match object.owner {
-                    Owner::AddressOwner(_) => {
+                    Owner::Address(_) => {
                         debug_assert!(
                             false,
                             "Receiving object {:?} is invalid but we expect it should be valid. {:?}",
@@ -377,11 +377,11 @@ mod checked {
                             .into()
                         )
                     }
-                    Owner::ObjectOwner(owner) => {
+                    Owner::Object(owner) => {
                         fp_bail!(
                             UserInputError::InvalidChildObjectArgument {
                                 child_id: object.id(),
-                                parent_id: owner.into(),
+                                parent_id: owner,
                             }
                             .into()
                         )
@@ -393,6 +393,7 @@ mod checked {
                         }
                         .into()
                     ),
+                    _ => unimplemented!("a new enum variant was added and needs to be handled"),
                 };
             }
 
@@ -543,7 +544,7 @@ mod checked {
                     Owner::Immutable => {
                         // Nothing else to check for Immutable.
                     }
-                    Owner::AddressOwner(actual_owner) => {
+                    Owner::Address(actual_owner) => {
                         // Check the owner is correct.
                         fp_ensure!(
                             owner == &actual_owner,
@@ -555,10 +556,10 @@ mod checked {
                             }
                         );
                     }
-                    Owner::ObjectOwner(owner) => {
+                    Owner::Object(owner) => {
                         return Err(UserInputError::InvalidChildObjectArgument {
                             child_id: object.id(),
-                            parent_id: owner.into(),
+                            parent_id: owner,
                         });
                     }
                     Owner::Shared { .. } => {
@@ -566,6 +567,7 @@ mod checked {
                         // specifies it as an owned object. This is inconsistent.
                         return Err(UserInputError::NotSharedObject);
                     }
+                    _ => unimplemented!("a new enum variant was added and needs to be handled"),
                 };
             }
             InputObjectKind::SharedMoveObject {
@@ -620,18 +622,17 @@ mod checked {
                 );
 
                 match object.owner {
-                    Owner::AddressOwner(_) | Owner::ObjectOwner(_) | Owner::Immutable => {
+                    Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
                         // When someone locks an object as shared it must be shared already.
                         return Err(UserInputError::NotSharedObject);
                     }
-                    Owner::Shared {
-                        initial_shared_version: actual_initial_shared_version,
-                    } => {
+                    Owner::Shared(actual_initial_shared_version) => {
                         fp_ensure!(
                             input_initial_shared_version == actual_initial_shared_version,
                             UserInputError::SharedObjectStartingVersionMismatch
                         )
                     }
+                    _ => unimplemented!("a new enum variant was added and needs to be handled"),
                 }
             }
         };
@@ -707,12 +708,12 @@ mod checked {
                     Owner::Immutable => {
                         // Nothing else to check for Immutable.
                     }
-                    Owner::AddressOwner { .. } => {
+                    Owner::Address { .. } => {
                         return Err(UserInputError::AddressOwnedIsInMoveAuthenticatorInput {
                             object_id: object.id(),
                         });
                     }
-                    Owner::ObjectOwner { .. } => {
+                    Owner::Object { .. } => {
                         return Err(UserInputError::ObjectOwnedIsInMoveAuthenticatorInput {
                             object_id: object.id(),
                         });
@@ -722,6 +723,7 @@ mod checked {
                         // specifies it as an owned object. This is inconsistent.
                         return Err(UserInputError::NotSharedObject);
                     }
+                    _ => unimplemented!("a new enum variant was added and needs to be handled"),
                 };
             }
             InputObjectKind::SharedMoveObject {
@@ -749,18 +751,17 @@ mod checked {
                 );
 
                 match object.owner {
-                    Owner::AddressOwner(_) | Owner::ObjectOwner(_) | Owner::Immutable => {
+                    Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
                         // When someone locks an object as shared it must be shared already.
                         return Err(UserInputError::NotSharedObject);
                     }
-                    Owner::Shared {
-                        initial_shared_version: actual_initial_shared_version,
-                    } => {
+                    Owner::Shared(actual_initial_shared_version) => {
                         fp_ensure!(
                             input_initial_shared_version == actual_initial_shared_version,
                             UserInputError::SharedObjectStartingVersionMismatch
                         )
                     }
+                    _ => unimplemented!("a new enum variant was added and needs to be handled"),
                 }
             }
         };

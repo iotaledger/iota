@@ -20,7 +20,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 3, line 32:
 //# view-object 2,0
-Owner: Account Address ( _ )
+Owner: Address(_)
 Version: 3
 Contents: test::m1::Witness {
     id: iota::object::UID {

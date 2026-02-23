@@ -163,7 +163,11 @@ pub async fn request_tokens_from_faucet(
             .await?;
 
         if owner.owner().is_some() {
-            let owner_address = owner.owner().unwrap().get_owner_address()?;
+            let owner_address = *owner
+                .owner()
+                .unwrap()
+                .address()
+                .ok_or_else(|| anyhow::anyhow!("owner is not an address or object"))?;
             if owner_address == address {
                 break;
             }
@@ -221,15 +225,12 @@ pub async fn split_coin_digest(
     // first, we want to split the coin, and we specify how much IOTA (in NANOS) we
     // want for the new coin
     let split_coin_amount = ptb.pure(1000u64)?; // note that we need to specify the u64 type here
-    ptb.command(Command::SplitCoins(
-        Argument::GasCoin,
-        vec![split_coin_amount],
-    ));
+    ptb.command(Command::SplitCoins(Argument::Gas, vec![split_coin_amount]));
     // now we want to merge the coins (so that we don't have many coins with very
     // small values) observe here that we pass Argument::Result(0), which
     // instructs the PTB to get the result from the previous command
     ptb.command(Command::MergeCoins(
-        Argument::GasCoin,
+        Argument::Gas,
         vec![Argument::Result(0)],
     ));
 

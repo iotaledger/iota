@@ -100,7 +100,7 @@ impl TransactionOutputs {
             .into_iter()
             .filter_map(|(id, ((version, digest), owner))| {
                 owner
-                    .is_address_owned()
+                    .is_address()
                     .then_some(ObjectRef::new(id, version, digest))
             })
             .chain(received_objects)

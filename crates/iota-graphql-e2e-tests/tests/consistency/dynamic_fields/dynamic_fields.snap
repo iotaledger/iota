@@ -22,7 +22,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 3, line 89:
 //# view-object 2,1
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 2
 Contents: Test::M1::Parent {
     id: iota::object::UID {
@@ -34,7 +34,7 @@ Contents: Test::M1::Parent {
 
 task 4, line 91:
 //# view-object 2,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 2
 Contents: Test::M1::Child {
     id: iota::object::UID {
@@ -55,7 +55,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 6, line 97:
 //# view-object 2,1
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 3
 Contents: Test::M1::Parent {
     id: iota::object::UID {
@@ -67,7 +67,7 @@ Contents: Test::M1::Parent {
 
 task 7, line 99:
 //# view-object 2,0
-Owner: Object ID: ( fake(5,0) )
+Owner: Object(fake(5,0))
 Version: 3
 Contents: Test::M1::Child {
     id: iota::object::UID {
@@ -141,7 +141,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 11, line 171:
 //# view-object 2,1
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 4
 Contents: Test::M1::Parent {
     id: iota::object::UID {
@@ -153,7 +153,7 @@ Contents: Test::M1::Parent {
 
 task 12, line 173:
 //# view-object 2,0
-Owner: Object ID: ( fake(5,0) )
+Owner: Object(fake(5,0))
 Version: 4
 Contents: Test::M1::Child {
     id: iota::object::UID {
@@ -351,7 +351,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 17, line 282:
 //# view-object 2,1
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 5
 Contents: Test::M1::Parent {
     id: iota::object::UID {
@@ -363,7 +363,7 @@ Contents: Test::M1::Parent {
 
 task 18, line 284:
 //# view-object 2,0
-Owner: Object ID: ( fake(5,0) )
+Owner: Object(fake(5,0))
 Version: 4
 Contents: Test::M1::Child {
     id: iota::object::UID {
@@ -580,7 +580,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 22, line 343:
 //# view-object 2,1
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 6
 Contents: Test::M1::Parent {
     id: iota::object::UID {
@@ -592,7 +592,7 @@ Contents: Test::M1::Parent {
 
 task 23, line 345:
 //# view-object 2,0
-Owner: Object ID: ( fake(5,0) )
+Owner: Object(fake(5,0))
 Version: 4
 Contents: Test::M1::Child {
     id: iota::object::UID {

@@ -404,7 +404,7 @@ mod checked {
 
         fn splat_arg(&self, res: &mut Vec<Arg>, arg: Argument) -> Result<(), EitherError> {
             match arg {
-                Argument::GasCoin => res.push(Arg(Arg_::V2(NormalizedArg::GasCoin))),
+                Argument::Gas => res.push(Arg(Arg_::V2(NormalizedArg::GasCoin))),
                 Argument::Input(i) => {
                     if i as usize >= self.inputs.len() {
                         return Err(CommandArgumentError::IndexOutOfBounds { idx: i }.into());
@@ -439,6 +439,7 @@ mod checked {
                     }
                     res.extend((0..len).map(|j| Arg(Arg_::V2(NormalizedArg::Result(i, j)))))
                 }
+                _ => unimplemented!("a new enum variant was added and needs to be handled"),
             }
             Ok(())
         }
@@ -646,8 +647,7 @@ mod checked {
             obj: ObjectValue,
             addr: IotaAddress,
         ) -> Result<(), ExecutionError> {
-            self.additional_transfers
-                .push((Owner::AddressOwner(addr), obj));
+            self.additional_transfers.push((Owner::Address(addr), obj));
             Ok(())
         }
 
@@ -1053,7 +1053,7 @@ mod checked {
         ) -> Result<(Option<&InputObjectMetadata>, &mut Option<Value>), CommandArgumentError>
         {
             let (metadata, result_value) = match arg {
-                Argument::GasCoin => (self.gas.object_metadata.as_ref(), &mut self.gas.inner),
+                Argument::Gas => (self.gas.object_metadata.as_ref(), &mut self.gas.inner),
                 Argument::Input(i) => {
                     let Some(input_value) = self.inputs.get_mut(i as usize) else {
                         return Err(CommandArgumentError::IndexOutOfBounds { idx: i });
@@ -1081,6 +1081,7 @@ mod checked {
                     };
                     (None, result_value)
                 }
+                _ => unimplemented!("a new enum variant was added and needs to be handled"),
             };
             if let Some(usage) = update_last_usage {
                 result_value.last_usage_kind = Some(usage);
@@ -1384,7 +1385,7 @@ mod checked {
         fn is_gas_coin(&self) -> bool {
             // kept as two separate matches for exhaustiveness
             match self {
-                Arg(Arg_::V1(a)) => matches!(a, Argument::GasCoin),
+                Arg(Arg_::V1(a)) => matches!(a, Argument::Gas),
                 Arg(Arg_::V2(n)) => matches!(n, NormalizedArg::GasCoin),
             }
         }
@@ -1395,7 +1396,7 @@ mod checked {
             match arg.0 {
                 Arg_::V1(a) => a,
                 Arg_::V2(normalized) => match normalized {
-                    NormalizedArg::GasCoin => Argument::GasCoin,
+                    NormalizedArg::GasCoin => Argument::Gas,
                     NormalizedArg::Input(i) => Argument::Input(i),
                     NormalizedArg::Result(i, j) => Argument::NestedResult(i, j),
                 },
@@ -1452,13 +1453,14 @@ mod checked {
             "override_as_immutable should only be set for shared objects"
         );
         let is_mutable_input = match obj.owner {
-            Owner::AddressOwner(_) => true,
+            Owner::Address(_) => true,
             Owner::Shared { .. } => !override_as_immutable,
             Owner::Immutable => false,
-            Owner::ObjectOwner(_) => {
+            Owner::Object(_) => {
                 // protected by transaction input checker
-                invariant_violation!("ObjectOwner objects cannot be input")
+                invariant_violation!("Object-owned objects cannot be inputs")
             }
+            _ => unimplemented!("a new enum variant was added and needs to be handled"),
         };
         let owner = obj.owner;
         let version = obj.version();

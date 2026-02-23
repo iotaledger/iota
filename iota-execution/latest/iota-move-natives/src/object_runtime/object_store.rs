@@ -144,7 +144,7 @@ macro_rules! fetch_child_object_unbounded {
             // guard against bugs in `read_child_object`: if it returns a child object such
             // that C.parent != parent, we raise an invariant violation
             match &object.owner {
-                Owner::ObjectOwner(id) => {
+                Owner::Object(id) => {
                     if ObjectID::from(*id) != $parent {
                         return Err(PartialVMError::new(StatusCode::STORAGE_ERROR).with_message(
                             format!(
@@ -154,7 +154,7 @@ macro_rules! fetch_child_object_unbounded {
                         ));
                     }
                 }
-                Owner::AddressOwner(_) | Owner::Immutable | Owner::Shared { .. } => {
+                Owner::Address(_) | Owner::Immutable | Owner::Shared { .. } => {
                     return Err(PartialVMError::new(StatusCode::STORAGE_ERROR).with_message(
                         format!(
                             "Bad owner for {}. \
@@ -164,6 +164,7 @@ macro_rules! fetch_child_object_unbounded {
                         ),
                     ));
                 }
+                _ => unimplemented!("a new enum variant was added and needs to be handled"),
             };
             match &object.data {
                 Data::Package(_) => {
@@ -201,7 +202,7 @@ impl Inner<'_> {
             // object such that C.parent != parent, we raise an invariant
             // violation since that should be checked by
             // `receive_object_at_version`.
-            if object.owner != Owner::AddressOwner(owner.into()) {
+            if object.owner != Owner::Address(owner.into()) {
                 return Err(
                     PartialVMError::new(StatusCode::STORAGE_ERROR).with_message(format!(
                         "Bad owner for {child}. \

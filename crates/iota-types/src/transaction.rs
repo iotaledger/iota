@@ -15,7 +15,7 @@ use anyhow::bail;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
-pub use iota_sdk_types::RandomnessStateUpdate;
+pub use iota_sdk_types::{Argument, RandomnessStateUpdate};
 use iota_sdk_types::{
     Identifier, ObjectId, TypeTag,
     crypto::{Intent, IntentMessage, IntentScope},
@@ -894,23 +894,6 @@ pub enum Command {
     Upgrade(Vec<Vec<u8>>, Vec<ObjectID>, ObjectID, Argument),
 }
 
-/// An argument to a programmable transaction command
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize)]
-pub enum Argument {
-    /// The gas coin. The gas coin can only be used by-ref, except for with
-    /// `TransferObjects`, which can use it by-value.
-    GasCoin,
-    /// One of the input objects or primitive values (from
-    /// `ProgrammableTransaction` inputs)
-    Input(u16),
-    /// The result of another command (from `ProgrammableTransaction` commands)
-    Result(u16),
-    /// Like a `Result` but it accesses a nested result. Currently, the only
-    /// usage of this is to access a value from a Move call with multiple
-    /// return values.
-    NestedResult(u16, u16),
-}
-
 /// The command for calling a Move function, either an entry function or a
 /// public function (which cannot return references).
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
@@ -1273,17 +1256,6 @@ impl ProgrammableTransaction {
         self.commands
             .iter()
             .filter_map(|q| q.non_system_packages_to_be_published())
-    }
-}
-
-impl Display for Argument {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Argument::GasCoin => write!(f, "GasCoin"),
-            Argument::Input(i) => write!(f, "Input({i})"),
-            Argument::Result(i) => write!(f, "Result({i})"),
-            Argument::NestedResult(i, j) => write!(f, "NestedResult({i},{j})"),
-        }
     }
 }
 
@@ -2015,10 +1987,8 @@ impl TransactionData {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let capability_arg = match capability_owner {
-                Owner::AddressOwner(_) => ObjectArg::ImmOrOwnedObject(upgrade_capability),
-                Owner::Shared {
-                    initial_shared_version,
-                } => ObjectArg::SharedObject {
+                Owner::Address(_) => ObjectArg::ImmOrOwnedObject(upgrade_capability),
+                Owner::Shared(initial_shared_version) => ObjectArg::SharedObject {
                     id: upgrade_capability.object_id,
                     initial_shared_version,
                     mutable: true,
@@ -2028,9 +1998,10 @@ impl TransactionData {
                 }
                 // If the capability is owned by an object, then the module defining the owning
                 // object gets to decide how the upgrade capability should be used.
-                Owner::ObjectOwner(_) => {
+                Owner::Object(_) => {
                     bail!("Upgrade capability controlled by object");
                 }
+                _ => unimplemented!("a new enum variant was added and needs to be handled"),
             };
             builder.obj(capability_arg).unwrap();
             let upgrade_arg = builder.pure(upgrade_policy).unwrap();

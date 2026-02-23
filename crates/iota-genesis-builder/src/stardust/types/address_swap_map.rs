@@ -90,7 +90,7 @@ impl AddressSwapMap {
         if let Some(addr) = self.destination_address(&address) {
             address = addr;
         }
-        Ok(Owner::AddressOwner(address))
+        Ok(Owner::Address(address))
     }
 
     /// Converts a [`StardustAddress`] to an [`Owner`] by first
@@ -107,7 +107,7 @@ impl AddressSwapMap {
         if let Some(addr) = self.swap_destination_address(&address) {
             address = addr;
         }
-        Ok(Owner::AddressOwner(address))
+        Ok(Owner::Address(address))
     }
 
     /// Converts a [`StardustAddress`] to an [`IotaAddress`] and
