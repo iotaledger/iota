@@ -11,7 +11,7 @@ use iota_sdk_types::Transaction;
 
 use crate::{
     Client,
-    api::{EXECUTION_READ_MASK, Result, build_proto_transaction, field_mask_with_default},
+    api::{Result, SIMULATION_READ_MASK, build_proto_transaction, field_mask_with_default},
 };
 
 impl Client {
@@ -96,7 +96,7 @@ impl Client {
             .with_transaction(proto_transaction)
             .with_tx_checks(tx_checks)
             .with_estimate_gas_budget(estimate_gas_budget)
-            .with_read_mask(field_mask_with_default(read_mask, EXECUTION_READ_MASK));
+            .with_read_mask(field_mask_with_default(read_mask, SIMULATION_READ_MASK));
 
         Ok(self
             .execution_service_client()

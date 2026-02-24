@@ -34,9 +34,8 @@ use crate::{
 };
 
 pub const SIMULATE_TRANSACTION_READ_MASK_DEFAULT: &str = crate::field_mask!(
-    "transaction.digest",
-    "transaction.transaction",
-    "transaction.effects",
+    "executed_transaction.transaction",
+    "executed_transaction.effects",
     "suggested_gas_price",
     "execution_result",
 );
@@ -220,7 +219,9 @@ pub async fn simulate_transaction(
     let mut response = SimulateTransactionResponse::default();
 
     // Only include transaction if requested
-    if let Some(tx_mask) = read_mask.subtree(SimulateTransactionResponse::TRANSACTION_FIELD.name) {
+    if let Some(tx_mask) =
+        read_mask.subtree(SimulateTransactionResponse::EXECUTED_TRANSACTION_FIELD.name)
+    {
         let transaction: iota_sdk_types::Transaction = transaction_data.try_into()?;
 
         // Create a source for the merge
@@ -237,14 +238,14 @@ pub async fn simulate_transaction(
             output_objects: Some(output_objects.into_values().collect()),
         };
 
-        response.transaction = Some(ExecutedTransaction::merge_from(&source, &tx_mask).map_err(
-            |e| {
+        response.executed_transaction = Some(
+            ExecutedTransaction::merge_from(&source, &tx_mask).map_err(|e| {
                 RpcError::new(
                     tonic::Code::Internal,
                     format!("failed to build executed transaction in simulation response: {e}"),
                 )
-            },
-        )?);
+            })?,
+        );
     }
 
     // Only include suggested gas price if requested
@@ -263,7 +264,9 @@ pub async fn simulate_transaction(
     {
         match execution_result {
             Ok(ref execution_results) => {
-                if let Some(command_results_mask) = result_mask.subtree("command_results") {
+                if let Some(command_results_mask) =
+                    result_mask.subtree(SimulateTransactionResponse::COMMAND_RESULTS_FIELD.name)
+                {
                     // Only build command results if the execution was successful
                     let cmd_source = CommandResultsReadSource {
                         reader: reader.clone(),
@@ -287,7 +290,9 @@ pub async fn simulate_transaction(
                 }
             }
             Err(ref execution_error) => {
-                if let Some(error_mask) = result_mask.subtree("execution_error") {
+                if let Some(error_mask) =
+                    result_mask.subtree(SimulateTransactionResponse::EXECUTION_ERROR_FIELD.name)
+                {
                     let mut exec_error = ExecutionError::default();
 
                     // Serialize the execution error kind as BCS

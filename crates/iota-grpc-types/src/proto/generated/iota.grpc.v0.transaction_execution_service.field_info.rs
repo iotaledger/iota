@@ -94,9 +94,9 @@ mod _field_impls {
         }
     }
     impl ExecuteTransactionResponse {
-        pub const TRANSACTION_FIELD: &'static MessageField = &MessageField {
-            name: "transaction",
-            json_name: "transaction",
+        pub const EXECUTED_TRANSACTION_FIELD: &'static MessageField = &MessageField {
+            name: "executed_transaction",
+            json_name: "executedTransaction",
             number: 1i32,
             is_optional: true,
             is_map: false,
@@ -104,7 +104,9 @@ mod _field_impls {
         };
     }
     impl MessageFields for ExecuteTransactionResponse {
-        const FIELDS: &'static [&'static MessageField] = &[Self::TRANSACTION_FIELD];
+        const FIELDS: &'static [&'static MessageField] = &[
+            Self::EXECUTED_TRANSACTION_FIELD,
+        ];
     }
     impl ExecuteTransactionResponse {
         pub fn path_builder() -> ExecuteTransactionResponseFieldPathBuilder {
@@ -126,8 +128,8 @@ mod _field_impls {
         pub fn finish(self) -> String {
             self.path.join(".")
         }
-        pub fn transaction(mut self) -> ExecutedTransactionFieldPathBuilder {
-            self.path.push(ExecuteTransactionResponse::TRANSACTION_FIELD.name);
+        pub fn executed_transaction(mut self) -> ExecutedTransactionFieldPathBuilder {
+            self.path.push(ExecuteTransactionResponse::EXECUTED_TRANSACTION_FIELD.name);
             ExecutedTransactionFieldPathBuilder::new_with_base(self.path)
         }
     }
@@ -277,9 +279,9 @@ mod _field_impls {
         }
     }
     impl SimulateTransactionResponse {
-        pub const TRANSACTION_FIELD: &'static MessageField = &MessageField {
-            name: "transaction",
-            json_name: "transaction",
+        pub const EXECUTED_TRANSACTION_FIELD: &'static MessageField = &MessageField {
+            name: "executed_transaction",
+            json_name: "executedTransaction",
             number: 1i32,
             is_optional: true,
             is_map: false,
@@ -315,7 +317,7 @@ mod _field_impls {
     }
     impl MessageFields for SimulateTransactionResponse {
         const FIELDS: &'static [&'static MessageField] = &[
-            Self::TRANSACTION_FIELD,
+            Self::EXECUTED_TRANSACTION_FIELD,
             Self::SUGGESTED_GAS_PRICE_FIELD,
             Self::COMMAND_RESULTS_FIELD,
             Self::EXECUTION_ERROR_FIELD,
@@ -341,8 +343,8 @@ mod _field_impls {
         pub fn finish(self) -> String {
             self.path.join(".")
         }
-        pub fn transaction(mut self) -> ExecutedTransactionFieldPathBuilder {
-            self.path.push(SimulateTransactionResponse::TRANSACTION_FIELD.name);
+        pub fn executed_transaction(mut self) -> ExecutedTransactionFieldPathBuilder {
+            self.path.push(SimulateTransactionResponse::EXECUTED_TRANSACTION_FIELD.name);
             ExecutedTransactionFieldPathBuilder::new_with_base(self.path)
         }
         pub fn suggested_gas_price(mut self) -> String {

@@ -100,7 +100,7 @@ impl Client {
             .into_inner();
 
         response
-            .transaction
-            .ok_or_else(|| TryFromProtoError::missing("transaction").into())
+            .executed_transaction
+            .ok_or_else(|| TryFromProtoError::missing("executed_transaction").into())
     }
 }

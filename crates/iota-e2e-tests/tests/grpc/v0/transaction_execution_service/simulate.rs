@@ -88,7 +88,7 @@ async fn simulate_transaction_with_gas_estimation() {
 
     // Verify gas budget estimation worked correctly
     let bcs_data = response
-        .transaction
+        .executed_transaction
         .unwrap()
         .transaction
         .unwrap()
@@ -144,10 +144,10 @@ async fn simulate_transaction_readmask_scenarios() {
             "default readmask",
             None,
             &[
-                "transaction.transaction.digest",
-                "transaction.transaction.bcs",
-                "transaction.effects.digest",
-                "transaction.effects.bcs",
+                "executed_transaction.transaction.digest",
+                "executed_transaction.transaction.bcs",
+                "executed_transaction.effects.digest",
+                "executed_transaction.effects.bcs",
                 "suggested_gas_price",
                 "execution_result.command_results",
                 "execution_result.execution_error",
@@ -158,42 +158,42 @@ async fn simulate_transaction_readmask_scenarios() {
             Some(FieldMask::from_paths(&[] as &[&str])),
             &[],
         ),
-        // Full readmask: requesting parent "transaction" returns ALL nested fields
+        // Full readmask: requesting parent "executed_transaction" returns ALL nested fields
         // All fields are present even if empty (simple transfers have no events but events field
         // is present)
         (
             "full readmask",
             Some(FieldMask::from_paths([
-                "transaction",
+                "executed_transaction",
                 "suggested_gas_price",
                 "execution_result",
             ])),
             &[
-                "transaction.transaction.digest",
-                "transaction.transaction.bcs",
-                "transaction.signatures.bcs",
-                "transaction.effects.digest",
-                "transaction.effects.bcs",
-                "transaction.events",
-                "transaction.input_objects",
-                "transaction.output_objects",
+                "executed_transaction.transaction.digest",
+                "executed_transaction.transaction.bcs",
+                "executed_transaction.signatures.bcs",
+                "executed_transaction.effects.digest",
+                "executed_transaction.effects.bcs",
+                "executed_transaction.events",
+                "executed_transaction.input_objects",
+                "executed_transaction.output_objects",
                 "suggested_gas_price",
                 "execution_result.command_results",
                 "execution_result.execution_error",
             ],
         ),
         (
-            "partial readmask (transaction only)",
-            Some(FieldMask::from_paths(["transaction"])),
+            "partial readmask (executed_transaction only)",
+            Some(FieldMask::from_paths(["executed_transaction"])),
             &[
-                "transaction.transaction.digest",
-                "transaction.transaction.bcs",
-                "transaction.signatures.bcs",
-                "transaction.effects.digest",
-                "transaction.effects.bcs",
-                "transaction.events",
-                "transaction.input_objects",
-                "transaction.output_objects",
+                "executed_transaction.transaction.digest",
+                "executed_transaction.transaction.bcs",
+                "executed_transaction.signatures.bcs",
+                "executed_transaction.effects.digest",
+                "executed_transaction.effects.bcs",
+                "executed_transaction.events",
+                "executed_transaction.input_objects",
+                "executed_transaction.output_objects",
             ],
         ),
         (
@@ -206,19 +206,22 @@ async fn simulate_transaction_readmask_scenarios() {
         ),
         // Specific nested field masks - only the specified nested fields are returned
         (
-            "nested readmask (transaction.effects only)",
-            Some(FieldMask::from_paths(["transaction.effects"])),
-            &["transaction.effects.digest", "transaction.effects.bcs"],
+            "nested readmask (executed_transaction.effects only)",
+            Some(FieldMask::from_paths(["executed_transaction.effects"])),
+            &[
+                "executed_transaction.effects.digest",
+                "executed_transaction.effects.bcs",
+            ],
         ),
         (
             "nested readmask (multiple specific fields)",
             Some(FieldMask::from_paths([
-                "transaction.effects",
+                "executed_transaction.effects",
                 "execution_result",
             ])),
             &[
-                "transaction.effects.digest",
-                "transaction.effects.bcs",
+                "executed_transaction.effects.digest",
+                "executed_transaction.effects.bcs",
                 "execution_result.command_results",
                 "execution_result.execution_error",
             ],
@@ -333,10 +336,10 @@ async fn simulate_transaction_command_results() {
             "default readmask",
             None,
             &[
-                "transaction.transaction.digest",
-                "transaction.transaction.bcs",
-                "transaction.effects.digest",
-                "transaction.effects.bcs",
+                "executed_transaction.transaction.digest",
+                "executed_transaction.transaction.bcs",
+                "executed_transaction.effects.digest",
+                "executed_transaction.effects.bcs",
                 "suggested_gas_price",
                 // mutated_by_ref has argument since they reference input arguments
                 "execution_result.command_results.results.mutated_by_ref.outputs.argument.kind",

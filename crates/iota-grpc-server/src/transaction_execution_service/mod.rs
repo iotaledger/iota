@@ -28,7 +28,7 @@ pub use transaction::{CommandResultsReadSource, TransactionReadSource};
 
 use crate::{error::RpcError, merge::Merge, types::GrpcReader};
 
-pub const EXECUTE_TRANSACTION_READ_MASK_DEFAULT: &str = "transaction.effects";
+pub const EXECUTE_TRANSACTION_READ_MASK_DEFAULT: &str = "executed_transaction.effects";
 
 pub struct TransactionExecutionGrpcService {
     pub config: iota_config::node::GrpcApiConfig,
@@ -186,7 +186,7 @@ pub async fn execute_transaction(
     // Determine what to include in the request based on read mask
     // The mask is at the response level, so we need to check the "transaction"
     // subtree
-    let tx_mask = read_mask.subtree(ExecuteTransactionResponse::TRANSACTION_FIELD.name);
+    let tx_mask = read_mask.subtree(ExecuteTransactionResponse::EXECUTED_TRANSACTION_FIELD.name);
     let include_events = tx_mask
         .as_ref()
         .map(|m| m.contains(ExecutedTransaction::EVENTS_FIELD.name))
@@ -230,7 +230,9 @@ pub async fn execute_transaction(
     let mut response = ExecuteTransactionResponse::default();
 
     // Only include transaction if requested
-    if let Some(tx_mask) = read_mask.subtree(ExecuteTransactionResponse::TRANSACTION_FIELD.name) {
+    if let Some(tx_mask) =
+        read_mask.subtree(ExecuteTransactionResponse::EXECUTED_TRANSACTION_FIELD.name)
+    {
         let sdk_transaction: iota_sdk_types::Transaction =
             transaction.transaction_data().clone().try_into()?;
         let signatures: Vec<iota_sdk_types::UserSignature> = transaction
@@ -257,14 +259,14 @@ pub async fn execute_transaction(
             output_objects,
         };
 
-        response.transaction = Some(ExecutedTransaction::merge_from(&source, &tx_mask).map_err(
-            |e| {
+        response.executed_transaction = Some(
+            ExecutedTransaction::merge_from(&source, &tx_mask).map_err(|e| {
                 RpcError::new(
                     tonic::Code::Internal,
                     format!("failed to build executed transaction in execution response: {e}"),
                 )
-            },
-        )?);
+            })?,
+        );
     }
 
     Ok(response)

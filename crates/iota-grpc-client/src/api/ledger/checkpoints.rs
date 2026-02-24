@@ -324,13 +324,13 @@ impl Client {
                         current_events.clear();
                     }
 
-                    Some(checkpoint_data::Payload::Transactions(txs)) => {
+                    Some(checkpoint_data::Payload::ExecutedTransactions(txs)) => {
                         if current_sequence_number.is_none() {
                             Err(Error::Protocol("Received new chunked checkpoint transactions before receiving checkpoint header".into()))?;
                         }
 
                         // Accumulate proto transactions (no deserialization)
-                        current_transactions.extend(txs.transactions.into_iter());
+                        current_transactions.extend(txs.executed_transactions.into_iter());
                     }
 
                     Some(checkpoint_data::Payload::Events(events)) => {
@@ -362,7 +362,7 @@ impl Client {
                             summary: current_summary.take(),
                             signature: current_signature.take(),
                             contents: current_contents.take(),
-                            transactions: std::mem::take(&mut current_transactions),
+                            executed_transactions: std::mem::take(&mut current_transactions),
                             events: std::mem::take(&mut current_events),
                         };
 

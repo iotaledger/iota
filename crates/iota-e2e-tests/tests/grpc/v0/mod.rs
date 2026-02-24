@@ -56,7 +56,7 @@ impl_field_presence_checker!(ExecutedTransaction {
     output_objects,
 });
 impl_field_presence_checker!(ExecuteTransactionResponse {
-    transaction: ExecutedTransaction,
+    executed_transaction: ExecutedTransaction,
 });
 
 impl_field_presence_checker!(Input { index });
@@ -87,7 +87,7 @@ impl_field_presence_checker!(ExecutionError {
     command_index,
 });
 impl_field_presence_checker!(SimulateTransactionResponse {
-    transaction: ExecutedTransaction,
+    executed_transaction: ExecutedTransaction,
     suggested_gas_price,
     execution_result,
 });

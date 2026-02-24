@@ -15,7 +15,7 @@ pub mod ledger;
 
 pub use common::{
     CHECKPOINT_READ_MASK, EPOCH_READ_MASK, EXECUTION_READ_MASK, Error, OBJECTS_READ_MASK, Result,
-    RpcStatus, SERVICE_INFO_READ_MASK, TRANSACTIONS_READ_MASK,
+    RpcStatus, SERVICE_INFO_READ_MASK, SIMULATION_READ_MASK, TRANSACTIONS_READ_MASK,
 };
 pub(crate) use common::{
     ProtoResult, TryFromProtoError, build_proto_transaction, field_mask_with_default,
@@ -42,7 +42,7 @@ pub struct CheckpointResponse {
     pub contents: Option<iota_grpc_types::v0::checkpoint::CheckpointContents>,
     /// Proto executed transactions. Use methods like `tx.effects()?`,
     /// `tx.transaction()?`, etc.
-    pub transactions: Vec<iota_grpc_types::v0::transaction::ExecutedTransaction>,
+    pub executed_transactions: Vec<iota_grpc_types::v0::transaction::ExecutedTransaction>,
     /// Proto events. Use `event.try_into()` or `event.events()` to convert to
     /// SDK types.
     pub events: Vec<iota_grpc_types::v0::event::Event>,
@@ -73,8 +73,10 @@ impl CheckpointResponse {
             .ok_or_else(|| TryFromProtoError::missing("contents").into())
     }
 
-    pub fn transactions(&self) -> &Vec<iota_grpc_types::v0::transaction::ExecutedTransaction> {
-        &self.transactions
+    pub fn executed_transactions(
+        &self,
+    ) -> &Vec<iota_grpc_types::v0::transaction::ExecutedTransaction> {
+        &self.executed_transactions
     }
 
     pub fn events(&self) -> &Vec<iota_grpc_types::v0::event::Event> {
@@ -89,7 +91,7 @@ impl CheckpointResponse {
                 signature: self.signature()?.signature()?,
             },
             transactions: self
-                .transactions()
+                .executed_transactions()
                 .iter()
                 .map(TryInto::try_into)
                 .collect::<std::result::Result<Vec<_>, _>>()?,

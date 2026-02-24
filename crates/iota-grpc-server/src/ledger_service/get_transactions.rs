@@ -25,7 +25,7 @@ use crate::{
     types::{GrpcReader, TransactionReadFields, TransactionsStreamResult},
 };
 
-pub const READ_MASK_DEFAULT: &str = crate::field_mask!("transaction.digest");
+pub const READ_MASK_DEFAULT: &str = crate::field_mask!("executed_transaction.digest");
 
 type ValidationResult = Result<(Vec<TransactionDigest>, FieldMaskTree), RpcError>;
 
@@ -93,7 +93,7 @@ pub(crate) fn get_transactions(
         digest,
         {
             let tx_result = match get_transaction_impl(&reader, &config, digest, &read_mask) {
-                Ok(tx) => TransactionResult::default().with_transaction(tx),
+                Ok(tx) => TransactionResult::default().with_executed_transaction(tx),
                 Err(error) => TransactionResult::default().with_error(error.into_status_proto()),
             };
 

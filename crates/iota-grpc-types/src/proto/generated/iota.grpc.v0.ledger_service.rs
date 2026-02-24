@@ -137,7 +137,7 @@ pub mod transaction_result {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Result {
         #[prost(message, tag = "1")]
-        Transaction(super::super::transaction::ExecutedTransaction),
+        ExecutedTransaction(super::super::transaction::ExecutedTransaction),
         #[prost(message, tag = "2")]
         Error(crate::google::rpc::Status),
     }
@@ -231,7 +231,7 @@ pub mod checkpoint_data {
         #[prost(message, tag = "1")]
         Checkpoint(super::super::checkpoint::Checkpoint),
         #[prost(message, tag = "2")]
-        Transactions(super::super::transaction::ExecutedTransactions),
+        ExecutedTransactions(super::super::transaction::ExecutedTransactions),
         #[prost(message, tag = "3")]
         Events(super::super::event::Events),
         #[prost(message, tag = "4")]

@@ -107,12 +107,32 @@ pub const OBJECTS_READ_MASK: &str = "reference,bcs";
 /// checkpoint,transactions,events
 pub const CHECKPOINT_READ_MASK: &str = "checkpoint.summary";
 
-/// Default field mask for [`crate::Client::execute_transaction`] and
-/// [`crate::Client::simulate_transaction`].
+/// Default field mask for [`crate::Client::execute_transaction`]
 /// possible fields:
-/// transaction,signatures,effects,events,checkpoint,timestamp,input_objects,
+/// transaction,
+/// signatures,
+/// effects,
+/// events,
+/// checkpoint,
+/// timestamp,
+/// input_objects,
 /// output_objects
 pub const EXECUTION_READ_MASK: &str = "transaction,effects,events,input_objects,output_objects";
+
+/// Default field mask for [`crate::Client::simulate_transaction`]
+/// possible fields:
+/// executed_transaction.transaction,
+/// executed_transaction.signatures,
+/// executed_transaction.effects,
+/// executed_transaction.events,
+/// executed_transaction.checkpoint,
+/// executed_transaction.timestamp,
+/// executed_transaction.input_objects,
+/// executed_transaction.output_objects
+/// suggested_gas_price
+/// execution_result.command_results
+/// execution_result.execution_error
+pub const SIMULATION_READ_MASK: &str = "executed_transaction.transaction,executed_transaction.effects,executed_transaction.events,executed_transaction.input_objects,executed_transaction.output_objects";
 
 /// Build a field mask with a custom value or default.
 ///
@@ -153,7 +173,7 @@ impl ProtoResult for TransactionResult {
 
     fn into_result(self) -> Result<Self::Value> {
         match self.result {
-            Some(transaction_result::Result::Transaction(tx)) => Ok(tx),
+            Some(transaction_result::Result::ExecutedTransaction(tx)) => Ok(tx),
             Some(transaction_result::Result::Error(e)) => Err(Error::Server(e)),
             None => Err(TryFromProtoError::missing("result").into()),
             Some(_) => Err(Error::Protocol("Unknown transaction result type".into())),

@@ -682,7 +682,7 @@ impl GrpcReader {
                                 if current_batch_size + tx_size > max_message_size_bytes && !current_batch.is_empty() {
                                     // Yield current transaction batch
                                     yield Ok(grpc_ledger_service::CheckpointData::default()
-                                        .with_transactions(grpc_transaction::ExecutedTransactions::default().with_transactions(current_batch)));
+                                        .with_executed_transactions(grpc_transaction::ExecutedTransactions::default().with_executed_transactions(current_batch)));
 
                                     // Reset transaction batch
                                     current_batch = vec![executed_tx];
@@ -703,7 +703,7 @@ impl GrpcReader {
                 // Send final batch of transactions if any
                 if transactions_mask.is_some() && !current_batch.is_empty() {
                     yield Ok(grpc_ledger_service::CheckpointData::default()
-                        .with_transactions(grpc_transaction::ExecutedTransactions::default().with_transactions(current_batch)));
+                        .with_executed_transactions(grpc_transaction::ExecutedTransactions::default().with_executed_transactions(current_batch)));
                 }
 
                 // Send final batch of events if any

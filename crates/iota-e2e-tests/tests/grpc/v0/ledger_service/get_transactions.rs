@@ -84,7 +84,9 @@ async fn assert_get_transactions_request(
 
         // Assert all returned transactions have the expected fields
         for (idx, tx_result) in response.transactions.iter().enumerate() {
-            if let Some(transaction_result::Result::Transaction(transaction)) = &tx_result.result {
+            if let Some(transaction_result::Result::ExecutedTransaction(transaction)) =
+                &tx_result.result
+            {
                 assert_field_presence(
                     transaction,
                     expected_field_mask_paths,
@@ -403,7 +405,7 @@ async fn get_transactions_nonexistent() {
             assert!(
                 !matches!(
                     tx_result.result,
-                    Some(transaction_result::Result::Transaction(_))
+                    Some(transaction_result::Result::ExecutedTransaction(_))
                 ),
                 "Expected no transaction for non-existent digest"
             );
@@ -475,7 +477,7 @@ async fn get_transactions_mixed_valid_invalid() {
     assert!(
         matches!(
             all_results[0].result,
-            Some(transaction_result::Result::Transaction(_))
+            Some(transaction_result::Result::ExecutedTransaction(_))
         ),
         "First result should be a valid transaction"
     );
@@ -498,7 +500,7 @@ async fn get_transactions_mixed_valid_invalid() {
     assert!(
         !matches!(
             all_results[1].result,
-            Some(transaction_result::Result::Transaction(_))
+            Some(transaction_result::Result::ExecutedTransaction(_))
         ),
         "Second result should not have a transaction"
     );

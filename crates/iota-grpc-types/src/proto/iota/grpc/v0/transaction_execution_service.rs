@@ -15,9 +15,9 @@ impl ExecuteTransactionResponse {
     pub fn executed_transaction(
         &self,
     ) -> Result<&crate::v0::transaction::ExecutedTransaction, TryFromProtoError> {
-        self.transaction
+        self.executed_transaction
             .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::TRANSACTION_FIELD.name))
+            .ok_or_else(|| TryFromProtoError::missing(Self::EXECUTED_TRANSACTION_FIELD.name))
     }
 }
 
@@ -54,9 +54,9 @@ impl SimulateTransactionResponse {
     pub fn executed_transaction(
         &self,
     ) -> Result<&crate::v0::transaction::ExecutedTransaction, TryFromProtoError> {
-        self.transaction
+        self.executed_transaction
             .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::TRANSACTION_FIELD.name))
+            .ok_or_else(|| TryFromProtoError::missing(Self::EXECUTED_TRANSACTION_FIELD.name))
     }
 
     /// Get the suggested gas price.

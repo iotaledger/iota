@@ -318,9 +318,9 @@ mod _field_impls {
         }
     }
     impl ExecutedTransactions {
-        pub const TRANSACTIONS_FIELD: &'static MessageField = &MessageField {
-            name: "transactions",
-            json_name: "transactions",
+        pub const EXECUTED_TRANSACTIONS_FIELD: &'static MessageField = &MessageField {
+            name: "executed_transactions",
+            json_name: "executedTransactions",
             number: 1i32,
             is_optional: false,
             is_map: false,
@@ -328,7 +328,9 @@ mod _field_impls {
         };
     }
     impl MessageFields for ExecutedTransactions {
-        const FIELDS: &'static [&'static MessageField] = &[Self::TRANSACTIONS_FIELD];
+        const FIELDS: &'static [&'static MessageField] = &[
+            Self::EXECUTED_TRANSACTIONS_FIELD,
+        ];
     }
     impl ExecutedTransactions {
         pub fn path_builder() -> ExecutedTransactionsFieldPathBuilder {
@@ -350,8 +352,8 @@ mod _field_impls {
         pub fn finish(self) -> String {
             self.path.join(".")
         }
-        pub fn transactions(mut self) -> ExecutedTransactionFieldPathBuilder {
-            self.path.push(ExecutedTransactions::TRANSACTIONS_FIELD.name);
+        pub fn executed_transactions(mut self) -> ExecutedTransactionFieldPathBuilder {
+            self.path.push(ExecutedTransactions::EXECUTED_TRANSACTIONS_FIELD.name);
             ExecutedTransactionFieldPathBuilder::new_with_base(self.path)
         }
     }

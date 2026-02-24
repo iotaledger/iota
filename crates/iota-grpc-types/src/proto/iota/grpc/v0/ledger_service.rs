@@ -114,7 +114,7 @@ impl TransactionResult {
         &self,
     ) -> Result<Option<&super::transaction::ExecutedTransaction>, TryFromProtoError> {
         match &self.result {
-            Some(transaction_result::Result::Transaction(tx)) => Ok(Some(tx)),
+            Some(transaction_result::Result::ExecutedTransaction(tx)) => Ok(Some(tx)),
             _ => Ok(None),
         }
     }
