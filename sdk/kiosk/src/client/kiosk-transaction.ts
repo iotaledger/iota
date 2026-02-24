@@ -27,8 +27,6 @@ export type KioskTransactionParams = {
     /** The Transaction for this run */
     transaction: Transaction;
 
-    /** @deprecated use transaction instead */
-    transactionBlock?: Transaction;
     /**
      * You can create a new KioskClient by calling `new KioskClient()`
      */
@@ -61,8 +59,7 @@ export class KioskTransaction {
     #finalized: boolean = false;
 
     constructor({
-        transactionBlock,
-        transaction = transactionBlock!,
+        transaction,
         kioskClient,
         cap,
     }: KioskTransactionParams) {
@@ -386,7 +383,6 @@ export class KioskTransaction {
 
             await ruleDefinition.resolveRuleFunction({
                 packageId: ruleDefinition.packageId,
-                transactionBlock: this.transaction,
                 transaction: this.transaction,
                 itemType,
                 itemId,

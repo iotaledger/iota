@@ -29,8 +29,6 @@ export type TransferPolicyBaseParams = {
 export type TransferPolicyTransactionParams = {
     kioskClient: KioskClient;
     transaction: Transaction;
-    /** @deprecated use transaction instead */
-    transactionBlock?: Transaction;
     cap?: TransferPolicyCap;
 };
 
@@ -43,8 +41,7 @@ export class TransferPolicyTransaction {
 
     constructor({
         kioskClient,
-        transactionBlock,
-        transaction = transactionBlock!,
+        transaction,
         cap,
     }: TransferPolicyTransactionParams) {
         this.kioskClient = kioskClient;
