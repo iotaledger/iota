@@ -148,7 +148,9 @@ async fn simulate_transaction_readmask_scenarios() {
                 "transaction.transaction.bcs",
                 "transaction.effects.digest",
                 "transaction.effects.bcs",
-                "command_results",
+                "suggested_gas_price",
+                "execution_result.command_results",
+                "execution_result.execution_error",
             ],
         ),
         (
@@ -161,7 +163,11 @@ async fn simulate_transaction_readmask_scenarios() {
         // is present)
         (
             "full readmask",
-            Some(FieldMask::from_paths(["transaction", "command_results"])),
+            Some(FieldMask::from_paths([
+                "transaction",
+                "suggested_gas_price",
+                "execution_result",
+            ])),
             &[
                 "transaction.transaction.digest",
                 "transaction.transaction.bcs",
@@ -171,7 +177,9 @@ async fn simulate_transaction_readmask_scenarios() {
                 "transaction.events",
                 "transaction.input_objects",
                 "transaction.output_objects",
-                "command_results",
+                "suggested_gas_price",
+                "execution_result.command_results",
+                "execution_result.execution_error",
             ],
         ),
         (
@@ -189,9 +197,12 @@ async fn simulate_transaction_readmask_scenarios() {
             ],
         ),
         (
-            "partial readmask (command_results only)",
-            Some(FieldMask::from_paths(["command_results"])),
-            &["command_results"],
+            "partial readmask (execution_result only)",
+            Some(FieldMask::from_paths(["execution_result"])),
+            &[
+                "execution_result.command_results",
+                "execution_result.execution_error",
+            ],
         ),
         // Specific nested field masks - only the specified nested fields are returned
         (
@@ -203,12 +214,13 @@ async fn simulate_transaction_readmask_scenarios() {
             "nested readmask (multiple specific fields)",
             Some(FieldMask::from_paths([
                 "transaction.effects",
-                "command_results",
+                "execution_result",
             ])),
             &[
                 "transaction.effects.digest",
                 "transaction.effects.bcs",
-                "command_results",
+                "execution_result.command_results",
+                "execution_result.execution_error",
             ],
         ),
     ];
@@ -269,7 +281,7 @@ async fn simulate_transaction_empty_request() {
 }
 
 #[sim_test]
-async fn simulate_programmable_transaction_command_results() {
+async fn simulate_transaction_command_results() {
     let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
     let mut exec_client = client.execution_service_client();
@@ -325,83 +337,84 @@ async fn simulate_programmable_transaction_command_results() {
                 "transaction.transaction.bcs",
                 "transaction.effects.digest",
                 "transaction.effects.bcs",
+                "suggested_gas_price",
                 // mutated_by_ref has argument since they reference input arguments
-                "command_results.results.mutated_by_ref.outputs.argument.kind",
-                "command_results.results.mutated_by_ref.outputs.type_tag",
-                "command_results.results.mutated_by_ref.outputs.bcs",
-                "command_results.results.mutated_by_ref.outputs.json",
+                "execution_result.command_results.results.mutated_by_ref.outputs.argument.kind",
+                "execution_result.command_results.results.mutated_by_ref.outputs.type_tag",
+                "execution_result.command_results.results.mutated_by_ref.outputs.bcs",
+                "execution_result.command_results.results.mutated_by_ref.outputs.json",
                 // return_values don't have argument (they're results, not arguments)
-                "command_results.results.return_values.outputs.type_tag",
-                "command_results.results.return_values.outputs.bcs",
-                "command_results.results.return_values.outputs.json",
+                "execution_result.command_results.results.return_values.outputs.type_tag",
+                "execution_result.command_results.results.return_values.outputs.bcs",
+                "execution_result.command_results.results.return_values.outputs.json",
             ],
         ),
         (
             "full command_results readmask",
-            Some(FieldMask::from_paths(["command_results"])),
+            Some(FieldMask::from_paths(["execution_result.command_results"])),
             &[
                 // Full mask returns all nested fields
                 // mutated_by_ref has argument since they reference input arguments
-                "command_results.results.mutated_by_ref.outputs.argument.kind",
-                "command_results.results.mutated_by_ref.outputs.type_tag",
-                "command_results.results.mutated_by_ref.outputs.bcs",
-                "command_results.results.mutated_by_ref.outputs.json",
+                "execution_result.command_results.results.mutated_by_ref.outputs.argument.kind",
+                "execution_result.command_results.results.mutated_by_ref.outputs.type_tag",
+                "execution_result.command_results.results.mutated_by_ref.outputs.bcs",
+                "execution_result.command_results.results.mutated_by_ref.outputs.json",
                 // return_values don't have argument (they're results, not arguments)
-                "command_results.results.return_values.outputs.type_tag",
-                "command_results.results.return_values.outputs.bcs",
-                "command_results.results.return_values.outputs.json",
+                "execution_result.command_results.results.return_values.outputs.type_tag",
+                "execution_result.command_results.results.return_values.outputs.bcs",
+                "execution_result.command_results.results.return_values.outputs.json",
             ],
         ),
         (
             "command_results with nested return_values field",
             Some(FieldMask::from_paths([
-                "command_results.results.return_values",
+                "execution_result.command_results.results.return_values",
             ])),
             &[
                 // return_values don't have argument (they're results, not arguments)
-                "command_results.results.return_values.outputs.type_tag",
-                "command_results.results.return_values.outputs.bcs",
-                "command_results.results.return_values.outputs.json",
+                "execution_result.command_results.results.return_values.outputs.type_tag",
+                "execution_result.command_results.results.return_values.outputs.bcs",
+                "execution_result.command_results.results.return_values.outputs.json",
             ],
         ),
         (
             "command_results with nested mutated_by_ref field",
             Some(FieldMask::from_paths([
-                "command_results.results.mutated_by_ref",
+                "execution_result.command_results.results.mutated_by_ref",
             ])),
             &[
                 // mutated_by_ref has argument since they reference input arguments
-                "command_results.results.mutated_by_ref.outputs.argument.kind",
-                "command_results.results.mutated_by_ref.outputs.type_tag",
-                "command_results.results.mutated_by_ref.outputs.bcs",
-                "command_results.results.mutated_by_ref.outputs.json",
+                "execution_result.command_results.results.mutated_by_ref.outputs.argument.kind",
+                "execution_result.command_results.results.mutated_by_ref.outputs.type_tag",
+                "execution_result.command_results.results.mutated_by_ref.outputs.bcs",
+                "execution_result.command_results.results.mutated_by_ref.outputs.json",
             ],
         ),
         (
             "command_results return_values outputs with type_tag field",
             Some(FieldMask::from_paths([
-                "command_results.results.return_values.outputs.type_tag",
+                "execution_result.command_results.results.return_values.outputs.type_tag",
             ])),
-            &["command_results.results.return_values.outputs.type_tag"],
+            &["execution_result.command_results.results.return_values.outputs.type_tag"],
         ),
         (
             "command_results mutated_by_ref outputs with argument field",
             Some(FieldMask::from_paths([
-                "command_results.results.mutated_by_ref.outputs.argument",
+                "execution_result.command_results.results.mutated_by_ref.outputs.argument",
             ])),
-            &["command_results.results.mutated_by_ref.outputs.argument.kind"],
+            &["execution_result.command_results.results.mutated_by_ref.outputs.argument.kind"],
         ),
         (
             "command_results mutated_by_ref outputs",
             Some(FieldMask::from_paths([
-                "command_results.results.mutated_by_ref.outputs",
+                "execution_result.command_results.results.mutated_by_ref.outputs",
             ])),
             &[
                 // mutated_by_ref has argument since they reference input arguments
-                "command_results.results.mutated_by_ref.outputs.argument.kind",
-                "command_results.results.mutated_by_ref.outputs.type_tag",
-                "command_results.results.mutated_by_ref.outputs.bcs",
-                "command_results.results.mutated_by_ref.outputs.json",
+                "execution_result.command_results.results.mutated_by_ref.outputs.argument.kind",
+                "execution_result.command_results.results.mutated_by_ref.outputs.type_tag",
+                "execution_result.command_results.results.mutated_by_ref.outputs.bcs",
+                "execution_result.command_results.results.mutated_by_ref.outputs.json",
             ],
         ),
     ];

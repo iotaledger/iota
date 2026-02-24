@@ -8,6 +8,10 @@ mod _field_impls {
     use crate::field::MessageFields;
     use crate::field::MessageField;
     #[allow(unused_imports)]
+    use crate::v0::bcs::BcsData;
+    #[allow(unused_imports)]
+    use crate::v0::bcs::BcsDataFieldPathBuilder;
+    #[allow(unused_imports)]
     use crate::v0::command::CommandResults;
     #[allow(unused_imports)]
     use crate::v0::command::CommandResultsFieldPathBuilder;
@@ -206,6 +210,72 @@ mod _field_impls {
             self.finish()
         }
     }
+    impl ExecutionError {
+        pub const BCS_KIND_FIELD: &'static MessageField = &MessageField {
+            name: "bcs_kind",
+            json_name: "bcsKind",
+            number: 1i32,
+            is_optional: true,
+            is_map: false,
+            message_fields: Some(BcsData::FIELDS),
+        };
+        pub const SOURCE_FIELD: &'static MessageField = &MessageField {
+            name: "source",
+            json_name: "source",
+            number: 2i32,
+            is_optional: true,
+            is_map: false,
+            message_fields: None,
+        };
+        pub const COMMAND_INDEX_FIELD: &'static MessageField = &MessageField {
+            name: "command_index",
+            json_name: "commandIndex",
+            number: 3i32,
+            is_optional: true,
+            is_map: false,
+            message_fields: None,
+        };
+    }
+    impl MessageFields for ExecutionError {
+        const FIELDS: &'static [&'static MessageField] = &[
+            Self::BCS_KIND_FIELD,
+            Self::SOURCE_FIELD,
+            Self::COMMAND_INDEX_FIELD,
+        ];
+    }
+    impl ExecutionError {
+        pub fn path_builder() -> ExecutionErrorFieldPathBuilder {
+            ExecutionErrorFieldPathBuilder::new()
+        }
+    }
+    pub struct ExecutionErrorFieldPathBuilder {
+        path: Vec<&'static str>,
+    }
+    impl ExecutionErrorFieldPathBuilder {
+        #[allow(clippy::new_without_default)]
+        pub fn new() -> Self {
+            Self { path: Default::default() }
+        }
+        #[doc(hidden)]
+        pub fn new_with_base(base: Vec<&'static str>) -> Self {
+            Self { path: base }
+        }
+        pub fn finish(self) -> String {
+            self.path.join(".")
+        }
+        pub fn bcs_kind(mut self) -> BcsDataFieldPathBuilder {
+            self.path.push(ExecutionError::BCS_KIND_FIELD.name);
+            BcsDataFieldPathBuilder::new_with_base(self.path)
+        }
+        pub fn source(mut self) -> String {
+            self.path.push(ExecutionError::SOURCE_FIELD.name);
+            self.finish()
+        }
+        pub fn command_index(mut self) -> String {
+            self.path.push(ExecutionError::COMMAND_INDEX_FIELD.name);
+            self.finish()
+        }
+    }
     impl SimulateTransactionResponse {
         pub const TRANSACTION_FIELD: &'static MessageField = &MessageField {
             name: "transaction",
@@ -227,16 +297,28 @@ mod _field_impls {
             name: "command_results",
             json_name: "commandResults",
             number: 3i32,
-            is_optional: true,
+            is_optional: false,
             is_map: false,
             message_fields: Some(CommandResults::FIELDS),
         };
+        pub const EXECUTION_ERROR_FIELD: &'static MessageField = &MessageField {
+            name: "execution_error",
+            json_name: "executionError",
+            number: 4i32,
+            is_optional: false,
+            is_map: false,
+            message_fields: Some(ExecutionError::FIELDS),
+        };
+    }
+    impl SimulateTransactionResponse {
+        pub const EXECUTION_RESULT_ONEOF: &'static str = "execution_result";
     }
     impl MessageFields for SimulateTransactionResponse {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::TRANSACTION_FIELD,
             Self::SUGGESTED_GAS_PRICE_FIELD,
             Self::COMMAND_RESULTS_FIELD,
+            Self::EXECUTION_ERROR_FIELD,
         ];
     }
     impl SimulateTransactionResponse {
@@ -270,6 +352,10 @@ mod _field_impls {
         pub fn command_results(mut self) -> CommandResultsFieldPathBuilder {
             self.path.push(SimulateTransactionResponse::COMMAND_RESULTS_FIELD.name);
             CommandResultsFieldPathBuilder::new_with_base(self.path)
+        }
+        pub fn execution_error(mut self) -> ExecutionErrorFieldPathBuilder {
+            self.path.push(SimulateTransactionResponse::EXECUTION_ERROR_FIELD.name);
+            ExecutionErrorFieldPathBuilder::new_with_base(self.path)
         }
     }
 }

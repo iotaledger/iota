@@ -8,12 +8,14 @@ use iota_grpc_types::{
     field::FieldMaskTree,
     google::rpc::bad_request::FieldViolation,
     v0::{
+        bcs::{self as grpc_bcs},
         command::CommandResults,
         error_reason::ErrorReason,
         transaction::ExecutedTransaction,
         transaction_execution_service::{
-            SimulateTransactionRequest, SimulateTransactionResponse,
+            ExecutionError, SimulateTransactionRequest, SimulateTransactionResponse,
             simulate_transaction_request::TransactionCheckModes,
+            simulate_transaction_response::ExecutionResult,
         },
     },
 };
@@ -25,14 +27,18 @@ use iota_types::{
     transaction_executor::{SimulateTransactionResult, TransactionExecutor, VmChecks},
 };
 
-use super::{CommandResultsReadSource, TransactionReadSource};
-use crate::{error::RpcError, merge::Merge, types::GrpcReader};
+use super::TransactionReadSource;
+use crate::{
+    error::RpcError, merge::Merge, transaction_execution_service::CommandResultsReadSource,
+    types::GrpcReader,
+};
 
 pub const SIMULATE_TRANSACTION_READ_MASK_DEFAULT: &str = crate::field_mask!(
     "transaction.digest",
     "transaction.transaction",
     "transaction.effects",
-    "command_results"
+    "suggested_gas_price",
+    "execution_result",
 );
 
 pub async fn simulate_transaction(
@@ -109,25 +115,37 @@ pub async fn simulate_transaction(
             )
         })?;
 
+    let system_state = if read_mask
+        .contains(SimulateTransactionResponse::SUGGESTED_GAS_PRICE_FIELD.name)
+        || (request.estimate_gas_budget.unwrap_or(false) && vm_checks.enabled())
+    {
+        Some(reader.get_system_state_summary().map_err(|e| {
+            RpcError::new(
+                tonic::Code::Internal,
+                format!("failed to get system state for suggested gas price or gas price estimation: {e}"),
+            )
+        })?)
+    } else {
+        None
+    };
+
     // Perform budget estimation if requested and if VmChecks are enabled
     // (it makes no sense to do gas estimation if checks are disabled because such a
     // transaction can't ever be committed to the chain).
     if request.estimate_gas_budget.unwrap_or(false) && vm_checks.enabled() {
-        let (reference_gas_price, protocol_config) = {
-            let system_state = reader.get_system_state_summary()?;
-            let protocol_config = ProtocolConfig::get_for_version_if_supported(
-                system_state.protocol_version(),
-                reader.get_chain_identifier()?.chain(),
+        let protocol_config = ProtocolConfig::get_for_version_if_supported(
+            system_state
+                .as_ref()
+                .expect("system state should be available")
+                .protocol_version(),
+            reader.get_chain_identifier()?.chain(),
+        )
+        .ok_or_else(|| {
+            RpcError::new(
+                tonic::Code::Internal,
+                "failed to get protocol config for gas estimation".to_string(),
             )
-            .ok_or_else(|| {
-                RpcError::new(
-                    tonic::Code::Internal,
-                    "failed to get protocol config for gas estimation".to_string(),
-                )
-            })?;
-
-            (system_state.reference_gas_price(), protocol_config)
-        };
+        })?;
 
         let mut estimation_transaction = transaction_data.clone();
         estimation_transaction.gas_data_mut().payment = Vec::new();
@@ -154,7 +172,10 @@ pub async fn simulate_transaction(
 
         let estimate = estimate_gas_budget_from_gas_cost(
             simulation_result.effects.gas_cost_summary(),
-            reference_gas_price,
+            system_state
+                .as_ref()
+                .expect("system state should be available")
+                .reference_gas_price(),
             transaction_data.gas_data().payment.len(),
             &protocol_config,
         );
@@ -228,39 +249,75 @@ pub async fn simulate_transaction(
 
     // Only include suggested gas price if requested
     if read_mask.contains(SimulateTransactionResponse::SUGGESTED_GAS_PRICE_FIELD.name) {
-        response.suggested_gas_price = Some(suggested_gas_price.ok_or_else(|| {
-            RpcError::new(
-                tonic::Code::Internal,
-                "suggested gas price is not available".to_string(),
-            )
-        })?);
+        response.suggested_gas_price = Some(suggested_gas_price.unwrap_or_else(|| {
+            system_state
+                .as_ref()
+                .expect("system state should be available")
+                .reference_gas_price()
+        }));
     }
 
-    // Only include command results if requested
-    if let Some(cmd_mask) =
-        read_mask.subtree(SimulateTransactionResponse::COMMAND_RESULTS_FIELD.name)
+    // Only include the result if requested
+    if let Some(result_mask) =
+        read_mask.subtree(SimulateTransactionResponse::EXECUTION_RESULT_ONEOF)
     {
         match execution_result {
-            Ok(execution_results) => {
-                // Only build command results if the execution was successful
-                // Create a source for the merge
-                let source = CommandResultsReadSource {
-                    reader: reader.clone(),
-                    config,
-                    execution_results,
-                };
+            Ok(ref execution_results) => {
+                if let Some(command_results_mask) = result_mask.subtree("command_results") {
+                    // Only build command results if the execution was successful
+                    let cmd_source = CommandResultsReadSource {
+                        reader: reader.clone(),
+                        config,
+                        execution_results: execution_results.clone(),
+                    };
 
-                response.command_results =
-                    Some(CommandResults::merge_from(&source, &cmd_mask).map_err(|e| {
+                    let command_results = CommandResults::merge_from(
+                        &cmd_source,
+                        &command_results_mask,
+                    )
+                    .map_err(|e| {
                         RpcError::new(
                             tonic::Code::Internal,
-                            format!("failed to build command results in simulation response: {e}"),
+                            format!("failed to build command results in execution result: {e}"),
                         )
-                    })?);
+                    })?;
+
+                    response.execution_result =
+                        Some(ExecutionResult::CommandResults(command_results));
+                }
             }
-            Err(_) => {
-                // If execution failed, return empty results
-                response.command_results = Some(CommandResults::default());
+            Err(ref execution_error) => {
+                if let Some(error_mask) = result_mask.subtree("execution_error") {
+                    let mut exec_error = ExecutionError::default();
+
+                    // Serialize the execution error kind as BCS
+                    if error_mask.contains(ExecutionError::BCS_KIND_FIELD.name) {
+                        exec_error.bcs_kind = Some(
+                            grpc_bcs::BcsData::serialize(execution_error.kind()).map_err(|e| {
+                                RpcError::new(
+                                    tonic::Code::Internal,
+                                    format!("failed to serialize execution error kind: {e}"),
+                                )
+                            })?,
+                        );
+                    }
+
+                    if error_mask.contains(ExecutionError::SOURCE_FIELD.name) {
+                        exec_error.source = execution_error
+                            .source()
+                            .as_ref()
+                            .map(|source| source.to_string());
+                    }
+
+                    // Set the command index if available
+                    if error_mask.contains(ExecutionError::COMMAND_INDEX_FIELD.name) {
+                        if let Some(command_idx) = execution_error.command() {
+                            exec_error.command_index = Some(command_idx as u64);
+                        }
+                    }
+
+                    response.execution_result = Some(ExecutionResult::ExecutionError(exec_error));
+                }
             }
         }
     }

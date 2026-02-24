@@ -86,14 +86,40 @@ pub mod simulate_transaction_request {
     }
 }
 #[non_exhaustive]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ExecutionError {
+    /// The execution error kind as BCS-encoded data
+    #[prost(message, optional, tag = "1")]
+    pub bcs_kind: ::core::option::Option<super::bcs::BcsData>,
+    /// Optional error source as string
+    #[prost(string, optional, tag = "2")]
+    pub source: ::core::option::Option<::prost::alloc::string::String>,
+    /// Optional command index
+    #[prost(uint64, optional, tag = "3")]
+    pub command_index: ::core::option::Option<u64>,
+}
+#[non_exhaustive]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SimulateTransactionResponse {
     #[prost(message, optional, tag = "1")]
     pub transaction: ::core::option::Option<super::transaction::ExecutedTransaction>,
     #[prost(uint64, optional, tag = "2")]
     pub suggested_gas_price: ::core::option::Option<u64>,
-    #[prost(message, optional, tag = "3")]
-    pub command_results: ::core::option::Option<super::command::CommandResults>,
+    #[prost(oneof = "simulate_transaction_response::ExecutionResult", tags = "3, 4")]
+    pub execution_result: ::core::option::Option<
+        simulate_transaction_response::ExecutionResult,
+    >,
+}
+/// Nested message and enum types in `SimulateTransactionResponse`.
+pub mod simulate_transaction_response {
+    #[non_exhaustive]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum ExecutionResult {
+        #[prost(message, tag = "3")]
+        CommandResults(super::super::command::CommandResults),
+        #[prost(message, tag = "4")]
+        ExecutionError(super::ExecutionError),
+    }
 }
 /// Generated client implementations.
 pub mod transaction_execution_service_client {

@@ -315,6 +315,9 @@ mod _field_impls {
             message_fields: Some(TypeTagStruct::FIELDS),
         };
     }
+    impl TypeTag {
+        pub const TYPE_TAG_ONEOF: &'static str = "type_tag";
+    }
     impl MessageFields for TypeTag {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::BOOL_TAG_FIELD,
