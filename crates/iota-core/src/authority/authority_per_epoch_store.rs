@@ -2240,10 +2240,10 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
-    /// Insert certified transactions into the in-memory
-    /// `pending_consensus_certificates` set. When submitting a certificate
-    /// caller **must** provide a `ReconfigState` lock guard and verify that
-    /// it allows new user certificates.
+    /// Insert certified transactions that will be submitted to consensus
+    /// into the in-memory `pending_consensus_certificates` set. When
+    /// submitting a certificate caller **must** provide a `ReconfigState`
+    /// lock guard and verify that it allows new user certificates.
     pub fn insert_pending_consensus_certificates(
         &self,
         transactions: &[ConsensusTransaction],
@@ -2265,6 +2265,8 @@ impl AuthorityPerEpochStore {
         }
     }
 
+    /// Remove processed by consensus transactions from the persistent
+    /// `pending_consensus_transactions` table.
     pub fn remove_pending_consensus_transactions(
         &self,
         keys: &[ConsensusTransactionKey],
@@ -2272,18 +2274,19 @@ impl AuthorityPerEpochStore {
         self.tables()?
             .pending_consensus_transactions
             .multi_remove(keys)?;
+
+        Ok(())
+    }
+
+    /// Remove processed by consensus certified transactions from the in-memory
+    /// `pending_consensus_certificates` set.
+    pub fn remove_pending_consensus_certificates(&self, keys: &[ConsensusTransactionKey]) {
         // TODO: lock once for all remove() calls.
         for key in keys {
             if let ConsensusTransactionKey::Certificate(cert) = key {
                 self.pending_consensus_certificates.write().remove(cert);
             }
-            // NOTE: We do not need the
-            // `ConsensusTransactionKey::UserTransaction` branch
-            // (certificate-less scenario) here because `UserTransactionV1` are
-            // not inserted into
-            // `self.pending_consensus_certificates`.
         }
-        Ok(())
     }
 
     pub fn pending_consensus_certificates_count(&self) -> usize {
