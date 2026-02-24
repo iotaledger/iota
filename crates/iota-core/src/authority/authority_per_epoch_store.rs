@@ -2342,13 +2342,7 @@ impl AuthorityPerEpochStore {
                     self.pending_consensus_certificates.write().remove(cert);
                 }
             }
-            // NOTE: We do not need the
-            // `ConsensusTransactionKey::UserTransaction` branch
-            // (certificate-less scenario) here because `UserTransactionV1` are
-            // not inserted into
-            // `self.pending_consensus_certificates`.
         }
-        Ok(())
     }
 
     pub fn pending_consensus_certificates_count(&self) -> usize {

@@ -853,9 +853,19 @@ impl ConsensusAdapter {
         debug!("{transaction_keys:?} processed by consensus");
 
         let consensus_keys: Vec<_> = transactions.iter().map(|t| t.key()).collect();
+
+        // Regardless of `enable_white_flag_flow`, we need to remove transactions that
+        // were processed by consensus from the corresponding persistent table.
         epoch_store
             .remove_pending_consensus_transactions(&consensus_keys)
             .expect("Storage error when removing consensus transaction");
+
+        // If the white flag flow is enabled, there are no certificates, so there is
+        // nothing to remove from `pending_consensus_certificates`. So, the below
+        // removal is only for certificates, i.e., when the white flag flow is disabled.
+        if !epoch_store.protocol_config().enable_white_flag_flow() {
+            epoch_store.remove_pending_consensus_certificates(&consensus_keys);
+        }
 
         let is_user_tx = is_soft_bundle
             || if epoch_store.protocol_config().enable_white_flag_flow() {
