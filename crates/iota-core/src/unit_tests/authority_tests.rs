@@ -508,7 +508,7 @@ async fn test_dev_inspect_dynamic_field() {
                 )
                 .await
                 .unwrap();
-                assert!(effects.status().is_ok(), "{:#?}", effects.status());
+                assert!(effects.status().is_success(), "{:#?}", effects.status());
                 let created_object_id = effects.created()[0].0.object_id;
                 let created_object = validator.get_object(&created_object_id).await.unwrap();
                 created_object
@@ -726,8 +726,8 @@ async fn test_dev_inspect_return_values() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::UnusedValueWithoutDrop {
-                result_idx: 0,
-                secondary_idx: 0,
+                result: 0,
+                subresult: 0,
             },
             command: None,
         }
@@ -1893,7 +1893,7 @@ async fn test_package_size_limit() {
     };
     assert!(matches!(
         error,
-        ExecutionFailureStatus::MovePackageTooBig { .. }
+        ExecutionFailureStatus::PackageTooBig { .. }
     ));
 }
 
@@ -1914,7 +1914,7 @@ async fn test_handle_move_transaction() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     assert_eq!(effects.created().len(), 1);
     assert_eq!(effects.mutated().len(), 1);
 
@@ -2396,7 +2396,7 @@ async fn test_move_call_mutable_object_not_mutated() {
     )
     .await
     .unwrap();
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     assert_eq!((effects.created().len(), effects.mutated().len()), (1, 1));
     let ObjectRef {
         object_id: new_object_id1,
@@ -2413,7 +2413,7 @@ async fn test_move_call_mutable_object_not_mutated() {
     )
     .await
     .unwrap();
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     assert_eq!((effects.created().len(), effects.mutated().len()), (1, 1));
     let ObjectRef {
         object_id: new_object_id2,
@@ -2445,7 +2445,7 @@ async fn test_move_call_mutable_object_not_mutated() {
     )
     .await
     .unwrap();
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     assert_eq!((effects.created().len(), effects.mutated().len()), (0, 3));
     // Verify that both objects' version increased, even though only one object was
     // updated.
@@ -2550,7 +2550,7 @@ async fn test_move_call_insufficient_gas() {
         .unwrap()
         .1;
     let effects = signed_effects.into_data();
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
     let obj = authority_state.get_object(&object_id).await.unwrap();
     assert_eq!(obj.previous_transaction, tx_digest);
     assert_eq!(obj.version(), next_object_version);
@@ -2573,7 +2573,7 @@ async fn test_move_call_delete() {
     )
     .await
     .unwrap();
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     assert_eq!((effects.created().len(), effects.mutated().len()), (1, 1));
     let ObjectRef {
         object_id: new_object_id1,
@@ -2589,7 +2589,7 @@ async fn test_move_call_delete() {
     )
     .await
     .unwrap();
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     assert_eq!((effects.created().len(), effects.mutated().len()), (1, 1));
     let ObjectRef {
         object_id: new_object_id2,
@@ -2612,7 +2612,7 @@ async fn test_move_call_delete() {
     )
     .await
     .unwrap();
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     // All mutable objects will appear to be mutated, even if they are not.
     // obj1, obj2 and gas are all mutated here.
     assert_eq!((effects.created().len(), effects.mutated().len()), (0, 3));
@@ -2630,7 +2630,7 @@ async fn test_move_call_delete() {
     )
     .await
     .unwrap();
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     assert_eq!((effects.deleted().len(), effects.mutated().len()), (1, 1));
 }
 
@@ -3187,7 +3187,7 @@ async fn test_transfer_iota_no_amount() {
     // Check that the transaction was successful, and the gas object is the only
     // mutated object, and got transferred. Also check on its version and new
     // balance.
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     assert!(effects.mutated_excluding_gas().is_empty());
     assert!(gas_ref.version < effects.gas_object().0.version);
     assert_eq!(effects.gas_object().1, Owner::Address(recipient));
@@ -3228,7 +3228,7 @@ async fn test_transfer_iota_with_amount() {
         .unwrap();
     // Check that the transaction was successful, the gas object remains in the
     // original owner, and an amount is split out and send to the recipient.
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     assert!(effects.mutated_excluding_gas().is_empty());
     assert_eq!(effects.created().len(), 1);
     assert_eq!(effects.created()[0].1, Owner::Address(recipient));
@@ -3322,7 +3322,7 @@ async fn test_store_revert_wrap_move_call() {
             &[*create_effects.transaction_digest()],
         );
 
-    assert!(create_effects.status().is_ok());
+    assert!(create_effects.status().is_success());
     assert_eq!(create_effects.created().len(), 1);
 
     let object_v0 = create_effects.created()[0].0;
@@ -3351,7 +3351,7 @@ async fn test_store_revert_wrap_move_call() {
         .await
         .unwrap();
 
-    assert!(wrap_effects.status().is_ok());
+    assert!(wrap_effects.status().is_success());
     assert_eq!(wrap_effects.created().len(), 1);
     assert_eq!(wrap_effects.wrapped().len(), 1);
     assert_eq!(wrap_effects.wrapped()[0].object_id, object_v0.object_id);
@@ -3394,7 +3394,7 @@ async fn test_store_revert_unwrap_move_call() {
     .await
     .unwrap();
 
-    assert!(create_effects.status().is_ok());
+    assert!(create_effects.status().is_success());
     assert_eq!(create_effects.created().len(), 1);
 
     let object_v0 = create_effects.created()[0].0;
@@ -3420,7 +3420,7 @@ async fn test_store_revert_unwrap_move_call() {
             ],
         );
 
-    assert!(wrap_effects.status().is_ok());
+    assert!(wrap_effects.status().is_success());
     assert_eq!(wrap_effects.created().len(), 1);
     assert_eq!(wrap_effects.wrapped().len(), 1);
     assert_eq!(wrap_effects.wrapped()[0].object_id, object_v0.object_id);
@@ -3451,7 +3451,7 @@ async fn test_store_revert_unwrap_move_call() {
         .await
         .unwrap();
 
-    assert!(unwrap_effects.status().is_ok());
+    assert!(unwrap_effects.status().is_success());
     assert_eq!(unwrap_effects.deleted().len(), 1);
     assert_eq!(unwrap_effects.deleted()[0].object_id, wrapper_v0.object_id);
     assert_eq!(unwrap_effects.unwrapped().len(), 1);
@@ -3516,7 +3516,7 @@ async fn create_and_retrieve_df_info(
     .unwrap();
 
     assert!(
-        create_outer_effects.status().is_ok(),
+        create_outer_effects.status().is_success(),
         "{create_outer_effects:?}"
     );
     assert_eq!(create_outer_effects.created().len(), 1);
@@ -3531,7 +3531,7 @@ async fn create_and_retrieve_df_info(
     .await
     .unwrap();
 
-    assert!(create_inner_effects.status().is_ok());
+    assert!(create_inner_effects.status().is_success());
     assert_eq!(create_inner_effects.created().len(), 1);
 
     let outer_v0 = create_outer_effects.created()[0].0;
@@ -3560,7 +3560,11 @@ async fn create_and_retrieve_df_info(
 
     let add_effects = authority_state.execute_for_test(&add_cert).0.into_message();
 
-    assert!(add_effects.status().is_ok(), "{:?}", add_effects.status());
+    assert!(
+        add_effects.status().is_success(),
+        "{:?}",
+        add_effects.status()
+    );
     assert_eq!(add_effects.created().len(), 1);
 
     (
@@ -3672,7 +3676,7 @@ async fn test_store_revert_add_ofield() {
     .await
     .unwrap();
 
-    assert!(create_outer_effects.status().is_ok());
+    assert!(create_outer_effects.status().is_success());
     assert_eq!(create_outer_effects.created().len(), 1);
 
     let create_inner_effects = create_move_object(
@@ -3685,7 +3689,7 @@ async fn test_store_revert_add_ofield() {
     .await
     .unwrap();
 
-    assert!(create_inner_effects.status().is_ok());
+    assert!(create_inner_effects.status().is_success());
     assert_eq!(create_inner_effects.created().len(), 1);
 
     let outer_v0 = create_outer_effects.created()[0].0;
@@ -3728,7 +3732,7 @@ async fn test_store_revert_add_ofield() {
         .await
         .unwrap();
 
-    assert!(add_effects.status().is_ok());
+    assert!(add_effects.status().is_success());
     assert_eq!(add_effects.created().len(), 1);
 
     let field_v0 = add_effects.created()[0].0;
@@ -3782,7 +3786,7 @@ async fn test_store_revert_remove_ofield() {
     .await
     .unwrap();
 
-    assert!(create_outer_effects.status().is_ok());
+    assert!(create_outer_effects.status().is_success());
     assert_eq!(create_outer_effects.created().len(), 1);
 
     let create_inner_effects = create_move_object(
@@ -3795,7 +3799,7 @@ async fn test_store_revert_remove_ofield() {
     .await
     .unwrap();
 
-    assert!(create_inner_effects.status().is_ok());
+    assert!(create_inner_effects.status().is_success());
     assert_eq!(create_inner_effects.created().len(), 1);
 
     let outer_v0 = create_outer_effects.created()[0].0;
@@ -3813,7 +3817,7 @@ async fn test_store_revert_remove_ofield() {
     .await
     .unwrap();
 
-    assert!(add_effects.status().is_ok());
+    assert!(add_effects.status().is_success());
     assert_eq!(add_effects.created().len(), 1);
 
     authority_state
@@ -3858,7 +3862,7 @@ async fn test_store_revert_remove_ofield() {
         .await
         .unwrap();
 
-    assert!(remove_effects.status().is_ok());
+    assert!(remove_effects.status().is_success());
     let outer_v2 = find_by_id(&remove_effects.mutated(), outer_v0.object_id).unwrap();
     let inner_v2 = find_by_id(&remove_effects.mutated(), inner_v0.object_id).unwrap();
 
@@ -5579,9 +5583,9 @@ async fn test_gas_smashing() {
         let (state, effects) = create_obj(sender, sender_key, gas_coins, budget).await;
         // check transaction
         if success {
-            assert!(effects.status().is_ok());
+            assert!(effects.status().is_success());
         } else {
-            assert!(effects.status().is_err());
+            assert!(effects.status().is_failure());
         }
         // gas object in effects is first coin in vector of coins
         assert_eq!(gas_coin_ids[0], effects.gas_object().0.object_id);
@@ -5775,7 +5779,7 @@ async fn test_function_not_found() {
     assert_eq!(
         effects.status(),
         &IotaExecutionStatus::Failure {
-            error: "Function Not Found. in command 0".to_string(),
+            error: "Function Not Found in command 0".to_string(),
         }
     );
 
@@ -6036,7 +6040,7 @@ async fn test_publish_transitive_dependencies_ok() {
         .into_data()
         .into_status();
 
-    assert!(status.is_ok(), "Transaction failed: {status:?}");
+    assert!(status.is_success(), "Transaction failed: {status:?}");
 }
 
 #[tokio::test]

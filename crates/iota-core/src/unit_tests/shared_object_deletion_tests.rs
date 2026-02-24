@@ -600,7 +600,7 @@ async fn test_delete_shared_object() {
     assert_eq!(deleted_obj_ver, 4);
 
     // assert the rest of the effects are as expected
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     assert!(effects.created().is_empty());
     assert!(effects.unwrapped_then_deleted().is_empty());
     assert!(effects.wrapped().is_empty());
@@ -637,12 +637,12 @@ async fn test_delete_shared_object_immut() {
         .await
         .unwrap();
 
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
 
     assert!(matches!(
         effects.status().clone().unwrap_err().0,
         ExecutionFailureStatus::CommandArgumentError {
-            arg_idx: 0,
+            argument: 0,
             kind: CommandArgumentError::InvalidObjectByValue
         }
     ));
@@ -691,12 +691,12 @@ async fn test_delete_shared_object_immut_mut_mut_interleave() {
         .await
         .unwrap();
 
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
 
     assert!(matches!(
         effects.status().clone().unwrap_err().0,
         ExecutionFailureStatus::CommandArgumentError {
-            arg_idx: 0,
+            argument: 0,
             kind: CommandArgumentError::InvalidObjectByValue
         }
     ));
@@ -720,7 +720,7 @@ async fn test_delete_shared_object_immut_mut_mut_interleave() {
     assert_eq!(deleted_obj_ver, 4);
 
     // assert the rest of the effects are as expected
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     assert!(effects.created().is_empty());
     assert!(effects.unwrapped_then_deleted().is_empty());
     assert!(effects.wrapped().is_empty());
@@ -739,7 +739,7 @@ async fn test_delete_shared_object_immut_mut_mut_interleave() {
         .await
         .unwrap();
 
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
     assert_eq!(
         effects.status().clone().unwrap_err().0,
         ExecutionFailureStatus::InputObjectDeleted
@@ -778,12 +778,12 @@ async fn test_delete_shared_object_immut_mut_immut_interleave() {
         .await
         .unwrap();
 
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
 
     assert!(matches!(
         effects.status().clone().unwrap_err().0,
         ExecutionFailureStatus::CommandArgumentError {
-            arg_idx: 0,
+            argument: 0,
             kind: CommandArgumentError::InvalidObjectByValue
         }
     ));
@@ -818,7 +818,7 @@ async fn test_delete_shared_object_immut_mut_immut_interleave() {
     assert_eq!(deleted_obj_ver, 4);
 
     // assert the rest of the effects are as expected
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     assert!(effects.created().is_empty());
     assert!(effects.unwrapped_then_deleted().is_empty());
     assert!(effects.wrapped().is_empty());
@@ -835,7 +835,7 @@ async fn test_delete_shared_object_immut_mut_immut_interleave() {
         .await
         .unwrap();
 
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
 }
 
 #[tokio::test]
@@ -880,7 +880,7 @@ async fn test_mutate_after_delete() {
         .unwrap();
 
     assert!(matches!(error.unwrap().kind(), InputObjectDeleted));
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
     assert_eq!(effects.deleted().len(), 0);
 
     assert!(effects.created().is_empty());
@@ -935,7 +935,7 @@ async fn test_delete_after_delete() {
         .unwrap();
 
     assert!(matches!(error.unwrap().kind(), InputObjectDeleted));
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
     assert_eq!(effects.deleted().len(), 0);
 
     assert!(effects.created().is_empty());
@@ -1029,13 +1029,13 @@ async fn test_shifting_mutate_and_deletes_multiple_objects() {
     // Tx_1
     {
         let effects = &effects[0];
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
     }
 
     // Tx_2
     {
         let effects = &effects[1];
-        assert!(effects.status().is_err());
+        assert!(effects.status().is_failure());
         assert_eq!(
             effects.status().clone().unwrap_err().0,
             ExecutionFailureStatus::InputObjectDeleted
@@ -1046,7 +1046,7 @@ async fn test_shifting_mutate_and_deletes_multiple_objects() {
     // Tx_3
     {
         let effects = &effects[2];
-        assert!(effects.status().is_err());
+        assert!(effects.status().is_failure());
         assert_eq!(
             effects.status().clone().unwrap_err().0,
             ExecutionFailureStatus::InputObjectDeleted
@@ -1058,7 +1058,7 @@ async fn test_shifting_mutate_and_deletes_multiple_objects() {
     // Tx_4
     {
         let effects = &effects[3];
-        assert!(effects.status().is_err());
+        assert!(effects.status().is_failure());
         assert_eq!(
             effects.status().clone().unwrap_err().0,
             ExecutionFailureStatus::InputObjectDeleted
@@ -1071,7 +1071,7 @@ async fn test_shifting_mutate_and_deletes_multiple_objects() {
     // Tx_5
     {
         let effects = &effects[4];
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         assert!(effects.dependencies().contains(txs[1].digest()));
         assert!(!effects.dependencies().contains(txs[2].digest()));
         assert!(!effects.dependencies().contains(txs[0].digest()));
@@ -1080,7 +1080,7 @@ async fn test_shifting_mutate_and_deletes_multiple_objects() {
     // Tx_6
     {
         let effects = &effects[5];
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         assert!(effects.dependencies().contains(txs[1].digest()));
         assert!(!effects.dependencies().contains(txs[2].digest()));
         assert!(!effects.dependencies().contains(txs[0].digest()));
@@ -1089,7 +1089,7 @@ async fn test_shifting_mutate_and_deletes_multiple_objects() {
     // Tx_7
     {
         let effects = &effects[6];
-        assert!(effects.status().is_err());
+        assert!(effects.status().is_failure());
         assert_eq!(
             effects.status().clone().unwrap_err().0,
             ExecutionFailureStatus::InputObjectDeleted
@@ -1101,7 +1101,7 @@ async fn test_shifting_mutate_and_deletes_multiple_objects() {
     // Tx_8
     {
         let effects = &effects[7];
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         assert!(effects.dependencies().contains(txs[6].digest()));
     }
 }
@@ -1151,7 +1151,7 @@ async fn test_mutate_after_delete_enqueued() {
 
     let effects = res.get(1).unwrap();
 
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
     assert_eq!(effects.deleted().len(), 0);
 
     assert!(effects.created().is_empty());
@@ -1164,7 +1164,7 @@ async fn test_mutate_after_delete_enqueued() {
     let digest = effects.transaction_digest();
 
     let effects = res.get(2).unwrap();
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
     assert_eq!(effects.deleted().len(), 0);
 
     assert!(effects.created().is_empty());
@@ -1222,7 +1222,7 @@ async fn test_delete_after_delete_enqueued() {
 
     let effects = res.get(1).unwrap();
 
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
     assert_eq!(effects.deleted().len(), 0);
 
     assert!(effects.created().is_empty());
@@ -1235,7 +1235,7 @@ async fn test_delete_after_delete_enqueued() {
     let digest = effects.transaction_digest();
 
     let effects = res.get(2).unwrap();
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
     assert_eq!(effects.deleted().len(), 0);
 
     assert!(effects.created().is_empty());
@@ -1320,7 +1320,7 @@ async fn test_mutate_interleaved_read_only_enqueued_after_delete() {
     {
         let effects = res.get(1).unwrap();
 
-        assert!(effects.status().is_err());
+        assert!(effects.status().is_failure());
         assert_eq!(effects.deleted().len(), 0);
 
         assert!(effects.created().is_empty());
@@ -1333,7 +1333,7 @@ async fn test_mutate_interleaved_read_only_enqueued_after_delete() {
 
     {
         let effects = res.get(2).unwrap();
-        assert!(effects.status().is_err());
+        assert!(effects.status().is_failure());
         assert_eq!(effects.deleted().len(), 0);
 
         assert!(effects.created().is_empty());
@@ -1348,7 +1348,7 @@ async fn test_mutate_interleaved_read_only_enqueued_after_delete() {
 
     {
         let effects = res.get(3).unwrap();
-        assert!(effects.status().is_err());
+        assert!(effects.status().is_failure());
         assert_eq!(effects.deleted().len(), 0);
 
         assert!(effects.created().is_empty());
@@ -1364,7 +1364,7 @@ async fn test_mutate_interleaved_read_only_enqueued_after_delete() {
 
     {
         let effects = res.get(4).unwrap();
-        assert!(effects.status().is_err());
+        assert!(effects.status().is_failure());
         assert_eq!(effects.deleted().len(), 0);
 
         assert!(effects.created().is_empty());
@@ -1473,7 +1473,7 @@ async fn test_delete_with_shared_after_mutate_enqueued() {
         .unwrap();
 
     let delete_effects = res.first().unwrap();
-    assert!(delete_effects.status().is_ok());
+    assert!(delete_effects.status().is_success());
     let deleted_obj_ver = delete_effects.deleted()[0].version;
 
     assert!(
@@ -1483,13 +1483,13 @@ async fn test_delete_with_shared_after_mutate_enqueued() {
     );
 
     let mutate_effects = res.get(1).unwrap();
-    assert!(mutate_effects.status().is_ok());
+    assert!(mutate_effects.status().is_success());
 
     let second_mutate_effects = res.get(2).unwrap();
-    assert!(second_mutate_effects.status().is_err());
+    assert!(second_mutate_effects.status().is_failure());
 
     let third_mutate_effects = res.get(3).unwrap();
-    assert!(third_mutate_effects.status().is_err());
+    assert!(third_mutate_effects.status().is_failure());
 }
 
 #[tokio::test]
@@ -1757,7 +1757,7 @@ async fn test_delete_before_two_mutations() {
         .unwrap();
 
     assert!(matches!(error.unwrap().kind(), InputObjectDeleted));
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
     assert_eq!(effects.deleted().len(), 0);
 
     assert!(effects.created().is_empty());
@@ -1776,7 +1776,7 @@ async fn test_delete_before_two_mutations() {
         .unwrap();
 
     assert!(matches!(error.unwrap().kind(), InputObjectDeleted));
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
     assert_eq!(effects.deleted().len(), 0);
 
     assert!(effects.created().is_empty());
@@ -1935,7 +1935,7 @@ async fn test_interspersed_mutations_with_delete() {
         .unwrap();
 
     assert!(matches!(error.unwrap().kind(), InputObjectDeleted));
-    assert!(effects.status().is_err());
+    assert!(effects.status().is_failure());
     assert_eq!(effects.deleted().len(), 0);
 
     assert!(effects.created().is_empty());

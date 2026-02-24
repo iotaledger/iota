@@ -5,7 +5,7 @@
 use std::{collections::HashSet, sync::Arc};
 
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
@@ -310,7 +310,7 @@ async fn test_tto_transfer() {
             })
             .await;
 
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         assert!(effects.created().is_empty());
         assert!(effects.unwrapped().is_empty());
         assert!(effects.deleted().is_empty());
@@ -528,7 +528,7 @@ async fn test_tto_unused_receiver() {
             })
             .await;
 
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         assert!(effects.created().is_empty());
         assert!(effects.unwrapped().is_empty());
         assert!(effects.deleted().is_empty());
@@ -592,7 +592,7 @@ async fn test_tto_pass_receiving_by_refs() {
             })
             .await;
 
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         assert!(effects.created().is_empty());
         assert!(effects.unwrapped().is_empty());
         assert!(effects.deleted().is_empty());
@@ -652,7 +652,7 @@ async fn test_tto_delete() {
             })
             .await;
 
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         assert!(effects.created().is_empty());
         assert!(effects.unwrapped().is_empty());
         assert!(effects.unwrapped_then_deleted().is_empty());
@@ -704,7 +704,7 @@ async fn test_tto_wrap() {
             })
             .await;
 
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         assert!(effects.unwrapped().is_empty());
         assert!(effects.unwrapped_then_deleted().is_empty());
         assert!(effects.deleted().is_empty());
@@ -758,7 +758,7 @@ async fn test_tto_unwrap_transfer() {
             })
             .await;
 
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         assert!(effects.created().is_empty());
         assert!(effects.unwrapped_then_deleted().is_empty());
         assert!(effects.wrapped().is_empty());
@@ -820,7 +820,7 @@ async fn test_tto_unwrap_delete() {
             })
             .await;
 
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         assert!(effects.created().is_empty());
         assert!(effects.unwrapped().is_empty());
         assert!(effects.wrapped().is_empty());
@@ -876,7 +876,7 @@ async fn test_tto_unwrap_add_as_dynamic_field() {
             })
             .await;
 
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         // Since it's placed as a dynamic field it will be rewrapped(). So `unwrapped` should be empty
         assert!(effects.unwrapped().is_empty());
         // Similarly it was already wrapped, so even though we're wrapping with the dynamic field `wrapped` should be empty
@@ -998,12 +998,12 @@ async fn verify_tto_not_locked(
         (valid_effects, invalid_effects)
     };
 
-    assert!(valid_effects.status().is_ok());
-    assert!(invalid_effects.status().is_err());
+    assert!(valid_effects.status().is_success());
+    assert!(invalid_effects.status().is_failure());
     assert!(matches!(
         invalid_effects.status(),
         ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::MoveAbort(_, _),
+            error: ExecutionFailureStatus::MoveAbort { .. },
             ..
         }
     ));
@@ -1121,7 +1121,7 @@ async fn test_tto_valid_dependencies() {
             )
             .await;
 
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         assert!(effects.created().is_empty());
         assert!(effects.unwrapped().is_empty());
         assert!(effects.deleted().is_empty());
@@ -1220,7 +1220,7 @@ async fn test_tto_valid_dependencies_delete_on_receive() {
             )
             .await;
 
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         assert!(effects.created().is_empty());
         assert!(effects.unwrapped().is_empty());
         assert!(effects.unwrapped_then_deleted().is_empty());
@@ -1319,7 +1319,7 @@ async fn test_tto_dependencies_dont_receive() {
             )
             .await;
 
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         assert!(effects.created().is_empty());
         assert!(effects.unwrapped().is_empty());
         assert!(effects.deleted().is_empty());
@@ -1413,7 +1413,7 @@ async fn test_tto_dependencies_dont_receive_but_abort() {
             )
             .await;
 
-        assert!(effects.status().is_err());
+        assert!(effects.status().is_failure());
         assert!(effects.created().is_empty());
         assert!(effects.unwrapped().is_empty());
         assert!(effects.deleted().is_empty());
@@ -1508,7 +1508,7 @@ async fn test_tto_dependencies_receive_and_abort() {
             )
             .await;
 
-        assert!(effects.status().is_err());
+        assert!(effects.status().is_failure());
         assert!(effects.created().is_empty());
         assert!(effects.unwrapped().is_empty());
         assert!(effects.deleted().is_empty());
@@ -1602,12 +1602,12 @@ async fn test_tto_dependencies_receive_and_type_mismatch() {
             )
             .await;
 
-        assert!(effects.status().is_err());
+        assert!(effects.status().is_failure());
 
         // Type mismatch is an abort code of 2 from `receive_impl`
         let is_type_mismatch_error = matches!(
             effects.status().clone().unwrap_err().0,
-            ExecutionFailureStatus::MoveAbort(x, 2) if x.function_name == Some("receive_impl".to_string())
+            ExecutionFailureStatus::MoveAbort{location: x, code: 2} if x.function_name == Some(Identifier::from_static("receive_impl"))
         );
         assert!(is_type_mismatch_error);
         assert!(effects.created().is_empty());
@@ -1709,10 +1709,10 @@ async fn receive_and_dof_interleave() {
             )
             .await;
 
-        assert!(dof_effects.status().is_ok());
+        assert!(dof_effects.status().is_success());
 
         let recv_effects = runner.execute_certificate(cert, true).await;
-        assert!(recv_effects.status().is_ok());
+        assert!(recv_effects.status().is_success());
         // The recv_effects should not contain the dependency on the initial transaction since we
         // didn't actually receive the object -- it was loaded via the dynamic field instead.
         assert!(!recv_effects.dependencies().contains(init_digest));
