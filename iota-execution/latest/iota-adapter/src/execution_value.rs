@@ -322,13 +322,13 @@ fn try_from_value_prim<'a, T: Deserialize<'a>>(
         Value::Object(_) => Err(CommandArgumentError::TypeMismatch),
         Value::Receiving(_, _, _) => Err(CommandArgumentError::TypeMismatch),
         Value::Raw(RawValueType::Any, bytes) => {
-            bcs::from_bytes(bytes).map_err(|_| CommandArgumentError::InvalidBCSBytes)
+            bcs::from_bytes(bytes).map_err(|_| CommandArgumentError::InvalidBcsBytes)
         }
         Value::Raw(RawValueType::Loaded { ty, .. }, bytes) => {
             if ty != &expected_ty {
                 return Err(CommandArgumentError::TypeMismatch);
             }
-            bcs::from_bytes(bytes).map_err(|_| CommandArgumentError::InvalidBCSBytes)
+            bcs::from_bytes(bytes).map_err(|_| CommandArgumentError::InvalidBcsBytes)
         }
     }
 }

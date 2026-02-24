@@ -833,7 +833,7 @@ mod checked {
     ) -> ExecutionStatus {
         use ExecutionErrorKind as K;
         match execution_error.kind() {
-            K::InvariantViolation | K::VMInvariantViolation => {
+            K::InvariantViolation | K::VmInvariantViolation => {
                 #[skip_checked_arithmetic]
                 tracing::error!(
                     kind = ?execution_error.kind(),
@@ -843,7 +843,7 @@ mod checked {
                 );
             }
 
-            K::IotaMoveVerificationError | K::VMVerificationOrDeserializationError => {
+            K::IotaMoveVerificationError | K::VmVerificationOrDeserializationError => {
                 #[skip_checked_arithmetic]
                 tracing::debug!(
                     kind = ?execution_error.kind(),
@@ -2009,7 +2009,7 @@ mod checked {
             .map(|t| {
                 t.as_type_tag().map_err(|err| {
                     ExecutionError::new_with_source(
-                        ExecutionErrorKind::VMInvariantViolation,
+                        ExecutionErrorKind::VmInvariantViolation,
                         err.to_string(),
                     )
                 })

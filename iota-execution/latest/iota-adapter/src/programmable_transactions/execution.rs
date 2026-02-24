@@ -658,7 +658,7 @@ mod checked {
             bcs::from_bytes(&ticket_bytes).map_err(|_| {
                 ExecutionError::from_kind(ExecutionErrorKind::CommandArgumentError {
                     argument: 0,
-                    kind: CommandArgumentError::InvalidBCSBytes,
+                    kind: CommandArgumentError::InvalidBcsBytes,
                 })
             })?
         };
@@ -926,13 +926,13 @@ mod checked {
                     bcs::from_bytes::<RuntimeModuleMetadataWrapper>(&md.value)
                         .map_err(|_| {
                             ExecutionError::from_kind(
-                                ExecutionErrorKind::VMVerificationOrDeserializationError,
+                                ExecutionErrorKind::VmVerificationOrDeserializationError,
                             )
                         })?
                         .try_into()
                         .map_err(|_| {
                             ExecutionError::from_kind(
-                                ExecutionErrorKind::VMVerificationOrDeserializationError,
+                                ExecutionErrorKind::VmVerificationOrDeserializationError,
                             )
                         })?;
 
@@ -1006,7 +1006,7 @@ mod checked {
         let Some((_, fn_definition)) = module.find_function_def_by_name(authenticate_fn_name)
         else {
             return Err(ExecutionError::from_kind(
-                ExecutionErrorKind::VMInvariantViolation,
+                ExecutionErrorKind::VmInvariantViolation,
             ));
         };
         let fn_handle = module.function_handle_at(fn_definition.function);
@@ -1022,12 +1022,12 @@ mod checked {
                     Ok(type_tag_core_to_sdk(&type_tag))
                 } else {
                     Err(ExecutionError::from_kind(
-                        ExecutionErrorKind::VMVerificationOrDeserializationError,
+                        ExecutionErrorKind::VmVerificationOrDeserializationError,
                     ))
                 }
             }
             _ => Err(ExecutionError::from_kind(
-                ExecutionErrorKind::VMVerificationOrDeserializationError,
+                ExecutionErrorKind::VmVerificationOrDeserializationError,
             )),
         }
     }
@@ -1534,13 +1534,13 @@ mod checked {
         if has_auth_context {
             if !context.protocol_config.enable_move_authentication() {
                 return Err(ExecutionError::new_with_source(
-                    ExecutionErrorKind::VMInvariantViolation,
+                    ExecutionErrorKind::VmInvariantViolation,
                     "`iota::auth_context::AuthContext` can't be used as a parameter if the `move_authentication` feature is disabled",
                 ));
             }
             if !Mode::allow_auth_context() {
                 return Err(ExecutionError::new_with_source(
-                    ExecutionErrorKind::VMInvariantViolation,
+                    ExecutionErrorKind::VmInvariantViolation,
                     "`iota::auth_context::AuthContext` can't be used as a parameter in this execution mode",
                 ));
             }
@@ -1741,7 +1741,7 @@ mod checked {
         if context.protocol_config.validate_identifier_inputs() {
             Identifier::new(ident).map_err(|e| {
                 ExecutionError::new_with_source(
-                    ExecutionErrorKind::VMInvariantViolation,
+                    ExecutionErrorKind::VmInvariantViolation,
                     e.to_string(),
                 )
             })
@@ -1758,7 +1758,7 @@ mod checked {
         if context.protocol_config.validate_identifier_inputs() {
             type_input.into_type_tag().map_err(|e| {
                 ExecutionError::new_with_source(
-                    ExecutionErrorKind::VMInvariantViolation,
+                    ExecutionErrorKind::VmInvariantViolation,
                     e.to_string(),
                 )
             })
@@ -2010,7 +2010,7 @@ mod checked {
         bcs::from_bytes_seed(&layout, bytes).map_err(|_| {
             ExecutionError::new_with_source(
                 ExecutionErrorKind::command_argument_error(
-                    CommandArgumentError::InvalidBCSBytes,
+                    CommandArgumentError::InvalidBcsBytes,
                     idx,
                 ),
                 format!("Function expects {layout} but provided argument's value does not match",),

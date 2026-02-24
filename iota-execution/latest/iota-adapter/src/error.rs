@@ -26,12 +26,12 @@ pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
         (StatusCode::EXECUTED, _, _) => {
             // If we have an error the status probably shouldn't ever be Executed
             debug_assert!(false, "VmError shouldn't ever report successful execution");
-            ExecutionFailureStatus::VMInvariantViolation
+            ExecutionFailureStatus::VmInvariantViolation
         }
         (StatusCode::ABORTED, None, _) => {
             debug_assert!(false, "No abort code");
             // this is a Move VM invariant violation, the code should always be there
-            ExecutionFailureStatus::VMInvariantViolation
+            ExecutionFailureStatus::VmInvariantViolation
         }
         (StatusCode::ABORTED, Some(code), Location::Module(id)) => {
             let abort_location_id = state_view.relocate(id).unwrap_or_else(|_| id.clone());
@@ -86,8 +86,8 @@ pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
             StatusType::Validation
             | StatusType::Verification
             | StatusType::Deserialization
-            | StatusType::Unknown => ExecutionFailureStatus::VMVerificationOrDeserializationError,
-            StatusType::InvariantViolation => ExecutionFailureStatus::VMInvariantViolation,
+            | StatusType::Unknown => ExecutionFailureStatus::VmVerificationOrDeserializationError,
+            StatusType::InvariantViolation => ExecutionFailureStatus::VmInvariantViolation,
         },
     };
     ExecutionError::new_with_source(kind, error)

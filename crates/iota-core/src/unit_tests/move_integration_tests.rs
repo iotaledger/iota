@@ -2132,7 +2132,7 @@ async fn test_entry_point_string_error() {
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::CommandArgumentError {
                 argument: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
+                kind: CommandArgumentError::InvalidBcsBytes
             },
             command: Some(0)
         }
@@ -2167,7 +2167,7 @@ async fn test_entry_point_string_error() {
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::CommandArgumentError {
                 argument: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
+                kind: CommandArgumentError::InvalidBcsBytes
             },
             command: Some(0)
         }
@@ -2202,7 +2202,7 @@ async fn test_entry_point_string_error() {
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::CommandArgumentError {
                 argument: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
+                kind: CommandArgumentError::InvalidBcsBytes
             },
             command: Some(0)
         }
@@ -2258,7 +2258,7 @@ async fn test_entry_point_string_vec_error() {
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::CommandArgumentError {
                 argument: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
+                kind: CommandArgumentError::InvalidBcsBytes
             },
             command: Some(0)
         }
@@ -2304,7 +2304,7 @@ async fn test_entry_point_string_option_error() {
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::CommandArgumentError {
                 argument: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
+                kind: CommandArgumentError::InvalidBcsBytes
             },
             command: Some(0)
         }
@@ -2334,7 +2334,7 @@ async fn test_entry_point_string_option_error() {
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::CommandArgumentError {
                 argument: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
+                kind: CommandArgumentError::InvalidBcsBytes
             },
             command: Some(0)
         }
@@ -2362,7 +2362,7 @@ async fn test_entry_point_string_option_error() {
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::CommandArgumentError {
                 argument: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
+                kind: CommandArgumentError::InvalidBcsBytes
             },
             command: Some(0)
         }
@@ -2699,7 +2699,7 @@ async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::command_argument_error(
-                CommandArgumentError::InvalidBCSBytes,
+                CommandArgumentError::InvalidBcsBytes,
                 0
             ),
             command: Some(0)
@@ -2730,7 +2730,7 @@ async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::command_argument_error(
-                CommandArgumentError::InvalidBCSBytes,
+                CommandArgumentError::InvalidBcsBytes,
                 3,
             ),
             command: Some(0)
