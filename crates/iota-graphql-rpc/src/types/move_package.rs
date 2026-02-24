@@ -621,7 +621,9 @@ impl MovePackage {
     pub(crate) fn module_impl(&self, name: &str) -> Result<Option<MoveModule>, Error> {
         use PackageCacheError as E;
         match (
-            self.native.serialized_module_map().get(name),
+            self.native
+                .serialized_module_map()
+                .get(&Identifier::new_unchecked(name)),
             self.parsed_package()?.module(name),
         ) {
             (Some(native), Ok(parsed)) => Ok(Some(MoveModule {

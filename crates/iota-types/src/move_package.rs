@@ -308,8 +308,6 @@ fn move_package_from_module_iter_with_type_origin_table<'p>(
         protocol_config,
     )?;
 
-    // TODO
-
     panic!();
 
     // MovePackage::new(
@@ -321,28 +319,6 @@ fn move_package_from_module_iter_with_type_origin_table<'p>(
     //     linkage_table,
     // )
 }
-
-//     /// Retrieve the module from this package with the given [ModuleId].
-//     ///
-//     /// [ModuleId] is expected to contain the `Storage ID` of this package.
-//     /// In case the `Storage ID` doesn't match or the module name is not
-//     /// present in this package the function returns None.
-//     pub fn get_module(&self, storage_id: &ModuleId) -> Option<&Vec<u8>> {
-//         if self.id != ObjectID::new(storage_id.address().into_bytes()) {
-//             None
-//         } else {
-//             self.module_map.get(&storage_id.name().to_string())
-//         }
-//     }
-
-//     /// Approximate size of the package in bytes. This is used for gas
-// metering.     pub fn object_size_for_gas_metering(&self) -> usize {
-//         self.size()
-//     }
-
-//     pub fn serialized_module_map(&self) -> &BTreeMap<String, Vec<u8>> {
-//         &self.module_map
-//     }
 
 /// The `Package ID` of the first version of this package.
 ///

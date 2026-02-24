@@ -427,15 +427,19 @@ impl TransactionBuilder {
         let Some(IotaRawData::Package(package)) = object.bcs else {
             bail!("Bcs field in object [{package_id}] is missing or not a package.");
         };
-        panic!();
-        // Ok(MovePackage::new(
-        //     package.id,
-        //     object.version,
-        //     package.module_map,
-        //     ProtocolConfig::get_for_min_version().max_move_package_size(),
-        //     package.type_origin_table,
-        //     package.linkage_table,
-        // )?)
+
+        Ok(MovePackage::new(
+            package.id,
+            object.version,
+            package
+                .module_map
+                .iter()
+                .map(|(k, v)| (Identifier::new_unchecked(k.as_str()), v.clone()))
+                .collect(),
+            ProtocolConfig::get_for_min_version().max_move_package_size(),
+            package.type_origin_table,
+            package.linkage_table,
+        )?)
     }
 }
 
