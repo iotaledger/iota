@@ -595,12 +595,19 @@ impl ConsensusAdapter {
             }
         }
 
-        // TODO: Pending transaction tracking for UserTransactionV1 at epoch boundaries
-        // requires different semantics than certificates (no 2f+1 guarantee).
-        // For now, UserTransactionV1 is fire-and-forget - if consensus doesn't accept
-        // it immediately, it's dropped. No WAL, no retry, no epoch boundary handling.
-        // This will be designed and implemented separately.
-        epoch_store.insert_pending_consensus_transactions(transactions, lock)?;
+        // Regardless of `enable_white_flag_flow`, we need to insert transactions that
+        // will be submitted to consensus into the corresponding persistent table.
+        epoch_store.insert_pending_consensus_transactions(transactions)?;
+
+        // If the white flag flow is enabled, there are no certificates, so there is
+        // nothing to insert into `pending_consensus_certificates`. We do not insert
+        // `UserTransactionV1` in the pending set because, in the certificate-less
+        // scenario, there is no pre-consensus "promise" (a certificate) that
+        // `UserTransactionV1` will be executed before the end of epoch. So, the below
+        // insertion is only for certificates, i.e., the white flag flow is disabled.
+        if !epoch_store.protocol_config().enable_white_flag_flow() {
+            epoch_store.insert_pending_consensus_certificates(transactions, lock);
+        }
 
         Ok(self.submit_unchecked(transactions, epoch_store))
     }
