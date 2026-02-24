@@ -15,7 +15,7 @@ use iota_types::{
     digests::TransactionDigest,
     effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
     executable_transaction::VerifiedExecutableTransaction,
-    execution_status::{CongestedObjects, ExecutionFailureStatus, ExecutionStatus},
+    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{ObjectArg, Transaction},
@@ -131,7 +131,7 @@ impl TestSetup {
         .await
         .unwrap();
         assert!(
-            create_shared_object_effects.status().is_ok(),
+            create_shared_object_effects.status().is_success(),
             "Execution error {:?}",
             create_shared_object_effects.status()
         );
@@ -160,7 +160,7 @@ impl TestSetup {
         .await
         .unwrap();
         assert!(
-            create_owned_object_effects.status().is_ok(),
+            create_owned_object_effects.status().is_success(),
             "Execution error {:?}",
             create_owned_object_effects.status()
         );
@@ -405,10 +405,7 @@ async fn test_congestion_control_execution_cancellation() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
-                congested_objects: CongestedObjects(vec![
-                    shared_object_1.object_id,
-                    shared_object_2.object_id
-                ]),
+                congested_objects: vec![shared_object_1.object_id, shared_object_2.object_id],
                 suggested_gas_price,
             },
             command: None
@@ -451,10 +448,7 @@ async fn test_congestion_control_execution_cancellation() {
     assert_eq!(
         execution_error.unwrap().to_execution_status().0,
         ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
-            congested_objects: CongestedObjects(vec![
-                shared_object_1.object_id,
-                shared_object_2.object_id
-            ]),
+            congested_objects: vec![shared_object_1.object_id, shared_object_2.object_id],
             suggested_gas_price,
         }
     );
@@ -519,7 +513,7 @@ async fn test_congestion_control_debt_tracking() {
 
     // Transaction should be a success as overshoot of 2*default_tx_gas_budget is
     // allowed.
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 
     // Check that the debt stored in consensus quarantine is correct.
     let shared_object_1_debt = authority_state
@@ -571,7 +565,7 @@ async fn test_congestion_control_debt_tracking() {
 
     // Transaction should be a success as overshoot of 1.5*default_tx_gas_budget is
     // allowed.
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     // Check that the debt stored in consensus quarantine is correct. Both shared
     // objects should have a debt of 1.5*default_tx_gas_budget.
     let shared_object_1_debt = authority_state
@@ -635,7 +629,7 @@ async fn test_congestion_control_debt_tracking() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
-                congested_objects: CongestedObjects(vec![shared_object_2.object_id]),
+                congested_objects: vec![shared_object_2.object_id],
                 suggested_gas_price: expected_suggested_gas_price,
             },
             command: None
@@ -710,7 +704,7 @@ async fn test_congestion_control_debt_tracking() {
 
     // Transaction should be executed successfully as overshoot of
     // 2*default_tx_gas_budget is allowed.
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 
     // Check that the debt stored in consensus quarantine is correct. Shared object
     // 1 should now have a debt of 2*default_tx_gas_budget from commit 4 and shared
@@ -777,10 +771,7 @@ async fn test_congestion_control_debt_tracking() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
-                congested_objects: CongestedObjects(vec![
-                    shared_object_1.object_id,
-                    shared_object_2.object_id
-                ]),
+                congested_objects: vec![shared_object_1.object_id, shared_object_2.object_id],
                 suggested_gas_price: expected_suggested_gas_price,
             },
             command: None
@@ -859,7 +850,7 @@ async fn test_congestion_control_debt_tracking() {
     )
     .await;
     // Transaction should be a success as there is no shared object involved.
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 
     // The debt on shared object 1 should still be stored as default_tx_gas_budget
     // from commit 5 as it was not updated in commit 6. The debt on shared
@@ -914,7 +905,7 @@ async fn test_congestion_control_debt_tracking() {
     .await;
     // Transaction should be a success as overshoot of 2*default_tx_gas_budget is
     // allowed.
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 
     // The debt on both shared objects should should have been updated in storage to
     // 2*default_tx_gas_budget.

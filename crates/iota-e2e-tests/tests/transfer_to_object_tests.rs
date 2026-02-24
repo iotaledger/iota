@@ -160,7 +160,7 @@ impl TestEnvironment {
 
     async fn start(&self) -> (ObjectRef, ObjectRef) {
         let (fx, _) = self.move_call("start", vec![]).await.unwrap();
-        assert!(fx.status().is_ok());
+        assert!(fx.status().is_success());
 
         get_parent_and_child(fx.created())
     }
@@ -175,7 +175,7 @@ impl TestEnvironment {
             CallArg::Object(ObjectArg::Receiving(child)),
         ];
         let fx = self.move_call("receiver", arguments).await?;
-        assert!(fx.0.status().is_ok());
+        assert!(fx.0.status().is_success());
         let new_child_ref =
             fx.0.mutated_excluding_gas()
                 .iter()
@@ -195,7 +195,7 @@ impl TestEnvironment {
             CallArg::Object(ObjectArg::Receiving(child)),
         ];
         let fx = self.move_call("deleter", arguments).await.unwrap();
-        assert!(fx.0.status().is_ok());
+        assert!(fx.0.status().is_success());
         fx.0.mutated_excluding_gas()
             .iter()
             .find_map(|(oref, _)| (oref.object_id == parent.object_id).then_some(*oref))

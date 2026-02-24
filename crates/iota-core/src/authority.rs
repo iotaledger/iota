@@ -5272,7 +5272,7 @@ impl AuthorityState {
         );
         epoch_store.record_checkpoint_builder_is_safe_mode_metric(system_obj.safe_mode());
         // The change epoch transaction cannot fail to execute.
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         Ok((system_obj, system_epoch_info_event, effects))
     }
 

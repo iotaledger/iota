@@ -54,7 +54,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 9, lines 136-139:
 //# run Test::M::obj_vec_destroy --sender A --args vector[object(8,0)]
 Error: Transaction Effects Status: Invalid command argument at 0. The type of the value does not match the expected type
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: TypeMismatch }, source: None, command: Some(1) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 0, kind: TypeMismatch }, source: None, command: Some(1) } }
 
 task 10, line 141:
 //# run Test::M::mint_another --sender A --args 42
@@ -71,7 +71,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 12, lines 145-148:
 //# run Test::M::two_obj_vec_destroy --sender A --args vector[object(10,0),object(11,0)]
 Error: Transaction Effects Status: Invalid command argument at 1. The type of the value does not match the expected type
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: TypeMismatch }, source: None, command: Some(0) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: TypeMismatch }, source: None, command: Some(0) } }
 
 task 13, line 150:
 //# run Test::M::mint_shared --sender A --args 42
@@ -94,7 +94,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 16, lines 159-162:
 //# run Test::M::same_objects --sender A --args object(15,0) vector[object(15,0)]
 Error: Transaction Effects Status: Invalid command argument at 0. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: InvalidValueUsage }, source: None, command: Some(1) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 0, kind: InvalidValueUsage }, source: None, command: Some(1) } }
 
 task 17, line 164:
 //# run Test::M::mint --sender A --args 42
@@ -105,4 +105,4 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 18, line 166:
 //# run Test::M::same_objects_ref --sender A --args object(17,0) vector[object(17,0)]
 Error: Transaction Effects Status: Invalid command argument at 0. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: InvalidValueUsage }, source: None, command: Some(1) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 0, kind: InvalidValueUsage }, source: None, command: Some(1) } }

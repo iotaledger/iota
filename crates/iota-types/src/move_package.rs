@@ -255,7 +255,7 @@ impl MovePackage {
         };
         let object_size = pkg.size() as u64;
         if object_size > max_move_package_size {
-            return Err(ExecutionErrorKind::MovePackageTooBig {
+            return Err(ExecutionErrorKind::PackageTooBig {
                 object_size,
                 max_object_size: max_move_package_size,
             }
@@ -866,7 +866,7 @@ fn build_upgraded_type_origin_table(
     if !existing_table.is_empty() {
         Err(ExecutionError::from_kind(
             ExecutionErrorKind::PackageUpgradeError {
-                upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
+                kind: PackageUpgradeError::IncompatibleUpgrade,
             },
         ))
     } else {

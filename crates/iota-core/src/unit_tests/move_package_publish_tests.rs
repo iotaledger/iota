@@ -82,7 +82,7 @@ async fn test_publishing_with_unpublished_deps() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     assert_eq!(effects.created().len(), 1);
     let (object_ref, owner) = effects.created()[0];
     let v = object_ref.version;
@@ -141,7 +141,7 @@ async fn test_publish_empty_package() {
     assert_eq!(
         result.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::VMVerificationOrDeserializationError,
+            error: ExecutionFailureStatus::VmVerificationOrDeserializationError,
             command: Some(0)
         }
     )
@@ -177,7 +177,7 @@ async fn test_publish_duplicate_modules() {
     assert_eq!(
         result.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::VMVerificationOrDeserializationError,
+            error: ExecutionFailureStatus::VmVerificationOrDeserializationError,
             command: Some(0)
         }
     )
@@ -363,7 +363,7 @@ async fn test_publish_extraneous_bytes_modules() {
     assert_eq!(
         result.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::VMVerificationOrDeserializationError,
+            error: ExecutionFailureStatus::VmVerificationOrDeserializationError,
             command: Some(0)
         }
     );
@@ -391,7 +391,7 @@ async fn test_publish_extraneous_bytes_modules() {
     assert_eq!(
         result.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::VMVerificationOrDeserializationError,
+            error: ExecutionFailureStatus::VmVerificationOrDeserializationError,
             command: Some(0)
         }
     );
@@ -428,7 +428,7 @@ async fn test_publish_extraneous_bytes_modules() {
     assert_eq!(
         result.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::VMVerificationOrDeserializationError,
+            error: ExecutionFailureStatus::VmVerificationOrDeserializationError,
             command: Some(0)
         }
     )

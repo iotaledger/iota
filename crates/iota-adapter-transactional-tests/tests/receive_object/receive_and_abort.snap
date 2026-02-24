@@ -42,7 +42,7 @@ Contents: tto::M1::B {
 task 5, line 40:
 //# run tto::M1::receiver --args object(2,0) receiving(2,1)
 Error: Transaction Effects Status: Move Runtime Abort. Location: tto::M1::receiver (function index 1) at offset 6, Abort Code: 0
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: tto, name: Identifier("M1") }, function: 1, instruction: 6, function_name: Some("receiver") }, 0), source: Some(VMError { major_status: ABORTED, sub_status: Some(0), message: Some("tto::M1::receiver at offset 6"), exec_state: None, location: Module(ModuleId { address: tto, name: Identifier("M1") }), indices: [], offsets: [(FunctionDefinitionIndex(1), 6)] }), command: Some(0) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("tto"), module: Identifier("M1"), function: 1, instruction: 6, function_name: Some(Identifier("receiver")) }, code: 0 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(0), message: Some("tto::M1::receiver at offset 6"), exec_state: None, location: Module(ModuleId { address: tto, name: Identifier("M1") }), indices: [], offsets: [(FunctionDefinitionIndex(1), 6)] }), command: Some(0) } }
 
 task 6, line 42:
 //# view-object 2,0

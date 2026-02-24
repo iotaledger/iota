@@ -541,7 +541,7 @@ async fn list_owned_objects_tto_indexing() {
         .execute_transaction_return_raw_effects(signed_start)
         .await
         .unwrap();
-    assert!(start_effects.status().is_ok(), "start tx must succeed");
+    assert!(start_effects.status().is_success(), "start tx must succeed");
 
     let parent_ref = start_effects
         .created()
@@ -592,7 +592,10 @@ async fn list_owned_objects_tto_indexing() {
         .execute_transaction_return_raw_effects(signed_receive)
         .await
         .unwrap();
-    assert!(receive_effects.status().is_ok(), "receive tx must succeed");
+    assert!(
+        receive_effects.status().is_success(),
+        "receive tx must succeed"
+    );
 
     // Parent ends with 0 coins.
     wait_for_owned_count(&mut state_client, parent_addr, 0, "parent after receive").await;
@@ -745,7 +748,7 @@ async fn list_owned_objects_filter_by_type() {
         .execute_transaction_return_raw_effects(signed_mint)
         .await
         .unwrap();
-    assert!(mint_effects.status().is_ok(), "mint tx must succeed");
+    assert!(mint_effects.status().is_success(), "mint tx must succeed");
 
     // Wait for the mint tx to land in a checkpoint so the owner index and
     // the treasury supply reflect the new coin.

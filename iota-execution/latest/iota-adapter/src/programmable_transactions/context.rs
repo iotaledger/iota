@@ -408,18 +408,18 @@ mod checked {
                 Argument::Gas => res.push(Arg(Arg_::V2(NormalizedArg::GasCoin))),
                 Argument::Input(i) => {
                     if i as usize >= self.inputs.len() {
-                        return Err(CommandArgumentError::IndexOutOfBounds { idx: i }.into());
+                        return Err(CommandArgumentError::IndexOutOfBounds { index: i }.into());
                     }
                     res.push(Arg(Arg_::V2(NormalizedArg::Input(i))))
                 }
                 Argument::NestedResult(i, j) => {
                     let Some(command_result) = self.results.get(i as usize) else {
-                        return Err(CommandArgumentError::IndexOutOfBounds { idx: i }.into());
+                        return Err(CommandArgumentError::IndexOutOfBounds { index: i }.into());
                     };
                     if j as usize >= command_result.len() {
                         return Err(CommandArgumentError::SecondaryIndexOutOfBounds {
-                            result_idx: i,
-                            secondary_idx: j,
+                            result: i,
+                            subresult: j,
                         }
                         .into());
                     };
@@ -427,16 +427,14 @@ mod checked {
                 }
                 Argument::Result(i) => {
                     let Some(result) = self.results.get(i as usize) else {
-                        return Err(CommandArgumentError::IndexOutOfBounds { idx: i }.into());
+                        return Err(CommandArgumentError::IndexOutOfBounds { index: i }.into());
                     };
                     let Ok(len): Result<u16, _> = result.len().try_into() else {
                         invariant_violation!("Result of length greater than u16::MAX");
                     };
                     if len != 1 {
                         // TODO protocol config to allow splatting of args
-                        return Err(
-                            CommandArgumentError::InvalidResultArity { result_idx: i }.into()
-                        );
+                        return Err(CommandArgumentError::InvalidResultArity { result: i }.into());
                     }
                     res.extend((0..len).map(|j| Arg(Arg_::V2(NormalizedArg::Result(i, j)))))
                 }
@@ -780,8 +778,8 @@ mod checked {
                             None => (),
                             Some(Value::Object(_)) => {
                                 return Err(ExecutionErrorKind::UnusedValueWithoutDrop {
-                                    result_idx: i as u16,
-                                    secondary_idx: j as u16,
+                                    result: i as u16,
+                                    subresult: j as u16,
                                 }
                                 .into());
                             }
@@ -805,8 +803,8 @@ mod checked {
                                     };
                                     return Err(ExecutionError::new_with_source(
                                         ExecutionErrorKind::UnusedValueWithoutDrop {
-                                            result_idx: i as u16,
-                                            secondary_idx: j as u16,
+                                            result: i as u16,
+                                            subresult: j as u16,
                                         },
                                         msg,
                                     ));
@@ -986,12 +984,12 @@ mod checked {
                     ExecutionErrorKind::TypeArityMismatch.into()
                 }
                 StatusCode::TYPE_RESOLUTION_FAILURE => ExecutionErrorKind::TypeArgumentError {
-                    argument_idx: idx as TypeParameterIndex,
+                    type_argument: idx as TypeParameterIndex,
                     kind: TypeArgumentError::TypeNotFound,
                 }
                 .into(),
                 StatusCode::CONSTRAINT_NOT_SATISFIED => ExecutionErrorKind::TypeArgumentError {
-                    argument_idx: idx as TypeParameterIndex,
+                    type_argument: idx as TypeParameterIndex,
                     kind: TypeArgumentError::ConstraintNotSatisfied,
                 }
                 .into(),
@@ -1057,27 +1055,27 @@ mod checked {
                 Argument::Gas => (self.gas.object_metadata.as_ref(), &mut self.gas.inner),
                 Argument::Input(i) => {
                     let Some(input_value) = self.inputs.get_mut(i as usize) else {
-                        return Err(CommandArgumentError::IndexOutOfBounds { idx: i });
+                        return Err(CommandArgumentError::IndexOutOfBounds { index: i });
                     };
                     (input_value.object_metadata.as_ref(), &mut input_value.inner)
                 }
                 Argument::Result(i) => {
                     let Some(command_result) = self.results.get_mut(i as usize) else {
-                        return Err(CommandArgumentError::IndexOutOfBounds { idx: i });
+                        return Err(CommandArgumentError::IndexOutOfBounds { index: i });
                     };
                     if command_result.len() != 1 {
-                        return Err(CommandArgumentError::InvalidResultArity { result_idx: i });
+                        return Err(CommandArgumentError::InvalidResultArity { result: i });
                     }
                     (None, &mut command_result[0])
                 }
                 Argument::NestedResult(i, j) => {
                     let Some(command_result) = self.results.get_mut(i as usize) else {
-                        return Err(CommandArgumentError::IndexOutOfBounds { idx: i });
+                        return Err(CommandArgumentError::IndexOutOfBounds { index: i });
                     };
                     let Some(result_value) = command_result.get_mut(j as usize) else {
                         return Err(CommandArgumentError::SecondaryIndexOutOfBounds {
-                            result_idx: i,
-                            secondary_idx: j,
+                            result: i,
+                            subresult: j,
                         });
                     };
                     (None, result_value)

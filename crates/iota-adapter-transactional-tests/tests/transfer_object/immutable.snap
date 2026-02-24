@@ -32,8 +32,8 @@ Contents: test::m::S {
 
 task 4, line 26:
 //# transfer-object 2,0 --sender A --recipient B
-Error: Transaction Effects Status: Invalid command argument at 0. Immutable objects cannot be passed by-value.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: InvalidObjectByValue }, source: None, command: Some(0) } }
+Error: Transaction Effects Status: Invalid command argument at 0. Immutable objects cannot be passed by-value
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 0, kind: InvalidObjectByValue }, source: None, command: Some(0) } }
 
 task 5, line 28:
 //# view-object 2,0

@@ -153,7 +153,7 @@ impl TransactionHandler {
             is_system_txn,
             is_sponsored_tx,
             transaction_count: txn_data.kind().num_commands() as u64,
-            execution_success: effects.status().is_ok(),
+            execution_success: effects.status().is_success(),
             // Calculate all objects(transaction + authenticators) amount.
             input: transaction
                 .input_objects()
