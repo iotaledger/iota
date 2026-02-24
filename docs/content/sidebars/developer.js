@@ -7,10 +7,10 @@ const notarization = require("./notarization");
 const hierarchies = require('./hierarchies');
 const identity = require('./identity');
 
-import frameworkCategoryLink from '../developer/references/framework/iota/_category_.json';
-import systemCategoryLink from '../developer/references/framework/iota_system/_category_.json';
-import stdlibCategoryLink from '../developer/references/framework/std/_category_.json';
-import stardustCategoryLink from '../developer/references/framework/stardust/_category_.json';
+import frameworkCategoryLink from '../developer/references/framework/devnet/iota/_category_.json';
+import systemCategoryLink from '../developer/references/framework/devnet/iota_system/_category_.json';
+import stdlibCategoryLink from '../developer/references/framework/devnet/std/_category_.json';
+import stardustCategoryLink from '../developer/references/framework/devnet/stardust/_category_.json';
 
 import testnetFrameworkCategoryLink from '../developer/references/framework/testnet/iota/_category_.json';
 import testnetSystemCategoryLink from '../developer/references/framework/testnet/iota_system/_category_.json';

@@ -2,8 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import typedocSidebarTestnet from '../developer/ts-sdk/api/typedoc-sidebar.cjs';
-import typedocSidebarDevnet from '../developer/ts-sdk/api/devnet/typedoc-sidebar.cjs';
+import typedocSidebarIOTASdk from '../developer/ts-sdk/typescript/api/typedoc-sidebar.cjs';
+import typedocSidebarDappKit from '../developer/ts-sdk/dapp-kit/api/typedoc-sidebar.cjs';
+import typedocSidebarKiosk from '../developer/ts-sdk/kiosk/api/typedoc-sidebar.cjs';
+import typedocSidebarGraphqlTransport from '../developer/ts-sdk/graphql-transport/api/typedoc-sidebar.cjs';
+import typedocSidebarWalletStandard from '../developer/ts-sdk/wallet-standard/api/typedoc-sidebar.cjs';
+import typedocSidebarLedger from '../developer/ts-sdk/ledgerjs-hw-app-iota/api/typedoc-sidebar.cjs';
 
 const tsSDK = [
     {
@@ -49,6 +53,12 @@ const tsSDK = [
                     'developer/ts-sdk/typescript/owned-object-pool/examples', 
                 ],
             },
+            {
+                type: 'category',
+                label: 'API Reference',
+                items: typedocSidebarIOTASdk,
+                link: { type: 'doc', id: 'developer/ts-sdk/typescript/api/index' },
+            },
         ],
     },
     {
@@ -86,7 +96,13 @@ const tsSDK = [
                     'developer/ts-sdk/dapp-kit/wallet-hooks/useSignAndExecuteTransaction', 
                 ],
             },
-            'developer/ts-sdk/dapp-kit/themes', 
+            'developer/ts-sdk/dapp-kit/themes',
+            {
+                type: 'category',
+                label: 'API Reference',
+                items: typedocSidebarDappKit,
+                link: { type: 'doc', id: 'developer/ts-sdk/dapp-kit/api/index' },
+            },
         ],
     },
     {
@@ -120,25 +136,48 @@ const tsSDK = [
                     },
                 ],
             },
-            'developer/ts-sdk/kiosk/advanced-examples', 
+            'developer/ts-sdk/kiosk/advanced-examples',
+            {
+                type: 'category',
+                label: 'API Reference',
+                items: typedocSidebarKiosk,
+                link: { type: 'doc', id: 'developer/ts-sdk/kiosk/api/index' },
+            },
         ],
     },
-    'developer/ts-sdk/bcs', 
     {
         type: 'category',
-        label: 'API',
+        label: 'GraphQL Transport',
         items: [
             {
                 type: 'category',
-                label: 'Testnet',
-                items: typedocSidebarTestnet,
-                link: { type: 'doc', id: 'developer/ts-sdk/api/index' }, 
+                label: 'API Reference',
+                items: typedocSidebarGraphqlTransport,
+                link: { type: 'doc', id: 'developer/ts-sdk/graphql-transport/api/index' },
             },
+        ],
+    },
+    {
+        type: 'category',
+        label: 'Wallet Standard',
+        items: [
             {
                 type: 'category',
-                label: 'Devnet',
-                items: typedocSidebarDevnet,
-                link: { type: 'doc', id: 'developer/ts-sdk/api/devnet/index' }, 
+                label: 'API Reference',
+                items: typedocSidebarWalletStandard,
+                link: { type: 'doc', id: 'developer/ts-sdk/wallet-standard/api/index' },
+            },
+        ],
+    },
+    {
+        type: 'category',
+        label: 'Ledger HW App IOTA',
+        items: [
+            {
+                type: 'category',
+                label: 'API Reference',
+                items: typedocSidebarLedger,
+                link: { type: 'doc', id: 'developer/ts-sdk/ledgerjs-hw-app-iota/api/index' },
             },
         ],
     },
