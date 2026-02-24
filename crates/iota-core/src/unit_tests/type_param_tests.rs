@@ -71,7 +71,7 @@ async fn test_same_module_type_param() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 }
 
 #[tokio::test]
@@ -131,7 +131,7 @@ async fn test_different_module_type_param() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 }
 
 #[tokio::test]
@@ -197,7 +197,7 @@ async fn test_nested_type_param() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 }
 
 #[tokio::test]
@@ -263,7 +263,7 @@ async fn test_nested_type_param_different_module() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 }
 
 #[tokio::test]
@@ -334,7 +334,7 @@ async fn test_different_package_type_param() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 }
 
 #[tokio::test]
@@ -411,5 +411,5 @@ async fn test_nested_type_param_different_package() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 }

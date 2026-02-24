@@ -251,7 +251,7 @@ pub async fn simulate_transaction(
                 )
             })?;
 
-        if !simulation_result.effects.status().is_ok() {
+        if !simulation_result.effects.status().is_success() {
             return Err(RpcError::new(
                 tonic::Code::InvalidArgument,
                 format!(

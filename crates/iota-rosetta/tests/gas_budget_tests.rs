@@ -185,7 +185,7 @@ async fn test_pay_with_gas_budget_fail() {
                     description: None,
                     retriable: false,
                     details: RosettaSubmitGasErrorDetails {
-                        error: "Insufficient Gas.".to_string()
+                        error: "Insufficient Gas".to_string()
                     }
                 }
             )
