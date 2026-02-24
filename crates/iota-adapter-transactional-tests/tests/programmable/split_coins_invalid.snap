@@ -61,14 +61,14 @@ task 7, lines 45-48:
 //> 0: SplitCoins(Input(0), [Input(1)]);
 // use incorrect amount type for split with the first one being correct
 Error: Transaction Effects Status: Invalid command argument at 1. The argument cannot be deserialized into a value of the specified type
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: InvalidBCSBytes }, source: None, command: Some(0) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: InvalidBcsBytes }, source: None, command: Some(0) } }
 
 task 8, lines 49-52:
 //# programmable --sender A --inputs object(3,0) 100 @C
 //> 0: SplitCoins(Input(0), [Input(1), Input(2)]);
 // use incorrect arg type for split coming from a Move function
 Error: Transaction Effects Status: Invalid command argument at 1. The argument cannot be deserialized into a value of the specified type
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: InvalidBCSBytes }, source: None, command: Some(0) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: InvalidBcsBytes }, source: None, command: Some(0) } }
 
 task 9, lines 53-57:
 //# programmable --sender A --inputs object(3,0)

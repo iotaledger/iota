@@ -15,7 +15,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 2, line 18:
 //# run test::m::foo --type-args test::x::x
 Error: Transaction Effects Status: Move Bytecode Verification Error. Please run the Bytecode Verifier for more information.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: VMVerificationOrDeserializationError, source: Some(VMError { major_status: LINKER_ERROR, sub_status: None, message: Some("Cannot find ModuleId { address: test, name: Identifier(\"x\") } in data cache"), exec_state: None, location: Undefined, indices: [], offsets: [] }), command: Some(0) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: VmVerificationOrDeserializationError, source: Some(VMError { major_status: LINKER_ERROR, sub_status: None, message: Some("Cannot find ModuleId { address: test, name: Identifier(\"x\") } in data cache"), exec_state: None, location: Undefined, indices: [], offsets: [] }), command: Some(0) } }
 
 task 3, line 20:
 //# run test::m::foo --type-args test::m::IOTA

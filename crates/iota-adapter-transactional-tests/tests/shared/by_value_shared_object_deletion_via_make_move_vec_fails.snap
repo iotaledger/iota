@@ -162,7 +162,7 @@ task 18, lines 171-179:
 // Try to reshare the shared object -- this should fail since the input was
 // used for the `MakeMoveVec` call
 Error: Transaction Effects Status: Move Bytecode Verification Error. Please run the Bytecode Verifier for more information.
-Debug of error: VMVerificationOrDeserializationError at command Some(4)
+Debug of error: VmVerificationOrDeserializationError at command Some(4)
 
 task 19, lines 180-188:
 //# programmable --inputs 0 object(15,0) @0x0
