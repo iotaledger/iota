@@ -61,7 +61,7 @@ impl<T> MisbehaviorsV1<T> {
 
     // Returns an iterator over references to all misbehavior fields.
     pub fn iter(&self) -> impl Iterator<Item = &T> {
-        vec![
+        [
             &self.faulty_blocks_provable,
             &self.faulty_blocks_unprovable,
             &self.missing_proposals,
@@ -79,7 +79,7 @@ impl<T> MisbehaviorsV1<T> {
     // Returns an iterator over references to minor misbehavior fields.
     // Minor misbehaviors carry a lower penalty in the scoring system.
     pub fn iter_minor_misbehaviors(&self) -> impl Iterator<Item = &T> {
-        vec![
+        [
             &self.faulty_blocks_provable,
             &self.faulty_blocks_unprovable,
             &self.missing_proposals,
