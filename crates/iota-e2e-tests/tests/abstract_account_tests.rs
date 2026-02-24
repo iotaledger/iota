@@ -249,7 +249,7 @@ async fn test_abstract_account_delayed_creation() -> Result<(), anyhow::Error> {
     // Now convert the delayed object into an actual AA account
     let effects = test_env.make_delayed_abstract_account().await?;
     assert!(
-        effects.status().is_ok(),
+        effects.status().is_success(),
         "Expected make_delayed_abstract_account to succeed, got: {:?}",
         effects.status()
     );
@@ -440,7 +440,10 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
         .unwrap();
     let summary = effects_cert.summary_for_debug();
 
-    assert!(summary.status.is_err(), "Expected the TX execution to fail");
+    assert!(
+        summary.status.is_failure(),
+        "Expected the TX execution to fail"
+    );
     assert!(
         summary.gas_used.gas_used() == 3401600
             && summary.mutated_object_count == 2
@@ -454,9 +457,9 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
     assert!(
         matches!(
             summary.status.unwrap_err().0,
-            ExecutionFailureStatus::MoveAbort(MoveLocation { module, function_name, .. }, abort_code)
-            if module.name().as_str() == "basic_keyed_aa"
-            && function_name == Some("authenticate_ed25519".to_string())
+            ExecutionFailureStatus::MoveAbort{location: MoveLocation { module, function_name, .. }, code: abort_code}
+            if module.as_str() == "basic_keyed_aa"
+            && function_name.as_ref().is_some_and(|f|f.as_str() == "authenticate_ed25519")
             && ErrorBitset::from_u64(abort_code).unwrap().error_code() == Some(0)
         ),
         "Expected failure to be a Move abort in basic_keyed_aa::authenticate_ed25519",
@@ -554,7 +557,7 @@ async fn test_receiving_gas_executing_aa_tx_first() -> Result<(), anyhow::Error>
         .await
         .unwrap();
     assert!(
-        effects_cert.summary_for_debug().status.is_err(),
+        effects_cert.summary_for_debug().status.is_failure(),
         "Expected the TX execution to fail due to receiving an object owned by an AA account"
     );
 
@@ -570,7 +573,7 @@ async fn test_receiving_gas_executing_aa_tx_first() -> Result<(), anyhow::Error>
         .await
         .unwrap();
     assert!(
-        effects_cert.summary_for_debug().status.is_ok(),
+        effects_cert.summary_for_debug().status.is_success(),
         "Expected the TX execution to succeed"
     );
 
@@ -674,7 +677,7 @@ async fn test_receiving_gas_executing_aa_tx_later() -> Result<(), anyhow::Error>
         .unwrap();
     let summary = effects_cert.summary_for_debug();
     assert!(
-        summary.status.is_err(),
+        summary.status.is_failure(),
         "Expected the TX1 execution to fail execution"
     );
 
@@ -690,7 +693,7 @@ async fn test_receiving_gas_executing_aa_tx_later() -> Result<(), anyhow::Error>
         .unwrap();
     let summary = effects_cert.summary_for_debug();
     assert!(
-        summary.status.is_ok(),
+        summary.status.is_success(),
         "Expected the TX2 execution to succeed"
     );
 
@@ -769,7 +772,7 @@ async fn test_failing_receiving_gas_then_create_account() -> Result<(), anyhow::
     // Step 2: create the AA account (from the delayed abstract account object)
     let effects = test_env.make_delayed_abstract_account().await?;
     assert!(
-        effects.status().is_ok(),
+        effects.status().is_success(),
         "Expected make_delayed_abstract_account to succeed, got: {:?}",
         effects.status()
     );
@@ -804,7 +807,7 @@ async fn test_failing_receiving_gas_then_create_account() -> Result<(), anyhow::
         .unwrap();
     let summary = effects_cert.summary_for_debug();
     assert!(
-        summary.status.is_err(),
+        summary.status.is_failure(),
         "Expected the TX1 execution to fail execution"
     );
 
@@ -820,7 +823,7 @@ async fn test_failing_receiving_gas_then_create_account() -> Result<(), anyhow::
         .unwrap();
     let summary = effects_cert.summary_for_debug();
     assert!(
-        summary.status.is_ok(),
+        summary.status.is_success(),
         "Expected the TX2 execution to succeed"
     );
 
@@ -910,7 +913,7 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
         .unwrap();
     let summary = effects_cert.summary_for_debug();
     assert!(
-        summary.status.is_ok(),
+        summary.status.is_success(),
         "Expected the TX1 execution to succeed"
     );
     let conflict_coin_ref = effects_cert
@@ -923,7 +926,7 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
     // Step 3: create the AA account (from the delayed abstract account object)
     let effects = test_env.make_delayed_abstract_account().await?;
     assert!(
-        effects.status().is_ok(),
+        effects.status().is_success(),
         "Expected make_delayed_abstract_account to succeed, got: {:?}",
         effects.status()
     );

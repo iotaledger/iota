@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use iota_macros::*;
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{ObjectID, ObjectRef, SequenceNumber},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::{OBJECT_START_VERSION, Owner},
@@ -30,16 +30,13 @@ async fn objects_transitioning_to_shared_remember_their_previous_version() {
     let (counter, _) = env.increment_owned_counter(counter).await;
     assert_ne!(counter.version, OBJECT_START_VERSION);
 
-    let ExecutionFailureStatus::MoveAbort(location, code) =
+    let ExecutionFailureStatus::MoveAbort { location, code } =
         env.share_counter(counter).await.unwrap_err()
     else {
         panic!()
     };
-    assert_eq!(
-        location.module.address().as_ref(),
-        IotaAddress::FRAMEWORK.as_bytes()
-    );
-    assert_eq!(location.module.name().as_str(), "transfer");
+    assert_eq!(location.package, ObjectID::FRAMEWORK);
+    assert_eq!(location.module.as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }
 
@@ -49,16 +46,13 @@ async fn shared_object_owner_doesnt_change_on_write() {
     let (counter, _) = env.create_counter().await;
 
     let (inc_counter, _) = env.increment_owned_counter(counter).await;
-    let ExecutionFailureStatus::MoveAbort(location, code) =
+    let ExecutionFailureStatus::MoveAbort { location, code } =
         env.share_counter(inc_counter).await.unwrap_err()
     else {
         panic!()
     };
-    assert_eq!(
-        location.module.address().as_ref(),
-        IotaAddress::FRAMEWORK.as_bytes()
-    );
-    assert_eq!(location.module.name().as_str(), "transfer");
+    assert_eq!(location.package, ObjectID::FRAMEWORK);
+    assert_eq!(location.module.as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }
 
@@ -68,16 +62,13 @@ async fn initial_shared_version_mismatch_start_version() {
     let (counter, _) = env.create_counter().await;
 
     let (counter, _) = env.increment_owned_counter(counter).await;
-    let ExecutionFailureStatus::MoveAbort(location, code) =
+    let ExecutionFailureStatus::MoveAbort { location, code } =
         env.share_counter(counter).await.unwrap_err()
     else {
         panic!()
     };
-    assert_eq!(
-        location.module.address().as_ref(),
-        IotaAddress::FRAMEWORK.as_bytes()
-    );
-    assert_eq!(location.module.name().as_str(), "transfer");
+    assert_eq!(location.package, ObjectID::FRAMEWORK);
+    assert_eq!(location.module.as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }
 
@@ -86,16 +77,13 @@ async fn initial_shared_version_mismatch_current_version() {
     let env = TestEnvironment::new().await;
     let (counter, _) = env.create_counter().await;
 
-    let ExecutionFailureStatus::MoveAbort(location, code) =
+    let ExecutionFailureStatus::MoveAbort { location, code } =
         env.share_counter(counter).await.unwrap_err()
     else {
         panic!()
     };
-    assert_eq!(
-        location.module.address().as_ref(),
-        IotaAddress::FRAMEWORK.as_bytes()
-    );
-    assert_eq!(location.module.name().as_str(), "transfer");
+    assert_eq!(location.package, ObjectID::FRAMEWORK);
+    assert_eq!(location.module.as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }
 
@@ -156,7 +144,7 @@ impl TestEnvironment {
 
     async fn create_counter(&self) -> (ObjectRef, Owner) {
         let (fx, _) = self.move_call("create_counter", vec![]).await.unwrap();
-        assert!(fx.status().is_ok());
+        assert!(fx.status().is_success());
 
         *fx.created()
             .iter()
@@ -169,7 +157,7 @@ impl TestEnvironment {
             .move_call("create_shared_counter", vec![])
             .await
             .unwrap();
-        assert!(fx.status().is_ok());
+        assert!(fx.status().is_success());
 
         *fx.created()
             .iter()

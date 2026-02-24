@@ -17,7 +17,7 @@ task 2, lines 18-20:
 //> 0: test::m1::v1();
 //> test::m1::priv(Result(0));
 Error: Transaction Effects Status: Invalid command argument at 0. Invalid argument to private entry function. These functions cannot take arguments from other Move functions
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: InvalidArgumentToPrivateEntryFunction }, source: None, command: Some(1) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 0, kind: InvalidArgumentToPrivateEntryFunction }, source: None, command: Some(1) } }
 
 task 3, lines 22-26:
 //# programmable
@@ -25,11 +25,11 @@ task 3, lines 22-26:
 //> test::m1::priv(Result(0));
 // pure value has been "dirtied" and cannot be used
 Error: Transaction Effects Status: Invalid command argument at 0. Invalid argument to private entry function. These functions cannot take arguments from other Move functions
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: InvalidArgumentToPrivateEntryFunction }, source: None, command: Some(1) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 0, kind: InvalidArgumentToPrivateEntryFunction }, source: None, command: Some(1) } }
 
 task 4, lines 27-29:
 //# programmable --inputs 0
 //> test::m1::dirty(Input(0));
 //> test::m1::priv(Input(0));
 Error: Transaction Effects Status: Invalid command argument at 0. Invalid argument to private entry function. These functions cannot take arguments from other Move functions
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: InvalidArgumentToPrivateEntryFunction }, source: None, command: Some(1) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 0, kind: InvalidArgumentToPrivateEntryFunction }, source: None, command: Some(1) } }

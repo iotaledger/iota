@@ -172,7 +172,7 @@ impl ReadApi {
                     IndexerError::Grpc("there should be one tx lookup response".into())
                 })?;
 
-                Ok(executed_tx.transaction()?.digest()? == digest.into())
+                Ok(executed_tx.transaction()?.digest()? == digest)
             }
             Err(e) => {
                 if matches!(e, iota_grpc_client::Error::Server(ref e) if e.to_tonic_status().code() == tonic::Code::NotFound)

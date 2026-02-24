@@ -543,7 +543,7 @@ fn test_fail_on_upgrade_missing_type() {
     assert_eq!(
         err.kind(),
         &ExecutionErrorKind::PackageUpgradeError {
-            upgrade_error: PackageUpgradeError::IncompatibleUpgrade
+            kind: PackageUpgradeError::IncompatibleUpgrade
         }
     );
 }

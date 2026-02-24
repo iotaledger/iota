@@ -98,7 +98,7 @@ impl CheckpointHandler {
             let txn_data = checkpoint_transaction.transaction.transaction_data();
             let cmds = txn_data.kind().num_commands() as u64;
             total_transactions += cmds;
-            if checkpoint_transaction.effects.status().is_ok() {
+            if checkpoint_transaction.effects.status().is_success() {
                 total_successful_transaction_blocks += 1;
                 total_successful_transactions += cmds;
             }

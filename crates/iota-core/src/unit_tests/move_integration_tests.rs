@@ -287,7 +287,7 @@ async fn test_object_owning_another_object() {
     )
     .await
     .unwrap();
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     let ObjectRef {
         object_id: parent_id,
         ..
@@ -308,7 +308,7 @@ async fn test_object_owning_another_object() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     let ObjectRef {
         object_id: child_id,
         ..
@@ -328,7 +328,7 @@ async fn test_object_owning_another_object() {
     )
     .await
     .unwrap();
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 
     // Add the child to the parent.
     let effects = call_move(
@@ -408,7 +408,7 @@ async fn test_object_owning_another_object() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     let ObjectRef {
         object_id: new_parent_id,
         ..
@@ -432,7 +432,7 @@ async fn test_object_owning_another_object() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 
     // Delete the child. This should fail as the child cannot be used as a
     // transaction argument
@@ -484,7 +484,7 @@ async fn test_create_then_delete_parent_child() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     // Creates 3 objects, the parent, a field, and the child
     assert_eq!(effects.created().len(), 3);
     let parent = effects
@@ -508,7 +508,7 @@ async fn test_create_then_delete_parent_child() {
     )
     .await
     .unwrap();
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     // Check that both objects were deleted.
     assert_eq!(effects.deleted().len(), 3);
 }
@@ -546,7 +546,7 @@ async fn test_create_then_delete_parent_child_wrap() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     // Modifies the gas object
     assert_eq!(effects.mutated().len(), 1);
     // Creates 3 objects, the parent, a field, and the child
@@ -585,7 +585,7 @@ async fn test_create_then_delete_parent_child_wrap() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 
     // The parent and field are considered deleted, the child doesn't count because
     // it wasn't considered created in the first place.
@@ -643,7 +643,7 @@ async fn test_remove_child_when_no_prior_version_exists() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     // Modifies the gas object
     assert_eq!(effects.mutated().len(), 1);
     // Creates 3 objects, the parent, a field, and the child
@@ -682,7 +682,7 @@ async fn test_remove_child_when_no_prior_version_exists() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 
     // The field is considered deleted. The child doesn't count because it wasn't
     // considered created in the first place.
@@ -736,7 +736,7 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     let ObjectRef {
         object_id: parent_id,
         ..
@@ -757,7 +757,7 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     let ObjectRef {
         object_id: child_id,
         ..
@@ -781,7 +781,7 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     assert_eq!(effects.created().len(), 1);
     assert_eq!(effects.wrapped().len(), 1);
 
@@ -800,7 +800,7 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
     .await
     .unwrap();
 
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     // Check that parent object was deleted.
     assert_eq!(effects.deleted().len(), 2);
     // Check that child object was unwrapped and deleted.
@@ -1342,7 +1342,7 @@ async fn test_entry_point_vector_error() {
         result.unwrap().status(),
         &ExecutionStatus::Failure {
             error: ExecutionErrorKind::CommandArgumentError {
-                arg_idx: 0,
+                argument: 0,
                 kind: CommandArgumentError::InvalidValueUsage,
             },
             command: Some(1)
@@ -1394,7 +1394,7 @@ async fn test_entry_point_vector_error() {
         result.unwrap().status(),
         &ExecutionStatus::Failure {
             error: ExecutionErrorKind::CommandArgumentError {
-                arg_idx: 0,
+                argument: 0,
                 kind: CommandArgumentError::InvalidValueUsage,
             },
             command: Some(1)
@@ -1759,7 +1759,7 @@ async fn test_entry_point_vector_any_error() {
         result.unwrap().status(),
         &ExecutionStatus::Failure {
             error: ExecutionErrorKind::CommandArgumentError {
-                arg_idx: 0,
+                argument: 0,
                 kind: CommandArgumentError::InvalidValueUsage,
             },
             command: Some(1)
@@ -1809,7 +1809,7 @@ async fn test_entry_point_vector_any_error() {
         result.unwrap().status(),
         &ExecutionStatus::Failure {
             error: ExecutionErrorKind::CommandArgumentError {
-                arg_idx: 0,
+                argument: 0,
                 kind: CommandArgumentError::InvalidValueUsage,
             },
             command: Some(1)
@@ -2131,8 +2131,8 @@ async fn test_entry_point_string_error() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
+                argument: 0,
+                kind: CommandArgumentError::InvalidBcsBytes
             },
             command: Some(0)
         }
@@ -2166,8 +2166,8 @@ async fn test_entry_point_string_error() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
+                argument: 0,
+                kind: CommandArgumentError::InvalidBcsBytes
             },
             command: Some(0)
         }
@@ -2201,8 +2201,8 @@ async fn test_entry_point_string_error() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
+                argument: 0,
+                kind: CommandArgumentError::InvalidBcsBytes
             },
             command: Some(0)
         }
@@ -2257,8 +2257,8 @@ async fn test_entry_point_string_vec_error() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
+                argument: 0,
+                kind: CommandArgumentError::InvalidBcsBytes
             },
             command: Some(0)
         }
@@ -2303,8 +2303,8 @@ async fn test_entry_point_string_option_error() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
+                argument: 0,
+                kind: CommandArgumentError::InvalidBcsBytes
             },
             command: Some(0)
         }
@@ -2333,8 +2333,8 @@ async fn test_entry_point_string_option_error() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
+                argument: 0,
+                kind: CommandArgumentError::InvalidBcsBytes
             },
             command: Some(0)
         }
@@ -2361,8 +2361,8 @@ async fn test_entry_point_string_option_error() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidBCSBytes
+                argument: 0,
+                kind: CommandArgumentError::InvalidBcsBytes
             },
             command: Some(0)
         }
@@ -2699,7 +2699,7 @@ async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::command_argument_error(
-                CommandArgumentError::InvalidBCSBytes,
+                CommandArgumentError::InvalidBcsBytes,
                 0
             ),
             command: Some(0)
@@ -2730,7 +2730,7 @@ async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::command_argument_error(
-                CommandArgumentError::InvalidBCSBytes,
+                CommandArgumentError::InvalidBcsBytes,
                 3,
             ),
             command: Some(0)

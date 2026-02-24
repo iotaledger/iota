@@ -50,7 +50,7 @@ task 6, lines 109-113:
 //> 0: MakeMoveVec<t2::o2::Obj2>([Input(1)]);
 //> 1: t2::o2::freezee(Result(0));
 // Make MoveVec and then try to add as dof
-Error: Transaction Effects Status: The shared object operation is not allowed.
+Error: Transaction Effects Status: The shared object operation is not allowed
 Debug of error: SharedObjectOperationNotAllowed at command None
 
 task 7, lines 114-118:
@@ -58,7 +58,7 @@ task 7, lines 114-118:
 //> 0: MakeMoveVec<t2::o2::Obj2>([Input(1)]);
 //> 1: t2::o2::dof_(Input(0), Result(0));
 // Make MoveVec and then try to add as df
-Error: Transaction Effects Status: The shared object operation is not allowed.
+Error: Transaction Effects Status: The shared object operation is not allowed
 Debug of error: SharedObjectOperationNotAllowed at command None
 
 task 8, lines 119-123:
@@ -66,7 +66,7 @@ task 8, lines 119-123:
 //> 0: MakeMoveVec<t2::o2::Obj2>([Input(1)]);
 //> 1: t2::o2::df_(Input(0), Result(0));
 // Make MoveVec and then try to transfer it
-Error: Transaction Effects Status: The shared object operation is not allowed.
+Error: Transaction Effects Status: The shared object operation is not allowed
 Debug of error: SharedObjectOperationNotAllowed at command None
 
 task 9, lines 124-128:
@@ -74,7 +74,7 @@ task 9, lines 124-128:
 //> 0: MakeMoveVec<t2::o2::Obj2>([Input(1)]);
 //> 1: t2::o2::transfer_(Result(0));
 // Make MoveVec pop and return it, then try to freeze
-Error: Transaction Effects Status: The shared object operation is not allowed.
+Error: Transaction Effects Status: The shared object operation is not allowed
 Debug of error: SharedObjectOperationNotAllowed at command None
 
 task 10, lines 129-134:
@@ -83,7 +83,7 @@ task 10, lines 129-134:
 //> 1: t2::o2::pop_it(Result(0));
 //> 2: t2::o2::freezer(Result(1));
 // Make MoveVec pop and return it, then try to add as dof
-Error: Transaction Effects Status: The shared object operation is not allowed.
+Error: Transaction Effects Status: The shared object operation is not allowed
 Debug of error: SharedObjectOperationNotAllowed at command None
 
 task 11, lines 135-140:
@@ -92,7 +92,7 @@ task 11, lines 135-140:
 //> 1: t2::o2::pop_it(Result(0));
 //> 2: t2::o2::dofer(Input(0), Result(1));
 // Make MoveVec pop and return it, then try to add as df
-Error: Transaction Effects Status: The shared object operation is not allowed.
+Error: Transaction Effects Status: The shared object operation is not allowed
 Debug of error: SharedObjectOperationNotAllowed at command None
 
 task 12, lines 141-146:
@@ -101,7 +101,7 @@ task 12, lines 141-146:
 //> 1: t2::o2::pop_it(Result(0));
 //> 2: t2::o2::dfer(Input(0), Result(1));
 // Make MoveVec pop and return it, then try to transfer it
-Error: Transaction Effects Status: The shared object operation is not allowed.
+Error: Transaction Effects Status: The shared object operation is not allowed
 Debug of error: SharedObjectOperationNotAllowed at command None
 
 task 13, lines 147-152:
@@ -110,7 +110,7 @@ task 13, lines 147-152:
 //> 1: t2::o2::pop_it(Result(0));
 //> 2: t2::o2::transferrer(Result(1));
 // Make MoveVec pop and return it, then try to transfer it with PT transfer
-Error: Transaction Effects Status: The shared object operation is not allowed.
+Error: Transaction Effects Status: The shared object operation is not allowed
 Debug of error: SharedObjectOperationNotAllowed at command None
 
 task 14, lines 153-156:
@@ -118,7 +118,7 @@ task 14, lines 153-156:
 //> 0: MakeMoveVec<t2::o2::Obj2>([Input(0)]);
 //> 1: t2::o2::pop_it(Result(0));
 //> 2: TransferObjects([Result(1)], Input(1));
-Error: Transaction Effects Status: The shared object operation is not allowed.
+Error: Transaction Effects Status: The shared object operation is not allowed
 Debug of error: SharedObjectOperationNotAllowed at command None
 
 task 15, line 158:
@@ -150,7 +150,7 @@ task 17, lines 164-170:
 //> 3: TransferObjects([Result(2)], Input(2));
 // Try to call public_share_object directly -- this should fail
 Error: Transaction Effects Status: Unused result without the drop ability. Command result 1, return value 0
-Debug of error: UnusedValueWithoutDrop { result_idx: 1, secondary_idx: 0 } at command None
+Debug of error: UnusedValueWithoutDrop { result: 1, subresult: 0 } at command None
 
 task 18, lines 171-179:
 //# programmable --inputs 0 object(15,0) @0x0
@@ -162,7 +162,7 @@ task 18, lines 171-179:
 // Try to reshare the shared object -- this should fail since the input was
 // used for the `MakeMoveVec` call
 Error: Transaction Effects Status: Move Bytecode Verification Error. Please run the Bytecode Verifier for more information.
-Debug of error: VMVerificationOrDeserializationError at command Some(4)
+Debug of error: VmVerificationOrDeserializationError at command Some(4)
 
 task 19, lines 180-188:
 //# programmable --inputs 0 object(15,0) @0x0
@@ -174,7 +174,7 @@ task 19, lines 180-188:
 // Try to transfer the shared object -- this should fail since the input was
 // used for the `MakeMoveVec` call
 Error: Transaction Effects Status: Invalid command argument at 0. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
-Debug of error: CommandArgumentError { arg_idx: 0, kind: InvalidValueUsage } at command Some(4)
+Debug of error: CommandArgumentError { argument: 0, kind: InvalidValueUsage } at command Some(4)
 
 task 20, lines 189-196:
 //# programmable --inputs 0 object(15,0) @0x0
@@ -185,7 +185,7 @@ task 20, lines 189-196:
 //> 4: TransferObjects([Input(1)], Input(2));
 // Try to transfer the shared object
 Error: Transaction Effects Status: Invalid command argument at 0. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
-Debug of error: CommandArgumentError { arg_idx: 0, kind: InvalidValueUsage } at command Some(4)
+Debug of error: CommandArgumentError { argument: 0, kind: InvalidValueUsage } at command Some(4)
 
 task 21, lines 197-202:
 //# programmable --inputs 0 object(15,0) @0x0
@@ -194,5 +194,5 @@ task 21, lines 197-202:
 //> 2: SplitCoins(Result(1), [Input(0)]);
 //> 3: TransferObjects([Result(2)], Input(2));
 //> 4: TransferObjects([Result(1)], Input(2));
-Error: Transaction Effects Status: The shared object operation is not allowed.
+Error: Transaction Effects Status: The shared object operation is not allowed
 Debug of error: SharedObjectOperationNotAllowed at command None
