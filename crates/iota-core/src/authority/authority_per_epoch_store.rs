@@ -4148,7 +4148,7 @@ impl AuthorityPerEpochStore {
                 let authority_index = self
                     .committee
                     .authority_index(authority)
-                    .expect("authority in committee");
+                    .expect("authority should be in committee");
                 // Check validity of the report and update scores depending on the result. We
                 // already have consensus on inclusion of this report in the DAG.
                 match (report, self.protocol_config().scorer_version_as_option()) {

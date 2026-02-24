@@ -92,16 +92,18 @@ impl<T> FromIterator<T> for MisbehaviorsV1<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut iterator = iter.into_iter();
         Self {
-            faulty_blocks_provable: iterator.next().expect(
-                "Not enough
-elements in iterator",
-            ),
-            faulty_blocks_unprovable: iterator.next().expect("Not enough elements in iterator"),
-            missing_proposals: iterator.next().expect("Not enough elements in iterator"),
-            equivocations: iterator.next().expect(
-                "Not enough elements in
-iterator",
-            ),
+            faulty_blocks_provable: iterator
+                .next()
+                .expect("Element should exist in the iterator"),
+            faulty_blocks_unprovable: iterator
+                .next()
+                .expect("Element should exist in the iterator"),
+            missing_proposals: iterator
+                .next()
+                .expect("Element should exist in the iterator"),
+            equivocations: iterator
+                .next()
+                .expect("Element should exist in the iterator"),
         }
     }
 }
