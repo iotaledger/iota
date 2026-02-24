@@ -1024,15 +1024,19 @@ impl IotaRawMovePackage {
         &self,
         max_move_package_size: u64,
     ) -> Result<MovePackage, ExecutionError> {
-        panic!();
-        // MovePackage::new(
-        //     self.id,
-        //     self.version,
-        //     self.module_map.clone(),
-        //     max_move_package_size,
-        //     self.type_origin_table.clone(),
-        //     self.linkage_table.clone(),
-        // )
+        MovePackage::new(
+            self.id,
+            self.version,
+            self.module_map
+                .iter()
+                .map(|(k, v)| (Identifier::new_unchecked(k), v.clone()))
+                .collect(),
+            max_move_package_size,
+            self.type_origin_table.clone(),
+            self.linkage_table.clone(),
+        )
+        // TODO not too sure about this...
+        .map_err(|e| ExecutionError::new(e, None))
     }
 }
 

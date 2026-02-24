@@ -40,15 +40,13 @@ use std::{
 };
 
 use derive_more::Display;
-use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::move_package::{MovePackage, TypeOrigin, UpgradeInfo};
-use iota_sdk_types::{Identifier, Version, move_package};
+use iota_sdk_types::{Identifier, Version};
 use move_binary_format::{
     binary_config::BinaryConfig, file_format::CompiledModule, file_format_common::VERSION_6,
     normalized,
 };
-use move_core_types::language_storage::ModuleId;
 use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
 
@@ -56,7 +54,6 @@ use crate::{
     IotaAddress,
     base_types::{ObjectID, SequenceNumber, StructTag},
     collection_types::{Entry, VecMap},
-    crypto::DefaultHash,
     derived_object,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
     execution_status::PackageUpgradeError,
@@ -308,16 +305,16 @@ fn move_package_from_module_iter_with_type_origin_table<'p>(
         protocol_config,
     )?;
 
-    panic!();
-
-    // MovePackage::new(
-    //     storage_id,
-    //     version,
-    //     module_map,
-    //     protocol_config.max_move_package_size(),
-    //     type_origin_table,
-    //     linkage_table,
-    // )
+    MovePackage::new(
+        storage_id,
+        version,
+        module_map,
+        protocol_config.max_move_package_size(),
+        type_origin_table,
+        linkage_table,
+    )
+    // TODO not too sure about this...
+    .map_err(|e| ExecutionError::new(e, None))
 }
 
 /// The `Package ID` of the first version of this package.
