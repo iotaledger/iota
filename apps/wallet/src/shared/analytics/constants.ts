@@ -13,7 +13,11 @@ enum AmpliAccountType {
     Seed = 'Seed',
 }
 
-type AccountOrigin = 'new' | 'import' | 'derived';
+enum AmpliAccountOrigin {
+    New = 'new',
+    Import = 'import',
+    Derived = 'derived',
+}
 
 export const ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE: Record<
     AccountsFormType,
@@ -31,17 +35,17 @@ export const ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE: Record<
     [AccountsFormType.ImportKeystone]: AmpliAccountType.Keystone,
 };
 
-export const ACCOUNT_FORM_TYPE_TO_ACCOUNT_ORIGIN: Record<AccountsFormType, AccountOrigin> = {
-    [AccountsFormType.NewMnemonic]: 'new',
-    [AccountsFormType.ImportMnemonic]: 'import',
-    [AccountsFormType.ImportSeed]: 'import',
-    [AccountsFormType.MnemonicSource]: 'derived',
-    [AccountsFormType.SeedSource]: 'derived',
-    [AccountsFormType.ImportPrivateKey]: 'import',
-    [AccountsFormType.Passkey]: 'new',
-    [AccountsFormType.ImportPasskey]: 'import',
-    [AccountsFormType.ImportLedger]: 'import',
-    [AccountsFormType.ImportKeystone]: 'import',
+export const ACCOUNT_FORM_TYPE_TO_ACCOUNT_ORIGIN: Record<AccountsFormType, AmpliAccountOrigin> = {
+    [AccountsFormType.NewMnemonic]: AmpliAccountOrigin.New,
+    [AccountsFormType.ImportMnemonic]: AmpliAccountOrigin.Import,
+    [AccountsFormType.ImportSeed]: AmpliAccountOrigin.Import,
+    [AccountsFormType.MnemonicSource]: AmpliAccountOrigin.Derived,
+    [AccountsFormType.SeedSource]: AmpliAccountOrigin.Derived,
+    [AccountsFormType.ImportPrivateKey]: AmpliAccountOrigin.Import,
+    [AccountsFormType.Passkey]: AmpliAccountOrigin.New,
+    [AccountsFormType.ImportPasskey]: AmpliAccountOrigin.Import,
+    [AccountsFormType.ImportLedger]: AmpliAccountOrigin.Import,
+    [AccountsFormType.ImportKeystone]: AmpliAccountOrigin.Import,
 };
 
 export const ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE: Record<
