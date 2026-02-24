@@ -63,8 +63,8 @@ public struct IOTAccountBuilder {
     authenticator: AuthenticatorFunctionRefV1<IOTAccount>,
 }
 
-/// A dynamic field key for the account admin address.
-public struct AdminField has copy, drop, store {}
+/// A dynamic field name for the account admin address.
+public struct AdminFieldName has copy, drop, store {}
 
 // === IOTAccountBuilder ===
 
@@ -93,7 +93,7 @@ public fun with_field<Name: copy + drop + store, Value: store>(
 
 /// Attach an Admin as a dynamic field to the account being built.
 public fun with_admin(self: IOTAccountBuilder, admin: address): IOTAccountBuilder {
-    self.with_field(AdminField {}, admin)
+    self.with_field(AdminFieldName {}, admin)
 }
 
 /// Finish building an `IOTAccount` instance. This will check the validity of the attached authenticator
@@ -162,7 +162,7 @@ public fun borrow_field_mut<Name: copy + drop + store, Value: store>(
 
 /// Rotate a dynamic field.
 ///
-/// Only the account itself can call this function.
+/// Either the account or the admin can call this function.
 /// This function cannot change the type of the stored `Value`.
 public fun rotate_field<Name: copy + drop + store, Value: store>(
     self: &mut IOTAccount,
@@ -194,26 +194,25 @@ public fun rotate_auth_function_ref_v1(
 
 /// Adds a new admin to the account.
 ///
-/// Only the account itself can call this function.
+/// Either the account or the admin can call this function.
 public fun add_admin(self: &mut IOTAccount, admin: address, ctx: &TxContext) {
     // Check that the sender of this transaction is the account or the admin.
     ensure_tx_sender_is_account_or_admin(self, ctx);
 
     // Add a new admin.
-    df::add(&mut self.id, AdminField {}, admin);
+    df::add(&mut self.id, AdminFieldName {}, admin);
 }
 
 /// Rotate an admin.
 ///
-/// Only the account itself can call this function.
-/// This function cannot change the type of the stored `Value`.
+/// Either the account or the admin can call this function.
 public fun rotate_admin(self: &mut IOTAccount, admin: address, ctx: &TxContext): address {
     // Check that the sender of this transaction is the account or the admin.
     ensure_tx_sender_is_account_or_admin(self, ctx);
 
     let account_id = &mut self.id;
-    let previous_admin = df::remove<_, address>(account_id, AdminField {});
-    df::add(account_id, AdminField {}, admin);
+    let previous_admin = df::remove<_, address>(account_id, AdminFieldName {});
+    df::add(account_id, AdminFieldName {}, admin);
     previous_admin
 }
 
@@ -254,8 +253,8 @@ public fun borrow_auth_function_ref_v1(self: &IOTAccount): &AuthenticatorFunctio
 
 /// Borrows the admin of the account.
 public fun borrow_admin(self: &IOTAccount): Option<address> {
-    if (df::exists_(&self.id, AdminField {})) {
-        option::some(*df::borrow(&self.id, AdminField {}))
+    if (df::exists_(&self.id, AdminFieldName {})) {
+        option::some(*df::borrow(&self.id, AdminFieldName {}))
     } else {
         option::none()
     }
