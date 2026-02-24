@@ -2287,7 +2287,6 @@ impl AuthorityPerEpochStore {
     pub fn insert_pending_consensus_transactions(
         &self,
         transactions: &[ConsensusTransaction],
-        lock: Option<&RwLockReadGuard<ReconfigState>>,
     ) -> IotaResult {
         let key_value_pairs = transactions.iter().map(|tx| (tx.key(), tx));
         self.tables()?
@@ -2315,14 +2314,7 @@ impl AuthorityPerEpochStore {
                         .insert(*cert.digest());
                 }
             }
-            // NOTE: We do not insert
-            // `ConsensusTransactionKind::UserTransactionV1` into
-            // `self.pending_consensus_certificates` because, in the
-            // certificate-less scenario, there is no pre-consensus
-            // "promise" (certificate) that `UserTransactionV1` will
-            // be executed before the end of epoch.
         }
-        Ok(())
     }
 
     /// Remove processed by consensus transactions from the persistent
