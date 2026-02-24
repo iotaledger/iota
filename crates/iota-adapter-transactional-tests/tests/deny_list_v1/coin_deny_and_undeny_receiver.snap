@@ -40,7 +40,7 @@ Epoch advanced: 1
 
 task 6, lines 50-52:
 //# run iota::pay::split_and_transfer --args object(1,0) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
-Error: Transaction Effects Status: Address B is denied for coin test::regulated_coin::REGULATED_COIN
+Error: Transaction Effects Status: Address Address("B") is denied for coin test::regulated_coin::REGULATED_COIN
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: AddressDeniedForCoin { address: Address("B"), coin_type: "test::regulated_coin::REGULATED_COIN" }, source: None, command: None } }
 
 task 7, lines 53-55:
@@ -50,7 +50,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 8, line 56:
 //# run iota::pay::split_and_transfer --args object(1,0) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
-Error: Transaction Effects Status: Address B is denied for coin test::regulated_coin::REGULATED_COIN
+Error: Transaction Effects Status: Address Address("B") is denied for coin test::regulated_coin::REGULATED_COIN
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: AddressDeniedForCoin { address: Address("B"), coin_type: "test::regulated_coin::REGULATED_COIN" }, source: None, command: None } }
 
 task 9, lines 58-60:

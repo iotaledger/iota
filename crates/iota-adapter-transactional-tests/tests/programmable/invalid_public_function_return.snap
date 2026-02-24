@@ -16,16 +16,16 @@ task 2, lines 19-20:
 //# programmable
 //> 0: test::m1::t1();
 Error: Transaction Effects Status: Invalid public Move function signature. Unsupported return type for return value 0
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: InvalidPublicFunctionReturnType { idx: 0 }, source: None, command: Some(0) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: InvalidPublicFunctionReturnType { index: 0 }, source: None, command: Some(0) } }
 
 task 3, lines 22-23:
 //# programmable
 //> 0: test::m1::t2();
 Error: Transaction Effects Status: Invalid public Move function signature. Unsupported return type for return value 0
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: InvalidPublicFunctionReturnType { idx: 0 }, source: None, command: Some(0) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: InvalidPublicFunctionReturnType { index: 0 }, source: None, command: Some(0) } }
 
 task 4, lines 25-26:
 //# programmable
 //> 0: test::m1::t3();
 Error: Transaction Effects Status: Invalid public Move function signature. Unsupported return type for return value 1
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: InvalidPublicFunctionReturnType { idx: 1 }, source: None, command: Some(0) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: InvalidPublicFunctionReturnType { index: 1 }, source: None, command: Some(0) } }

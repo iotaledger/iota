@@ -32,5 +32,5 @@ task 4, lines 24-27:
 //> 0: test::m1::a();
 // function doesn't exist
 //> iota::event::does_not_exist<test::m1::A>(Result(0));
-Error: Transaction Effects Status: Function Not Found.
+Error: Transaction Effects Status: Function Not Found
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: FunctionNotFound, source: Some("Could not resolve function 'does_not_exist' in module iota::event"), command: Some(1) } }

@@ -40,7 +40,7 @@ mod checked {
         error::{ExecutionError, ExecutionErrorKind},
         execution::{ExecutionResults, ExecutionResultsV1, SharedInput, is_certificate_denied},
         execution_config_utils::to_binary_config,
-        execution_status::{CongestedObjects, ExecutionStatus},
+        execution_status::ExecutionStatus,
         gas::{GasCostSummary, IotaGasStatus},
         gas_coin::GAS,
         inner_temporary_store::InnerTemporaryStore,
@@ -836,7 +836,7 @@ mod checked {
     ) -> ExecutionStatus {
         use ExecutionErrorKind as K;
         match execution_error.kind() {
-            K::InvariantViolation | K::VMInvariantViolation => {
+            K::InvariantViolation | K::VmInvariantViolation => {
                 #[skip_checked_arithmetic]
                 tracing::error!(
                     kind = ?execution_error.kind(),
@@ -846,7 +846,7 @@ mod checked {
                 );
             }
 
-            K::IotaMoveVerificationError | K::VMVerificationOrDeserializationError => {
+            K::IotaMoveVerificationError | K::VmVerificationOrDeserializationError => {
                 #[skip_checked_arithmetic]
                 tracing::debug!(
                     kind = ?execution_error.kind(),
@@ -991,7 +991,7 @@ mod checked {
                 version if version.is_congested() => Err(ExecutionError::new(
                     if protocol_config.congestion_control_gas_price_feedback_mechanism() {
                         ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestionV2 {
-                            congested_objects: CongestedObjects(cancelled_objects),
+                            congested_objects: cancelled_objects,
                             suggested_gas_price: version
                                 .get_congested_version_suggested_gas_price()
                                 .unwrap(),
@@ -1002,7 +1002,7 @@ mod checked {
                         // on the mainnet. It must be kept to be able to replay old
                         // transaction data.
                         ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestion {
-                            congested_objects: CongestedObjects(cancelled_objects),
+                            congested_objects: cancelled_objects,
                         }
                     },
                     None,
@@ -1096,8 +1096,8 @@ mod checked {
                 LimitThresholdCrossed::Hard(_, lim) => {
                     return Err(ExecutionError::new_with_source(
                         ExecutionErrorKind::WrittenObjectsTooLarge {
-                            current_size: written_objects_size as u64,
-                            max_size: lim as u64,
+                            object_size: written_objects_size as u64,
+                            max_object_size: lim as u64,
                         },
                         "Written objects size crossed hard limit",
                     ));
@@ -2012,7 +2012,7 @@ mod checked {
             .map(|t| {
                 t.as_type_tag().map_err(|err| {
                     ExecutionError::new_with_source(
-                        ExecutionErrorKind::VMInvariantViolation,
+                        ExecutionErrorKind::VmInvariantViolation,
                         err.to_string(),
                     )
                 })

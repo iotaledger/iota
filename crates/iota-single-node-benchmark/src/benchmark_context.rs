@@ -354,7 +354,7 @@ impl BenchmarkContext {
             .execute_dry_run(sample_transaction.into_unsigned())
             .await;
         info!("Sample effects: {:?}\n\n", effects);
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
     }
 
     /// Benchmark parallel signing a vector of transactions and measure the TPS.
