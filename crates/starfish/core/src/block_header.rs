@@ -1007,9 +1007,10 @@ pub struct VerifiedTransactions {
     transaction_ref: TransactionRef,
 
     /// Digest of the block this transaction batch belongs to.
-    /// It is necessary when we use BlockRef to fetch transactions.
-    /// When we use TransactionRef, i.e. when `consensus_transaction_ref` is
-    /// true, then it is set to `None`.
+    /// Present (`Some`) whenever the block header is available at
+    /// construction time, regardless of the `consensus_transaction_ref` flag.
+    /// `None` only when transactions were received without an accompanying
+    /// block header (e.g., fast sync or store loading via TransactionRef).
     block_digest: Option<BlockHeaderDigest>,
 
     /// The serialized bytes of the transactions.
