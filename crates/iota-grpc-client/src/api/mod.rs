@@ -15,7 +15,7 @@ pub mod ledger;
 
 pub use common::{
     CHECKPOINT_READ_MASK, EPOCH_READ_MASK, EXECUTION_READ_MASK, Error, OBJECTS_READ_MASK, Result,
-    SERVICE_INFO_READ_MASK, TRANSACTIONS_READ_MASK,
+    RpcStatus, SERVICE_INFO_READ_MASK, TRANSACTIONS_READ_MASK,
 };
 pub(crate) use common::{
     ProtoResult, TryFromProtoError, build_proto_transaction, field_mask_with_default,

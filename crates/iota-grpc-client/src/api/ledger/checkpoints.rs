@@ -169,7 +169,7 @@ impl Client {
                 GetCheckpointDataRequest::default().with_digest(val)
             }
             _ => {
-                return Err(Error::server("Invalid checkpoint ID type"));
+                return Err(Error::Protocol("Invalid checkpoint ID type".into()));
             }
         }
         .with_read_mask(field_mask_with_default(read_mask, CHECKPOINT_READ_MASK));
@@ -305,7 +305,7 @@ impl Client {
 
                         // Start of new checkpoint - throw error if previous checkpoint was incomplete
                         if current_sequence_number.is_some() {
-                            Err(Error::server("Received new chunked checkpoint header before completing previous checkpoint"))?;
+                            Err(Error::Protocol("Received new chunked checkpoint header before completing previous checkpoint".into()))?;
                         }
                         current_sequence_number = checkpoint.sequence_number;
 
@@ -326,7 +326,7 @@ impl Client {
 
                     Some(checkpoint_data::Payload::Transactions(txs)) => {
                         if current_sequence_number.is_none() {
-                            Err(Error::server("Received new chunked checkpoint transactions before receiving checkpoint header"))?;
+                            Err(Error::Protocol("Received new chunked checkpoint transactions before receiving checkpoint header".into()))?;
                         }
 
                         // Accumulate proto transactions (no deserialization)
@@ -335,7 +335,7 @@ impl Client {
 
                     Some(checkpoint_data::Payload::Events(events)) => {
                         if current_sequence_number.is_none() {
-                            Err(Error::server("Received new chunked checkpoint events before receiving checkpoint header"))?;
+                            Err(Error::Protocol("Received new chunked checkpoint events before receiving checkpoint header".into()))?;
                         }
 
                         // Accumulate proto events (no deserialization)
@@ -346,13 +346,13 @@ impl Client {
                         // End of current checkpoint - assemble the result and yield it
                          let sequence_number = current_sequence_number
                         .take()
-                        .ok_or_else(|| -> Error { Error::server("Received checkpoint end marker before receiving checkpoint header") })?;
+                        .ok_or_else(|| -> Error { Error::Protocol("Received checkpoint end marker before receiving checkpoint header".into()) })?;
 
                         let marker_sequence_number = marker.sequence_number
                         .ok_or_else(|| -> Error { TryFromProtoError::missing("end_marker.sequence_number").into() })?;
 
                         if marker_sequence_number != sequence_number {
-                            Err(Error::server(format!(
+                            Err(Error::Protocol(format!(
                                 "EndMarker sequence_number {marker_sequence_number} does not match current checkpoint sequence_number {sequence_number:?}",
                             )))?;
                         }
@@ -376,14 +376,14 @@ impl Client {
 
                     Some(_) => {
                         // Unknown payload type
-                        Err(Error::server("Received unknown checkpoint data payload type"))?;
+                        Err(Error::Protocol("Received unknown checkpoint data payload type".into()))?;
                     }
                 }
             }
 
             // Check if stream ended with incomplete checkpoint data
             if let Some(sequence_number) = current_sequence_number {
-                Err(Error::server(format!(
+                Err(Error::Protocol(format!(
                     "Stream ended with incomplete checkpoint data for sequence number {sequence_number}"
                 )))?;
             }
