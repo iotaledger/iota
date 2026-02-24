@@ -8,28 +8,29 @@ use iota::ptb_command::Command;
 
 // === Structs ===
 
-public struct AuthContext has drop {
-    /// The digest of the MoveAuthenticator
-    auth_digest: vector<u8>,
-    /// The transaction input objects or primitive values
-    tx_inputs: vector<CallArg>,
-    /// The transaction commands to be executed sequentially.
-    tx_commands: vector<Command>,
-}
+public struct AuthContext has drop {}
 
 // === Public functions ===
 
-public fun digest(ctx: &AuthContext): &vector<u8> {
-    &ctx.auth_digest
+public fun digest(_: &AuthContext): vector<u8> {
+    native_digest()
 }
 
-public fun tx_inputs(ctx: &AuthContext): &vector<CallArg> {
-    &ctx.tx_inputs
+public fun tx_commands(_: &AuthContext): vector<Command> {
+    native_tx_commands()
 }
 
-public fun tx_commands(ctx: &AuthContext): &vector<Command> {
-    &ctx.tx_commands
+public fun tx_inputs(_: &AuthContext): vector<CallArg> {
+    native_tx_inputs()
 }
+
+// === Native functions ===
+
+native fun native_digest(): vector<u8>;
+
+native fun native_tx_commands<C>(): vector<C>;
+
+native fun native_tx_inputs<I>(): vector<I>;
 
 // === Test-only functions ===
 
@@ -39,9 +40,13 @@ public fun new_with_tx_inputs(
     tx_inputs: vector<CallArg>,
     tx_commands: vector<Command>,
 ): AuthContext {
-    AuthContext {
-        auth_digest,
-        tx_inputs,
-        tx_commands,
-    }
+    native_replace(auth_digest, tx_inputs, tx_commands);
+    AuthContext {}
 }
+
+#[test_only]
+native fun native_replace<I, C>(
+    auth_digest: vector<u8>,
+    tx_inputs: vector<I>,
+    tx_commands: vector<C>,
+);

@@ -66,6 +66,14 @@ impl AuthContext {
         }
     }
 
+    pub fn new_for_testing() -> Self {
+        Self {
+            auth_digest: MoveAuthenticatorDigest::default(),
+            tx_inputs: Vec::new(),
+            tx_commands: Vec::new(),
+        }
+    }
+
     pub fn digest(&self) -> &MoveAuthenticatorDigest {
         &self.auth_digest
     }
@@ -80,6 +88,10 @@ impl AuthContext {
 
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
         bcs::to_bytes(&self).unwrap()
+    }
+
+    pub fn to_move_bcs_bytes(&self) -> Vec<u8> {
+        bcs::to_bytes(&MoveAuthContext::default()).unwrap()
     }
 
     /// Returns whether the type signature is &mut AuthContext, &AuthContext, or
@@ -104,6 +116,19 @@ impl AuthContext {
         } else {
             AuthContextKind::None
         }
+    }
+
+    // Move test only API
+    //
+    pub fn replace(
+        &mut self,
+        auth_digest: MoveAuthenticatorDigest,
+        tx_inputs: Vec<CallArg>,
+        tx_commands: Vec<Command>,
+    ) {
+        self.auth_digest = auth_digest;
+        self.tx_inputs = tx_inputs;
+        self.tx_commands = tx_commands;
     }
 }
 
@@ -205,6 +230,13 @@ impl Serialize for AuthContext {
 
         state.end()
     }
+}
+
+#[derive(Default, Serialize)]
+pub struct MoveAuthContext {
+    // An empty Move struct contains a 1-byte dummy bool field because empty fields are not
+    // allowed in the bytecode.
+    dummy_field: bool,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]

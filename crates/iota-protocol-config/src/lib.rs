@@ -1251,6 +1251,17 @@ pub struct ProtocolConfig {
     /// component is created, having access to metrics and being able to expose
     /// validator scores.
     scorer_version: Option<u16>,
+
+    // `auth_context` module
+    // Cost params for the Move native function `native_digest(): vector<u8>`
+    auth_context_digest_cost_base: Option<u64>,
+    // Cost params for the Move native function `native_tx_commands<C>(): vector<C>`
+    auth_context_tx_commands_cost_base: Option<u64>,
+    // Cost params for the Move native function `native_tx_inputs<I>(): vector<I>`
+    auth_context_tx_inputs_cost_base: Option<u64>,
+    // Cost params for the Move native function `fun native_replace<I, C>(auth_digest: vector<u8>,
+    // tx_inputs: vector<I>, tx_commands: vector<C>)`
+    auth_context_replace_cost_base: Option<u64>,
 }
 
 // feature flags
@@ -2146,6 +2157,12 @@ impl ProtocolConfig {
             max_congestion_limit_overshoot_per_commit: None,
 
             scorer_version: None,
+
+            // `auth_context` module
+            auth_context_digest_cost_base: None,
+            auth_context_tx_commands_cost_base: None,
+            auth_context_tx_inputs_cost_base: None,
+            auth_context_replace_cost_base: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -2529,6 +2546,11 @@ impl ProtocolConfig {
                         cfg.feature_flags
                             .separate_gas_price_feedback_mechanism_for_randomness = true;
                     }
+
+                    cfg.auth_context_digest_cost_base = Some(100);
+                    cfg.auth_context_tx_commands_cost_base = Some(100);
+                    cfg.auth_context_tx_inputs_cost_base = Some(100);
+                    cfg.auth_context_replace_cost_base = Some(100);
                 }
 
                 // Use this template when making changes:
