@@ -528,7 +528,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let package = object.data.try_as_package()?;
                 if package
                     .serialized_module_map()
-                    .get(&first_module_name)
+                    .get(&Identifier::new_unchecked(first_module_name.clone()))
                     .is_some()
                 {
                     Some(*id)
@@ -760,7 +760,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                         let modules = package
                             .serialized_module_map()
                             .keys()
-                            .cloned()
+                            .map(|i| i.to_string())
                             .collect::<Vec<_>>()
                             .join(", ");
                         assert!(!modules.is_empty());
