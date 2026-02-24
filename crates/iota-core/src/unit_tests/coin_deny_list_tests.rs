@@ -116,7 +116,7 @@ async fn test_regulated_coin_v1_types() {
     let (_, effects) = send_and_confirm_transaction_(&env.authority, None, tx, true)
         .await
         .unwrap();
-    if effects.status().is_err() {
+    if effects.status().is_failure() {
         panic!("Failed to add address to deny list: {:?}", effects.status());
     }
     let coin_deny_config = get_per_type_coin_deny_list_v1(
@@ -191,7 +191,7 @@ async fn test_regulated_coin_v1_types() {
     let (_, effects) = send_and_confirm_transaction_(&env.authority, None, tx, true)
         .await
         .unwrap();
-    if effects.status().is_err() {
+    if effects.status().is_failure() {
         panic!("Failed to enable global pause: {:?}", effects.status());
     }
     println!("Effects: {effects:?}");

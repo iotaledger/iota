@@ -28,7 +28,7 @@ task 3, lines 27-30:
 //> 1: MakeMoveVec([Input(0), Input(1), Input(2)]);
 //> test::m1::priv(Result(1))
 Error: Transaction Effects Status: Invalid command argument at 0. Invalid argument to private entry function. These functions cannot take arguments from other Move functions
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: InvalidArgumentToPrivateEntryFunction }, source: None, command: Some(2) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 0, kind: InvalidArgumentToPrivateEntryFunction }, source: None, command: Some(2) } }
 
 task 4, lines 32-35:
 //# programmable --sender A --inputs 0 0 0
@@ -36,4 +36,4 @@ task 4, lines 32-35:
 //> 1: MakeMoveVec<u64>([Input(0), Input(1), Input(2)]);
 //> test::m1::priv(Result(1))
 Error: Transaction Effects Status: Invalid command argument at 0. Invalid argument to private entry function. These functions cannot take arguments from other Move functions
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: InvalidArgumentToPrivateEntryFunction }, source: None, command: Some(2) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 0, kind: InvalidArgumentToPrivateEntryFunction }, source: None, command: Some(2) } }

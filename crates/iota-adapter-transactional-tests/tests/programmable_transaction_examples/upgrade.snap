@@ -40,7 +40,7 @@ task 6, lines 44-46:
 //> 0: q::m::x();
 //> p::m::foo(Result(0))
 Error: Transaction Effects Status: Move Runtime Abort. Location: p::n::bar (function index 0) at offset 6, Abort Code: 0
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: p, name: Identifier("n") }, function: 0, instruction: 6, function_name: Some("bar") }, 0), source: Some(VMError { major_status: ABORTED, sub_status: Some(0), message: Some("p::n::bar at offset 6"), exec_state: None, location: Module(ModuleId { address: p, name: Identifier("n") }), indices: [], offsets: [(FunctionDefinitionIndex(0), 6)] }), command: Some(1) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort { location: MoveLocation { package: ObjectId("p"), module: Identifier("n"), function: 0, instruction: 6, function_name: Some(Identifier("bar")) }, code: 0 }, source: Some(VMError { major_status: ABORTED, sub_status: Some(0), message: Some("p::n::bar at offset 6"), exec_state: None, location: Module(ModuleId { address: p, name: Identifier("n") }), indices: [], offsets: [(FunctionDefinitionIndex(0), 6)] }), command: Some(1) } }
 
 task 8, lines 50-52:
 //# programmable --sender A

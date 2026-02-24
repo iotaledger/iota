@@ -121,7 +121,7 @@ async fn publish_move_random_package(
     )
     .await;
     let effects = response.1.into_data();
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     effects
         .created()
         .iter()
@@ -873,7 +873,7 @@ async fn test_move_call_gas() -> IotaResult {
     let response = send_and_confirm_transaction(&authority_state, tx).await?;
     let effects = response.1.into_data();
     let created_object_ref = effects.created()[0].0;
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     let gas_cost = effects.gas_cost_summary();
     assert!(gas_cost.storage_cost > 0);
     assert_eq!(gas_cost.storage_rebate, 0);
@@ -907,7 +907,7 @@ async fn test_move_call_gas() -> IotaResult {
     let transaction = to_sender_signed_transaction(data, &sender_key);
     let response = send_and_confirm_transaction(&authority_state, transaction).await?;
     let effects = response.1.into_data();
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     let gas_cost = effects.gas_cost_summary();
     // storage_cost should be less than rebate because for object deletion, we only
     // rebate without charging.
@@ -1006,7 +1006,7 @@ async fn test_tx_gas_coins_input_coins() {
         rgp,
     )
     .await;
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 }
 
 struct TransferResult {
