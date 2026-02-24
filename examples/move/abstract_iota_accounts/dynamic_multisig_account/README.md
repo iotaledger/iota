@@ -1,6 +1,6 @@
 # DynamicMultisigAccount Move Example
 
-The DynamicMultisigAccount module defines a generic account struct that can be used to handle a dynamic multisig account. The account data, such as the members information, the threshold and the proposed transactions, are stored as dynamic fields of the account object. The module provides functions to create a new DynamicMultisigAccount, update the account data and propose and approve transactions. 
+The DynamicMultisigAccount module defines a generic account struct that can be used to handle a dynamic multisig account. The account data, such as the members information, the threshold and the proposed transactions, are stored as dynamic fields of the account object. The module provides functions to create a new DynamicMultisigAccount, update the account data and propose and approve transactions.
 
 The module also defines an authenticator that checks that the sender of the transaction is the account and that the total weight of the members who approved the transaction is greater than or equal to the threshold.
 

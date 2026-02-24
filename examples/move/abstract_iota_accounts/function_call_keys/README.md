@@ -3,16 +3,17 @@
 The IOTAccount with FunctionCallKeys defines an account that can be used to allow function-level delegation through the usage of function call keys. An owner controls the account, while different users can be granted permissions to call specific functions through the usage of function call keys.
 
 This module provides:
+
 - `attach` to initialize the per-account allow-set (a dynamic field).
 - `create` to create a new `IOTAccount` with a public key and an authenticator.
 - `grant_permission` / `revoke_permission` admin operations over a per-pubkey allow-set.
 - `has_permission` read-only query.
 - `authenticate` dual-flow implementation:
-    1. OWNER FLOW (bypass): if the provided signature verifies against the account owner Ed25519 public key (stored by the underlying account), authentication succeeds **without** enforcing any function call key restrictions or command count checks.
-    2. FUNCTION CALL KEY FLOW (delegated): otherwise, we treat `pub_key` as a delegated key:
-       - verify signature against `pub_key`
-       - enforce exactly one PTB command
-       - extract a `FunctionRef` from that sole command and ensure it is allowed for `pub_key`.
+  1. OWNER FLOW (bypass): if the provided signature verifies against the account owner Ed25519 public key (stored by the underlying account), authentication succeeds **without** enforcing any function call key restrictions or command count checks.
+  2. FUNCTION CALL KEY FLOW (delegated): otherwise, we treat `pub_key` as a delegated key:
+     - verify signature against `pub_key`
+     - enforce exactly one PTB command
+     - extract a `FunctionRef` from that sole command and ensure it is allowed for `pub_key`.
 
 This allows the true account owner to perform arbitrary programmable transactions while enabling granular function-level delegation to other keys.
 
@@ -118,7 +119,7 @@ echo "TX Digest Hex: $TX_DIGEST_HEX"
 # Obtain the signature where the message is the TX digest and the signing key is part of the keypair from which the signing address was derived
 export IOTA_SIGNATURE_HEX=$(iota keytool sign-raw --address $OWNER_SIGN_ADDRESS --data $TX_DIGEST_HEX --json | jq -r '.iotaSignature' | base64 -d | od -An -tx1 | tr -d ' \n')
 echo "IOTA signature hex: $IOTA_SIGNATURE_HEX"
-# The IOTA signature contains a flag and the public key, so here it strips those informations (not necessary for the authenticator)
+# The IOTA signature contains a flag and the public key, so here it strips those information (not necessary for the authenticator)
 export SIGNATURE_HEX=$(echo $IOTA_SIGNATURE_HEX | cut -c 3-130)
 echo "Signature hex: $SIGNATURE_HEX"
 
@@ -148,7 +149,7 @@ echo "TX Digest Hex: $FUNCALL_TX_DIGEST_HEX"
 # Obtain the signature where the message is the TX digest and the signing key is part of the keypair from which the signing address was derived
 export FUNCALL_IOTA_SIGNATURE_HEX=$(iota keytool sign-raw --address $FUNCALL_SIGN_ADDRESS --data $FUNCALL_TX_DIGEST_HEX --json | jq -r '.iotaSignature' | base64 -d | od -An -tx1 | tr -d ' \n')
 echo "IOTA signature hex: $FUNCALL_IOTA_SIGNATURE_HEX"
-# The IOTA signature contains a flag and the public key, so here it strips those informations (not necessary for the authenticator)
+# The IOTA signature contains a flag and the public key, so here it strips those information (not necessary for the authenticator)
 export FUNCALL_SIGNATURE_HEX=$(echo $FUNCALL_IOTA_SIGNATURE_HEX | cut -c 3-130)
 echo "Signature hex: $FUNCALL_SIGNATURE_HEX"
 

@@ -14,7 +14,7 @@
 /// authenticator.
 ///
 /// Authenticator functions are expected to be defined separately and passed as a reference when
-/// creating an account. Whilst, rotating the authenticator function reference is handeled within
+/// creating an account. Whilst, rotating the authenticator function reference is handled within
 /// this module. An admin can be optionally set for an account, in order to enable a more complex
 /// rotation of the authenticator function reference. This can be useful in the case in which the
 /// main authenticator function cannot be invoked to rotate itself, for example, because of a key

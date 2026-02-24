@@ -2,12 +2,12 @@
 
 This example shows how to create and use an IOTAccount Move smart contract that uses an Ed25519 public key for authentication.
 
-This package only includes the module to represent the IOTAccount. Thus, for the following example the `../public_key_authentication` package will be used as dependency. 
+This package only includes the module to represent the IOTAccount. Thus, for the following example the `../public_key_authentication` package will be used as dependency.
 
-The IOTAccount module defines a generic account struct that can be used as a base for different types of accounts in the IOTA ecosystem. The account data is stored as dynamic fields, which allows for flexible updates and extensions without needing to change the underlying struct definition. 
-The module also defines a builder for safely constructing accounts with the necessary authenticator function reference and dynamic fields. The module includes functions for modifying the account (adding/removing/rotating fields and admins) as well as public-view functions for reading the account's address, fields and attached authenticator. 
+The IOTAccount module defines a generic account struct that can be used as a base for different types of accounts in the IOTA ecosystem. The account data is stored as dynamic fields, which allows for flexible updates and extensions without needing to change the underlying struct definition.
+The module also defines a builder for safely constructing accounts with the necessary authenticator function reference and dynamic fields. The module includes functions for modifying the account (adding/removing/rotating fields and admins) as well as public-view functions for reading the account's address, fields and attached authenticator.
 
-Authenticator functions are expected to be defined separately and passed as a reference when creating an account. Whilst, rotating the authenticator function reference is handeled within this module. An admin can be optionally set for an account, in order to enable a more complex rotation of the authenticator function reference. This can be useful in the case in which the main authenticator function cannot be invoked to rotate itself, for example, because of a key loss. The admin account is not necessarily expected to be owned by a different entity; it can be used as another way to authenticate the account, in addition to the main authenticator function, e.g., an admin account using a social recovery mechanism.
+Authenticator functions are expected to be defined separately and passed as a reference when creating an account. Whilst, rotating the authenticator function reference is handled within this module. An admin can be optionally set for an account, in order to enable a more complex rotation of the authenticator function reference. This can be useful in the case in which the main authenticator function cannot be invoked to rotate itself, for example, because of a key loss. The admin account is not necessarily expected to be owned by a different entity; it can be used as another way to authenticate the account, in addition to the main authenticator function, e.g., an admin account using a social recovery mechanism.
 
 ## How to run
 
@@ -92,7 +92,7 @@ echo "TX Digest Hex: $TX_DIGEST_HEX"
 # Obtain the signature where the message is the TX digest and the signing key is part of the keypair from which the signing address was derived
 export IOTA_SIGNATURE_HEX=$(iota keytool sign-raw --address $SIGN_ADDRESS --data $TX_DIGEST_HEX --json | jq -r '.iotaSignature' | base64 -d | od -An -tx1 | tr -d ' \n')
 echo "IOTA signature hex: $IOTA_SIGNATURE_HEX"
-# The IOTA signature contains a flag and the public key, so here it strips those informations (not necessary for the authenticator)
+# The IOTA signature contains a flag and the public key, so here it strips those information (not necessary for the authenticator)
 export SIGNATURE_HEX=$(echo $IOTA_SIGNATURE_HEX | cut -c 3-130)
 echo "Signature hex: $SIGNATURE_HEX"
 

@@ -1,9 +1,9 @@
 # Spending Limit Account Move Example
 
-The SpendingLimitAccount module defines an account struct that can be used as a programmable account with a spending limit. The account data, stored as dynamic fields, includes a spending limit value and a balance reserve. 
-The spending limit is a u64 value that represents the maximum amount that can be withdrawn from the account in a single transaction. The balance reserve is a struct that holds the current balance reserved for spending and allows withdrawing and depositing funds to it. The account also has an owner public key. 
+The SpendingLimitAccount module defines an account struct that can be used as a programmable account with a spending limit. The account data, stored as dynamic fields, includes a spending limit value and a balance reserve.
+The spending limit is a u64 value that represents the maximum amount that can be withdrawn from the account in a single transaction. The balance reserve is a struct that holds the current balance reserved for spending and allows withdrawing and depositing funds to it. The account also has an owner public key.
 
-The module includes functions to create a new `SpendingLimitAccount`, rotate the account's authenticator, rotate the account's owner public key, withdraw from the balance reserve, and deposit to the balance reserve. 
+The module includes functions to create a new `SpendingLimitAccount`, rotate the account's authenticator, rotate the account's owner public key, withdraw from the balance reserve, and deposit to the balance reserve.
 
 The authenticator function for the `SpendingLimitAccount` validates the signature and checks for withdrawal commands in the transaction PTB. It looks into the PTB commands to find calls to the `withdraw_from_balance_reserve` function, calculates the total amount to be withdrawn in the transaction, and checks that the total amount does not exceed the spending limit.
 
@@ -101,7 +101,7 @@ echo "TX Digest Hex: $TX_DIGEST_HEX"
 # Obtain the signature where the message is the TX digest and the signing key is part of the keypair from which the signing address was derived
 export IOTA_SIGNATURE_HEX=$(iota keytool sign-raw --address $SIGN_ADDRESS --data $TX_DIGEST_HEX --json | jq -r '.iotaSignature' | base64 -d | od -An -tx1 | tr -d ' \n')
 echo "IOTA signature hex: $IOTA_SIGNATURE_HEX"
-# The IOTA signature contains a flag and the public key, so here it strips those informations (not necessary for the authenticator)
+# The IOTA signature contains a flag and the public key, so here it strips those information (not necessary for the authenticator)
 export SIGNATURE_HEX=$(echo $IOTA_SIGNATURE_HEX | cut -c 3-130)
 echo "Signature hex: $SIGNATURE_HEX"
 

@@ -90,7 +90,7 @@ echo "TX Digest Hex: $TX_DIGEST_HEX"
 # Obtain the signature where the message is the TX digest and the signing key is part of the keypair from which the signing address was derived
 export IOTA_SIGNATURE_HEX=$(iota keytool sign-raw --address $SIGN_ADDRESS --data $TX_DIGEST_HEX --json | jq -r '.iotaSignature' | base64 -d | od -An -tx1 | tr -d ' \n')
 echo "IOTA signature hex: $IOTA_SIGNATURE_HEX"
-# The IOTA signature contains a flag and the public key, so here it strips those informations (not necessary for the authenticator)
+# The IOTA signature contains a flag and the public key, so here it strips those information (not necessary for the authenticator)
 export SIGNATURE_HEX=$(echo $IOTA_SIGNATURE_HEX | cut -c 3-130)
 echo "Signature hex: $SIGNATURE_HEX"
 
