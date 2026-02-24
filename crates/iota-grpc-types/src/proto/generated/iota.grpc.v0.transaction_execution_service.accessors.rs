@@ -30,6 +30,26 @@ mod _accessor_impls {
             self
         }
     }
+    impl super::ExecutionError {
+        /// Sets `bcs_kind` with the provided value.
+        pub fn with_bcs_kind<T: Into<super::super::bcs::BcsData>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.bcs_kind = Some(field.into());
+            self
+        }
+        /// Sets `source` with the provided value.
+        pub fn with_source<T: Into<String>>(mut self, field: T) -> Self {
+            self.source = Some(field.into());
+            self
+        }
+        /// Sets `command_index` with the provided value.
+        pub fn with_command_index(mut self, field: u64) -> Self {
+            self.command_index = Some(field);
+            self
+        }
+    }
     impl super::SimulateTransactionRequest {
         /// Sets `transaction` with the provided value.
         pub fn with_transaction<T: Into<super::super::transaction::Transaction>>(

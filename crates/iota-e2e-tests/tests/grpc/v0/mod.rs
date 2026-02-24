@@ -13,7 +13,9 @@ use iota_grpc_types::v0::{
     ledger_service::GetServiceInfoResponse,
     object::Object,
     transaction::{ExecutedTransaction, Transaction, TransactionEffects, TransactionEvents},
-    transaction_execution_service::{ExecuteTransactionResponse, SimulateTransactionResponse},
+    transaction_execution_service::{
+        ExecuteTransactionResponse, ExecutionError, SimulateTransactionResponse,
+    },
     types::ObjectReference,
 };
 
@@ -79,8 +81,13 @@ impl_field_presence_checker!(CommandResult {
 impl_field_presence_checker!(CommandResults {
     results: [CommandResult]
 });
+impl_field_presence_checker!(ExecutionError {
+    bcs_kind,
+    source,
+    command_index,
+});
 impl_field_presence_checker!(SimulateTransactionResponse {
     transaction: ExecutedTransaction,
     suggested_gas_price,
-    command_results: CommandResults,
+    execution_result,
 });

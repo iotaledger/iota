@@ -13,7 +13,7 @@ use iota_grpc_types::{
         event as grpc_event, object as grpc_obj, signatures as grpc_sig, transaction as grpc_tx,
     },
 };
-use iota_types::{execution::ExecutionResult, iota_sdk_types_conversions::type_tag_core_to_sdk};
+use iota_types::iota_sdk_types_conversions::type_tag_core_to_sdk;
 
 use crate::{GrpcReader, merge::Merge, utils::render_json};
 
@@ -199,7 +199,7 @@ impl Merge<&TransactionReadSource<'_>> for grpc_sig::UserSignatures {
 pub struct CommandResultsReadSource<'a> {
     pub reader: Arc<GrpcReader>,
     pub config: &'a iota_config::node::GrpcApiConfig,
-    pub execution_results: Vec<ExecutionResult>,
+    pub execution_results: Vec<iota_types::execution::ExecutionResult>,
 }
 
 impl Merge<&CommandResultsReadSource<'_>> for CommandResults {

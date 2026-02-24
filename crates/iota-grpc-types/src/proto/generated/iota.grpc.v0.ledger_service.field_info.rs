@@ -428,6 +428,9 @@ mod _field_impls {
             message_fields: None,
         };
     }
+    impl ObjectResult {
+        pub const RESULT_ONEOF: &'static str = "result";
+    }
     impl MessageFields for ObjectResult {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::OBJECT_FIELD,
@@ -676,6 +679,9 @@ mod _field_impls {
             message_fields: None,
         };
     }
+    impl TransactionResult {
+        pub const RESULT_ONEOF: &'static str = "result";
+    }
     impl MessageFields for TransactionResult {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::TRANSACTION_FIELD,
@@ -821,6 +827,9 @@ mod _field_impls {
             is_map: false,
             message_fields: None,
         };
+    }
+    impl GetCheckpointDataRequest {
+        pub const CHECKPOINT_ID_ONEOF: &'static str = "checkpoint_id";
     }
     impl MessageFields for GetCheckpointDataRequest {
         const FIELDS: &'static [&'static MessageField] = &[
@@ -1022,6 +1031,9 @@ mod _field_impls {
             is_map: false,
             message_fields: Some(EndMarker::FIELDS),
         };
+    }
+    impl CheckpointData {
+        pub const PAYLOAD_ONEOF: &'static str = "payload";
     }
     impl MessageFields for CheckpointData {
         const FIELDS: &'static [&'static MessageField] = &[

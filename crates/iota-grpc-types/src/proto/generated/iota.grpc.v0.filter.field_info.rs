@@ -316,6 +316,9 @@ mod _field_impls {
             message_fields: Some(MoveEventTypeFilter::FIELDS),
         };
     }
+    impl EventFilter {
+        pub const FILTER_ONEOF: &'static str = "filter";
+    }
     impl MessageFields for EventFilter {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::ALL_FIELD,
@@ -709,6 +712,9 @@ mod _field_impls {
             is_map: false,
             message_fields: Some(EventFilter::FIELDS),
         };
+    }
+    impl TransactionFilter {
+        pub const FILTER_ONEOF: &'static str = "filter";
     }
     impl MessageFields for TransactionFilter {
         const FIELDS: &'static [&'static MessageField] = &[
