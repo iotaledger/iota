@@ -103,7 +103,7 @@ impl Client {
 
         while let Some(response) = stream.message().await? {
             has_next = response.has_next;
-            for result in response.transactions {
+            for result in response.transaction_results {
                 results.push(result.into_result()?);
             }
         }

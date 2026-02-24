@@ -102,7 +102,7 @@ pub(crate) fn get_transactions(
         },
         max_message_size,
         GetTransactionsResponse,
-        transactions,
+        transaction_results,
         has_next
     ))
 }

@@ -146,7 +146,7 @@ pub mod transaction_result {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetTransactionsResponse {
     #[prost(message, repeated, tag = "1")]
-    pub transactions: ::prost::alloc::vec::Vec<TransactionResult>,
+    pub transaction_results: ::prost::alloc::vec::Vec<TransactionResult>,
     #[prost(bool, tag = "2")]
     pub has_next: bool,
 }

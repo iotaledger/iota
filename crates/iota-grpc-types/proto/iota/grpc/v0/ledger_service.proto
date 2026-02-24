@@ -159,7 +159,7 @@ message TransactionResult {
 message GetTransactionsResponse {
   option (iota.grpc.message_accessors) = "with";
 
-  repeated TransactionResult transactions = 1;
+  repeated TransactionResult transaction_results = 1;
   bool has_next = 2;
 }
 

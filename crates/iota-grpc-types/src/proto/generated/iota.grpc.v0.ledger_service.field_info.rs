@@ -718,9 +718,9 @@ mod _field_impls {
         }
     }
     impl GetTransactionsResponse {
-        pub const TRANSACTIONS_FIELD: &'static MessageField = &MessageField {
-            name: "transactions",
-            json_name: "transactions",
+        pub const TRANSACTION_RESULTS_FIELD: &'static MessageField = &MessageField {
+            name: "transaction_results",
+            json_name: "transactionResults",
             number: 1i32,
             is_optional: false,
             is_map: false,
@@ -737,7 +737,7 @@ mod _field_impls {
     }
     impl MessageFields for GetTransactionsResponse {
         const FIELDS: &'static [&'static MessageField] = &[
-            Self::TRANSACTIONS_FIELD,
+            Self::TRANSACTION_RESULTS_FIELD,
             Self::HAS_NEXT_FIELD,
         ];
     }
@@ -761,8 +761,8 @@ mod _field_impls {
         pub fn finish(self) -> String {
             self.path.join(".")
         }
-        pub fn transactions(mut self) -> TransactionResultFieldPathBuilder {
-            self.path.push(GetTransactionsResponse::TRANSACTIONS_FIELD.name);
+        pub fn transaction_results(mut self) -> TransactionResultFieldPathBuilder {
+            self.path.push(GetTransactionsResponse::TRANSACTION_RESULTS_FIELD.name);
             TransactionResultFieldPathBuilder::new_with_base(self.path)
         }
         pub fn has_next(mut self) -> String {

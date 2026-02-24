@@ -83,7 +83,7 @@ async fn assert_get_transactions_request(
         response_count += 1;
 
         // Assert all returned transactions have the expected fields
-        for (idx, tx_result) in response.transactions.iter().enumerate() {
+        for (idx, tx_result) in response.transaction_results.iter().enumerate() {
             if let Some(transaction_result::Result::ExecutedTransaction(transaction)) =
                 &tx_result.result
             {
@@ -221,7 +221,7 @@ async fn get_transactions_readmask_scenarios() {
         )
         .await;
 
-        let total_transactions: usize = responses.iter().map(|r| r.transactions.len()).sum();
+        let total_transactions: usize = responses.iter().map(|r| r.transaction_results.len()).sum();
         assert_eq!(total_transactions, 1, "{scenario}: expected 1 transaction");
     }
 }
@@ -251,7 +251,7 @@ async fn get_transactions_batch() {
     )
     .await;
 
-    let total_transactions: usize = responses.iter().map(|r| r.transactions.len()).sum();
+    let total_transactions: usize = responses.iter().map(|r| r.transaction_results.len()).sum();
     assert_eq!(
         total_transactions, 3,
         "Should have received 3 transactions in batch"
@@ -311,7 +311,7 @@ async fn get_transactions_streaming() {
     .await;
 
     // Verify we got all 1000 results
-    let total_transactions: usize = responses.iter().map(|r| r.transactions.len()).sum();
+    let total_transactions: usize = responses.iter().map(|r| r.transaction_results.len()).sum();
     assert_eq!(
         total_transactions, 1000,
         "Should have received 1000 transactions"
@@ -345,7 +345,7 @@ async fn get_transactions_empty_request() {
     // Should return single response with 0 transactions
     assert_eq!(responses.len(), 1, "Should have 1 response");
     assert_eq!(
-        responses[0].transactions.len(),
+        responses[0].transaction_results.len(),
         0,
         "Should have 0 transactions"
     );
@@ -397,7 +397,7 @@ async fn get_transactions_nonexistent() {
     // Verify all results contain errors (not transactions)
     let mut error_count = 0;
     for response in &responses {
-        for tx_result in &response.transactions {
+        for tx_result in &response.transaction_results {
             assert!(
                 matches!(tx_result.result, Some(transaction_result::Result::Error(_))),
                 "Expected error for non-existent transaction"
@@ -462,7 +462,7 @@ async fn get_transactions_mixed_valid_invalid() {
     while let Some(response) = stream.next().await {
         let response = response.unwrap();
         let has_next = response.has_next;
-        for tx_result in response.transactions {
+        for tx_result in response.transaction_results {
             all_results.push(tx_result);
         }
         if !has_next {

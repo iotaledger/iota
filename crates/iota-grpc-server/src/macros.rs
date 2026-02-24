@@ -8,9 +8,9 @@
 /// const MASK: &str = field_mask!(
 ///     "transaction.digest",
 ///     "transaction.effects",
-///     "command_results"
+///     "suggested_gas_price",
 /// );
-/// // Expands to: "transaction.digest,transaction.effects,command_results"
+/// // Expands to: "transaction.digest,transaction.effects,suggested_gas_price"
 /// ```
 #[macro_export]
 macro_rules! field_mask {

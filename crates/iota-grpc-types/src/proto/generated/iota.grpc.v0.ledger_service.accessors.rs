@@ -293,12 +293,12 @@ mod _accessor_impls {
         }
     }
     impl super::GetTransactionsResponse {
-        /// Sets `transactions` with the provided value.
-        pub fn with_transactions(
+        /// Sets `transaction_results` with the provided value.
+        pub fn with_transaction_results(
             mut self,
             field: Vec<super::TransactionResult>,
         ) -> Self {
-            self.transactions = field;
+            self.transaction_results = field;
             self
         }
         /// Sets `has_next` with the provided value.
