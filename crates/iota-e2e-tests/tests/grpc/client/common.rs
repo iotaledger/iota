@@ -91,9 +91,9 @@ pub fn assert_grpc_not_found<T: std::fmt::Debug>(result: Result<T, Error>) {
     }
 }
 
-/// Check if error is a Server error containing "not found".
+/// Check if error is a Server error with NOT_FOUND status code.
 pub fn is_server_not_found(err: &Error) -> bool {
-    matches!(err, Error::Server(msg) if msg.to_lowercase().contains("not found"))
+    matches!(err, Error::Server(status) if tonic::Code::from_i32(status.code) == tonic::Code::NotFound)
 }
 
 /// Assert that a result is a Server "not found" error.

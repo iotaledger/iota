@@ -10,6 +10,7 @@ use iota_grpc_types::v0::{
 };
 pub use iota_grpc_types::{
     field::{FieldMask, FieldMaskUtil},
+    google::rpc::Status as RpcStatus,
     proto::TryFromProtoError,
 };
 use iota_sdk_types::Digest;
@@ -22,9 +23,14 @@ pub enum Error {
     #[error("proto conversion error: {0}")]
     ProtoConversion(#[from] TryFromProtoError),
 
-    /// Error from the gRPC server.
-    #[error("server error: {0}")]
-    Server(String),
+    /// Per-item error returned by the server (preserves code, message,
+    /// details).
+    #[error("server error (code {code}): {msg}", code = .0.code, msg = .0.message)]
+    Server(RpcStatus),
+
+    /// Client-side protocol error (e.g. checkpoint stream reassembly).
+    #[error("protocol error: {0}")]
+    Protocol(String),
 
     /// Error converting signatures.
     #[error("signature conversion error: {0}")]
@@ -39,20 +45,14 @@ pub enum Error {
     Grpc(#[from] tonic::Status),
 }
 
-impl Error {
-    /// Create a new server error.
-    pub fn server<T: AsRef<str>>(msg: T) -> Self {
-        Error::Server(msg.as_ref().to_string())
-    }
-}
-
 impl From<Error> for tonic::Status {
     fn from(err: Error) -> Self {
         match err {
             Error::ProtoConversion(e) => {
                 tonic::Status::internal(format!("proto conversion error: {e}"))
             }
-            Error::Server(msg) => tonic::Status::internal(format!("server error: {msg}")),
+            Error::Server(status) => status.to_tonic_status(),
+            Error::Protocol(msg) => tonic::Status::internal(format!("protocol error: {msg}")),
             Error::Signature(msg) => {
                 tonic::Status::internal(format!("signature conversion error: {msg}"))
             }
@@ -141,9 +141,9 @@ impl ProtoResult for ObjectResult {
     fn into_result(self) -> Result<Self::Value> {
         match self.result {
             Some(object_result::Result::Object(obj)) => Ok(obj),
-            Some(object_result::Result::Error(e)) => Err(Error::Server(e.message)),
+            Some(object_result::Result::Error(e)) => Err(Error::Server(e)),
             None => Err(TryFromProtoError::missing("result").into()),
-            Some(_) => Err(Error::server("Unknown object result type")),
+            Some(_) => Err(Error::Protocol("Unknown object result type".into())),
         }
     }
 }
@@ -154,9 +154,9 @@ impl ProtoResult for TransactionResult {
     fn into_result(self) -> Result<Self::Value> {
         match self.result {
             Some(transaction_result::Result::Transaction(tx)) => Ok(tx),
-            Some(transaction_result::Result::Error(e)) => Err(Error::Server(e.message)),
+            Some(transaction_result::Result::Error(e)) => Err(Error::Server(e)),
             None => Err(TryFromProtoError::missing("result").into()),
-            Some(_) => Err(Error::server("Unknown transaction result type")),
+            Some(_) => Err(Error::Protocol("Unknown transaction result type".into())),
         }
     }
 }
