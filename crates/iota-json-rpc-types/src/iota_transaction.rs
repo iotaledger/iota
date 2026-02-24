@@ -1499,27 +1499,33 @@ impl IotaExecutionStatus {
                 command: Some(mut command_index),
             } => {
                 let error = 'error: {
-                    let ExecutionFailureStatus::MoveAbort(loc, code) = &error else {
+                    let ExecutionFailureStatus::MoveAbort { location, code } = &error else {
                         break 'error error.to_string();
                     };
-                    let fname_string = if let Some(fname) = &loc.function_name {
+                    let fname_string = if let Some(fname) = &location.function_name {
                         format!("::{fname}'")
                     } else {
                         "'".to_string()
                     };
+
+                    let module_id = ModuleId::new(
+                        AccountAddress::from(location.package.into_bytes()),
+                        move_core_types::identifier::Identifier::new(location.module.as_str())
+                            .unwrap(),
+                    );
 
                     let Some(CleverError {
                         module_id,
                         source_line_number,
                         error_info,
                     }) = resolver
-                        .resolve_clever_error(loc.module.clone(), *code)
+                        .resolve_clever_error(module_id.clone(), *code)
                         .await
                     else {
                         break 'error format!(
                             "from '{}{fname_string} (instruction {}), abort code: {code}",
-                            loc.module.to_canonical_display(true),
-                            loc.instruction,
+                            module_id.to_canonical_display(true),
+                            location.instruction,
                         );
                     };
 
@@ -1599,6 +1605,7 @@ impl From<ExecutionStatus> for IotaExecutionStatus {
             } => Self::Failure {
                 error: format!("{error} in command {idx}"),
             },
+            _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
     }
 }

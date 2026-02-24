@@ -39,7 +39,7 @@ macro_rules! fp_ensure {
     };
 }
 
-use crate::execution_status::{CommandIndex, ExecutionFailureStatus};
+use crate::execution_status::ExecutionFailureStatus;
 
 #[macro_export]
 macro_rules! exit_main {
@@ -990,7 +990,7 @@ pub struct ExecutionError {
 struct ExecutionErrorInner {
     kind: ExecutionErrorKind,
     source: Option<BoxError>,
-    command: Option<CommandIndex>,
+    command: Option<u64>,
 }
 
 impl ExecutionError {
@@ -1012,7 +1012,7 @@ impl ExecutionError {
         Self::new_with_source(ExecutionFailureStatus::InvariantViolation, source)
     }
 
-    pub fn with_command_index(mut self, command: CommandIndex) -> Self {
+    pub fn with_command_index(mut self, command: u64) -> Self {
         self.inner.command = Some(command);
         self
     }
@@ -1025,7 +1025,7 @@ impl ExecutionError {
         &self.inner.kind
     }
 
-    pub fn command(&self) -> Option<CommandIndex> {
+    pub fn command(&self) -> Option<u64> {
         self.inner.command
     }
 
@@ -1033,7 +1033,7 @@ impl ExecutionError {
         &self.inner.source
     }
 
-    pub fn to_execution_status(&self) -> (ExecutionFailureStatus, Option<CommandIndex>) {
+    pub fn to_execution_status(&self) -> (ExecutionFailureStatus, Option<u64>) {
         (self.kind().clone(), self.command())
     }
 }

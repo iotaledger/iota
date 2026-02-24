@@ -22,9 +22,9 @@ Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { k
 task 4, line 33:
 //# run Test::M::t4 --args 0
 Error: Transaction Effects Status: Invalid public Move function signature. Unsupported return type for return value 0
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: InvalidPublicFunctionReturnType { idx: 0 }, source: None, command: Some(0) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: InvalidPublicFunctionReturnType { index: 0 }, source: None, command: Some(0) } }
 
 task 5, line 35:
 //# run Test::M::t5 --args 0
 Error: Transaction Effects Status: Invalid public Move function signature. Unsupported return type for return value 0
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: InvalidPublicFunctionReturnType { idx: 0 }, source: None, command: Some(0) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: InvalidPublicFunctionReturnType { index: 0 }, source: None, command: Some(0) } }

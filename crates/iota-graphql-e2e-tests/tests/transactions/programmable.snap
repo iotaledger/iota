@@ -871,7 +871,7 @@ task 11, lines 610-611:
 //# programmable --sender A --inputs 1000
 //> SplitCoins(Gas, [Input(0)])
 Error: Transaction Effects Status: Unused result without the drop ability. Command result 0, return value 0
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: UnusedValueWithoutDrop { result_idx: 0, secondary_idx: 0 }, source: None, command: None } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: UnusedValueWithoutDrop { result: 0, subresult: 0 }, source: None, command: None } }
 
 task 12, line 613:
 //# create-checkpoint

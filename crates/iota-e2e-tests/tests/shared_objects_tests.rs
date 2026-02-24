@@ -495,7 +495,7 @@ async fn access_clock_object_test() {
         .execute_transaction_return_raw_effects(transaction)
         .await
         .unwrap();
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 
     let finish = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -580,7 +580,7 @@ async fn shared_object_sync() {
         .submit_transaction_to_validators(create_counter_transaction.clone(), &slow_validators)
         .await
         .unwrap();
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
     let (counter_ref, _) = effects.created()[0];
 
     // Check that the counter object exists in at least one of the validators the
@@ -630,7 +630,7 @@ async fn shared_object_sync() {
         .submit_transaction_to_validators(increment_counter_transaction.clone(), &validators[1..])
         .await
         .unwrap();
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 
     // Submit transactions to the out-of-date authority.
     // It will succeed because we share owned object certificates through consensus
@@ -638,7 +638,7 @@ async fn shared_object_sync() {
         .submit_transaction_to_validators(increment_counter_transaction, &validators[0..1])
         .await
         .unwrap();
-    assert!(effects.status().is_ok());
+    assert!(effects.status().is_success());
 }
 
 /// Send a simple shared object transaction to IOTA and ensures the client gets

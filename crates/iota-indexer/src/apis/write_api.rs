@@ -294,7 +294,7 @@ impl WriteApi {
 
                 let mut error = ExecutionError::new(exec_err.into(), source);
                 if let Some(command_index) = execution_error.command_index {
-                    error = error.with_command_index(command_index as usize);
+                    error = error.with_command_index(command_index);
                 }
                 Ok(error.to_string())
             })

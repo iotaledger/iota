@@ -244,24 +244,24 @@ CommandArgumentError:
     0:
       TypeMismatch: UNIT
     1:
-      InvalidBCSBytes: UNIT
+      InvalidBcsBytes: UNIT
     2:
-      InvalidUsageOfPureArg: UNIT
+      InvalidUsageOfPureArgument: UNIT
     3:
       InvalidArgumentToPrivateEntryFunction: UNIT
     4:
       IndexOutOfBounds:
         STRUCT:
-          - idx: U16
+          - index: U16
     5:
       SecondaryIndexOutOfBounds:
         STRUCT:
-          - result_idx: U16
-          - secondary_idx: U16
+          - result: U16
+          - subresult: U16
     6:
       InvalidResultArity:
         STRUCT:
-          - result_idx: U16
+          - result: U16
     7:
       InvalidGasCoinUsage: UNIT
     8:
@@ -294,10 +294,6 @@ CompressedSignature:
           TUPLEARRAY:
             CONTENT: U8
             SIZE: 64
-CongestedObjects:
-  NEWTYPESTRUCT:
-    SEQ:
-      TYPENAME: ObjectId
 ConsensusCommitPrologueV1:
   STRUCT:
     - epoch: U64
@@ -419,12 +415,12 @@ ExecutionFailureStatus:
     3:
       FeatureNotYetSupported: UNIT
     4:
-      MoveObjectTooBig:
+      ObjectTooBig:
         STRUCT:
           - object_size: U64
           - max_object_size: U64
     5:
-      MovePackageTooBig:
+      PackageTooBig:
         STRUCT:
           - object_size: U64
           - max_object_size: U64
@@ -443,17 +439,20 @@ ExecutionFailureStatus:
       IotaMoveVerificationError: UNIT
     11:
       MovePrimitiveRuntimeError:
-        NEWTYPE:
-          TYPENAME: MoveLocationOpt
+        STRUCT:
+          - location:
+              OPTION:
+                TYPENAME: MoveLocation
     12:
       MoveAbort:
-        TUPLE:
-          - TYPENAME: MoveLocation
-          - U64
+        STRUCT:
+          - location:
+              TYPENAME: MoveLocation
+          - code: U64
     13:
-      VMVerificationOrDeserializationError: UNIT
+      VmVerificationOrDeserializationError: UNIT
     14:
-      VMInvariantViolation: UNIT
+      VmInvariantViolation: UNIT
     15:
       FunctionNotFound: UNIT
     16:
@@ -465,24 +464,24 @@ ExecutionFailureStatus:
     19:
       CommandArgumentError:
         STRUCT:
-          - arg_idx: U16
+          - argument: U16
           - kind:
               TYPENAME: CommandArgumentError
     20:
       TypeArgumentError:
         STRUCT:
-          - argument_idx: U16
+          - type_argument: U16
           - kind:
               TYPENAME: TypeArgumentError
     21:
       UnusedValueWithoutDrop:
         STRUCT:
-          - result_idx: U16
-          - secondary_idx: U16
+          - result: U16
+          - subresult: U16
     22:
       InvalidPublicFunctionReturnType:
         STRUCT:
-          - idx: U16
+          - index: U16
     23:
       InvalidTransferObject: UNIT
     24:
@@ -497,13 +496,13 @@ ExecutionFailureStatus:
     27:
       PackageUpgradeError:
         STRUCT:
-          - upgrade_error:
+          - kind:
               TYPENAME: PackageUpgradeError
     28:
       WrittenObjectsTooLarge:
         STRUCT:
-          - current_size: U64
-          - max_size: U64
+          - object_size: U64
+          - max_object_size: U64
     29:
       CertificateDenied: UNIT
     30:
@@ -516,7 +515,8 @@ ExecutionFailureStatus:
       ExecutionCancelledDueToSharedObjectCongestion:
         STRUCT:
           - congested_objects:
-              TYPENAME: CongestedObjects
+              SEQ:
+                TYPENAME: ObjectId
     34:
       AddressDeniedForCoin:
         STRUCT:
@@ -533,7 +533,8 @@ ExecutionFailureStatus:
       ExecutionCancelledDueToSharedObjectCongestionV2:
         STRUCT:
           - congested_objects:
-              TYPENAME: CongestedObjects
+              SEQ:
+                TYPENAME: ObjectId
           - suggested_gas_price: U64
     38:
       InvalidLinkage: UNIT
@@ -619,16 +620,13 @@ ModuleId:
     - name: STR
 MoveLocation:
   STRUCT:
-    - module:
-        TYPENAME: ModuleId
+    - package:
+        TYPENAME: ObjectId
+    - module: STR
     - function: U16
     - instruction: U16
     - function_name:
         OPTION: STR
-MoveLocationOpt:
-  NEWTYPESTRUCT:
-    OPTION:
-      TYPENAME: MoveLocation
 MoveObject:
   STRUCT:
     - type_:
@@ -784,13 +782,13 @@ PackageUpgradeError:
       DigestDoesNotMatch:
         STRUCT:
           - digest:
-              SEQ: U8
+              TYPENAME: Digest
     4:
       UnknownUpgradePolicy:
         STRUCT:
           - policy: U8
     5:
-      PackageIDDoesNotMatch:
+      PackageIdDoesNotMatch:
         STRUCT:
           - package_id:
               TYPENAME: ObjectId
@@ -971,9 +969,9 @@ TupleObjectReference:
 TypeArgumentError:
   ENUM:
     0:
-      TypeNotFound: UNIT
+      type_not_found: UNIT
     1:
-      ConstraintNotSatisfied: UNIT
+      constraint_not_satisfied: UNIT
 TypeInput:
   ENUM:
     0:

@@ -127,7 +127,7 @@ impl ExecutionEffects {
     pub fn is_ok(&self) -> bool {
         match self {
             ExecutionEffects::CertifiedTransactionEffects(certified_effects, ..) => {
-                certified_effects.data().status().is_ok()
+                certified_effects.data().status().is_success()
             }
             ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => {
                 iota_tx_effects.status().is_ok()

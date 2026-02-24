@@ -46,14 +46,14 @@ task 5, lines 37-40:
 //# programmable --sender A --inputs object(3,0) 10001 @B
 //> 0: SplitCoins(Input(0), [Input(1)]);
 // split off more than it's available using vector of amounts
-Error: Transaction Effects Status: Insufficient coin balance for operation.
+Error: Transaction Effects Status: Insufficient coin balance for operation
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: InsufficientCoinBalance, source: Some("balance: 1000 required: 10001"), command: Some(0) } }
 
 task 6, lines 41-44:
 //# programmable --sender A --inputs object(3,0) 333 333 335
 //> 0: SplitCoins(Input(0), [Input(1), Input(2), Input(3)]);
 // use incorrect amount type for split
-Error: Transaction Effects Status: Insufficient coin balance for operation.
+Error: Transaction Effects Status: Insufficient coin balance for operation
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: InsufficientCoinBalance, source: Some("balance: 334 required: 335"), command: Some(0) } }
 
 task 7, lines 45-48:
@@ -61,14 +61,14 @@ task 7, lines 45-48:
 //> 0: SplitCoins(Input(0), [Input(1)]);
 // use incorrect amount type for split with the first one being correct
 Error: Transaction Effects Status: Invalid command argument at 1. The argument cannot be deserialized into a value of the specified type
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: InvalidBCSBytes }, source: None, command: Some(0) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: InvalidBcsBytes }, source: None, command: Some(0) } }
 
 task 8, lines 49-52:
 //# programmable --sender A --inputs object(3,0) 100 @C
 //> 0: SplitCoins(Input(0), [Input(1), Input(2)]);
 // use incorrect arg type for split coming from a Move function
 Error: Transaction Effects Status: Invalid command argument at 1. The argument cannot be deserialized into a value of the specified type
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: InvalidBCSBytes }, source: None, command: Some(0) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: InvalidBcsBytes }, source: None, command: Some(0) } }
 
 task 9, lines 53-57:
 //# programmable --sender A --inputs object(3,0)
@@ -76,7 +76,7 @@ task 9, lines 53-57:
 //> 1: SplitCoins(Input(0), [Result(0)]);
 // use incorrect arg type for split by creating a vector of u64s
 Error: Transaction Effects Status: Invalid command argument at 1. The type of the value does not match the expected type
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: TypeMismatch }, source: None, command: Some(1) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: TypeMismatch }, source: None, command: Some(1) } }
 
 task 10, lines 58-63:
 //# programmable --sender A --inputs object(3,0) 100
@@ -85,11 +85,11 @@ task 10, lines 58-63:
 // pass result of SplitCoins directly as another function argument without creating and intermediate
 // vector first
 Error: Transaction Effects Status: Invalid command argument at 1. The type of the value does not match the expected type
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: TypeMismatch }, source: None, command: Some(1) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: TypeMismatch }, source: None, command: Some(1) } }
 
 task 11, lines 64-66:
 //# programmable --sender A --inputs object(3,0) 100 100 @B
 //> 0: SplitCoins(Input(0), [Input(1), Input(2)]);
 //> test::m1::transfer_(Result(0), Input(3));
 Error: Transaction Effects Status: Invalid command argument at 0. Invalid usage of result 0, expected a single result but found either no return values or multiple.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: InvalidResultArity { result_idx: 0 } }, source: None, command: Some(1) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 0, kind: InvalidResultArity { result: 0 } }, source: None, command: Some(1) } }

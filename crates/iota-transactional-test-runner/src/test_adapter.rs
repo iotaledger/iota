@@ -1896,6 +1896,7 @@ impl IotaTestAdapter {
                     "Transaction Effects Status: {error}\n{execution_msg}",
                 )))
             }
+            _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
     }
 

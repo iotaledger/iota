@@ -23,8 +23,8 @@ use iota_types::{
     },
     event::Event,
     execution_status::{
-        CommandArgumentError, ExecutionFailureStatus, ExecutionStatus, PackageUpgradeError,
-        TypeArgumentError,
+        CommandArgumentError, ExecutionFailureStatus, ExecutionStatus, MoveLocation,
+        PackageUpgradeError, TypeArgumentError,
     },
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
@@ -48,7 +48,7 @@ use move_core_types::{account_address::AccountAddress, language_storage::ModuleI
 use pretty_assertions::assert_str_eq;
 use rand::{SeedableRng, rngs::StdRng};
 use roaring::RoaringBitmap;
-use serde_reflection::{Registry, Result, Samples, Tracer, TracerConfig};
+use serde_reflection::{ContainerFormat, Registry, Result, Samples, Tracer, TracerConfig};
 use typed_store::TypedStoreError;
 
 /// Generate a type format registry for IOTA types
@@ -231,14 +231,50 @@ fn get_registry() -> Result<Registry> {
     };
     tracer.trace_value(&mut samples, &event).unwrap();
 
+    // Trace SDK types with custom serde (ExecutionStatus, ExecutionFailureStatus,
+    // CommandArgumentError, PackageUpgradeError). These delegate to internal
+    // Binary* helper types that serde_reflection cannot auto-discover through
+    // trace_type alone.
+    //
+    // Strategy: seed with trace_value for the types containing custom-serde
+    // fields (MoveLocation, both ExecutionStatus variants), then use repeated
+    // trace_type_once calls to let the deserializer discover remaining variants.
+    let move_location = MoveLocation {
+        package: ObjectID::ZERO,
+        module: Identifier::from_static("foo"),
+        function: 0,
+        instruction: 0,
+        function_name: Some(Identifier::from_static("foo")),
+    };
+    tracer.trace_value(&mut samples, &move_location).unwrap();
+    tracer.trace_type::<MoveLocation>(&samples).unwrap();
+
+    tracer
+        .trace_value(&mut samples, &ExecutionStatus::Success)
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &ExecutionStatus::Failure {
+                error: ExecutionFailureStatus::InsufficientGas,
+                command: Some(0),
+            },
+        )
+        .unwrap();
+
+    // Discover all remaining enum variants via deserialization. trace_type
+    // loops internally until all variants of the (internal Binary*) enum are
+    // found, using the samples we seeded above for custom-serde fields.
+    tracer
+        .trace_type::<ExecutionFailureStatus>(&samples)
+        .unwrap();
+    tracer.trace_type::<CommandArgumentError>(&samples).unwrap();
+    tracer.trace_type::<PackageUpgradeError>(&samples).unwrap();
+
     // 2. Trace the main entry point(s) + every enum separately.
     tracer.trace_type::<StructInput>(&samples).unwrap();
     tracer.trace_type::<TypeInput>(&samples).unwrap();
     tracer.trace_type::<Owner>(&samples).unwrap();
-    tracer.trace_type::<ExecutionStatus>(&samples).unwrap();
-    tracer
-        .trace_type::<ExecutionFailureStatus>(&samples)
-        .unwrap();
     tracer.trace_type::<CallArg>(&samples).unwrap();
     tracer.trace_type::<ObjectArg>(&samples).unwrap();
     tracer.trace_type::<Data>(&samples).unwrap();
@@ -253,9 +289,7 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_type::<DeleteKind>(&samples).unwrap();
     tracer.trace_type::<Argument>(&samples).unwrap();
     tracer.trace_type::<Command>(&samples).unwrap();
-    tracer.trace_type::<CommandArgumentError>(&samples).unwrap();
     tracer.trace_type::<TypeArgumentError>(&samples).unwrap();
-    tracer.trace_type::<PackageUpgradeError>(&samples).unwrap();
     tracer
         .trace_type::<TransactionExpiration>(&samples)
         .unwrap();
@@ -313,7 +347,20 @@ fn get_registry() -> Result<Registry> {
 
     tracer.trace_type::<CheckpointData>(&samples).unwrap();
 
-    tracer.registry()
+    // Use registry_unchecked() because trace_type::<TransactionEffects>
+    // re-encounters ExecutionStatus during deserialization and marks it as
+    // incomplete, even though all variants were already discovered above.
+    let mut registry = tracer.registry_unchecked();
+
+    // Clean up spurious high-index variants injected by serde_reflection's
+    // deserializer when it re-encounters already-complete enums.
+    for container in registry.values_mut() {
+        if let ContainerFormat::Enum(variants) = container {
+            variants.retain(|idx, _| *idx < u32::MAX / 2);
+        }
+    }
+
+    Ok(registry)
 }
 
 #[derive(Debug, Parser, Clone, Copy, ValueEnum)]
