@@ -11,8 +11,8 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 2, lines 21-23:
 //# run Test::M::authenticate
-Error: Transaction Effects Status: MOVE VM INVARIANT VIOLATION.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: VMInvariantViolation, source: Some("`iota::auth_context::AuthContext` can't be used as a parameter in this execution mode"), command: Some(0) } }
+Error: Transaction Effects Status: MOVE VM INVARIANT VIOLATION
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: VmInvariantViolation, source: Some("`iota::auth_context::AuthContext` can't be used as a parameter in this execution mode"), command: Some(0) } }
 
 task 3, lines 24-26:
 //# run Test::M::authenticate_with_mut_auth_context

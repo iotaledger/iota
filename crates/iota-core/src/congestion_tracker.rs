@@ -7,7 +7,7 @@ use std::collections::{HashMap, hash_map::Entry};
 use iota_types::{
     base_types::ObjectID,
     effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
-    execution_status::CongestedObjects,
+    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     messages_checkpoint::{CheckpointTimestamp, VerifiedCheckpoint},
     transaction::{TransactionData, TransactionDataAPI},
 };
@@ -128,6 +128,34 @@ pub struct CongestionTracker {
     object_congestion_info: Cache<ObjectID, CongestionInfo>,
 }
 
+/// Returns congested objects if the transaction was cancelled due to
+/// shared object congestion, else returns `None`.
+/// Returns a suggested gas price if the transaction was cancelled due to
+/// shared object congestion (subject to the gas price feedback mechanism
+/// is enabled), otherwise returns `None`.
+fn get_congested_objects_and_feedback_suggested_gas_price(
+    status: &ExecutionStatus,
+) -> Option<(&[ObjectID], Option<u64>)> {
+    match status {
+        ExecutionStatus::Failure {
+            error:
+                ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
+                    congested_objects,
+                },
+            ..
+        } => Some((congested_objects, None)),
+        ExecutionStatus::Failure {
+            error:
+                ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                    congested_objects,
+                    suggested_gas_price,
+                },
+            ..
+        } => Some((congested_objects, Some(*suggested_gas_price))),
+        _ => None,
+    }
+}
+
 impl CongestionTracker {
     /// Create a new `CongestionTracker`. The cache capacity will be
     /// set to `CONGESTION_TRACKER_CACHE_CAPACITY`, which is `10_000`.
@@ -166,15 +194,12 @@ impl CongestionTracker {
                 continue;
             }
 
-            if let Some(CongestedObjects(congested_objects)) =
-                effects.status().get_congested_objects()
+            if let Some((congested_objects, suggested_gas_price)) =
+                get_congested_objects_and_feedback_suggested_gas_price(effects.status())
             {
-                let gas_price_feedback = effects
-                    .status()
-                    .get_feedback_suggested_gas_price()
-                    .unwrap_or(self.reference_gas_price);
+                let gas_price_feedback = suggested_gas_price.unwrap_or(self.reference_gas_price);
                 congestion_txs_data.push(TxData {
-                    objects: congested_objects.clone(),
+                    objects: congested_objects.to_vec(),
                     gas_price,
                     gas_price_feedback: Some(gas_price_feedback),
                 });

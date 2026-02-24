@@ -128,7 +128,7 @@ impl SingleValidator {
             .try_execute_immediately(&executable, None, &self.epoch_store)
             .unwrap()
             .0;
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         effects
     }
 
@@ -141,7 +141,7 @@ impl SingleValidator {
             )
             .unwrap()
             .2;
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         effects
     }
 
@@ -187,7 +187,7 @@ impl SingleValidator {
                 unreachable!()
             }
         };
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         effects
     }
 
@@ -229,7 +229,7 @@ impl SingleValidator {
                 *executable.digest(),
                 &mut None,
             );
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         store.commit_objects(inner_temp_store);
         effects
     }

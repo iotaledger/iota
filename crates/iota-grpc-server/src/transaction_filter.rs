@@ -192,8 +192,8 @@ impl ExecutionStatusFilter {
     /// Returns true if the given execution status matches this filter.
     pub fn matches_status(&self, status: &ExecutionStatus) -> bool {
         match self {
-            ExecutionStatusFilter::Success => status.is_ok(),
-            ExecutionStatusFilter::Failure => status.is_err(),
+            ExecutionStatusFilter::Success => status.is_success(),
+            ExecutionStatusFilter::Failure => status.is_failure(),
         }
     }
 }
@@ -853,7 +853,7 @@ mod tests {
         // Cancelled due to congestion
         assert!(filter.matches_status(&ExecutionStatus::Failure {
             error: iota_types::execution_status::ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
-                congested_objects: iota_types::execution_status::CongestedObjects(vec![]),
+                congested_objects: vec![],
             },
             command: None,
         }));

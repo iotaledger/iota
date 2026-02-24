@@ -43,7 +43,7 @@ task 5, lines 39-40:
 //# programmable --inputs object(2,0) receiving(2,1)
 //> 0: tto::M1::receiver(Input(0), Input(1))
 Error: Transaction Effects Status: Unused result without the drop ability. Command result 0, return value 0
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: UnusedValueWithoutDrop { result_idx: 0, secondary_idx: 0 }, source: None, command: None } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: UnusedValueWithoutDrop { result: 0, subresult: 0 }, source: None, command: None } }
 
 task 6, line 42:
 //# view-object 2,0

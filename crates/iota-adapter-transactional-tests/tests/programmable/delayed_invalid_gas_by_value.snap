@@ -17,16 +17,16 @@ task 2, lines 16-18:
 //> TransferObjects([Gas], Input(0));
 //> test::m1::take<iota::coin::Coin<iota::iota::IOTA>>(Gas)
 Error: Transaction Effects Status: Invalid command argument at 0. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 0, kind: InvalidValueUsage }, source: None, command: Some(1) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 0, kind: InvalidValueUsage }, source: None, command: Some(1) } }
 
 task 3, lines 20-21:
 //# programmable
 //> test::m1::imm<iota::coin::Coin<iota::iota::IOTA>>(Gas, Gas)
 Error: Transaction Effects Status: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: InvalidValueUsage }, source: None, command: Some(0) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: InvalidValueUsage }, source: None, command: Some(0) } }
 
 task 4, lines 23-24:
 //# programmable
 //> test::m1::mut_<iota::coin::Coin<iota::iota::IOTA>>(Gas, Gas)
 Error: Transaction Effects Status: Invalid command argument at 1. Invalid usage of value. Mutably borrowed values require unique usage. Immutably borrowed values cannot be taken or borrowed mutably. Taken values cannot be used again.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: InvalidValueUsage }, source: None, command: Some(0) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { argument: 1, kind: InvalidValueUsage }, source: None, command: Some(0) } }

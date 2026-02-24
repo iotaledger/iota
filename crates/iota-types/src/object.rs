@@ -89,7 +89,7 @@ impl MoveObject {
     ) -> Result<Self, ExecutionError> {
         if contents.len() as u64 > max_move_object_size {
             return Err(ExecutionError::from_kind(
-                ExecutionErrorKind::MoveObjectTooBig {
+                ExecutionErrorKind::ObjectTooBig {
                     object_size: contents.len() as u64,
                     max_object_size: max_move_object_size,
                 },
@@ -227,7 +227,7 @@ impl MoveObject {
     ) -> Result<(), ExecutionError> {
         if new_contents.len() as u64 > max_move_object_size {
             return Err(ExecutionError::from_kind(
-                ExecutionErrorKind::MoveObjectTooBig {
+                ExecutionErrorKind::ObjectTooBig {
                     object_size: new_contents.len() as u64,
                     max_object_size: max_move_object_size,
                 },
