@@ -7736,7 +7736,6 @@
         "pattern": "(?:[a-zA-Z][a-zA-Z0-9_]{0,127})|(?:_[a-zA-Z0-9_]{0,127})"
       },
       "Input": {
-        "description": "An input to a user transaction\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text input = input-pure / input-immutable-or-owned / input-shared / input-receiving\n\ninput-pure                  = %x00 bytes input-immutable-or-owned    = %x01 object-ref input-shared                = %x02 object-id u64 bool input-receiving             = %x04 object-ref ```",
         "oneOf": [
           {
             "description": "A move value serialized as BCS.\n\nFor normal operations this is required to be a move primitive type and not contain structs or objects.",
@@ -7746,17 +7745,7 @@
             ],
             "properties": {
               "pure": {
-                "type": "object",
-                "required": [
-                  "value"
-                ],
-                "properties": {
-                  "value": {
-                    "description": "Base64 encoded data",
-                    "type": "string",
-                    "format": "base64"
-                  }
-                }
+                "$ref": "#/components/schemas/PureInput"
               }
             },
             "additionalProperties": false
@@ -7795,7 +7784,6 @@
                     "format": "u64"
                   },
                   "mutable": {
-                    "description": "Controls whether the caller asks for a mutable reference to the shared object.",
                     "type": "boolean"
                   },
                   "objectId": {
@@ -11826,6 +11814,19 @@
             "additionalProperties": false
           }
         ]
+      },
+      "PureInput": {
+        "type": "object",
+        "required": [
+          "value"
+        ],
+        "properties": {
+          "value": {
+            "description": "Base64 encoded data",
+            "type": "string",
+            "format": "base64"
+          }
+        }
       },
       "RPCTransactionRequestParams": {
         "oneOf": [
