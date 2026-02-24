@@ -87,6 +87,44 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
     }
 }
 
+/// available read_mask fields:
+/// - `executed_transaction` - includes all executed transaction fields
+///  - `executed_transaction.transaction` - includes all transaction fields
+///   - `executed_transaction.transaction.digest` - the transaction digest
+///   - `executed_transaction.transaction.bcs` - the full BCS-encoded transaction
+///  - `executed_transaction.signatures` - includes all signature fields
+///   - `executed_transaction.signatures.signatures` - the list of signatures
+///    - `executed_transaction.signatures.signatures.bcs` - the full BCS-encoded signature
+///  - `executed_transaction.effects` - includes all effects fields
+///   - `executed_transaction.effects.digest` - the effects digest
+///   - `executed_transaction.effects.bcs` - the full BCS-encoded effects
+///  - `executed_transaction.events` - includes all event fields
+///   - `executed_transaction.events.digest` - the events digest
+///   - `executed_transaction.events.events` - the list of events
+///    - `executed_transaction.events.events.events` - the individual events
+///     - `executed_transaction.events.events.events.bcs` - the full BCS-encoded event
+///     - `executed_transaction.events.events.events.package_id` - the ID of the package that emitted the event
+///     - `executed_transaction.events.events.events.module` - the module that emitted the event
+///     - `executed_transaction.events.events.events.sender` - the sender that triggered the event
+///     - `executed_transaction.events.events.events.event_type` - the type of the event
+///     - `executed_transaction.events.events.events.bcs_contents` - the full BCS-encoded contents of the event
+///     - `executed_transaction.events.events.events.json_contents` - the JSON-encoded contents of the event
+///  - `executed_transaction.checkpoint` - the checkpoint that included the transaction (not available for just-executed transactions)
+///  - `executed_transaction.timestamp` - the timestamp of the checkpoint (not available for just-executed transactions)
+///  - `executed_transaction.input_objects` - includes all input object fields
+///   - `executed_transaction.input_objects.objects` - the list of input objects
+///    - `executed_transaction.input_objects.objects.reference` - includes all reference fields
+///     - `executed_transaction.input_objects.objects.reference.object_id` - the ID of the input object
+///     - `executed_transaction.input_objects.objects.reference.version` - the version of the input object
+///     - `executed_transaction.input_objects.objects.reference.digest` - the digest of the input object contents
+///    - `executed_transaction.input_objects.objects.bcs` - the full BCS-encoded object
+///  - `executed_transaction.output_objects` - includes all output object fields
+///   - `executed_transaction.output_objects.objects` - the list of output objects
+///    - `executed_transaction.output_objects.objects.reference` - includes all reference fields
+///     - `executed_transaction.output_objects.objects.reference.object_id` - the ID of the output object
+///     - `executed_transaction.output_objects.objects.reference.version` - the version of the output object
+///     - `executed_transaction.output_objects.objects.reference.digest` - the digest of the output object contents
+///    - `executed_transaction.output_objects.objects.bcs` - the full BCS-encoded object
 #[tracing::instrument(skip(reader, executor))]
 pub async fn execute_transaction(
     reader: &Arc<GrpcReader>,

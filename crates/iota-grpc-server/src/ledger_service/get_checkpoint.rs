@@ -122,6 +122,61 @@ fn parse_checkpoint_read_mask(
     Ok((checkpoint_mask, transactions_mask, events_mask))
 }
 
+/// available read_mask fields:
+/// - `checkpoint` - includes all checkpoint fields
+///  - `checkpoint.sequence_number` - the sequence number of the checkpoint
+///  - `checkpoint.summary` - includes all checkpoint summary fields
+///   - `checkpoint.summary.digest` - the digest of the checkpoint summary
+///   - `checkpoint.summary.bcs` - the full BCS-encoded checkpoint summary
+///  - `checkpoint.contents` - includes all checkpoint contents fields
+///   - `checkpoint.contents.digest` - the digest of the checkpoint contents
+///   - `checkpoint.contents.bcs` - the full BCS-encoded checkpoint contents
+///  - `checkpoint.signature` - the validator aggregated signature for the checkpoint
+/// - `transactions` - includes all executed transaction fields (see get_transactions for nested fields)
+///  - `transactions.transaction` - includes all transaction fields
+///   - `transactions.transaction.digest` - the transaction digest
+///   - `transactions.transaction.bcs` - the full BCS-encoded transaction
+///  - `transactions.signatures` - includes all signature fields
+///   - `transactions.signatures.signatures` - the list of signatures
+///    - `transactions.signatures.signatures.bcs` - the full BCS-encoded signature
+///  - `transactions.effects` - includes all effects fields
+///   - `transactions.effects.digest` - the effects digest
+///   - `transactions.effects.bcs` - the full BCS-encoded effects
+///  - `transactions.events` - includes all event fields
+///   - `transactions.events.digest` - the events digest
+///   - `transactions.events.events` - the list of events
+///    - `transactions.events.events.events` - the individual events
+///     - `transactions.events.events.events.bcs` - the full BCS-encoded event
+///     - `transactions.events.events.events.package_id` - the ID of the package that emitted the event
+///     - `transactions.events.events.events.module` - the module that emitted the event
+///     - `transactions.events.events.events.sender` - the sender that triggered the event
+///     - `transactions.events.events.events.event_type` - the type of the event
+///     - `transactions.events.events.events.bcs_contents` - the full BCS-encoded contents of the event
+///     - `transactions.events.events.events.json_contents` - the JSON-encoded contents of the event
+///  - `transactions.checkpoint` - the checkpoint that included the transaction
+///  - `transactions.timestamp` - the timestamp of the checkpoint that included the transaction
+///  - `transactions.input_objects` - includes all input object fields
+///   - `transactions.input_objects.objects` - the list of input objects
+///    - `transactions.input_objects.objects.reference` - includes all reference fields
+///     - `transactions.input_objects.objects.reference.object_id` - the ID of the input object
+///     - `transactions.input_objects.objects.reference.version` - the version of the input object
+///     - `transactions.input_objects.objects.reference.digest` - the digest of the input object contents
+///    - `transactions.input_objects.objects.bcs` - the full BCS-encoded object
+///  - `transactions.output_objects` - includes all output object fields
+///   - `transactions.output_objects.objects` - the list of output objects
+///    - `transactions.output_objects.objects.reference` - includes all reference fields
+///     - `transactions.output_objects.objects.reference.object_id` - the ID of the output object
+///     - `transactions.output_objects.objects.reference.version` - the version of the output object
+///     - `transactions.output_objects.objects.reference.digest` - the digest of the output object contents
+///    - `transactions.output_objects.objects.bcs` - the full BCS-encoded object
+/// - `events` - event fields (filtered independently from transaction events)
+///  - `events.bcs` - the full BCS-encoded event
+///  - `events.package_id` - the ID of the package that emitted the event
+///  - `events.module` - the module that emitted the event
+///  - `events.sender` - the sender that triggered the event
+///  - `events.event_type` - the type of the event
+///  - `events.bcs_contents` - the full BCS-encoded contents of the event
+///  - `events.json_contents` - the JSON-encoded contents of the event
 pub(crate) fn get_checkpoint_data(
     service: &LedgerGrpcService,
     request: Request<grpc_ledger_service::GetCheckpointDataRequest>,
@@ -195,6 +250,7 @@ pub(crate) fn get_checkpoint_data(
     ))
 }
 
+/// available read_mask fields: same as `get_checkpoint_data`
 pub(crate) fn stream_checkpoint_data(
     service: &LedgerGrpcService,
     request: Request<grpc_ledger_service::CheckpointDataStreamRequest>,

@@ -137,6 +137,21 @@ impl Merge<&EpochReadSource> for Epoch {
     }
 }
 
+/// available read_mask fields:
+/// - `epoch` - the epoch number
+/// - `committee` - the validator committee governing the epoch
+/// - `bcs_system_state` - the BCS-encoded system state at the beginning of the epoch for past epochs or the current system state for the current epoch, which can be used for historical state queries or to get the current state respectively
+/// - `first_checkpoint` - the first checkpoint included in the epoch
+/// - `last_checkpoint` - the last checkpoint included in the epoch, which may be unavailable for the current epoch if it has not ended yet
+/// - `start` - the timestamp of the first checkpoint included in the epoch
+/// - `end` - the timestamp of the last checkpoint included in the epoch, which may be unavailable for the current epoch if it has not ended yet
+/// - `reference_gas_price` - the reference gas price during the epoch, denominated in NANOS
+/// - `protocol_config` - the protocol configuration during the epoch
+///  - `protocol_config.protocol_version` - the protocol version during the epoch
+///  - `protocol_config.feature_flags` - the protocol feature flags during the epoch
+///  - `protocol_config.feature_flags.flags` - the individual protocol feature flags during the epoch
+///  - `protocol_config.attributes` - the protocol attributes during the epoch
+///  - `protocol_config.attributes.attributes` - the individual protocol attributes during the epoch
 #[tracing::instrument(skip(service))]
 pub fn get_epoch(
     service: &LedgerGrpcService,
