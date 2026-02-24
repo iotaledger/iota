@@ -107,7 +107,6 @@ iterator",
 }
 
 pub(crate) type MisbehaviorsV1Reports = MisbehaviorsV1<Vec<u64>>;
-pub(crate) type MisbehaviorsV1Metrics = MisbehaviorsV1<Vec<AtomicU64>>;
 
 impl MisbehaviorsV1Reports {
     pub fn new_zeroed(committee_size: usize) -> Self {
@@ -136,7 +135,7 @@ impl MisbehaviorsV1Reports {
     }
 }
 
-impl MisbehaviorsV1Metrics {
+impl MisbehaviorsV1<Vec<AtomicU64>> {
     pub fn new_zeroed(committee_size: usize) -> Self {
         Self::new(
             (0..committee_size).map(|_| AtomicU64::new(0)).collect(),
