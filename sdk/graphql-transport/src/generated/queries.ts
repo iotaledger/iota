@@ -6346,6 +6346,27 @@ export type GetStakesByIdsQuery = { __typename?: 'Query', objects: { __typename?
 
 export type Rpc_Stake_FieldsFragment = { __typename?: 'StakedIota', principal?: any | null, stakeStatus: StakeStatus, address: any, estimatedReward?: any | null, activatedEpoch?: { __typename?: 'Epoch', epochId: any, referenceGasPrice?: any | null } | null, requestedEpoch?: { __typename?: 'Epoch', epochId: any } | null, contents?: { __typename?: 'MoveValue', json: any } | null };
 
+export type SubscribeEventsSubscriptionVariables = Exact<{
+  filter?: InputMaybe<SubscriptionEventFilter>;
+}>;
+
+
+export type SubscribeEventsSubscription = { __typename?: 'Subscription', events: { __typename?: 'Event', json: any, bcs: any, timestamp?: any | null, sendingModule?: { __typename?: 'MoveModule', name: string, package: { __typename?: 'MovePackage', address: any } } | null, sender?: { __typename?: 'Address', address: any } | null, type: { __typename?: 'MoveType', repr: string } } | { __typename?: 'Lagged', count: number } };
+
+export type SubscribeTransactionsSubscriptionVariables = Exact<{
+  filter?: InputMaybe<SubscriptionTransactionFilter>;
+  showBalanceChanges?: InputMaybe<Scalars['Boolean']['input']>;
+  showEffects?: InputMaybe<Scalars['Boolean']['input']>;
+  showRawEffects?: InputMaybe<Scalars['Boolean']['input']>;
+  showEvents?: InputMaybe<Scalars['Boolean']['input']>;
+  showInput?: InputMaybe<Scalars['Boolean']['input']>;
+  showObjectChanges?: InputMaybe<Scalars['Boolean']['input']>;
+  showRawInput?: InputMaybe<Scalars['Boolean']['input']>;
+}>;
+
+
+export type SubscribeTransactionsSubscription = { __typename?: 'Subscription', transactions: { __typename?: 'Lagged', count: number } | { __typename?: 'TransactionBlock', digest?: string | null, signatures?: Array<any> | null, rawTransaction?: any | null, sender?: { __typename?: 'Address', address: any } | null, effects?: { __typename?: 'TransactionBlockEffects', bcs?: any, timestamp?: any | null, events?: { __typename?: 'EventConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Event', json: any, bcs: any, timestamp?: any | null, sendingModule?: { __typename?: 'MoveModule', name: string, package: { __typename?: 'MovePackage', address: any } } | null, sender?: { __typename?: 'Address', address: any } | null, type: { __typename?: 'MoveType', repr: string } }> }, checkpoint?: { __typename?: 'Checkpoint', sequenceNumber: any } | null, balanceChanges?: { __typename?: 'BalanceChangeConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'BalanceChange', amount?: any | null, coinType?: { __typename?: 'MoveType', repr: string } | null, owner?: { __typename?: 'Owner', asObject?: { __typename?: 'Object', address: any } | null, asAddress?: { __typename?: 'Address', address: any } | null } | null }> }, objectChanges?: { __typename?: 'ObjectChangeConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'ObjectChange', address: any, inputState?: { __typename?: 'Object', version: any, asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', type: { __typename?: 'MoveType', repr: string } } | null } | null } | null, outputState?: { __typename?: 'Object', asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', type: { __typename?: 'MoveType', repr: string } } | null } | null, asMovePackage?: { __typename?: 'MovePackage', modules?: { __typename?: 'MoveModuleConnection', nodes: Array<{ __typename?: 'MoveModule', name: string }> } | null } | null } | null }> } } | null } };
+
 export type TransactionBlocksByDigestsQueryVariables = Exact<{
   digests: Array<Scalars['String']['input']> | Scalars['String']['input'];
 }>;
@@ -8994,6 +9015,144 @@ export const GetStakesByIdsDocument = new TypedDocumentString(`
   address
   estimatedReward
 }`) as unknown as TypedDocumentString<GetStakesByIdsQuery, GetStakesByIdsQueryVariables>;
+export const SubscribeEventsDocument = new TypedDocumentString(`
+    subscription subscribeEvents($filter: SubscriptionEventFilter) {
+  events(filter: $filter) {
+    ... on Event {
+      ...RPC_EVENTS_FIELDS
+    }
+    ... on Lagged {
+      count
+    }
+  }
+}
+    fragment RPC_EVENTS_FIELDS on Event {
+  sendingModule {
+    package {
+      address
+    }
+    name
+  }
+  sender {
+    address
+  }
+  type {
+    repr
+  }
+  json
+  bcs
+  timestamp
+}`) as unknown as TypedDocumentString<SubscribeEventsSubscription, SubscribeEventsSubscriptionVariables>;
+export const SubscribeTransactionsDocument = new TypedDocumentString(`
+    subscription subscribeTransactions($filter: SubscriptionTransactionFilter, $showBalanceChanges: Boolean = false, $showEffects: Boolean = false, $showRawEffects: Boolean = false, $showEvents: Boolean = false, $showInput: Boolean = false, $showObjectChanges: Boolean = false, $showRawInput: Boolean = false) {
+  transactions(filter: $filter) {
+    ... on TransactionBlock {
+      ...RPC_TRANSACTION_FIELDS
+    }
+    ... on Lagged {
+      count
+    }
+  }
+}
+    fragment RPC_EVENTS_FIELDS on Event {
+  sendingModule {
+    package {
+      address
+    }
+    name
+  }
+  sender {
+    address
+  }
+  type {
+    repr
+  }
+  json
+  bcs
+  timestamp
+}
+fragment RPC_TRANSACTION_FIELDS on TransactionBlock {
+  digest
+  rawTransaction: bcs @include(if: $showInput)
+  rawTransaction: bcs @include(if: $showRawInput)
+  sender {
+    address
+  }
+  signatures
+  effects {
+    bcs @include(if: $showEffects)
+    bcs @include(if: $showObjectChanges)
+    bcs @include(if: $showRawEffects)
+    events @include(if: $showEvents) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        ...RPC_EVENTS_FIELDS
+      }
+    }
+    checkpoint {
+      sequenceNumber
+    }
+    timestamp
+    balanceChanges @include(if: $showBalanceChanges) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        coinType {
+          repr
+        }
+        owner {
+          asObject {
+            address
+          }
+          asAddress {
+            address
+          }
+        }
+        amount
+      }
+    }
+    objectChanges @include(if: $showObjectChanges) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        address
+        inputState {
+          version
+          asMoveObject {
+            contents {
+              type {
+                repr
+              }
+            }
+          }
+        }
+        outputState {
+          asMoveObject {
+            contents {
+              type {
+                repr
+              }
+            }
+          }
+          asMovePackage {
+            modules(first: 10) {
+              nodes {
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`) as unknown as TypedDocumentString<SubscribeTransactionsSubscription, SubscribeTransactionsSubscriptionVariables>;
 export const TransactionBlocksByDigestsDocument = new TypedDocumentString(`
     query TransactionBlocksByDigests($digests: [String!]!) {
   transactionBlocksByDigests(digests: $digests) {
