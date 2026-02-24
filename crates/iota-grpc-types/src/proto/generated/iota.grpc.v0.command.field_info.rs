@@ -373,7 +373,7 @@ mod _field_impls {
             number: 1i32,
             is_optional: true,
             is_map: false,
-            message_fields: Some(CommandOutputs::FIELDS),
+            message_fields: Some(CommandOutput::FIELDS),
         };
         pub const RETURN_VALUES_FIELD: &'static MessageField = &MessageField {
             name: "return_values",
@@ -381,7 +381,7 @@ mod _field_impls {
             number: 2i32,
             is_optional: true,
             is_map: false,
-            message_fields: Some(CommandOutputs::FIELDS),
+            message_fields: Some(CommandOutput::FIELDS),
         };
     }
     impl MessageFields for CommandResult {
@@ -410,13 +410,13 @@ mod _field_impls {
         pub fn finish(self) -> String {
             self.path.join(".")
         }
-        pub fn mutated_by_ref(mut self) -> CommandOutputsFieldPathBuilder {
+        pub fn mutated_by_ref(mut self) -> CommandOutputFieldPathBuilder {
             self.path.push(CommandResult::MUTATED_BY_REF_FIELD.name);
-            CommandOutputsFieldPathBuilder::new_with_base(self.path)
+            CommandOutputFieldPathBuilder::new_with_base(self.path)
         }
-        pub fn return_values(mut self) -> CommandOutputsFieldPathBuilder {
+        pub fn return_values(mut self) -> CommandOutputFieldPathBuilder {
             self.path.push(CommandResult::RETURN_VALUES_FIELD.name);
-            CommandOutputsFieldPathBuilder::new_with_base(self.path)
+            CommandOutputFieldPathBuilder::new_with_base(self.path)
         }
     }
     impl CommandResults {
