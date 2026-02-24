@@ -33,6 +33,12 @@ pub struct SwappableWriter {
     inner: Arc<Mutex<Box<dyn Write + Send>>>,
 }
 
+impl Default for SwappableWriter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SwappableWriter {
     pub fn new() -> Self {
         Self {

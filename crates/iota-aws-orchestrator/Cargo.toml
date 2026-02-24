@@ -29,6 +29,8 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
 
 # internal dependencies
 iota-benchmark.workspace = true
@@ -37,8 +39,6 @@ iota-config.workspace = true
 iota-metrics.workspace = true
 iota-swarm-config.workspace = true
 iota-types.workspace = true
-tracing.workspace = true
-tracing-subscriber.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

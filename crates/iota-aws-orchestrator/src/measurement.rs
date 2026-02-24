@@ -710,18 +710,18 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
 
 /// Compute the P50 (median) latency from histogram buckets.
 fn p50_latency(buckets: &HashMap<BucketId, usize>, count: usize) -> Duration {
-    histogram_quantile(&buckets, count, 0.5)
+    histogram_quantile(buckets, count, 0.5)
 }
 
 /// Compute the P99 latency from histogram buckets using.
 fn p99_latency(buckets: &HashMap<BucketId, usize>, count: usize) -> Duration {
-    histogram_quantile(&buckets, count, 0.99)
+    histogram_quantile(buckets, count, 0.99)
 }
 
 /// Calculate a quantile from histogram buckets using linear interpolation,
 /// matching Prometheus's histogram_quantile behavior.
 fn histogram_quantile(buckets: &HashMap<BucketId, usize>, count: usize, quantile: f64) -> Duration {
-    if count == 0 || quantile < 0.0 || quantile > 1.0 {
+    if count == 0 || !(0.0..=1.0).contains(&quantile) {
         return Duration::default();
     }
 
@@ -756,7 +756,8 @@ fn histogram_quantile(buckets: &HashMap<BucketId, usize>, count: usize, quantile
     //
     // Example: Calculate P50 (median) with 1000 total observations
     // Buckets: [(0.5s, 400), (1.0s, 800), (2.0s, 1000)]
-    // This means: 400 observations ≤ 0.5s, 800 observations ≤ 1.0s, 1000 observations ≤ 2.0s
+    // This means: 400 observations ≤ 0.5s, 800 observations ≤ 1.0s, 1000
+    // observations ≤ 2.0s
     //
     // rank = 0.5 * 1000 = 500 (we want the 500th observation)
     //
@@ -766,9 +767,8 @@ fn histogram_quantile(buckets: &HashMap<BucketId, usize>, count: usize, quantile
     //
     // Iteration 2: bound=1.0s, count=800
     //   - 800 >= 500, so P50 is in this bucket (between observations 400-800)
-    //   - Linear interpolation:
-    //     fraction = (500 - 400) / (800 - 400) = 100 / 400 = 0.25
-    //     interpolated = 0.5 + (1.0 - 0.5) * 0.25 = 0.5 + 0.125 = 0.625s
+    //   - Linear interpolation: fraction = (500 - 400) / (800 - 400) = 100 / 400 =
+    //     0.25 interpolated = 0.5 + (1.0 - 0.5) * 0.25 = 0.5 + 0.125 = 0.625s
     //   - The 500th observation is estimated at 0.625s
     let mut prev_count = 0.0;
     let mut prev_bound = 0.0;
