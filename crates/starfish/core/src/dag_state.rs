@@ -753,10 +753,15 @@ impl DagState {
                 .accepted_transactions_round_gap
                 .with_label_values(&[source.as_str()])
                 .observe(clock_round_gap as f64);
-            if transaction_ref.round >= min_round {
+            if transaction_ref.round >= min_round
+                && source != DataSource::FastCommitSyncer
+                && source != DataSource::CommitSyncer
+                && source != DataSource::Recover
+            {
                 self.add_pending_acknowledgment(
                     transaction_ref,
                     transactions.block_ref().map(|br| br.digest),
+                    source,
                 );
             }
         } else {
@@ -2031,13 +2036,14 @@ impl DagState {
         &mut self,
         transaction_ref: TransactionRef,
         block_digest: Option<BlockHeaderDigest>,
+        source: DataSource,
     ) {
         let block_ref = if let Some(digest) = block_digest {
             BlockRef::new(transaction_ref.round, transaction_ref.author, digest)
         } else {
             let Some(br) = self.resolve_block_ref(&transaction_ref) else {
                 error!(
-                    "block_digest not found for {transaction_ref:?} when adding pending acknowledgment"
+                    "block_digest not found for {transaction_ref:?} when adding pending acknowledgment, source: {source:?}"
                 );
                 return;
             };
