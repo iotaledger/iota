@@ -182,13 +182,12 @@ impl Merge<&TransactionReadSource<'_>> for grpc_sig::UserSignatures {
         source: &TransactionReadSource<'_>,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(signatures_mask) = mask.subtree(Self::SIGNATURES_FIELD.name) {
-            if let Some(signatures) = source.signatures.as_ref() {
-                self.signatures = signatures
-                    .iter()
-                    .map(|sig| grpc_sig::UserSignature::merge_from(sig.clone(), &signatures_mask))
-                    .collect::<Result<Vec<_>, _>>()?;
-            }
+        // Use mask directly — UserSignatures is a transparent wrapper
+        if let Some(signatures) = source.signatures.as_ref() {
+            self.signatures = signatures
+                .iter()
+                .map(|sig| grpc_sig::UserSignature::merge_from(sig.clone(), mask))
+                .collect::<Result<Vec<_>, _>>()?;
         }
 
         Ok(())
@@ -208,21 +207,20 @@ impl Merge<&CommandResultsReadSource<'_>> for CommandResults {
         source: &CommandResultsReadSource<'_>,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(results_mask) = mask.subtree(Self::RESULTS_FIELD.name) {
-            self.results = source
-                .execution_results
-                .iter()
-                .map(|(mutable_reference_outputs, return_values)| {
-                    let result_source = CommandResultReadSource {
-                        reader: &source.reader,
-                        config: source.config,
-                        mutable_reference_outputs,
-                        return_values,
-                    };
-                    CommandResult::merge_from(&result_source, &results_mask)
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-        }
+        // Use mask directly — CommandResults is a transparent wrapper
+        self.results = source
+            .execution_results
+            .iter()
+            .map(|(mutable_reference_outputs, return_values)| {
+                let result_source = CommandResultReadSource {
+                    reader: &source.reader,
+                    config: source.config,
+                    mutable_reference_outputs,
+                    return_values,
+                };
+                CommandResult::merge_from(&result_source, mask)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(())
     }
 }
@@ -294,22 +292,21 @@ impl Merge<&CommandOutputsReadSource<'_>> for CommandOutputs {
         source: &CommandOutputsReadSource<'_>,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(outputs_mask) = mask.subtree(Self::OUTPUTS_FIELD.name) {
-            self.outputs = source
-                .outputs
-                .iter()
-                .map(|(arg, bcs_bytes, ty)| {
-                    let output_source = CommandOutputReadSource {
-                        reader: source.reader,
-                        config: source.config,
-                        arg: *arg,
-                        bcs_bytes,
-                        ty,
-                    };
-                    CommandOutput::merge_from(&output_source, &outputs_mask)
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-        }
+        // Use mask directly — CommandOutputs is a transparent wrapper
+        self.outputs = source
+            .outputs
+            .iter()
+            .map(|(arg, bcs_bytes, ty)| {
+                let output_source = CommandOutputReadSource {
+                    reader: source.reader,
+                    config: source.config,
+                    arg: *arg,
+                    bcs_bytes,
+                    ty,
+                };
+                CommandOutput::merge_from(&output_source, mask)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(())
     }
 }
