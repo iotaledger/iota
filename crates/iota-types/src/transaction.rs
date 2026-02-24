@@ -619,38 +619,48 @@ impl EndOfEpochTransactionKind {
     }
 }
 
-/// Returns the input object kinds for a `CallArg`, excluding receiving objects.
-pub fn call_arg_input_objects(arg: &CallArg) -> Option<InputObjectKind> {
-    if let Some(object_ref) = arg.as_immutable_or_owned_opt() {
-        Some(InputObjectKind::ImmOrOwnedMoveObject(*object_ref))
-    } else if let Some(&SharedInputObject {
-        object_id,
-        initial_shared_version,
-        mutable,
-    }) = arg.as_shared_opt()
-    {
-        Some(InputObjectKind::SharedMoveObject {
-            id: object_id,
-            initial_shared_version,
-            mutable,
-        })
-    } else {
-        None
-    }
+/// Extension trait for [`CallArg`] providing helper methods.
+pub trait CallArgExt {
+    /// Returns the input object kind for this argument, excluding receiving
+    /// objects.
+    fn input_object(&self) -> Option<InputObjectKind>;
+
+    /// Validity check for this argument against the given protocol config.
+    fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
 }
 
-/// Validity check for a `CallArg` input.
-pub fn call_arg_validity_check(arg: &CallArg, config: &ProtocolConfig) -> UserInputResult {
-    if let Some(value) = arg.as_pure_value() {
-        fp_ensure!(
-            value.len() < config.max_pure_argument_size() as usize,
-            UserInputError::SizeLimitExceeded {
-                limit: "maximum pure argument size".to_string(),
-                value: config.max_pure_argument_size().to_string()
-            }
-        );
+impl CallArgExt for CallArg {
+    fn input_object(&self) -> Option<InputObjectKind> {
+        if let Some(object_ref) = self.as_immutable_or_owned_opt() {
+            Some(InputObjectKind::ImmOrOwnedMoveObject(*object_ref))
+        } else if let Some(&SharedInputObject {
+            object_id,
+            initial_shared_version,
+            mutable,
+        }) = self.as_shared_opt()
+        {
+            Some(InputObjectKind::SharedMoveObject {
+                id: object_id,
+                initial_shared_version,
+                mutable,
+            })
+        } else {
+            None
+        }
     }
-    Ok(())
+
+    fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
+        if let Some(value) = self.as_pure_value() {
+            fp_ensure!(
+                value.len() < config.max_pure_argument_size() as usize,
+                UserInputError::SizeLimitExceeded {
+                    limit: "maximum pure argument size".to_string(),
+                    value: config.max_pure_argument_size().to_string()
+                }
+            );
+        }
+        Ok(())
+    }
 }
 
 // Add package IDs, `ObjectID`, for types defined in modules.
@@ -960,7 +970,7 @@ impl ProgrammableTransaction {
         let ProgrammableTransaction { inputs, commands } = self;
         let input_arg_objects = inputs
             .iter()
-            .filter_map(call_arg_input_objects)
+            .filter_map(|a| a.input_object())
             .collect::<Vec<_>>();
         // all objects, not just mutable, must be unique
         let mut used = HashSet::new();
@@ -1004,7 +1014,7 @@ impl ProgrammableTransaction {
             }
         );
         for input in inputs {
-            call_arg_validity_check(input, config)?
+            input.validity_check(config)?
         }
         if let Some(max_publish_commands) = config.max_publish_or_upgrade_per_ptb_as_option() {
             let publish_count = commands
@@ -2458,16 +2468,17 @@ impl SenderSignedData {
                     .collect::<Vec<_>>()
                     .into();
 
-                let account_objects =
-                    call_arg_input_objects(move_authenticator.object_to_authenticate())
-                        .iter()
-                        .map(|k| {
-                            input_objects_map
-                                .get(k)
-                                .map(|&r| r.clone())
-                                .expect("Account object is expected to be present")
-                        })
-                        .collect::<Vec<_>>();
+                let account_objects = move_authenticator
+                    .object_to_authenticate()
+                    .input_object()
+                    .iter()
+                    .map(|k| {
+                        input_objects_map
+                            .get(k)
+                            .map(|&r| r.clone())
+                            .expect("Account object is expected to be present")
+                    })
+                    .collect::<Vec<_>>();
 
                 debug_assert!(
                     account_objects.len() == 1,

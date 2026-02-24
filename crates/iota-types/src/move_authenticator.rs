@@ -22,10 +22,7 @@ use crate::{
     error::{IotaError, IotaResult, UserInputError, UserInputResult},
     signature::{AuthenticatorTrait, VerifyParams},
     signature_verification::VerifiedDigestCache,
-    transaction::{
-        CallArg, InputObjectKind, SharedInputObject, call_arg_input_objects,
-        call_arg_validity_check,
-    },
+    transaction::{CallArg, CallArgExt, InputObjectKind, SharedInputObject},
     type_input::TypeInput,
 };
 
@@ -135,8 +132,8 @@ impl MoveAuthenticator {
     pub fn input_objects(&self) -> Vec<InputObjectKind> {
         self.call_args
             .iter()
-            .filter_map(call_arg_input_objects)
-            .chain(call_arg_input_objects(self.object_to_authenticate()))
+            .filter_map(|a| a.input_object())
+            .chain(self.object_to_authenticate().input_object())
             .collect::<Vec<_>>()
     }
 
@@ -200,7 +197,7 @@ impl MoveAuthenticator {
 
         self.call_args()
             .iter()
-            .try_for_each(|obj| call_arg_validity_check(obj, config))?;
+            .try_for_each(|obj| obj.validity_check(config))?;
 
         // Type arguments validity check.
         //
