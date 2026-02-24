@@ -12,7 +12,7 @@ import typedocSidebarLedger from '../developer/ts-sdk/ledgerjs-hw-app-iota/api/t
 const tsSDK = [
     {
         type: 'category',
-        label: 'Typescript SDK',
+        label: '@iota/iota-sdk',
         items: [
             'developer/ts-sdk/typescript/index', 
             'developer/ts-sdk/typescript/install', 
@@ -63,7 +63,7 @@ const tsSDK = [
     },
     {
         type: 'category',
-        label: 'dApp Kit',
+        label: '@iota/dapp-kit',
         items: [
             'developer/ts-sdk/dapp-kit/index', 
             'developer/ts-sdk/dapp-kit/create-dapp', 
@@ -107,7 +107,7 @@ const tsSDK = [
     },
     {
         type: 'category',
-        label: 'Kiosk SDK',
+        label: '@iota/kiosk',
         items: [
             'developer/ts-sdk/kiosk/index', 
             {
@@ -147,7 +147,7 @@ const tsSDK = [
     },
     {
         type: 'category',
-        label: 'GraphQL Transport',
+        label: '@iota/graphql-transport',
         items: [
             {
                 type: 'category',
@@ -159,7 +159,7 @@ const tsSDK = [
     },
     {
         type: 'category',
-        label: 'Wallet Standard',
+        label: '@iota/wallet-standard',
         items: [
             {
                 type: 'category',
@@ -171,7 +171,7 @@ const tsSDK = [
     },
     {
         type: 'category',
-        label: 'Ledger HW App IOTA',
+        label: '@iota/ledgerjs-hw-app-iota',
         items: [
             {
                 type: 'category',
