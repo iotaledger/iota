@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::{
+    base_types::{Identifier, ObjectID},
     error::{ExecutionError, IotaError},
-    execution_status::{ExecutionFailureStatus, MoveLocation, MoveLocationOpt},
+    execution_status::{ExecutionFailureStatus, MoveLocation},
 };
 use move_binary_format::{
     errors::{Location, VMError},
@@ -25,12 +26,12 @@ pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
         (StatusCode::EXECUTED, _, _) => {
             // If we have an error the status probably shouldn't ever be Executed
             debug_assert!(false, "VmError shouldn't ever report successful execution");
-            ExecutionFailureStatus::VMInvariantViolation
+            ExecutionFailureStatus::VmInvariantViolation
         }
         (StatusCode::ABORTED, None, _) => {
             debug_assert!(false, "No abort code");
             // this is a Move VM invariant violation, the code should always be there
-            ExecutionFailureStatus::VMInvariantViolation
+            ExecutionFailureStatus::VmInvariantViolation
         }
         (StatusCode::ABORTED, Some(code), Location::Module(id)) => {
             let abort_location_id = state_view.relocate(id).unwrap_or_else(|_| id.clone());
@@ -42,15 +43,16 @@ pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
                 let fhandle = module.function_handle_at(fdef.function);
                 module.identifier_at(fhandle.name).to_string()
             });
-            ExecutionFailureStatus::MoveAbort(
-                MoveLocation {
-                    module: abort_location_id,
+            ExecutionFailureStatus::MoveAbort {
+                location: MoveLocation {
+                    package: ObjectID::new(abort_location_id.address().into_bytes()),
+                    module: Identifier::new_unchecked(abort_location_id.name().as_str()),
                     function,
                     instruction,
-                    function_name,
+                    function_name: function_name.map(Identifier::new_unchecked),
                 },
                 code,
-            )
+            }
         }
         (StatusCode::OUT_OF_GAS, _, _) => ExecutionFailureStatus::InsufficientGas,
         (_, _, location) => match error.major_status().status_type() {
@@ -70,21 +72,22 @@ pub(crate) fn convert_vm_error<S: MoveResolver<Err = IotaError>>(
                             module.identifier_at(fhandle.name).to_string()
                         });
                         Some(MoveLocation {
-                            module: id.clone(),
+                            package: ObjectID::new(id.address().into_bytes()),
+                            module: Identifier::new_unchecked(id.name().as_str()),
                             function,
                             instruction,
-                            function_name,
+                            function_name: function_name.map(Identifier::new_unchecked),
                         })
                     }
                     _ => None,
                 };
-                ExecutionFailureStatus::MovePrimitiveRuntimeError(MoveLocationOpt(location))
+                ExecutionFailureStatus::MovePrimitiveRuntimeError { location }
             }
             StatusType::Validation
             | StatusType::Verification
             | StatusType::Deserialization
-            | StatusType::Unknown => ExecutionFailureStatus::VMVerificationOrDeserializationError,
-            StatusType::InvariantViolation => ExecutionFailureStatus::VMInvariantViolation,
+            | StatusType::Unknown => ExecutionFailureStatus::VmVerificationOrDeserializationError,
+            StatusType::InvariantViolation => ExecutionFailureStatus::VmInvariantViolation,
         },
     };
     ExecutionError::new_with_source(kind, error)

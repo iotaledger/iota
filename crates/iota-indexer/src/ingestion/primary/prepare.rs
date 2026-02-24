@@ -525,7 +525,7 @@ impl PrimaryWorker {
             checkpoint_sequence_number: checkpoint_seq,
             timestamp_ms: checkpoint_timestamp_ms,
             sender_signed_data: tx.transaction.data().clone(),
-            successful_tx_num: if tx.effects.status().is_ok() {
+            successful_tx_num: if tx.effects.status().is_success() {
                 tx_data.kind().tx_count() as u64
             } else {
                 0
