@@ -27,7 +27,7 @@ use crate::{
     digests::{ConsensusCommitDigest, Digest, MisbehaviorReportDigest},
     message_envelope::{Envelope, Message, VerifiedEnvelope},
     messages_checkpoint::{CheckpointSequenceNumber, CheckpointSignatureMessage},
-    misbehavior_counts::MisbehaviorsV1,
+    misbehavior_counts::MisbehaviorsV1Reports,
     supported_protocol_versions::{
         Chain, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
@@ -298,13 +298,13 @@ impl ConsensusTransactionKind {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum VersionedMisbehaviorReport {
     V1(
-        MisbehaviorsV1<Vec<u64>>,
+        MisbehaviorsV1Reports,
         #[serde(skip)] OnceCell<MisbehaviorReportDigest>,
     ),
 }
 
 impl VersionedMisbehaviorReport {
-    pub fn new_v1(misbehaviors: MisbehaviorsV1<Vec<u64>>) -> Self {
+    pub fn new_v1(misbehaviors: MisbehaviorsV1Reports) -> Self {
         VersionedMisbehaviorReport::V1(misbehaviors, OnceCell::new())
     }
 

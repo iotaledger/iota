@@ -73,7 +73,7 @@ impl<T> MisbehaviorsV1<T> {
     // Returns an iterator over references to major misbehavior fields.
     // Major misbehaviors carry a higher penalty in the scoring system.
     pub fn iter_major_misbehaviors(&self) -> impl Iterator<Item = &T> {
-        vec![&self.equivocations].into_iter()
+        std::iter::once(&self.equivocations)
     }
 
     // Returns an iterator over references to minor misbehavior fields.
@@ -106,7 +106,10 @@ iterator",
     }
 }
 
-impl MisbehaviorsV1<Vec<u64>> {
+pub(crate) type MisbehaviorsV1Reports = MisbehaviorsV1<Vec<u64>>;
+pub(crate) type MisbehaviorsV1Metrics = MisbehaviorsV1<Vec<AtomicU64>>;
+
+impl MisbehaviorsV1Reports {
     pub fn new_zeroed(committee_size: usize) -> Self {
         Self::new(
             vec![0; committee_size],
@@ -133,7 +136,7 @@ impl MisbehaviorsV1<Vec<u64>> {
     }
 }
 
-impl MisbehaviorsV1<Vec<AtomicU64>> {
+impl MisbehaviorsV1Metrics {
     pub fn new_zeroed(committee_size: usize) -> Self {
         Self::new(
             (0..committee_size).map(|_| AtomicU64::new(0)).collect(),
@@ -143,8 +146,8 @@ impl MisbehaviorsV1<Vec<AtomicU64>> {
         )
     }
 
-    // Applies element-wise `fetch_max` from a `MisbehaviorsV1<Vec<u64>>`.
-    pub fn element_wise_fetch_max(&self, other: &MisbehaviorsV1<Vec<u64>>) {
+    // Applies element-wise `fetch_max` from a `MisbehaviorsV1Reports`.
+    pub fn element_wise_fetch_max(&self, other: &MisbehaviorsV1Reports) {
         for (current_field, other_field) in self.iter().zip(other.iter()) {
             if current_field.len() != other_field.len() {
                 panic!(
