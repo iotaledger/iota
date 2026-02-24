@@ -1,9 +1,0 @@
-[package]
-name = "onesig"
-edition = "2024"
-
-[dependencies]
-Iota = { local = "../../../crates/iota-framework/packages/iota-framework" }
-
-[addresses]
-onesig = "0x0"
