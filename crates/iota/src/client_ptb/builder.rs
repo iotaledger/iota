@@ -440,7 +440,11 @@ impl<'a> PTBBuilder<'a> {
         MovePackage::new(
             package.id,
             package.version,
-            package.module_map,
+            package
+                .module_map
+                .iter()
+                .map(|(k, v)| (Identifier::new_unchecked(k), v))
+                .collect(),
             // This package came from on-chain and the tool runs locally, so don't worry about
             // trying to enforce the package size limit.
             u64::MAX,

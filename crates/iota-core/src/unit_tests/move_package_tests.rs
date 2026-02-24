@@ -7,7 +7,7 @@ use std::{collections::BTreeMap, path::PathBuf};
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::ObjectID,
+    base_types::{Identifier, ObjectID},
     digests::TransactionDigest,
     error::ExecutionErrorKind,
     execution_status::PackageUpgradeError,
@@ -22,8 +22,8 @@ macro_rules! type_origin_table {
     {} => { Vec::new() };
     {$($module:ident :: $type:ident => $pkg:expr),* $(,)?} => {{
         vec![$(TypeOrigin {
-            module_name: stringify!($module).to_string(),
-            struct_name: stringify!($type).to_string(),
+            module_name: Identifier::new(stringify!($module)).unwrap(),
+            struct_name: Identifier::new(stringify!($type)).unwrap(),
             package: $pkg,
         },)*]
     }}

@@ -16,7 +16,7 @@ hex = "0.4.3"
 iota-keys = { path = "../../../crates/iota-keys" }
 iota-move-build = { path = "../../../crates/iota-move-build" }
 iota-sdk = { path = "../../../crates/iota-sdk" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "cec484cfbdcfe4a1e4f2caa186b629c27e7ca24d" }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "64cfb540fa5d8146d2e545bf3bd99cb077659ac5" }
 iota-types = { path = "../../../crates/iota-types" }
 move-binary-format = { path = "../../../external-crates/move/crates/move-binary-format", features = ["fuzzing"] }
 
