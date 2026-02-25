@@ -3,7 +3,6 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 import { Account, BadgeType } from '@/components';
-import cx from 'classnames';
 
 const meta: Meta<typeof Account> = {
     component: Account,
@@ -21,10 +20,7 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-const Avatar = ({ isLocked }: { isLocked?: boolean }) => {
-    const circleFillClass = isLocked
-        ? 'fill-iota-neutral-80 dark:fill-iota-neutral-30 names:fill-names-neutral-30'
-        : 'fill-iota-primary-30';
+const Avatar = () => {
     return (
         <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -33,7 +29,7 @@ const Avatar = ({ isLocked }: { isLocked?: boolean }) => {
             viewBox="0 0 33 32"
             fill="none"
         >
-            <circle cx="16.5" cy="16" r="16" className={cx(circleFillClass)} />
+            <circle cx="16.5" cy="16" r="16" className="fill-iota-primary-30" />
         </svg>
     );
 };
@@ -42,7 +38,6 @@ export const Default: Story = {
     args: {
         title: 'Account',
         subtitle: '0x0d7...3f37',
-        isLocked: true,
         avatarContent: Avatar,
     },
     argTypes: {
@@ -50,15 +45,8 @@ export const Default: Story = {
             control: 'select',
             options: Object.values(BadgeType),
         },
-        isLocked: {
-            control: 'boolean',
-        },
         onOptionsClick: {
             action: 'onOptionsClick',
-            control: 'none',
-        },
-        onLockAccountClick: {
-            action: 'onLockAccount',
             control: 'none',
         },
         avatarContent: {
