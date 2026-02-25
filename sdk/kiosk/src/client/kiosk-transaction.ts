@@ -58,11 +58,7 @@ export class KioskTransaction {
     // A flag that checks whether kiosk TX is finalized.
     #finalized: boolean = false;
 
-    constructor({
-        transaction,
-        kioskClient,
-        cap,
-    }: KioskTransactionParams) {
+    constructor({ transaction, kioskClient, cap }: KioskTransactionParams) {
         this.transaction = transaction;
         this.kioskClient = kioskClient;
 

@@ -39,11 +39,7 @@ export class TransferPolicyTransaction {
     policyCap?: ObjectArgument;
     type?: string;
 
-    constructor({
-        kioskClient,
-        transaction,
-        cap,
-    }: TransferPolicyTransactionParams) {
+    constructor({ kioskClient, transaction, cap }: TransferPolicyTransactionParams) {
         this.kioskClient = kioskClient;
         this.transaction = transaction;
         if (cap) this.setCap(cap);
