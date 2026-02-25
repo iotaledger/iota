@@ -2527,8 +2527,6 @@ impl ProtocolConfig {
                         // Passes the calculated validator scores to advance epoch only on Devnet
                         cfg.feature_flags
                             .pass_calculated_validator_scores_to_advance_epoch = true;
-                        // Enable fast commit syncer for faster recovery in devnet
-                        cfg.feature_flags.enable_fast_commit_sync = true;
                     }
                 }
                 21 => {
