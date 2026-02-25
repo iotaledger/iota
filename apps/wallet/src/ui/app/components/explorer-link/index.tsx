@@ -11,7 +11,6 @@ import clsx from 'clsx';
 import { ArrowTopRight } from '@iota/apps-ui-icons';
 
 export type ExplorerLinkProps = ExplorerLinkConfig & {
-    track?: boolean;
     children?: ReactNode;
     className?: string;
     title?: string;
@@ -20,7 +19,6 @@ export type ExplorerLinkProps = ExplorerLinkConfig & {
 };
 
 export function ExplorerLink({
-    track,
     children,
     className,
     title,
