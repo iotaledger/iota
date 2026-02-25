@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Define the packages to process
-packages="typescript graphql-transport kiosk ledgerjs-hw-app-iota wallet-standard dapp-kit"
+packages="typescript graphql-transport kiosk ledgerjs-hw-app-iota wallet-standard dapp-kit bcs isc-sdk signers kiosk"
 
 networks="testnet devnet"
 

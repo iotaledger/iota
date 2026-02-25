@@ -1,5 +1,5 @@
 {
-    "entryPoints": ["src/ledger/*.ts", "src/webcrypto/*.ts"],
+    "entryPoints": ["src/*.ts"],
     "excludeInternal": true,
     "excludePrivate": true,
     "intentionallyNotExported": []

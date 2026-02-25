@@ -181,6 +181,42 @@ const tsSDK = [
             },
         ],
     },
+    {
+        type: 'category',
+        label: '@iota/signers',
+        items: [
+            {
+                type: 'category',
+                label: 'API Reference',
+                items: typedocSidebarLedger,
+                link: { type: 'doc', id: 'developer/ts-sdk/signers/api/index' },
+            },
+        ],
+    },
+    {
+        type: 'category',
+        label: '@iota/bcs',
+        items: [
+            {
+                type: 'category',
+                label: 'API Reference',
+                items: typedocSidebarLedger,
+                link: { type: 'doc', id: 'developer/ts-sdk/bcs/api/index' },
+            },
+        ],
+    },
+    {
+        type: 'category',
+        label: '@iota/isc-sdk',
+        items: [
+            {
+                type: 'category',
+                label: 'API Reference',
+                items: typedocSidebarLedger,
+                link: { type: 'doc', id: 'developer/ts-sdk/isc-sdk/api/index' },
+            },
+        ],
+    },
 ];
 
 module.exports = tsSDK;
