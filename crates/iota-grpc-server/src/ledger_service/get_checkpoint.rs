@@ -84,6 +84,7 @@
 use futures::Stream;
 use iota_grpc_types::{
     field::{FieldMaskTree, FieldMaskUtil, MessageField, MessageFields},
+    read_masks::GET_CHECKPOINT_READ_MASK,
     v0::{
         checkpoint::Checkpoint, event::Event, ledger_service as grpc_ledger_service,
         transaction::ExecutedTransaction,
@@ -97,9 +98,6 @@ use crate::{
     error::RpcError, event_filter::EventFilter, transaction_filter::TransactionFilter,
     types::CheckpointStreamResult,
 };
-
-/// Default read_mask value when none is provided.
-pub const CHECKPOINT_READ_MASK_DEFAULT: &str = "checkpoint.summary";
 
 /// Helper function to convert proto filters to internal filters and validate
 /// their complexity
@@ -181,7 +179,7 @@ fn parse_checkpoint_read_mask(
     read_mask: Option<prost_types::FieldMask>,
 ) -> Result<(FieldMaskTree, Option<FieldMaskTree>, Option<FieldMaskTree>), Status> {
     let field_mask =
-        read_mask.unwrap_or_else(|| prost_types::FieldMask::from_str(CHECKPOINT_READ_MASK_DEFAULT));
+        read_mask.unwrap_or_else(|| prost_types::FieldMask::from_str(GET_CHECKPOINT_READ_MASK));
 
     // Validate the read_mask paths
     FieldMaskUtil::validate::<CheckpointDataResponse>(&field_mask)
@@ -207,9 +205,9 @@ fn parse_checkpoint_read_mask(
 ///
 /// # Request parameters
 /// * `read_mask` - Optional field mask specifying which fields to include. If
-///   `None`, uses [`CHECKPOINT_READ_MASK_DEFAULT`] as default. See
-///   [module-level documentation](crate::ledger_service::get_checkpoint) for
-///   all available fields.
+///   `None`, uses [`GET_CHECKPOINT_READ_MASK`] as default. See [module-level
+///   documentation](crate::ledger_service::get_checkpoint) for all available
+///   fields.
 /// * `transactions_filter` - Optional filter to apply to transactions included
 ///   in the checkpoint. Only transactions matching the filter will be included
 ///   in the response.
@@ -311,9 +309,9 @@ pub(crate) fn get_checkpoint_data(
 ///   not provided, continues streaming indefinitely until the client
 ///   disconnects.
 /// * `read_mask` - Optional field mask specifying which fields to include. If
-///   `None`, uses [`CHECKPOINT_READ_MASK_DEFAULT`] as default. See
-///   [module-level documentation](crate::ledger_service::get_checkpoint) for
-///   all available fields.
+///   `None`, uses [`GET_CHECKPOINT_READ_MASK`] as default. See [module-level
+///   documentation](crate::ledger_service::get_checkpoint) for all available
+///   fields.
 /// * `transactions_filter` - Optional filter to apply to transactions included
 ///   in the streamed checkpoints. Only transactions matching the filter will be
 ///   included in the response.

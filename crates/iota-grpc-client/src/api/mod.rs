@@ -13,12 +13,14 @@ mod common;
 pub mod execution;
 pub mod ledger;
 
-pub use common::{
-    CHECKPOINT_READ_MASK, EPOCH_READ_MASK, EXECUTION_READ_MASK, Error, OBJECTS_READ_MASK, Result,
-    RpcStatus, SERVICE_INFO_READ_MASK, SIMULATION_READ_MASK, TRANSACTIONS_READ_MASK,
-};
+pub use common::{Error, Result, RpcStatus};
 pub(crate) use common::{
     ProtoResult, TryFromProtoError, build_proto_transaction, field_mask_with_default,
+};
+pub use iota_grpc_types::read_masks::{
+    EXECUTE_TRANSACTION_READ_MASK, GET_CHECKPOINT_READ_MASK, GET_EPOCH_READ_MASK,
+    GET_OBJECTS_READ_MASK, GET_SERVICE_INFO_READ_MASK, GET_TRANSACTIONS_READ_MASK,
+    SIMULATE_TRANSACTION_READ_MASK,
 };
 
 /// Response for a checkpoint query.

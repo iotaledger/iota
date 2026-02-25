@@ -13,7 +13,7 @@ use iota_sdk_types::SignedTransaction;
 use crate::{
     Client,
     api::{
-        EXECUTION_READ_MASK, Error, Result, TryFromProtoError, build_proto_transaction,
+        EXECUTE_TRANSACTION_READ_MASK, Error, Result, TryFromProtoError, build_proto_transaction,
         field_mask_with_default,
     },
 };
@@ -34,8 +34,8 @@ impl Client {
     /// # Available Read Mask Fields
     ///
     /// The optional `read_mask` parameter controls which fields the server
-    /// returns. If `None`, uses [`EXECUTION_READ_MASK`] which includes effects,
-    /// events, and input/output objects.
+    /// returns. If `None`, uses [`EXECUTE_TRANSACTION_READ_MASK`] which
+    /// includes effects, events, and input/output objects.
     ///
     /// ## Transaction Fields
     /// - `transaction` - includes all transaction fields
@@ -128,7 +128,10 @@ impl Client {
         let request = ExecuteTransactionRequest::default()
             .with_transaction(proto_transaction)
             .with_signatures(proto_signatures)
-            .with_read_mask(field_mask_with_default(read_mask, EXECUTION_READ_MASK));
+            .with_read_mask(field_mask_with_default(
+                read_mask,
+                EXECUTE_TRANSACTION_READ_MASK,
+            ));
 
         let response = self
             .execution_service_client()

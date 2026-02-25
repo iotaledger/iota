@@ -6,6 +6,7 @@ use iota_grpc_types::{
     field::{FieldMaskTree, FieldMaskUtil},
     google::rpc::bad_request::FieldViolation,
     proto::timestamp_ms_to_proto,
+    read_masks::GET_SERVICE_INFO_READ_MASK,
     v0::{
         error_reason::ErrorReason,
         ledger_service::{GetServiceInfoRequest, GetServiceInfoResponse},
@@ -14,9 +15,6 @@ use iota_grpc_types::{
 use prost_types::FieldMask;
 
 use crate::{error::RpcError, ledger_service::LedgerGrpcService};
-
-pub const READ_MASK_DEFAULT: &str =
-    crate::field_mask!("chain_id", "epoch", "executed_checkpoint_height");
 
 /// Available Read Mask Fields
 ///
@@ -50,7 +48,7 @@ pub fn get_service_info(
     let read_mask = {
         let read_mask = request
             .read_mask
-            .unwrap_or_else(|| FieldMask::from_str(READ_MASK_DEFAULT));
+            .unwrap_or_else(|| FieldMask::from_str(GET_SERVICE_INFO_READ_MASK));
         read_mask
             .validate::<GetServiceInfoResponse>()
             .map_err(|path| {

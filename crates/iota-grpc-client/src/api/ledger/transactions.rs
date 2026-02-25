@@ -11,7 +11,7 @@ use iota_sdk_types::Digest;
 
 use crate::{
     Client,
-    api::{Error, ProtoResult, Result, TRANSACTIONS_READ_MASK, field_mask_with_default},
+    api::{Error, GET_TRANSACTIONS_READ_MASK, ProtoResult, Result, field_mask_with_default},
 };
 
 impl Client {
@@ -33,7 +33,7 @@ impl Client {
     /// # Available Read Mask Fields
     ///
     /// The optional `read_mask` parameter controls which fields the server
-    /// returns. If `None`, uses [`TRANSACTIONS_READ_MASK`].
+    /// returns. If `None`, uses [`GET_TRANSACTIONS_READ_MASK`].
     ///
     /// ## Transaction Fields
     /// - `transaction` - includes all transaction fields
@@ -127,7 +127,10 @@ impl Client {
 
         let mut request = GetTransactionsRequest::default()
             .with_requests(requests)
-            .with_read_mask(field_mask_with_default(read_mask, TRANSACTIONS_READ_MASK));
+            .with_read_mask(field_mask_with_default(
+                read_mask,
+                GET_TRANSACTIONS_READ_MASK,
+            ));
 
         if let Some(max_size) = self.max_decoding_message_size() {
             request = request.with_max_message_size_bytes(max_size as u32);

@@ -10,6 +10,7 @@ use std::sync::Arc;
 use iota_grpc_types::{
     field::FieldMaskTree,
     google::rpc::bad_request::FieldViolation,
+    read_masks::EXECUTE_TRANSACTION_READ_MASK,
     v0::{
         error_reason::ErrorReason,
         transaction::ExecutedTransaction,
@@ -27,8 +28,6 @@ use tonic::{Request, Response};
 pub use transaction::{CommandResultsReadSource, TransactionReadSource};
 
 use crate::{error::RpcError, merge::Merge, types::GrpcReader};
-
-pub const EXECUTE_TRANSACTION_READ_MASK_DEFAULT: &str = crate::field_mask!("effects");
 
 pub struct TransactionExecutionGrpcService {
     pub config: iota_config::node::GrpcApiConfig,
@@ -144,7 +143,7 @@ pub async fn execute_transaction(
         .read_mask
         .map(|mask| FieldMaskTree::from_field_mask(&mask))
         .unwrap_or_else(|| {
-            EXECUTE_TRANSACTION_READ_MASK_DEFAULT
+            EXECUTE_TRANSACTION_READ_MASK
                 .parse::<FieldMaskTree>()
                 .unwrap()
         });

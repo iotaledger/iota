@@ -7,6 +7,7 @@ use futures::Stream;
 use iota_grpc_types::{
     field::{FieldMaskTree, FieldMaskUtil},
     google::rpc::bad_request::FieldViolation,
+    read_masks::GET_TRANSACTIONS_READ_MASK,
     v0::{
         error_reason::ErrorReason,
         ledger_service::{GetTransactionsRequest, GetTransactionsResponse, TransactionResult},
@@ -25,8 +26,6 @@ use crate::{
     types::{GrpcReader, TransactionReadFields, TransactionsStreamResult},
 };
 
-pub const READ_MASK_DEFAULT: &str = crate::field_mask!("executed_transaction.digest");
-
 type ValidationResult = Result<(Vec<TransactionDigest>, FieldMaskTree), RpcError>;
 
 pub fn validate_get_transaction_requests(
@@ -34,7 +33,8 @@ pub fn validate_get_transaction_requests(
     read_mask: Option<FieldMask>,
 ) -> ValidationResult {
     let read_mask = {
-        let read_mask = read_mask.unwrap_or_else(|| FieldMask::from_str(READ_MASK_DEFAULT));
+        let read_mask =
+            read_mask.unwrap_or_else(|| FieldMask::from_str(GET_TRANSACTIONS_READ_MASK));
         read_mask
             .validate::<ExecutedTransaction>()
             .map_err(|path| {

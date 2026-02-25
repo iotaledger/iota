@@ -7,7 +7,7 @@ use iota_grpc_types::v0::ledger_service::{GetServiceInfoRequest, GetServiceInfoR
 
 use crate::{
     Client,
-    api::{Result, SERVICE_INFO_READ_MASK, field_mask_with_default},
+    api::{GET_SERVICE_INFO_READ_MASK, Result, field_mask_with_default},
 };
 
 impl Client {
@@ -19,7 +19,7 @@ impl Client {
     /// # Available Read Mask Fields
     ///
     /// The optional `read_mask` parameter controls which fields the server
-    /// returns. If `None`, uses [`SERVICE_INFO_READ_MASK`].
+    /// returns. If `None`, uses [`GET_SERVICE_INFO_READ_MASK`].
     ///
     /// ## Network Fields
     /// - `chain_id` - the ID of the chain, which can be used to identify the
@@ -70,8 +70,10 @@ impl Client {
         &self,
         read_mask: Option<&str>,
     ) -> Result<GetServiceInfoResponse> {
-        let request = GetServiceInfoRequest::default()
-            .with_read_mask(field_mask_with_default(read_mask, SERVICE_INFO_READ_MASK));
+        let request = GetServiceInfoRequest::default().with_read_mask(field_mask_with_default(
+            read_mask,
+            GET_SERVICE_INFO_READ_MASK,
+        ));
 
         let mut client = self.ledger_service_client();
         let response = client.get_service_info(request).await?.into_inner();

@@ -10,7 +10,7 @@ use iota_grpc_types::{
 
 use crate::{
     Client,
-    api::{EPOCH_READ_MASK, Result, TryFromProtoError, field_mask_with_default},
+    api::{GET_EPOCH_READ_MASK, Result, TryFromProtoError, field_mask_with_default},
 };
 
 impl Client {
@@ -23,7 +23,7 @@ impl Client {
     ///
     /// * `epoch` - The epoch to query. If `None`, returns the current epoch.
     /// * `read_mask` - Optional field mask specifying which fields to include.
-    ///   If `None`, uses [`EPOCH_READ_MASK`].
+    ///   If `None`, uses [`GET_EPOCH_READ_MASK`].
     ///
     /// # Available Read Mask Fields
     ///
@@ -115,7 +115,7 @@ impl Client {
     /// ```
     pub async fn get_epoch(&self, epoch: Option<u64>, read_mask: Option<&str>) -> Result<Epoch> {
         let mut request = GetEpochRequest::default()
-            .with_read_mask(field_mask_with_default(read_mask, EPOCH_READ_MASK));
+            .with_read_mask(field_mask_with_default(read_mask, GET_EPOCH_READ_MASK));
 
         if let Some(epoch) = epoch {
             request = request.with_epoch(epoch);

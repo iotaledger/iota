@@ -7,6 +7,7 @@ use std::sync::Arc;
 use iota_grpc_types::{
     field::FieldMaskTree,
     google::rpc::bad_request::FieldViolation,
+    read_masks::SIMULATE_TRANSACTION_READ_MASK,
     v0::{
         bcs::{self as grpc_bcs},
         command::CommandResults,
@@ -32,13 +33,6 @@ use crate::{
     error::RpcError, merge::Merge, transaction_execution_service::CommandResultsReadSource,
     types::GrpcReader,
 };
-
-pub const SIMULATE_TRANSACTION_READ_MASK_DEFAULT: &str = crate::field_mask!(
-    "executed_transaction.transaction",
-    "executed_transaction.effects",
-    "suggested_gas_price",
-    "execution_result",
-);
 
 /// Available Read Mask Fields
 ///
@@ -149,7 +143,7 @@ pub async fn simulate_transaction(
         .read_mask
         .map(|mask| FieldMaskTree::from_field_mask(&mask))
         .unwrap_or_else(|| {
-            SIMULATE_TRANSACTION_READ_MASK_DEFAULT
+            SIMULATE_TRANSACTION_READ_MASK
                 .parse::<FieldMaskTree>()
                 .unwrap()
         });

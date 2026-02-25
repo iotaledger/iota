@@ -10,6 +10,7 @@
 pub mod field;
 pub mod headers;
 pub mod proto;
+pub mod read_masks;
 
 /// Joins field names with commas to build a read mask string constant.
 ///

@@ -97,7 +97,7 @@ use iota_sdk_types::{CheckpointSequenceNumber, Digest};
 use crate::{
     Client, Error,
     api::{
-        CHECKPOINT_READ_MASK, CheckpointResponse, Result, TryFromProtoError,
+        CheckpointResponse, GET_CHECKPOINT_READ_MASK, Result, TryFromProtoError,
         field_mask_with_default,
     },
 };
@@ -111,9 +111,9 @@ impl Client {
     /// # Parameters
     ///
     /// * `read_mask` - Optional field mask specifying which fields to include.
-    ///   If `None`, uses [`crate::api::CHECKPOINT_READ_MASK`] as default. See
-    ///   [module-level documentation](crate::api::ledger::checkpoints) for all
-    ///   available fields.
+    ///   If `None`, uses [`crate::api::GET_CHECKPOINT_READ_MASK`] as default.
+    ///   See [module-level documentation](crate::api::ledger::checkpoints) for
+    ///   all available fields.
     /// * `transactions_filter` - Optional filter to apply to transactions
     /// * `events_filter` - Optional filter to apply to events
     ///
@@ -152,9 +152,9 @@ impl Client {
     ///
     /// * `sequence_number` - The checkpoint sequence number to fetch
     /// * `read_mask` - Optional field mask specifying which fields to include.
-    ///   If `None`, uses [`crate::api::CHECKPOINT_READ_MASK`] as default. See
-    ///   [module-level documentation](crate::api::ledger::checkpoints) for all
-    ///   available fields.
+    ///   If `None`, uses [`crate::api::GET_CHECKPOINT_READ_MASK`] as default.
+    ///   See [module-level documentation](crate::api::ledger::checkpoints) for
+    ///   all available fields.
     /// * `transactions_filter` - Optional filter to apply to transactions
     /// * `events_filter` - Optional filter to apply to events
     ///
@@ -196,9 +196,9 @@ impl Client {
     ///
     /// * `digest` - The checkpoint digest to fetch
     /// * `read_mask` - Optional field mask specifying which fields to include.
-    ///   If `None`, uses [`crate::api::CHECKPOINT_READ_MASK`] as default. See
-    ///   [module-level documentation](crate::api::ledger::checkpoints) for all
-    ///   available fields.
+    ///   If `None`, uses [`crate::api::GET_CHECKPOINT_READ_MASK`] as default.
+    ///   See [module-level documentation](crate::api::ledger::checkpoints) for
+    ///   all available fields.
     /// * `transactions_filter` - Optional filter to apply to transactions
     /// * `events_filter` - Optional filter to apply to events
     ///
@@ -255,7 +255,7 @@ impl Client {
                 return Err(Error::Protocol("Invalid checkpoint ID type".into()));
             }
         }
-        .with_read_mask(field_mask_with_default(read_mask, CHECKPOINT_READ_MASK));
+        .with_read_mask(field_mask_with_default(read_mask, GET_CHECKPOINT_READ_MASK));
 
         if let Some(tf) = transactions_filter {
             request = request.with_transactions_filter(tf);
@@ -292,9 +292,9 @@ impl Client {
     /// * `end_sequence_number` - Optional ending checkpoint. If `None`, streams
     ///   indefinitely.
     /// * `read_mask` - Optional field mask specifying which fields to include.
-    ///   If `None`, uses [`crate::api::CHECKPOINT_READ_MASK`] as default. See
-    ///   [module-level documentation](crate::api::ledger::checkpoints) for all
-    ///   available fields.
+    ///   If `None`, uses [`crate::api::GET_CHECKPOINT_READ_MASK`] as default.
+    ///   See [module-level documentation](crate::api::ledger::checkpoints) for
+    ///   all available fields.
     /// * `transactions_filter` - Optional filter to apply to transactions
     /// * `events_filter` - Optional filter to apply to events
     ///
@@ -325,7 +325,7 @@ impl Client {
         events_filter: Option<grpc_filter::EventFilter>,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<CheckpointResponse>> + Send>>> {
         let mut request = CheckpointDataStreamRequest::default()
-            .with_read_mask(field_mask_with_default(read_mask, CHECKPOINT_READ_MASK));
+            .with_read_mask(field_mask_with_default(read_mask, GET_CHECKPOINT_READ_MASK));
 
         if let Some(start) = start_sequence_number {
             request = request.with_start_sequence_number(start);

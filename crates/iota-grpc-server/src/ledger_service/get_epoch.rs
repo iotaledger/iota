@@ -7,6 +7,7 @@ use std::sync::Arc;
 use iota_grpc_types::{
     field::{FieldMaskTree, FieldMaskUtil},
     proto::timestamp_ms_to_proto,
+    read_masks::GET_EPOCH_READ_MASK,
     v0::{
         bcs::BcsData,
         epoch::{Epoch, ProtocolConfig},
@@ -19,16 +20,6 @@ use prost_types::FieldMask;
 use tonic::Status;
 
 use crate::{ledger_service::LedgerGrpcService, merge::Merge, types::GrpcReader};
-
-pub const READ_MASK_DEFAULT: &str = crate::field_mask!(
-    "epoch",
-    "first_checkpoint",
-    "last_checkpoint",
-    "start",
-    "end",
-    "reference_gas_price",
-    "protocol_config.protocol_version"
-);
 
 /// Source for building `Epoch` using the `Merge` trait.
 pub struct EpochReadSource {
@@ -182,7 +173,7 @@ pub fn get_epoch(
     let read_mask = {
         let read_mask = request
             .read_mask
-            .unwrap_or_else(|| FieldMask::from_str(READ_MASK_DEFAULT));
+            .unwrap_or_else(|| FieldMask::from_str(GET_EPOCH_READ_MASK));
         read_mask
             .validate::<Epoch>()
             .map_err(|path| Status::invalid_argument(format!("invalid read_mask path: {path}")))?;
