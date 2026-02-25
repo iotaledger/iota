@@ -8,7 +8,6 @@ import { PageHeader, PageLayout } from '~/components';
 import { useResolveDid } from '~/hooks/useResolveDid';
 import { onCopySuccess } from '~/lib';
 import { useIdentityPkgId } from '~/contexts';
-import { useMemo } from 'react';
 import { Warning } from '@iota/apps-ui-icons';
 import { getIdentityType, getLegacyMetadata, MetadataBuilder } from '../headerMetadataHelper';
 import { ControllerView } from './ControllerView';
@@ -26,19 +25,13 @@ interface DidContentProps {
 export function DidContent({ did }: DidContentProps) {
     const { didDocument, isPending: isDidDocumentPending } = useResolveDid(did);
     const { data: objectResult, isPending: isObjectPending } = useGetObjectOrPastObject(did.tag());
-    const didObject = useMemo(() => objectResult?.data || null, [objectResult?.data]);
-    const didDocFromObject = useMemo(
-        () => (didObject && extractDidDoc(didObject)) || null,
-        [didObject],
-    );
+    const didObject = objectResult?.data ?? null;
+    const didDocFromObject = (didObject && extractDidDoc(didObject)) ?? null;
 
     const copyToClipboard = useCopyToClipboard(onCopySuccess);
     const iotaIdentityPackage = useIdentityPkgId();
 
-    const isPending = useMemo(
-        () => isDidDocumentPending || isObjectPending,
-        [isDidDocumentPending, isObjectPending],
-    );
+    const isPending = isDidDocumentPending || isObjectPending;
     if (isPending) {
         return <PageLayout loading loadingText="Loading DID Document and Object..." content={[]} />;
     }
