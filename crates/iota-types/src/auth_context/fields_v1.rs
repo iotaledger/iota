@@ -1,21 +1,44 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_binary_format::{CompiledModule, file_format::SignatureToken};
-use move_bytecode_utils::resolve_struct;
-use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
+use move_core_types::{
+    ident_str,
+    identifier::IdentStr,
+    language_storage::StructTag,
+    runtime_value::{MoveEnumLayout, MoveStructLayout, MoveTypeLayout},
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
     base_types::ObjectID,
-    digests::MoveAuthenticatorDigest,
-    transaction::{Argument, CallArg, Command, ObjectArg, ProgrammableTransaction},
+    transaction::{Argument, CallArg, Command, ObjectArg},
     type_input::TypeName,
 };
 
-pub const AUTH_CONTEXT_MODULE_NAME: &IdentStr = ident_str!("auth_context");
-pub const AUTH_CONTEXT_STRUCT_NAME: &IdentStr = ident_str!("AuthContext");
+// ---------------------------------------------------------------------------
+// Module / struct name constants
+// ---------------------------------------------------------------------------
+
+pub const CALL_ARG_MODULE_NAME: &IdentStr = ident_str!("ptb_call_arg");
+pub const CALL_ARG_STRUCT_NAME: &IdentStr = ident_str!("CallArg");
+pub const OBJECT_ARG_STRUCT_NAME: &IdentStr = ident_str!("ObjectArg");
+pub const OBJECT_REF_STRUCT_NAME: &IdentStr = ident_str!("ObjectRef");
+
+pub const COMMAND_MODULE_NAME: &IdentStr = ident_str!("ptb_command");
+pub const COMMAND_STRUCT_NAME: &IdentStr = ident_str!("Command");
+pub const ARGUMENT_STRUCT_NAME: &IdentStr = ident_str!("Argument");
+pub const PROGRAMMABLE_MOVE_CALL_STRUCT_NAME: &IdentStr = ident_str!("ProgrammableMoveCall");
+pub const TRANSFER_OBJECTS_DATA_STRUCT_NAME: &IdentStr = ident_str!("TransferObjectsData");
+pub const SPLIT_COINS_DATA_STRUCT_NAME: &IdentStr = ident_str!("SplitCoinsData");
+pub const MERGE_COINS_DATA_STRUCT_NAME: &IdentStr = ident_str!("MergeCoinsData");
+pub const PUBLISH_DATA_STRUCT_NAME: &IdentStr = ident_str!("PublishData");
+pub const MAKE_MOVE_VEC_DATA_STRUCT_NAME: &IdentStr = ident_str!("MakeMoveVecData");
+pub const UPGRADE_DATA_STRUCT_NAME: &IdentStr = ident_str!("UpgradeData");
+
+// ---------------------------------------------------------------------------
+// AuthContextMoveCall
+// ---------------------------------------------------------------------------
 
 /// Mirrors [`crate::transaction::ProgrammableMoveCall`] for use in
 /// [`AuthContextCommand`], substituting [`TypeName`] for
@@ -29,6 +52,10 @@ pub struct AuthContextMoveCall {
     pub type_arguments: Vec<TypeName>,
     pub arguments: Vec<Argument>,
 }
+
+// ---------------------------------------------------------------------------
+// AuthContextCommand
+// ---------------------------------------------------------------------------
 
 /// Mirrors [`crate::transaction::Command`], substituting [`TypeName`] for
 /// [`crate::type_input::TypeInput`] in `MoveCall` and `MakeMoveVec` so that
@@ -83,6 +110,60 @@ impl From<&Command> for AuthContextCommand {
     }
 }
 
+impl AuthContextCommand {
+    pub fn type_() -> StructTag {
+        StructTag {
+            address: IOTA_FRAMEWORK_ADDRESS,
+            module: COMMAND_MODULE_NAME.to_owned(),
+            name: COMMAND_STRUCT_NAME.to_owned(),
+            type_params: vec![],
+        }
+    }
+
+    /// Builds the `MoveEnumLayout` that mirrors the Move-side
+    /// `ptb_command::Command` enum:
+    ///
+    /// ```move
+    /// public enum Command has copy, drop {
+    ///     MoveCall(ProgrammableMoveCall),
+    ///     TransferObjects(TransferObjectsData),
+    ///     SplitCoins(SplitCoinsData),
+    ///     MergeCoins(MergeCoinsData),
+    ///     Publish(PublishData),
+    ///     MakeMoveVec(MakeMoveVecData),
+    ///     Upgrade(UpgradeData),
+    /// }
+    /// ```
+    pub fn layout() -> MoveEnumLayout {
+        MoveEnumLayout(Box::new(vec![
+            // variant 0: MoveCall(ProgrammableMoveCall)
+            vec![MoveTypeLayout::Struct(Box::new(
+                programmable_move_call_layout(),
+            ))],
+            // variant 1: TransferObjects(TransferObjectsData)
+            vec![MoveTypeLayout::Struct(Box::new(
+                transfer_objects_data_layout(),
+            ))],
+            // variant 2: SplitCoins(SplitCoinsData)
+            vec![MoveTypeLayout::Struct(Box::new(split_coins_data_layout()))],
+            // variant 3: MergeCoins(MergeCoinsData)
+            vec![MoveTypeLayout::Struct(Box::new(merge_coins_data_layout()))],
+            // variant 4: Publish(PublishData)
+            vec![MoveTypeLayout::Struct(Box::new(publish_data_layout()))],
+            // variant 5: MakeMoveVec(MakeMoveVecData)
+            vec![MoveTypeLayout::Struct(
+                Box::new(make_move_vec_data_layout()),
+            )],
+            // variant 6: Upgrade(UpgradeData)
+            vec![MoveTypeLayout::Struct(Box::new(upgrade_data_layout()))],
+        ]))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// AuthContextCallArg
+// ---------------------------------------------------------------------------
+
 /// Mirrors [`crate::transaction::CallArg`], matching the BCS layout expected
 /// by the Move-side `ptb_call_arg::CallArg`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -100,144 +181,260 @@ impl From<&CallArg> for AuthContextCallArg {
     }
 }
 
-/// `AuthContext` provides a lightweight execution context used during the
-/// authentication phase of a transaction.
+impl AuthContextCallArg {
+    pub fn type_() -> StructTag {
+        StructTag {
+            address: IOTA_FRAMEWORK_ADDRESS,
+            module: CALL_ARG_MODULE_NAME.to_owned(),
+            name: CALL_ARG_STRUCT_NAME.to_owned(),
+            type_params: vec![],
+        }
+    }
+
+    /// Builds the `MoveEnumLayout` that mirrors the Move-side
+    /// `ptb_call_arg::CallArg` enum:
+    ///
+    /// ```move
+    /// public enum CallArg has copy, drop {
+    ///     PureData(vector<u8>),
+    ///     ObjectData(ObjectArg),
+    /// }
+    /// ```
+    pub fn layout() -> MoveEnumLayout {
+        MoveEnumLayout(Box::new(vec![
+            // variant 0: PureData(vector<u8>)
+            vec![MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8))],
+            // variant 1: ObjectData(ObjectArg)
+            vec![MoveTypeLayout::Enum(Box::new(object_arg_layout()))],
+        ]))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Layout helpers — CallArg / ObjectArg / ObjectRef
+// ---------------------------------------------------------------------------
+
+/// Layout for the Move-side `ptb_call_arg::ObjectArg` enum:
 ///
-/// It allows authenticator functions to:
-/// - Identify the transaction sender
-/// - Inspect the programmable transaction block (PTB) inputs and commands
-/// - Perform function-level permission checks
-/// - Support OTP, time-locked auth, or regulatory rule enforcement
-///
-/// This struct is **immutable** during the auth phase and must not allow
-/// mutation of state or access to storage beyond what is declared.
-///
-/// It is guaranteed to be available to all smart accounts implementing a
-/// custom authenticator function.
-///
-/// Typical use:
 /// ```move
-/// public fun authenticate(tx_hash: vector<u8>, input: &MyAuthInput, ctx: &AuthContext) {
-///     assert!(ed25519::ed25519_verify(&input.sig, &input.pk, &tx_hash), 0);
-///     assert!(verify_digest(ctx.digest()), 1);
-///     ...
+/// public enum ObjectArg has copy, drop {
+///     ImmOrOwnedObject(ObjectRef),
+///     SharedObject { id: ID, initial_shared_version: u64, mutable: bool },
+///     ReceivingObject(ObjectRef),
 /// }
 /// ```
-// Conceptually similar to `TxContext`, but designed specifically for use in the authentication
-// flow.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct AuthContext {
-    /// The digest of the MoveAuthenticator
-    auth_digest: MoveAuthenticatorDigest,
-    /// The authentication input objects or primitive values
-    tx_inputs: Vec<AuthContextCallArg>,
-    /// The authentication commands to be executed sequentially.
-    tx_commands: Vec<AuthContextCommand>,
+fn object_arg_layout() -> MoveEnumLayout {
+    let object_ref_layout = MoveTypeLayout::Struct(Box::new(object_ref_layout()));
+
+    MoveEnumLayout(Box::new(vec![
+        // variant 0: ImmOrOwnedObject(ObjectRef)
+        vec![object_ref_layout.clone()],
+        // variant 1: SharedObject { id: ID, initial_shared_version: u64, mutable: bool }
+        vec![
+            MoveTypeLayout::Struct(Box::new(id_layout())),
+            MoveTypeLayout::U64,
+            MoveTypeLayout::Bool,
+        ],
+        // variant 2: ReceivingObject(ObjectRef)
+        vec![object_ref_layout],
+    ]))
 }
 
-impl AuthContext {
-    pub fn new_from_components(
-        auth_digest: MoveAuthenticatorDigest,
-        ptb: &ProgrammableTransaction,
-    ) -> Self {
-        Self {
-            auth_digest,
-            tx_inputs: ptb.inputs.iter().map(AuthContextCallArg::from).collect(),
-            tx_commands: ptb.commands.iter().map(AuthContextCommand::from).collect(),
-        }
-    }
-
-    pub fn new_for_testing() -> Self {
-        Self {
-            auth_digest: MoveAuthenticatorDigest::default(),
-            tx_inputs: Vec::new(),
-            tx_commands: Vec::new(),
-        }
-    }
-
-    pub fn digest(&self) -> &MoveAuthenticatorDigest {
-        &self.auth_digest
-    }
-
-    pub fn tx_inputs(&self) -> &Vec<AuthContextCallArg> {
-        &self.tx_inputs
-    }
-
-    pub fn tx_commands(&self) -> &Vec<AuthContextCommand> {
-        &self.tx_commands
-    }
-
-    pub fn to_bcs_bytes(&self) -> Vec<u8> {
-        bcs::to_bytes(&self).unwrap()
-    }
-
-    pub fn to_move_bcs_bytes(&self) -> Vec<u8> {
-        bcs::to_bytes(&MoveAuthContext::default()).unwrap()
-    }
-
-    /// Returns whether the type signature is &mut AuthContext, &AuthContext, or
-    /// none of the above.
-    pub fn kind(module: &CompiledModule, token: &SignatureToken) -> AuthContextKind {
-        use SignatureToken as S;
-
-        let (kind, token) = match token {
-            S::MutableReference(token) => (AuthContextKind::Mutable, token),
-            S::Reference(token) => (AuthContextKind::Immutable, token),
-            _ => return AuthContextKind::None,
-        };
-
-        let S::Datatype(idx) = &**token else {
-            return AuthContextKind::None;
-        };
-
-        let (module_addr, module_name, struct_name) = resolve_struct(module, *idx);
-
-        if is_auth_context(module_addr, module_name, struct_name) {
-            kind
-        } else {
-            AuthContextKind::None
-        }
-    }
-
-    // Move test only API
-    //
-    pub fn replace(
-        &mut self,
-        auth_digest: MoveAuthenticatorDigest,
-        tx_inputs: Vec<AuthContextCallArg>,
-        tx_commands: Vec<AuthContextCommand>,
-    ) {
-        self.auth_digest = auth_digest;
-        self.tx_inputs = tx_inputs;
-        self.tx_commands = tx_commands;
-    }
+/// Layout for the Move-side `ptb_call_arg::ObjectRef` struct:
+///
+/// ```move
+/// public struct ObjectRef has copy, drop {
+///     object_id: ID,
+///     sequence_number: u64,
+///     object_digest: vector<u8>,
+/// }
+/// ```
+fn object_ref_layout() -> MoveStructLayout {
+    MoveStructLayout(Box::new(vec![
+        MoveTypeLayout::Struct(Box::new(id_layout())),
+        MoveTypeLayout::U64,
+        MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
+    ]))
 }
 
-#[derive(Default, Serialize)]
-pub struct MoveAuthContext {
-    // An empty Move struct contains a 1-byte dummy bool field because empty fields are not
-    // allowed in the bytecode.
-    dummy_field: bool,
+// ---------------------------------------------------------------------------
+// Layout helpers — Command inner types (ptb_command module)
+// ---------------------------------------------------------------------------
+
+/// Layout for `ptb_command::Argument`:
+///
+/// ```move
+/// public enum Argument has copy, drop {
+///     GasCoin,
+///     Input(u16),
+///     Result(u16),
+///     NestedResult(u16, u16),
+/// }
+/// ```
+fn argument_layout() -> MoveEnumLayout {
+    MoveEnumLayout(Box::new(vec![
+        // variant 0: GasCoin — no fields
+        vec![],
+        // variant 1: Input(u16)
+        vec![MoveTypeLayout::U16],
+        // variant 2: Result(u16)
+        vec![MoveTypeLayout::U16],
+        // variant 3: NestedResult(u16, u16)
+        vec![MoveTypeLayout::U16, MoveTypeLayout::U16],
+    ]))
 }
 
-#[derive(PartialEq, Eq, Clone, Copy)]
-pub enum AuthContextKind {
-    // Not AuthContext
-    None,
-    // &mut AuthContext
-    Mutable,
-    // &AuthContext
-    Immutable,
+/// Layout for `std::ascii::String { bytes: vector<u8> }`.
+fn ascii_string_layout() -> MoveStructLayout {
+    MoveStructLayout(Box::new(vec![MoveTypeLayout::Vector(Box::new(
+        MoveTypeLayout::U8,
+    ))]))
 }
 
-pub fn is_auth_context(
-    module_addr: &AccountAddress,
-    module_name: &IdentStr,
-    struct_name: &IdentStr,
-) -> bool {
-    module_addr == &IOTA_FRAMEWORK_ADDRESS
-        && module_name == AUTH_CONTEXT_MODULE_NAME
-        && struct_name == AUTH_CONTEXT_STRUCT_NAME
+/// Layout for `std::type_name::TypeName { name: ascii::String }`.
+fn type_name_layout() -> MoveStructLayout {
+    MoveStructLayout(Box::new(vec![MoveTypeLayout::Struct(Box::new(
+        ascii_string_layout(),
+    ))]))
+}
+
+/// Layout for `std::option::Option<TypeName>`, which in Move is
+/// `struct Option<T> { vec: vector<T> }`.
+fn option_type_name_layout() -> MoveStructLayout {
+    MoveStructLayout(Box::new(vec![MoveTypeLayout::Vector(Box::new(
+        MoveTypeLayout::Struct(Box::new(type_name_layout())),
+    ))]))
+}
+
+/// Shared helper: `MoveTypeLayout` for the `Argument` enum.
+fn argument_type_layout() -> MoveTypeLayout {
+    MoveTypeLayout::Enum(Box::new(argument_layout()))
+}
+
+/// Layout for `iota::object::ID { bytes: address }`.
+fn id_layout() -> MoveStructLayout {
+    MoveStructLayout(Box::new(vec![MoveTypeLayout::Address]))
+}
+
+/// Layout for `ptb_command::ProgrammableMoveCall`:
+///
+/// ```move
+/// public struct ProgrammableMoveCall has copy, drop {
+///     package: ID,
+///     module_name: String,
+///     function: String,
+///     type_arguments: vector<TypeName>,
+///     arguments: vector<Argument>,
+/// }
+/// ```
+fn programmable_move_call_layout() -> MoveStructLayout {
+    MoveStructLayout(Box::new(vec![
+        MoveTypeLayout::Struct(Box::new(id_layout())),
+        MoveTypeLayout::Struct(Box::new(ascii_string_layout())),
+        MoveTypeLayout::Struct(Box::new(ascii_string_layout())),
+        MoveTypeLayout::Vector(Box::new(MoveTypeLayout::Struct(Box::new(
+            type_name_layout(),
+        )))),
+        MoveTypeLayout::Vector(Box::new(argument_type_layout())),
+    ]))
+}
+
+/// Layout for `ptb_command::TransferObjectsData`:
+///
+/// ```move
+/// public struct TransferObjectsData has copy, drop {
+///     objects: vector<Argument>,
+///     recipient: Argument,
+/// }
+/// ```
+fn transfer_objects_data_layout() -> MoveStructLayout {
+    MoveStructLayout(Box::new(vec![
+        MoveTypeLayout::Vector(Box::new(argument_type_layout())),
+        argument_type_layout(),
+    ]))
+}
+
+/// Layout for `ptb_command::SplitCoinsData`:
+///
+/// ```move
+/// public struct SplitCoinsData has copy, drop {
+///     coin: Argument,
+///     amounts: vector<Argument>,
+/// }
+/// ```
+fn split_coins_data_layout() -> MoveStructLayout {
+    MoveStructLayout(Box::new(vec![
+        argument_type_layout(),
+        MoveTypeLayout::Vector(Box::new(argument_type_layout())),
+    ]))
+}
+
+/// Layout for `ptb_command::MergeCoinsData`:
+///
+/// ```move
+/// public struct MergeCoinsData has copy, drop {
+///     target_coin: Argument,
+///     source_coins: vector<Argument>,
+/// }
+/// ```
+fn merge_coins_data_layout() -> MoveStructLayout {
+    MoveStructLayout(Box::new(vec![
+        argument_type_layout(),
+        MoveTypeLayout::Vector(Box::new(argument_type_layout())),
+    ]))
+}
+
+/// Layout for `ptb_command::PublishData`:
+///
+/// ```move
+/// public struct PublishData has copy, drop {
+///     modules: vector<vector<u8>>,
+///     dependencies: vector<ID>,
+/// }
+/// ```
+fn publish_data_layout() -> MoveStructLayout {
+    MoveStructLayout(Box::new(vec![
+        MoveTypeLayout::Vector(Box::new(MoveTypeLayout::Vector(Box::new(
+            MoveTypeLayout::U8,
+        )))),
+        MoveTypeLayout::Vector(Box::new(MoveTypeLayout::Struct(Box::new(id_layout())))),
+    ]))
+}
+
+/// Layout for `ptb_command::MakeMoveVecData`:
+///
+/// ```move
+/// public struct MakeMoveVecData has copy, drop {
+///     type_arg: Option<TypeName>,
+///     elements: vector<Argument>,
+/// }
+/// ```
+fn make_move_vec_data_layout() -> MoveStructLayout {
+    MoveStructLayout(Box::new(vec![
+        MoveTypeLayout::Struct(Box::new(option_type_name_layout())),
+        MoveTypeLayout::Vector(Box::new(argument_type_layout())),
+    ]))
+}
+
+/// Layout for `ptb_command::UpgradeData`:
+///
+/// ```move
+/// public struct UpgradeData has copy, drop {
+///     modules: vector<vector<u8>>,
+///     dependencies: vector<ID>,
+///     package: ID,
+///     upgrade_ticket: Argument,
+/// }
+/// ```
+fn upgrade_data_layout() -> MoveStructLayout {
+    MoveStructLayout(Box::new(vec![
+        MoveTypeLayout::Vector(Box::new(MoveTypeLayout::Vector(Box::new(
+            MoveTypeLayout::U8,
+        )))),
+        MoveTypeLayout::Vector(Box::new(MoveTypeLayout::Struct(Box::new(id_layout())))),
+        MoveTypeLayout::Struct(Box::new(id_layout())),
+        argument_type_layout(),
+    ]))
 }
 
 #[cfg(test)]
@@ -247,9 +444,7 @@ mod tests {
     use super::*;
     use crate::{
         base_types::{ObjectDigest, ObjectID, SequenceNumber},
-        transaction::{
-            Argument, CallArg, Command, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
-        },
+        transaction::{Argument, CallArg, Command, ObjectArg, ProgrammableMoveCall},
         type_input::{StructInput, TypeInput},
     };
 
@@ -499,60 +694,5 @@ mod tests {
         }));
         let converted = AuthContextCommand::from(&cmd);
         assert!(matches!(converted, AuthContextCommand::MoveCall(_)));
-    }
-
-    // ── AuthContext struct ───────────────────────────────────────────────────
-
-    #[test]
-    fn auth_context_new_from_components() {
-        let ptb = ProgrammableTransaction {
-            inputs: vec![CallArg::Pure(vec![0xab])],
-            commands: vec![Command::MoveCall(Box::new(ProgrammableMoveCall {
-                package: obj_id(),
-                module: "mod".to_string(),
-                function: "fun".to_string(),
-                type_arguments: vec![TypeInput::U8],
-                arguments: vec![Argument::GasCoin],
-            }))],
-        };
-
-        let ctx = AuthContext::new_from_components(MoveAuthenticatorDigest::default(), &ptb);
-
-        assert_eq!(ctx.tx_inputs().len(), 1);
-        assert_eq!(ctx.tx_commands().len(), 1);
-
-        assert!(matches!(ctx.tx_inputs()[0], AuthContextCallArg::Pure(_)));
-
-        // Commands must have TypeName substituted for TypeInput.
-        let AuthContextCommand::MoveCall(call) = &ctx.tx_commands()[0] else {
-            panic!("expected MoveCall");
-        };
-        assert_eq!(
-            call.type_arguments,
-            vec![TypeName {
-                name: "u8".to_string()
-            }]
-        );
-    }
-
-    #[test]
-    fn auth_context_to_bcs_bytes_is_deterministic() {
-        let ctx = AuthContext::new_for_testing();
-        assert_eq!(ctx.to_bcs_bytes(), ctx.to_bcs_bytes());
-    }
-
-    #[test]
-    fn auth_context_to_bcs_bytes_reflects_content() {
-        let mut ctx = AuthContext::new_for_testing();
-        let empty_bytes = ctx.to_bcs_bytes();
-
-        ctx.replace(
-            MoveAuthenticatorDigest::default(),
-            vec![AuthContextCallArg::Pure(vec![1])],
-            vec![],
-        );
-        let non_empty_bytes = ctx.to_bcs_bytes();
-
-        assert_ne!(empty_bytes, non_empty_bytes);
     }
 }

@@ -488,8 +488,9 @@ fun test_programmable_transaction() {
 
     // Also verify round-trip through auth context
     let ctx = new_with_tx_inputs(DIGEST, inputs, commands);
+    let digest = DIGEST;
 
-    assert!(ctx.digest() == DIGEST);
+    assert!(ctx.digest() == &digest);
     assert!(ctx.tx_inputs() == inputs);
     assert!(ctx.tx_inputs().length() == 4);
     assert!(ctx.tx_commands() == commands);
@@ -597,8 +598,9 @@ fun test_all_argument_variants_in_move_call() {
 #[test]
 fun test_empty_inputs_and_commands() {
     let ctx = new_with_tx_inputs(DIGEST, vector[], vector[]);
+    let digest = DIGEST;
 
-    assert!(ctx.digest() == DIGEST);
+    assert!(ctx.digest() == &digest);
     assert!(ctx.tx_inputs().length() == 0);
     assert!(ctx.tx_commands().length() == 0);
 }

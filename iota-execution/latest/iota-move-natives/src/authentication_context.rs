@@ -9,8 +9,10 @@ use iota_types::{
     digests::MoveAuthenticatorDigest,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
-use move_core_types::vm_status::StatusCode;
+use move_core_types::{runtime_value::MoveTypeLayout, vm_status::StatusCode};
 use move_vm_runtime::native_extensions::NativeExtensionMarker;
+use move_vm_types::values::{GlobalValue, Value};
+use serde::Serialize;
 
 // AuthenticationContext is a wrapper around AuthContext that is exposed to
 // NativeContextExtensions in order to provide authentication context
@@ -20,6 +22,9 @@ use move_vm_runtime::native_extensions::NativeExtensionMarker;
 pub struct AuthenticationContext {
     pub(crate) auth_context: Rc<RefCell<AuthContext>>,
     test_only: bool,
+    cached_with_digest: Option<GlobalValue>,
+    cached_with_tx_inputs: Option<GlobalValue>,
+    cached_with_tx_commands: Option<GlobalValue>,
 }
 
 impl NativeExtensionMarker<'_> for AuthenticationContext {}
@@ -29,6 +34,9 @@ impl AuthenticationContext {
         Self {
             auth_context,
             test_only: false,
+            cached_with_digest: None,
+            cached_with_tx_inputs: None,
+            cached_with_tx_commands: None,
         }
     }
 
@@ -36,19 +44,61 @@ impl AuthenticationContext {
         Self {
             auth_context,
             test_only: true,
+            cached_with_digest: None,
+            cached_with_tx_inputs: None,
+            cached_with_tx_commands: None,
         }
     }
 
-    pub fn digest(&self) -> MoveAuthenticatorDigest {
-        self.auth_context.borrow().digest().to_owned()
+    pub fn struct_with_digest(&mut self) -> &GlobalValue {
+        if self.cached_with_digest.is_none() {
+            let value = to_value(
+                &(self.auth_context.borrow().digest(),), /* Wrap in a tuple to match the
+                                                          * expected Move layout of `struct
+                                                          * AuthContext { digest: vector<u8>
+                                                          * }` */
+                &MoveTypeLayout::Struct(Box::new(AuthContext::layout_with_auth_digest())),
+            )
+            .expect("Failed to convert auth digest to a Move value");
+            self.cached_with_digest =
+                Some(GlobalValue::cached(value).expect("Failed to cache global value"));
+        }
+
+        self.cached_with_digest.as_ref().unwrap()
     }
 
-    pub fn tx_commands(&self) -> Vec<AuthContextCommand> {
-        self.auth_context.borrow().tx_commands().to_owned()
+    pub fn struct_with_tx_inputs(&mut self) -> &GlobalValue {
+        if self.cached_with_tx_inputs.is_none() {
+            let value = to_value(
+                &(self.auth_context.borrow().tx_inputs(),), /* Wrap in a tuple to match the
+                                                             * expected Move layout of `struct
+                                                             * AuthContext { tx_inputs:
+                                                             * vector<CallArg> }` */
+                &MoveTypeLayout::Struct(Box::new(AuthContext::layout_with_tx_inputs())),
+            )
+            .expect("Failed to convert auth tx inputs to a Move value");
+            self.cached_with_tx_inputs =
+                Some(GlobalValue::cached(value).expect("Failed to cache global value"));
+        }
+
+        self.cached_with_tx_inputs.as_ref().unwrap()
     }
 
-    pub fn tx_inputs(&self) -> Vec<AuthContextCallArg> {
-        self.auth_context.borrow().tx_inputs().to_owned()
+    pub fn struct_with_tx_commands(&mut self) -> &GlobalValue {
+        if self.cached_with_tx_commands.is_none() {
+            let value = to_value(
+                &(self.auth_context.borrow().tx_commands(),), /* Wrap in a tuple to match the
+                                                               * expected Move layout of `struct
+                                                               * AuthContext { tx_commands:
+                                                               * vector<Command> }` */
+                &MoveTypeLayout::Struct(Box::new(AuthContext::layout_with_tx_commands())),
+            )
+            .expect("Failed to convert auth tx commands to a Move value");
+            self.cached_with_tx_commands =
+                Some(GlobalValue::cached(value).expect("Failed to cache global value"));
+        }
+
+        self.cached_with_tx_commands.as_ref().unwrap()
     }
 
     // Test only function
@@ -70,4 +120,18 @@ impl AuthenticationContext {
             .replace(auth_digest, tx_inputs, tx_commands);
         Ok(())
     }
+}
+
+fn to_value<T: ?Sized + Serialize>(
+    input: &T,
+    input_move_layout: &MoveTypeLayout,
+) -> PartialVMResult<Value> {
+    let bytes = bcs::to_bytes(input).map_err(|err| {
+        PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+            .with_message(format!("Failed to serialize an input: {err}"))
+    })?;
+    Value::simple_deserialize(&bytes, input_move_layout).ok_or_else(|| {
+        PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+            .with_message("Failed to deserialize an input to a Move value".to_string())
+    })
 }

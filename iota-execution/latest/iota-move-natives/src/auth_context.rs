@@ -13,9 +13,12 @@ use move_core_types::{
 };
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
 use move_vm_types::{
-    loaded_data::runtime_types::Type, natives::function::NativeResult, pop_arg, values::Value,
+    loaded_data::runtime_types::Type,
+    natives::function::NativeResult,
+    pop_arg,
+    values::{StructRef, Value},
 };
-use serde::{Serialize, de::DeserializeOwned};
+use serde::de::DeserializeOwned;
 use smallvec::smallvec;
 
 use crate::{
@@ -48,10 +51,16 @@ pub fn native_digest(
         auth_context_digest_cost_params.auth_context_digest_cost_base
     );
 
-    let auth_context: &AuthenticationContext = get_extension!(context)?;
+    let auth_context: &mut AuthenticationContext = get_extension_mut!(context)?;
 
-    let digest = Value::vector_u8(auth_context.digest().into_inner());
-    Ok(NativeResult::ok(context.gas_used(), smallvec![digest]))
+    let digest_ref = auth_context
+        .struct_with_digest()
+        .borrow_global()
+        .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
+        .value_as::<StructRef>()?
+        .borrow_field(0)?;
+
+    Ok(NativeResult::ok(context.gas_used(), smallvec![digest_ref]))
 }
 
 #[derive(Clone)]
@@ -66,10 +75,10 @@ pub struct AuthContextTxCommandsCostParams {
 /// ****************************************************************************
 pub fn native_tx_commands(
     context: &mut NativeContext,
-    mut ty_args: Vec<Type>,
+    ty_args: Vec<Type>,
     args: VecDeque<Value>,
 ) -> PartialVMResult<NativeResult> {
-    debug_assert!(ty_args.len() == 1);
+    assert!(ty_args.is_empty());
     debug_assert!(args.is_empty());
 
     let auth_context_tx_commands_cost_params = get_extension!(context, NativesCostTable)?
@@ -80,17 +89,17 @@ pub fn native_tx_commands(
         auth_context_tx_commands_cost_params.auth_context_tx_commands_cost_base
     );
 
-    let command_type = ty_args.pop().unwrap();
-    let command_move_layout = resolve_move_layout(context, &command_type)?;
-    let commands_move_layout = MoveTypeLayout::Vector(Box::new(command_move_layout));
-
-    let auth_context: &AuthenticationContext = get_extension!(context)?;
-
-    let commands_value = to_value(&auth_context.tx_commands(), &commands_move_layout)?;
+    let auth_context: &mut AuthenticationContext = get_extension_mut!(context)?;
+    let tx_commands_ref = auth_context
+        .struct_with_tx_commands()
+        .borrow_global()
+        .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
+        .value_as::<StructRef>()?
+        .borrow_field(0)?;
 
     Ok(NativeResult::ok(
         context.gas_used(),
-        smallvec![commands_value],
+        smallvec![tx_commands_ref],
     ))
 }
 
@@ -106,10 +115,10 @@ pub struct AuthContextTxInputsCostParams {
 /// ****************************************************************************
 pub fn native_tx_inputs(
     context: &mut NativeContext,
-    mut ty_args: Vec<Type>,
+    ty_args: Vec<Type>,
     args: VecDeque<Value>,
 ) -> PartialVMResult<NativeResult> {
-    debug_assert!(ty_args.len() == 1);
+    assert!(ty_args.is_empty());
     debug_assert!(args.is_empty());
 
     let auth_context_tx_inputs_cost_params = get_extension!(context, NativesCostTable)?
@@ -120,17 +129,18 @@ pub fn native_tx_inputs(
         auth_context_tx_inputs_cost_params.auth_context_tx_inputs_cost_base
     );
 
-    let input_type = ty_args.pop().unwrap();
-    let input_move_layout = resolve_move_layout(context, &input_type)?;
-    let inputs_move_layout = MoveTypeLayout::Vector(Box::new(input_move_layout));
+    let auth_context: &mut AuthenticationContext = get_extension_mut!(context)?;
 
-    let auth_context: &AuthenticationContext = get_extension!(context)?;
-
-    let inputs_value = to_value(&auth_context.tx_inputs(), &inputs_move_layout)?;
+    let tx_inputs_ref = auth_context
+        .struct_with_tx_inputs()
+        .borrow_global()
+        .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
+        .value_as::<StructRef>()?
+        .borrow_field(0)?;
 
     Ok(NativeResult::ok(
         context.gas_used(),
-        smallvec![inputs_value],
+        smallvec![tx_inputs_ref],
     ))
 }
 
@@ -187,20 +197,6 @@ pub fn native_replace(
     auth_context.replace(auth_digest, tx_inputs, tx_commands)?;
 
     Ok(NativeResult::ok(context.gas_used(), smallvec![]))
-}
-
-fn to_value<T: ?Sized + Serialize>(
-    input: &T,
-    input_move_layout: &MoveTypeLayout,
-) -> PartialVMResult<Value> {
-    let bytes = bcs::to_bytes(input).map_err(|err| {
-        PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-            .with_message(format!("Failed to serialize an input: {err}"))
-    })?;
-    Value::simple_deserialize(&bytes, input_move_layout).ok_or_else(|| {
-        PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-            .with_message("Failed to deserialize an input to a Move value".to_string())
-    })
 }
 
 fn from_value<T: DeserializeOwned>(
