@@ -1,0 +1,1 @@
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_event_struct_inst_tx_seq ON event_struct_instantiation (tx_sequence_number);

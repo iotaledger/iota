@@ -1,0 +1,1 @@
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tx_calls_pkg_tx_seq ON tx_calls_pkg (tx_sequence_number);
