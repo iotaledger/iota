@@ -434,6 +434,7 @@ impl GovernanceReadApi {
                 system_state_summary.inactive_pools_id(),
                 system_state_summary.inactive_pools_size(),
                 |df| bcs::from_bytes::<ID>(&df.bcs_name).map_err(Into::into),
+                Some(system_state_summary.protocol_version().as_u64()),
             )
             .await?;
 
@@ -482,6 +483,7 @@ impl GovernanceReadApi {
                 system_state_summary.validator_candidates_id(),
                 system_state_summary.validator_candidates_size(),
                 |df| bcs::from_bytes::<IotaAddress>(&df.bcs_name).map_err(Into::into),
+                Some(system_state_summary.protocol_version().as_u64()),
             )
             .await?;
 
@@ -538,6 +540,7 @@ impl GovernanceReadApi {
         table_id: ObjectID,
         validator_size: u64,
         key: F,
+        protocol_version: Option<u64>,
     ) -> Result<Vec<ValidatorTable>, IndexerError>
     where
         F: Fn(DynamicFieldInfo) -> Result<K, IndexerError>,
@@ -555,7 +558,12 @@ impl GovernanceReadApi {
             let validator_candidate = self
                 .inner
                 .spawn_blocking(move |this| {
-                    iota_types::iota_system_state::get_validator_from_table(&this, table_id, &key)
+                    iota_types::iota_system_state::get_validator_from_table(
+                        &this,
+                        table_id,
+                        &key,
+                        protocol_version,
+                    )
                 })
                 .await?;
 
