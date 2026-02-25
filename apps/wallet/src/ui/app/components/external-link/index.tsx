@@ -12,6 +12,7 @@ export interface ExternalLinkProps {
     title?: string;
     onClick?(): void;
     type?: string; // e.g. 'documentation' | 'application' | 'address' | 'digest' | ...
+    trackEvent?: boolean;
 }
 
 export function ExternalLink({
@@ -21,9 +22,10 @@ export function ExternalLink({
     title,
     onClick,
     type,
+    trackEvent = true,
 }: ExternalLinkProps) {
     const handleClick = () => {
-        if (type) {
+        if (trackEvent && type) {
             ampli.externalLinkOpened({
                 type,
             });
