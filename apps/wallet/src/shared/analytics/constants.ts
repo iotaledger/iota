@@ -13,55 +13,70 @@ enum AmpliAccountType {
     Seed = 'Seed',
 }
 
-enum AmpliAccountOrigin {
+export enum AmpliAccountOrigin {
     New = 'new',
     Import = 'import',
     Derived = 'derived',
 }
 
-export const ACCOUNT_FORM_TYPE_TO_SOURCE_FLOW: Record<
+export const ACCOUNT_FORM_TYPE_TO_AMPLI: Record<
     AccountsFormType,
-    AccountsAddedProperties['sourceFlow']
+    {
+        accountType: AccountsAddedProperties['accountType'];
+        accountOrigin: AmpliAccountOrigin;
+        sourceFlow: AccountsAddedProperties['sourceFlow'];
+    }
 > = {
-    [AccountsFormType.NewMnemonic]: 'New Mnemonic',
-    [AccountsFormType.ImportMnemonic]: 'Import Mnemonic',
-    [AccountsFormType.ImportSeed]: 'Import Seed',
-    [AccountsFormType.MnemonicSource]: 'Derived Mnemonic',
-    [AccountsFormType.SeedSource]: 'Derived Seed',
-    [AccountsFormType.ImportPrivateKey]: 'Import Private Key',
-    [AccountsFormType.Passkey]: 'New Passkey',
-    [AccountsFormType.ImportPasskey]: 'Import Passkey',
-    [AccountsFormType.ImportLedger]: 'Import Ledger',
-    [AccountsFormType.ImportKeystone]: 'Import Keystone',
-};
-
-export const ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE: Record<
-    AccountsFormType,
-    AccountsAddedProperties['accountType']
-> = {
-    [AccountsFormType.NewMnemonic]: AmpliAccountType.Mnemonic,
-    [AccountsFormType.ImportMnemonic]: AmpliAccountType.Mnemonic,
-    [AccountsFormType.ImportSeed]: AmpliAccountType.Seed,
-    [AccountsFormType.MnemonicSource]: AmpliAccountType.Mnemonic,
-    [AccountsFormType.SeedSource]: AmpliAccountType.Seed,
-    [AccountsFormType.ImportPrivateKey]: AmpliAccountType.PrivateKey,
-    [AccountsFormType.Passkey]: AmpliAccountType.Passkey,
-    [AccountsFormType.ImportPasskey]: AmpliAccountType.Passkey,
-    [AccountsFormType.ImportLedger]: AmpliAccountType.Ledger,
-    [AccountsFormType.ImportKeystone]: AmpliAccountType.Keystone,
-};
-
-export const ACCOUNT_FORM_TYPE_TO_ACCOUNT_ORIGIN: Record<AccountsFormType, AmpliAccountOrigin> = {
-    [AccountsFormType.NewMnemonic]: AmpliAccountOrigin.New,
-    [AccountsFormType.ImportMnemonic]: AmpliAccountOrigin.Import,
-    [AccountsFormType.ImportSeed]: AmpliAccountOrigin.Import,
-    [AccountsFormType.MnemonicSource]: AmpliAccountOrigin.Derived,
-    [AccountsFormType.SeedSource]: AmpliAccountOrigin.Derived,
-    [AccountsFormType.ImportPrivateKey]: AmpliAccountOrigin.Import,
-    [AccountsFormType.Passkey]: AmpliAccountOrigin.New,
-    [AccountsFormType.ImportPasskey]: AmpliAccountOrigin.Import,
-    [AccountsFormType.ImportLedger]: AmpliAccountOrigin.Import,
-    [AccountsFormType.ImportKeystone]: AmpliAccountOrigin.Import,
+    [AccountsFormType.NewMnemonic]: {
+        accountType: AmpliAccountType.Mnemonic,
+        accountOrigin: AmpliAccountOrigin.New,
+        sourceFlow: 'New Mnemonic',
+    },
+    [AccountsFormType.ImportMnemonic]: {
+        accountType: AmpliAccountType.Mnemonic,
+        accountOrigin: AmpliAccountOrigin.Import,
+        sourceFlow: 'Import Mnemonic',
+    },
+    [AccountsFormType.ImportSeed]: {
+        accountType: AmpliAccountType.Seed,
+        accountOrigin: AmpliAccountOrigin.Import,
+        sourceFlow: 'Import Seed',
+    },
+    [AccountsFormType.MnemonicSource]: {
+        accountType: AmpliAccountType.Mnemonic,
+        accountOrigin: AmpliAccountOrigin.Derived,
+        sourceFlow: 'Derived Mnemonic',
+    },
+    [AccountsFormType.SeedSource]: {
+        accountType: AmpliAccountType.Seed,
+        accountOrigin: AmpliAccountOrigin.Derived,
+        sourceFlow: 'Derived Seed',
+    },
+    [AccountsFormType.ImportPrivateKey]: {
+        accountType: AmpliAccountType.PrivateKey,
+        accountOrigin: AmpliAccountOrigin.Import,
+        sourceFlow: 'Import Private Key',
+    },
+    [AccountsFormType.Passkey]: {
+        accountType: AmpliAccountType.Passkey,
+        accountOrigin: AmpliAccountOrigin.New,
+        sourceFlow: 'New Passkey',
+    },
+    [AccountsFormType.ImportPasskey]: {
+        accountType: AmpliAccountType.Passkey,
+        accountOrigin: AmpliAccountOrigin.Import,
+        sourceFlow: 'Import Passkey',
+    },
+    [AccountsFormType.ImportLedger]: {
+        accountType: AmpliAccountType.Ledger,
+        accountOrigin: AmpliAccountOrigin.Import,
+        sourceFlow: 'Import Ledger',
+    },
+    [AccountsFormType.ImportKeystone]: {
+        accountType: AmpliAccountType.Keystone,
+        accountOrigin: AmpliAccountOrigin.Import,
+        sourceFlow: 'Import Keystone',
+    },
 };
 
 export const ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE: Record<

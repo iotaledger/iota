@@ -2,12 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-    ampli,
-    ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE,
-    ACCOUNT_FORM_TYPE_TO_ACCOUNT_ORIGIN,
-    ACCOUNT_FORM_TYPE_TO_SOURCE_FLOW,
-} from '_src/shared/analytics';
+import { ampli, ACCOUNT_FORM_TYPE_TO_AMPLI } from '_src/shared/analytics';
 import { useMutation } from '@tanstack/react-query';
 import { useAccountsFormContext, AccountsFormType, type AccountsFormValues } from '_components';
 import { useBackgroundClient } from './useBackgroundClient';
@@ -46,7 +41,7 @@ export function useCreateAccountsMutation() {
         mutationFn: async ({ type, password }: { type: AccountsFormType; password?: string }) => {
             let createdAccounts;
             const accountsFormValues = accountsFormValuesRef.current;
-            const sourceFlow = ACCOUNT_FORM_TYPE_TO_SOURCE_FLOW[type] || 'Unknown';
+            const ampliData = ACCOUNT_FORM_TYPE_TO_AMPLI[type];
 
             // Validate form values are present and match the requested type
             const values = validateAccountFormValues(type, accountsFormValues);
@@ -168,11 +163,9 @@ export function useCreateAccountsMutation() {
             }
 
             ampli.accountsAdded({
-                accountType: ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE[type],
-                accountOrigin: ACCOUNT_FORM_TYPE_TO_ACCOUNT_ORIGIN[type],
+                ...ampliData,
                 numberOfAccounts: createdAccounts.length,
                 isFirstAccount,
-                sourceFlow,
             });
             setAccountFormValues(null);
             const selectedAccount = createdAccounts[0];
