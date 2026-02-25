@@ -20,7 +20,9 @@ export function ImportExistingWallet() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const isPopupOrSidePanel = useAppSelector(
-        (state) => state.app.extensionViewType !== ExtensionViewType.FullScreen,
+        (state) =>
+            state.app.extensionViewType === ExtensionViewType.Popup ||
+            state.app.extensionViewType === ExtensionViewType.SidePanel,
     );
     const createAccountsMutation = useCreateAccountsMutation();
     const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';

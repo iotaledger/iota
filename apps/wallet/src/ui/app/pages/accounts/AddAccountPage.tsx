@@ -75,7 +75,9 @@ export function AddAccountPage() {
     const createAccountsMutation = useCreateAccountsMutation();
     const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';
     const isPopupOrSidePanel = useAppSelector(
-        (state) => state.app.extensionViewType !== ExtensionViewType.FullScreen,
+        (state) =>
+            state.app.extensionViewType === ExtensionViewType.Popup ||
+            state.app.extensionViewType === ExtensionViewType.SidePanel,
     );
     const [cameraPermissionStatus] = useCheckCameraPermissionStatus();
     const network = useAppSelector(({ app }) => app.network);

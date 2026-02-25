@@ -20,7 +20,9 @@ export function CreateNewWallet() {
     const [, setAccountsFormValues] = useAccountsFormContext();
     const network = useAppSelector(({ app }) => app.network);
     const isPopupOrSidePanel = useAppSelector(
-        (state) => state.app.extensionViewType !== ExtensionViewType.FullScreen,
+        (state) =>
+            state.app.extensionViewType === ExtensionViewType.Popup ||
+            state.app.extensionViewType === ExtensionViewType.SidePanel,
     );
     const createAccountsMutation = useCreateAccountsMutation();
     const [searchParams] = useSearchParams();
