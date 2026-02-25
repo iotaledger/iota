@@ -25,12 +25,6 @@ import { BackupMnemonicPage } from './pages/accounts/BackupMnemonicPage';
 import { ExportAccountPage } from './pages/accounts/ExportAccountPage';
 import { ExportPassphrasePage } from './pages/accounts/ExportPassphrasePage';
 import { ExportSeedPage } from './pages/accounts/ExportSeedPage';
-import { ForgotPasswordIndexPage } from './pages/accounts/forgot-password/ForgotPasswordIndexPage';
-import { ForgotPasswordPage } from './pages/accounts/forgot-password/ForgotPasswordPage';
-import { RecoverManyPage } from './pages/accounts/forgot-password/RecoverManyPage';
-import { RecoverPage } from './pages/accounts/forgot-password/RecoverPage';
-import { ResetPasswordPage } from './pages/accounts/forgot-password/ResetPasswordPage';
-import { ResetWarningPage } from './pages/accounts/forgot-password/ResetWarningPage';
 import { ImportLedgerAccountsPage } from './pages/accounts/ImportLedgerAccountsPage';
 import { ImportPassphrasePage } from './pages/accounts/ImportPassphrasePage';
 import { ImportPrivateKeyPage } from './pages/accounts/ImportPrivateKeyPage';
@@ -213,13 +207,6 @@ export function App() {
                     element={<ExportPassphrasePage />}
                 />
                 <Route path="export/seed/:accountSourceID" element={<ExportSeedPage />} />
-                <Route path="forgot-password" element={<ForgotPasswordPage />}>
-                    <Route index element={<ForgotPasswordIndexPage />} />
-                    <Route path="recover" element={<RecoverPage />} />
-                    <Route path="recover-many" element={<RecoverManyPage />} />
-                    <Route path="warning" element={<ResetWarningPage />} />
-                    <Route path="reset" element={<ResetPasswordPage />} />
-                </Route>
             </Route>
             <Route path="/dapp/*" element={<HomePage disableNavigation />}>
                 <Route path="connect/:requestID" element={<SiteConnectPage />} />
