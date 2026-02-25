@@ -405,6 +405,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                 .start_prometheus(
                     &self.protocol_commands,
                     use_internal_ip_address,
+                    self.settings.use_fullnode_for_execution,
                     snapshot_dir,
                 )
                 .await?;
