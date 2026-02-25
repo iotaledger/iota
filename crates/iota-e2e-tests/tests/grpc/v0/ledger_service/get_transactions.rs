@@ -4,6 +4,7 @@
 use futures::StreamExt;
 use iota_grpc_types::{
     field::FieldMaskUtil,
+    read_masks::GET_TRANSACTIONS_READ_MASK,
     v0::ledger_service::{
         GetTransactionsRequest, GetTransactionsResponse, TransactionRequest, TransactionRequests,
         ledger_service_client::LedgerServiceClient, transaction_result,
@@ -15,7 +16,7 @@ use iota_types::digests::TransactionDigest;
 use prost_types::FieldMask;
 use test_cluster::TestCluster;
 
-use crate::utils::{assert_field_presence, setup_grpc_test};
+use crate::utils::{assert_field_presence, comma_separated_field_mask_to_paths, setup_grpc_test};
 
 /// Helper to create a test transaction and return its digest
 async fn create_test_transaction(test_cluster: &TestCluster) -> TransactionDigest {
@@ -140,15 +141,19 @@ async fn get_transactions_readmask_scenarios() {
     // Note: When a parent field is specified without nested paths (e.g.,
     // "effects"), FieldMaskTree treats it as a wildcard and includes all nested
     // fields. So "effects" means "effects.digest" AND "effects.bcs".
-    type TestCase<'a> = (&'a str, Option<FieldMask>, &'a [&'a str]);
+    type TestCase<'a> = (&'a str, Option<FieldMask>, Vec<&'a str>);
     let test_cases: Vec<TestCase> = vec![
         // Default readmask (None) - returns only digest
-        ("default readmask", None, &["transaction.digest"]),
+        (
+            "default readmask",
+            None,
+            comma_separated_field_mask_to_paths(GET_TRANSACTIONS_READ_MASK),
+        ),
         // Empty readmask - returns no fields
         (
             "empty readmask",
             Some(FieldMask::from_paths(&[] as &[&str])),
-            &[],
+            vec![],
         ),
         // Full readmask - returns all implemented fields with explicit nested paths
         // Note: events may be None if transaction doesn't emit events
@@ -166,7 +171,7 @@ async fn get_transactions_readmask_scenarios() {
                 "checkpoint",
                 "timestamp",
             ])),
-            &[
+            vec![
                 "transaction.digest",
                 "transaction.bcs",
                 "signatures",
@@ -181,32 +186,32 @@ async fn get_transactions_readmask_scenarios() {
         (
             "partial readmask (digest only)",
             Some(FieldMask::from_paths(["transaction.digest"])),
-            &["transaction.digest"],
+            vec!["transaction.digest"],
         ),
         // Partial readmask: effects.digest only (specific nested field)
         (
             "partial readmask (effects.digest only)",
             Some(FieldMask::from_paths(["effects.digest"])),
-            &["effects.digest"],
+            vec!["effects.digest"],
         ),
         // Partial readmask: effects wildcard (all nested fields)
         (
             "partial readmask (effects wildcard)",
             Some(FieldMask::from_paths(["effects"])),
-            &["effects.digest", "effects.bcs"],
+            vec!["effects.digest", "effects.bcs"],
         ),
         // Partial readmask: transaction + signatures
         // Note: signatures is a leaf field, transaction has nested paths
         (
             "partial readmask (transaction + signatures)",
             Some(FieldMask::from_paths(["transaction.digest", "signatures"])),
-            &["transaction.digest", "signatures"],
+            vec!["transaction.digest", "signatures"],
         ),
         // Partial readmask: checkpoint + timestamp (metadata only)
         (
             "partial readmask (checkpoint + timestamp)",
             Some(FieldMask::from_paths(["checkpoint", "timestamp"])),
-            &["checkpoint", "timestamp"],
+            vec!["checkpoint", "timestamp"],
         ),
     ];
 
@@ -216,7 +221,7 @@ async fn get_transactions_readmask_scenarios() {
             vec![transaction_digest],
             mask,
             None,
-            expected_paths,
+            &expected_paths,
             scenario,
         )
         .await;

@@ -146,6 +146,18 @@ macro_rules! impl_field_presence_checker {
     };
 }
 
+/// Utility function to convert a comma-separated field mask string into a
+/// vector of field paths For example,
+/// "transaction.digest,transaction.bcs,signatures" becomes ["transaction.
+/// digest", "transaction.bcs", "signatures"]
+pub fn comma_separated_field_mask_to_paths(mask_str: &str) -> Vec<&str> {
+    mask_str
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
 /// Assert field presence/absence for any type implementing
 /// FieldPresenceChecker. This function validates that an object contains
 /// exactly the fields specified (or their absence). It also supports nested

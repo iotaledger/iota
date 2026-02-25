@@ -48,7 +48,7 @@ pub const GET_CHECKPOINT_READ_MASK: &str = field_mask!("checkpoint.summary");
 /// `ExecuteTransactionResponse` is transparent, so these paths apply directly
 /// to `ExecutedTransaction` fields.
 pub const EXECUTE_TRANSACTION_READ_MASK: &str = field_mask!(
-    "transaction",
+    "transaction.digest",
     "effects",
     "events",
     "input_objects",

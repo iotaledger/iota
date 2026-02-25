@@ -4,10 +4,6 @@
 #[macro_use]
 mod macros;
 
-// Re-export field_mask! from iota-grpc-types so existing `crate::field_mask!`
-// call sites in this crate continue to work without modification.
-pub use iota_grpc_types::field_mask;
-
 // Modules
 pub mod constants;
 mod error;
