@@ -75,12 +75,12 @@ function AccountRow<A extends { address: string }>({
     account,
     rowIndex,
     onAccountClick,
-    isExisting
+    isExisting,
 }: {
     account: A;
     rowIndex: number;
     onAccountClick: (account: A, checked: boolean) => void;
-    isExisting
+    isExisting;
 }) {
     const { data: coinBalance } = useBalance(account.address);
     const [totalAmount, totalAmountSymbol] = useFormatCoin({
@@ -95,8 +95,8 @@ function AccountRow<A extends { address: string }>({
                     rowIndex={rowIndex}
                     isDisabled={isExisting}
                     onCheckboxChange={(checked) => {
-                       if (isExisting) return;
-                       onAccountClick(accounts[rowIndex], checked);
+                        if (isExisting) return;
+                        onAccountClick(accounts[rowIndex], checked);
                     }}
                 />
             }
