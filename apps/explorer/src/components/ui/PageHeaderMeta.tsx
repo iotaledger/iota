@@ -37,7 +37,7 @@ export function PageHeaderMeta({ items }: PageHeaderMetaProps) {
     return (
         <div className="w-1/2">
             {visibleItems.map((item, index) => (
-                <MetaItemKV key={`${item.label}-${index}`} item={item} />
+                <MetaItemKV key={index} item={item} />
             ))}
         </div>
     );
