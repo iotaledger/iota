@@ -7,7 +7,7 @@ use std::str::FromStr;
 use clap::*;
 
 use crate::{
-    drivers::Interval,
+    drivers::{Interval, SetupInfo},
     workloads::abstract_account::{AuthenticatorKind, TxPayloadObjType},
 };
 
@@ -306,4 +306,61 @@ pub enum RunSpec {
         #[arg(long, default_value = "unbounded")]
         duration: Interval,
     },
+}
+
+impl RunSpec {
+    pub fn get_setup_info(&self) -> SetupInfo {
+        match self {
+            RunSpec::Bench {
+                target_qps,
+                num_workers,
+                transfer_object,
+                shared_counter,
+                shared_counter_hotness_factor,
+                in_flight_ratio,
+                ..
+            } => SetupInfo {
+                test_type: "standard".to_string(),
+                scenario: format!(
+                    "transfer_object={} - shared_counter={} - shared_counter_hotness_factor={}",
+                    transfer_object
+                        .iter()
+                        .map(|d| d.to_string())
+                        .collect::<Vec<_>>()
+                        .join(","),
+                    shared_counter
+                        .iter()
+                        .map(|d| d.to_string())
+                        .collect::<Vec<_>>()
+                        .join(","),
+                    shared_counter_hotness_factor
+                        .iter()
+                        .map(|d| d.to_string())
+                        .collect::<Vec<_>>()
+                        .join(",")
+                ),
+                target_qps: target_qps.clone(),
+                workers: num_workers.clone(),
+                in_flight_ratio: in_flight_ratio.clone(),
+            },
+            RunSpec::AbstractAccountBench {
+                target_qps,
+                num_workers,
+                authenticator,
+                tx_payload_obj_type,
+                in_flight_ratio,
+                should_fail,
+                ..
+            } => SetupInfo {
+                test_type: "abstract_account".to_string(),
+                scenario: format!(
+                    "authenticator={} - obj_type={}, should_fail={}",
+                    authenticator, tx_payload_obj_type, should_fail
+                ),
+                target_qps: vec![*target_qps],
+                workers: vec![*num_workers],
+                in_flight_ratio: vec![*in_flight_ratio],
+            },
+        }
+    }
 }

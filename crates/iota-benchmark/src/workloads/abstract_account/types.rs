@@ -85,3 +85,13 @@ impl FromStr for TxPayloadObjType {
         }
     }
 }
+
+impl std::fmt::Display for TxPayloadObjType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let s = match self {
+            TxPayloadObjType::OwnedObject => "owned-object",
+            TxPayloadObjType::SharedObject => "shared-object",
+        };
+        f.write_str(s)
+    }
+}

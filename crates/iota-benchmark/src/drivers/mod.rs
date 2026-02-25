@@ -10,6 +10,7 @@ use std::{fmt::Formatter, str::FromStr, time::Duration};
 use comfy_table::{Cell, Color, ContentArrangement, Row, Table};
 use duration_str::parse;
 use hdrhistogram::{Histogram, serialization::Serializer};
+use iota_types::digests::TransactionDigest;
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
 pub enum Interval {
@@ -118,9 +119,27 @@ impl StressStats {
     }
 }
 
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct SetupInfo {
+    pub test_type: String, // "aa" || "standard" || etc
+    pub scenario: String,  // "owned-object" || "shared-object" || "counter" || etc
+    pub target_qps: Vec<u64>,
+    pub workers: Vec<u64>,
+    pub in_flight_ratio: Vec<u64>,
+}
+
+#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
+pub struct BenchmarkMetadata {
+    pub setup_info: SetupInfo,
+    pub run_duration: String, // "1000" || "1000s"
+    pub digest_count: usize,
+}
+
 /// Stores the final statistics of the test run.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Default)]
 pub struct BenchmarkStats {
+    /// Metadata about the benchmark, such as the test type, run_duration, etc.
+    pub metadata: Option<BenchmarkMetadata>,
     pub duration: Duration,
     /// Number of transactions that ended in an error
     pub num_error_txes: u64,
@@ -132,17 +151,24 @@ pub struct BenchmarkStats {
     pub num_success_cmds: u64,
     /// Total gas used
     pub total_gas_used: u64,
+    /// Total computation cost
+    pub total_computation_cost: u64,
     pub latency_ms: HistogramWrapper,
+    /// Digests of all transactions that were executed (both successful and
+    /// failed).
+    pub digests: Vec<TransactionDigest>,
 }
 
 impl BenchmarkStats {
     pub fn update(&mut self, duration: Duration, sample_stat: &BenchmarkStats) {
         self.duration = duration;
+        self.digests.extend_from_slice(&sample_stat.digests);
         self.num_error_txes += sample_stat.num_error_txes;
         self.num_expected_error_txes += sample_stat.num_expected_error_txes;
         self.num_success_txes += sample_stat.num_success_txes;
         self.num_success_cmds += sample_stat.num_success_cmds;
         self.total_gas_used += sample_stat.total_gas_used;
+        self.total_computation_cost += sample_stat.total_computation_cost;
         self.latency_ms
             .histogram
             .add(&sample_stat.latency_ms.histogram)
@@ -159,10 +185,12 @@ impl BenchmarkStats {
                 "cps",
                 "error%",
                 "expected error%",
+                "success txs",
                 "latency (min)",
                 "latency (p50)",
                 "latency (p99)",
                 "gas used (NANOS total)",
+                "gas used (NANOS computation cost)",
                 "gas used/hr (NANOS approx.)",
             ]);
         let mut row = Row::new();
@@ -177,11 +205,17 @@ impl BenchmarkStats {
             (100 * self.num_expected_error_txes) as f32
                 / (self.num_expected_error_txes + self.num_success_txes) as f32,
         ));
+        row.add_cell(Cell::new(self.num_success_txes));
         row.add_cell(Cell::new(self.latency_ms.histogram.min()));
         row.add_cell(Cell::new(self.latency_ms.histogram.value_at_quantile(0.5)));
         row.add_cell(Cell::new(self.latency_ms.histogram.value_at_quantile(0.99)));
         row.add_cell(Cell::new(format_num_with_separators(
             self.total_gas_used,
+            3,
+            ",",
+        )));
+        row.add_cell(Cell::new(format_num_with_separators(
+            self.total_computation_cost,
             3,
             ",",
         )));

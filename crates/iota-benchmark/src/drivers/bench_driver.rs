@@ -23,6 +23,8 @@ use futures::{
 use indicatif::{ProgressBar, ProgressStyle};
 use iota_types::{
     committee::Committee,
+    digests::TransactionDigest,
+    gas::GasCostSummary,
     quorum_driver_types::QuorumDriverError,
     transaction::{Transaction, TransactionDataAPI},
 };
@@ -180,10 +182,12 @@ enum NextOp {
         latency: Duration,
         /// Number of commands in the executed transaction
         num_commands: u16,
-        /// Gas used in the executed transaction
-        gas_used: u64,
+        /// Gas cost summary of the executed transaction
+        gas_cost_summary: GasCostSummary,
         /// The payload updated with the effects of the transaction
         payload: Box<dyn Payload>,
+        /// The digest of the executed transaction
+        digest: TransactionDigest,
     },
     // The transaction failed and could not be retried
     Failure,
@@ -393,15 +397,18 @@ impl Driver<(BenchmarkStats, StressStats)> for BenchDriver {
 
         let benchmark_stat_task = tokio::spawn(async move {
             let mut benchmark_stat = BenchmarkStats {
+                metadata: None,
                 duration: Duration::ZERO,
                 num_error_txes: 0,
                 num_success_txes: 0,
                 num_expected_error_txes: 0,
                 num_success_cmds: 0,
                 total_gas_used: 0,
+                total_computation_cost: 0,
                 latency_ms: HistogramWrapper {
                     histogram: hdrhistogram::Histogram::<u64>::new_with_max(120_000, 3).unwrap(),
                 },
+                digests: vec![],
             };
             let mut stat_collection: BTreeMap<usize, Stats> = BTreeMap::new();
             let mut counter = 0;
@@ -725,6 +732,7 @@ async fn run_bench_worker(
     let group_benchmark_start_time = Instant::now();
 
     let request_delay_micros = 1_000_000 / worker.target_qps;
+    let mut pending_digests = vec![];
     let mut num_success_txes = 0;
     let mut num_error_txes = 0;
     let mut num_expected_error_txes = 0;
@@ -733,6 +741,7 @@ async fn run_bench_worker(
     let mut num_in_flight: u64 = 0;
     let mut num_submitted = 0;
     let mut worker_gas_used = 0;
+    let mut worker_computation_cost = 0;
 
     let mut latency_histogram = hdrhistogram::Histogram::<u64>::new_with_max(120_000, 3).unwrap();
     let mut request_interval = time::interval(Duration::from_micros(request_delay_micros));
@@ -813,7 +822,8 @@ async fn run_bench_worker(
                     latency,
                     num_commands,
                     payload,
-                    gas_used: effects.gas_used(),
+                    digest: *transaction.digest(),
+                    gas_cost_summary: effects.gas_cost_summary(),
                 }
             }
             Err(err) => {
@@ -919,6 +929,7 @@ async fn run_bench_worker(
                         num_in_flight,
                         num_submitted,
                         bench_stats: BenchmarkStats {
+                            metadata: None,
                             duration:stat_start_time.elapsed(),
                             num_error_txes,
                             num_expected_error_txes,
@@ -927,7 +938,9 @@ async fn run_bench_worker(
                             latency_ms:HistogramWrapper{
                                 histogram:latency_histogram.clone()
                             },
-                            total_gas_used: worker_gas_used
+                            total_gas_used: worker_gas_used,
+                            total_computation_cost: worker_computation_cost,
+                            digests: std::mem::take(&mut pending_digests),
                         },
                     })
                     .is_err()
@@ -1031,11 +1044,13 @@ async fn run_bench_worker(
 
                         if update_progress(1) { break; }
                     }
-                    NextOp::Response { latency, num_commands, payload, gas_used } => {
+                    NextOp::Response { latency, num_commands, payload, digest, gas_cost_summary } => {
+                        pending_digests.push(digest);
                         num_success_txes += 1;
                         num_success_cmds += num_commands as u64;
                         num_in_flight -= 1;
-                        worker_gas_used += gas_used;
+                        worker_gas_used += gas_cost_summary.gas_used();
+                        worker_computation_cost += gas_cost_summary.computation_cost;
                         free_pool.push_back(payload);
                         latency_histogram.saturating_record(latency.as_millis().try_into().unwrap());
 
@@ -1059,15 +1074,18 @@ async fn run_bench_worker(
             num_in_flight,
             num_submitted,
             bench_stats: BenchmarkStats {
+                metadata: None,
                 duration: stat_start_time.elapsed(),
                 num_error_txes,
                 num_expected_error_txes,
                 num_success_txes,
                 num_success_cmds,
                 total_gas_used: worker_gas_used,
+                total_computation_cost: worker_computation_cost,
                 latency_ms: HistogramWrapper {
                     histogram: latency_histogram,
                 },
+                digests: std::mem::take(&mut pending_digests),
             },
         })
         .is_err()
@@ -1092,8 +1110,9 @@ async fn run_bench_worker(
             NextOp::Response {
                 latency: _,
                 num_commands: _,
-                gas_used: _,
+                gas_cost_summary: _,
                 payload,
+                digest: _,
             } => payload,
             NextOp::Retry(b) => b.1,
             NextOp::ExpectedFailure {
