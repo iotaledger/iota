@@ -248,7 +248,10 @@ impl DagState {
 
         // Initialize scoring metrics according to the metrics in store and the blocks
         // that were loaded to cache.
-        let recovered_scoring_metrics = state.store.scan_scoring_metrics().expect("Database error");
+        let recovered_scoring_metrics = state
+            .store
+            .scan_scoring_metrics(&state.context.committee)
+            .expect("Database error");
         state
             .context
             .scoring_metrics_store
@@ -257,7 +260,7 @@ impl DagState {
                 &state.recent_refs_by_authority,
                 state.threshold_clock_round(),
                 &state.evicted_rounds,
-                state.context.clone(),
+                &state.context,
             );
 
         if state.gc_enabled() {
@@ -1055,13 +1058,11 @@ impl DagState {
         );
 
         // Update the scoring metrics accordingly to the blocks being flushed.
-        let mut metrics_to_write = vec![];
         let threshold_clock_round = self.threshold_clock_round();
         for (authority_index, authority) in self.context.committee.authorities() {
             let last_eviction_round = self.evicted_rounds[authority_index];
             let current_eviction_round = self.calculate_authority_eviction_round(authority_index);
-            let metrics_to_write_from_authority = self
-                .context
+            self.context
                 .scoring_metrics_store
                 .update_scoring_metrics_on_eviction(
                     authority_index,
@@ -1070,12 +1071,15 @@ impl DagState {
                     current_eviction_round,
                     last_eviction_round,
                     threshold_clock_round,
-                    &self.context.metrics.node_metrics,
+                    &self.context,
                 );
-            if let Some(metrics_to_write_from_authority) = metrics_to_write_from_authority {
-                metrics_to_write.push((authority_index, metrics_to_write_from_authority));
-            }
         }
+
+        let metrics_to_write = self
+            .context
+            .scoring_metrics_store
+            .uncached_metrics
+            .snapshot();
 
         self.store
             .write(WriteBatch::new(

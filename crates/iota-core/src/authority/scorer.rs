@@ -8,34 +8,95 @@ use std::sync::{
 
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    messages_consensus::{MisbehaviorsV1, VersionedMisbehaviorReport},
-    scoring_metrics::VersionedScoringMetrics,
+    error::IotaResult, messages_consensus::VersionedMisbehaviorReport,
+    misbehavior_counts::MisbehaviorsV1, scoring_metrics::VersionedScoringMetrics,
 };
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use tracing::warn;
+use typed_store::Map;
+
+use super::AuthorityEpochTables;
 
 pub(crate) const MAX_SCORE: u64 = u16::MAX as u64 + 1; // Note: must be consistent with MAX_SCORE in validator_set.move in iota-framework.
 const SCALE_FACTOR: u64 = 2_u64.pow(16);
 
+pub type ReceivedReportsState = Vec<ReceivedReportsStatePerAuthority>;
+
+// Tracks the state of the received reports for each authority in the committee,
+// which includes the received metrics and the count of invalid reports. This is
+// used to calculate the scores of the authorities based on the reports they
+// have sent and their validity.
+#[derive(Debug)]
+pub struct ReceivedReportsStatePerAuthority {
+    // The metrics counts received from the authority, i.e., the information contained in the
+    // MisbehaviourReports received. If the authority has not sent a report, received_metrics will
+    // be all zeroed.
+    received_metrics: VersionedScoringMetrics,
+    // Indicates whether the authority did not send any misbehavior reports in the epoch. We use
+    // this to differentiate an authority that did not send a report from another one who sent
+    // zeroed reports.
+    has_not_sent_report: AtomicBool,
+    // The count of invalid reports received from the authority. Validity here must be checked in
+    // a deterministic way, since this information will not be propagated again to the rest of the
+    // committee.
+    invalid_reports_count: AtomicU64,
+}
+
+impl ReceivedReportsStatePerAuthority {
+    fn has_not_sent_report_value(&self) -> bool {
+        self.has_not_sent_report.load(Ordering::Relaxed)
+    }
+
+    fn invalid_reports_count_value(&self) -> u64 {
+        self.invalid_reports_count.load(Ordering::Relaxed)
+    }
+}
+
+// Serializable counterpart of ReceivedReportsStatePerAuthority — converts
+// atomic types to plain types for DB storage.
+#[derive(Serialize, Deserialize)]
+struct SerializableReceivedReportsStatePerAuthority {
+    received_metrics: VersionedScoringMetrics,
+    has_not_sent_report: bool,
+    invalid_reports_count: u64,
+}
+
+impl Serialize for ReceivedReportsStatePerAuthority {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let serializable = SerializableReceivedReportsStatePerAuthority {
+            received_metrics: self.received_metrics.snapshot(),
+            has_not_sent_report: self.has_not_sent_report_value(),
+            invalid_reports_count: self.invalid_reports_count_value(),
+        };
+        serializable.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for ReceivedReportsStatePerAuthority {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = SerializableReceivedReportsStatePerAuthority::deserialize(deserializer)?;
+        Ok(ReceivedReportsStatePerAuthority {
+            received_metrics: s.received_metrics,
+            has_not_sent_report: AtomicBool::new(s.has_not_sent_report),
+            invalid_reports_count: AtomicU64::new(s.invalid_reports_count),
+        })
+    }
+}
+
 /// Holds all information related to scoring of authorities in the committee.
 pub struct Scorer {
     // The current metrics counts collected by the authority, i.e., the local view of the node
-    // about the behaviour of the rest of the committee, according to the blocks received.
+    // about the behaviour of the rest of the committee, according to the blocks received. Note
+    // that these counts are updated by the consensus module asynchronously with respect to the
+    // rest of the scorer, and they are not necessarily related to the reports received from the
+    // authorities. They are used to create the MisbehaviourReport that the authority sends to the
+    // rest of the committee.
     pub(crate) current_local_metrics_count: Arc<VersionedScoringMetrics>,
-    // The metrics counts received from other authorities, i.e., the information contained in the
-    // MisbehaviourReports received by the authority. If an authority has not sent a report, its
-    // entry in this vector will be all zeroed.
-    received_metrics: Vec<VersionedScoringMetrics>,
-    // Indicates whether an authority did not send any misbehavior reports in the epoch. We use
-    // this to differentiate an authority that did not send a report from another one who sent
-    // zeroed reports.
-    has_not_sent_report: Vec<AtomicBool>,
+    // Per-authority state tracking received reports and their validity.
+    received_reports_state: ReceivedReportsState,
     // The current scores of the authorities, updated after each received report. This score is
-    // calculated based on the information in the received reports and the validity of the reports
-    // themselves.
+    // calculated based on the information in received_reports_state.
     pub(crate) current_scores: Scores,
-    // The count of invalid reports received from each authority. Validity here must be checked in
-    // a deterministic way, since this information will not be propagated again to the rest of the
-    // committee.
-    invalid_reports_count: Vec<AtomicU64>,
     // The voting power of each authority in the committee.
     voting_power: Vec<u64>,
     // The version of the scorer being used with its parameters.
@@ -52,40 +113,41 @@ impl Scorer {
                     committee_size,
                     protocol_config,
                 ));
-                let (received_metrics, has_not_sent_report, current_scores, invalid_reports_count) =
-                    (0..committee_size)
-                        .map(|_| {
-                            (
-                                // Received metrics initialized to zero.
-                                VersionedScoringMetrics::new(committee_size, protocol_config),
-                                // Initially, none of the authorities had sent any valid report.
-                                AtomicBool::new(true),
-                                // Current scores initialized to max score.
-                                AtomicU64::new(MAX_SCORE),
-                                // Invalid reports count initialized to zero.
-                                AtomicU64::new(0),
-                            )
-                        })
-                        .collect();
+                let (received_reports_state, current_scores): (ReceivedReportsState, Scores) = (0
+                    ..committee_size)
+                    .map(|_| {
+                        (
+                            ReceivedReportsStatePerAuthority {
+                                received_metrics: VersionedScoringMetrics::new(
+                                    committee_size,
+                                    protocol_config,
+                                ),
+                                has_not_sent_report: AtomicBool::new(true),
+                                invalid_reports_count: AtomicU64::new(0),
+                            },
+                            AtomicU64::new(MAX_SCORE),
+                        )
+                    })
+                    .collect();
                 let parameters = ParametersV1 {
-                    allowances: MisbehaviorsV1 {
-                        faulty_blocks_provable: 1,
-                        faulty_blocks_unprovable: 2,
-                        missing_proposals: 48_000, // roughly 3% of consensus rounds in an epoch
-                        equivocations: 0,
-                    },
-                    maximums: MisbehaviorsV1 {
-                        faulty_blocks_provable: 5,
-                        faulty_blocks_unprovable: 10,
-                        missing_proposals: 160_000, // roughly 10% of consensus rounds in an epoch
-                        equivocations: 1,
-                    },
-                    weights: MisbehaviorsV1 {
-                        faulty_blocks_provable: SCALE_FACTOR * 30 / 100,
-                        faulty_blocks_unprovable: SCALE_FACTOR * 10 / 100,
-                        missing_proposals: SCALE_FACTOR * 35 / 100,
-                        equivocations: 1,
-                    },
+                    allowances: MisbehaviorsV1::new(
+                        1,      // faulty_blocks_provable
+                        2,      // faulty_blocks_unprovable
+                        48_000, // missing_proposals - roughly 3% of consensus rounds in an epoch
+                        0,      // equivocations
+                    ),
+                    maximums: MisbehaviorsV1::new(
+                        5,       // faulty_blocks_provable
+                        10,      // faulty_blocks_unprovable
+                        160_000, // missing_proposals - roughly 10% of consensus rounds in an epoch
+                        1,       // equivocations
+                    ),
+                    weights: MisbehaviorsV1::new(
+                        SCALE_FACTOR * 30 / 100, // faulty_blocks_provable
+                        SCALE_FACTOR * 10 / 100, // faulty_blocks_unprovable
+                        SCALE_FACTOR * 35 / 100, // missing_proposals
+                        1,                       // equivocations
+                    ),
                 };
                 // Assert that the allowance for major misbehaviors is 0,
                 // maximum is 1 and weight is 1. This is because major misbehaviors should
@@ -125,10 +187,8 @@ impl Scorer {
 
                 Self {
                     current_local_metrics_count,
-                    received_metrics,
-                    has_not_sent_report,
+                    received_reports_state,
                     current_scores,
-                    invalid_reports_count,
                     voting_power,
                     version: ScorerVersion::V1(parameters),
                 }
@@ -146,7 +206,9 @@ impl Scorer {
     // Boundary checks for this functions are done at a higher level. `authority``
     // should always be derived from a valid AuthorityIndex
     pub(crate) fn update_invalid_reports_count(&self, authority: u32) {
-        self.invalid_reports_count[authority as usize].fetch_add(1, Ordering::Relaxed);
+        self.received_reports_state[authority as usize]
+            .invalid_reports_count
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     pub(crate) fn update_scores(&self) {
@@ -160,10 +222,55 @@ impl Scorer {
         authority: u32,
         report: &VersionedMisbehaviorReport,
     ) {
-        // Update the received metrics for the authority, and mark that we have received
-        // metrics from them. Then, update the scores accordingly.
-        self.received_metrics[authority as usize].update_from_report(report);
-        self.has_not_sent_report[authority as usize].store(false, Ordering::Relaxed);
+        let state = &self.received_reports_state[authority as usize];
+        state.received_metrics.update_from_report(report);
+        state.has_not_sent_report.store(false, Ordering::Relaxed);
+    }
+
+    pub(crate) fn received_reports_state_snapshot(&self) -> ReceivedReportsState {
+        self.received_reports_state
+            .iter()
+            .map(|state| ReceivedReportsStatePerAuthority {
+                received_metrics: state.received_metrics.snapshot(),
+                has_not_sent_report: AtomicBool::new(state.has_not_sent_report_value()),
+                invalid_reports_count: AtomicU64::new(state.invalid_reports_count_value()),
+            })
+            .collect()
+    }
+
+    pub(crate) fn restore_from_tables(&self, tables: &AuthorityEpochTables) -> IotaResult<()> {
+        if let Some(persisted_state) = tables.received_reports_state.get(&())? {
+            let received_reports_state_in_scorer = &self.received_reports_state;
+            if received_reports_state_in_scorer.len() != persisted_state.len() {
+                warn!(
+                    "Received reports state length in scorer ({}) does not match persisted state length ({}).",
+                    received_reports_state_in_scorer.len(),
+                    persisted_state.len()
+                );
+            }
+            received_reports_state_in_scorer
+                .iter()
+                .zip(persisted_state.iter())
+                .for_each(
+                    |(scorer_state_for_authority, persisted_state_for_authority)| {
+                        scorer_state_for_authority
+                            .received_metrics
+                            .update_from_snapshot(&persisted_state_for_authority.received_metrics);
+                        scorer_state_for_authority.has_not_sent_report.store(
+                            persisted_state_for_authority.has_not_sent_report_value(),
+                            Ordering::Relaxed,
+                        );
+                        scorer_state_for_authority.invalid_reports_count.store(
+                            persisted_state_for_authority.invalid_reports_count_value(),
+                            Ordering::Relaxed,
+                        );
+                    },
+                );
+        };
+
+        // Recalculate scores from the restored state
+        self.update_scores();
+        Ok(())
     }
 }
 
@@ -173,12 +280,11 @@ impl Scorer {
         // Vector with the highest received reports from each authority and their voting
         // power. Authorities that did not send reports are filtered out.
         let highest_received_reports_from_authority = self
-            .received_metrics
+            .received_reports_state
             .iter()
             .zip(self.voting_power.iter())
-            .zip(self.has_not_sent_report.iter())
-            .filter(|((_, _), is_missing)| !is_missing.load(Ordering::Relaxed))
-            .map(|((metrics, voting_power), _)| (metrics.to_report(), *voting_power))
+            .filter(|(state, _)| !state.has_not_sent_report_value())
+            .map(|(state, voting_power)| (state.received_metrics.to_report(), *voting_power))
             .collect::<Vec<(VersionedMisbehaviorReport, VotingPower)>>();
         // Ensure that we have at least one report to calculate the scores, otherwise we
         // do nothing.
@@ -193,33 +299,33 @@ impl Scorer {
     }
 }
 
-/// Given a vector of pairs (VersionedMisbehaviorReport, VotingPower), calculate
-/// the medians for all metrics in VersionedMisbehaviorReport and authorities:
-///
-/// - Assume we have N authorities in the committee, but n<=N reports R_1, R_2,
-///   ..., R_n from authorities with voting powers VP_1, VP_2, ..., VP_n.
-/// - For each metric M in VersionedMisbehaviorReport, we'll have n vectors of
-///   metric values: M_1, M_2, ..., M_n, where M_i is the vector of metric
-///   values for report R_i.
-/// - Each M_i is a vector of length N, where the j-th value corresponds to the
-///   metric value for authority j.
-///
-/// Example: If we have 4 authorities in the committee, and we receive 3
-/// reports:
-/// - Report R_1 from authority A_1 with voting power VP_1 = 1:
-///     - Metric M1: [0, 0, 0, 0] (values for authorities A_1, A_2, A_3, A_4)
-///     - Metric M2: [0, 0, 0, 0] (values for authorities A_1, A_2, A_3, A_4)
-/// - Report R_2 from authority A_2 with voting power VP_2 = 1:
-///     - Metric M1: [1, 1, 1, 1] (values for authorities A_1, A_2, A_3, A_4)
-///     - Metric M2: [2, 2, 2, 2] (values for authorities A_1, A_2, A_3, A_4)
-/// - Report R_3 from authority A_3 with voting power VP_3 = 1:
-///     - Metric M1: [2, 2, 2, 2] (values for authorities A_1, A_2, A_3, A_4)
-///     - Metric M2: [1, 1, 1, 1] (values for authorities A_1, A_2, A_3, A_4)
-///
-/// For Metric M1, we have that the median metric vector is [1, 1, 1, 1].
-///
-/// This method returns a vector of MedianMetricVec, one per metric in
-/// VersionedMisbehaviorReport
+// Given a vector of pairs (VersionedMisbehaviorReport, VotingPower), calculate
+// the medians for all metrics in VersionedMisbehaviorReport and authorities:
+//
+// - Assume we have N authorities in the committee, but n<=N reports R_1, R_2,
+//   ..., R_n from authorities with voting powers VP_1, VP_2, ..., VP_n.
+// - For each metric M in VersionedMisbehaviorReport, we'll have n vectors of
+//   metric values: M_1, M_2, ..., M_n, where M_i is the vector of metric values
+//   for report R_i.
+// - Each M_i is a vector of length N, where the j-th value corresponds to the
+//   metric value for authority j.
+//
+// Example: If we have 4 authorities in the committee, and we receive 3
+// reports:
+// - Report R_1 from authority A_1 with voting power VP_1 = 1:
+//     - Metric M1: [0, 0, 0, 0] (values for authorities A_1, A_2, A_3, A_4)
+//     - Metric M2: [0, 0, 0, 0] (values for authorities A_1, A_2, A_3, A_4)
+// - Report R_2 from authority A_2 with voting power VP_2 = 1:
+//     - Metric M1: [1, 1, 1, 1] (values for authorities A_1, A_2, A_3, A_4)
+//     - Metric M2: [2, 2, 2, 2] (values for authorities A_1, A_2, A_3, A_4)
+// - Report R_3 from authority A_3 with voting power VP_3 = 1:
+//     - Metric M1: [2, 2, 2, 2] (values for authorities A_1, A_2, A_3, A_4)
+//     - Metric M2: [1, 1, 1, 1] (values for authorities A_1, A_2, A_3, A_4)
+//
+// For Metric M1, we have that the median metric vector is [1, 1, 1, 1].
+//
+// This method returns a vector of MedianMetricVec, one per metric in
+// VersionedMisbehaviorReport
 fn calculate_median_report(
     reports_and_voting_power: &[(VersionedMisbehaviorReport, VotingPower)],
 ) -> MisbehaviorsV1<MedianMetricVec> {
@@ -227,7 +333,7 @@ fn calculate_median_report(
     // process.
     assert!(!reports_and_voting_power.is_empty());
 
-    let number_of_metrics = reports_and_voting_power[0].0.iterate_over_metrics().len();
+    let number_of_metrics = reports_and_voting_power[0].0.iter().len();
 
     // In the case of the example in the method documentation,
     // reports_and_voting_power_per_metric should be
@@ -238,7 +344,7 @@ fn calculate_median_report(
     let mut reports_and_voting_power_per_metric: Vec<Vec<(MetricVec, VotingPower)>> =
         vec![vec![]; number_of_metrics];
     for (versioned_report, voting_power) in reports_and_voting_power.iter() {
-        for (i, metric) in versioned_report.iterate_over_metrics().enumerate() {
+        for (i, metric) in versioned_report.iter().enumerate() {
             reports_and_voting_power_per_metric[i].push((metric.clone(), *voting_power));
         }
     }
@@ -439,16 +545,33 @@ fn metric_to_score(value: u64, allowance: u64, max: u64, max_score: u64) -> u64 
     }
 }
 
-// NOTE: the tests below are going to be finalized in a different PR
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::Ordering;
+    use std::sync::{Arc, atomic::Ordering};
 
     use iota_protocol_config::{ConsensusChoice, ProtocolConfig};
-    use iota_types::messages_consensus::{MisbehaviorsV1, VersionedMisbehaviorReport};
+    use iota_types::{
+        messages_consensus::{ConsensusTransaction, VersionedMisbehaviorReport},
+        misbehavior_counts::MisbehaviorsV1,
+        scoring_metrics::VersionedScoringMetrics,
+    };
+    use prometheus::Registry;
+    use typed_store::Map;
 
-    use crate::authority::authority_per_epoch_store::scorer::{
-        MAX_SCORE, ParametersV1, SCALE_FACTOR, Scorer, calculate_median_report, calculate_scores_v1,
+    use crate::{
+        authority::{
+            AuthorityMetrics,
+            authority_per_epoch_store::{
+                consensus_quarantine::ConsensusCommitOutput,
+                scorer::{
+                    MAX_SCORE, ParametersV1, SCALE_FACTOR, Scorer, calculate_median_report,
+                    calculate_scores_v1,
+                },
+            },
+            test_authority_builder::TestAuthorityBuilder,
+        },
+        checkpoints::CheckpointServiceNoop,
+        consensus_handler::{SequencedConsensusTransaction, SequencedConsensusTransactionKind},
     };
 
     fn mock_protocol_config(consensus_choice: ConsensusChoice) -> ProtocolConfig {
@@ -466,53 +589,39 @@ mod tests {
                 self.update_received_reports(*authority, report);
             }
         }
-    }
-    #[test]
-    fn test_scorer_initialization() {
-        let voting_power = vec![10, 20, 30];
-        let committee_size = voting_power.len();
-        let protocol_config = mock_protocol_config(ConsensusChoice::Mysticeti);
 
-        let scorer = Scorer::new(voting_power, &protocol_config);
+        fn received_metrics_snapshot(&self, authority: u32) -> VersionedScoringMetrics {
+            self.received_reports_state[authority as usize]
+                .received_metrics
+                .snapshot()
+        }
 
-        assert_eq!(scorer.current_scores.len(), committee_size);
-        assert_eq!(scorer.invalid_reports_count.len(), committee_size);
-        assert_eq!(scorer.received_metrics.len(), committee_size);
-        assert_eq!(scorer.has_not_sent_report.len(), committee_size);
+        fn invalid_reports_count_value(&self, authority: u32) -> u64 {
+            self.received_reports_state[authority as usize].invalid_reports_count_value()
+        }
+
+        fn has_not_sent_report_value(&self, authority: u32) -> bool {
+            self.received_reports_state[authority as usize].has_not_sent_report_value()
+        }
     }
 
     #[test]
     fn test_update_invalid_reports_count() {
         let voting_power = vec![10, 20, 30];
-
         let protocol_config = mock_protocol_config(ConsensusChoice::Mysticeti);
-
         let scorer = Scorer::new(voting_power, &protocol_config);
-
         let authority_index = 2;
 
         // Before update
-        assert_eq!(
-            scorer.invalid_reports_count[authority_index as usize].load(Ordering::Relaxed),
-            0
-        );
+        assert_eq!(scorer.invalid_reports_count_value(authority_index), 0);
 
         // Call the method
         scorer.update_invalid_reports_count(authority_index);
 
         // After update
-        assert_eq!(
-            scorer.invalid_reports_count[0_usize].load(Ordering::Relaxed),
-            0
-        );
-        assert_eq!(
-            scorer.invalid_reports_count[1_usize].load(Ordering::Relaxed),
-            0
-        );
-        assert_eq!(
-            scorer.invalid_reports_count[2_usize].load(Ordering::Relaxed),
-            1
-        );
+        assert_eq!(scorer.invalid_reports_count_value(0), 0);
+        assert_eq!(scorer.invalid_reports_count_value(1), 0);
+        assert_eq!(scorer.invalid_reports_count_value(2), 1);
 
         let authority_index = 1;
         // Call the method twice
@@ -520,18 +629,9 @@ mod tests {
         scorer.update_invalid_reports_count(authority_index);
 
         // After update
-        assert_eq!(
-            scorer.invalid_reports_count[0_usize].load(Ordering::Relaxed),
-            0
-        );
-        assert_eq!(
-            scorer.invalid_reports_count[1_usize].load(Ordering::Relaxed),
-            2
-        );
-        assert_eq!(
-            scorer.invalid_reports_count[2_usize].load(Ordering::Relaxed),
-            1
-        );
+        assert_eq!(scorer.invalid_reports_count_value(0), 0);
+        assert_eq!(scorer.invalid_reports_count_value(1), 2);
+        assert_eq!(scorer.invalid_reports_count_value(2), 1);
     }
 
     #[test]
@@ -548,30 +648,30 @@ mod tests {
         // Set some reports for testing
         let reports_and_authorities = vec![
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                    faulty_blocks_provable: vec![5, 0, 0],
-                    faulty_blocks_unprovable: vec![0, 0, 0],
-                    missing_proposals: vec![0, 0, 0],
-                    equivocations: vec![0, 0, 0],
-                }),
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+                    vec![5, 0, 0], // faulty_blocks_provable
+                    vec![0, 0, 0], // faulty_blocks_unprovable
+                    vec![0, 0, 0], // missing_proposals
+                    vec![0, 0, 0], // equivocations
+                )),
                 0_u32,
             ),
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                    faulty_blocks_provable: vec![0, 10, 0],
-                    faulty_blocks_unprovable: vec![0, 0, 0],
-                    missing_proposals: vec![0, 0, 0],
-                    equivocations: vec![0, 0, 0],
-                }),
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+                    vec![0, 10, 0], // faulty_blocks_provable
+                    vec![0, 0, 0],  // faulty_blocks_unprovable
+                    vec![0, 0, 0],  // missing_proposals
+                    vec![0, 0, 0],  // equivocations
+                )),
                 1_u32,
             ),
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                    faulty_blocks_provable: vec![0, 0, 15],
-                    faulty_blocks_unprovable: vec![0, 0, 0],
-                    missing_proposals: vec![0, 0, 0],
-                    equivocations: vec![5, 0, 0],
-                }),
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+                    vec![0, 0, 15], // faulty_blocks_provable
+                    vec![0, 0, 0],  // faulty_blocks_unprovable
+                    vec![0, 0, 0],  // missing_proposals
+                    vec![5, 0, 0],  // equivocations
+                )),
                 2_u32,
             ),
         ];
@@ -594,43 +694,43 @@ mod tests {
     #[test]
     fn test_calculate_median_report() {
         let reports_and_voting_power = vec![(
-            VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                faulty_blocks_provable: vec![7, 8, 9],
-                faulty_blocks_unprovable: vec![10, 11, 12],
-                missing_proposals: vec![4, 5, 6],
-                equivocations: vec![1, 2, 3],
-            }),
+            VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+                vec![7, 8, 9],    // faulty_blocks_provable
+                vec![10, 11, 12], // faulty_blocks_unprovable
+                vec![4, 5, 6],    // missing_proposals
+                vec![1, 2, 3],    // equivocations
+            )),
             10_u64,
         )];
         let median_report = calculate_median_report(&reports_and_voting_power);
 
         assert_eq!(
             median_report,
-            MisbehaviorsV1 {
-                faulty_blocks_provable: vec![7, 8, 9],
-                faulty_blocks_unprovable: vec![10, 11, 12],
-                missing_proposals: vec![4, 5, 6],
-                equivocations: vec![1, 2, 3]
-            }
+            MisbehaviorsV1::new(
+                vec![7, 8, 9],    // faulty_blocks_provable
+                vec![10, 11, 12], // faulty_blocks_unprovable
+                vec![4, 5, 6],    // missing_proposals
+                vec![1, 2, 3]     // equivocations
+            )
         );
 
         let reports_and_voting_power = vec![
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                    faulty_blocks_provable: vec![7, 8, 9],
-                    faulty_blocks_unprovable: vec![10, 11, 12],
-                    missing_proposals: vec![4, 5, 6],
-                    equivocations: vec![1, 2, 3],
-                }),
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+                    vec![7, 8, 9],    // faulty_blocks_provable
+                    vec![10, 11, 12], // faulty_blocks_unprovable
+                    vec![4, 5, 6],    // missing_proposals
+                    vec![1, 2, 3],    // equivocations
+                )),
                 20_u64,
             ),
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                    faulty_blocks_provable: vec![70, 80, 90],
-                    faulty_blocks_unprovable: vec![100, 110, 120],
-                    missing_proposals: vec![40, 50, 60],
-                    equivocations: vec![10, 20, 30],
-                }),
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+                    vec![70, 80, 90],    // faulty_blocks_provable
+                    vec![100, 110, 120], // faulty_blocks_unprovable
+                    vec![40, 50, 60],    // missing_proposals
+                    vec![10, 20, 30],    // equivocations
+                )),
                 10_u64,
             ),
         ];
@@ -639,40 +739,40 @@ mod tests {
 
         assert_eq!(
             median_report,
-            MisbehaviorsV1 {
-                faulty_blocks_provable: vec![7, 8, 9],
-                faulty_blocks_unprovable: vec![10, 11, 12],
-                missing_proposals: vec![4, 5, 6],
-                equivocations: vec![1, 2, 3]
-            }
+            MisbehaviorsV1::new(
+                vec![7, 8, 9],    // faulty_blocks_provable
+                vec![10, 11, 12], // faulty_blocks_unprovable
+                vec![4, 5, 6],    // missing_proposals
+                vec![1, 2, 3]     // equivocations
+            )
         );
 
         let reports_and_voting_power = vec![
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                    faulty_blocks_provable: vec![1, 8, 9],
-                    faulty_blocks_unprovable: vec![10, 15, 12],
-                    missing_proposals: vec![4, 5, 6],
-                    equivocations: vec![1, 20, 3],
-                }),
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+                    vec![1, 8, 9],    // faulty_blocks_provable
+                    vec![10, 15, 12], // faulty_blocks_unprovable
+                    vec![4, 5, 6],    // missing_proposals
+                    vec![1, 20, 3],   // equivocations
+                )),
                 10_u64,
             ),
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                    faulty_blocks_provable: vec![7, 8, 9],
-                    faulty_blocks_unprovable: vec![10, 11, 12],
-                    missing_proposals: vec![4, 5, 6],
-                    equivocations: vec![1, 2, 0],
-                }),
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+                    vec![7, 8, 9],    //   faulty_blocks_provable
+                    vec![10, 11, 12], // faulty_blocks_unprovable
+                    vec![4, 5, 6],    // missing_proposals
+                    vec![1, 2, 0],    // equivocations
+                )),
                 10_u64,
             ),
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
-                    faulty_blocks_provable: vec![6, 8, 9],
-                    faulty_blocks_unprovable: vec![10, 11, 12],
-                    missing_proposals: vec![4, 22, 6],
-                    equivocations: vec![1, 2, 30],
-                }),
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+                    vec![6, 8, 9],    //  faulty_blocks_provable
+                    vec![10, 11, 12], // faulty_blocks_unprovable
+                    vec![4, 22, 6],   // missing_proposals
+                    vec![1, 2, 30],   // equivocations
+                )),
                 10_u64,
             ),
         ];
@@ -681,48 +781,393 @@ mod tests {
 
         assert_eq!(
             median_report,
-            MisbehaviorsV1 {
-                faulty_blocks_provable: vec![6, 8, 9],
-                faulty_blocks_unprovable: vec![10, 11, 12],
-                missing_proposals: vec![4, 5, 6],
-                equivocations: vec![1, 2, 3]
-            }
+            MisbehaviorsV1::new(
+                vec![6, 8, 9],    // faulty_blocks_provable
+                vec![10, 11, 12], // faulty_blocks_unprovable
+                vec![4, 5, 6],    // missing_proposals
+                vec![1, 2, 3]     // equivocations
+            )
         );
     }
 
     #[test]
     fn test_calculate_scores_v1() {
         let parameters = ParametersV1 {
-            allowances: MisbehaviorsV1 {
-                faulty_blocks_provable: 1,
-                faulty_blocks_unprovable: 2,
-                missing_proposals: 1000,
-                equivocations: 0,
-            },
-            maximums: MisbehaviorsV1 {
-                faulty_blocks_provable: 5,
-                faulty_blocks_unprovable: 10,
-                missing_proposals: 5000,
-                equivocations: 1,
-            },
-            weights: MisbehaviorsV1 {
-                faulty_blocks_provable: SCALE_FACTOR * 30 / 100,
-                faulty_blocks_unprovable: SCALE_FACTOR * 10 / 100,
-                missing_proposals: SCALE_FACTOR * 35 / 100,
-                equivocations: 1,
-            },
+            allowances: MisbehaviorsV1::new(
+                1,    // faulty_blocks_provable
+                2,    // faulty_blocks_unprovable
+                1000, // missing_proposals
+                0,    // equivocations
+            ),
+            maximums: MisbehaviorsV1::new(
+                5,    // faulty_blocks_provable
+                10,   // faulty_blocks_unprovable
+                5000, // missing_proposals
+                1,    // equivocations
+            ),
+            weights: MisbehaviorsV1::new(
+                SCALE_FACTOR * 30 / 100, // faulty_blocks_provable
+                SCALE_FACTOR * 10 / 100, // faulty_blocks_unprovable
+                SCALE_FACTOR * 35 / 100, // missing_proposals
+                1,                       // equivocations
+            ),
         };
 
-        let median_reports = MisbehaviorsV1 {
-            faulty_blocks_provable: vec![6, 7, 8],
-            faulty_blocks_unprovable: vec![9, 10, 11],
-            missing_proposals: vec![3, 4, 5],
-            equivocations: vec![0, 1, 2],
-        };
+        let median_reports = MisbehaviorsV1::new(
+            vec![6, 7, 8],   // faulty_blocks_provable
+            vec![9, 10, 11], // faulty_blocks_unprovable
+            vec![3, 4, 5],   // missing_proposals
+            vec![0, 1, 2],   // equivocations
+        );
 
         let scores = calculate_scores_v1(median_reports, parameters);
 
         // Check that scores are calculated correctly
         assert_eq!(scores, vec![40142, 0, 0]);
+    }
+
+    // Test simulating the full persist/restore cycle:
+    //
+    // 1. Build a test authority with epoch store
+    // 2. Create a MisbehaviorReport consensus transaction
+    // 3. Process it through `process_consensus_transactions_for_tests` (verify →
+    //    process_consensus_transaction → push to quarantine)
+    // 4. Verify the scorer was updated by
+    // 5. Write the scorer state to DB via ConsensusCommitOutput.write_to_batch
+    // 6. Simulate crash: create a new scorer and restore from DB
+    // 7. Verify all state matches
+    #[tokio::test]
+    async fn test_scorer_persist_and_restore_via_consensus_commit_output() {
+        // Build a test authority to get an epoch store.
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let committee = epoch_store.committee();
+        let committee_size = committee.num_members();
+        let voting_power = committee.members().map(|(_, v)| *v).collect::<Vec<u64>>();
+
+        // Get the first authority's name and index from the committee.
+        let authority_name = *committee.names().next().unwrap();
+        let authority_index = committee
+            .authority_index(&authority_name)
+            .expect("authority should be in committee");
+
+        // Process a valid misbehavior report
+        let valid_report = VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+            vec![3; committee_size],  // faulty_blocks_provable
+            vec![0; committee_size],  // faulty_blocks_unprovable
+            vec![10; committee_size], // missing_proposals
+            vec![0; committee_size],  // equivocations
+        ));
+        let consensus_tx =
+            ConsensusTransaction::new_misbehavior_report(authority_name, &valid_report, 0);
+        let sequenced_tx = SequencedConsensusTransaction {
+            certificate_author_index: authority_index,
+            certificate_author: authority_name,
+            consensus_index: Default::default(),
+            transaction: SequencedConsensusTransactionKind::External(consensus_tx),
+        };
+        let authority_metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
+
+        epoch_store
+            .process_consensus_transactions_for_tests(
+                vec![sequenced_tx],
+                &Arc::new(CheckpointServiceNoop {}),
+                authority.get_object_cache_reader().as_ref(),
+                authority.get_transaction_cache_reader().as_ref(),
+                &authority_metrics,
+                true,
+            )
+            .await
+            .unwrap();
+
+        // Verify the scorer was updated.
+        assert_eq!(
+            epoch_store
+                .scorer
+                .received_metrics_snapshot(authority_index)
+                .load_faulty_blocks_provable(),
+            vec![3; committee_size],
+            "scorer should have been updated by process_consensus_transaction"
+        );
+        assert!(
+            !epoch_store
+                .scorer
+                .has_not_sent_report_value(authority_index),
+            "has_not_sent_report should be false after receiving a report"
+        );
+
+        // Persist scorer state to DB: build a ConsensusCommitOutput with the scorer's
+        // current state and write it to DB via write_to_batch
+        {
+            let mut output = ConsensusCommitOutput::new(99);
+            output.set_received_reports_state(epoch_store.scorer.received_reports_state_snapshot());
+            output.set_default_commit_stats_for_testing();
+            let mut batch = epoch_store.db_batch_for_test();
+            output.write_to_batch(&epoch_store, &mut batch).unwrap();
+            batch.write().unwrap();
+        }
+
+        // Verify data is now in the DB tables.
+        {
+            let tables = epoch_store.tables().unwrap();
+            let stored_state = tables.received_reports_state.get(&()).unwrap();
+            assert!(
+                stored_state.is_some(),
+                "received_reports_state should be persisted to DB"
+            );
+            let stored_state = stored_state.unwrap();
+            assert_eq!(
+                stored_state[authority_index as usize]
+                    .received_metrics
+                    .load_faulty_blocks_provable(),
+                vec![3; committee_size]
+            );
+        }
+
+        // Capture pre-crash state
+        let pre_crash_metrics: Vec<VersionedScoringMetrics> = (0..committee_size as u32)
+            .map(|i| epoch_store.scorer.received_metrics_snapshot(i))
+            .collect();
+        let pre_crash_invalid_counts: Vec<u64> = (0..committee_size)
+            .map(|i| epoch_store.scorer.invalid_reports_count_value(i as u32))
+            .collect();
+        let pre_crash_has_not_sent: Vec<bool> = (0..committee_size)
+            .map(|i| epoch_store.scorer.has_not_sent_report_value(i as u32))
+            .collect();
+
+        // Simulate crash recovery
+        let protocol_config = mock_protocol_config(ConsensusChoice::Mysticeti);
+        let restored_scorer = Scorer::new(voting_power, &protocol_config);
+        let tables = epoch_store.tables().unwrap();
+        restored_scorer
+            .restore_from_tables(&tables)
+            .expect("restore_from_tables should succeed");
+
+        // Verify restored state matches pre-crash state
+        for i in 0..committee_size as u32 {
+            let pre = &pre_crash_metrics[i as usize];
+            let post = restored_scorer.received_metrics_snapshot(i);
+            assert_eq!(
+                pre.load_faulty_blocks_provable(),
+                post.load_faulty_blocks_provable(),
+                "faulty_blocks_provable mismatch for authority {i}"
+            );
+            assert_eq!(
+                pre.load_faulty_blocks_unprovable(),
+                post.load_faulty_blocks_unprovable(),
+                "faulty_blocks_unprovable mismatch for authority {i}"
+            );
+            assert_eq!(
+                pre.load_missing_proposals(),
+                post.load_missing_proposals(),
+                "missing_proposals mismatch for authority {i}"
+            );
+            assert_eq!(
+                pre.load_equivocations(),
+                post.load_equivocations(),
+                "equivocations mismatch for authority {i}"
+            );
+        }
+
+        for i in 0..committee_size as u32 {
+            assert_eq!(
+                pre_crash_invalid_counts[i as usize],
+                restored_scorer.invalid_reports_count_value(i),
+                "invalid_reports_count mismatch for authority {i}"
+            );
+        }
+
+        for i in 0..committee_size as u32 {
+            assert_eq!(
+                pre_crash_has_not_sent[i as usize],
+                restored_scorer.has_not_sent_report_value(i),
+                "has_not_sent_report mismatch for authority {i}"
+            );
+        }
+    }
+
+    // Test simulating partial quarantine flush + resync recovery:
+    //
+    // 1. Process report 1 (commit 1)
+    // 2. Flush commit 1 to DB (quarantine flush)
+    // 3. Process report 2 with higher values (commit 2)
+    // 4. Do NOT flush commit 2 (still in quarantine at crash time)
+    // 5. Capture pre-crash state (scorer has both reports applied)
+    // 6. Simulate crash: create new scorer, restore from DB (only commit 1)
+    // 7. Replay report 2 (resync of unflushed commit)
+    // 8. Verify restored+replayed state matches pre-crash state
+    #[tokio::test]
+    async fn test_scorer_partial_flush_and_resync_recovery() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let committee = epoch_store.committee();
+        let committee_size = committee.num_members();
+        let voting_power = committee.members().map(|(_, v)| *v).collect::<Vec<u64>>();
+
+        let authority_name = *committee.names().next().unwrap();
+        let authority_index = committee
+            .authority_index(&authority_name)
+            .expect("authority should be in committee");
+
+        let authority_metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
+        let checkpoint_service = Arc::new(CheckpointServiceNoop {});
+
+        // Create reports
+        let report_1 = VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+            vec![3; committee_size],
+            vec![1; committee_size],
+            vec![10; committee_size],
+            vec![2; committee_size],
+        ));
+        let report_2 = VersionedMisbehaviorReport::new_v1(MisbehaviorsV1::new(
+            vec![7; committee_size],
+            vec![4; committee_size],
+            vec![15; committee_size],
+            vec![5; committee_size],
+        ));
+        let consensus_tx_1 =
+            ConsensusTransaction::new_misbehavior_report(authority_name, &report_1, 0);
+        let consensus_tx_2 =
+            ConsensusTransaction::new_misbehavior_report(authority_name, &report_2, 0);
+        let seq_consensus_tx_1 = SequencedConsensusTransaction {
+            certificate_author_index: authority_index,
+            certificate_author: authority_name,
+            consensus_index: Default::default(),
+            transaction: SequencedConsensusTransactionKind::External(consensus_tx_1),
+        };
+        let seq_consensus_tx_2 = SequencedConsensusTransaction {
+            certificate_author_index: authority_index,
+            certificate_author: authority_name,
+            consensus_index: Default::default(),
+            transaction: SequencedConsensusTransactionKind::External(consensus_tx_2),
+        };
+
+        // Process report 1 and flush to DB
+        epoch_store
+            .process_consensus_transactions_for_tests(
+                vec![seq_consensus_tx_1],
+                &checkpoint_service,
+                authority.get_object_cache_reader().as_ref(),
+                authority.get_transaction_cache_reader().as_ref(),
+                &authority_metrics,
+                true,
+            )
+            .await
+            .unwrap();
+
+        // Simulate quarantine flushing commit 1 to DB.
+        {
+            let mut output = ConsensusCommitOutput::new(100);
+            output.set_received_reports_state(epoch_store.scorer.received_reports_state_snapshot());
+            output.set_default_commit_stats_for_testing();
+            let mut batch = epoch_store.db_batch_for_test();
+            output.write_to_batch(&epoch_store, &mut batch).unwrap();
+            batch.write().unwrap();
+        }
+
+        // Verify commit 1 state is in DB.
+        {
+            let tables = epoch_store.tables().unwrap();
+            let stored_state = tables.received_reports_state.get(&()).unwrap().unwrap();
+            assert_eq!(
+                stored_state[authority_index as usize]
+                    .received_metrics
+                    .load_faulty_blocks_provable(),
+                vec![3; committee_size]
+            );
+        }
+
+        // Process report 2 (higher values) but do NOT flush
+
+        epoch_store
+            .process_consensus_transactions_for_tests(
+                vec![seq_consensus_tx_2],
+                &checkpoint_service,
+                authority.get_object_cache_reader().as_ref(),
+                authority.get_transaction_cache_reader().as_ref(),
+                &authority_metrics,
+                true,
+            )
+            .await
+            .unwrap();
+
+        // Scorer now reflects both reports, but DB only has commit 1.
+        assert_eq!(
+            epoch_store
+                .scorer
+                .received_metrics_snapshot(authority_index)
+                .load_faulty_blocks_provable(),
+            vec![7; committee_size],
+            "scorer should have report 2 values after fetch_max"
+        );
+
+        // Capture pre-crash state
+        let pre_crash_metrics: Vec<VersionedScoringMetrics> = (0..committee_size as u32)
+            .map(|i| epoch_store.scorer.received_metrics_snapshot(i))
+            .collect();
+        let pre_crash_invalid_counts: Vec<u64> = (0..committee_size)
+            .map(|i| epoch_store.scorer.invalid_reports_count_value(i as u32))
+            .collect();
+
+        // Simulate crash: restore from DB (only has commit 1 state)
+        let protocol_config = mock_protocol_config(ConsensusChoice::Mysticeti);
+        let restored_scorer = Scorer::new(voting_power, &protocol_config);
+        let tables = epoch_store.tables().unwrap();
+        restored_scorer
+            .restore_from_tables(&tables)
+            .expect("restore_from_tables should succeed");
+
+        // After restore, scorer only has commit 1 values.
+        assert_eq!(
+            restored_scorer
+                .received_metrics_snapshot(authority_index)
+                .load_faulty_blocks_provable(),
+            vec![3; committee_size],
+            "restored scorer should only have commit 1 data from DB"
+        );
+
+        // Resync: replay report 2 (the unflushed commit). During consensus resync,
+        // unflushed commits are re-processed, which calls update_received_reports.
+        restored_scorer.update_received_reports(authority_index, &report_2);
+
+        // Verify restored+replayed state matches pre-crash state
+        for i in 0..committee_size as u32 {
+            let pre = &pre_crash_metrics[i as usize];
+            let post = restored_scorer.received_metrics_snapshot(i);
+            assert_eq!(
+                pre.load_faulty_blocks_provable(),
+                post.load_faulty_blocks_provable(),
+                "faulty_blocks_provable mismatch for authority {i}"
+            );
+            assert_eq!(
+                pre.load_faulty_blocks_unprovable(),
+                post.load_faulty_blocks_unprovable(),
+                "faulty_blocks_unprovable mismatch for authority {i}"
+            );
+            assert_eq!(
+                pre.load_missing_proposals(),
+                post.load_missing_proposals(),
+                "missing_proposals mismatch for authority {i}"
+            );
+            assert_eq!(
+                pre.load_equivocations(),
+                post.load_equivocations(),
+                "equivocations mismatch for authority {i}"
+            );
+        }
+
+        for i in 0..committee_size as u32 {
+            assert_eq!(
+                pre_crash_invalid_counts[i as usize],
+                restored_scorer.invalid_reports_count_value(i),
+                "invalid_reports_count mismatch for authority {i}"
+            );
+        }
+
+        // has_not_sent_report should be false for the authority that sent reports.
+        assert!(
+            !restored_scorer.has_not_sent_report_value(authority_index),
+            "has_not_sent_report should be false after restore + resync"
+        );
     }
 }

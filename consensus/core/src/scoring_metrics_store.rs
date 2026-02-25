@@ -7,14 +7,12 @@ use std::{
 };
 
 use consensus_config::AuthorityIndex;
-use iota_common::scoring_metrics::{ScoringMetricsV1, VersionedScoringMetrics};
+use iota_common::scoring_metrics::VersionedScoringMetrics;
 use iota_protocol_config::ProtocolConfig;
 use itertools::izip;
+use tracing::warn;
 
-use crate::{
-    BlockRef, context::Context, error::ConsensusError, metrics::NodeMetrics,
-    storage::StorageScoringMetrics,
-};
+use crate::{BlockRef, context::Context, error::ConsensusError, metrics::NodeMetrics};
 /// Struct that holds the scoring metrics for all authorities in the committee,
 /// both cached and uncached. It also holds a shared reference to the current
 /// local metrics count used by Scorer.
@@ -30,16 +28,10 @@ impl MysticetiScoringMetricsStore {
         current_local_metrics_count: Arc<VersionedScoringMetrics>,
         protocol_config: &ProtocolConfig,
     ) -> Self {
-        match protocol_config.scorer_version_as_option() {
-            None | Some(1) => Self {
-                current_local_metrics_count,
-                cached_metrics: VersionedScoringMetrics::V1(ScoringMetricsV1::new(committee_size)),
-
-                uncached_metrics: VersionedScoringMetrics::V1(ScoringMetricsV1::new(
-                    committee_size,
-                )),
-            },
-            _ => panic!("Unsupported scorer version"),
+        Self {
+            current_local_metrics_count,
+            cached_metrics: VersionedScoringMetrics::new(committee_size, protocol_config),
+            uncached_metrics: VersionedScoringMetrics::new(committee_size, protocol_config),
         }
     }
 
@@ -47,62 +39,71 @@ impl MysticetiScoringMetricsStore {
     // recovered_scoring_metrics and blocks_in_cache_by_authority.
     pub(crate) fn initialize_scoring_metrics(
         &self,
-        mut recovered_scoring_metrics: Vec<(AuthorityIndex, StorageScoringMetrics)>,
+        recovered_scoring_metrics: Option<VersionedScoringMetrics>,
         blocks_in_cache_by_authority: &Vec<BTreeSet<BlockRef>>,
         threshold_clock_round: u32,
         eviction_rounds: &Vec<u32>,
-        context: Arc<Context>,
+        context: &Arc<Context>,
     ) {
-        let hostnames = context
-            .committee
-            .authorities()
-            .map(|(_, x)| x.hostname.as_str())
-            .collect::<Vec<_>>();
+        // At the beginning of the epoch (i.e., before the epoch's first eviction),
+        // there is nothing to be recovered from storage, so recovered_scoring_metrics
+        // will be None. In this case, the initialization functions will simply
+        // initialize zeroed metrics for all authorities, so we can return here.
+        let Some(recovered_scoring_metrics) = recovered_scoring_metrics else {
+            return;
+        };
 
-        // It is possible that the vector recovered_scoring_metrics does not have a
-        // component for every authority. A perfectly functioning validator, for
-        // example, will never have its metrics updated, so no metric will ever be
-        // stored. For this reason, we manually "fill" this vector.
-        if recovered_scoring_metrics.len() < context.committee.size() {
-            for i in 0..context.committee.size() {
-                if !recovered_scoring_metrics
-                    .iter()
-                    .any(|(index, _)| index.value() == i)
-                {
-                    // We add a component with zeroed metrics for the authority with index i.
-                    // This will ensure that every authority has its metrics initialized.
-                    // They are initialized as zero because if an authority does not have any
-                    // recovered metrics, it means that it never misbehaved in a way that was
-                    // detected by the node.
-                    recovered_scoring_metrics.insert(
-                        i,
-                        (
-                            AuthorityIndex::new_for_test(i as u32),
-                            StorageScoringMetrics {
-                                faulty_blocks_provable: 0,
-                                faulty_blocks_unprovable: 0,
-                                equivocations: 0,
-                                missing_proposals: 0,
-                            },
-                        ),
-                    );
-                }
-            }
+        // If recovered_scoring_metrics is not empty, we initialize metrics according to
+        // them.
+        match &context.protocol_config.scorer_version_as_option() {
+            None | Some(1) => self.initialize_scoring_metrics_v1(
+                recovered_scoring_metrics,
+                blocks_in_cache_by_authority,
+                threshold_clock_round,
+                eviction_rounds,
+                context,
+            ),
+            _ => panic!("Unsupported scorer version"),
         }
-        for ((authority_index, metrics), hostname, blocks_in_cache, &eviction_round) in izip!(
-            recovered_scoring_metrics,
-            hostnames,
+    }
+
+    // Initializes the scoring metrics store according to the
+    // recovered_scoring_metrics and blocks_in_cache_by_authority.
+    pub(crate) fn initialize_scoring_metrics_v1(
+        &self,
+        recovered_scoring_metrics: VersionedScoringMetrics,
+        blocks_in_cache_by_authority: &Vec<BTreeSet<BlockRef>>,
+        threshold_clock_round: u32,
+        eviction_rounds: &Vec<u32>,
+        context: &Arc<Context>,
+    ) {
+        let faulty_blocks_provable_vec = recovered_scoring_metrics.load_faulty_blocks_provable();
+        let faulty_blocks_unprovable_vec =
+            recovered_scoring_metrics.load_faulty_blocks_unprovable();
+        let missing_proposals_vec = recovered_scoring_metrics.load_missing_proposals();
+        let equivocations_vec = recovered_scoring_metrics.load_equivocations();
+
+        for (
+            (authority_index, authority),
+            blocks_in_cache,
+            &eviction_round,
+            &faulty_blocks_provable,
+            &faulty_blocks_unprovable,
+            &missing_proposals,
+            &equivocations,
+        ) in izip!(
+            context.committee.authorities(),
             blocks_in_cache_by_authority,
-            eviction_rounds
+            eviction_rounds,
+            &faulty_blocks_provable_vec,
+            &faulty_blocks_unprovable_vec,
+            &missing_proposals_vec,
+            &equivocations_vec
         ) {
+            let hostname = authority.hostname.as_str();
+
             // Initialize the uncached scoring metrics according to
             // recovered_scoring_metrics
-            let StorageScoringMetrics {
-                faulty_blocks_provable,
-                faulty_blocks_unprovable,
-                equivocations,
-                missing_proposals,
-            } = metrics;
             self.initialize_faulty_blocks_metrics(
                 faulty_blocks_provable,
                 faulty_blocks_unprovable,
@@ -150,6 +151,7 @@ impl MysticetiScoringMetricsStore {
         error: ConsensusError,
         source: ErrorSource,
         node_metrics: &NodeMetrics,
+        protocol_config: &ProtocolConfig,
     ) {
         // authority_index will be always a valid index. However, this method will
         // panic if authority_index >= committee_size. We run this check only to avoid
@@ -158,13 +160,33 @@ impl MysticetiScoringMetricsStore {
             return;
         }
 
-        let (metric_type, source_str) = match source {
-            ErrorSource::CommitSyncer => (classify_commit_syncer_error(&error), "fetch_once"),
-            ErrorSource::Subscriber => (classify_subscriber_error(&error), "handle_send_block"),
-            ErrorSource::Synchronizer => (
-                classify_synchronizer_error(&error),
-                "process_fetched_blocks",
+        match protocol_config.scorer_version_as_option() {
+            None | Some(1) => self.update_scoring_metrics_on_block_receival_v1(
+                authority_index,
+                hostname,
+                error,
+                source,
+                node_metrics,
             ),
+            _ => panic!("Unsupported scorer version"),
+        }
+    }
+
+    // Updates the scoring metrics according to the received block's
+    // authority and error encountered during its processing.
+    pub(crate) fn update_scoring_metrics_on_block_receival_v1(
+        &self,
+        authority_index: AuthorityIndex,
+        hostname: &str,
+        error: ConsensusError,
+        source: ErrorSource,
+        node_metrics: &NodeMetrics,
+    ) {
+        let source_str = source.as_str();
+        let metric_type = match source {
+            ErrorSource::CommitSyncer => classify_commit_syncer_error_v1(&error),
+            ErrorSource::Subscriber => classify_subscriber_error_v1(&error),
+            ErrorSource::Synchronizer => classify_synchronizer_error_v1(&error),
         };
         match metric_type {
             MetricType::Provable => {
@@ -263,8 +285,8 @@ impl MysticetiScoringMetricsStore {
 
     // Updates the authority's scoring metrics according to the recent changes in
     // the DAG state, i.e., recent evictions and additions to cache. It also
-    // updates the current local metrics count used by Scorer. It returns metrics
-    // changes that should be updated in disk storage.
+    // updates the current local metrics count used by Scorer. authority_index
+    // should be a valid AuthorityIndex, otherwise this function will panic.
     pub(crate) fn update_scoring_metrics_on_eviction(
         &self,
         authority_index: AuthorityIndex,
@@ -273,14 +295,13 @@ impl MysticetiScoringMetricsStore {
         eviction_round: u32,
         last_eviction_round: u32,
         threshold_clock_round: u32,
-        node_metrics: &NodeMetrics,
-    ) -> Option<StorageScoringMetrics> {
+        context: &Arc<Context>,
+    ) {
+        let node_metrics = &context.metrics.node_metrics;
         // threshold_clock_round should be always at least 1.
-        // Analogously, authority_index should be a valid index.
-        if threshold_clock_round == 0
-            || authority_index.value() >= self.uncached_metrics.faulty_blocks_provable().len()
-        {
-            return None;
+        if threshold_clock_round == 0 {
+            warn!("update_scoring_metrics_on_eviction called with threshold clock round = 0.");
+            return;
         }
 
         // Get the blocks rounds that were not evicted.
@@ -307,9 +328,10 @@ impl MysticetiScoringMetricsStore {
             node_metrics,
         );
 
-        // If no eviction happened, we do not update the metrics on storage.
+        // If no eviction happened, we do not update the current local metrics counts
+        // and the metrics on storage.
         if eviction_round == last_eviction_round {
-            return None;
+            return;
         }
 
         // Get the evicted blocks rounds.
@@ -319,7 +341,7 @@ impl MysticetiScoringMetricsStore {
             .filter(|&round| round <= eviction_round)
             .collect::<Vec<u32>>();
 
-        // Update metrics according to the blocks from evicted rounds.
+        // Calculate metrics according to the blocks from evicted rounds.
         let (evicted_equivocations, missing_blocks_in_evicted_rounds) =
             calculate_scoring_metrics_for_range(
                 evicted_block_rounds,
@@ -327,6 +349,7 @@ impl MysticetiScoringMetricsStore {
                 eviction_round,
             );
 
+        // Update metrics according to the blocks from evicted rounds.
         self.update_missing_blocks_and_equivocations(
             missing_blocks_in_evicted_rounds,
             evicted_equivocations,
@@ -336,40 +359,28 @@ impl MysticetiScoringMetricsStore {
             node_metrics,
         );
 
-        // Update current local metrics count.
+        // Update current local metrics count according to the uncached metrics at this
+        // point in time. Note that this will update the counts for the metrics
+        // calculated above, but also for the other uncached metrics that were changed
+        // since the last eviction (e.g., faulty blocks metrics updated on block
+        // receival).
         self.update_current_local_metrics_count(authority_index);
-
-        Some(StorageScoringMetrics {
-            faulty_blocks_provable: self.uncached_metrics.faulty_blocks_provable()[authority_index]
-                .load(Ordering::Relaxed),
-            faulty_blocks_unprovable: self.uncached_metrics.faulty_blocks_unprovable()
-                [authority_index]
-                .load(Ordering::Relaxed),
-            equivocations: self.uncached_metrics.equivocations()[authority_index]
-                .load(Ordering::Relaxed),
-            missing_proposals: self.uncached_metrics.missing_proposals()[authority_index]
-                .load(Ordering::Relaxed),
-        })
     }
 
+    // The `authority_index` should be a valid index, otherwise the function will
+    // panic. This check is not performed here, as it is assumed that the caller has
+    // already checked it.
     pub(crate) fn update_current_local_metrics_count(&self, authority_index: AuthorityIndex) {
-        let faulty_blocks_provable =
-            self.uncached_metrics.faulty_blocks_provable()[authority_index].load(Ordering::Relaxed);
-        let faulty_blocks_unprovable = self.uncached_metrics.faulty_blocks_unprovable()
-            [authority_index]
-            .load(Ordering::Relaxed);
-        let equivocations =
-            self.uncached_metrics.equivocations()[authority_index].load(Ordering::Relaxed);
-        let missing_proposals =
-            self.uncached_metrics.missing_proposals()[authority_index].load(Ordering::Relaxed);
+        let uncached_metrics = self
+            .uncached_metrics
+            .iter()
+            .map(|metric_vec| metric_vec[authority_index].load(Ordering::Relaxed));
         self.current_local_metrics_count
-            .store_faulty_blocks_provable(authority_index.value(), faulty_blocks_provable);
-        self.current_local_metrics_count
-            .store_faulty_blocks_unprovable(authority_index.value(), faulty_blocks_unprovable);
-        self.current_local_metrics_count
-            .store_equivocations(authority_index.value(), equivocations);
-        self.current_local_metrics_count
-            .store_missing_proposals(authority_index.value(), missing_proposals);
+            .iter()
+            .zip(uncached_metrics)
+            .for_each(|(local_metric_vec, uncached_metric)| {
+                local_metric_vec[authority_index].store(uncached_metric, Ordering::Relaxed);
+            });
     }
 }
 
@@ -418,7 +429,7 @@ pub(crate) enum MetricType {
 // returned by it as untracked. We do not classify any error as provable here
 // because we cannot prove to a third party that a block or commit was fetched
 // from a particular authority.
-fn classify_commit_syncer_error(error: &ConsensusError) -> MetricType {
+fn classify_commit_syncer_error_v1(error: &ConsensusError) -> MetricType {
     match error {
         ConsensusError::MalformedCommit(_) => MetricType::Unprovable,
         ConsensusError::UnexpectedStartCommit { .. } => MetricType::Unprovable,
@@ -429,7 +440,7 @@ fn classify_commit_syncer_error(error: &ConsensusError) -> MetricType {
         ConsensusError::UnexpectedNumberOfBlocksFetched { .. } => MetricType::Unprovable,
         ConsensusError::UnexpectedBlockForCommit { .. } => MetricType::Unprovable,
         // Overwrite block verifier classification to return unprovable.
-        error => match classify_block_verifier_error(error) {
+        error => match classify_block_verifier_error_v1(error) {
             MetricType::Provable => MetricType::Unprovable,
             metric_type => metric_type,
         },
@@ -440,7 +451,7 @@ fn classify_commit_syncer_error(error: &ConsensusError) -> MetricType {
 // and errors not returned by it as untracked. Errors classified as provable are
 // those that can be proven to a third party by providing the signed faulty
 // block itself
-fn classify_block_verifier_error(error: &ConsensusError) -> MetricType {
+fn classify_block_verifier_error_v1(error: &ConsensusError) -> MetricType {
     match error {
         ConsensusError::WrongEpoch { .. } => MetricType::Unprovable,
         ConsensusError::UnexpectedGenesisBlock => MetricType::Unprovable,
@@ -470,12 +481,12 @@ fn classify_block_verifier_error(error: &ConsensusError) -> MetricType {
 // block itself. Obs: BlockRejected errors are untracked because even though
 // the rejected block signature can be verified, the reason for the rejection
 // is not objective nor clearly the block author's fault.
-fn classify_subscriber_error(error: &ConsensusError) -> MetricType {
+fn classify_subscriber_error_v1(error: &ConsensusError) -> MetricType {
     match error {
         ConsensusError::MalformedBlock { .. } => MetricType::Unprovable,
         ConsensusError::UnexpectedAuthority(..) => MetricType::Unprovable,
         ConsensusError::BlockRejected { .. } => MetricType::Untracked,
-        error => classify_block_verifier_error(error),
+        error => classify_block_verifier_error_v1(error),
     }
 }
 
@@ -483,13 +494,13 @@ fn classify_subscriber_error(error: &ConsensusError) -> MetricType {
 // returned by it as untracked. We do not classify any error as provable here
 // because we cannot prove to a third party that a block was fetched from a
 // particular authority.
-fn classify_synchronizer_error(error: &ConsensusError) -> MetricType {
+fn classify_synchronizer_error_v1(error: &ConsensusError) -> MetricType {
     match error {
         ConsensusError::TooManyFetchedBlocksReturned { .. } => MetricType::Unprovable,
         ConsensusError::MalformedBlock { .. } => MetricType::Unprovable,
         ConsensusError::UnexpectedFetchedBlock { .. } => MetricType::Unprovable,
         // Overwrite block verifier classification to return unprovable.
-        error => match classify_block_verifier_error(error) {
+        error => match classify_block_verifier_error_v1(error) {
             MetricType::Provable => MetricType::Unprovable,
             metric_type => metric_type,
         },
@@ -504,6 +515,33 @@ pub(crate) enum ErrorSource {
     Subscriber,
     // Errors returned from process_fetched_blocks.
     Synchronizer,
+}
+
+impl ErrorSource {
+    pub(crate) fn as_str(&self) -> &'static str {
+        match self {
+            ErrorSource::CommitSyncer => "fetch_once",
+            ErrorSource::Subscriber => "handle_send_block",
+            ErrorSource::Synchronizer => "process_fetched_blocks",
+        }
+    }
+}
+
+#[cfg(test)]
+impl MysticetiScoringMetricsStore {
+    // Creates a dummy scoring metrics store for testing purposes (i.e., without any
+    // connection to a Scorer)
+    pub(crate) fn dummy_for_test(committee_size: usize, protocol_config: &ProtocolConfig) -> Self {
+        let current_local_metrics_count = Arc::new(VersionedScoringMetrics::new(
+            committee_size,
+            protocol_config,
+        ));
+        MysticetiScoringMetricsStore::new(
+            committee_size,
+            current_local_metrics_count,
+            protocol_config,
+        )
+    }
 }
 
 #[cfg(test)]
@@ -527,7 +565,7 @@ mod tests {
         dag_state::DagState,
         error::ConsensusError,
         scoring_metrics_store::{ErrorSource, MysticetiScoringMetricsStore},
-        storage::{StorageScoringMetrics, mem_store::MemStore},
+        storage::mem_store::MemStore,
         synchronizer::Synchronizer,
         test_dag_builder::DagBuilder,
     };
@@ -609,74 +647,94 @@ mod tests {
         }
     }
 
-    fn get_uncached_missing_proposals(context: &Arc<Context>) -> Vec<u64> {
-        let mut metrics = Vec::new();
-        for authority in context.committee.authorities() {
-            let hostname = authority.1.hostname.as_str();
-            metrics.push(
-                context
-                    .metrics
-                    .node_metrics
-                    .uncached_missing_proposals_by_authority
-                    .get_metric_with_label_values(&[hostname])
+    fn read_counter_metric(context: &Arc<Context>, metric: &prometheus::IntCounterVec) -> Vec<u64> {
+        context
+            .committee
+            .authorities()
+            .map(|(_, authority)| {
+                metric
+                    .get_metric_with_label_values(&[authority.hostname.as_str()])
                     .unwrap()
-                    .get(),
-            )
-        }
-        metrics
+                    .get()
+            })
+            .collect()
+    }
+
+    fn read_gauge_metric(context: &Arc<Context>, metric: &prometheus::IntGaugeVec) -> Vec<u64> {
+        context
+            .committee
+            .authorities()
+            .map(|(_, authority)| {
+                metric
+                    .get_metric_with_label_values(&[authority.hostname.as_str()])
+                    .unwrap()
+                    .get()
+                    .unsigned_abs()
+            })
+            .collect()
+    }
+
+    fn read_faulty_blocks_metric(
+        context: &Arc<Context>,
+        metric: &prometheus::IntCounterVec,
+        source: &ErrorSource,
+        error: &str,
+    ) -> Vec<u64> {
+        let source_str = source.as_str();
+        context
+            .committee
+            .authorities()
+            .map(|(_, authority)| {
+                metric
+                    .get_metric_with_label_values(&[authority.hostname.as_str(), source_str, error])
+                    .unwrap()
+                    .get()
+            })
+            .collect()
+    }
+
+    fn get_uncached_missing_proposals(context: &Arc<Context>) -> Vec<u64> {
+        read_counter_metric(
+            context,
+            &context
+                .metrics
+                .node_metrics
+                .uncached_missing_proposals_by_authority,
+        )
     }
 
     fn get_missing_proposals_in_cache(context: &Arc<Context>) -> Vec<u64> {
-        let mut metrics = Vec::new();
-        for authority in context.committee.authorities() {
-            let hostname = authority.1.hostname.as_str();
-            metrics.push(
-                context
-                    .metrics
-                    .node_metrics
-                    .missing_proposals_in_cache_by_authority
-                    .get_metric_with_label_values(&[hostname])
-                    .unwrap()
-                    .get()
-                    .unsigned_abs(),
-            )
-        }
-        metrics
+        read_gauge_metric(
+            context,
+            &context
+                .metrics
+                .node_metrics
+                .missing_proposals_in_cache_by_authority,
+        )
     }
 
     fn get_uncached_equivocations(context: &Arc<Context>) -> Vec<u64> {
-        let mut metrics = Vec::new();
-        for authority in context.committee.authorities() {
-            let hostname = authority.1.hostname.as_str();
-            metrics.push(
-                context
-                    .metrics
-                    .node_metrics
-                    .uncached_equivocations_by_authority
-                    .get_metric_with_label_values(&[hostname])
-                    .unwrap()
-                    .get(),
-            )
-        }
-        metrics
+        read_counter_metric(
+            context,
+            &context
+                .metrics
+                .node_metrics
+                .uncached_equivocations_by_authority,
+        )
     }
 
     fn get_equivocations_in_cache(context: &Arc<Context>) -> Vec<u64> {
-        let mut metrics = Vec::new();
-        for authority in context.committee.authorities() {
-            let hostname = authority.1.hostname.as_str();
-            metrics.push(
-                context
-                    .metrics
-                    .node_metrics
-                    .equivocations_in_cache_by_authority
-                    .get_metric_with_label_values(&[hostname])
-                    .unwrap()
-                    .get()
-                    .unsigned_abs(),
-            )
-        }
-        metrics
+        read_gauge_metric(
+            context,
+            &context
+                .metrics
+                .node_metrics
+                .equivocations_in_cache_by_authority,
+        )
+    }
+
+    fn is_all_zeroes(metrics: &[u64]) -> bool {
+        metrics.iter().all(|&v| v == 0)
     }
 
     fn get_faulty_blocks_provable(
@@ -684,25 +742,15 @@ mod tests {
         source: &ErrorSource,
         error: &str,
     ) -> Vec<u64> {
-        let source_str = match source {
-            ErrorSource::CommitSyncer => "fetch_once",
-            ErrorSource::Subscriber => "handle_send_block",
-            ErrorSource::Synchronizer => "process_fetched_blocks",
-        };
-        let mut metrics = Vec::new();
-        for authority in context.committee.authorities() {
-            let hostname = authority.1.hostname.as_str();
-            metrics.push(
-                context
-                    .metrics
-                    .node_metrics
-                    .faulty_blocks_provable_by_authority
-                    .get_metric_with_label_values(&[hostname, source_str, error])
-                    .unwrap()
-                    .get(),
-            )
-        }
-        metrics
+        read_faulty_blocks_metric(
+            context,
+            &context
+                .metrics
+                .node_metrics
+                .faulty_blocks_provable_by_authority,
+            source,
+            error,
+        )
     }
 
     fn get_faulty_blocks_unprovable(
@@ -710,35 +758,24 @@ mod tests {
         source: &ErrorSource,
         error: &str,
     ) -> Vec<u64> {
-        let source_str = match source {
-            ErrorSource::CommitSyncer => "fetch_once",
-            ErrorSource::Subscriber => "handle_send_block",
-            ErrorSource::Synchronizer => "process_fetched_blocks",
-        };
-        let mut metrics = Vec::new();
-        for authority in context.committee.authorities() {
-            let hostname = authority.1.hostname.as_str();
-            metrics.push(
-                context
-                    .metrics
-                    .node_metrics
-                    .faulty_blocks_unprovable_by_authority
-                    .get_metric_with_label_values(&[hostname, source_str, error])
-                    .unwrap()
-                    .get(),
-            )
-        }
-        metrics
+        read_faulty_blocks_metric(
+            context,
+            &context
+                .metrics
+                .node_metrics
+                .faulty_blocks_unprovable_by_authority,
+            source,
+            error,
+        )
     }
 
     #[tokio::test]
     async fn test_update_scoring_metrics_on_eviction_edge_cases() {
-        let context = Context::new_for_test(4);
-        let scoring_metrics_store = context.0.scoring_metrics_store;
+        let context = Arc::new(Context::new_for_test(4).0);
+        let scoring_metrics_store = context.scoring_metrics_store.clone();
         let authority_index = AuthorityIndex::new_for_test(0);
         let hostname = "test_host";
         let recent_refs_by_authority = BTreeSet::new();
-        let node_metrics = &context.0.metrics.node_metrics;
         // Test different unexpected combinations of eviction_round, last_evicted_round,
         // and threshold_clock_round. Since recent_refs_by_authority is empty, the
         // function should never panic or return more than zero equivocations.
@@ -747,163 +784,202 @@ mod tests {
 
         // Unexpected because: threshold_clock_round = last_evicted_round means that a
         // round with blocks from less than 2f+1 stake was evicted.
-        // Return: None, because nothing is currently being evicted.
+        // Uncached metrics unchanged (all zeros) because nothing is evicted.
         let last_evicted_round = 5;
         let eviction_round = 5;
         let threshold_clock_round = 5;
-        let stored_metrics = scoring_metrics_store.update_scoring_metrics_on_eviction(
+        scoring_metrics_store.update_scoring_metrics_on_eviction(
             authority_index,
             hostname,
             &recent_refs_by_authority,
             eviction_round,
             last_evicted_round,
             threshold_clock_round,
-            node_metrics,
+            &context,
         );
-        assert!(stored_metrics.is_none());
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.uncached_equivocations_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_provable_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_unprovable_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.uncached_missing_proposals_by_authority()
+        ));
 
         // Unexpected because: threshold_clock_round = 0 means that genesis is missing.
-        // Return: None, because nothing is currently being evicted.
+        // Uncached metrics unchanged (all zeros) because of early return.
         let last_evicted_round = 0;
         let eviction_round = 0;
         let threshold_clock_round = 0;
-        let stored_metrics = scoring_metrics_store.update_scoring_metrics_on_eviction(
+        scoring_metrics_store.update_scoring_metrics_on_eviction(
             authority_index,
             hostname,
             &recent_refs_by_authority,
             eviction_round,
             last_evicted_round,
             threshold_clock_round,
-            node_metrics,
+            &context,
         );
-        assert!(stored_metrics.is_none());
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.uncached_equivocations_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_provable_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_unprovable_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.uncached_missing_proposals_by_authority()
+        ));
 
         // Unexpected because: threshold_clock_round < eviction_round means that a
-        // round with blocks from less than 2f+1 stake in being evicted.
-        // Return: 3 missing proposals, from rounds 1 to 3(eviction_round).
+        // round with blocks from less than 2f+1 stake is being evicted.
+        // Uncached: 3 missing proposals for authority 0, from rounds 1 to 3.
         let last_evicted_round = 0;
         let eviction_round = 3;
         let threshold_clock_round = 2;
-        let stored_metrics = scoring_metrics_store.update_scoring_metrics_on_eviction(
+        scoring_metrics_store.update_scoring_metrics_on_eviction(
             authority_index,
             hostname,
             &recent_refs_by_authority,
             eviction_round,
             last_evicted_round,
             threshold_clock_round,
-            node_metrics,
+            &context,
         );
-        assert!(matches!(
-            stored_metrics,
-            Some(StorageScoringMetrics {
-                faulty_blocks_provable: 0,
-                faulty_blocks_unprovable: 0,
-                equivocations: 0,
-                missing_proposals: 3
-            })
+        assert_eq!(
+            scoring_metrics_store.uncached_missing_proposals_by_authority(),
+            vec![3, 0, 0, 0]
+        );
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.uncached_equivocations_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_provable_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_unprovable_by_authority()
         ));
 
         // Unexpected because: eviction_round < last_evicted_round means that blocks
         // below or in last_evicted_round were accepted.
-        // Return: metrics won't be updated here, so it should return the same as in the
-        // last step.
+        // Uncached metrics unchanged because evicted range [2, 0] is inverted.
         let last_evicted_round = 1;
         let eviction_round = 0;
         let threshold_clock_round = 2;
-        let stored_metrics = scoring_metrics_store.update_scoring_metrics_on_eviction(
+        scoring_metrics_store.update_scoring_metrics_on_eviction(
             authority_index,
             hostname,
             &recent_refs_by_authority,
             eviction_round,
             last_evicted_round,
             threshold_clock_round,
-            node_metrics,
+            &context,
         );
-        assert!(matches!(
-            stored_metrics,
-            Some(StorageScoringMetrics {
-                faulty_blocks_provable: 0,
-                faulty_blocks_unprovable: 0,
-                equivocations: 0,
-                missing_proposals: 3
-            })
+        assert_eq!(
+            scoring_metrics_store.uncached_missing_proposals_by_authority(),
+            vec![3, 0, 0, 0]
+        );
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.uncached_equivocations_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_provable_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_unprovable_by_authority()
         ));
 
         // Unexpected because: threshold_clock_round < eviction_round <
-        // last_evicted_round and threshold_clock_round. Return: metrics won't
-        // be updated here, so it should return the same as in the last step.
+        // last_evicted_round and threshold_clock_round.
+        // Uncached metrics unchanged because evicted range [3, 0] is inverted.
         let last_evicted_round = 2;
         let eviction_round = 0;
         let threshold_clock_round = 1;
-        let stored_metrics = scoring_metrics_store.update_scoring_metrics_on_eviction(
+        scoring_metrics_store.update_scoring_metrics_on_eviction(
             authority_index,
             hostname,
             &recent_refs_by_authority,
             eviction_round,
             last_evicted_round,
             threshold_clock_round,
-            node_metrics,
+            &context,
         );
-        assert!(matches!(
-            stored_metrics,
-            Some(StorageScoringMetrics {
-                faulty_blocks_provable: 0,
-                faulty_blocks_unprovable: 0,
-                equivocations: 0,
-                missing_proposals: 3
-            })
+        assert_eq!(
+            scoring_metrics_store.uncached_missing_proposals_by_authority(),
+            vec![3, 0, 0, 0]
+        );
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.uncached_equivocations_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_provable_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_unprovable_by_authority()
         ));
 
         // Unexpected because: threshold_clock_round < last_evicted_round means that a
         // round with blocks from less than 2f+1 stake was evicted.
-        // Return: None, because nothing is currently being evicted.
+        // Uncached metrics unchanged because threshold_clock_round = 0 causes
+        // early return.
         let last_evicted_round = 1;
         let eviction_round = 2;
         let threshold_clock_round = 0;
-        let stored_metrics = scoring_metrics_store.update_scoring_metrics_on_eviction(
+        scoring_metrics_store.update_scoring_metrics_on_eviction(
             authority_index,
             hostname,
             &recent_refs_by_authority,
             eviction_round,
             last_evicted_round,
             threshold_clock_round,
-            node_metrics,
+            &context,
         );
-        assert!(stored_metrics.is_none());
+        assert_eq!(
+            scoring_metrics_store.uncached_missing_proposals_by_authority(),
+            vec![3, 0, 0, 0]
+        );
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.uncached_equivocations_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_provable_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_unprovable_by_authority()
+        ));
 
+        // Same as above but with eviction_round < last_evicted_round.
         let last_evicted_round = 2;
         let eviction_round = 1;
         let threshold_clock_round = 0;
-        let stored_metrics = scoring_metrics_store.update_scoring_metrics_on_eviction(
+        scoring_metrics_store.update_scoring_metrics_on_eviction(
             authority_index,
             hostname,
             &recent_refs_by_authority,
             eviction_round,
             last_evicted_round,
             threshold_clock_round,
-            node_metrics,
+            &context,
         );
-        assert!(stored_metrics.is_none());
-
-        // The function should not panic if the authority index is out of
-        // bounds.
-        // Unexpected because: threshold_clock_round = last_evicted_round means that a
-        // round with blocks from less than 2f+1 stake was evicted.
-        // Return: None, because nothing is currently being evicted.
-        let out_of_bounds_authority_index = AuthorityIndex::new_for_test(4);
-        let last_evicted_round = 1;
-        let eviction_round = 2;
-        let threshold_clock_round = 3;
-        let stored_metrics = scoring_metrics_store.update_scoring_metrics_on_eviction(
-            out_of_bounds_authority_index,
-            hostname,
-            &recent_refs_by_authority,
-            eviction_round,
-            last_evicted_round,
-            threshold_clock_round,
-            node_metrics,
+        assert_eq!(
+            scoring_metrics_store.uncached_missing_proposals_by_authority(),
+            vec![3, 0, 0, 0]
         );
-        assert!(stored_metrics.is_none());
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.uncached_equivocations_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_provable_by_authority()
+        ));
+        assert!(is_all_zeroes(
+            &scoring_metrics_store.faulty_blocks_unprovable_by_authority()
+        ));
     }
 
     #[tokio::test]
@@ -1527,7 +1603,6 @@ mod tests {
         // Clear and check all metrics
         scoring_metrics.uncached_metrics.reset();
         scoring_metrics.cached_metrics.reset();
-        scoring_metrics.cached_metrics.reset();
         node_metrics
             .uncached_missing_proposals_by_authority
             .with_label_values(&[hostnames[0]])
@@ -1655,6 +1730,7 @@ mod tests {
                     ignored_error.clone(),
                     source.clone(),
                     &context.metrics.node_metrics,
+                    &context.protocol_config,
                 );
         }
         assert_eq!(
@@ -1693,6 +1769,7 @@ mod tests {
                     parsing_error.clone(),
                     source.clone(),
                     &context.metrics.node_metrics,
+                    &context.protocol_config,
                 );
         }
         assert_eq!(
@@ -1731,6 +1808,7 @@ mod tests {
                     block_verification_error.clone(),
                     source.clone(),
                     &context.metrics.node_metrics,
+                    &context.protocol_config,
                 );
         }
         assert_eq!(
@@ -1769,6 +1847,7 @@ mod tests {
                     block_rejected_error.clone(),
                     source.clone(),
                     &context.metrics.node_metrics,
+                    &context.protocol_config,
                 );
         }
         assert_eq!(
@@ -1820,6 +1899,7 @@ mod tests {
                     ignored_error.clone(),
                     source.clone(),
                     &context.metrics.node_metrics,
+                    &context.protocol_config,
                 );
         }
         assert_eq!(
@@ -1856,6 +1936,7 @@ mod tests {
                     parsing_error.clone(),
                     source.clone(),
                     &context.metrics.node_metrics,
+                    &context.protocol_config,
                 );
         }
         assert_eq!(
@@ -1894,6 +1975,7 @@ mod tests {
                     block_verification_error.clone(),
                     source.clone(),
                     &context.metrics.node_metrics,
+                    &context.protocol_config,
                 );
         }
         assert_eq!(
@@ -1943,6 +2025,7 @@ mod tests {
                     ignored_error.clone(),
                     source.clone(),
                     &context.metrics.node_metrics,
+                    &context.protocol_config,
                 );
         }
         assert_eq!(
@@ -1979,6 +2062,7 @@ mod tests {
                     parsing_error.clone(),
                     source.clone(),
                     &context.metrics.node_metrics,
+                    &context.protocol_config,
                 );
         }
         assert_eq!(
@@ -2017,6 +2101,7 @@ mod tests {
                     block_verification_error.clone(),
                     source.clone(),
                     &context.metrics.node_metrics,
+                    &context.protocol_config,
                 );
         }
         assert_eq!(

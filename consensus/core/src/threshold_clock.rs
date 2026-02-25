@@ -99,8 +99,6 @@ impl ThresholdClock {
 #[cfg(test)]
 mod tests {
     use consensus_config::AuthorityIndex;
-    use iota_common::scoring_metrics::{ScoringMetricsV1, VersionedScoringMetrics};
-    use iota_protocol_config::ProtocolConfig;
 
     use super::*;
     use crate::{block::BlockDigest, scoring_metrics_store::MysticetiScoringMetricsStore};
@@ -225,12 +223,11 @@ mod tests {
         let committee_size = committee.size();
         let metrics = test_metrics();
         let temp_dir = TempDir::new().unwrap();
-        let current_local_metrics_count =
-            Arc::new(VersionedScoringMetrics::V1(ScoringMetricsV1::new(3)));
-        let scoring_metrics_store = Arc::new(MysticetiScoringMetricsStore::new(
+        let protocol_config = iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE();
+
+        let scoring_metrics_store = Arc::new(MysticetiScoringMetricsStore::dummy_for_test(
             committee_size,
-            current_local_metrics_count,
-            &ProtocolConfig::get_for_max_version_UNSAFE(),
+            &protocol_config,
         ));
 
         let context = Arc::new(crate::context::Context::new(
@@ -241,7 +238,7 @@ mod tests {
                 db_path: temp_dir.keep(),
                 ..Default::default()
             },
-            iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE(),
+            protocol_config,
             metrics,
             scoring_metrics_store,
             Arc::new(crate::context::Clock::default()),

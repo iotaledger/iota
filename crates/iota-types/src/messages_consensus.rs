@@ -29,6 +29,7 @@ use crate::{
     },
     message_envelope::{Envelope, Message, VerifiedEnvelope},
     messages_checkpoint::{CheckpointSequenceNumber, CheckpointSignatureMessage},
+    misbehavior_counts::MisbehaviorsV1,
     supported_protocol_versions::{
         Chain, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
@@ -334,12 +335,14 @@ impl VersionedMisbehaviorReport {
             VersionedMisbehaviorReport::V1(report, _) => report.verify(committee_size),
         }
     }
-    /// Returns an iterator over references to some of the fields in the report.
-    pub fn iterate_over_metrics(&self) -> std::vec::IntoIter<&Vec<u64>> {
+
+    /// Returns an iterator over references to the fields in the report.
+    pub fn iter(&self) -> std::vec::IntoIter<&Vec<u64>> {
         match self {
             VersionedMisbehaviorReport::V1(report, _) => report.iter(),
         }
     }
+
     /// Returns the digest of the misbehavior report, caching it if it has not
     /// been computed yet.
     pub fn digest(&self) -> &MisbehaviorReportDigest {
@@ -347,76 +350,6 @@ impl VersionedMisbehaviorReport {
             VersionedMisbehaviorReport::V1(_, digest) => {
                 digest.get_or_init(|| MisbehaviorReportDigest::new(default_hash(self)))
             }
-        }
-    }
-}
-
-// MisbehaviorsV1 contains lists of all metrics used in v1 of misbehavior
-// reports, with a value for each metric. The metrics (misbeheaviors) include,
-// faulty blocks, equivocation and missing proposal counts for each authority.
-// This first version does not include any type of proof.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct MisbehaviorsV1<T> {
-    pub faulty_blocks_provable: T,
-    pub faulty_blocks_unprovable: T,
-    pub missing_proposals: T,
-    pub equivocations: T,
-}
-
-impl MisbehaviorsV1<Vec<u64>> {
-    pub fn verify(&self, committee_size: usize) -> bool {
-        // This version of reports are valid as long as they contain the counts for all
-        // authorities. Future versions may contain proofs that need verification.
-        // However, since the validity of a proof is deeply coupled with the protocol
-        // version and the consensus mechanism being used, we cannot verify it here. In
-        // the future, reports should be unwrapped (or translated) to a type verifiable
-        // by the consensus crate, which means that the verification logic will probably
-        // move out of this crate.
-        if (self.faulty_blocks_provable.len() != committee_size)
-            | (self.faulty_blocks_unprovable.len() != committee_size)
-            | (self.equivocations.len() != committee_size)
-            | (self.missing_proposals.len() != committee_size)
-        {
-            return false;
-        }
-        true
-    }
-}
-impl<T> MisbehaviorsV1<T> {
-    pub fn iter(&self) -> std::vec::IntoIter<&T> {
-        vec![
-            &self.faulty_blocks_provable,
-            &self.faulty_blocks_unprovable,
-            &self.missing_proposals,
-            &self.equivocations,
-        ]
-        .into_iter()
-    }
-    // Returns an iterator over references to major misbehavior fields in the
-    // report. Major misbehaviors carry a higher penalty in the scoring system.
-    pub fn iter_major_misbehaviors(&self) -> std::vec::IntoIter<&T> {
-        vec![&self.equivocations].into_iter()
-    }
-    // Returns an iterator over references to minor misbehavior fields in the
-    // report. Minor misbehaviors carry a lower penalty in the scoring system.
-    pub fn iter_minor_misbehaviors(&self) -> std::vec::IntoIter<&T> {
-        vec![
-            &self.faulty_blocks_provable,
-            &self.faulty_blocks_unprovable,
-            &self.missing_proposals,
-        ]
-        .into_iter()
-    }
-}
-
-impl<T> FromIterator<T> for MisbehaviorsV1<T> {
-    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        let mut iterator = iter.into_iter();
-        Self {
-            faulty_blocks_provable: iterator.next().expect("Not enough elements in iterator"),
-            faulty_blocks_unprovable: iterator.next().expect("Not enough elements in iterator"),
-            missing_proposals: iterator.next().expect("Not enough elements in iterator"),
-            equivocations: iterator.next().expect("Not enough elements in iterator"),
         }
     }
 }

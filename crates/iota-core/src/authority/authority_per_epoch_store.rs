@@ -56,7 +56,8 @@ use iota_types::{
     messages_consensus::{
         AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKey,
         ConsensusTransactionKind, SignedAuthorityCapabilitiesV1, TimestampMs,
-        VerifiedAuthorityCapabilitiesV1, VersionedDkgConfirmation, check_total_jwk_size,
+        VerifiedAuthorityCapabilitiesV1, VersionedDkgConfirmation, VersionedMisbehaviorReport,
+        check_total_jwk_size,
     },
     signature::GenericSignature,
     storage::{BackingPackageStore, InputKey, ObjectStore},
@@ -874,6 +875,10 @@ pub struct AuthorityEpochTables {
 
     /// Accumulated per-object debts for randomness congestion control.
     congestion_control_randomness_object_debts: DBMap<ObjectID, CongestionPerObjectDebt>,
+
+    /// Full snapshot of the scorer's received reports state, stored under key
+    /// `()`.
+    pub(crate) received_reports_state: DBMap<(), scorer::ReceivedReportsState>,
 }
 
 fn signed_transactions_table_default_config() -> DBOptions {
@@ -1160,6 +1165,11 @@ impl AuthorityPerEpochStore {
 
         let voting_power = committee.members().map(|(_, v)| *v).collect::<Vec<u64>>();
 
+        let scorer = Arc::new(Scorer::new(voting_power, &protocol_config));
+        scorer
+            .restore_from_tables(&tables)
+            .expect("Failed to restore scorer state from tables");
+
         let s = Arc::new(Self {
             name,
             committee,
@@ -1195,7 +1205,7 @@ impl AuthorityPerEpochStore {
             jwk_aggregator,
             randomness_manager: OnceCell::new(),
             randomness_reporter: OnceCell::new(),
-            scorer: Arc::new(Scorer::new(voting_power, &protocol_config)),
+            scorer,
         });
 
         s.update_buffer_stake_metric();
@@ -2978,10 +2988,17 @@ impl AuthorityPerEpochStore {
         consensus_commit_info: &ConsensusCommitInfo,
         authority_metrics: &Arc<AuthorityMetrics>,
     ) -> IotaResult<Vec<VerifiedExecutableTransaction>> {
+        // Track whether any misbehavior report was seen (valid or invalid) so we
+        // only snapshot the scorer state when needed.
+        let mut misbehavior_report_seen = false;
+
         // Split transactions into different types for processing.
         let verified_transactions: Vec<_> = transactions
             .into_iter()
             .filter_map(|transaction| {
+                if transaction.is_misbehavior_report() {
+                    misbehavior_report_seen = true;
+                }
                 self.verify_consensus_transaction(
                     transaction,
                     &authority_metrics.skipped_consensus_txns,
@@ -3197,6 +3214,12 @@ impl AuthorityPerEpochStore {
                 shared_object_using_randomness_congestion_tracker,
             )
             .await?;
+        // Snapshot the full received reports state into the output so it gets persisted
+        // when the quarantine flushes this commit. Only snapshot when at least one
+        // misbehavior report was seen, to avoid unnecessary work.
+        if misbehavior_report_seen {
+            output.set_received_reports_state(self.scorer.received_reports_state_snapshot());
+        }
         self.finish_consensus_certificate_process(&verified_transactions);
         output.record_consensus_commit_stats(consensus_stats.clone());
 
@@ -4161,15 +4184,27 @@ impl AuthorityPerEpochStore {
                     .expect("authority in committee");
                 // Check validity of the report and update scores depending on the result. We
                 // already have consensus on inclusion of this report in the DAG.
-                if !report.verify(self.committee.num_members()) {
-                    self.scorer.update_invalid_reports_count(authority_index);
-                    warn!(
-                        "Received invalid misbehavior report from {:?}",
-                        authority.concise()
-                    );
-                } else {
-                    // Here we update all counts related to the information in the reports.
-                    self.scorer.update_received_reports(authority_index, report);
+                match (report, self.protocol_config().scorer_version_as_option()) {
+                    (VersionedMisbehaviorReport::V1(..), Some(1))
+                    | (VersionedMisbehaviorReport::V1(..), None) => {
+                        if !report.verify(self.committee.num_members()) {
+                            self.scorer.update_invalid_reports_count(authority_index);
+                            warn!(
+                                "Received invalid misbehavior report from {:?}",
+                                authority.concise()
+                            );
+                        } else {
+                            // Here we update all counts related to the information in the reports.
+                            self.scorer.update_received_reports(authority_index, report);
+                        }
+                    }
+                    _ => {
+                        self.scorer.update_invalid_reports_count(authority_index);
+                        warn!(
+                            "Received misbehavior report with unsupported version from {:?}",
+                            authority.concise()
+                        );
+                    }
                 }
                 Ok(ConsensusCertificateResult::ConsensusMessage)
             }
