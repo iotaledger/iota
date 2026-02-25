@@ -108,13 +108,15 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
 /// ## Event Fields
 /// - `events` - includes all event fields (all events of the transaction)
 ///   - `events.digest` - the events digest
-///   - `events.bcs` - the full BCS-encoded event
-///   - `events.package_id` - the ID of the package that emitted the event
-///   - `events.module` - the module that emitted the event
-///   - `events.sender` - the sender that triggered the event
-///   - `events.event_type` - the type of the event
-///   - `events.bcs_contents` - the full BCS-encoded contents of the event
-///   - `events.json_contents` - the JSON-encoded contents of the event
+///   - `events.events.bcs` - the full BCS-encoded event
+///   - `events.events.package_id` - the ID of the package that emitted the
+///     event
+///   - `events.events.module` - the module that emitted the event
+///   - `events.events.sender` - the sender that triggered the event
+///   - `events.events.event_type` - the type of the event
+///   - `events.events.bcs_contents` - the full BCS-encoded contents of the
+///     event
+///   - `events.events.json_contents` - the JSON-encoded contents of the event
 ///
 /// ## Object Fields
 /// - `input_objects` - includes all input object fields
