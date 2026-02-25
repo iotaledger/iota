@@ -6,6 +6,7 @@ import {
     ampli,
     ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE,
     ACCOUNT_FORM_TYPE_TO_ACCOUNT_ORIGIN,
+    ACCOUNT_FORM_TYPE_TO_SOURCE_FLOW,
 } from '_src/shared/analytics';
 import { useMutation } from '@tanstack/react-query';
 import { useAccountsFormContext, AccountsFormType, type AccountsFormValues } from '_components';
@@ -42,17 +43,10 @@ export function useCreateAccountsMutation() {
 
     return useMutation({
         mutationKey: ['create accounts'],
-        mutationFn: async ({
-            type,
-            password,
-            sourceFlow,
-        }: {
-            type: AccountsFormType;
-            password?: string;
-            sourceFlow: string;
-        }) => {
+        mutationFn: async ({ type, password }: { type: AccountsFormType; password?: string }) => {
             let createdAccounts;
             const accountsFormValues = accountsFormValuesRef.current;
+            const sourceFlow = ACCOUNT_FORM_TYPE_TO_SOURCE_FLOW[type] || 'Unknown';
 
             // Validate form values are present and match the requested type
             const values = validateAccountFormValues(type, accountsFormValues);

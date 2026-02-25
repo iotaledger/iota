@@ -97,6 +97,8 @@ enum SearchPhase {
     Idle, // search has finished and is idle, ready to start again
 }
 
+const SOURCE_FLOW = 'Balance Finder';
+
 export function AccountsFinderView(): JSX.Element {
     const navigate = useNavigate();
     const { accountSourceId } = useParams();
@@ -163,7 +165,7 @@ export function AccountsFinderView(): JSX.Element {
                     accountOrigin: 'import',
                     numberOfAccounts: numberOfAccountsCreated,
                     isFirstAccount: !accounts || accounts.length === 0,
-                    sourceFlow: 'Balance Finder',
+                    sourceFlow: SOURCE_FLOW,
                 });
             }
         } finally {

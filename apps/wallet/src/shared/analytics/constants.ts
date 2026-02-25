@@ -19,6 +19,22 @@ enum AmpliAccountOrigin {
     Derived = 'derived',
 }
 
+export const ACCOUNT_FORM_TYPE_TO_SOURCE_FLOW: Record<
+    AccountsFormType,
+    AccountsAddedProperties['sourceFlow']
+> = {
+    [AccountsFormType.NewMnemonic]: 'New Mnemonic',
+    [AccountsFormType.ImportMnemonic]: 'Import Mnemonic',
+    [AccountsFormType.ImportSeed]: 'Import Seed',
+    [AccountsFormType.MnemonicSource]: 'Derived Mnemonic',
+    [AccountsFormType.SeedSource]: 'Derived Seed',
+    [AccountsFormType.ImportPrivateKey]: 'Import Private Key',
+    [AccountsFormType.Passkey]: 'New Passkey',
+    [AccountsFormType.ImportPasskey]: 'Import Passkey',
+    [AccountsFormType.ImportLedger]: 'Import Ledger',
+    [AccountsFormType.ImportKeystone]: 'Import Keystone',
+};
+
 export const ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE: Record<
     AccountsFormType,
     AccountsAddedProperties['accountType']

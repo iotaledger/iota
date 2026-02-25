@@ -316,7 +316,6 @@ export function AccountGroup({
                         if (accountsFormValues.current) {
                             await createAccountsMutation.mutateAsync({
                                 type: accountsFormValues.current.type,
-                                password,
                                 sourceFlow: SOURCE_FLOW,
                             });
                         }
