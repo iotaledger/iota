@@ -171,7 +171,7 @@ pub(crate) fn convert_block_refs_to_generic_transaction_refs(
     store: &dyn crate::storage::Store,
     block_refs: &[BlockRef],
 ) -> Vec<GenericTransactionRef> {
-    if context.protocol_config.consensus_transaction_ref() {
+    if context.protocol_config.consensus_fast_commit_sync() {
         // Fetch headers to get transactions_commitment for TransactionRef
         let headers = store.read_verified_block_headers(block_refs).unwrap();
         block_refs

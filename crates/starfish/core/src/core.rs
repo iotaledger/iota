@@ -964,7 +964,7 @@ impl Core {
         drop(dag_state_guard);
         // Now acknowledge the transactions for their inclusion to block
         let block_ref = verified_block.reference();
-        let gen_transaction_ref = if self.context.protocol_config.consensus_transaction_ref() {
+        let gen_transaction_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
             GenericTransactionRef::from(verified_block.transaction_ref())
         } else {
             GenericTransactionRef::from(block_ref)
@@ -1520,13 +1520,14 @@ mod test {
     #[rstest]
     #[tokio::test]
     async fn test_core_recover_from_store_for_full_round(
-        #[values(true, false)] consensus_transaction_ref: bool,
+        #[values(true, false)] consensus_fast_commit_sync: bool,
     ) {
         telemetry_subscribers::init_for_testing();
         let (mut context, mut key_pairs) = Context::new_for_test(4);
         context
             .protocol_config
-            .set_consensus_transaction_ref_for_testing(consensus_transaction_ref);
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -1543,7 +1544,7 @@ mod test {
         // able to commit transactions up to round 2.
         for block in dag_builder.block_headers(1..=2) {
             if block.author() == context.own_index {
-                let generic_ref = if consensus_transaction_ref {
+                let generic_ref = if consensus_fast_commit_sync {
                     // When consensus_transaction_ref is enabled, create TransactionRef variant
                     GenericTransactionRef::TransactionRef(TransactionRef {
                         round: block.round(),
@@ -2444,10 +2445,10 @@ mod test {
     async fn test_sequenced_transactions_no_headers(
         #[values((true, true), (true, false), (false, false))] params: (bool, bool),
     ) {
-        let (commit_only_for_traversed_headers, consensus_transaction_ref) = params;
+        let (commit_only_for_traversed_headers, consensus_fast_commit_sync) = params;
         test_sequenced_transactions_no_headers_impl(
             commit_only_for_traversed_headers,
-            consensus_transaction_ref,
+            consensus_fast_commit_sync,
         )
         .await;
     }
@@ -2455,7 +2456,7 @@ mod test {
     #[tokio::test]
     #[serial]
     #[should_panic(
-        expected = "The consensus transaction ref requires consensus_commit_transactions_only_for_traversed_headers to be enabled"
+        expected = "consensus_fast_commit_sync requires consensus_commit_transactions_only_for_traversed_headers to be enabled"
     )]
     async fn test_sequenced_transactions_no_headers_invalid_config() {
         test_sequenced_transactions_no_headers_impl(false, true).await;
@@ -2463,14 +2464,15 @@ mod test {
 
     async fn test_sequenced_transactions_no_headers_impl(
         commit_only_for_traversed_headers: bool,
-        consensus_transaction_ref: bool,
+        consensus_fast_commit_sync: bool,
     ) {
         telemetry_subscribers::init_for_testing();
         let committee_size = 10;
         let (mut context, _key_pairs) = Context::new_for_test(committee_size);
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         context
             .protocol_config
-            .set_consensus_transaction_ref_for_testing(consensus_transaction_ref);
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
         context
             .protocol_config
             .set_consensus_commit_transactions_only_for_traversed_headers_for_testing(
@@ -2632,7 +2634,7 @@ mod test {
         let missing_verified_transactions: Vec<_> = all_sequenced_transactions
             .into_iter()
             .filter(|tx| {
-                let generic_ref = if consensus_transaction_ref {
+                let generic_ref = if consensus_fast_commit_sync {
                     GenericTransactionRef::TransactionRef(tx.transaction_ref())
                 } else {
                     GenericTransactionRef::BlockRef(
@@ -3106,13 +3108,14 @@ mod test {
     #[rstest]
     #[tokio::test]
     async fn test_commit_and_notify_for_block_status(
-        #[values(true, false)] consensus_transaction_ref: bool,
+        #[values(true, false)] consensus_fast_commit_sync: bool,
     ) {
         telemetry_subscribers::init_for_testing();
         let (mut context, mut key_pairs) = Context::new_for_test(4);
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         context
             .protocol_config
-            .set_consensus_transaction_ref_for_testing(consensus_transaction_ref);
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
 
         let context = Arc::new(context);
 
@@ -3130,7 +3133,7 @@ mod test {
         // able to commit transactions up to round 4.
         for block in dag_builder.block_headers(1..=4) {
             if block.author() == context.own_index {
-                let generic_ref = if consensus_transaction_ref {
+                let generic_ref = if consensus_fast_commit_sync {
                     // When consensus_transaction_ref is enabled, create TransactionRef variant
                     GenericTransactionRef::TransactionRef(TransactionRef {
                         round: block.round(),

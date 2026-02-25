@@ -145,7 +145,7 @@ impl Linearizer {
 
         // Convert BlockRef to GenericTransactionRef based on protocol flag
         let committed_transactions_refs: Vec<GenericTransactionRef> =
-            if self.context.protocol_config.consensus_transaction_ref() {
+            if self.context.protocol_config.consensus_fast_commit_sync() {
                 // Use batch function to get transaction commitments efficiently
                 let dag_state_guard = self.dag_state.read();
                 let transactions_commitments =

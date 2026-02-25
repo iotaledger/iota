@@ -76,7 +76,7 @@ impl Commit {
         committed_transactions: Vec<GenericTransactionRef>,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
     ) -> Self {
-        if context.protocol_config.consensus_transaction_ref() {
+        if context.protocol_config.consensus_fast_commit_sync() {
             debug!("Creating CommitV2 as consensus_transaction_ref is enabled");
             // Extract TransactionRefs from GenericTransactionRef
             let transaction_refs: Vec<TransactionRef> = committed_transactions

@@ -157,7 +157,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             self.inner
                 .context
                 .protocol_config
-                .consensus_transaction_ref(),
+                .consensus_fast_commit_sync(),
         ) {
             return;
         }
@@ -333,7 +333,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         .inner
                         .context
                         .protocol_config
-                        .consensus_transaction_ref()
+                        .consensus_fast_commit_sync()
                     {
                         GenericTransactionRef::TransactionRef(verified_txns.transaction_ref())
                     } else {
@@ -498,7 +498,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             .commit_sync_fetch_once_latency
             .with_label_values(&[inner.sync_type.as_str()])
             .start_timer();
-        let transaction_ref_enabled = inner.context.protocol_config.consensus_transaction_ref();
+        let transaction_ref_enabled = inner.context.protocol_config.consensus_fast_commit_sync();
 
         // 1. Fetch commits in the commit range from the target authority.
         let (serialized_commits, serialized_voting_block_headers) = inner
@@ -736,7 +736,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
 
         // 13. Verify transactions
         let mut transactions_map = if !fetched_transactions.is_empty() {
-            if !inner.context.protocol_config.consensus_transaction_ref() {
+            if !inner.context.protocol_config.consensus_fast_commit_sync() {
                 Handle::current()
                     .spawn_blocking({
                         let context = inner.context.clone();

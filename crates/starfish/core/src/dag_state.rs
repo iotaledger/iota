@@ -539,7 +539,7 @@ impl DagState {
         source: DataSource,
     ) {
         let transaction_ref = transactions.transaction_ref();
-        let generic_ref = if self.context.protocol_config.consensus_transaction_ref() {
+        let generic_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
             GenericTransactionRef::from(transaction_ref)
         } else {
             let Some(block_ref) = transactions.block_ref() else {
@@ -691,7 +691,7 @@ impl DagState {
                 // Fetch transaction commitments for all acknowledged blocks in batch
                 let acknowledgments = block_header.acknowledgments();
                 let ack_transactions_commitments =
-                    if self.context.protocol_config.consensus_transaction_ref() {
+                    if self.context.protocol_config.consensus_fast_commit_sync() {
                         self.get_transactions_commitments_batch(acknowledgments)
                     } else {
                         vec![None; acknowledgments.len()]
@@ -714,7 +714,7 @@ impl DagState {
         source: DataSource,
     ) {
         let transaction_ref = transactions.transaction_ref();
-        let generic_ref = if self.context.protocol_config.consensus_transaction_ref() {
+        let generic_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
             GenericTransactionRef::from(transaction_ref)
         } else {
             let Some(block_ref) = transactions.block_ref() else {
@@ -1369,7 +1369,7 @@ impl DagState {
                 let last_header_opt = self.recent_block_headers.get(last);
                 if let Some(last_header) = last_header_opt {
                     let transaction_ref =
-                        if self.context.protocol_config.consensus_transaction_ref() {
+                        if self.context.protocol_config.consensus_fast_commit_sync() {
                             GenericTransactionRef::from(TransactionRef {
                                 round: last.round,
                                 author: last.author,
@@ -1438,7 +1438,7 @@ impl DagState {
             let header_opt = self.recent_block_headers.get(block_ref);
             let mut block_constructed = false;
             if let Some(header) = header_opt {
-                let transaction_ref = if self.context.protocol_config.consensus_transaction_ref() {
+                let transaction_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
                     GenericTransactionRef::from(TransactionRef {
                         round: block_ref.round,
                         author: block_ref.author,
@@ -1928,7 +1928,7 @@ impl DagState {
             let eviction_round = self.calculate_authority_eviction_round(authority_index);
 
             // Evict everything below split_key
-            let split_key = if self.context.protocol_config.consensus_transaction_ref() {
+            let split_key = if self.context.protocol_config.consensus_fast_commit_sync() {
                 GenericTransactionRef::from(TransactionRef {
                     round: eviction_round + 1,
                     author: authority_index,
@@ -1959,7 +1959,7 @@ impl DagState {
             let transaction_eviction_round = min(transaction_gc_round, eviction_round + 1);
 
             // Evict everything below split_key
-            let split_key = if self.context.protocol_config.consensus_transaction_ref() {
+            let split_key = if self.context.protocol_config.consensus_fast_commit_sync() {
                 GenericTransactionRef::from(TransactionRef {
                     round: transaction_eviction_round,
                     author: authority_index,
@@ -2981,13 +2981,14 @@ mod test {
 
     #[rstest]
     #[tokio::test]
-    async fn test_flush_and_recovery(#[values(true, false)] consensus_transaction_ref: bool) {
+    async fn test_flush_and_recovery(#[values(true, false)] consensus_fast_commit_sync: bool) {
         telemetry_subscribers::init_for_testing();
         let num_authorities: u32 = 4;
         let (mut context, _) = Context::new_for_test(num_authorities as usize);
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         context
             .protocol_config
-            .set_consensus_transaction_ref_for_testing(consensus_transaction_ref);
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
         let mut dag_state = DagState::new(context.clone(), store.clone());
@@ -3065,7 +3066,7 @@ mod test {
         all_transactions.extend(dag_builder.transactions(1..=num_rounds));
 
         // All transactions should be found in DagState.
-        let transactions_refs = if consensus_transaction_ref {
+        let transactions_refs = if consensus_fast_commit_sync {
             all_block_headers
                 .iter()
                 .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
@@ -3116,7 +3117,7 @@ mod test {
         assert_eq!(result, block_headers);
         // Transactions from the first 5 rounds should be found in DagState.
         let vec_transactions = dag_builder.transactions(1..=5);
-        let transactions_refs = if consensus_transaction_ref {
+        let transactions_refs = if consensus_fast_commit_sync {
             block_headers
                 .iter()
                 .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
@@ -3153,7 +3154,7 @@ mod test {
             .flatten()
             .collect::<Vec<_>>();
         assert!(retrieved_block_headers.is_empty());
-        let transactions_refs = if consensus_transaction_ref {
+        let transactions_refs = if consensus_fast_commit_sync {
             missing_block_headers
                 .iter()
                 .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
@@ -3638,11 +3639,12 @@ mod test {
 
     #[rstest]
     #[tokio::test]
-    async fn test_contains_transactions(#[values(true, false)] consensus_transaction_ref: bool) {
+    async fn test_contains_transactions(#[values(true, false)] consensus_fast_commit_sync: bool) {
         let (mut context, _) = Context::new_for_test(4);
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         context
             .protocol_config
-            .set_consensus_transaction_ref_for_testing(consensus_transaction_ref);
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
         let mut dag_state = DagState::new(context.clone(), store.clone());
@@ -3682,7 +3684,7 @@ mod test {
         let mut transactions_refs = blocks
             .iter()
             .map(|block| {
-                if consensus_transaction_ref {
+                if consensus_fast_commit_sync {
                     GenericTransactionRef::from(block.transaction_ref())
                 } else {
                     GenericTransactionRef::from(block.reference())
@@ -3696,7 +3698,7 @@ mod test {
         assert_eq!(result, expected);
 
         // Now try to ask also for one block ref that is neither in cache nor in store
-        let non_existent_ref = if consensus_transaction_ref {
+        let non_existent_ref = if consensus_fast_commit_sync {
             GenericTransactionRef::from(TransactionRef {
                 round: 11,
                 author: AuthorityIndex::new_for_test(0),
@@ -3725,7 +3727,7 @@ mod test {
         let transactions_refs = blocks
             .iter()
             .map(|block| {
-                if consensus_transaction_ref {
+                if consensus_fast_commit_sync {
                     GenericTransactionRef::from(block.transaction_ref())
                 } else {
                     GenericTransactionRef::from(block.reference())
@@ -3768,15 +3770,16 @@ mod test {
 
     #[rstest]
     #[tokio::test]
-    async fn test_eviction(#[values(true, false)] consensus_transaction_ref: bool) {
+    async fn test_eviction(#[values(true, false)] consensus_fast_commit_sync: bool) {
         telemetry_subscribers::init_for_testing();
         let num_authorities: u32 = 4;
         let (mut context, _) = Context::new_for_test(num_authorities as usize);
         context
             .protocol_config
-            .set_consensus_transaction_ref_for_testing(consensus_transaction_ref);
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
         const CACHED_ROUNDS: Round = 5;
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
         let mut dag_state = DagState::new(context.clone(), store);
@@ -3858,7 +3861,7 @@ mod test {
         let block_headers_above_gc = dag_builder.block_headers(gc_round + 1..=num_rounds);
 
         // Create appropriate transaction refs based on the flag
-        let transaction_refs = if consensus_transaction_ref {
+        let transaction_refs = if consensus_fast_commit_sync {
             block_headers_above_gc
                 .iter()
                 .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
@@ -3892,7 +3895,7 @@ mod test {
         );
 
         // All transactions should be found in DagState or store.
-        let transaction_refs = if consensus_transaction_ref {
+        let transaction_refs = if consensus_fast_commit_sync {
             all_block_headers
                 .iter()
                 .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))

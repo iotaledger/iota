@@ -208,7 +208,7 @@ impl Store for RocksDBStore {
         // Store transactions data
         for transaction in write_batch.transactions {
             let transaction_ref = transaction.transaction_ref();
-            if context.protocol_config.consensus_transaction_ref() {
+            if context.protocol_config.consensus_fast_commit_sync() {
                 batch
                     .insert_batch(
                         &self.transactions_by_tx_refs,
@@ -316,7 +316,7 @@ impl Store for RocksDBStore {
     fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
         // Get both headers and transactions for the given references
         let headers = self.read_verified_block_headers(refs)?;
-        let tx_refs = if self.context.protocol_config.consensus_transaction_ref() {
+        let tx_refs = if self.context.protocol_config.consensus_fast_commit_sync() {
             headers
                 .iter()
                 .map(|vh| {

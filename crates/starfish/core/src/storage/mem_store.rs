@@ -97,7 +97,7 @@ impl Store for MemStore {
         // Store transactions data separately
         for transaction in write_batch.transactions {
             let transaction_ref = transaction.transaction_ref();
-            if context.protocol_config.consensus_transaction_ref() {
+            if context.protocol_config.consensus_fast_commit_sync() {
                 inner.transactions_by_tx_refs.insert(
                     (
                         transaction_ref.round,
@@ -209,7 +209,7 @@ impl Store for MemStore {
         let inner = self.inner.read();
         // Get both headers and transactions for the given references
         let headers = self.read_verified_block_headers(refs)?;
-        let tx_refs = if self.context.protocol_config.consensus_transaction_ref() {
+        let tx_refs = if self.context.protocol_config.consensus_fast_commit_sync() {
             headers
                 .iter()
                 .map(|vh| {

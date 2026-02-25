@@ -33,7 +33,7 @@ impl TestStore {
         }
     }
 
-    fn transaction_ref_enabled(&self) -> bool {
+    fn consensus_fast_commit_sync(&self) -> bool {
         match self {
             TestStore::RocksDB((_, _, enabled)) => *enabled,
             TestStore::Mem(_, enabled) => *enabled,
@@ -45,21 +45,21 @@ impl TestStore {
         let (mut context, _) = Context::new_for_test(4);
         context
             .protocol_config
-            .set_consensus_transaction_ref_for_testing(self.transaction_ref_enabled());
+            .set_consensus_fast_commit_sync_for_testing(self.consensus_fast_commit_sync());
         Arc::new(context)
     }
 }
 
-fn new_rocksdb_teststore(transaction_ref_enabled: bool) -> TestStore {
+fn new_rocksdb_teststore(consensus_fast_commit_sync: bool) -> TestStore {
     let (mut context, _) = Context::new_for_test(4);
     context
         .protocol_config
-        .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
+        .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
     let temp_dir = TempDir::new().unwrap();
     TestStore::RocksDB((
         RocksDBStore::new(temp_dir.path().to_str().unwrap(), Arc::new(context)),
         temp_dir,
-        transaction_ref_enabled,
+        consensus_fast_commit_sync,
     ))
 }
 
@@ -67,7 +67,7 @@ fn new_mem_teststore(transaction_ref_enabled: bool) -> TestStore {
     let (mut context, _) = Context::new_for_test(4);
     context
         .protocol_config
-        .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
+        .set_consensus_fast_commit_sync_for_testing(transaction_ref_enabled);
     TestStore::Mem(
         MemStore::new(Arc::from(context.clone())),
         transaction_ref_enabled,
@@ -197,10 +197,10 @@ async fn scan_block_headers(
     let store = test_store.store();
     let (mut context, _) = crate::context::Context::new_for_test(4);
     // Match the flag used to create the store
-    let transaction_ref_enabled = test_store.transaction_ref_enabled();
+    let consensus_fast_commit_sync = test_store.consensus_fast_commit_sync();
     context
         .protocol_config
-        .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
+        .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
     let context = Arc::new(context);
 
     let written_blocks = [
@@ -337,10 +337,10 @@ async fn read_and_contain_transactions(
     ];
     let (mut context, _) = Context::new_for_test(4);
     // Match the flag used to create the store
-    let transaction_ref_enabled = test_store.transaction_ref_enabled();
+    let consensus_fast_commit_sync = test_store.consensus_fast_commit_sync();
     context
         .protocol_config
-        .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
+        .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
     let context = Arc::new(context);
     // Write transactions to store
     let written_transactions: Vec<_> = written_blocks

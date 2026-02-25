@@ -240,7 +240,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 self.inner
                     .context
                     .protocol_config
-                    .consensus_transaction_ref(),
+                    .consensus_fast_commit_sync(),
             );
 
         if should_schedule {
@@ -483,7 +483,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .commit_sync_fetch_once_latency
             .with_label_values(&[inner.sync_type.as_str()])
             .start_timer();
-        assert!(inner.context.protocol_config.consensus_transaction_ref());
+        assert!(inner.context.protocol_config.consensus_fast_commit_sync());
 
         // 1. Fetch commits, voting headers, and transactions in the commit range from
         //    the target authority. Each transaction is serialized as
@@ -838,7 +838,7 @@ mod tests {
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_transaction_ref_for_testing(true);
+        protocol_config.set_consensus_fast_commit_sync_for_testing(true);
 
         let temp_dirs: Vec<TempDir> = (0..NUM_AUTHORITIES)
             .map(|_| TempDir::new().unwrap())
@@ -1218,7 +1218,7 @@ mod tests {
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_transaction_ref_for_testing(true);
+        protocol_config.set_consensus_fast_commit_sync_for_testing(true);
 
         let temp_dirs: Vec<TempDir> = (0..NUM_AUTHORITIES)
             .map(|_| TempDir::new().unwrap())

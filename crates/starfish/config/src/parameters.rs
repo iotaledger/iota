@@ -117,7 +117,7 @@ pub struct Parameters {
 
     /// Enable FastCommitSyncer for faster recovery from large commit gaps.
     /// This is a local node configuration that works in conjunction with the
-    /// protocol-level enable_fast_commit_sync feature flag. Both must be
+    /// protocol-level consensus_fast_commit_sync feature flag. Both must be
     /// enabled for FastCommitSyncer to run. The protocol flag controls
     /// whether gRPC endpoints are available, while this local flag controls
     /// whether this specific node creates and runs the FastCommitSyncer.
@@ -262,7 +262,7 @@ impl Parameters {
 
     pub(crate) fn default_enable_fast_commit_syncer() -> bool {
         // Disabled by default. Operators can enable it locally once the protocol-level
-        // enable_fast_commit_sync flag is active, or disable it again if bugs are
+        // consensus_fast_commit_sync flag is active, or disable it again if bugs are
         // discovered, without waiting for a protocol upgrade.
         false
     }

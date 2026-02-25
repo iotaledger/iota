@@ -88,15 +88,15 @@ impl CommitSyncType {
         &self,
         gap: u32,
         commit_sync_gap_threshold: u32,
-        consensus_transaction_ref: bool,
+        consensus_fast_commit_sync: bool,
     ) -> bool {
         match self {
-            // Fast syncer requires consensus_transaction_ref to be enabled
-            CommitSyncType::Fast => consensus_transaction_ref && gap > commit_sync_gap_threshold,
-            // Regular syncer handles all gaps when consensus_transaction_ref is disabled,
+            // Fast syncer requires consensus_fast_commit_sync to be enabled
+            CommitSyncType::Fast => consensus_fast_commit_sync && gap > commit_sync_gap_threshold,
+            // Regular syncer handles all gaps when consensus_fast_commit_sync is disabled,
             // otherwise only handles small gaps
             CommitSyncType::Regular => {
-                !consensus_transaction_ref || gap <= commit_sync_gap_threshold
+                !consensus_fast_commit_sync || gap <= commit_sync_gap_threshold
             }
         }
     }
