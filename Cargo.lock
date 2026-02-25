@@ -7984,7 +7984,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ab70de1289fcaf85b19384318b29721181981e85#ab70de1289fcaf85b19384318b29721181981e85"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=24d9b65f00a19f2c8e08d1c55f227e90386c88a9#24d9b65f00a19f2c8e08d1c55f227e90386c88a9"
 dependencies = [
  "bip32",
  "bip39",
