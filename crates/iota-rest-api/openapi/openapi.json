@@ -1298,6 +1298,80 @@
         "type": "string",
         "format": "u256"
       },
+      "CallArg": {
+        "oneOf": [
+          {
+            "description": "A move value serialized as BCS.\n\nFor normal operations this is required to be a move primitive type and not contain structs or objects.",
+            "type": "object",
+            "required": [
+              "pure"
+            ],
+            "properties": {
+              "pure": {
+                "$ref": "#/components/schemas/PureInput"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "A move object that is either immutable or address owned",
+            "type": "object",
+            "required": [
+              "immutable_or_owned"
+            ],
+            "properties": {
+              "immutable_or_owned": {
+                "$ref": "#/components/schemas/ObjectReference"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "A move object whose owner is \"Shared\"",
+            "type": "object",
+            "required": [
+              "shared"
+            ],
+            "properties": {
+              "shared": {
+                "type": "object",
+                "required": [
+                  "initialSharedVersion",
+                  "mutable",
+                  "objectId"
+                ],
+                "properties": {
+                  "initialSharedVersion": {
+                    "description": "Radix-10 encoded 64-bit unsigned integer",
+                    "type": "string",
+                    "format": "u64"
+                  },
+                  "mutable": {
+                    "type": "boolean"
+                  },
+                  "objectId": {
+                    "$ref": "#/components/schemas/ObjectId"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "A move object that is attempted to be received in this transaction.",
+            "type": "object",
+            "required": [
+              "receiving"
+            ],
+            "properties": {
+              "receiving": {
+                "$ref": "#/components/schemas/ObjectReference"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
       "CancelledTransaction": {
         "description": "A transaction that was cancelled\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text cancelled-transaction = digest (vector version-assignment) ```",
         "type": "object",
@@ -2752,7 +2826,7 @@
             }
           },
           {
-            "description": "Attempted to used feature that is not supported yet",
+            "description": "Attempted to use feature that is not supported yet",
             "type": "object",
             "required": [
               "error"
@@ -3333,34 +3407,6 @@
             }
           },
           {
-            "description": "Certificate is cancelled due to congestion on shared objects; suggested gas price can be used to give this certificate more priority.",
-            "type": "object",
-            "required": [
-              "congested_objects",
-              "error",
-              "suggested_gas_price"
-            ],
-            "properties": {
-              "congested_objects": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/ObjectId"
-                }
-              },
-              "error": {
-                "type": "string",
-                "enum": [
-                  "execution_cancelled_due_to_shared_object_congestion_v2"
-                ]
-              },
-              "suggested_gas_price": {
-                "type": "integer",
-                "format": "uint64",
-                "minimum": 0.0
-              }
-            }
-          },
-          {
             "description": "Address is denied for this coin type",
             "type": "object",
             "required": [
@@ -3414,6 +3460,34 @@
                 "enum": [
                   "execution_cancelled_due_to_randomness_unavailable"
                 ]
+              }
+            }
+          },
+          {
+            "description": "Certificate is cancelled due to congestion on shared objects; suggested gas price can be used to give this certificate more priority.",
+            "type": "object",
+            "required": [
+              "congested_objects",
+              "error",
+              "suggested_gas_price"
+            ],
+            "properties": {
+              "congested_objects": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ObjectId"
+                }
+              },
+              "error": {
+                "type": "string",
+                "enum": [
+                  "execution_cancelled_due_to_shared_object_congestion_v2"
+                ]
+              },
+              "suggested_gas_price": {
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0.0
               }
             }
           },
@@ -3587,80 +3661,6 @@
         ],
         "type": "string",
         "pattern": "(?:[a-zA-Z][a-zA-Z0-9_]{0,127})|(?:_[a-zA-Z0-9_]{0,127})"
-      },
-      "Input": {
-        "oneOf": [
-          {
-            "description": "A move value serialized as BCS.\n\nFor normal operations this is required to be a move primitive type and not contain structs or objects.",
-            "type": "object",
-            "required": [
-              "pure"
-            ],
-            "properties": {
-              "pure": {
-                "$ref": "#/components/schemas/PureInput"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "A move object that is either immutable or address owned",
-            "type": "object",
-            "required": [
-              "immutable_or_owned"
-            ],
-            "properties": {
-              "immutable_or_owned": {
-                "$ref": "#/components/schemas/ObjectReference"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "A move object whose owner is \"Shared\"",
-            "type": "object",
-            "required": [
-              "shared"
-            ],
-            "properties": {
-              "shared": {
-                "type": "object",
-                "required": [
-                  "initialSharedVersion",
-                  "mutable",
-                  "objectId"
-                ],
-                "properties": {
-                  "initialSharedVersion": {
-                    "description": "Radix-10 encoded 64-bit unsigned integer",
-                    "type": "string",
-                    "format": "u64"
-                  },
-                  "mutable": {
-                    "type": "boolean"
-                  },
-                  "objectId": {
-                    "$ref": "#/components/schemas/ObjectId"
-                  }
-                }
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "A move object that is attempted to be received in this transaction.",
-            "type": "object",
-            "required": [
-              "receiving"
-            ],
-            "properties": {
-              "receiving": {
-                "$ref": "#/components/schemas/ObjectReference"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
       },
       "Jwk": {
         "description": "A JSON Web Key\n\nStruct that contains info for a JWK. A list of them for different kids can be retrieved from the JWK endpoint (e.g. <https://www.googleapis.com/oauth2/v3/certs>). The JWK is used to verify the JWT token.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text jwk = string string string string ```",
@@ -4415,7 +4415,7 @@
             }
           },
           {
-            "description": "PackageId does not matach PackageId in upgrade ticket",
+            "description": "PackageId does not match PackageId in upgrade ticket",
             "type": "object",
             "required": [
               "kind",
@@ -5121,7 +5121,7 @@
                 "description": "Input objects or primitive values",
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/Input"
+                  "$ref": "#/components/schemas/CallArg"
                 }
               },
               "kind": {
@@ -5800,11 +5800,11 @@
               "call_args": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/Input"
+                  "$ref": "#/components/schemas/CallArg"
                 }
               },
               "object_to_authenticate": {
-                "$ref": "#/components/schemas/Input"
+                "$ref": "#/components/schemas/CallArg"
               },
               "scheme": {
                 "type": "string",

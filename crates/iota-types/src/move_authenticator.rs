@@ -26,6 +26,30 @@ use crate::{
     type_input::TypeInput,
 };
 
+// Schema proxy types that preserve the old binary-format OpenRPC schema for
+// `CallArg` / `ObjectArg`, independently of the human-readable schemars impl
+// that `iota-sdk-types::Input` uses (which matches its JSON serialization).
+// These are used only by schemars for OpenRPC schema generation; they are NOT
+// used for serialization.
+#[derive(JsonSchema)]
+#[schemars(rename = "CallArg")]
+enum BinaryCallArgSchema {
+    Pure(Vec<u8>),
+    Object(BinaryObjectArgSchema),
+}
+
+#[derive(JsonSchema)]
+#[schemars(rename = "ObjectArg")]
+enum BinaryObjectArgSchema {
+    ImmOrOwnedObject(ObjectRef),
+    SharedObject {
+        id: ObjectID,
+        initial_shared_version: u64,
+        mutable: bool,
+    },
+    Receiving(ObjectRef),
+}
+
 /// MoveAuthenticator is a GenericSignature variant that enables a new
 /// method of authentication through Move code.
 /// This function represents the data received by the Move authenticate function
@@ -33,12 +57,14 @@ use crate::{
 #[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
 pub struct MoveAuthenticator {
     /// Input objects or primitive values
+    #[schemars(with = "Vec<BinaryCallArgSchema>")]
     call_args: Vec<CallArg>,
     /// Type arguments for the Move authenticate function
     #[schemars(with = "Vec<String>")]
     type_arguments: Vec<TypeInput>,
     /// The object that is authenticated. Represents the account being the
     /// sender of the transaction.
+    #[schemars(with = "BinaryCallArgSchema")]
     object_to_authenticate: CallArg,
     /// A bytes representation of [struct MoveAuthenticator]. This helps with
     /// implementing trait [AsRef](core::convert::AsRef).
