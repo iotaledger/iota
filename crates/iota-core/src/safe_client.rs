@@ -15,9 +15,10 @@ use iota_types::{
     iota_system_state::IotaSystemState,
     messages_grpc::{
         HandleCertificateRequestV1, HandleCertificateResponseV1, ObjectInfoRequest,
-        ObjectInfoResponse, SubmitTxRequest, SubmitTxResponse, SystemStateRequest,
-        TransactionInfoRequest, TransactionStatus, ValidatorHealthRequest, ValidatorHealthResponse,
-        VerifiedObjectInfoResponse, WaitForEffectsRequest, WaitForEffectsResponse,
+        ObjectInfoResponse, SubmitTransactionsRequest, SubmitTransactionsResponse,
+        SystemStateRequest, TransactionInfoRequest, TransactionStatus, ValidatorHealthRequest,
+        ValidatorHealthResponse, VerifiedObjectInfoResponse, WaitForEffectsRequest,
+        WaitForEffectsResponse,
     },
     messages_safe_client::PlainTransactionInfoResponse,
     transaction::*,
@@ -511,11 +512,11 @@ where
     #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
     pub async fn submit_transaction(
         &self,
-        request: SubmitTxRequest,
+        request: SubmitTransactionsRequest,
         client_addr: Option<SocketAddr>,
-    ) -> Result<SubmitTxResponse, IotaError> {
+    ) -> Result<SubmitTransactionsResponse, IotaError> {
         self.authority_client
-            .submit_transaction(request, client_addr)
+            .handle_submit_transactions(request, client_addr)
             .await
     }
 
@@ -527,7 +528,7 @@ where
         client_addr: Option<SocketAddr>,
     ) -> Result<WaitForEffectsResponse, IotaError> {
         self.authority_client
-            .wait_for_effects(request, client_addr)
+            .handle_wait_for_effects(request, client_addr)
             .await
     }
 
@@ -537,6 +538,6 @@ where
         &self,
         request: ValidatorHealthRequest,
     ) -> Result<ValidatorHealthResponse, IotaError> {
-        self.authority_client.validator_health(request).await
+        self.authority_client.handle_validator_health(request).await
     }
 }

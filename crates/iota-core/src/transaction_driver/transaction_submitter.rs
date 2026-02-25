@@ -11,7 +11,7 @@ use futures::stream::{FuturesUnordered, StreamExt};
 use iota_types::{
     base_types::AuthorityName,
     error::ErrorCategory,
-    messages_grpc::{SubmitTxRequest, SubmitTxResult},
+    messages_grpc::{SubmitTransactionResult, SubmitTransactionsRequest},
 };
 use tokio::time::timeout;
 use tracing::instrument;
@@ -50,9 +50,9 @@ impl TransactionSubmitter {
         authority_aggregator: &Arc<AuthorityAggregator<A>>,
         client_monitor: &Arc<ValidatorClientMonitor<A>>,
         amplification_factor: u64,
-        request: SubmitTxRequest,
+        request: SubmitTransactionsRequest,
         options: &SubmitTransactionOptions,
-    ) -> Result<(AuthorityName, SubmitTxResult), TransactionDriverError>
+    ) -> Result<(AuthorityName, SubmitTransactionResult), TransactionDriverError>
     where
         A: AuthorityAPI + Send + Sync + 'static + Clone,
     {
@@ -69,7 +69,7 @@ impl TransactionSubmitter {
             options.blocked_validators.clone(),
         );
 
-        let ping_label = request.transaction.is_none().to_string();
+        let ping_label = request.transactions.is_empty().to_string();
         let mut retries = 0;
         let mut request_rpcs = FuturesUnordered::new();
 
@@ -186,12 +186,12 @@ impl TransactionSubmitter {
     pub(crate) async fn submit_transaction_once<A>(
         &self,
         client: Arc<SafeClient<A>>,
-        request: &SubmitTxRequest,
+        request: &SubmitTransactionsRequest,
         options: &SubmitTransactionOptions,
         client_monitor: &Arc<ValidatorClientMonitor<A>>,
         validator: AuthorityName,
         display_name: String,
-    ) -> Result<SubmitTxResult, TransactionRequestError>
+    ) -> Result<SubmitTransactionResult, TransactionRequestError>
     where
         A: AuthorityAPI + Send + Sync + 'static + Clone,
     {
@@ -207,7 +207,7 @@ impl TransactionSubmitter {
                 authority_name: validator,
                 display_name: display_name.clone(),
                 operation: OperationType::Submit,
-                ping: request.transaction.is_none(),
+                ping: request.transactions.is_empty(),
                 result: Err(()),
             });
             TransactionRequestError::TimedOutSubmittingTransaction
@@ -218,7 +218,7 @@ impl TransactionSubmitter {
                     authority_name: validator,
                     display_name: display_name.clone(),
                     operation: OperationType::Submit,
-                    ping: request.transaction.is_none(),
+                    ping: request.transactions.is_empty(),
                     result: Err(()),
                 });
             }
@@ -235,13 +235,13 @@ impl TransactionSubmitter {
 
         // Since only one transaction is submitted, it is ok to return error when the
         // submission is rejected.
-        if let SubmitTxResult::Rejected { error } = &result {
+        if let SubmitTransactionResult::Rejected { error } = &result {
             if is_validator_error(error.categorize()) {
                 client_monitor.record_interaction_result(OperationFeedback {
                     authority_name: validator,
                     display_name,
                     operation: OperationType::Submit,
-                    ping: request.transaction.is_none(),
+                    ping: request.transactions.is_empty(),
                     result: Err(()),
                 });
             }
@@ -253,7 +253,7 @@ impl TransactionSubmitter {
             authority_name: validator,
             display_name,
             operation: OperationType::Submit,
-            ping: request.transaction.is_none(),
+            ping: request.transactions.is_empty(),
             result: Ok(latency),
         });
         Ok(result)

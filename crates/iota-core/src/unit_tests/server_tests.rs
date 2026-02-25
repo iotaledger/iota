@@ -19,7 +19,7 @@ use iota_types::{
     },
     error::IotaError,
     messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
-    messages_grpc::LayoutGenerationOption,
+    messages_grpc::{LayoutGenerationOption, SubmitTransactionsRequest},
     supported_protocol_versions::SupportedProtocolVersions,
 };
 
@@ -301,8 +301,8 @@ async fn test_submit_transaction_v1_feature_flag_disabled() {
 
     // Call submit_transaction
     let result = validator_service
-        .submit_transaction(make_tonic_request_for_testing(
-            iota_types::messages_grpc::SubmitTxRequest::new_transaction(tx),
+        .handle_submit_transactions_impl(make_tonic_request_for_testing(
+            SubmitTransactionsRequest::new_transaction(tx),
         ))
         .await;
 
@@ -378,17 +378,17 @@ async fn test_submit_transaction_invalid_signature() {
 
     // Call submit_transaction
     let result = validator_service
-        .submit_transaction(make_tonic_request_for_testing(
-            iota_types::messages_grpc::SubmitTxRequest::new_transaction(tx),
+        .handle_submit_transactions_impl(make_tonic_request_for_testing(
+            SubmitTransactionsRequest::new_transaction(tx),
         ))
         .await;
 
     // Should return Ok with Rejected result
     assert!(result.is_ok(), "Should return Ok with Rejected result");
-    let response = result.unwrap().into_inner();
+    let response = result.unwrap().0.into_inner();
     assert_eq!(response.results.len(), 1, "Should have one result");
     match &response.results[0] {
-        iota_types::messages_grpc::SubmitTxResult::Rejected { .. } => {
+        SubmitTransactionResult::Rejected { .. } => {
             // Success - signature error was caught and returned as Rejected
         }
         other => panic!(
@@ -458,17 +458,17 @@ async fn test_submit_transaction_success() {
 
     // Call submit_transaction
     let result = validator_service
-        .submit_transaction(make_tonic_request_for_testing(
-            iota_types::messages_grpc::SubmitTxRequest::new_transaction(tx),
+        .handle_submit_transactions_impl(make_tonic_request_for_testing(
+            SubmitTransactionsRequest::new_transaction(tx),
         ))
         .await;
 
     // Should succeed with Submitted result
     assert!(result.is_ok(), "Transaction submission should succeed");
-    let response = result.unwrap().into_inner();
+    let response = result.unwrap().0.into_inner();
     assert_eq!(response.results.len(), 1, "Should have one result");
     match &response.results[0] {
-        iota_types::messages_grpc::SubmitTxResult::Submitted => {
+        SubmitTransactionResult::Submitted => {
             // Success - transaction was submitted to consensus
         }
         other => panic!("Expected Submitted result, got {:?}", other),
