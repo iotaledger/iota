@@ -128,14 +128,17 @@ export function AddAccountPage() {
         const ampliAccountType = ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE[actionType];
         const ampliAccountOrigin = ACCOUNT_FORM_TYPE_TO_ACCOUNT_ORIGIN[actionType];
 
+        if (ampliAccountType && ampliAccountOrigin) {
+            ampli.accountCreationStarted({
+                accountType: ampliAccountType,
+                accountOrigin: ampliAccountOrigin,
+                isFirstAccount,
+                sourceFlow,
+            });
+        }
+
         switch (actionType) {
             case AccountsFormType.ImportLedger:
-                ampli.accountCreationStarted({
-                    accountType: ampliAccountType,
-                    accountOrigin: ampliAccountOrigin,
-                    isFirstAccount,
-                    sourceFlow,
-                });
                 if (isPopupOrSidePanel) {
                     await openTabWithSearchParam('showLedger', 'true');
                     window.close();
@@ -144,12 +147,6 @@ export function AddAccountPage() {
                 }
                 break;
             case AccountsFormType.ImportKeystone:
-                ampli.accountCreationStarted({
-                    accountType: ampliAccountType,
-                    accountOrigin: ampliAccountOrigin,
-                    isFirstAccount,
-                    sourceFlow,
-                });
                 if (isPopupOrSidePanel && cameraPermissionStatus === 'prompt') {
                     await openTabOnImportKeystone();
                     window.close();
@@ -157,8 +154,6 @@ export function AddAccountPage() {
                     navigate('/accounts/import-keystone');
                 }
                 break;
-            default:
-                throw new Error('Unsupported action type');
         }
     }
 

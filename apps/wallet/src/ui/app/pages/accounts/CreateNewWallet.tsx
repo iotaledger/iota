@@ -58,26 +58,23 @@ export function CreateNewWallet() {
         const ampliAccountType = ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE[actionType];
         const ampliAccountOrigin = ACCOUNT_FORM_TYPE_TO_ACCOUNT_ORIGIN[actionType];
 
+        if (ampliAccountType && ampliAccountOrigin) {
+            ampli.accountCreationStarted({
+                accountType: ampliAccountType,
+                accountOrigin: ampliAccountOrigin,
+                isFirstAccount,
+                sourceFlow,
+            });
+        }
+
         switch (actionType) {
             case AccountsFormType.NewMnemonic:
                 setAccountsFormValues({ type: AccountsFormType.NewMnemonic });
-                ampli.accountCreationStarted({
-                    accountType: ampliAccountType,
-                    accountOrigin: ampliAccountOrigin,
-                    isFirstAccount,
-                    sourceFlow,
-                });
                 navigate(
                     `/accounts/protect-account?accountsFormType=${AccountsFormType.NewMnemonic}`,
                 );
                 break;
             case AccountsFormType.Passkey:
-                ampli.accountCreationStarted({
-                    accountType: ampliAccountType,
-                    accountOrigin: ampliAccountOrigin,
-                    isFirstAccount,
-                    sourceFlow,
-                });
                 const url = '/accounts/passkey-account';
                 if (isPopupOrSidePanel) {
                     openInNewTab(url);
@@ -86,8 +83,6 @@ export function CreateNewWallet() {
                     navigate(url);
                 }
                 break;
-            default:
-                throw new Error('Unsupported action type');
         }
     };
 

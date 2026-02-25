@@ -74,32 +74,23 @@ export function ImportExistingWallet() {
         const ampliAccountType = ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE[actionType];
         const ampliAccountOrigin = ACCOUNT_FORM_TYPE_TO_ACCOUNT_ORIGIN[actionType];
 
+        if (ampliAccountType && ampliAccountOrigin) {
+            ampli.accountCreationStarted({
+                accountType: ampliAccountType,
+                accountOrigin: ampliAccountOrigin,
+                isFirstAccount,
+                sourceFlow,
+            });
+        }
+
         switch (actionType) {
             case AccountsFormType.ImportMnemonic:
-                ampli.accountCreationStarted({
-                    accountType: ampliAccountType,
-                    accountOrigin: ampliAccountOrigin,
-                    isFirstAccount,
-                    sourceFlow,
-                });
                 navigate('/accounts/import-passphrase');
                 break;
             case AccountsFormType.ImportPrivateKey:
-                ampli.accountCreationStarted({
-                    accountType: ampliAccountType,
-                    accountOrigin: ampliAccountOrigin,
-                    isFirstAccount,
-                    sourceFlow,
-                });
                 navigate('/accounts/import-private-key');
                 break;
             case AccountsFormType.ImportPasskey:
-                ampli.accountCreationStarted({
-                    accountType: ampliAccountType,
-                    accountOrigin: ampliAccountOrigin,
-                    isFirstAccount,
-                    sourceFlow,
-                });
                 const url = '/accounts/import-passkey';
                 if (isPopupOrSidePanel) {
                     openInNewTab(url);
@@ -109,16 +100,8 @@ export function ImportExistingWallet() {
                 }
                 break;
             case AccountsFormType.ImportSeed:
-                ampli.accountCreationStarted({
-                    accountType: ampliAccountType,
-                    accountOrigin: ampliAccountOrigin,
-                    isFirstAccount,
-                    sourceFlow,
-                });
                 navigate('/accounts/import-seed');
                 break;
-            default:
-                throw new Error('Unsupported action type');
         }
     };
 
