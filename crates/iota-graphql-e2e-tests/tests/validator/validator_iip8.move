@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// Test validator info, before IIP8 (protocol-version < 20). So `effectiveCommissionRate` should equal the `commissionRate`.
+// Test validator info, after IIP8 (protocol-version = 20). So `effectiveCommissionRate` should equal the `votingPower`.
 
-//# init --protocol-version 13 --simulator --accounts A --addresses P0=0x0
+//# init --protocol-version 20 --simulator --accounts A --addresses P0=0x0
 
 //# advance-epoch
 

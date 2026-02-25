@@ -5008,9 +5008,16 @@ type Validator {
 	"""
 	gasPrice: BigInt
 	"""
-	The fee charged by the validator for staking services.
+	The fee set by the validator for providing staking services.
 	"""
 	commissionRate: Int
+	"""
+	The effective fee charged by the validator for staking services.
+	
+	This is evaluated according to [IIP8](https://github.com/iotaledger/IIPs/blob/main/iips/IIP-0008/IIP-0008.md)
+	for epochs with protocol version >= 20.
+	"""
+	effectiveCommissionRate: Int
 	"""
 	The total number of IOTA tokens in this pool plus
 	the pending stake amount for this epoch.
