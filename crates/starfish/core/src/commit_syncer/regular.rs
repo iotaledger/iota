@@ -157,7 +157,8 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             self.inner
                 .context
                 .protocol_config
-                .consensus_fast_commit_sync(),
+                .consensus_fast_commit_sync()
+                && self.inner.context.parameters.enable_fast_commit_syncer,
         ) {
             return;
         }

@@ -240,7 +240,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 self.inner
                     .context
                     .protocol_config
-                    .consensus_fast_commit_sync(),
+                    .consensus_fast_commit_sync()
+                    && self.inner.context.parameters.enable_fast_commit_syncer,
             );
 
         if should_schedule {
@@ -964,6 +965,7 @@ mod tests {
             commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
             fast_commit_sync_batch_size: 20,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
+            enable_fast_commit_syncer: true,
             ..Default::default()
         };
         let (authority, receiver, monitor) = make_authority_with_params(
@@ -1034,6 +1036,7 @@ mod tests {
             commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
             fast_commit_sync_batch_size: 20,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
+            enable_fast_commit_syncer: true,
             ..Default::default()
         };
         let (authority, receiver, monitor) = make_authority_with_params(
@@ -1432,6 +1435,7 @@ mod tests {
             commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
             fast_commit_sync_batch_size: COMMIT_SYNC_BATCH_SIZE,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
+            enable_fast_commit_syncer: true,
             ..Default::default()
         };
         let (authority, receiver, monitor) = make_authority_with_params(
