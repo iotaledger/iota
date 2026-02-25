@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { formatAddress } from '@iota/iota-sdk/utils';
-import cn from 'clsx';
 import { type ReactNode } from 'react';
 import { useExplorerLink, useAccounts, useCopyToClipboard } from '_hooks';
 import { ExplorerLinkType } from '_components';
@@ -16,18 +15,9 @@ interface AccountItemProps {
     icon?: ReactNode;
     hideExplorerLink?: boolean;
     hideCopy?: boolean;
-    onLockAccountClick?: () => void;
-    onUnlockAccountClick?: () => void;
 }
 
-export function AccountItem({
-    icon,
-    accountID,
-    onLockAccountClick,
-    onUnlockAccountClick,
-    hideExplorerLink,
-    hideCopy,
-}: AccountItemProps) {
+export function AccountItem({ icon, accountID, hideExplorerLink, hideCopy }: AccountItemProps) {
     const { data: accounts } = useAccounts();
     const account = accounts?.find((account) => account.id === accountID);
     const { data: iotaName } = useGetDefaultIotaName(account?.address);
@@ -51,28 +41,18 @@ export function AccountItem({
         <Account
             title={accountName}
             subtitle={formatAddress(account.address)}
-            isLocked={account.isLocked}
             onOpen={handleOpen}
-            avatarContent={() => <AccountAvatar isLocked={account.isLocked} icon={icon} />}
+            avatarContent={() => <AccountAvatar icon={icon} />}
             onCopy={copyAddress}
             isCopyable={!hideCopy}
             isExternal={!hideExplorerLink}
-            onLockAccountClick={onLockAccountClick}
-            onUnlockAccountClick={onUnlockAccountClick}
         />
     );
 }
 
-function AccountAvatar({ isLocked, icon }: { isLocked?: boolean; icon?: ReactNode }) {
+function AccountAvatar({ icon }: { icon?: ReactNode }) {
     return (
-        <div
-            className={cn(
-                'flex h-10 w-10 items-center justify-center rounded-full [&_svg]:h-5 [&_svg]:w-5 ',
-                isLocked
-                    ? 'bg-iota-neutral-96 dark:bg-iota-neutral-12 [&_svg]:text-iota-neutral-10 [&_svg]:dark:text-iota-neutral-92'
-                    : 'bg-iota-primary-30 [&_svg]:text-white',
-            )}
-        >
+        <div className="flex h-10 w-10 items-center justify-center rounded-full [&_svg]:h-5 [&_svg]:w-5 ">
             {icon}
         </div>
     );

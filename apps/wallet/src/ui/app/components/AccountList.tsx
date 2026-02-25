@@ -38,15 +38,6 @@ export function AccountList<A extends { address: string }>({
         { label: '', columnKey: 2 },
     ];
 
-    const rowsData = accounts.map((account) => {
-        const { data: coinBalance } = useBalance(account.address);
-        const [totalAmount, totalAmountSymbol] = useFormatCoin({
-            balance: coinBalance?.totalBalance ?? 0,
-        });
-
-        return [formatAddress(account.address), `${totalAmount} ${totalAmountSymbol}`];
-    });
-
     const selectedRowIndexes = accounts.reduce((set, acc, i) => {
         if (selectedAccounts.has(acc.address) || existingAddresses.has(acc.address)) {
             set.add(i);
@@ -66,31 +57,55 @@ export function AccountList<A extends { address: string }>({
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {rowsData.map((row, rowIndex) => {
-                    const isExisting = existingAddresses.has(accounts[rowIndex].address);
-                    return (
-                        <TableRow
-                            key={rowIndex}
-                            leading={
-                                <TableRowCheckbox
-                                    rowIndex={rowIndex}
-                                    isDisabled={isExisting}
-                                    onCheckboxChange={(checked) => {
-                                        if (isExisting) return;
-                                        onAccountClick(accounts[rowIndex], checked);
-                                    }}
-                                />
-                            }
-                        >
-                            {row.map((cell, cellIndex) => (
-                                <TableCellBase key={cellIndex}>
-                                    <TableCellText>{cell}</TableCellText>
-                                </TableCellBase>
-                            ))}
-                        </TableRow>
-                    );
-                })}
+                {accounts.map((account, rowIndex) => (
+                    <AccountRow
+                        key={account.address}
+                        account={account}
+                        rowIndex={rowIndex}
+                        onAccountClick={onAccountClick}
+                        isExisting={existingAddresses.has(accounts[rowIndex].address)}
+                    />
+                ))}
             </TableBody>
         </Table>
+    );
+}
+
+function AccountRow<A extends { address: string }>({
+    account,
+    rowIndex,
+    onAccountClick,
+    isExisting
+}: {
+    account: A;
+    rowIndex: number;
+    onAccountClick: (account: A, checked: boolean) => void;
+    isExisting
+}) {
+    const { data: coinBalance } = useBalance(account.address);
+    const [totalAmount, totalAmountSymbol] = useFormatCoin({
+        balance: coinBalance?.totalBalance ?? 0,
+    });
+    const cells = [formatAddress(account.address), `${totalAmount} ${totalAmountSymbol}`];
+
+    return (
+        <TableRow
+            leading={
+                <TableRowCheckbox
+                    rowIndex={rowIndex}
+                    isDisabled={isExisting}
+                    onCheckboxChange={(checked) => {
+                       if (isExisting) return;
+                       onAccountClick(accounts[rowIndex], checked);
+                    }}
+                />
+            }
+        >
+            {cells.map((cell, cellIndex) => (
+                <TableCellBase key={cellIndex}>
+                    <TableCellText>{cell}</TableCellText>
+                </TableCellBase>
+            ))}
+        </TableRow>
     );
 }

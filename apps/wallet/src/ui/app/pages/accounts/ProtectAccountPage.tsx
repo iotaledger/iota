@@ -18,6 +18,7 @@ import {
     autoLockDataToMinutes,
     useAutoLockMinutesMutation,
     useCreateAccountsMutation,
+    useBackgroundClient,
 } from '_hooks';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
@@ -56,6 +57,7 @@ export function ProtectAccountPage() {
     const accountsFormType = searchParams.get('accountsFormType') || '';
     const successRedirect = searchParams.get('successRedirect') || '/tokens';
     const navigate = useNavigate();
+    const backgroundClient = useBackgroundClient();
     const { data: accounts } = useAccounts();
     const createMutation = useCreateAccountsMutation();
     const hasPasswordAccounts = useMemo(
@@ -88,6 +90,9 @@ export function ProtectAccountPage() {
                 if (autoLockToTrack) {
                     trackAutoLockUpdated(autoLockToTrack);
                 }
+
+                await backgroundClient.unlockAllAccountsAndSources({ password });
+
                 if (
                     type === AccountsFormType.NewMnemonic &&
                     isMnemonicSerializedUiAccount(createdAccounts[0])
@@ -178,7 +183,16 @@ export function ProtectAccountPage() {
                     <VerifyPasswordModal
                         open
                         onClose={() => navigate(-1)}
-                        onVerify={(password) => createAccountCallback(password, accountsFormType)}
+                        onVerify={async (password) => {
+                            const unlockAllPromise = backgroundClient.unlockAllAccountsAndSources({
+                                password,
+                            });
+                            await createAccountCallback(
+                                password,
+                                accountsFormType as AccountsFormType,
+                            );
+                            await unlockAllPromise;
+                        }}
                     />
                 ) : (
                     <ProtectAccountForm

@@ -2,13 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { MILLISECONDS_PER_SECOND, useZodForm } from '@iota/core';
+import { MILLISECONDS_PER_SECOND, Theme, useTheme, useZodForm } from '@iota/core';
 import { useEffect, useState } from 'react';
 import { v4 as uuidV4 } from 'uuid';
 import { z } from 'zod';
-import { useAccountSources, useBackgroundClient } from '_hooks';
+import { useBackgroundClient } from '_hooks';
 import { Form } from '../../shared/forms/Form';
-import { AccountSourceType } from '_src/background/account-sources/accountSource';
 import {
     Button,
     ButtonHtmlType,
@@ -20,8 +19,10 @@ import {
     Input,
     InputType,
 } from '@iota/apps-ui-kit';
-import { Link } from 'react-router-dom';
 import { AccountTooManyAttemptsError } from '_src/shared/accounts';
+import UnlockWallet from '_assets/images/unlock_wallet.png';
+import UnlockWalletDarkmode from '_assets/images/unlock_wallet_darkmode.png';
+import clsx from 'clsx';
 
 const formSchema = z.object({
     password: z.string().nonempty('Required'),
@@ -36,6 +37,7 @@ export interface PasswordModalDialogProps {
     cancelText: string;
     onSubmit: (password: string) => Promise<void> | void;
     verify?: boolean;
+    onForgotPassword?: () => void;
 }
 
 export function PasswordModalDialog({
@@ -47,6 +49,7 @@ export function PasswordModalDialog({
     title,
     confirmText,
     cancelText,
+    onForgotPassword,
 }: PasswordModalDialogProps) {
     const form = useZodForm({
         mode: 'onChange',
@@ -59,6 +62,7 @@ export function PasswordModalDialog({
     const [countdownError, setCountdownError] = useState<string | null>(null);
     const [runLockInterval, setRunLockInterval] = useState<boolean>(true);
     const backgroundService = useBackgroundClient();
+    const { theme } = useTheme();
 
     // Run the lock interval if the popup just got opened again
     useEffect(() => {
@@ -104,11 +108,6 @@ export function PasswordModalDialog({
     } = form;
 
     const [formID] = useState(() => uuidV4());
-    const { data: allAccountsSources } = useAccountSources();
-    const hasAccountsSources =
-        allAccountsSources?.some(
-            ({ type }) => type === AccountSourceType.Mnemonic || type === AccountSourceType.Seed,
-        ) || false;
 
     async function handleOnSubmit({ password }: { password: string }) {
         try {
@@ -131,58 +130,89 @@ export function PasswordModalDialog({
     const isConfirmDisabled =
         !!countdownError || isSubmitting || !isValid || !!form.formState.errors.password?.message;
 
+    const heightClasses = showForgotPassword
+        ? 'min-h-[min(600px,90dvh)] max-h-[calc(100dvh-2rem)]'
+        : 'min-h-[min(calc(600px-4rem),80vh)] max-h-[calc(100dvh-4rem)]';
+
     return (
         <Dialog open={open}>
             <DialogContent containerId="overlay-portal-container">
-                <Header title={title} onClose={onClose} />
-                <DialogBody>
-                    <Form form={form} id={formID} onSubmit={handleOnSubmit}>
-                        <div className="flex flex-col gap-y-lg">
-                            <div className="flex flex-col gap-y-sm">
-                                <Input
-                                    autoFocus
-                                    type={InputType.Password}
-                                    isVisibilityToggleEnabled
-                                    placeholder="Password"
-                                    errorMessage={
-                                        countdownError || form.formState.errors.password?.message
-                                    }
-                                    {...register('password')}
-                                    name="password"
-                                />
-                                {showForgotPassword && (
-                                    <div className="relative p-xs">
-                                        {hasAccountsSources ? (
-                                            <Link
-                                                to="/accounts/forgot-password"
-                                                onClick={onClose}
-                                                className="absolute top-0 text-body-sm text-iota-neutral-40 no-underline dark:text-iota-neutral-60"
-                                            >
-                                                Forgot Password?
-                                            </Link>
-                                        ) : null}
-                                    </div>
-                                )}
+                {!showForgotPassword && <Header title="" onClose={onClose} />}
+                <DialogBody
+                    className={clsx(
+                        'dialog-body-color flex flex-col overflow-y-auto p-md--rs text-body-sm',
+                        heightClasses,
+                    )}
+                >
+                    <div
+                        className={clsx(
+                            'flex min-h-0 flex-1 flex-col items-center',
+                            showForgotPassword ? 'pt-2xl' : '',
+                        )}
+                    >
+                        <>
+                            <img
+                                src={theme === Theme.Dark ? UnlockWalletDarkmode : UnlockWallet}
+                                alt="Unlock wallet"
+                                height={178}
+                                width="auto"
+                                className="aspect-[4/3] h-[178px] w-auto object-cover"
+                            />
+                            <span className="py-xs text-headline-sm  text-iota-neutral-10 dark:text-iota-neutral-92">
+                                {title}
+                            </span>
+                        </>
+
+                        <Form
+                            form={form}
+                            id={formID}
+                            onSubmit={handleOnSubmit}
+                            className="flex min-h-0 w-full flex-1 flex-col"
+                        >
+                            <div className="flex flex-col gap-y-lg">
+                                <div className="flex flex-col gap-y-sm">
+                                    <Input
+                                        autoFocus
+                                        type={InputType.Password}
+                                        isVisibilityToggleEnabled
+                                        placeholder="Password"
+                                        errorMessage={
+                                            countdownError ||
+                                            form.formState.errors.password?.message
+                                        }
+                                        {...register('password')}
+                                        name="password"
+                                    />
+                                    {showForgotPassword && (
+                                        <span
+                                            onClick={onForgotPassword}
+                                            className="cursor-pointer self-center text-body-sm text-iota-neutral-40 underline dark:text-iota-neutral-60"
+                                        >
+                                            Forgot Password?
+                                        </span>
+                                    )}
+                                </div>
                             </div>
-                            <div className="flex flex-col gap-3">
-                                <div className="flex gap-2.5">
+
+                            <div className="mt-auto flex gap-2.5 pt-xl">
+                                {!showForgotPassword && (
                                     <Button
                                         type={ButtonType.Secondary}
                                         text={cancelText}
                                         onClick={onClose}
                                         fullWidth
                                     />
-                                    <Button
-                                        htmlType={ButtonHtmlType.Submit}
-                                        type={ButtonType.Primary}
-                                        disabled={isConfirmDisabled}
-                                        text={confirmText}
-                                        fullWidth
-                                    />
-                                </div>
+                                )}
+                                <Button
+                                    htmlType={ButtonHtmlType.Submit}
+                                    type={ButtonType.Primary}
+                                    disabled={isConfirmDisabled}
+                                    text={confirmText}
+                                    fullWidth
+                                />
                             </div>
-                        </div>
-                    </Form>
+                        </Form>
+                    </div>
                 </DialogBody>
             </DialogContent>
         </Dialog>

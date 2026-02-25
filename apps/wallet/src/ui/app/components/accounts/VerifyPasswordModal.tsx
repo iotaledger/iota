@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { PasswordModalDialog, type PasswordModalDialogProps } from './PasswordInputDialog';
+import { PasswordModalDialog, type PasswordModalDialogProps } from './PasswordModalDialog';
 
 interface VerifyPasswordModalProps {
     open: PasswordModalDialogProps['open'];
@@ -16,7 +16,7 @@ export function VerifyPasswordModal({ onClose, onVerify, open }: VerifyPasswordM
             {...{
                 onClose,
                 open,
-                title: 'Verify your profile password',
+                title: 'Verify wallet password',
                 verify: true,
                 confirmText: 'Verify',
                 cancelText: 'Back',
