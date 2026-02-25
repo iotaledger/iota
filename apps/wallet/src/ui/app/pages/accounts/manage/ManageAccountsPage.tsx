@@ -2,16 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { useRef } from 'react';
-import { Button, ButtonType } from '@iota/apps-ui-kit';
+import { Button, ButtonSize, ButtonType } from '@iota/apps-ui-kit';
 import { type AccountType } from '_src/background/accounts/account';
 import { useInitializedGuard, useAccountGroups } from '_hooks';
 import { useNavigate } from 'react-router-dom';
-import { Overlay } from '_components';
+import { Overlay, useUnlockAccounts } from '_components';
 import { AccountGroup } from './AccountGroup';
+import { LockLocked } from '@iota/apps-ui-icons';
 
 export function ManageAccountsPage() {
     const navigate = useNavigate();
     const groupedAccounts = useAccountGroups();
+    const { lockAccounts } = useUnlockAccounts();
     const outerRef = useRef<HTMLDivElement>(null);
     useInitializedGuard(true);
 
@@ -19,12 +21,27 @@ export function ManageAccountsPage() {
         navigate('/accounts/add-account');
     }
 
+    function handleLock() {
+        lockAccounts();
+    }
+
     return (
         <Overlay
             showModal
             title="Manage Accounts"
-            closeOverlay={() => navigate('/tokens')}
+            showBackButton
             titleCentered={false}
+            hideCloseIcon
+            headerAction={
+                <Button
+                    type={ButtonType.Secondary}
+                    size={ButtonSize.Small}
+                    onClick={handleLock}
+                    icon={<LockLocked className="h-5 w-5" />}
+                    text="Lock"
+                    testId="lock-wallet"
+                />
+            }
         >
             <div className="flex h-full w-full flex-col">
                 <div className="flex flex-1 flex-col overflow-y-auto">
