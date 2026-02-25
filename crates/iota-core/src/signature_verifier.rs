@@ -308,12 +308,7 @@ impl SignatureVerifier {
             }
         };
 
-        if let Ok(res) = timeout(
-            Duration::from_millis(BATCH_TIMEOUT_MS.load(std::sync::atomic::Ordering::Relaxed)),
-            &mut rx,
-        )
-        .await
-        {
+        if let Ok(res) = timeout(Duration::from_millis(BATCH_TIMEOUT_MS.load(std::sync::atomic::Ordering::Relaxed)), &mut rx).await {
             // unwrap ok - tx cannot have been dropped without sending a result.
             return res.unwrap();
         }

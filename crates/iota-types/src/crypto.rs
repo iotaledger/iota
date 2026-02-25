@@ -67,14 +67,10 @@ mod crypto_tests;
 #[path = "unit_tests/intent_tests.rs"]
 mod intent_tests;
 
-pub static MOCK_VERIFY_ALL: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
-pub static MOCK_ADD_SIGNATURE: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
-pub static MOCK_NEW_SECURE: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
-pub static MOCK_VERIFY_SECURE: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
+pub static MOCK_VERIFY_ALL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub static MOCK_ADD_SIGNATURE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub static MOCK_NEW_SECURE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub static MOCK_VERIFY_SECURE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 ////////////////////////////////////////////////////////////////////////
 // Type aliases selecting the signature algorithm for the code base.
@@ -591,12 +587,7 @@ impl IotaAuthoritySignature for AuthoritySignature {
     {
         if MOCK_NEW_SECURE.load(std::sync::atomic::Ordering::Relaxed) {
             use fastcrypto::traits::ToFromBytes as _;
-            return Self::from_bytes(&[
-                151, 241, 211, 167, 49, 151, 215, 148, 38, 149, 99, 140, 79, 169, 172, 15, 195,
-                104, 140, 79, 151, 116, 185, 5, 161, 78, 58, 63, 23, 27, 172, 88, 108, 85, 232, 63,
-                249, 122, 26, 239, 251, 58, 240, 10, 219, 34, 198, 187,
-            ])
-            .unwrap();
+            return Self::from_bytes(&[1; 48]).unwrap();
         }
         let mut intent_msg_bytes =
             bcs::to_bytes(&value).expect("Message serialization should not fail");
