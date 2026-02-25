@@ -1,0 +1,10 @@
+[package]
+name = "onesig"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../../crates/iota-framework/packages/iota-framework" }
+public_key_authentication = { local = "../public_key_authentication" }
+
+[addresses]
+onesig = "0x0"

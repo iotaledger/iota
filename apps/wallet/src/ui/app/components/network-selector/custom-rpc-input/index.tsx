@@ -42,7 +42,7 @@ export function CustomRPCInput() {
                         store: true,
                     }),
                 ).unwrap();
-                ampli.switchedNetwork({
+                ampli.networkSwitched({
                     toNetwork: rpcInput,
                 });
             } catch (e) {

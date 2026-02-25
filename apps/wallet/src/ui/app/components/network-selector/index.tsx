@@ -47,8 +47,7 @@ export function NetworkSelector() {
                         store: true,
                     }),
                 ).unwrap();
-
-                ampli.switchedNetwork({
+                ampli.networkSwitched({
                     toNetwork: network.name,
                 });
             } catch (e) {

@@ -6,11 +6,12 @@ import * as amplitude from '@amplitude/analytics-browser';
 import { LogLevel } from '@amplitude/analytics-types';
 import { attachEnvironmentPlugin, getCustomNetwork } from '@iota/core';
 import { getNetwork, type Network } from '@iota/iota-sdk/client';
-
 import { ampli } from './ampli';
 import store from '_src/ui/app/redux/store';
 import { AppType } from '_src/ui/app/redux/slices/app/appType';
 import Browser from 'webextension-polyfill';
+import { elementCopiedPrivacyPlugin, externalLinkOpenedPrivacyPlugin } from './plugins';
+import { dialogContextPlugin } from './plugins/dialogContextPlugin';
 
 const IS_ENABLED = process.env.BUILD_ENV === 'production';
 
@@ -44,6 +45,11 @@ export async function initAmplitude() {
 
     setAmplitudeIdentity();
 
+    // Add dialog context plugin to enrich events with dialog information
+    if (IS_ENABLED) {
+        ampli.client.add(dialogContextPlugin(ampli.client));
+    }
+
     // Flush events when popup is about to close
     window.addEventListener('pagehide', () => {
         amplitude.setTransport('beacon');
@@ -60,6 +66,9 @@ export async function initAmplitude() {
 
     // Add environment plugin to set prefix dev events
     ampli.client.add(attachEnvironmentPlugin(IS_DEV));
+
+    ampli.client.add(elementCopiedPrivacyPlugin());
+    ampli.client.add(externalLinkOpenedPrivacyPlugin());
 }
 
 export function getUrlWithDeviceId(url: URL) {
