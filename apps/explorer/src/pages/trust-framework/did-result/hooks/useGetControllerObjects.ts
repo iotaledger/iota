@@ -5,9 +5,8 @@ import { getObjectOrPastObjectQuery } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import type { IotaObjectData } from '@iota/iota-sdk/src/client';
 import { useQueries } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
-import type { IdentityController } from '../types';
 import { extractControllerCaps, getOwnerAddress, getOwnerType } from '../helper';
+import type { IdentityController } from '../types';
 
 /**
  * This hook:
@@ -24,15 +23,32 @@ import { extractControllerCaps, getOwnerAddress, getOwnerType } from '../helper'
  */
 export function useGetControllerObjects(objectData: IotaObjectData) {
     const client = useIotaClient();
-    const [controllers, setControllers] = useState<IdentityController[]>([]);
     const controllerCaps = extractControllerCaps(objectData);
-    const {
-        results: controllerObjectResults,
-        isPending,
-        isError,
-    } = useQueries({
+    return useQueries({
         queries: controllerCaps.map((controllerCap) =>
-            getObjectOrPastObjectQuery(client, controllerCap.objectId),
+            getObjectOrPastObjectQuery<IdentityController>(
+                client,
+                controllerCap.objectId,
+                (objectResponse) => {
+                    // Transforms a controller object to IdentityController for each query
+                    if (objectResponse?.error) {
+                        return {
+                            ...controllerCap,
+                            isError: true,
+                            error: objectResponse.error,
+                        };
+                    }
+
+                    const objectData = objectResponse?.data;
+                    return {
+                        ...controllerCap,
+                        isError: false,
+                        objectType: objectData?.type,
+                        owner: getOwnerAddress(objectData?.owner, objectData?.objectId),
+                        ownerType: getOwnerType(objectData?.owner),
+                    };
+                },
+            ),
         ),
         combine: (results) => ({
             results,
@@ -40,35 +56,4 @@ export function useGetControllerObjects(objectData: IotaObjectData) {
             isError: results.every((result) => result.isError),
         }),
     });
-
-    useEffect(() => {
-        if (!isPending && !isError) {
-            const controllers: IdentityController[] = controllerCaps.map((controllerCap, index) => {
-                const objectResult = controllerObjectResults.at(index)!;
-                if (objectResult.isError) {
-                    return {
-                        ...controllerCap,
-                        isError: objectResult.isError,
-                        error: objectResult.error,
-                    };
-                }
-
-                const objectData = objectResult.data?.data;
-                return {
-                    ...controllerCap,
-                    objectType: objectData?.type,
-                    owner: getOwnerAddress(objectData?.owner, objectData?.objectId),
-                    ownerType: getOwnerType(objectData?.owner),
-                    isError: false,
-                };
-            });
-            setControllers(controllers);
-        }
-    }, [controllerObjectResults, isPending, isError]);
-
-    return {
-        controllers,
-        isPending,
-        isError,
-    };
 }
