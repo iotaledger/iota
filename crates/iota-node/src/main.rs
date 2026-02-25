@@ -61,46 +61,6 @@ fn main() {
     );
     config.supported_protocol_versions = Some(SupportedProtocolVersions::SYSTEM_DEFAULT);
 
-    if std::env::var("MOCK_IOTA_NODE").is_ok() {
-        let val = std::env::var("BATCH_TIMEOUT_MS")
-            .ok()
-            .map(|s| s.parse().unwrap())
-            .unwrap_or(1_u64);
-        iota_core::signature_verifier::BATCH_TIMEOUT_MS.store(val, std::sync::atomic::Ordering::Relaxed);
-
-        let val = std::env::var("MAX_BATCH_SIZE")
-            .ok()
-            .map(|s| s.parse().unwrap())
-            .unwrap_or(100_usize);
-        iota_core::signature_verifier::MAX_BATCH_SIZE.store(val, std::sync::atomic::Ordering::Relaxed);
-
-        // AuthoritySignature batch verification
-        let val = std::env::var("MOCK_VERIFY_ALL")
-            .ok()
-            .map(|s| s.parse().unwrap())
-            .unwrap_or(true);
-        iota_types::crypto::MOCK_VERIFY_ALL.store(val, std::sync::atomic::Ordering::Relaxed);
-
-        // AuthoritySignature aggregation
-        let val = std::env::var("MOCK_ADD_SIGNATURE")
-            .ok()
-            .map(|s| s.parse().unwrap())
-            .unwrap_or(true);
-        iota_types::crypto::MOCK_ADD_SIGNATURE.store(val, std::sync::atomic::Ordering::Relaxed);
-
-        let val = std::env::var("MOCK_NEW_SECURE")
-            .ok()
-            .map(|s| s.parse().unwrap())
-            .unwrap_or(true);
-        iota_types::crypto::MOCK_NEW_SECURE.store(val, std::sync::atomic::Ordering::Relaxed);
-
-        let val = std::env::var("MOCK_VERIFY_SECURE")
-            .ok()
-            .map(|s| s.parse().unwrap())
-            .unwrap_or(true);
-        iota_types::crypto::MOCK_VERIFY_SECURE.store(val, std::sync::atomic::Ordering::Relaxed);
-    }
-
     // match run_with_range args
     // this means that we always modify the config used to start the node
     // for run_with_range. i.e if this is set in the config, it is ignored. only the
