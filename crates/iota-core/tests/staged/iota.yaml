@@ -6,10 +6,10 @@ AccountAddress:
       SIZE: 32
 ActiveJwk:
   STRUCT:
-    - jwk_id:
+    - jwkId:
         TYPENAME: JwkId
     - jwk:
-        TYPENAME: JWK
+        TYPENAME: Jwk
     - epoch: U64
 Address:
   NEWTYPESTRUCT:
@@ -39,10 +39,10 @@ AuthenticatorStateUpdateV1:
   STRUCT:
     - epoch: U64
     - round: U64
-    - new_active_jwks:
+    - newActiveJwks:
         SEQ:
           TYPENAME: ActiveJwk
-    - authenticator_obj_initial_shared_version: U64
+    - authenticatorObjInitialSharedVersion: U64
 AuthorityPublicKeyBytes:
   NEWTYPESTRUCT: BYTES
 AuthorityQuorumSignInfo:
@@ -642,7 +642,7 @@ IntentMessage:
         TYPENAME: Intent
     - value:
         TYPENAME: TransactionData
-JWK:
+Jwk:
   STRUCT:
     - kty: STR
     - e: STR
