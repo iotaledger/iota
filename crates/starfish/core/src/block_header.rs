@@ -462,7 +462,8 @@ pub(crate) trait ShardWithProofAPI {
     fn proof(&self) -> &MerkleProofBytes;
     fn transaction_commitment(&self) -> TransactionsCommitment;
     fn round(&self) -> Round;
-    fn block_ref(&self) -> BlockRef;
+    fn author(&self) -> AuthorityIndex;
+    fn block_digest(&self) -> Option<BlockHeaderDigest>;
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -490,7 +491,6 @@ impl ShardWithProof {
                     round: block_ref.round,
                     author: block_ref.author,
                     transactions_commitment: transaction_commitment,
-                    block_digest: block_ref.digest,
                 },
             })
         } else {
@@ -521,8 +521,12 @@ impl ShardWithProofAPI for ShardWithProofV1 {
         self.block_ref.round
     }
 
-    fn block_ref(&self) -> BlockRef {
-        self.block_ref
+    fn author(&self) -> AuthorityIndex {
+        self.block_ref.author
+    }
+
+    fn block_digest(&self) -> Option<BlockHeaderDigest> {
+        Some(self.block_ref.digest)
     }
 }
 
@@ -543,12 +547,12 @@ impl ShardWithProofAPI for ShardWithProofV2 {
         self.transaction_ref.round
     }
 
-    fn block_ref(&self) -> BlockRef {
-        BlockRef {
-            round: self.transaction_ref.round,
-            author: self.transaction_ref.author,
-            digest: self.transaction_ref.block_digest,
-        }
+    fn author(&self) -> AuthorityIndex {
+        self.transaction_ref.author
+    }
+
+    fn block_digest(&self) -> Option<BlockHeaderDigest> {
+        None
     }
 }
 
@@ -934,7 +938,6 @@ impl VerifiedBlockHeader {
             round: self.round(),
             author: self.author(),
             transactions_commitment: self.signed_block_header.inner.transactions_commitment(),
-            block_digest: self.digest(),
         }
     }
 
@@ -1003,6 +1006,13 @@ pub struct VerifiedTransactions {
     /// Commitment of transactions in the block
     transaction_ref: TransactionRef,
 
+    /// Digest of the block this transaction batch belongs to.
+    /// Present (`Some`) whenever the block header is available at
+    /// construction time, regardless of the `consensus_transaction_ref` flag.
+    /// `None` only when transactions were received without an accompanying
+    /// block header (e.g., fast sync or store loading via TransactionRef).
+    block_digest: Option<BlockHeaderDigest>,
+
     /// The serialized bytes of the transactions.
     serialized: Bytes,
 }
@@ -1016,18 +1026,14 @@ impl PartialEq for VerifiedTransactions {
 impl VerifiedTransactions {
     pub(crate) fn new(
         transactions: Vec<Transaction>,
-        block_ref: BlockRef,
-        transactions_commitment: TransactionsCommitment,
+        transaction_ref: TransactionRef,
+        block_digest: Option<BlockHeaderDigest>,
         serialized: Bytes,
     ) -> Self {
         Self {
             transactions,
-            transaction_ref: TransactionRef {
-                round: block_ref.round,
-                author: block_ref.author,
-                transactions_commitment,
-                block_digest: block_ref.digest,
-            },
+            transaction_ref,
+            block_digest,
             serialized,
         }
     }
@@ -1036,12 +1042,28 @@ impl VerifiedTransactions {
         self.transaction_ref.transactions_commitment
     }
 
-    pub fn block_ref(&self) -> BlockRef {
-        BlockRef {
+    pub fn round(&self) -> Round {
+        self.transaction_ref.round
+    }
+
+    pub fn author(&self) -> AuthorityIndex {
+        self.transaction_ref.author
+    }
+
+    /// Returns the block ref if `block_digest` is set (i.e., when using
+    /// BlockRef-based fetching).
+    pub fn block_ref(&self) -> Option<BlockRef> {
+        self.block_digest.map(|digest| BlockRef {
             round: self.transaction_ref.round,
             author: self.transaction_ref.author,
-            digest: self.transaction_ref.block_digest,
-        }
+            digest,
+        })
+    }
+
+    /// Returns the block digest if available; `None` when using
+    /// TransactionRef-based fetching.
+    pub fn block_digest(&self) -> Option<BlockHeaderDigest> {
+        self.block_digest
     }
 
     pub fn transaction_ref(&self) -> TransactionRef {
@@ -1089,12 +1111,8 @@ impl VerifiedBlock {
         let verified_block_header = VerifiedBlockHeader::new_for_test(block_header);
         let verified_transactions = VerifiedTransactions::new(
             vec![],
-            BlockRef::new(
-                verified_block_header.round(),
-                verified_block_header.author(),
-                verified_block_header.digest(),
-            ),
-            verified_block_header.transactions_commitment(),
+            verified_block_header.transaction_ref(),
+            Some(verified_block_header.digest()),
             Bytes::from(bcs::to_bytes::<Vec<Transaction>>(&vec![]).unwrap()),
         );
         Self {
@@ -1108,12 +1126,8 @@ impl VerifiedBlock {
         let verified_block_header = VerifiedBlockHeader::new_for_test(block_header);
         let verified_transactions = VerifiedTransactions::new(
             vec![],
-            BlockRef::new(
-                verified_block_header.round(),
-                verified_block_header.author(),
-                verified_block_header.digest(),
-            ),
-            verified_block_header.transactions_commitment(),
+            verified_block_header.transaction_ref(),
+            Some(verified_block_header.digest()),
             Bytes::from(
                 bcs::to_bytes::<Vec<Transaction>>(
                     &vec![vec![tx; 16]]
@@ -1169,8 +1183,8 @@ pub(crate) fn genesis_blocks(context: &Context) -> Vec<VerifiedBlock> {
                 verified_block_header: verified_block_header.clone(),
                 verified_transactions: VerifiedTransactions::new(
                     vec![],
-                    verified_block_header.reference(),
-                    verified_block_header.transactions_commitment(),
+                    verified_block_header.transaction_ref(),
+                    Some(verified_block_header.digest()),
                     Bytes::from(bcs::to_bytes::<Vec<Transaction>>(&vec![]).unwrap()),
                 ),
             }

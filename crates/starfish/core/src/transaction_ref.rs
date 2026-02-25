@@ -16,7 +16,7 @@ use starfish_config::{AuthorityIndex, DIGEST_LENGTH};
 #[cfg(test)]
 use crate::context::Context;
 use crate::{
-    block_header::{BlockHeaderDigest, BlockRef, Round, TransactionsCommitment},
+    block_header::{BlockRef, Round, TransactionsCommitment},
     error::{ConsensusError, ConsensusResult},
 };
 
@@ -25,7 +25,16 @@ pub struct TransactionRef {
     pub round: Round,
     pub author: AuthorityIndex,
     pub transactions_commitment: TransactionsCommitment,
-    pub block_digest: BlockHeaderDigest,
+}
+
+impl TransactionRef {
+    pub fn new(block_ref: BlockRef, transactions_commitment: TransactionsCommitment) -> Self {
+        Self {
+            round: block_ref.round,
+            author: block_ref.author,
+            transactions_commitment,
+        }
+    }
 }
 
 impl fmt::Display for TransactionRef {
@@ -47,16 +56,6 @@ impl fmt::Debug for TransactionRef {
 impl Hash for TransactionRef {
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write(&self.transactions_commitment.0[..8]);
-    }
-}
-
-impl From<TransactionRef> for BlockRef {
-    fn from(tr: TransactionRef) -> Self {
-        BlockRef {
-            round: tr.round,
-            author: tr.author,
-            digest: tr.block_digest,
-        }
     }
 }
 
@@ -114,14 +113,6 @@ impl GenericTransactionRefAPI for TransactionRef {
 }
 
 impl GenericTransactionRef {
-    /// Convert this GenericTransactionRef to a BlockRef
-    pub(crate) fn to_block_ref(self) -> BlockRef {
-        match self {
-            GenericTransactionRef::BlockRef(block_ref) => block_ref,
-            GenericTransactionRef::TransactionRef(tx_ref) => BlockRef::from(tx_ref),
-        }
-    }
-
     /// Extract TransactionRef, returning error if this is a BlockRef variant.
     /// This should only be called when consensus_transaction_ref flag is true.
     pub(crate) fn expect_transaction_ref(self) -> ConsensusResult<TransactionRef> {
@@ -192,7 +183,6 @@ pub(crate) fn convert_block_refs_to_generic_transaction_refs(
                     round: block_ref.round,
                     author: block_ref.author,
                     transactions_commitment: header.transactions_commitment(),
-                    block_digest: block_ref.digest,
                 })
             })
             .collect()

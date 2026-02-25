@@ -40,12 +40,8 @@ struct Inner {
         BTreeMap<(Round, AuthorityIndex, TransactionsCommitment), VerifiedTransactions>,
     block_headers: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedBlockHeader>,
     digests_by_authorities: BTreeSet<(AuthorityIndex, Round, BlockHeaderDigest)>,
-    transaction_commitments_by_authorities: BTreeSet<(
-        AuthorityIndex,
-        Round,
-        TransactionsCommitment,
-        BlockHeaderDigest,
-    )>,
+    transaction_commitments_by_authorities:
+        BTreeSet<(AuthorityIndex, Round, TransactionsCommitment)>,
     commits: BTreeMap<(CommitIndex, CommitDigest), TrustedCommit>,
     commit_votes: BTreeSet<(CommitIndex, CommitDigest, BlockRef)>,
     commit_info: BTreeMap<(CommitIndex, CommitDigest), CommitInfo>,
@@ -100,7 +96,6 @@ impl Store for MemStore {
 
         // Store transactions data separately
         for transaction in write_batch.transactions {
-            let block_ref = transaction.block_ref();
             let transaction_ref = transaction.transaction_ref();
             if context.protocol_config.consensus_transaction_ref() {
                 inner.transactions_by_tx_refs.insert(
@@ -116,9 +111,11 @@ impl Store for MemStore {
                     transaction_ref.author,
                     transaction_ref.round,
                     transaction_ref.transactions_commitment,
-                    transaction_ref.block_digest,
                 ));
             } else {
+                let block_ref = transaction
+                    .block_ref()
+                    .expect("block_ref must be present in non-transaction-ref path");
                 inner.transactions.insert(
                     (block_ref.round, block_ref.author, block_ref.digest),
                     transaction,
@@ -396,24 +393,13 @@ impl Store for MemStore {
         let res = inner
             .transaction_commitments_by_authorities
             .range((
-                Included((
-                    author,
-                    start_round,
-                    TransactionsCommitment::MIN,
-                    BlockHeaderDigest::MIN,
-                )),
-                Included((
-                    author,
-                    Round::MAX,
-                    TransactionsCommitment::MAX,
-                    BlockHeaderDigest::MAX,
-                )),
+                Included((author, start_round, TransactionsCommitment::MIN)),
+                Included((author, Round::MAX, TransactionsCommitment::MAX)),
             ))
-            .map(|(author, round, commitment, digest)| TransactionRef {
+            .map(|(author, round, commitment)| TransactionRef {
                 round: *round,
                 author: *author,
                 transactions_commitment: *commitment,
-                block_digest: *digest,
             })
             .collect();
         Ok(res)

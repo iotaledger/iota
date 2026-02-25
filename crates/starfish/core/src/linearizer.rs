@@ -9,7 +9,7 @@ use std::{
 
 use parking_lot::RwLock;
 use starfish_config::{AuthorityIndex, Stake};
-use tracing::instrument;
+use tracing::{error, instrument};
 
 use crate::{
     Round,
@@ -162,7 +162,6 @@ impl Linearizer {
                             round: block_ref.round,
                             author: block_ref.author,
                             transactions_commitment,
-                            block_digest: block_ref.digest,
                         })
                     })
                     .collect()
@@ -380,7 +379,19 @@ impl Linearizer {
         for missing_ref in missing_refs {
             let block_ref = match missing_ref {
                 GenericTransactionRef::BlockRef(br) => br,
-                GenericTransactionRef::TransactionRef(tx_ref) => BlockRef::from(tx_ref),
+                GenericTransactionRef::TransactionRef(tx_ref) => {
+                    let dag = self.dag_state.read();
+                    match dag.resolve_block_ref(&tx_ref) {
+                        Some(br) => br,
+                        None => {
+                            error!(
+                                "block_digest not found for {tx_ref:?} in transactions_ack_tracker lookup; \
+                                 entry should exist since missing txns are above eviction boundary"
+                            );
+                            continue;
+                        }
+                    }
+                }
             };
             if let Some(acknowledgments) = self.transactions_ack_tracker.get(&block_ref) {
                 acknowledged_map.insert(missing_ref, acknowledgments.votes());

@@ -39,15 +39,8 @@ pub(crate) struct RocksDBStore {
     /// A secondary index that orders refs first by authors.
     digests_by_authorities: DBMap<(AuthorityIndex, Round, BlockHeaderDigest), ()>,
     /// A secondary index that orders transaction commitments first by authors.
-    transaction_commitments_by_authorities: DBMap<
-        (
-            AuthorityIndex,
-            Round,
-            TransactionsCommitment,
-            BlockHeaderDigest,
-        ),
-        (),
-    >,
+    transaction_commitments_by_authorities:
+        DBMap<(AuthorityIndex, Round, TransactionsCommitment), ()>,
     /// Maps commit index to Commit.
     commits: DBMap<(CommitIndex, CommitDigest), Bytes>,
     /// Collects votes on commits.
@@ -150,7 +143,7 @@ impl RocksDBStore {
             Self::TRANSACTIONS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
             Self::TRANSACTIONS_BY_TX_REF_CF;<(Round, AuthorityIndex, TransactionsCommitment), Bytes>,
             Self::DIGESTS_BY_AUTHORITIES_CF;<(AuthorityIndex, Round, BlockHeaderDigest), ()>,
-            Self::TRANSACTION_COMMITMENTS_BY_AUTHORITIES_CF;<(AuthorityIndex, Round, TransactionsCommitment, BlockHeaderDigest), ()>,
+            Self::TRANSACTION_COMMITMENTS_BY_AUTHORITIES_CF;<(AuthorityIndex, Round, TransactionsCommitment), ()>,
             Self::COMMITS_CF;<(CommitIndex, CommitDigest), Bytes>,
             Self::COMMIT_VOTES_CF;<(CommitIndex, CommitDigest, BlockRef), ()>,
             Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>,
@@ -238,7 +231,6 @@ impl Store for RocksDBStore {
                                 transaction_ref.author,
                                 transaction_ref.round,
                                 transaction_ref.transactions_commitment,
-                                transaction_ref.block_digest,
                             ),
                             (),
                         )],
@@ -252,7 +244,9 @@ impl Store for RocksDBStore {
                             (
                                 transaction_ref.round,
                                 transaction_ref.author,
-                                transaction_ref.block_digest,
+                                transaction.block_digest().expect(
+                                    "block digest should exist for consensus_transaction_ref=false",
+                                ),
                             ),
                             transaction.serialized(),
                         )],
@@ -416,7 +410,6 @@ impl Store for RocksDBStore {
                 let GenericTransactionRef::TransactionRef(tx_ref) = gen_tx_ref else {
                     return Err(ConsensusError::InconsistentTransactionRefVariants);
                 };
-                let block_ref = BlockRef::from(*tx_ref);
                 if let Some(serialized_transactions) = serialized_transactions {
                     let transactions: Vec<Transaction> = bcs::from_bytes(&serialized_transactions)
                         .map_err(ConsensusError::MalformedTransactions)?;
@@ -424,8 +417,8 @@ impl Store for RocksDBStore {
                     // from storage. Assemble verified transactions
                     let verified_transactions = VerifiedTransactions::new(
                         transactions,
-                        block_ref,
-                        tx_ref.transactions_commitment,
+                        *tx_ref,
+                        None,
                         serialized_transactions,
                     );
                     result.push(Some(verified_transactions));
@@ -465,8 +458,11 @@ impl Store for RocksDBStore {
                     // from storage. Assemble verified transactions
                     let verified_transactions = VerifiedTransactions::new(
                         transactions,
-                        *block_ref,
-                        signed_block_header.transactions_commitment(),
+                        TransactionRef::new(
+                            *block_ref,
+                            signed_block_header.transactions_commitment(),
+                        ),
+                        Some(block_ref.digest),
                         serialized_transactions,
                     );
                     result.push(Some(verified_transactions));
@@ -601,26 +597,15 @@ impl Store for RocksDBStore {
     ) -> ConsensusResult<Vec<TransactionRef>> {
         self.transaction_commitments_by_authorities
             .safe_range_iter((
-                Included((
-                    author,
-                    start_round,
-                    TransactionsCommitment::MIN,
-                    BlockHeaderDigest::MIN,
-                )),
-                Included((
-                    author,
-                    Round::MAX,
-                    TransactionsCommitment::MAX,
-                    BlockHeaderDigest::MAX,
-                )),
+                Included((author, start_round, TransactionsCommitment::MIN)),
+                Included((author, Round::MAX, TransactionsCommitment::MAX)),
             ))
             .map(|res| {
-                let ((author, round, commitment, digest), _) = res?;
+                let ((author, round, commitment), _) = res?;
                 Ok(TransactionRef {
                     round,
                     author,
                     transactions_commitment: commitment,
-                    block_digest: digest,
                 })
             })
             .collect()

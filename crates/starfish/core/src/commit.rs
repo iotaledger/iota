@@ -610,7 +610,7 @@ impl CommittedSubDag {
             &self
                 .transactions
                 .iter()
-                .map(|t| GenericTransactionRef::BlockRef(t.block_ref()))
+                .map(|t| GenericTransactionRef::TransactionRef(t.transaction_ref()))
                 .collect::<Vec<_>>(),
         )
     }
