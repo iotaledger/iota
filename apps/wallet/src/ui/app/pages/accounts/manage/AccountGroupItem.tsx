@@ -144,8 +144,8 @@ export function AccountGroupItem({
                     }
                 />
             </div>
-            <Portal containerId={'manage-account-item-portal-container'}>
-                {isDropdownOpen && (
+            {isDropdownOpen && (
+                <Portal containerId={'manage-account-item-portal-container'}>
                     <div
                         style={{
                             top: dropdownPosition.y,
@@ -171,8 +171,8 @@ export function AccountGroupItem({
                             </Dropdown>
                         </OutsideClickHandler>
                     </div>
-                )}
-            </Portal>
+                </Portal>
+            )}
             <NicknameDialog
                 isOpen={isDialogNicknameOpen}
                 setOpen={setDialogNicknameOpen}
