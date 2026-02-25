@@ -586,7 +586,7 @@ fn build_initial_type_origin_table(modules: &[CompiledModule]) -> Vec<TypeOrigin
                     let package = ObjectID::new(m.self_id().address().into_bytes());
                     TypeOrigin {
                         module_name: Identifier::new_unchecked(module_name),
-                        struct_name: Identifier::new_unchecked(struct_name),
+                        datatype_name: Identifier::new_unchecked(struct_name),
                         package,
                     }
                 })
@@ -597,7 +597,7 @@ fn build_initial_type_origin_table(modules: &[CompiledModule]) -> Vec<TypeOrigin
                     let package = ObjectID::new(m.self_id().address().into_bytes());
                     TypeOrigin {
                         module_name: Identifier::new_unchecked(module_name),
-                        struct_name: Identifier::new_unchecked(enum_name),
+                        datatype_name: Identifier::new_unchecked(enum_name),
                         package,
                     }
                 }))
@@ -624,7 +624,7 @@ fn build_upgraded_type_origin_table(
             let package = existing_table.remove(&mod_key).unwrap_or(storage_id);
             new_table.push(TypeOrigin {
                 module_name,
-                struct_name,
+                datatype_name: struct_name,
                 package,
             });
         }
@@ -639,7 +639,7 @@ fn build_upgraded_type_origin_table(
             let package = existing_table.remove(&mod_key).unwrap_or(storage_id);
             new_table.push(TypeOrigin {
                 module_name,
-                struct_name: enum_name,
+                datatype_name: enum_name,
                 package,
             });
         }

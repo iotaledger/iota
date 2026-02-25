@@ -573,7 +573,7 @@ impl MovePackage {
             .iter()
             .map(|origin| TypeOrigin {
                 module: origin.module_name.to_string(),
-                struct_: origin.struct_name.to_string(),
+                struct_: origin.datatype_name.to_string(),
                 defining_id: origin.package.into(),
             })
             .collect();

@@ -230,7 +230,7 @@ fn dump_package(output_dir: &Path, pkg: &packages::MovePackage) -> Result<()> {
         .iter()
         .map(|o| {
             (
-                format!("{}::{}", o.module_name, o.struct_name),
+                format!("{}::{}", o.module_name, o.datatype_name),
                 o.package.to_string(),
             )
         })

@@ -760,14 +760,14 @@ impl Package {
         let mut type_origins: BTreeMap<String, BTreeMap<String, IotaAddress>> = BTreeMap::new();
         for TypeOrigin {
             module_name,
-            struct_name,
+            datatype_name,
             package,
         } in package.type_origin_table()
         {
             type_origins
                 .entry(module_name.to_string())
                 .or_default()
-                .insert(struct_name.to_string(), (*package).into());
+                .insert(datatype_name.to_string(), (*package).into());
         }
 
         let mut runtime_id = None;
