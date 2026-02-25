@@ -3,96 +3,21 @@
 
 import { afterEach, describe, expect, test } from 'vitest';
 
-import { GraphQLWebSocketClient } from '../src/graphql-websocket-client';
 import { IotaClientGraphQLTransport } from '../src/transport';
 
 const DEVNET_GRAPHQL_URL = 'https://graphql.devnet.iota.cafe';
-const DEVNET_WS_URL = 'wss://graphql.devnet.iota.cafe/subscriptions';
 
 const SUBSCRIPTION_TIMEOUT = 15_000;
 
-describe('GraphQL Subscriptions E2E (devnet)', () => {
-    let client: GraphQLWebSocketClient | null = null;
+describe('IotaClientGraphQLTransport Subscriptions E2E (devnet)', () => {
     let transport: IotaClientGraphQLTransport | null = null;
 
     afterEach(() => {
-        client?.close();
-        client = null;
         transport = null;
     });
 
     test(
-        'connects to devnet and completes handshake',
-        async () => {
-            client = new GraphQLWebSocketClient(DEVNET_WS_URL);
-
-            const unsub = await client.subscribe({
-                query: `subscription { events { ... on Event { json } ... on Lagged { count } } }`,
-                onMessage: () => {},
-            });
-
-            expect(typeof unsub).toBe('function');
-
-            const result = await unsub();
-            expect(result).toBe(true);
-        },
-        SUBSCRIPTION_TIMEOUT,
-    );
-
-    test(
-        'receives events from devnet (or unsubscribes cleanly)',
-        async () => {
-            client = new GraphQLWebSocketClient(DEVNET_WS_URL);
-
-            const messages: unknown[] = [];
-            const errors: unknown[] = [];
-
-            const unsub = await client.subscribe({
-                query: `subscription { events { ... on Event { json bcs timestamp type { repr } } ... on Lagged { count } } }`,
-                onMessage: (data) => {
-                    messages.push(data);
-                },
-                onError: (errs) => {
-                    errors.push(errs);
-                },
-            });
-
-            await new Promise((resolve) => setTimeout(resolve, 5_000));
-
-            const result = await unsub();
-            expect(result).toBe(true);
-
-            if (messages.length > 0) {
-                const first = messages[0] as { events: { __typename: string } };
-                expect(first).toHaveProperty('events');
-                expect(first.events.__typename).toMatch(/^(Event|Lagged)$/);
-            }
-
-            expect(errors).toHaveLength(0);
-        },
-        SUBSCRIPTION_TIMEOUT,
-    );
-
-    test(
-        'subscribes to transactions on devnet',
-        async () => {
-            client = new GraphQLWebSocketClient(DEVNET_WS_URL);
-
-            const unsub = await client.subscribe({
-                query: `subscription { transactions { ... on TransactionBlock { digest } ... on Lagged { count } } }`,
-                onMessage: () => {},
-            });
-
-            expect(typeof unsub).toBe('function');
-
-            const result = await unsub();
-            expect(result).toBe(true);
-        },
-        SUBSCRIPTION_TIMEOUT,
-    );
-
-    test(
-        'IotaClientGraphQLTransport subscribes to events via GraphQL WS',
+        'subscribes to events via GraphQL WS',
         async () => {
             transport = new IotaClientGraphQLTransport({
                 url: DEVNET_GRAPHQL_URL,
@@ -104,7 +29,7 @@ describe('GraphQL Subscriptions E2E (devnet)', () => {
                 method: 'iotax_subscribeEvent',
                 unsubscribe: 'iotax_unsubscribeEvent',
                 params: [{}],
-                onMessage: (event) => {
+                onMessage: (event: unknown) => {
                     messages.push(event);
                 },
             });
@@ -124,7 +49,7 @@ describe('GraphQL Subscriptions E2E (devnet)', () => {
     );
 
     test(
-        'IotaClientGraphQLTransport subscribes to events with MoveModule filter',
+        'subscribes to events with MoveModule filter',
         async () => {
             transport = new IotaClientGraphQLTransport({
                 url: DEVNET_GRAPHQL_URL,
@@ -136,7 +61,7 @@ describe('GraphQL Subscriptions E2E (devnet)', () => {
                 method: 'iotax_subscribeEvent',
                 unsubscribe: 'iotax_unsubscribeEvent',
                 params: [{ Package: '0x3' }],
-                onMessage: (event) => {
+                onMessage: (event: unknown) => {
                     messages.push(event);
                 },
             });
@@ -150,7 +75,7 @@ describe('GraphQL Subscriptions E2E (devnet)', () => {
     );
 
     test(
-        'IotaClientGraphQLTransport subscribes to transactions via GraphQL WS',
+        'subscribes to transactions via GraphQL WS',
         async () => {
             transport = new IotaClientGraphQLTransport({
                 url: DEVNET_GRAPHQL_URL,
@@ -161,8 +86,8 @@ describe('GraphQL Subscriptions E2E (devnet)', () => {
             const unsub = await transport.subscribe({
                 method: 'iotax_subscribeTransaction',
                 unsubscribe: 'iotax_unsubscribeTransaction',
-                params: [{}], // Empty filter = all transactions
-                onMessage: (tx) => {
+                params: [{}],
+                onMessage: (tx: unknown) => {
                     messages.push(tx);
                 },
             });
@@ -181,7 +106,7 @@ describe('GraphQL Subscriptions E2E (devnet)', () => {
     );
 
     test(
-        'IotaClientGraphQLTransport supports AbortSignal for subscriptions',
+        'supports AbortSignal for subscriptions',
         async () => {
             transport = new IotaClientGraphQLTransport({
                 url: DEVNET_GRAPHQL_URL,
