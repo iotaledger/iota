@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type IotaDID, type IotaDocument } from '@iota/identity-wasm/web';
-import * as React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useIdentityClient } from '~/contexts';
 
 interface DidDocumentResult {
@@ -20,20 +20,14 @@ interface DidDocumentResult {
  */
 export function useResolveDid(did: IotaDID | null): DidDocumentResult {
     const identityClient = useIdentityClient();
-    const [didDocument, setDidDocument] = React.useState<IotaDocument | null>(null);
-
-    React.useEffect(() => {
-        const resolveDid = async () => {
-            if (did && identityClient) {
-                const _didDocument = await identityClient.resolveDid(did);
-                setDidDocument(_didDocument);
-            }
-        };
-        resolveDid();
-    }, [did, identityClient]);
+    const { data, isPending } = useQuery({
+        queryKey: ['did-document', did],
+        queryFn: async () => identityClient?.resolveDid(did!),
+        enabled: !!(did && identityClient),
+    });
 
     return {
-        didDocument,
-        isPending: didDocument == null,
+        didDocument: data ?? null,
+        isPending,
     };
 }

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { IotaDID } from '@iota/identity-wasm/web';
-import * as React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { tryDecodeDidFromUrl } from '~/lib/utils/trust-framework/identity';
 
 interface DecodeDIDResult {
@@ -35,23 +35,14 @@ interface DecodeDIDResult {
  * return <DisplayDid did={decodedDid} />;
  */
 export function useDecodeDidFromUrl(encodedDid?: string): DecodeDIDResult {
-    const [decodedDid, setDecodedDid] = React.useState<IotaDID | null>(null);
-    const [isPending, setIsPending] = React.useState(true);
-    React.useEffect(() => {
-        const decode = async () => {
-            if (encodedDid) {
-                const _decodedDid = await tryDecodeDidFromUrl(encodedDid);
-                if (_decodedDid) {
-                    setDecodedDid(_decodedDid);
-                }
-                setIsPending(false);
-            }
-        };
-        decode();
-    }, [encodedDid]);
+    const { data, isPending } = useQuery<IotaDID | null>({
+        queryKey: ['decoded-did', encodedDid],
+        queryFn: () => tryDecodeDidFromUrl(encodedDid!),
+        enabled: !!encodedDid,
+    });
 
     return {
-        decodedDid,
+        decodedDid: data ?? null,
         isPending,
     };
 }
