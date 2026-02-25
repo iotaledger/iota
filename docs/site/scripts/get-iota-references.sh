@@ -3,8 +3,11 @@
 # Define the packages to process
 packages="typescript graphql-transport kiosk ledgerjs-hw-app-iota wallet-standard dapp-kit"
 
-
 networks="testnet devnet"
+
+# Copy framework docs
+mkdir -p "./docs/content/developer/references/framework/"
+cp -Rv ./docs/generated-docs/framework/* "./docs/content/developer/references/framework/"
 
 for network in $networks; do
     # Download and extract the docs for the current network
