@@ -64,7 +64,6 @@ export function ControllerView({ objectData }: ControllerViewProps) {
                                 title="Controller Capability"
                                 titleSize={TitleSize.Small}
                                 footer={
-                                    // NOTE: How to test a shared owner?
                                     <ControllerCardFooter
                                         weight={controller.weight}
                                         threshold={threshold}

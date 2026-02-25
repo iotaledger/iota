@@ -82,7 +82,7 @@ export function getOwnerAddress(owner?: ObjectOwner | null, objectId?: string): 
             return getObjectOwner(owner);
         case 'Shared':
             return objectId || null;
-        case 'Immutable': // NOTE: What to do with immutable?
+        case 'Immutable': // NOTE: How to evaluate Immutable owner?
         case 'Undefined':
         default:
             return null;
