@@ -30,8 +30,10 @@ const tsSDK = [
                 type: 'category',
                 label: 'Cryptography',
                 items: [
-                    'developer/ts-sdk/typescript/cryptography/keypairs', 
-                    'developer/ts-sdk/typescript/cryptography/multisig', 
+                    'developer/ts-sdk/typescript/cryptography/keypairs',
+                    'developer/ts-sdk/typescript/cryptography/multisig',
+                    'developer/ts-sdk/typescript/cryptography/passkeys',
+                    'developer/ts-sdk/typescript/cryptography/move-authenticator',
                 ],
             },
             'developer/ts-sdk/typescript/utils', 

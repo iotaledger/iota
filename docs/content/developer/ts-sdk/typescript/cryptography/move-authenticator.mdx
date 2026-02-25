@@ -1,0 +1,121 @@
+---
+tags: [typescript, transaction, sdk, ts-sdk]
+teams:
+   - iotaledger/tooling
+---
+
+# MoveAuthenticator
+
+The IOTA TypeScript SDK provides `MoveSigner`, an account-abstraction signing scheme where
+authorization is performed by an on-chain Move function rather than a cryptographic key. The
+"public key" of the account is a Move object — the sender address equals the object ID directly.
+
+```typescript
+import {
+    MoveAuthenticatorBuilder,
+    MoveSigner,
+    InvalidMoveAuthArgError,
+    InvalidMoveAuthAccountError,
+} from '@iota/iota-sdk/keypairs/move-authenticator';
+```
+
+## Overview
+
+In the `MoveAuthenticator` scheme:
+
+- The **sender** is a shared or immutable Move object (`objectToAuthenticate`). Its object ID
+  becomes the transaction sender address.
+- The **signature** encodes a Move function call — type arguments and call arguments — that is
+  executed on-chain to verify the transaction.
+- Verification does **not** happen in the SDK. `MoveAuthenticatorPublicKey.verify()` throws because
+  the authenticator function runs on-chain.
+
+## Building a MoveAuthenticator
+
+Use `MoveAuthenticatorBuilder` to construct the authenticator call description, then call
+`finish(client)` to resolve object references and validate them against the network.
+
+```typescript
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+import { MoveAuthenticatorBuilder } from '@iota/iota-sdk/keypairs/move-authenticator';
+
+const client = new IotaClient({ url: getFullnodeUrl('testnet') });
+
+const data = await new MoveAuthenticatorBuilder(
+    '0xobject_id_of_the_authenticator_object', // objectToAuthenticate
+)
+    .addTypeArg('0xpackage::module::AuthWitness') // optional type arguments
+    .addSharedObject('0xshared_object_id', /* mutable */ false) // shared call arg
+    .addImmutableObject('0ximmutable_object_id') // immutable call arg
+    .addPure(new Uint8Array([1, 2, 3])) // arbitrary pure bytes call arg
+    .finish(client); // resolves and validates all objects
+```
+
+The builder methods are:
+
+| Method | Description |
+| --- | --- |
+| `addTypeArg(typeArg)` | Append a Move type argument string |
+| `addPure(value)` | Append a pure bytes call argument |
+| `addSharedObject(objectId, mutable?)` | Append a shared-object call argument |
+| `addImmutableObject(objectId)` | Append an immutable-object call argument |
+
+`finish(client)` fetches object metadata from the network and throws if any object is invalid (see
+[Error handling](#error-handling)).
+
+## Signing and executing transactions
+
+Pass the resolved `MoveAuthenticatorData` to `MoveSigner`. Use `getPublicKey().toIotaAddress()` to
+obtain the sender address (which is the `objectToAuthenticate` object ID):
+
+```typescript
+import { Transaction } from '@iota/iota-sdk/transactions';
+import { MoveSigner } from '@iota/iota-sdk/keypairs/move-authenticator';
+
+const signer = new MoveSigner(data);
+const senderAddress = signer.getPublicKey().toIotaAddress();
+
+const tx = new Transaction();
+tx.setSender(senderAddress);
+// ... add transaction commands ...
+
+const result = await client.signAndExecuteTransaction({
+    signer,
+    transaction: tx,
+});
+```
+
+The signature produced by `MoveSigner` is a BCS-serialized `MoveAuthenticator` struct containing
+the resolved call arguments, type arguments, and the authenticated object reference. Signature
+verification is performed by the Move authenticator function on-chain.
+
+## Error handling
+
+`finish(client)` throws typed errors for invalid configurations:
+
+| Error class | Thrown when |
+| --- | --- |
+| `InvalidMoveAuthArgError` | A call argument object is an owned object (call args must be shared or immutable), or an object passed as shared is not actually shared on-chain |
+| `InvalidMoveAuthAccountError` | `objectToAuthenticate` is neither a shared nor an immutable object |
+
+```typescript
+import {
+    MoveAuthenticatorBuilder,
+    InvalidMoveAuthArgError,
+    InvalidMoveAuthAccountError,
+} from '@iota/iota-sdk/keypairs/move-authenticator';
+
+try {
+    const data = await new MoveAuthenticatorBuilder('0xobject_id')
+        .addSharedObject('0xanother_object_id')
+        .finish(client);
+} catch (e) {
+    if (e instanceof InvalidMoveAuthAccountError) {
+        console.error('objectToAuthenticate must be shared or immutable:', e.message);
+    } else if (e instanceof InvalidMoveAuthArgError) {
+        console.error('Invalid call argument:', e.message);
+    } else {
+        throw e;
+    }
+}
+```

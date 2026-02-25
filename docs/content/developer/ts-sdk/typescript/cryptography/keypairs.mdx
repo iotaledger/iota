@@ -9,16 +9,20 @@ teams:
 The IOTA TypeScript SDK provides `Keypair` classes that handle logic for signing and verification
 using the cryptographic key pairs associated with an IOTA address.
 
-The IOTA TypeScript SDK supports three signing schemes:
+The IOTA TypeScript SDK supports the following signing schemes:
 
-| Sign scheme     | Class name         | Import folder                       |
-| --------------- | ------------------ | ----------------------------------- |
-| Ed25519         | `Ed25519Keypair`   | `@iota/iota-sdk/keypairs/ed25519`   |
-| ECDSA Secp256k1 | `Secp256k1Keypair` | `@iota/iota-sdk/keypairs/secp256k1` |
-| ECDSA Secp256r1 | `Secp256r1Keypair` | `@iota/iota-sdk/keypairs/secp256r1` |
+| Sign scheme       | Class name                 | Import folder                                    |
+| ----------------- | -------------------------- | ------------------------------------------------ |
+| Ed25519           | `Ed25519Keypair`           | `@iota/iota-sdk/keypairs/ed25519`                |
+| ECDSA Secp256k1   | `Secp256k1Keypair`         | `@iota/iota-sdk/keypairs/secp256k1`              |
+| ECDSA Secp256r1   | `Secp256r1Keypair`         | `@iota/iota-sdk/keypairs/secp256r1`              |
+| Passkey           | `PasskeyKeypair`           | `@iota/iota-sdk/keypairs/passkey`                |
+| MoveAuthenticator | `MoveSigner`               | `@iota/iota-sdk/keypairs/move-authenticator`     |
 
-For information on these schemes, see the
-[Signatures](../../../../developer/cryptography/transaction-auth/signatures.mdx) topic.
+For information on Ed25519, Secp256k1, and Secp256r1, see the
+[Signatures](../../../../developer/cryptography/transaction-auth/signatures.mdx) topic. For the
+two advanced schemes, see [Passkeys](./passkeys.mdx) and
+[MoveAuthenticator](./move-authenticator.mdx).
 
 To use, import the key pair class your project uses from the `@iota/iota-sdk/keypairs` folder. For
 example, to use the Ed25519 scheme, import the `Ed25519Keypair` class from

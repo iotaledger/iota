@@ -1,0 +1,148 @@
+---
+tags: [typescript, transaction, sdk, ts-sdk]
+teams:
+   - iotaledger/tooling
+---
+
+# Passkey Keypair
+
+The IOTA TypeScript SDK provides `PasskeyKeypair`, a signing implementation based on
+[WebAuthn](https://www.w3.org/TR/webauthn-2/) passkeys. Instead of storing a private key in the
+application, it delegates signing to a hardware authenticator (such as a YubiKey, Touch ID, or
+Windows Hello device) via the browser's `navigator.credentials` API. The cryptographic scheme is
+ECDSA over the secp256r1 curve.
+
+Because `PasskeyKeypair` relies on browser APIs, it is **browser-only** and cannot be used in
+Node.js or other non-browser environments unless you supply a custom provider.
+
+```typescript
+import {
+    PasskeyKeypair,
+    BrowserPasskeyProvider,
+    findCommonPublicKey,
+} from '@iota/iota-sdk/keypairs/passkey';
+```
+
+## Setting up a provider
+
+A `BrowserPasskeyProvider` wraps the WebAuthn credential creation and retrieval calls. Construct
+one by passing a human-readable `name` for your application and an options object:
+
+```typescript
+const provider = new BrowserPasskeyProvider('My IOTA App', {
+    rp: {
+        id: window.location.hostname, // relying party ID (usually the hostname)
+        name: 'My IOTA App',
+    },
+});
+```
+
+The `rp.id` and `rp.name` fields identify your application to the authenticator. The `rp.id` must
+match the effective domain of the page. Refer to the
+[WebAuthn spec](https://www.w3.org/TR/webauthn-2/#dictdef-publickeycredentialrpentity) for the full
+list of relying party options.
+
+## Creating a new passkey wallet
+
+Call the static `getPasskeyInstance` method to register a new passkey credential with the
+authenticator and create a `PasskeyKeypair`. This prompts the user's device:
+
+```typescript
+const keypair = await PasskeyKeypair.getPasskeyInstance(provider);
+
+// The IOTA address derived from the passkey public key
+const address = keypair.getPublicKey().toIotaAddress();
+```
+
+`getPasskeyInstance` invokes `provider.create()`, extracts the compressed secp256r1 public key from
+the returned DER-encoded SPKI, and stores the `credentialId` on the keypair. Call this once per
+wallet — repeated calls create separate credentials on the device.
+
+## Signing messages and transactions
+
+`PasskeyKeypair` implements the standard `Signer` interface:
+
+```typescript
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+import { Transaction } from '@iota/iota-sdk/transactions';
+
+const client = new IotaClient({ url: getFullnodeUrl('testnet') });
+
+// Sign a personal message
+const message = new TextEncoder().encode('hello world');
+const { signature } = await keypair.signPersonalMessage(message);
+
+// Sign and execute a transaction
+const tx = new Transaction();
+tx.setSender(keypair.getPublicKey().toIotaAddress());
+// ... add transaction commands ...
+
+const result = await client.signAndExecuteTransaction({
+    signer: keypair,
+    transaction: tx,
+});
+```
+
+Each signing operation triggers a prompt on the authenticator device.
+
+## Recovering an existing passkey wallet
+
+If the application loses the public key (for example, after a page reload), you can recover it
+without storing anything server-side. Because ECDSA recovery may yield multiple candidate public
+keys, you call `signAndRecover` twice with different messages and use `findCommonPublicKey` to
+identify the single key that appears in both result sets:
+
+```typescript
+import {
+    PasskeyKeypair,
+    BrowserPasskeyProvider,
+    findCommonPublicKey,
+} from '@iota/iota-sdk/keypairs/passkey';
+
+const provider = new BrowserPasskeyProvider('My IOTA App', {
+    rp: { id: window.location.hostname, name: 'My IOTA App' },
+});
+
+// First recovery attempt — prompts the device
+const message1 = new TextEncoder().encode('recover-1');
+const { credentialId, pubKeys: candidates1 } = await PasskeyKeypair.signAndRecover(
+    provider,
+    message1,
+);
+
+// Second recovery attempt with the same credential
+const message2 = new TextEncoder().encode('recover-2');
+const { pubKeys: candidates2 } = await PasskeyKeypair.signAndRecover(provider, message2, [
+    credentialId,
+]);
+
+// The public key common to both candidate sets is the wallet's key
+const publicKey = findCommonPublicKey(candidates1, candidates2);
+
+// Reconstruct the keypair
+const keypair = new PasskeyKeypair(publicKey.toRawBytes(), provider, credentialId);
+```
+
+`findCommonPublicKey` throws if zero or more than one key is shared, which indicates the two
+signing operations used different credentials.
+
+## Implementing a custom provider
+
+For testing or non-browser environments, implement the `PasskeyProvider` interface:
+
+```typescript
+import type { PasskeyProvider } from '@iota/iota-sdk/keypairs/passkey';
+
+class MyCustomProvider implements PasskeyProvider {
+    async create(): Promise<RegistrationCredential> {
+        // Return a WebAuthn RegistrationCredential.
+        // The response.getPublicKey() must return a DER-encoded SPKI for secp256r1.
+    }
+
+    async get(challenge: Uint8Array, allowCredentialIds?: Uint8Array[]): Promise<AuthenticationCredential> {
+        // Return a WebAuthn AuthenticationCredential whose signature is DER-encoded.
+    }
+}
+
+const keypair = await PasskeyKeypair.getPasskeyInstance(new MyCustomProvider());
+```
