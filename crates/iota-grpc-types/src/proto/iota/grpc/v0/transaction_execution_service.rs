@@ -12,6 +12,9 @@ use crate::proto::TryFromProtoError;
 //
 
 impl ExecuteTransactionResponse {
+    /// Get the executed transaction.
+    ///
+    /// Requires `executed_transaction` in the read_mask.
     pub fn executed_transaction(
         &self,
     ) -> Result<&crate::v0::transaction::ExecutedTransaction, TryFromProtoError> {
@@ -25,6 +28,9 @@ impl ExecuteTransactionResponse {
 //
 
 impl ExecutionError {
+    /// Deserialize the execution error kind from BCS.
+    ///
+    /// Requires `bcs_kind` in the read_mask.
     pub fn error_kind(&self) -> Result<iota_sdk_types::ExecutionError, TryFromProtoError> {
         self.bcs_kind
             .as_ref()
@@ -35,12 +41,18 @@ impl ExecutionError {
             })
     }
 
+    /// Get the error source (human-readable description).
+    ///
+    /// Requires `source` in the read_mask.
     pub fn error_source(&self) -> Result<String, TryFromProtoError> {
         self.source
             .clone()
             .ok_or_else(|| TryFromProtoError::missing(Self::SOURCE_FIELD.name))
     }
 
+    /// Get the index of the command that caused the error.
+    ///
+    /// Requires `command_index` in the read_mask.
     pub fn error_command_index(&self) -> Result<u64, TryFromProtoError> {
         self.command_index
             .ok_or_else(|| TryFromProtoError::missing(Self::COMMAND_INDEX_FIELD.name))
@@ -51,6 +63,9 @@ impl ExecutionError {
 //
 
 impl SimulateTransactionResponse {
+    /// Get the simulated executed transaction.
+    ///
+    /// Requires `executed_transaction` in the read_mask.
     pub fn executed_transaction(
         &self,
     ) -> Result<&crate::v0::transaction::ExecutedTransaction, TryFromProtoError> {
@@ -60,12 +75,17 @@ impl SimulateTransactionResponse {
     }
 
     /// Get the suggested gas price.
+    ///
+    /// Requires `suggested_gas_price` in the read_mask.
     pub fn gas_price_suggested(&self) -> Result<u64, TryFromProtoError> {
         self.suggested_gas_price
             .ok_or_else(|| TryFromProtoError::missing(Self::SUGGESTED_GAS_PRICE_FIELD.name))
     }
 
-    /// Get the execution result.
+    /// Get the execution result (command results on success, execution error on
+    /// failure).
+    ///
+    /// Requires `execution_result` in the read_mask.
     pub fn execution_result(
         &self,
     ) -> Result<

@@ -24,14 +24,22 @@ impl Client {
     /// Results are returned in the same order as the input refs.
     /// If an object is not found, an error is returned.
     ///
-    /// # Field Mask
+    /// # Available Read Mask Fields
     ///
     /// The optional `read_mask` parameter controls which fields the server
     /// returns. If `None`, uses [`OBJECTS_READ_MASK`].
     ///
-    /// **Optional fields:**
-    /// - `bcs` - Object BCS data (for full deserialization)
-    /// - `reference` - Object metadata (ID, version, digest)
+    /// ## Reference Fields
+    /// - `reference` - includes all reference fields
+    ///   - `reference.object_id` - the ID of the object to fetch
+    ///   - `reference.version` - the version of the object, which can be used
+    ///     to fetch a specific historical version or the latest version if not
+    ///     provided
+    ///   - `reference.digest` - the digest of the object contents, which can be
+    ///     used for integrity verification
+    ///
+    /// ## Data Fields
+    /// - `bcs` - the full BCS-encoded object
     ///
     /// # Example
     ///

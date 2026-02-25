@@ -137,30 +137,43 @@ impl Merge<&EpochReadSource> for Epoch {
     }
 }
 
-/// available read_mask fields:
+/// Available Read Mask Fields
+///
+/// The `get_epoch` function supports the following `read_mask` fields to
+/// control which data is included in the response:
+///
+/// ## Epoch Fields
 /// - `epoch` - the epoch number
-/// - `committee` - the validator committee governing the epoch
+/// - `committee` - the validator committee for this epoch
 /// - `bcs_system_state` - the BCS-encoded system state at the beginning of the
 ///   epoch for past epochs or the current system state for the current epoch,
 ///   which can be used for historical state queries or to get the current state
 ///   respectively
+///
+/// ## Checkpoint Fields
 /// - `first_checkpoint` - the first checkpoint included in the epoch
 /// - `last_checkpoint` - the last checkpoint included in the epoch, which may
 ///   be unavailable for the current epoch if it has not ended yet
+///
+/// ## Timing Fields
 /// - `start` - the timestamp of the first checkpoint included in the epoch
 /// - `end` - the timestamp of the last checkpoint included in the epoch, which
 ///   may be unavailable for the current epoch if it has not ended yet
+///
+/// ## Gas Fields
 /// - `reference_gas_price` - the reference gas price during the epoch,
 ///   denominated in NANOS
+///
+/// ## Protocol Configuration Fields
 /// - `protocol_config` - the protocol configuration during the epoch
-///  - `protocol_config.protocol_version` - the protocol version during the
-///    epoch
-///  - `protocol_config.feature_flags` - the individual protocol feature flags
-///    during the epoch (use `protocol_config.feature_flags.<key>` to filter
-///    specific flags)
-///  - `protocol_config.attributes` - the individual protocol attributes during
-///    the epoch (use `protocol_config.attributes.<key>` to filter specific
-///    attributes)
+///   - `protocol_config.protocol_version` - the protocol version during the
+///     epoch
+///   - `protocol_config.feature_flags` - the individual protocol feature flags
+///     during the epoch (use `protocol_config.feature_flags.<key>` to filter
+///     specific flags)
+///   - `protocol_config.attributes` - the individual protocol attributes during
+///     the epoch (use `protocol_config.attributes.<key>` to filter specific
+///     attributes)
 #[tracing::instrument(skip(service))]
 pub fn get_epoch(
     service: &LedgerGrpcService,

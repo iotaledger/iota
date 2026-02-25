@@ -2,6 +2,83 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! High-level API for checkpoint queries.
+//!
+//! # Available Read Mask Fields
+//!
+//! All checkpoint query methods support the following `read_mask` fields to
+//! control which data is included in the response:
+//!
+//! ## Checkpoint Fields
+//! - `checkpoint` - includes all checkpoint fields
+//!   - `checkpoint.sequence_number` - the sequence number of the checkpoint
+//!   - `checkpoint.summary` - includes all checkpoint summary fields
+//!     - `checkpoint.summary.digest` - the digest of the checkpoint summary
+//!     - `checkpoint.summary.bcs` - the full BCS-encoded checkpoint summary
+//!   - `checkpoint.contents` - includes all checkpoint contents fields
+//!     - `checkpoint.contents.digest` - the digest of the checkpoint contents
+//!     - `checkpoint.contents.bcs` - the full BCS-encoded checkpoint contents
+//!   - `checkpoint.signature` - the validator aggregated signature for the
+//!     checkpoint
+//!
+//! ## Transaction Fields
+//! - `transactions` - includes all executed transaction fields
+//!   - `transactions.transaction` - includes all transaction fields
+//!     - `transactions.transaction.digest` - the transaction digest
+//!     - `transactions.transaction.bcs` - the full BCS-encoded transaction
+//!   - `transactions.signatures` - includes all signature fields
+//!     - `transactions.signatures.bcs` - the full BCS-encoded signature
+//!   - `transactions.effects` - includes all effects fields
+//!     - `transactions.effects.digest` - the effects digest
+//!     - `transactions.effects.bcs` - the full BCS-encoded effects
+//!   - `transactions.events` - includes all event fields (all events of the
+//!     transaction)
+//!     - `transactions.events.digest` - the events digest
+//!     - `transactions.events.events` - includes all event fields
+//!       - `transactions.events.events.bcs` - the full BCS-encoded event
+//!       - `transactions.events.events.package_id` - the ID of the package that
+//!         emitted the event
+//!       - `transactions.events.events.module` - the module that emitted the
+//!         event
+//!       - `transactions.events.events.sender` - the sender that triggered the
+//!         event
+//!       - `transactions.events.events.event_type` - the type of the event
+//!       - `transactions.events.events.bcs_contents` - the full BCS-encoded
+//!         contents of the event
+//!       - `transactions.events.events.json_contents` - the JSON-encoded
+//!         contents of the event
+//!   - `transactions.checkpoint` - the checkpoint that included the transaction
+//!   - `transactions.timestamp` - the timestamp of the checkpoint that included
+//!     the transaction
+//!   - `transactions.input_objects` - includes all input object fields
+//!     - `transactions.input_objects.reference` - includes all reference fields
+//!       - `transactions.input_objects.reference.object_id` - the ID of the
+//!         input object
+//!       - `transactions.input_objects.reference.version` - the version of the
+//!         input object
+//!       - `transactions.input_objects.reference.digest` - the digest of the
+//!         input object contents
+//!     - `transactions.input_objects.bcs` - the full BCS-encoded object
+//!   - `transactions.output_objects` - includes all output object fields
+//!     - `transactions.output_objects.reference` - includes all reference
+//!       fields
+//!       - `transactions.output_objects.reference.object_id` - the ID of the
+//!         output object
+//!       - `transactions.output_objects.reference.version` - the version of the
+//!         output object
+//!       - `transactions.output_objects.reference.digest` - the digest of the
+//!         output object contents
+//!     - `transactions.output_objects.bcs` - the full BCS-encoded object
+//!
+//! ## Event Fields
+//! - `events` - includes all event fields (all events of all transactions in
+//!   the checkpoint)
+//!   - `events.bcs` - the full BCS-encoded event
+//!   - `events.package_id` - the ID of the package that emitted the event
+//!   - `events.module` - the module that emitted the event
+//!   - `events.sender` - the sender that triggered the event
+//!   - `events.event_type` - the type of the event
+//!   - `events.bcs_contents` - the full BCS-encoded contents of the event
+//!   - `events.json_contents` - the JSON-encoded contents of the event
 
 use std::pin::Pin;
 
@@ -34,7 +111,9 @@ impl Client {
     /// # Parameters
     ///
     /// * `read_mask` - Optional field mask specifying which fields to include.
-    ///   If `None`, uses [`crate::api::CHECKPOINT_READ_MASK`] as default.
+    ///   If `None`, uses [`crate::api::CHECKPOINT_READ_MASK`] as default. See
+    ///   [module-level documentation](crate::api::ledger::checkpoints) for all
+    ///   available fields.
     /// * `transactions_filter` - Optional filter to apply to transactions
     /// * `events_filter` - Optional filter to apply to events
     ///
@@ -73,7 +152,9 @@ impl Client {
     ///
     /// * `sequence_number` - The checkpoint sequence number to fetch
     /// * `read_mask` - Optional field mask specifying which fields to include.
-    ///   If `None`, uses [`crate::api::CHECKPOINT_READ_MASK`] as default.
+    ///   If `None`, uses [`crate::api::CHECKPOINT_READ_MASK`] as default. See
+    ///   [module-level documentation](crate::api::ledger::checkpoints) for all
+    ///   available fields.
     /// * `transactions_filter` - Optional filter to apply to transactions
     /// * `events_filter` - Optional filter to apply to events
     ///
@@ -115,7 +196,9 @@ impl Client {
     ///
     /// * `digest` - The checkpoint digest to fetch
     /// * `read_mask` - Optional field mask specifying which fields to include.
-    ///   If `None`, uses [`crate::api::CHECKPOINT_READ_MASK`] as default.
+    ///   If `None`, uses [`crate::api::CHECKPOINT_READ_MASK`] as default. See
+    ///   [module-level documentation](crate::api::ledger::checkpoints) for all
+    ///   available fields.
     /// * `transactions_filter` - Optional filter to apply to transactions
     /// * `events_filter` - Optional filter to apply to events
     ///
@@ -209,7 +292,9 @@ impl Client {
     /// * `end_sequence_number` - Optional ending checkpoint. If `None`, streams
     ///   indefinitely.
     /// * `read_mask` - Optional field mask specifying which fields to include.
-    ///   If `None`, uses [`crate::api::CHECKPOINT_READ_MASK`] as default.
+    ///   If `None`, uses [`crate::api::CHECKPOINT_READ_MASK`] as default. See
+    ///   [module-level documentation](crate::api::ledger::checkpoints) for all
+    ///   available fields.
     /// * `transactions_filter` - Optional filter to apply to transactions
     /// * `events_filter` - Optional filter to apply to events
     ///
