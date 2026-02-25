@@ -269,9 +269,7 @@ fn get_registry() -> Result<Registry> {
         type_origin_table: vec![tot.clone()],
         linkage_table: BTreeMap::from([(ObjectID::ZERO, sample_upgrade_info)]),
     };
-    tracer
-        .trace_value(&mut samples, &sample_move_pkg)
-        .unwrap();
+    tracer.trace_value(&mut samples, &sample_move_pkg).unwrap();
     tracer
         .trace_value(&mut samples, &Data::Package(sample_move_pkg))
         .unwrap();
