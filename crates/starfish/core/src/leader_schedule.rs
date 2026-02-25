@@ -154,40 +154,6 @@ impl LeaderSchedule {
         dag_state.read().is_scoring_subdag_empty()
     }
 
-    pub(crate) fn update_leader_schedule(&self, dag_state: &RwLock<DagState>) {
-        let _s = self
-            .context
-            .metrics
-            .node_metrics
-            .scope_processing_time
-            .with_label_values(&["LeaderSchedule::update_leader_schedule"])
-            .start_timer();
-        let (reputation_scores, last_commit_index) = {
-            let dag_state = dag_state.read();
-            let reputation_scores = dag_state.calculate_scoring_subdag_scores();
-            let last_commit_index = dag_state.scoring_subdag_commit_range();
-            (reputation_scores, last_commit_index)
-        };
-        {
-            let mut dag_state = dag_state.write();
-            // Clear scoring subdag as we have updated the leader schedule
-            dag_state.clear_scoring_subdag();
-            // Buffer score and last commit rounds in dag state to be persisted later
-            dag_state.add_commit_info(reputation_scores.clone());
-        }
-        self.update_leader_swap_table(LeaderSwapTable::new(
-            self.context.clone(),
-            last_commit_index,
-            reputation_scores.clone(),
-        ));
-        reputation_scores.update_metrics(self.context.clone());
-        self.context
-            .metrics
-            .node_metrics
-            .num_of_bad_nodes
-            .set(self.leader_swap_table.read().bad_nodes.len() as i64);
-    }
-
     pub(crate) fn elect_leader(&self, round: u32, leader_offset: u32) -> AuthorityIndex {
         cfg_if::cfg_if! {
             // TODO: we need to differentiate the leader strategy in tests, so for
@@ -233,6 +199,85 @@ impl LeaderSchedule {
         leader_index
     }
 
+    fn range_validation(&self, new_table: &LeaderSwapTable, old_table: &LeaderSwapTable) {
+        let old_commit_range = &old_table.reputation_scores.commit_range;
+        let new_commit_range = &new_table.reputation_scores.commit_range;
+
+        // Unless LeaderSchedule is brand new and using the default commit range
+        // of CommitRange(0..0) all future LeaderSwapTables should be calculated
+        // from a CommitRange of equal length and immediately following the
+        // preceding commit range of the old swap table.
+        if *old_commit_range != CommitRange::default() {
+            assert!(
+                old_commit_range.is_next_range(new_commit_range)
+                    && old_commit_range.is_equal_size(new_commit_range),
+                "The new LeaderSwapTable has an invalid CommitRange. Old LeaderSwapTable {old_commit_range:?} vs new LeaderSwapTable {new_commit_range:?}",
+            );
+        }
+        tracing::debug!(
+            "Normal update LeaderSwapTable: commit_range={:?}, good_nodes={:?}, bad_nodes={:?}",
+            new_commit_range,
+            new_table
+                .good_nodes
+                .iter()
+                .map(|(i, _, _)| i)
+                .collect::<Vec<_>>(),
+            new_table.bad_nodes.keys().collect::<Vec<_>>()
+        );
+    }
+
+    fn persist_scores(
+        &self,
+        dag_state_write_lock: &mut DagState,
+        reputation_scores: ReputationScores,
+    ) {
+        // Clear scoring subdag as we have updated the leader schedule
+        dag_state_write_lock.clear_scoring_subdag();
+        // Buffer score and last commit rounds in dag state to be persisted later
+        dag_state_write_lock.add_commit_info(reputation_scores);
+    }
+    fn apply_reputation_scores_inner(
+        &self,
+        the_leader_swap_table: &mut LeaderSwapTable,
+        table: LeaderSwapTable,
+    ) {
+        *the_leader_swap_table = table;
+
+        the_leader_swap_table
+            .reputation_scores
+            .update_metrics(self.context.clone());
+        self.context
+            .metrics
+            .node_metrics
+            .num_of_bad_nodes
+            .set(the_leader_swap_table.bad_nodes.len() as i64);
+    }
+
+    pub(crate) fn update_leader_schedule(&self, dag_state_write_lock: &mut DagState) {
+        let _s = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["LeaderSchedule::update_leader_schedule"])
+            .start_timer();
+        let (reputation_scores, last_commit_index) = {
+            let reputation_scores = dag_state_write_lock.calculate_scoring_subdag_scores();
+            let last_commit_index = dag_state_write_lock.scoring_subdag_commit_range();
+            (reputation_scores, last_commit_index)
+        };
+        let table = LeaderSwapTable::new(
+            self.context.clone(),
+            last_commit_index,
+            reputation_scores.clone(),
+        );
+        self.persist_scores(dag_state_write_lock, reputation_scores);
+        {
+            self.range_validation(&table, &self.leader_swap_table.read());
+            self.apply_reputation_scores_inner(&mut self.leader_swap_table.write(), table);
+        }
+    }
+
     /// Updates the leader schedule from reputation scores stored in a commit.
     /// Used during fast sync where we don't have the scoring_subdag populated,
     /// but the commits already contain the pre-computed reputation scores.
@@ -246,7 +291,7 @@ impl LeaderSchedule {
     /// we may be processing commits from far ahead.
     pub(crate) fn update_from_commit_scores(
         &self,
-        dag_state: &mut DagState,
+        dag_state_write_lock: &mut DagState,
         commit_index: CommitIndex,
         reputation_scores_desc: &[(AuthorityIndex, u64)],
     ) {
@@ -264,7 +309,7 @@ impl LeaderSchedule {
         // This can happen after a crash when fast sync fetches old commits that
         // the node already has, while the node has recovered scoring_subdag from
         // commits after the last persisted CommitInfo.
-        let last_commit_info_index = dag_state.last_commit_info_index();
+        let last_commit_info_index = dag_state_write_lock.last_commit_info_index();
         if range_end <= last_commit_info_index {
             tracing::debug!(
                 "[AUTH {}] Skipping stale scores from commit {commit_index} (range_end={range_end} <= last_commit_info_index={last_commit_info_index})",
@@ -287,12 +332,6 @@ impl LeaderSchedule {
             self.context.own_index
         );
 
-        // Update dag_state: clear scoring_subdag and add commit_info.
-        // This mirrors the flow in update_leader_schedule. The caller must
-        // already hold the dag_state write lock.
-        dag_state.clear_scoring_subdag();
-        dag_state.add_commit_info(reputation_scores.clone());
-
         let table =
             LeaderSwapTable::new(self.context.clone(), range_end, reputation_scores.clone());
         tracing::debug!(
@@ -305,55 +344,15 @@ impl LeaderSchedule {
                 .collect::<Vec<_>>(),
             table.bad_nodes.keys().collect::<Vec<_>>()
         );
-
-        // Directly update the swap table without strict range checks.
-        // During fast sync, we trust the scores from certified commits.
-        let mut write = self.leader_swap_table.write();
-        *write = table;
-
-        // Update metrics
-        reputation_scores.update_metrics(self.context.clone());
-        self.context
-            .metrics
-            .node_metrics
-            .num_of_bad_nodes
-            .set(write.bad_nodes.len() as i64);
+        self.persist_scores(dag_state_write_lock, reputation_scores);
+        self.apply_reputation_scores_inner(&mut self.leader_swap_table.write(), table);
     }
 
-    /// Atomically updates the `LeaderSwapTable` with the new provided one. Any
-    /// leader queried from now on will get calculated according to this swap
-    /// table until a new one is provided again.
-    fn update_leader_swap_table(&self, table: LeaderSwapTable) {
-        let read = self.leader_swap_table.read();
-        let old_commit_range = &read.reputation_scores.commit_range;
-        let new_commit_range = &table.reputation_scores.commit_range;
-
-        // Unless LeaderSchedule is brand new and using the default commit range
-        // of CommitRange(0..0) all future LeaderSwapTables should be calculated
-        // from a CommitRange of equal length and immediately following the
-        // preceding commit range of the old swap table.
-        if *old_commit_range != CommitRange::default() {
-            assert!(
-                old_commit_range.is_next_range(new_commit_range)
-                    && old_commit_range.is_equal_size(new_commit_range),
-                "The new LeaderSwapTable has an invalid CommitRange. Old LeaderSwapTable {old_commit_range:?} vs new LeaderSwapTable {new_commit_range:?}",
-            );
-        }
-        drop(read);
-
-        tracing::debug!(
-            "Normal update LeaderSwapTable: commit_range={:?}, good_nodes={:?}, bad_nodes={:?}",
-            new_commit_range,
-            table
-                .good_nodes
-                .iter()
-                .map(|(i, _, _)| i)
-                .collect::<Vec<_>>(),
-            table.bad_nodes.keys().collect::<Vec<_>>()
-        );
-
-        let mut write = self.leader_swap_table.write();
-        *write = table;
+    #[cfg(test)]
+    fn update_leader_swap_table_strict_for_test(&self, table: LeaderSwapTable) {
+        let mut old = self.leader_swap_table.write();
+        self.range_validation(&table, &old);
+        self.apply_reputation_scores_inner(&mut old, table);
     }
 }
 
@@ -948,18 +947,18 @@ mod tests {
             )
             .base,
         ];
+        {
+            let mut dag_state_write = dag_state.write();
+            dag_state_write.set_last_commit(last_commit);
+            dag_state_write.add_scoring_subdags(unscored_subdags);
 
-        let mut dag_state_write = dag_state.write();
-        dag_state_write.set_last_commit(last_commit);
-        dag_state_write.add_scoring_subdags(unscored_subdags);
-        drop(dag_state_write);
+            assert_eq!(
+                leader_schedule.elect_leader(4, 0),
+                AuthorityIndex::new_for_test(0)
+            );
 
-        assert_eq!(
-            leader_schedule.elect_leader(4, 0),
-            AuthorityIndex::new_for_test(0)
-        );
-
-        leader_schedule.update_leader_schedule(&dag_state);
+            leader_schedule.update_leader_schedule(&mut dag_state_write);
+        }
 
         let leader_swap_table = leader_schedule.leader_swap_table.read();
         assert_eq!(leader_swap_table.good_nodes.len(), 1);
@@ -1103,7 +1102,7 @@ mod tests {
         let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default());
 
         // Update leader from brand new schedule to first real schedule
-        leader_schedule.update_leader_swap_table(leader_swap_table.clone());
+        leader_schedule.update_leader_swap_table_strict_for_test(leader_swap_table.clone());
 
         let reputation_scores = ReputationScores::new(
             (11..=20).into(),
@@ -1113,7 +1112,7 @@ mod tests {
             LeaderSwapTable::new_inner(context.clone(), swap_stake_threshold, 0, reputation_scores);
 
         // Update leader from old swap table to new valid swap table
-        leader_schedule.update_leader_swap_table(leader_swap_table.clone());
+        leader_schedule.update_leader_swap_table_strict_for_test(leader_swap_table.clone());
     }
 
     #[tokio::test]
@@ -1135,7 +1134,7 @@ mod tests {
         let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default());
 
         // Update leader from brand new schedule to first real schedule
-        leader_schedule.update_leader_swap_table(leader_swap_table.clone());
+        leader_schedule.update_leader_swap_table_strict_for_test(leader_swap_table.clone());
 
         let reputation_scores = ReputationScores::new(
             (11..=20).into(),
@@ -1145,7 +1144,7 @@ mod tests {
             LeaderSwapTable::new_inner(context.clone(), swap_stake_threshold, 0, reputation_scores);
 
         // Update leader from old swap table to new valid swap table
-        leader_schedule.update_leader_swap_table(leader_swap_table.clone());
+        leader_schedule.update_leader_swap_table_strict_for_test(leader_swap_table.clone());
 
         let reputation_scores = ReputationScores::new(
             (21..=25).into(),
@@ -1155,6 +1154,6 @@ mod tests {
             LeaderSwapTable::new_inner(context.clone(), swap_stake_threshold, 0, reputation_scores);
 
         // Update leader from old swap table to new invalid swap table
-        leader_schedule.update_leader_swap_table(leader_swap_table.clone());
+        leader_schedule.update_leader_swap_table_strict_for_test(leader_swap_table.clone());
     }
 }
