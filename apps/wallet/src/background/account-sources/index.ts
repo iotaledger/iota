@@ -15,6 +15,7 @@ import { MnemonicAccountSource } from './mnemonicAccountSource';
 import { SeedAccountSource } from './seedAccountSource';
 import { toEntropy } from '_src/shared/utils';
 import { KeystoneAccountSource } from './keystoneAccountSource';
+import { accountSourcesEvents } from './events';
 
 function toAccountSource(accountSource: AccountSourceSerialized) {
     if (MnemonicAccountSource.isOfType(accountSource)) {
@@ -54,46 +55,39 @@ export async function getAllSerializedUIAccountSources() {
 
 async function createAccountSource({ type, params }: MethodPayload<'createAccountSource'>['args']) {
     const { password } = params;
+    let accountSource;
     switch (type) {
         case AccountSourceType.Mnemonic:
             const entropy = params.entropy;
-            return (
-                await MnemonicAccountSource.save(
-                    await MnemonicAccountSource.createNew({
-                        password,
-                        entropyInput: entropy ? toEntropy(entropy) : undefined,
-                    }),
-                )
-            ).toUISerialized();
+            accountSource = await MnemonicAccountSource.save(
+                await MnemonicAccountSource.createNew({
+                    password,
+                    entropyInput: entropy ? toEntropy(entropy) : undefined,
+                }),
+            );
+            break;
         case AccountSourceType.Seed:
-            return (
-                await SeedAccountSource.save(
-                    await SeedAccountSource.createNew({
-                        password,
-                        seed: params.seed,
-                    }),
-                )
-            ).toUISerialized();
+            accountSource = await SeedAccountSource.save(
+                await SeedAccountSource.createNew({
+                    password,
+                    seed: params.seed,
+                }),
+            );
+            break;
         case AccountSourceType.Keystone:
-            return (
-                await KeystoneAccountSource.save(
-                    await KeystoneAccountSource.createNew({
-                        password,
-                        masterFingerprint: params.masterFingerprint,
-                    }),
-                )
-            ).toUISerialized();
+            accountSource = await KeystoneAccountSource.save(
+                await KeystoneAccountSource.createNew({
+                    password,
+                    masterFingerprint: params.masterFingerprint,
+                }),
+            );
+            break;
         default: {
             throw new Error(`Unknown Account source type ${type}`);
         }
     }
-}
-
-export async function lockAllAccountSources() {
-    const allAccountSources = await getAccountSources();
-    for (const anAccountSource of allAccountSources) {
-        await anAccountSource.lock();
-    }
+    accountSourcesEvents.emit('accountSourcesChanged');
+    return accountSource.toUISerialized();
 }
 
 export async function accountSourcesHandleUIMessage(msg: Message, uiConnection: UiConnection) {
@@ -111,26 +105,19 @@ export async function accountSourcesHandleUIMessage(msg: Message, uiConnection: 
         );
         return true;
     }
-
-    if (isMethodPayload(payload, 'unlockAccountSourceOrAccount')) {
+    if (isMethodPayload(payload, 'unlockAccountSource')) {
         const { id, password } = payload.args;
+        if (!password) {
+            throw new Error('Missing password');
+        }
         const accountSource = await getAccountSourceByID(id);
-        if (accountSource) {
-            if (!password) {
-                throw new Error('Missing password');
-            }
-            await accountSource.unlock(password);
-            uiConnection.send(createMessage({ type: 'done' }, msg.id));
-            return true;
+        if (!accountSource) {
+            throw new Error('Account source not found');
         }
-    }
-    if (isMethodPayload(payload, 'lockAccountSourceOrAccount')) {
-        const accountSource = await getAccountSourceByID(payload.args.id);
-        if (accountSource) {
-            await accountSource.lock();
-            uiConnection.send(createMessage({ type: 'done' }, msg.id));
-            return true;
-        }
+        await accountSource.unlock(password);
+        accountSourcesEvents.emit('accountSourcesChanged');
+        uiConnection.send(createMessage({ type: 'done' }, msg.id));
+        return true;
     }
     if (isMethodPayload(payload, 'getAccountSourceEntropy')) {
         const accountSource = await getAccountSourceByID(payload.args.accountSourceID);

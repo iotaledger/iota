@@ -196,11 +196,13 @@ export function TableBody({ children }: PropsWithChildren): JSX.Element {
 export interface TableRowCheckboxProps {
     rowIndex: number;
     onCheckboxChange: (checked: boolean) => void;
+    isDisabled?: boolean;
 }
 
 export function TableRowCheckbox({
     rowIndex,
     onCheckboxChange,
+    isDisabled,
 }: TableRowCheckboxProps): React.JSX.Element {
     const { selectedRowIndexes } = useTableContext();
 
@@ -211,6 +213,7 @@ export function TableRowCheckbox({
                     onCheckboxChange(event.target.checked);
                 }}
                 isChecked={selectedRowIndexes.has(rowIndex)}
+                isDisabled={isDisabled}
             />
         </TableCellBase>
     );

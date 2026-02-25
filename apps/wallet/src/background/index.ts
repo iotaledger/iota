@@ -7,9 +7,8 @@ import { growthbook, setAttributes } from '_src/shared/experimentation/features'
 import { coerce, lte } from 'semver';
 import Browser from 'webextension-polyfill';
 
-import { lockAllAccountSources } from './account-sources';
 import { accountSourcesEvents } from './account-sources/events';
-import { getAccountsStatusData, getAllAccounts, lockAllAccounts } from './accounts';
+import { getAccountsStatusData, getAllAccounts, lockAllAccountsAndSources } from './accounts';
 import { accountsEvents } from './accounts/events';
 import Alarms, { AUTO_LOCK_ALARM_NAME, CLEAN_UP_ALARM_NAME } from './alarms';
 import { Connections } from './connections';
@@ -94,23 +93,14 @@ accountsEvents.on('accountsChanged', async () => {
         ),
     );
 });
-accountsEvents.on('accountStatusChanged', () => {
-    connections.notifyUI({ event: 'storedEntitiesUpdated', type: 'accounts' });
-});
-accountsEvents.on('activeAccountChanged', () => {
-    connections.notifyUI({ event: 'storedEntitiesUpdated', type: 'accounts' });
-});
-accountSourcesEvents.on('accountSourceStatusUpdated', () => {
-    connections.notifyUI({ event: 'storedEntitiesUpdated', type: 'accountSources' });
-});
+
 accountSourcesEvents.on('accountSourcesChanged', () => {
     connections.notifyUI({ event: 'storedEntitiesUpdated', type: 'accountSources' });
 });
 
 Browser.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === AUTO_LOCK_ALARM_NAME) {
-        lockAllAccounts();
-        lockAllAccountSources();
+        lockAllAccountsAndSources();
     } else if (alarm.name === CLEAN_UP_ALARM_NAME) {
         Transactions.clearStaleTransactions();
     }
