@@ -31,6 +31,7 @@ use crate::{
 // that `iota-sdk-types::Input` uses (which matches its JSON serialization).
 // These are used only by schemars for OpenRPC schema generation; they are NOT
 // used for serialization.
+#[allow(dead_code)]
 #[derive(JsonSchema)]
 #[schemars(rename = "CallArg")]
 enum BinaryCallArgSchema {
@@ -38,6 +39,7 @@ enum BinaryCallArgSchema {
     Object(BinaryObjectArgSchema),
 }
 
+#[allow(dead_code)]
 #[derive(JsonSchema)]
 #[schemars(rename = "ObjectArg")]
 enum BinaryObjectArgSchema {
