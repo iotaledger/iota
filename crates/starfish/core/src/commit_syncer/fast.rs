@@ -861,6 +861,7 @@ mod tests {
                 commit_sync_batch_size: 10,
                 commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
                 fast_commit_sync_batch_size: 20,
+                enable_fast_commit_syncer: true,
                 sync_last_known_own_block_timeout: Duration::from_millis(2_000),
                 ..Default::default()
             };
@@ -1241,6 +1242,7 @@ mod tests {
                 commit_sync_batch_size: COMMIT_SYNC_BATCH_SIZE,
                 commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
                 fast_commit_sync_batch_size: COMMIT_SYNC_BATCH_SIZE,
+                enable_fast_commit_syncer: true,
                 sync_last_known_own_block_timeout: Duration::from_millis(2_000),
                 ..Default::default()
             };

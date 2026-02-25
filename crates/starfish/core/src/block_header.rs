@@ -436,7 +436,7 @@ impl AsRef<[u8]> for BlockHeaderDigest {
 pub struct TransactionsCommitment(pub(crate) [u8; starfish_config::DIGEST_LENGTH]);
 pub type MerkleProofBytes = Vec<u8>;
 
-/// Used when the protocol flag `consensus_transaction_ref` is disabled.
+/// Used when the protocol flag `consensus_fast_commit_sync` is disabled.
 /// Contains block reference and separate transaction commitment field.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub(crate) struct ShardWithProofV1 {
@@ -446,7 +446,7 @@ pub(crate) struct ShardWithProofV1 {
     pub(crate) block_ref: BlockRef,
 }
 
-/// Used when the protocol flag `consensus_transaction_ref` is enabled.
+/// Used when the protocol flag `consensus_fast_commit_sync` is enabled.
 /// Contains transaction reference which includes the transaction commitment.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub(crate) struct ShardWithProofV2 {
@@ -475,15 +475,16 @@ pub(crate) enum ShardWithProof {
 
 impl ShardWithProof {
     /// Creates a new ShardWithProof instance based on the protocol flag.
-    /// If `transaction_ref_enabled` is true, creates V2 variant, otherwise V1.
+    /// If `consensus_fast_commit_sync` is true, creates V2 variant, otherwise
+    /// V1.
     pub(crate) fn new(
         shard: Shard,
         proof: MerkleProofBytes,
         block_ref: BlockRef,
         transaction_commitment: TransactionsCommitment,
-        transaction_ref_enabled: bool,
+        consensus_fast_commit_sync: bool,
     ) -> Self {
-        if transaction_ref_enabled {
+        if consensus_fast_commit_sync {
             ShardWithProof::V2(ShardWithProofV2 {
                 shard,
                 proof,

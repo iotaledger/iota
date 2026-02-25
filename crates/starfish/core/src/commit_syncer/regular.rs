@@ -498,7 +498,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             .commit_sync_fetch_once_latency
             .with_label_values(&[inner.sync_type.as_str()])
             .start_timer();
-        let transaction_ref_enabled = inner.context.protocol_config.consensus_fast_commit_sync();
+        let consensus_fast_commit_sync = inner.context.protocol_config.consensus_fast_commit_sync();
 
         // 1. Fetch commits in the commit range from the target authority.
         let (serialized_commits, serialized_voting_block_headers) = inner
@@ -540,10 +540,10 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             .flat_map(|c| c.committed_transactions())
             .collect();
 
-        if !transaction_ref_enabled {
+        if !consensus_fast_commit_sync {
             // 3b. Identify which committed transaction blocks are NOT in the committed
             // blocks list and add them to block_refs so they get fetched together.
-            // If transaction_ref_enabled is true, then we fetch these transactions
+            // If consensus_fast_commit_sync is true, then we fetch these transactions
             // separately without fetching headers, so in this case we don't need to do
             // anything here
             let block_refs_set: BTreeSet<_> = block_refs.iter().cloned().collect();
@@ -655,7 +655,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         let mut result = BTreeMap::new();
                         for serialized_bytes in serialized_transactions {
                             let (committed_transaction_ref, serialized_transactions) =
-                                if !transaction_ref_enabled {
+                                if !consensus_fast_commit_sync {
                                     let serialized_tx: SerializedTransactionsV1 =
                                         bcs::from_bytes(&serialized_bytes)
                                             .map_err(ConsensusError::MalformedTransactions)?;

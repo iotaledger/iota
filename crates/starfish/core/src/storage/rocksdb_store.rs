@@ -398,12 +398,12 @@ impl Store for RocksDBStore {
         }
         let serialized_vec_transactions = self.read_serialized_transactions(refs)?;
 
-        let transaction_ref_enabled = match &refs[0] {
+        let use_transaction_ref = match &refs[0] {
             GenericTransactionRef::BlockRef { .. } => false,
             GenericTransactionRef::TransactionRef { .. } => true,
         };
         let mut result = Vec::with_capacity(refs.len());
-        if transaction_ref_enabled {
+        if use_transaction_ref {
             for (gen_tx_ref, serialized_transactions) in
                 refs.iter().zip(serialized_vec_transactions)
             {

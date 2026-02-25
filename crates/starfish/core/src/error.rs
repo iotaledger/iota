@@ -283,7 +283,7 @@ pub(crate) enum ConsensusError {
     InconsistentTransactionRefVariants,
 
     #[error(
-        "Transaction reference variant is inconsistent with protocol flag consensus_transaction_ref={protocol_flag_enabled}. Expected {expected_variant}, but received {received_variant}"
+        "Transaction reference variant is inconsistent with protocol flag consensus_fast_commit_sync={protocol_flag_enabled}. Expected {expected_variant}, but received {received_variant}"
     )]
     TransactionRefVariantMismatch {
         protocol_flag_enabled: bool,

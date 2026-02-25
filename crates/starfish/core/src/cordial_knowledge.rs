@@ -639,13 +639,13 @@ impl CordialKnowledge {
         // 3) The block_author now acknowledges previously known transactions
         // Use the provided transaction commitments to create the proper
         // GenericTransactionRef variant
-        let transaction_ref_enabled = self.context.protocol_config.consensus_fast_commit_sync();
+        let consensus_fast_commit_sync = self.context.protocol_config.consensus_fast_commit_sync();
         for (acknowledgment, &transactions_commitment) in header
             .acknowledgments()
             .iter()
             .zip(ack_transactions_commitments.iter())
         {
-            let gen_tx_ref = if transaction_ref_enabled {
+            let gen_tx_ref = if consensus_fast_commit_sync {
                 if let Some(transactions_commitment) = transactions_commitment {
                     GenericTransactionRef::TransactionRef(crate::transaction_ref::TransactionRef {
                         round: acknowledgment.round,

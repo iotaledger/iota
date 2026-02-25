@@ -1056,7 +1056,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             match Handle::current()
                 .spawn_blocking({
                     // Validate that all refs are TransactionRef as expected when
-                    // consensus_transaction_ref is true
+                    // consensus_fast_commit_sync is true
                     for tx_ref in requested_transactions_guard.transactions_refs.iter() {
                         if let GenericTransactionRef::BlockRef(_) = tx_ref {
                             return Err(ConsensusError::TransactionRefVariantMismatch {

@@ -427,13 +427,13 @@ mod tests {
         }
 
         fn with_committed_refs_from_round(mut self, round: u32) -> Self {
-            let transaction_ref_enabled = self
+            let consensus_fast_commit_sync = self
                 .setup
                 .context
                 .protocol_config
                 .consensus_fast_commit_sync();
             let refs = if round == 0 {
-                if transaction_ref_enabled {
+                if consensus_fast_commit_sync {
                     genesis_blocks(&self.setup.context)
                         .iter()
                         .map(|b| {
@@ -448,7 +448,7 @@ mod tests {
                         .map(|b| GenericTransactionRef::from(b.reference()))
                         .collect()
                 }
-            } else if transaction_ref_enabled {
+            } else if consensus_fast_commit_sync {
                 self.setup
                     .dag_builder
                     .block_headers(round..=round)

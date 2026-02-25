@@ -1545,7 +1545,7 @@ mod test {
         for block in dag_builder.block_headers(1..=2) {
             if block.author() == context.own_index {
                 let generic_ref = if consensus_fast_commit_sync {
-                    // When consensus_transaction_ref is enabled, create TransactionRef variant
+                    // When consensus_fast_commit_sync is enabled, create TransactionRef variant
                     GenericTransactionRef::TransactionRef(TransactionRef {
                         round: block.round(),
                         author: block.author(),
@@ -3134,7 +3134,7 @@ mod test {
         for block in dag_builder.block_headers(1..=4) {
             if block.author() == context.own_index {
                 let generic_ref = if consensus_fast_commit_sync {
-                    // When consensus_transaction_ref is enabled, create TransactionRef variant
+                    // When consensus_fast_commit_sync is enabled, create TransactionRef variant
                     GenericTransactionRef::TransactionRef(TransactionRef {
                         round: block.round(),
                         author: block.author(),
