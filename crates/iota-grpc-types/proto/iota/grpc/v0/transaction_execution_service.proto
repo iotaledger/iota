@@ -37,6 +37,9 @@ message ExecuteTransactionRequest {
 
 // Response message for `NodeService.ExecuteTransaction`.
 message ExecuteTransactionResponse {
+  option (iota.grpc.message_accessors) = "with";
+  option (iota.grpc.field_mask_transparent) = true;
+
   optional iota.grpc.v0.transaction.ExecutedTransaction executed_transaction = 1;
 }
 

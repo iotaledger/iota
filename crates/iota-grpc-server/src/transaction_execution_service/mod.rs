@@ -28,7 +28,7 @@ pub use transaction::{CommandResultsReadSource, TransactionReadSource};
 
 use crate::{error::RpcError, merge::Merge, types::GrpcReader};
 
-pub const EXECUTE_TRANSACTION_READ_MASK_DEFAULT: &str = "executed_transaction.effects";
+pub const EXECUTE_TRANSACTION_READ_MASK_DEFAULT: &str = "effects";
 
 pub struct TransactionExecutionGrpcService {
     pub config: iota_config::node::GrpcApiConfig,
@@ -93,61 +93,45 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
 /// to control which data is included in the response:
 ///
 /// ## Transaction Fields
-/// - `executed_transaction` - includes all executed transaction fields
-///   - `executed_transaction.transaction` - includes all transaction fields
-///     - `executed_transaction.transaction.digest` - the transaction digest
-///     - `executed_transaction.transaction.bcs` - the full BCS-encoded
-///       transaction
-///   - `executed_transaction.signatures` - includes all signature fields
-///     - `executed_transaction.signatures.bcs` - the full BCS-encoded signature
-///   - `executed_transaction.effects` - includes all effects fields
-///     - `executed_transaction.effects.digest` - the effects digest
-///     - `executed_transaction.effects.bcs` - the full BCS-encoded effects
-///   - `executed_transaction.checkpoint` - the checkpoint that included the
-///     transaction (not available for just-executed transactions)
-///   - `executed_transaction.timestamp` - the timestamp of the checkpoint (not
-///     available for just-executed transactions)
+/// - `transaction` - includes all transaction fields
+///   - `transaction.digest` - the transaction digest
+///   - `transaction.bcs` - the full BCS-encoded transaction
+/// - `signatures` - includes all signature fields
+///   - `signatures.bcs` - the full BCS-encoded signature
+/// - `effects` - includes all effects fields
+///   - `effects.digest` - the effects digest
+///   - `effects.bcs` - the full BCS-encoded effects
+/// - `checkpoint` - the checkpoint that included the transaction (not available
+///   for just-executed transactions)
+/// - `timestamp` - the timestamp of the checkpoint (not available for
+///   just-executed transactions)
 ///
 /// ## Event Fields
-/// - `executed_transaction.events` - includes all event fields (all events of
-///   the transaction)
-///   - `executed_transaction.events.digest` - the events digest
-///   - `executed_transaction.events.events` - includes all event fields
-///     - `executed_transaction.events.events.bcs` - the full BCS-encoded event
-///     - `executed_transaction.events.events.package_id` - the ID of the
-///       package that emitted the event
-///     - `executed_transaction.events.events.module` - the module that emitted
-///       the event
-///     - `executed_transaction.events.events.sender` - the sender that
-///       triggered the event
-///     - `executed_transaction.events.events.event_type` - the type of the
-///       event
-///     - `executed_transaction.events.events.bcs_contents` - the full
-///       BCS-encoded contents of the event
-///     - `executed_transaction.events.events.json_contents` - the JSON-encoded
-///       contents of the event
+/// - `events` - includes all event fields (all events of the transaction)
+///   - `events.digest` - the events digest
+///   - `events.bcs` - the full BCS-encoded event
+///   - `events.package_id` - the ID of the package that emitted the event
+///   - `events.module` - the module that emitted the event
+///   - `events.sender` - the sender that triggered the event
+///   - `events.event_type` - the type of the event
+///   - `events.bcs_contents` - the full BCS-encoded contents of the event
+///   - `events.json_contents` - the JSON-encoded contents of the event
 ///
 /// ## Object Fields
-/// - `executed_transaction.input_objects` - includes all input object fields
-///   - `executed_transaction.input_objects.reference` - includes all reference
-///     fields
-///     - `executed_transaction.input_objects.reference.object_id` - the ID of
-///       the input object
-///     - `executed_transaction.input_objects.reference.version` - the version
-///       of the input object
-///     - `executed_transaction.input_objects.reference.digest` - the digest of
-///       the input object contents
-///   - `executed_transaction.input_objects.bcs` - the full BCS-encoded object
-/// - `executed_transaction.output_objects` - includes all output object fields
-///   - `executed_transaction.output_objects.reference` - includes all reference
-///     fields
-///     - `executed_transaction.output_objects.reference.object_id` - the ID of
-///       the output object
-///     - `executed_transaction.output_objects.reference.version` - the version
-///       of the output object
-///     - `executed_transaction.output_objects.reference.digest` - the digest of
-///       the output object contents
-///   - `executed_transaction.output_objects.bcs` - the full BCS-encoded object
+/// - `input_objects` - includes all input object fields
+///   - `input_objects.reference` - includes all reference fields
+///     - `input_objects.reference.object_id` - the ID of the input object
+///     - `input_objects.reference.version` - the version of the input object
+///     - `input_objects.reference.digest` - the digest of the input object
+///       contents
+///   - `input_objects.bcs` - the full BCS-encoded object
+/// - `output_objects` - includes all output object fields
+///   - `output_objects.reference` - includes all reference fields
+///     - `output_objects.reference.object_id` - the ID of the output object
+///     - `output_objects.reference.version` - the version of the output object
+///     - `output_objects.reference.digest` - the digest of the output object
+///       contents
+///   - `output_objects.bcs` - the full BCS-encoded object
 #[tracing::instrument(skip(reader, executor))]
 pub async fn execute_transaction(
     reader: &Arc<GrpcReader>,
@@ -244,22 +228,12 @@ pub async fn execute_transaction(
             )
         })?;
 
-    // Determine what to include in the request based on read mask
-    // The mask is at the response level, so we need to check the "transaction"
-    // subtree
-    let tx_mask = read_mask.subtree(ExecuteTransactionResponse::EXECUTED_TRANSACTION_FIELD.name);
-    let include_events = tx_mask
-        .as_ref()
-        .map(|m| m.contains(ExecutedTransaction::EVENTS_FIELD.name))
-        .unwrap_or(false);
-    let include_input_objects = tx_mask
-        .as_ref()
-        .map(|m| m.contains(ExecutedTransaction::INPUT_OBJECTS_FIELD.name))
-        .unwrap_or(false);
-    let include_output_objects = tx_mask
-        .as_ref()
-        .map(|m| m.contains(ExecutedTransaction::OUTPUT_OBJECTS_FIELD.name))
-        .unwrap_or(false);
+    // Determine what to include in the request based on read mask.
+    // ExecuteTransactionResponse is transparent, so the read_mask paths apply
+    // directly to ExecutedTransaction fields.
+    let include_events = read_mask.contains(ExecutedTransaction::EVENTS_FIELD.name);
+    let include_input_objects = read_mask.contains(ExecutedTransaction::INPUT_OBJECTS_FIELD.name);
+    let include_output_objects = read_mask.contains(ExecutedTransaction::OUTPUT_OBJECTS_FIELD.name);
 
     // Create execution request
     let exec_request = ExecuteTransactionRequestV1 {
@@ -287,48 +261,42 @@ pub async fn execute_transaction(
             )
         })?;
 
-    // Build the response
-    let mut response = ExecuteTransactionResponse::default();
+    // Build the response.
+    // ExecuteTransactionResponse is transparent, so we use read_mask directly.
+    let sdk_transaction: iota_sdk_types::Transaction =
+        transaction.transaction_data().clone().try_into()?;
+    let signatures: Vec<iota_sdk_types::UserSignature> = transaction
+        .tx_signatures()
+        .to_owned()
+        .into_iter()
+        .map(|sig| sig.try_into())
+        .collect::<Result<_, _>>()?;
 
-    // Only include transaction if requested
-    if let Some(tx_mask) =
-        read_mask.subtree(ExecuteTransactionResponse::EXECUTED_TRANSACTION_FIELD.name)
-    {
-        let sdk_transaction: iota_sdk_types::Transaction =
-            transaction.transaction_data().clone().try_into()?;
-        let signatures: Vec<iota_sdk_types::UserSignature> = transaction
-            .tx_signatures()
-            .to_owned()
-            .into_iter()
-            .map(|sig| sig.try_into())
-            .collect::<Result<_, _>>()?;
+    // Create a source for the merge
+    let source = TransactionReadSource {
+        reader: reader.clone(),
+        config,
+        transaction: Some(sdk_transaction),
+        signatures: Some(signatures),
+        effects: Some(effects.effects),
+        events,
+        // For execute_transaction, checkpoint and timestamp are not available
+        // immediately as the transaction is just being executed and not yet
+        // included in a checkpoint
+        checkpoint: None,
+        timestamp_ms: None,
+        input_objects,
+        output_objects,
+    };
 
-        // Create a source for the merge
-        let source = TransactionReadSource {
-            reader: reader.clone(),
-            config,
-            transaction: Some(sdk_transaction),
-            signatures: Some(signatures),
-            effects: Some(effects.effects),
-            events,
-            // For execute_transaction, checkpoint and timestamp are not available
-            // immediately as the transaction is just being executed and not yet
-            // included in a checkpoint
-            checkpoint: None,
-            timestamp_ms: None,
-            input_objects,
-            output_objects,
-        };
-
-        response.executed_transaction = Some(
-            ExecutedTransaction::merge_from(&source, &tx_mask).map_err(|e| {
+    Ok(
+        ExecuteTransactionResponse::default().with_executed_transaction(
+            ExecutedTransaction::merge_from(&source, &read_mask).map_err(|e| {
                 RpcError::new(
                     tonic::Code::Internal,
                     format!("failed to build executed transaction in execution response: {e}"),
                 )
             })?,
-        );
-    }
-
-    Ok(response)
+        ),
+    )
 }

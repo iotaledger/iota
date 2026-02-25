@@ -13,8 +13,6 @@ use crate::proto::TryFromProtoError;
 
 impl ExecuteTransactionResponse {
     /// Get the executed transaction.
-    ///
-    /// Requires `executed_transaction` in the read_mask.
     pub fn executed_transaction(
         &self,
     ) -> Result<&crate::v0::transaction::ExecutedTransaction, TryFromProtoError> {

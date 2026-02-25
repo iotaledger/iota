@@ -38,67 +38,47 @@ impl Client {
     /// events, and input/output objects.
     ///
     /// ## Transaction Fields
-    /// - `executed_transaction` - includes all executed transaction fields
-    ///   - `executed_transaction.transaction` - includes all transaction fields
-    ///     - `executed_transaction.transaction.digest` - the transaction digest
-    ///     - `executed_transaction.transaction.bcs` - the full BCS-encoded
-    ///       transaction
-    ///   - `executed_transaction.signatures` - includes all signature fields
-    ///     - `executed_transaction.signatures.bcs` - the full BCS-encoded
-    ///       signature
-    ///   - `executed_transaction.effects` - includes all effects fields
-    ///     - `executed_transaction.effects.digest` - the effects digest
-    ///     - `executed_transaction.effects.bcs` - the full BCS-encoded effects
-    ///   - `executed_transaction.checkpoint` - the checkpoint that included the
-    ///     transaction (not available for just-executed transactions)
-    ///   - `executed_transaction.timestamp` - the timestamp of the checkpoint
-    ///     (not available for just-executed transactions)
+    /// - `transaction` - includes all transaction fields
+    ///   - `transaction.digest` - the transaction digest
+    ///   - `transaction.bcs` - the full BCS-encoded transaction
+    /// - `signatures` - includes all signature fields
+    ///   - `signatures.bcs` - the full BCS-encoded signature
+    /// - `effects` - includes all effects fields
+    ///   - `effects.digest` - the effects digest
+    ///   - `effects.bcs` - the full BCS-encoded effects
+    /// - `checkpoint` - the checkpoint that included the transaction (not
+    ///   available for just-executed transactions)
+    /// - `timestamp` - the timestamp of the checkpoint (not available for
+    ///   just-executed transactions)
     ///
     /// ## Event Fields
-    /// - `executed_transaction.events` - includes all event fields (all events
-    ///   of the transaction)
-    ///   - `executed_transaction.events.digest` - the events digest
-    ///   - `executed_transaction.events.events` - includes all event fields
-    ///     - `executed_transaction.events.events.bcs` - the full BCS-encoded
-    ///       event
-    ///     - `executed_transaction.events.events.package_id` - the ID of the
-    ///       package that emitted the event
-    ///     - `executed_transaction.events.events.module` - the module that
-    ///       emitted the event
-    ///     - `executed_transaction.events.events.sender` - the sender that
-    ///       triggered the event
-    ///     - `executed_transaction.events.events.event_type` - the type of the
-    ///       event
-    ///     - `executed_transaction.events.events.bcs_contents` - the full
-    ///       BCS-encoded contents of the event
-    ///     - `executed_transaction.events.events.json_contents` - the
-    ///       JSON-encoded contents of the event
+    /// - `events` - includes all event fields (all events of the transaction)
+    ///   - `events.digest` - the events digest
+    ///   - `events.bcs` - the full BCS-encoded event
+    ///   - `events.package_id` - the ID of the package that emitted the event
+    ///   - `events.module` - the module that emitted the event
+    ///   - `events.sender` - the sender that triggered the event
+    ///   - `events.event_type` - the type of the event
+    ///   - `events.bcs_contents` - the full BCS-encoded contents of the event
+    ///   - `events.json_contents` - the JSON-encoded contents of the event
     ///
     /// ## Object Fields
-    /// - `executed_transaction.input_objects` - includes all input object
-    ///   fields
-    ///   - `executed_transaction.input_objects.reference` - includes all
-    ///     reference fields
-    ///     - `executed_transaction.input_objects.reference.object_id` - the ID
-    ///       of the input object
-    ///     - `executed_transaction.input_objects.reference.version` - the
-    ///       version of the input object
-    ///     - `executed_transaction.input_objects.reference.digest` - the digest
-    ///       of the input object contents
-    ///   - `executed_transaction.input_objects.bcs` - the full BCS-encoded
-    ///     object
-    /// - `executed_transaction.output_objects` - includes all output object
-    ///   fields
-    ///   - `executed_transaction.output_objects.reference` - includes all
-    ///     reference fields
-    ///     - `executed_transaction.output_objects.reference.object_id` - the ID
-    ///       of the output object
-    ///     - `executed_transaction.output_objects.reference.version` - the
-    ///       version of the output object
-    ///     - `executed_transaction.output_objects.reference.digest` - the
-    ///       digest of the output object contents
-    ///   - `executed_transaction.output_objects.bcs` - the full BCS-encoded
-    ///     object
+    /// - `input_objects` - includes all input object fields
+    ///   - `input_objects.reference` - includes all reference fields
+    ///     - `input_objects.reference.object_id` - the ID of the input object
+    ///     - `input_objects.reference.version` - the version of the input
+    ///       object
+    ///     - `input_objects.reference.digest` - the digest of the input object
+    ///       contents
+    ///   - `input_objects.bcs` - the full BCS-encoded object
+    /// - `output_objects` - includes all output object fields
+    ///   - `output_objects.reference` - includes all reference fields
+    ///     - `output_objects.reference.object_id` - the ID of the output object
+    ///     - `output_objects.reference.version` - the version of the output
+    ///       object
+    ///     - `output_objects.reference.digest` - the digest of the output
+    ///       object contents
+    ///   - `output_objects.bcs` - the full BCS-encoded object
     ///
     /// # Example
     ///
