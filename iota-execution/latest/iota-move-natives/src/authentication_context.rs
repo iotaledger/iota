@@ -5,9 +5,8 @@ use std::{cell::RefCell, rc::Rc};
 
 use better_any::{Tid, TidAble};
 use iota_types::{
-    auth_context::AuthContext,
+    auth_context::{AuthContext, AuthContextCallArg, AuthContextCommand},
     digests::MoveAuthenticatorDigest,
-    transaction::{CallArg, Command},
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::vm_status::StatusCode;
@@ -44,11 +43,11 @@ impl AuthenticationContext {
         self.auth_context.borrow().digest().to_owned()
     }
 
-    pub fn tx_commands(&self) -> Vec<Command> {
+    pub fn tx_commands(&self) -> Vec<AuthContextCommand> {
         self.auth_context.borrow().tx_commands().to_owned()
     }
 
-    pub fn tx_inputs(&self) -> Vec<CallArg> {
+    pub fn tx_inputs(&self) -> Vec<AuthContextCallArg> {
         self.auth_context.borrow().tx_inputs().to_owned()
     }
 
@@ -57,8 +56,8 @@ impl AuthenticationContext {
     pub fn replace(
         &self,
         auth_digest: MoveAuthenticatorDigest,
-        tx_inputs: Vec<CallArg>,
-        tx_commands: Vec<Command>,
+        tx_inputs: Vec<AuthContextCallArg>,
+        tx_commands: Vec<AuthContextCommand>,
     ) -> PartialVMResult<()> {
         if !self.test_only {
             return Err(
