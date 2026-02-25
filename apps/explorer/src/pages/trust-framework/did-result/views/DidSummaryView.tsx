@@ -16,16 +16,16 @@ interface DidSummaryViewProps {
     objectData: IotaObjectData;
 }
 
-export function DidSummaryView({ didDocument, objectData }: DidSummaryViewProps): JSX.Element {
-    const objectId = objectData?.objectId;
-    const storageRebate = objectData?.storageRebate;
+export function DidSummaryView({
+    didDocument,
+    objectData: { objectId, storageRebate, previousTransaction },
+}: DidSummaryViewProps): JSX.Element {
     const isActive = didDocument.metadataDeactivated() !== true;
 
     const didDateFormat = (timestamp: string): string =>
         formatDate(new Date(timestamp), ['year', 'month', 'day', 'hour', 'minute']);
     const createdAt = didDateFormat(didDocument.metadataUpdated()!.toRFC3339());
     const updatedAt = didDateFormat(didDocument.metadataUpdated()!.toRFC3339());
-    const lastTransactionBlockDigest = objectData?.previousTransaction;
 
     return (
         <ErrorBoundary>
@@ -39,7 +39,7 @@ export function DidSummaryView({ didDocument, objectData }: DidSummaryViewProps)
 
                     {isActive && (
                         <div>
-                            <DisplayStats label="Active" value={activeLabel(isActive)} />
+                            <DisplayStats label="Active" value={isActive ? 'Yes' : 'No'} />
                         </div>
                     )}
 
@@ -60,9 +60,9 @@ export function DidSummaryView({ didDocument, objectData }: DidSummaryViewProps)
                             <DisplayStats label="Updated at" value={updatedAt} />
                         </div>
                     )}
-                    {lastTransactionBlockDigest && (
+                    {previousTransaction && (
                         <div>
-                            <LastTxBlockCard digest={lastTransactionBlockDigest} />
+                            <LastTxBlockCard digest={previousTransaction} />
                         </div>
                     )}
                 </div>
@@ -121,10 +121,3 @@ function StorageRebateCard({ storageRebate }: StorageRebateCardProps): JSX.Eleme
         />
     );
 }
-
-const activeLabel = (active: boolean): string => {
-    if (active) {
-        return 'Yes';
-    }
-    return 'No';
-};
