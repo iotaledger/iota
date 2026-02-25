@@ -19,7 +19,6 @@ import {
     type AccountSourceSerialized,
     type AccountSourceSerializedUI,
 } from './accountSource';
-import { accountSourcesEvents } from './events';
 import { type MakeDerivationOptions, makeDerivationPath } from './bip44Path';
 
 type DataDecrypted = {
@@ -68,20 +67,9 @@ export class SeedAccountSource extends AccountSource<SeedAccountSourceSerialized
         return serialized.type === AccountSourceType.Seed;
     }
 
-    static async save(
-        serialized: SeedAccountSourceSerialized,
-        {
-            skipBackup = false,
-            skipEventEmit = false,
-        }: { skipBackup?: boolean; skipEventEmit?: boolean } = {},
-    ) {
+    static async save(serialized: SeedAccountSourceSerialized) {
         await (await Dexie.waitFor(getDB())).accountSources.put(serialized);
-        if (!skipBackup) {
-            await backupDB();
-        }
-        if (!skipEventEmit) {
-            accountSourcesEvents.emit('accountSourcesChanged');
-        }
+        await backupDB();
         return new SeedAccountSource(serialized.id);
     }
 
@@ -103,7 +91,6 @@ export class SeedAccountSource extends AccountSource<SeedAccountSourceSerialized
     async unlock(password: string) {
         await this.setEphemeralValue(await this.#decryptStoredData(password));
         await setupAutoLockAlarm();
-        accountSourcesEvents.emit('accountSourceStatusUpdated', { accountSourceID: this.id });
     }
 
     async verifyPassword(password: string) {
@@ -112,8 +99,10 @@ export class SeedAccountSource extends AccountSource<SeedAccountSourceSerialized
     }
 
     async lock() {
-        await this.clearEphemeralValue();
-        accountSourcesEvents.emit('accountSourceStatusUpdated', { accountSourceID: this.id });
+        const isLocked = await this.isLocked();
+        if (!isLocked) {
+            await this.clearEphemeralValue();
+        }
     }
 
     async deriveAccount(

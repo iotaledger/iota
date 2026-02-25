@@ -3,19 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useNextMenuUrl, Overlay } from '_components';
-import {
-    useAppSelector,
-    formatAutoLock,
-    useAutoLockMinutes,
-    useBackgroundClient,
-    useActiveAccount,
-} from '_hooks';
+import { useAppSelector, formatAutoLock, useAutoLockMinutes, useLogoutMutation } from '_hooks';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQueryClient, useMutation } from '@tanstack/react-query';
-import { persister } from '_src/ui/app/helpers/queryClient';
 import { useState } from 'react';
 import { ConfirmationModal } from '_src/ui/app/shared/ConfirmationModal';
 import {
@@ -23,7 +15,6 @@ import {
     Globe,
     Info,
     LockLocked,
-    LockUnlocked,
     Logout,
     Expand,
     Discord,
@@ -51,7 +42,6 @@ import { openInNewTab } from '_src/shared/utils';
 export function MenuList() {
     const { themePreference } = useTheme();
     const navigate = useNavigate();
-    const activeAccount = useActiveAccount();
     const networkUrl = useNextMenuUrl(true, '/network');
     const autoLockUrl = useNextMenuUrl(true, '/auto-lock');
     const themeUrl = useNextMenuUrl(true, '/theme');
@@ -65,20 +55,7 @@ export function MenuList() {
 
     // Logout
     const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
-    const backgroundClient = useBackgroundClient();
-    const queryClient = useQueryClient();
-    const logoutMutation = useMutation({
-        mutationKey: ['logout', 'clear wallet'],
-        mutationFn: async () => {
-            await ampli.walletReset();
-            await ampli.client.flush?.();
-            ampli.client.reset();
-            queryClient.cancelQueries();
-            queryClient.clear();
-            await persister.removeClient();
-            await backgroundClient.clearWallet();
-        },
-    });
+    const logoutMutation = useLogoutMutation();
 
     function handleAutoLockSubtitle(): string {
         if (autoLockInterval.data === null) {
@@ -153,7 +130,7 @@ export function MenuList() {
         {
             title: 'Auto Lock Profile',
             subtitle: autoLockSubtitle,
-            icon: activeAccount?.isLocked ? <LockLocked /> : <LockUnlocked />,
+            icon: <LockLocked />,
             onClick: onAutoLockClick,
         },
         {

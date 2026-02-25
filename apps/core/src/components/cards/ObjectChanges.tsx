@@ -38,11 +38,12 @@ interface ObjectDetailProps {
 }
 
 export function ObjectDetail({ change, renderExplorerLink: ExplorerLink }: ObjectDetailProps) {
+    const [open, setOpen] = useState(false);
+
     if (change.type === 'transferred' || change.type === 'published') {
         return null;
     }
 
-    const [open, setOpen] = useState(false);
     const [packageId, moduleName, typeName] = change.objectType?.split('<')[0]?.split('::') || [];
 
     return (

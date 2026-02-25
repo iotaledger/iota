@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type SerializedUIAccount } from '_src/background/accounts/account';
-import { useUnlockAccount } from './UnlockAccountContext';
+import { useUnlockAccounts } from './UnlockAccountsContext';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
 
 export interface UnlockAccountButtonProps {
@@ -16,13 +16,13 @@ export function UnlockAccountButton({
     title = 'Unlock your Account',
 }: UnlockAccountButtonProps) {
     const { isPasswordUnlockable } = account;
-    const { unlockAccount } = useUnlockAccount();
+    const { unlockAccounts } = useUnlockAccounts();
 
     if (isPasswordUnlockable) {
         return (
             <Button
                 text={title}
-                onClick={() => unlockAccount(account)}
+                onClick={() => unlockAccounts()}
                 type={ButtonType.Secondary}
                 fullWidth
             />
