@@ -792,6 +792,76 @@ done"#
         }
     }
 
+    pub async fn download_benchmark_stats(
+        &self,
+        benchmark_stats_path: &str,
+        parameters: &BenchmarkParameters<T>,
+    ) -> TestbedResult<()> {
+        let path = parameters.benchmark_dir.join("benchmark-stats");
+        fs::create_dir_all(&path).expect("Failed to create benchmark-stats directory");
+
+        display::action("Downloading benchmark stats");
+
+        let mut downloaded = 0usize;
+
+        for (i, instance) in self.client_instances.iter().enumerate() {
+            display::status(format!("{}/{}", i + 1, self.client_instances.len()));
+
+            // Support per-client template path, e.g.
+            // "/home/ubuntu/benchmark_stats_{i}.json"
+            let remote_path_raw = benchmark_stats_path.replace("{i}", &i.to_string());
+
+            // SFTP/download often does not expand "~", so normalize it.
+            let remote_path = if let Some(rest) = remote_path_raw.strip_prefix("~/") {
+                format!("/home/ubuntu/{rest}")
+            } else {
+                remote_path_raw
+            };
+
+            let local_file_name = Path::new(&remote_path)
+                .file_name()
+                .and_then(|s| s.to_str())
+                .map(|name| format!("client-{i}-{name}"))
+                .unwrap_or_else(|| format!("client-{i}-benchmark-stats.json"));
+
+            let result: TestbedResult<()> = async {
+                let connection = self.ssh_manager.connect(instance.ssh_address()).await?;
+                let content = connection.download(&remote_path).await?;
+
+                let local_file = path.join(local_file_name);
+                fs::write(local_file, content.as_bytes())
+                    .expect("Cannot write benchmark stats file");
+                Ok(())
+            }
+            .await;
+
+            match result {
+                Ok(_) => {
+                    downloaded += 1;
+                }
+                Err(e) => {
+                    display::warn(format!(
+                        "Failed to download benchmark stats from client {i} ({}) at '{}': {e}",
+                        instance.ssh_address(),
+                        remote_path
+                    ));
+                }
+            }
+        }
+
+        if downloaded == 0 {
+            display::warn(format!(
+                "No benchmark stats files downloaded (remote path template: '{}')",
+                benchmark_stats_path
+            ));
+        } else {
+            display::config("Downloaded benchmark stats files", downloaded);
+        }
+
+        display::done();
+        Ok(())
+    }
+
     /// Download the metrics logs from clients.
     pub async fn download_metrics_logs(&self, benchmark_dir: &Path) -> TestbedResult<()> {
         let path = benchmark_dir.join("logs");
@@ -1145,6 +1215,12 @@ done"#
                 TestbedResult::Ok(())
             }
             .await;
+
+            // Download benchmark stats if metadata path is provided
+            if let Some(benchmark_stats_path) = &parameters.benchmark_stats_path {
+                self.download_benchmark_stats(benchmark_stats_path, &parameters)
+                    .await?;
+            }
 
             // Kill the nodes and clients (without deleting the log files).
             self.cleanup(false).await?;

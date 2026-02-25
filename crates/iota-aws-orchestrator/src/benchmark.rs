@@ -213,6 +213,9 @@ pub struct BenchmarkParameters<T> {
     pub num_shared_counters: Option<usize>,
     /// Directory to store benchmark results
     pub benchmark_dir: PathBuf,
+    /// Optional path to benchmark stats metadata for downloading stats after
+    /// the run.
+    pub benchmark_stats_path: Option<String>,
 }
 
 impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
@@ -244,6 +247,7 @@ impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
             shared_counter_hotness_factor: None,
             num_shared_counters: None,
             benchmark_dir: PathBuf::default(),
+            benchmark_stats_path: None,
         }
     }
 }
@@ -306,6 +310,7 @@ impl<T> BenchmarkParameters<T> {
         shared_counter_hotness_factor: Option<u8>,
         num_shared_counters: Option<usize>,
         benchmark_dir: PathBuf,
+        benchmark_stats_path: Option<String>,
     ) -> Self {
         Self {
             benchmark_type,
@@ -335,6 +340,7 @@ impl<T> BenchmarkParameters<T> {
             shared_counter_hotness_factor,
             num_shared_counters,
             benchmark_dir,
+            benchmark_stats_path,
         }
     }
 }
@@ -423,6 +429,8 @@ pub struct BenchmarkParametersGenerator<T> {
     shared_counter_hotness_factor: Option<u8>,
     /// Number of shared counters to use
     num_shared_counters: Option<usize>,
+    /// Path for the benchmark stats metadata to be downloaded after the run
+    benchmark_stats_path: Option<String>,
 }
 
 impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
@@ -470,6 +478,7 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
                 self.shared_counter_hotness_factor,
                 self.num_shared_counters,
                 PathBuf::default(),
+                self.benchmark_stats_path.clone(),
             )
         })
     }
@@ -526,6 +535,7 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
             aa_split_amount: 1_000,
             stress_num_client_threads: 8,
             stress_num_server_threads: 8,
+            benchmark_stats_path: None,
         }
     }
 
@@ -629,6 +639,11 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
 
     pub fn with_num_shared_counters(mut self, counters: usize) -> Self {
         self.num_shared_counters = Some(counters);
+        self
+    }
+
+    pub fn with_benchmark_stats_path(mut self, path: Option<String>) -> Self {
+        self.benchmark_stats_path = path;
         self
     }
 

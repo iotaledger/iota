@@ -413,6 +413,11 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     // Run interval param
                     parameters.run_interval.as_stress_flag(),
                     format!("--client-metric-host 0.0.0.0 --client-metric-port {metrics_port}"),
+                    if let Some(stats_path) = &parameters.benchmark_stats_path {
+                        format!("--benchmark-stats-path {stats_path}")
+                    } else {
+                        "".to_string()
+                    },
                 ];
 
                 match parameters.benchmark_type {

@@ -242,6 +242,11 @@ pub enum Operation {
         /// Number of shared counters to use in the benchmark
         #[arg(long, value_name = "INT", global = true)]
         num_shared_counters: Option<usize>,
+
+        /// Optional path for the benchmark stats metadata to be downloaded
+        /// after the run
+        #[arg(long, value_name = "/home/ubuntu/benchmark_stats.json", global = true)]
+        benchmark_stats_path: Option<String>,
     },
 
     /// Print a summary of the specified measurements collection.
@@ -489,6 +494,7 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             stress_num_server_threads,
             shared_counter_hotness_factor,
             num_shared_counters,
+            benchmark_stats_path,
         } => {
             // Create a new orchestrator to instruct the testbed.
             let username = testbed.username();
@@ -583,7 +589,8 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             .with_aa_split_amount(aa_split_amount)
             .with_aa_in_flight_ratio(aa_in_flight_ratio)
             .with_stress_client_threads(stress_num_client_threads)
-            .with_stress_server_threads(stress_num_server_threads);
+            .with_stress_server_threads(stress_num_server_threads)
+            .with_benchmark_stats_path(benchmark_stats_path.clone());
 
             if let Some(factor) = shared_counter_hotness_factor {
                 generator = generator.with_shared_counter_hotness_factor(factor);
