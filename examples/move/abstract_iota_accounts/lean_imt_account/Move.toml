@@ -1,0 +1,9 @@
+[package]
+name = "lean_imt_account"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../../crates/iota-framework/packages/iota-framework" }
+
+[addresses]
+lean_imt_account = "0x0"
