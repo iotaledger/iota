@@ -4,9 +4,7 @@
 use std::collections::VecDeque;
 
 use iota_types::{
-    auth_context::{
-        AuthContextCallArg, AuthContextCallArgV1, AuthContextCommand, AuthContextCommandV1,
-    },
+    auth_context::{AuthContextCallArg, AuthContextCommand},
     digests::MoveAuthenticatorDigest,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
@@ -88,14 +86,7 @@ pub fn native_tx_commands(
 
     let auth_context: &AuthenticationContext = get_extension!(context)?;
 
-    // Unwrap the version tag: Move expects the V1 layout directly, without the
-    // outer `AuthContextCommand` variant discriminant.
-    let commands = auth_context.tx_commands();
-    let v1_commands: Vec<_> = commands
-        .iter()
-        .map(|AuthContextCommand::V1(v1)| v1)
-        .collect();
-    let commands_value = to_value(&v1_commands, &commands_move_layout)?;
+    let commands_value = to_value(&auth_context.tx_commands(), &commands_move_layout)?;
 
     Ok(NativeResult::ok(
         context.gas_used(),
@@ -135,11 +126,7 @@ pub fn native_tx_inputs(
 
     let auth_context: &AuthenticationContext = get_extension!(context)?;
 
-    // Unwrap the version tag: Move expects the V1 layout directly, without the
-    // outer `AuthContextCallArg` variant discriminant.
-    let inputs = auth_context.tx_inputs();
-    let v1_inputs: Vec<_> = inputs.iter().map(|AuthContextCallArg::V1(v1)| v1).collect();
-    let inputs_value = to_value(&v1_inputs, &inputs_move_layout)?;
+    let inputs_value = to_value(&auth_context.tx_inputs(), &inputs_move_layout)?;
 
     Ok(NativeResult::ok(
         context.gas_used(),
@@ -176,12 +163,9 @@ pub fn native_replace(
     let command_type = ty_args.pop().unwrap();
     let command_move_layout = resolve_move_layout(context, &command_type)?;
 
-    // Move sends V1 layout without a version tag, so deserialize into the V1
-    // type directly, then wrap with the version variant.
     let tx_commands = pop_arg!(args, Vec<Value>)
         .into_iter()
-        .map(|value| from_value::<AuthContextCommandV1>(value, &command_move_layout))
-        .map(|r| r.map(AuthContextCommand::V1))
+        .map(|value| from_value::<AuthContextCommand>(value, &command_move_layout))
         .collect::<PartialVMResult<Vec<AuthContextCommand>>>()?;
 
     let input_type = ty_args.pop().unwrap();
@@ -189,8 +173,7 @@ pub fn native_replace(
 
     let tx_inputs = pop_arg!(args, Vec<Value>)
         .into_iter()
-        .map(|value| from_value::<AuthContextCallArgV1>(value, &input_move_layout))
-        .map(|r| r.map(AuthContextCallArg::V1))
+        .map(|value| from_value::<AuthContextCallArg>(value, &input_move_layout))
         .collect::<PartialVMResult<Vec<AuthContextCallArg>>>()?;
 
     let auth_digest = MoveAuthenticatorDigest::try_from(pop_arg!(args, Vec<u8>).as_slice())
