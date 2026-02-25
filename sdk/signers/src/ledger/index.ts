@@ -8,7 +8,7 @@ import type { SignatureWithBytes } from '@iota/iota-sdk/cryptography';
 import { messageWithIntent, Signer, toSerializedSignature } from '@iota/iota-sdk/cryptography';
 import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { toB64 } from '@iota/iota-sdk/utils';
+import { toBase64 } from '@iota/iota-sdk/utils';
 
 import { IotaMoveObject } from './bcs.js';
 import { bcs } from '@iota/iota-sdk/bcs';
@@ -80,7 +80,7 @@ export class LedgerSigner extends Signer {
         );
 
         return {
-            bytes: toB64(bytes),
+            bytes: toBase64(bytes),
             signature: toSerializedSignature({
                 signature,
                 signatureScheme: this.getKeyScheme(),
@@ -104,7 +104,7 @@ export class LedgerSigner extends Signer {
         );
 
         return {
-            bytes: toB64(bytes),
+            bytes: toBase64(bytes),
             signature: toSerializedSignature({
                 signature,
                 signatureScheme: this.getKeyScheme(),
