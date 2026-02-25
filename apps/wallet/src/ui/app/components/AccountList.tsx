@@ -96,7 +96,7 @@ function AccountRow<A extends { address: string }>({
                     isDisabled={isExisting}
                     onCheckboxChange={(checked) => {
                         if (isExisting) return;
-                        onAccountClick(accounts[rowIndex], checked);
+                        onAccountClick(account, checked);
                     }}
                 />
             }
