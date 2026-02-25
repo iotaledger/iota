@@ -142,9 +142,11 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::TransactionEvents {
         source: &TransactionReadSource<'_>,
         mask: &FieldMaskTree,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let Some(events) = source.events.as_ref() else {
-            return Ok(());
-        };
+        // Use unwrap_or_default so that when no events were emitted we still
+        // compute a real digest (hash of the empty list) and populate an empty
+        // events vec — to distinguish between "no events" and "events
+        // not requested in the mask".
+        let events = source.events.clone().unwrap_or_default();
 
         Self::merge(self, events.clone(), mask)?;
 

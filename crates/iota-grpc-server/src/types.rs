@@ -1243,13 +1243,14 @@ impl Merge<CheckpointTransactionWithContext>
         }
 
         if let Some(submask) = mask.subtree(Self::EVENTS_FIELD.name) {
-            if let Some(events) = source.transaction.events {
-                self.events = Some(
-                    iota_grpc_types::v0::transaction::TransactionEvents::merge_from(
-                        events, &submask,
-                    )?,
-                );
-            }
+            // Use unwrap_or_default so that when no events were emitted we still
+            // compute a real digest (hash of the empty list) and populate an empty
+            // events vec — to distinguish between "no events" and "events
+            // not requested in the mask".
+            self.events = Some(grpc_transaction::TransactionEvents::merge_from(
+                source.transaction.events.unwrap_or_default(),
+                &submask,
+            )?);
         }
 
         // Set checkpoint sequence number if requested
