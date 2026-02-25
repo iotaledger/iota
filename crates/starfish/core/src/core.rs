@@ -1021,7 +1021,8 @@ impl Core {
                     "Leader schedule change triggered at commit index {last_commit_index}"
                 );
 
-                self.leader_schedule.update_leader_schedule(&self.dag_state);
+                self.leader_schedule
+                    .update_leader_schedule(&mut self.dag_state.write());
 
                 commits_until_update = self
                     .leader_schedule
