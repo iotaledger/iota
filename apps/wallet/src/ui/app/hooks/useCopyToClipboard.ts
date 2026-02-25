@@ -9,16 +9,16 @@ import { ampli } from '_src/shared/analytics/ampli';
 export type CopyOptions = {
     copySuccessMessage?: string;
     textType?: string;
-    trackAnalytics?: boolean;
+    trackEvent?: boolean;
 };
 
 export function useCopyToClipboard(
     textToCopy: string,
-    { copySuccessMessage = 'Copied', textType, trackAnalytics = true }: CopyOptions,
+    { copySuccessMessage = 'Copied', textType, trackEvent = true }: CopyOptions,
 ) {
     const copyToClipboardCore = useCopyToClipboardCore(() => {
         toast(copySuccessMessage);
-        if (textType && trackAnalytics) {
+        if (textType && trackEvent) {
             ampli.elementCopied({
                 type: textType,
             });
