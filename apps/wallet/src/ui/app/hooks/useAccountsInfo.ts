@@ -6,7 +6,6 @@ import { useAccounts } from './useAccounts';
 
 export interface AccountsInfo {
     isFirstAccount: boolean;
-    totalAccounts: number;
 }
 
 /**
@@ -17,10 +16,8 @@ export function useAccountsInfo(): AccountsInfo {
     const { data: accounts } = useAccounts();
 
     return useMemo(() => {
-        const totalAccounts = accounts?.length ?? 0;
         return {
-            isFirstAccount: totalAccounts === 0,
-            totalAccounts,
+            isFirstAccount: !accounts?.length,
         };
     }, [accounts]);
 }
