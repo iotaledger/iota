@@ -597,17 +597,17 @@ impl TryInto<Object> for IotaObjectData {
                     &protocol_config,
                 )?
             }),
-            // Some(IotaRawData::Package(p)) => Data::Package(MovePackage::new(
-            //     p.id,
-            //     self.version,
-            //     p.module_map
-            //         .iter()
-            //         .map(|(k, v)| (Identifier::new_unchecked(k), v.clone()))
-            //         .collect(),
-            //     protocol_config.max_move_package_size(),
-            //     p.type_origin_table,
-            //     p.linkage_table,
-            // )?),
+            Some(IotaRawData::Package(p)) => Data::Package(MovePackage::new(
+                p.id,
+                self.version,
+                p.module_map
+                    .iter()
+                    .map(|(k, v)| (Identifier::new_unchecked(k), v.clone()))
+                    .collect(),
+                protocol_config.max_move_package_size(),
+                p.type_origin_table,
+                p.linkage_table,
+            )?),
             _ => Err(anyhow!(
                 "BCS data is required to convert IotaObjectData to Object"
             ))?,
