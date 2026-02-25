@@ -6921,6 +6921,7 @@ dependencies = [
  "chrono",
  "clap",
  "dashmap",
+ "derive_more 1.0.0",
  "diesel",
  "diesel_migrations",
  "downcast",

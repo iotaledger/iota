@@ -170,7 +170,7 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
             get_validators_from_table_vec(&object_store, table_id, table_size)?;
         Ok(validators
             .into_iter()
-            .map(|v| v.into_iota_validator_summary())
+            .map(|v| v.into_iota_validator_summary(Some(self.protocol_version)))
             .collect())
     }
 
@@ -290,7 +290,7 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
             committee_members,
             active_validators: active_validators
                 .into_iter()
-                .map(|v| v.into_iota_validator_summary())
+                .map(|v| v.into_iota_validator_summary(Some(protocol_version)))
                 .collect(),
             pending_active_validators_id,
             pending_active_validators_size,

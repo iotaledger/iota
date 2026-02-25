@@ -1104,9 +1104,12 @@ where
     }
     // After that try to find in inactive pools.
     let inactive_table_id = system_state_summary.inactive_pools_id;
-    if let Ok(inactive) =
-        get_validator_from_table(&object_store, inactive_table_id, &ID::new(pool_id))
-    {
+    if let Ok(inactive) = get_validator_from_table(
+        &object_store,
+        inactive_table_id,
+        &ID::new(pool_id),
+        Some(system_state_summary.protocol_version),
+    ) {
         return Ok(inactive);
     }
     // Finally look up the candidates pool.
@@ -1121,7 +1124,12 @@ where
         ))
     })?;
     let candidate_table_id = system_state_summary.validator_candidates_id;
-    get_validator_from_table(&object_store, candidate_table_id, &candidate_address)
+    get_validator_from_table(
+        &object_store,
+        candidate_table_id,
+        &candidate_address,
+        Some(system_state_summary.protocol_version),
+    )
 }
 
 fn get_validator_by_pool_id_v2<S>(
@@ -1151,9 +1159,12 @@ where
     }
     // After that try to find in inactive pools.
     let inactive_table_id = system_state_summary.inactive_pools_id;
-    if let Ok(inactive) =
-        get_validator_from_table(&object_store, inactive_table_id, &ID::new(pool_id))
-    {
+    if let Ok(inactive) = get_validator_from_table(
+        &object_store,
+        inactive_table_id,
+        &ID::new(pool_id),
+        Some(system_state_summary.protocol_version),
+    ) {
         return Ok(inactive);
     }
     // Finally look up the candidates pool.
@@ -1168,5 +1179,10 @@ where
         ))
     })?;
     let candidate_table_id = system_state_summary.validator_candidates_id;
-    get_validator_from_table(&object_store, candidate_table_id, &candidate_address)
+    get_validator_from_table(
+        &object_store,
+        candidate_table_id,
+        &candidate_address,
+        Some(system_state_summary.protocol_version),
+    )
 }
