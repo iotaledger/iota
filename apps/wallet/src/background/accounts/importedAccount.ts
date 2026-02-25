@@ -6,8 +6,8 @@ import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
 import { fromExportedKeypair } from '_src/shared/utils';
 
 import {
-    Account,
     AccountType,
+    Account,
     type KeyPairExportableAccount,
     type PasswordUnlockableAccount,
     type SerializedAccount,
@@ -68,12 +68,19 @@ export class ImportedAccount
     }
 
     constructor({ id, cachedData }: { id: string; cachedData?: ImportedAccountSerialized }) {
-        super({ type: AccountType.PrivateKeyDerived, id, cachedData });
+        super({
+            type: AccountType.PrivateKeyDerived,
+            id,
+            cachedData,
+        });
     }
 
-    async lock(allowRead = false): Promise<void> {
-        await this.clearEphemeralValue();
-        await this.onLocked(allowRead);
+    async lock(): Promise<void> {
+        const isLocked = await this.isLocked();
+        if (!isLocked) {
+            await this.clearEphemeralValue();
+            await this.onLocked();
+        }
     }
 
     async isLocked(): Promise<boolean> {

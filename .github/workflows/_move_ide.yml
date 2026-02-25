@@ -41,13 +41,6 @@ jobs:
         with:
           ref: ${{ github.event.inputs.iota_repo_ref || github.ref }}
 
-      - name: Setup caching
-        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
-        with:
-          shared-key: "rust-build"
-          cache-on-failure: true
-          cache-bin: "false"
-
       - name: Setup Node
         uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
         with:

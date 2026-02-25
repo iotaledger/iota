@@ -797,17 +797,12 @@ impl RpcExampleProvider {
             timestamp_ms: None,
         };
 
-        let page = EventPage {
-            data: vec![event],
-            next_cursor: Some((tx_dig, 5).into()),
-            has_next_page: false,
-        };
         Examples::new(
             "iota_getEvents",
             vec![ExamplePairing::new(
                 "Returns the events the transaction in the request emits.",
                 vec![("transaction_digest", json!(tx_dig))],
-                json!(page),
+                json!(vec![event]),
             )],
         )
     }
