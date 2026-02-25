@@ -1009,7 +1009,7 @@ pub struct VerifiedTransactions {
 
     /// Digest of the block this transaction batch belongs to.
     /// Present (`Some`) whenever the block header is available at
-    /// construction time, regardless of the `consensus_transaction_ref` flag.
+    /// construction time, regardless of the `consensus_fast_commit_sync` flag.
     /// `None` only when transactions were received without an accompanying
     /// block header (e.g., fast sync or store loading via TransactionRef).
     block_digest: Option<BlockHeaderDigest>,

@@ -396,7 +396,7 @@ async fn read_and_contain_transactions(
         let actual = tx_opt.as_ref().unwrap();
         assert_eq!(actual, expected);
 
-        if !transaction_ref_enabled {
+        if !consensus_fast_commit_sync {
             assert_eq!(
                 tx_opt.as_ref().unwrap().block_ref().unwrap(),
                 written_blocks[i].reference()
