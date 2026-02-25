@@ -8,7 +8,7 @@ teams:
 
 The IOTA TypeScript SDK provides `MoveSigner`, an account-abstraction signing scheme where
 authorization is performed by an on-chain Move function rather than a cryptographic key. The
-"public key" of the account is a Move object — the sender address equals the object ID directly.
+"public key" of the account is a Move object; the sender address equals the object ID directly.
 
 ```typescript
 import {
@@ -25,7 +25,7 @@ In the `MoveAuthenticator` scheme:
 
 - The **sender** is a shared or immutable Move object (`objectToAuthenticate`). Its object ID
   becomes the transaction sender address.
-- The **signature** encodes a Move function call — type arguments and call arguments — that is
+- The **signature** encodes a Move function call (type arguments and call arguments) that is
   executed on-chain to verify the transaction.
 - Verification does **not** happen in the SDK. `MoveAuthenticatorPublicKey.verify()` throws because
   the authenticator function runs on-chain.

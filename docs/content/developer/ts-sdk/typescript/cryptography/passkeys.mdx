@@ -56,7 +56,7 @@ const address = keypair.getPublicKey().toIotaAddress();
 
 `getPasskeyInstance` invokes `provider.create()`, extracts the compressed secp256r1 public key from
 the returned DER-encoded SPKI, and stores the `credentialId` on the keypair. Call this once per
-wallet — repeated calls create separate credentials on the device.
+wallet; repeated calls create separate credentials on the device.
 
 ## Signing messages and transactions
 
@@ -103,7 +103,7 @@ const provider = new BrowserPasskeyProvider('My IOTA App', {
     rp: { id: window.location.hostname, name: 'My IOTA App' },
 });
 
-// First recovery attempt — prompts the device
+// First recovery attempt (prompts the device)
 const message1 = new TextEncoder().encode('recover-1');
 const { credentialId, pubKeys: candidates1 } = await PasskeyKeypair.signAndRecover(
     provider,
