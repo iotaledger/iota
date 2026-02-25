@@ -209,7 +209,7 @@ fn from_value<T: DeserializeOwned>(
 ) -> PartialVMResult<T> {
     let bytes = value.simple_serialize(value_move_layout).ok_or_else(|| {
         PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-            .with_message(format!("Failed to serialize a value"))
+            .with_message("Failed to serialize a value".to_string())
     })?;
     bcs::from_bytes::<T>(&bytes).map_err(|err| {
         PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
