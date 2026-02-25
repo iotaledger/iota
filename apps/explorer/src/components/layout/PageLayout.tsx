@@ -6,7 +6,7 @@ import { useFeatureIsOn } from '@growthbook/growthbook-react';
 import { useAppsBackend, Feature } from '@iota/core';
 import { Network } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
-import { type ReactNode, useRef, useCallback } from 'react';
+import { type ReactNode, useRef } from 'react';
 import { Footer } from '../footer';
 import { Header } from '../header';
 import { useNetworkContext } from '~/contexts';
@@ -25,7 +25,7 @@ export function PageLayout({ content, loading, loadingText }: PageLayoutProps): 
     const { request } = useAppsBackend();
     const outageOverride = useFeatureIsOn(Feature.NetworkOutageOverride as string);
 
-    const canShowLoadingText = useCallback(() => isString(loadingText), [loadingText]);
+    const canShowLoadingText = isString(loadingText);
 
     const { data } = useQuery({
         queryKey: ['apps-backend', 'monitor-network'],
@@ -64,7 +64,7 @@ export function PageLayout({ content, loading, loadingText }: PageLayoutProps): 
                 <div className="absolute left-1/2 right-0 top-1/2 flex -translate-x-1/2 -translate-y-1/2 transform justify-center">
                     <LoadingIndicator
                         size="w-6 h-6"
-                        text={(canShowLoadingText() && loadingText) || ''}
+                        text={(canShowLoadingText && loadingText) || ''}
                     />
                 </div>
             )}
