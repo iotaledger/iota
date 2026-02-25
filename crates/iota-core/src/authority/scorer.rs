@@ -250,8 +250,12 @@ fn calculate_median_report(
         .iter_mut()
         .map(|vec| calculate_weighted_median(vec.as_mut_slice()));
     MisbehaviorsV1::new(
-        medians.next().expect("Expected faulty_blocks_provable metric"),
-        medians.next().expect("Expected faulty_blocks_unprovable metric"),
+        medians
+            .next()
+            .expect("Expected faulty_blocks_provable metric"),
+        medians
+            .next()
+            .expect("Expected faulty_blocks_unprovable metric"),
         medians.next().expect("Expected missing_proposals metric"),
         medians.next().expect("Expected equivocations metric"),
     )
