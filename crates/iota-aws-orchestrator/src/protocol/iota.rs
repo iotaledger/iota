@@ -426,8 +426,8 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                         let hotness_factor = parameters.shared_counter_hotness_factor.unwrap_or(50);
                         stress_args.push("bench".to_string());
                         stress_args.push(format!("--target-qps {load_share}"));
-                        stress_args.push(format!("--num-workers {}", parameters.aa_num_workers));
-                        stress_args.push(format!("--in-flight-ratio {}", parameters.aa_in_flight_ratio));
+                        stress_args.push(format!("--num-workers {}", parameters.stress_num_workers));
+                        stress_args.push(format!("--in-flight-ratio {}", parameters.stress_in_flight_ratio));
                         stress_args.push(format!("--shared-counter {shared_objects_ratio} --transfer-object {transfer_objects}"));
                         stress_args.push(format!("--shared-counter-hotness-factor {hotness_factor}"));
                         if let Some(num_counters) = parameters.num_shared_counters {
@@ -440,8 +440,8 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                         stress_args.push(format!("--authenticator {}", parameters.aa_authenticator.cli_str()));
                         stress_args.push(format!("--tx-payload-obj-type {}", parameters.tx_payload_obj_type.cli_str()));
                         stress_args.push(format!("--target-qps {load_share}"));
-                        stress_args.push(format!("--num-workers {}", parameters.aa_num_workers));
-                        stress_args.push(format!("--in-flight-ratio {}", parameters.aa_in_flight_ratio));
+                        stress_args.push(format!("--num-workers {}", parameters.stress_num_workers));
+                        stress_args.push(format!("--in-flight-ratio {}", parameters.stress_in_flight_ratio));
                         stress_args.push(format!("--split-amount {}", parameters.aa_split_amount));
                         if parameters.should_fail {
                             stress_args.push("--should-fail".to_string());

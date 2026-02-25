@@ -487,8 +487,10 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
         {
             table.add_row(row![bH2->"AA config"]);
             table.add_row(row![b->"Authenticator:", self.parameters.aa_authenticator.cli_str()]);
-            table.add_row(row![b->"AA workers:", self.parameters.aa_num_workers]);
-            table.add_row(row![b->"AA in-flight ratio:", self.parameters.aa_in_flight_ratio]);
+            table.add_row(row![b->"Stress workers:", self.parameters.stress_num_workers]);
+            table.add_row(
+                row![b->"Stress in-flight ratio:", self.parameters.stress_in_flight_ratio],
+            );
 
             table.add_row(row![b->"AA split amount:", self.parameters.aa_split_amount]);
 

@@ -172,10 +172,10 @@ pub struct BenchmarkParameters<T> {
     pub should_fail: bool,
     /// AA workload: which authenticator kind to use.
     pub tx_payload_obj_type: TxPayloadObjType,
-    /// AA workload: number of worker tasks inside stress.
-    pub aa_num_workers: u64,
-    /// AA workload: in-flight ratio inside stress.
-    pub aa_in_flight_ratio: u64,
+    /// Number of worker tasks inside stress.
+    pub stress_num_workers: u64,
+    /// In-flight ratio inside stress.
+    pub stress_in_flight_ratio: u64,
     /// AA workload: split amount inside stress.
     pub aa_split_amount: u64,
     /// Stress client threads used for AA workload (bench keeps the old
@@ -232,8 +232,8 @@ impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
             should_fail: false,
             tx_payload_obj_type: TxPayloadObjType::default(),
             aa_split_amount: 1_000,
-            aa_num_workers: 2,
-            aa_in_flight_ratio: 10,
+            stress_num_workers: 2,
+            stress_in_flight_ratio: 10,
             stress_num_client_threads: 8,
             stress_num_server_threads: 8,
             use_internal_ip_address: true,
@@ -294,9 +294,9 @@ impl<T> BenchmarkParameters<T> {
         aa_authenticator: AbstractAccountAuthenticator,
         should_fail: bool,
         tx_payload_obj_type: TxPayloadObjType,
-        aa_num_workers: u64,
+        stress_num_workers: u64,
         aa_split_amount: u64,
-        aa_in_flight_ratio: u64,
+        stress_in_flight_ratio: u64,
         stress_num_client_threads: u64,
         stress_num_server_threads: u64,
         use_internal_ip_address: bool,
@@ -324,8 +324,8 @@ impl<T> BenchmarkParameters<T> {
             should_fail,
             tx_payload_obj_type,
             aa_split_amount,
-            aa_num_workers,
-            aa_in_flight_ratio,
+            stress_num_workers,
+            stress_in_flight_ratio,
             stress_num_client_threads,
             stress_num_server_threads,
             use_internal_ip_address,
@@ -400,11 +400,11 @@ pub struct BenchmarkParametersGenerator<T> {
     tx_payload_obj_type: TxPayloadObjType,
 
     /// AA tuning.
-    aa_num_workers: u64,
+    stress_num_workers: u64,
 
     aa_split_amount: u64,
 
-    aa_in_flight_ratio: u64,
+    stress_in_flight_ratio: u64,
 
     /// Stress threads used for AA.
     stress_num_client_threads: u64,
@@ -462,9 +462,9 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
                 self.aa_authenticator.clone(),
                 self.should_fail,
                 self.tx_payload_obj_type.clone(),
-                self.aa_num_workers,
+                self.stress_num_workers,
                 self.aa_split_amount,
-                self.aa_in_flight_ratio,
+                self.stress_in_flight_ratio,
                 self.stress_num_client_threads,
                 self.stress_num_server_threads,
                 self.use_internal_ip_address,
@@ -530,8 +530,8 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
             aa_authenticator: AbstractAccountAuthenticator::default(),
             should_fail: false,
             tx_payload_obj_type: TxPayloadObjType::default(),
-            aa_num_workers: 2,
-            aa_in_flight_ratio: 5,
+            stress_num_workers: 2,
+            stress_in_flight_ratio: 5,
             aa_split_amount: 1_000,
             stress_num_client_threads: 8,
             stress_num_server_threads: 8,
@@ -554,8 +554,8 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
         self
     }
 
-    pub fn with_aa_num_workers(mut self, aa_num_workers: u64) -> Self {
-        self.aa_num_workers = aa_num_workers;
+    pub fn with_stress_num_workers(mut self, stress_num_workers: u64) -> Self {
+        self.stress_num_workers = stress_num_workers;
         self
     }
 
@@ -564,8 +564,8 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
         self
     }
 
-    pub fn with_aa_in_flight_ratio(mut self, aa_in_flight_ratio: u64) -> Self {
-        self.aa_in_flight_ratio = aa_in_flight_ratio;
+    pub fn with_stress_in_flight_ratio(mut self, stress_in_flight_ratio: u64) -> Self {
+        self.stress_in_flight_ratio = stress_in_flight_ratio;
         self
     }
 

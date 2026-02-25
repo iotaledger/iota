@@ -91,23 +91,23 @@ pub enum Operation {
         #[arg(long, default_value = "owned-object", global = true)]
         tx_payload_obj_type: TxPayloadObjType,
 
-        /// AA workload: number of worker tasks inside `stress` for AA.
+        /// Number of worker tasks inside `stress`.
         /// Higher -> more concurrency; too high can reduce throughput due to
         /// contention.
         #[arg(long, default_value = "2", global = true)]
-        aa_num_workers: u64,
+        stress_num_workers: u64,
 
         /// AA workload: split amount inside `stress` for AA (number of coins to
         /// split before transfer).
         #[arg(long, default_value = "1000", global = true)]
         aa_split_amount: u64,
 
-        /// AA workload: in-flight ratio inside `stress` for AA (roughly,
+        /// In-flight ratio inside `stress` for AA (roughly,
         /// allowed outstanding tx per worker). Higher -> more
         /// outstanding requests; too high can inflate latency and trigger
         /// backpressure.
         #[arg(long, default_value = "10", global = true)]
-        aa_in_flight_ratio: u64,
+        stress_in_flight_ratio: u64,
 
         /// Stress: number of client threads (applies to AA, kept constant for
         /// bench to preserve behavior).
@@ -487,9 +487,9 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             aa_authenticator,
             should_fail,
             tx_payload_obj_type,
-            aa_num_workers,
+            stress_num_workers,
             aa_split_amount,
-            aa_in_flight_ratio,
+            stress_in_flight_ratio,
             stress_num_client_threads,
             stress_num_server_threads,
             shared_counter_hotness_factor,
@@ -585,9 +585,9 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             .with_aa_authenticator(aa_authenticator)
             .with_should_fail(should_fail)
             .with_tx_payload_obj_type(tx_payload_obj_type)
-            .with_aa_num_workers(aa_num_workers)
+            .with_stress_num_workers(stress_num_workers)
             .with_aa_split_amount(aa_split_amount)
-            .with_aa_in_flight_ratio(aa_in_flight_ratio)
+            .with_stress_in_flight_ratio(stress_in_flight_ratio)
             .with_stress_client_threads(stress_num_client_threads)
             .with_stress_server_threads(stress_num_server_threads)
             .with_benchmark_stats_path(benchmark_stats_path.clone());

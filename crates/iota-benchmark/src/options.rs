@@ -255,6 +255,7 @@ pub enum RunSpec {
         #[arg(long, default_value = "1000")]
         split_amount: u64,
 
+        // Works only for ed25519 authenticator.
         #[arg(long, default_value = "false")]
         should_fail: bool,
 
