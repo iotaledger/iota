@@ -5731,7 +5731,7 @@ export type Validator = {
    * low stake threshold.
    */
   atRisk?: Maybe<Scalars['UInt53']['output']>;
-  /** The fee charged by the validator for staking services. */
+  /** The fee set by the validator for providing staking services. */
   commissionRate?: Maybe<Scalars['Int']['output']>;
   /**
    * Validator's set of credentials such as public keys, network addresses
@@ -5740,6 +5740,13 @@ export type Validator = {
   credentials?: Maybe<ValidatorCredentials>;
   /** Validator's description. */
   description?: Maybe<Scalars['String']['output']>;
+  /**
+   * The effective fee charged by the validator for staking services.
+   *
+   * This is evaluated according to [IIP8](https://github.com/iotaledger/IIPs/blob/main/iips/IIP-0008/IIP-0008.md)
+   * for epochs with protocol version >= 20.
+   */
+  effectiveCommissionRate?: Maybe<Scalars['Int']['output']>;
   /**
    * The validator's current exchange object. The exchange rate is used to
    * determine the amount of IOTA tokens that each past IOTA staker can
