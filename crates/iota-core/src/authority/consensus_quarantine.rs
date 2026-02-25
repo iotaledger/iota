@@ -900,8 +900,16 @@ impl ConsensusOutputQuarantine {
                     .active_jwks
                     .iter()
                     .map(|(_, (jwk_id, jwk))| ActiveJwk {
-                        jwk_id: jwk_id.clone(),
-                        jwk: jwk.clone(),
+                        jwk_id: iota_sdk_types::JwkId {
+                            iss: jwk_id.iss.clone(),
+                            kid: jwk_id.kid.clone(),
+                        },
+                        jwk: iota_sdk_types::Jwk {
+                            kty: jwk.kty.clone(),
+                            e: jwk.e.clone(),
+                            n: jwk.n.clone(),
+                            alg: jwk.alg.clone(),
+                        },
                         epoch,
                     })
                     .collect());
@@ -926,6 +934,16 @@ impl ConsensusOutputQuarantine {
             .safe_iter_with_bounds(Some(start), Some(end))
             .map_ok(|((r, (jwk_id, jwk)), _)| {
                 debug_assert!(round == r);
+                let jwk_id = iota_sdk_types::JwkId {
+                    iss: jwk_id.iss,
+                    kid: jwk_id.kid,
+                };
+                let jwk = iota_sdk_types::Jwk {
+                    kty: jwk.kty,
+                    e: jwk.e,
+                    n: jwk.n,
+                    alg: jwk.alg,
+                };
                 ActiveJwk { jwk_id, jwk, epoch }
             })
             .collect::<Result<Vec<_>, _>>()?)

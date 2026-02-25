@@ -999,8 +999,16 @@ async fn setup_zklogin_network(
         new_active_jwks: jwks
             .into_iter()
             .map(|(jwk_id, jwk)| ActiveJwk {
-                jwk_id,
-                jwk,
+                jwk_id: iota_sdk_types::JwkId {
+                    iss: jwk_id.iss,
+                    kid: jwk_id.kid,
+                },
+                jwk: iota_sdk_types::Jwk {
+                    kty: jwk.kty,
+                    alg: jwk.alg,
+                    e: jwk.e,
+                    n: jwk.n,
+                },
                 epoch: 0,
             })
             .collect(),
@@ -1169,8 +1177,16 @@ async fn test_zklogin_txn_fail_if_missing_jwk() {
         new_active_jwks: jwks
             .into_iter()
             .map(|(jwk_id, jwk)| ActiveJwk {
-                jwk_id,
-                jwk,
+                jwk_id: iota_sdk_types::JwkId {
+                    iss: jwk_id.iss,
+                    kid: jwk_id.kid,
+                },
+                jwk: iota_sdk_types::Jwk {
+                    kty: jwk.kty,
+                    alg: jwk.alg,
+                    e: jwk.e,
+                    n: jwk.n,
+                },
                 epoch: 0,
             })
             .collect(),
@@ -1201,8 +1217,16 @@ async fn test_zklogin_txn_fail_if_missing_jwk() {
         new_active_jwks: jwks
             .into_iter()
             .map(|(jwk_id, jwk)| ActiveJwk {
-                jwk_id,
-                jwk,
+                jwk_id: iota_sdk_types::JwkId {
+                    iss: jwk_id.iss,
+                    kid: jwk_id.kid,
+                },
+                jwk: iota_sdk_types::Jwk {
+                    kty: jwk.kty,
+                    alg: jwk.alg,
+                    e: jwk.e,
+                    n: jwk.n,
+                },
                 epoch: 0,
             })
             .collect(),
@@ -1246,8 +1270,16 @@ async fn test_zklogin_multisig() {
         new_active_jwks: jwks
             .into_iter()
             .map(|(jwk_id, jwk)| ActiveJwk {
-                jwk_id,
-                jwk,
+                jwk_id: iota_sdk_types::JwkId {
+                    iss: jwk_id.iss,
+                    kid: jwk_id.kid,
+                },
+                jwk: iota_sdk_types::Jwk {
+                    kty: jwk.kty,
+                    alg: jwk.alg,
+                    e: jwk.e,
+                    n: jwk.n,
+                },
                 epoch: 0,
             })
             .collect(),

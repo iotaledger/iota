@@ -1107,8 +1107,18 @@ impl AuthorityPerEpochStore {
 
             for active_jwk in &authenticator_state.active_jwks {
                 let ActiveJwk { jwk_id, jwk, epoch } = active_jwk;
+                let jwk_id = fastcrypto_zkp::bn254::zk_login::JwkId {
+                    iss: jwk_id.iss.clone(),
+                    kid: jwk_id.kid.clone(),
+                };
+                let jwk = fastcrypto_zkp::bn254::zk_login::JWK {
+                    kty: jwk.kty.clone(),
+                    e: jwk.e.clone(),
+                    n: jwk.n.clone(),
+                    alg: jwk.alg.clone(),
+                };
                 assert!(epoch <= &epoch_id);
-                signature_verifier.insert_jwk(jwk_id, jwk);
+                signature_verifier.insert_jwk(&jwk_id, &jwk);
             }
         } else {
             info!("authenticator_state disabled");
@@ -4764,7 +4774,17 @@ impl AuthorityPerEpochStore {
         info!("Updating authenticator state: {:?}", update);
         for active_jwk in &update.new_active_jwks {
             let ActiveJwk { jwk_id, jwk, .. } = active_jwk;
-            self.signature_verifier.insert_jwk(jwk_id, jwk);
+            let jwk_id = fastcrypto_zkp::bn254::zk_login::JwkId {
+                iss: jwk_id.iss.clone(),
+                kid: jwk_id.kid.clone(),
+            };
+            let jwk = fastcrypto_zkp::bn254::zk_login::JWK {
+                kty: jwk.kty.clone(),
+                e: jwk.e.clone(),
+                n: jwk.n.clone(),
+                alg: jwk.alg.clone(),
+            };
+            self.signature_verifier.insert_jwk(&jwk_id, &jwk);
         }
     }
 

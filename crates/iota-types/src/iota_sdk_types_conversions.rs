@@ -17,7 +17,7 @@ use iota_sdk_types::{
         CheckpointCommitment, CheckpointContents, CheckpointData, CheckpointSummary,
         CheckpointTransaction, CheckpointTransactionInfo, EndOfEpochData, SignedCheckpointSummary,
     },
-    crypto::{Bls12381PublicKey, Bls12381Signature, Jwk, JwkId, UserSignature},
+    crypto::{Bls12381PublicKey, Bls12381Signature, UserSignature},
     digest::Digest,
     effects::{
         ChangedObject, IdOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsV1,
@@ -28,9 +28,8 @@ use iota_sdk_types::{
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
     object::{GenesisObject, MovePackage, MoveStruct, Object, ObjectData, TypeOrigin, UpgradeInfo},
     transaction::{
-        ActiveJwk, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, CancelledTransaction,
-        ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
-        ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
+        AuthenticatorStateExpire, CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
+        ChangeEpochV4, Command, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
         EndOfEpochTransactionKind, GasPayment, GenesisTransaction, Input, MakeMoveVector,
         MergeCoins, MoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate,
         SignedTransaction, SplitCoins, SystemPackage, Transaction, TransactionExpiration,
@@ -390,30 +389,7 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                 })
             }
             InternalTxnKind::AuthenticatorStateUpdateV1(authenticator_state_update_v1) => {
-                TransactionKind::AuthenticatorStateUpdateV1(AuthenticatorStateUpdateV1 {
-                    epoch: authenticator_state_update_v1.epoch,
-                    round: authenticator_state_update_v1.round,
-                    new_active_jwks: authenticator_state_update_v1
-                        .new_active_jwks
-                        .into_iter()
-                        .map(|jwk| ActiveJwk {
-                            jwk_id: JwkId {
-                                iss: jwk.jwk_id.iss,
-                                kid: jwk.jwk_id.kid,
-                            },
-                            jwk: Jwk {
-                                kty: jwk.jwk.kty,
-                                e: jwk.jwk.e,
-                                n: jwk.jwk.n,
-                                alg: jwk.jwk.alg,
-                            },
-                            epoch: jwk.epoch,
-                        })
-                        .collect(),
-                    authenticator_obj_initial_shared_version: authenticator_state_update_v1
-                        .authenticator_obj_initial_shared_version
-                        ,
-                })
+                TransactionKind::AuthenticatorStateUpdateV1(authenticator_state_update_v1)
             }
             InternalTxnKind::EndOfEpochTransaction(vec) => {
                 TransactionKind::EndOfEpoch(vec.into_iter().map(Into::into).collect())
@@ -499,29 +475,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                 )
             }
             TransactionKind::AuthenticatorStateUpdateV1(authenticator_state_update_v1) => {
-                Self::AuthenticatorStateUpdateV1(crate::transaction::AuthenticatorStateUpdateV1 {
-                    epoch: authenticator_state_update_v1.epoch,
-                    round: authenticator_state_update_v1.round,
-                    new_active_jwks: authenticator_state_update_v1
-                        .new_active_jwks
-                        .into_iter()
-                        .map(|jwk| crate::authenticator_state::ActiveJwk {
-                            jwk_id: crate::authenticator_state::JwkId {
-                                iss: jwk.jwk_id.iss,
-                                kid: jwk.jwk_id.kid,
-                            },
-                            jwk: crate::authenticator_state::JWK {
-                                kty: jwk.jwk.kty,
-                                e: jwk.jwk.e,
-                                n: jwk.jwk.n,
-                                alg: jwk.jwk.alg,
-                            },
-                            epoch: jwk.epoch,
-                        })
-                        .collect(),
-                    authenticator_obj_initial_shared_version: authenticator_state_update_v1
-                        .authenticator_obj_initial_shared_version,
-                })
+                Self::AuthenticatorStateUpdateV1(authenticator_state_update_v1)
             }
             TransactionKind::EndOfEpoch(vec) => {
                 Self::EndOfEpochTransaction(vec.into_iter().map(Into::into).collect())

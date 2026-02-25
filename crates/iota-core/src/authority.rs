@@ -44,7 +44,10 @@ use iota_macros::{fail_point, fail_point_async, fail_point_if};
 use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
-use iota_sdk_types::crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion};
+use iota_sdk_types::{
+    Jwk, JwkId,
+    crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
+};
 use iota_storage::{
     key_value_store::{
         KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
@@ -1503,6 +1506,20 @@ impl AuthorityState {
                     .signature_verifier
                     .get_jwks()
                     .into_iter()
+                    .map(|(jwk_id, jwk)| {
+                        (
+                            JwkId {
+                                iss: jwk_id.iss,
+                                kid: jwk_id.kid,
+                            },
+                            Jwk {
+                                kty: jwk.kty,
+                                e: jwk.e,
+                                n: jwk.n,
+                                alg: jwk.alg,
+                            },
+                        )
+                    })
                     .collect();
                 sys_jwks.sort();
                 active_jwks.sort();

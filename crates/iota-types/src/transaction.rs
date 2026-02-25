@@ -15,7 +15,7 @@ use anyhow::bail;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
-pub use iota_sdk_types::{Argument, RandomnessStateUpdate};
+pub use iota_sdk_types::{Argument, AuthenticatorStateUpdateV1, RandomnessStateUpdate};
 use iota_sdk_types::{
     Identifier, ObjectId, TypeTag,
     crypto::{Intent, IntentMessage, IntentScope},
@@ -330,26 +330,6 @@ pub struct AuthenticatorStateExpire {
 }
 
 impl AuthenticatorStateExpire {
-    pub fn authenticator_obj_initial_shared_version(&self) -> SequenceNumber {
-        self.authenticator_obj_initial_shared_version
-    }
-}
-
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct AuthenticatorStateUpdateV1 {
-    /// Epoch of the authenticator state update transaction
-    pub epoch: u64,
-    /// Consensus round of the authenticator state update
-    pub round: u64,
-    /// newly active jwks
-    pub new_active_jwks: Vec<ActiveJwk>,
-    /// The initial version of the authenticator object that it was shared at.
-    pub authenticator_obj_initial_shared_version: SequenceNumber,
-    // to version this struct, do not add new fields. Instead, add a AuthenticatorStateUpdateV2 to
-    // TransactionKind.
-}
-
-impl AuthenticatorStateUpdateV1 {
     pub fn authenticator_obj_initial_shared_version(&self) -> SequenceNumber {
         self.authenticator_obj_initial_shared_version
     }
@@ -1504,7 +1484,7 @@ impl TransactionKind {
             Self::AuthenticatorStateUpdateV1(update) => {
                 vec![InputObjectKind::SharedMoveObject {
                     id: ObjectID::AUTHENTICATOR_STATE,
-                    initial_shared_version: update.authenticator_obj_initial_shared_version(),
+                    initial_shared_version: update.authenticator_obj_initial_shared_version,
                     mutable: true,
                 }]
             }

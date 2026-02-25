@@ -112,12 +112,20 @@ pub(crate) async fn verify_zklogin_signature(
     let mut oidc_provider_jwks = ImHashMap::new();
     for active_jwk in &inner.active_jwks {
         let ActiveJwk { jwk_id, jwk, .. } = active_jwk;
-        match oidc_provider_jwks.entry(jwk_id.clone()) {
+        match oidc_provider_jwks.entry(fastcrypto_zkp::bn254::zk_login::JwkId {
+            iss: jwk_id.iss.clone(),
+            kid: jwk_id.kid.clone(),
+        }) {
             im::hashmap::Entry::Occupied(_) => {
                 warn!("JWK with kid {:?} already exists", jwk_id);
             }
             im::hashmap::Entry::Vacant(entry) => {
-                entry.insert(jwk.clone());
+                entry.insert(fastcrypto_zkp::bn254::zk_login::JWK {
+                    kty: jwk.kty.clone(),
+                    e: jwk.e.clone(),
+                    n: jwk.n.clone(),
+                    alg: jwk.alg.clone(),
+                });
             }
         }
     }
