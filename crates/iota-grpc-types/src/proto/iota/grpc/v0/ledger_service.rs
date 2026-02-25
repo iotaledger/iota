@@ -24,8 +24,8 @@ impl GetServiceInfoResponse {
             .ok_or_else(|| TryFromProtoError::missing(Self::CHAIN_FIELD.name))
     }
 
-    /// Get the current epoch number.
-    pub fn epoch_number(&self) -> Result<iota_sdk_types::EpochId, TryFromProtoError> {
+    /// Get the current epoch ID.
+    pub fn epoch_id(&self) -> Result<iota_sdk_types::EpochId, TryFromProtoError> {
         self.epoch
             .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))
     }

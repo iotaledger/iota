@@ -78,26 +78,51 @@ pub type Result<T> = std::result::Result<T, Error>;
 // If `None` is passed, these defaults are used.
 
 /// Default field mask for [`crate::Client::get_service_info`].
-pub const SERVICE_INFO_READ_MASK: &str = "chain_id,epoch,executed_checkpoint_height";
+pub const SERVICE_INFO_READ_MASK: &str =
+    iota_grpc_types::field_mask!("chain_id", "epoch", "executed_checkpoint_height",);
 
 /// Default field mask for [`crate::Client::get_epoch`].
-pub const EPOCH_READ_MASK: &str = "epoch,first_checkpoint,last_checkpoint,start,end,reference_gas_price,protocol_config.protocol_version";
+pub const EPOCH_READ_MASK: &str = iota_grpc_types::field_mask!(
+    "epoch",
+    "first_checkpoint",
+    "last_checkpoint",
+    "start",
+    "end",
+    "reference_gas_price",
+    "protocol_config.protocol_version",
+);
 
 /// Default field mask for [`crate::Client::get_transactions`].
-pub const TRANSACTIONS_READ_MASK: &str =
-    "transaction,signatures,effects,events,checkpoint,timestamp";
+pub const TRANSACTIONS_READ_MASK: &str = iota_grpc_types::field_mask!(
+    "transaction",
+    "signatures",
+    "effects",
+    "events",
+    "checkpoint",
+    "timestamp",
+);
 
 /// Default field mask for [`crate::Client::get_objects`].
-pub const OBJECTS_READ_MASK: &str = "reference,bcs";
+pub const OBJECTS_READ_MASK: &str = iota_grpc_types::field_mask!("reference", "bcs");
 
 /// Default field mask for checkpoint queries.
-pub const CHECKPOINT_READ_MASK: &str = "checkpoint.summary";
+pub const CHECKPOINT_READ_MASK: &str = iota_grpc_types::field_mask!("checkpoint.summary");
 
 /// Default field mask for [`crate::Client::execute_transaction`]
-pub const EXECUTION_READ_MASK: &str = "transaction,effects,events,input_objects,output_objects";
+pub const EXECUTION_READ_MASK: &str = iota_grpc_types::field_mask!(
+    "transaction",
+    "effects",
+    "events",
+    "input_objects",
+    "output_objects",
+);
 
 /// Default field mask for [`crate::Client::simulate_transaction`]
-pub const SIMULATION_READ_MASK: &str = "executed_transaction.transaction,executed_transaction.effects,executed_transaction.events,executed_transaction.input_objects,executed_transaction.output_objects";
+pub const SIMULATION_READ_MASK: &str = iota_grpc_types::field_mask!(
+    "executed_transaction.transaction",
+    "executed_transaction.effects",
+    "executed_transaction.events",
+);
 
 /// Build a field mask with a custom value or default.
 ///

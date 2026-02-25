@@ -28,7 +28,7 @@ pub use transaction::{CommandResultsReadSource, TransactionReadSource};
 
 use crate::{error::RpcError, merge::Merge, types::GrpcReader};
 
-pub const EXECUTE_TRANSACTION_READ_MASK_DEFAULT: &str = "effects";
+pub const EXECUTE_TRANSACTION_READ_MASK_DEFAULT: &str = crate::field_mask!("effects");
 
 pub struct TransactionExecutionGrpcService {
     pub config: iota_config::node::GrpcApiConfig,

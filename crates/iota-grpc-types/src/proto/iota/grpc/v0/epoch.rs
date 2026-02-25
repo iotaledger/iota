@@ -83,10 +83,10 @@ impl TryFrom<&ValidatorCommittee> for iota_sdk_types::ValidatorCommittee {
 }
 
 impl Epoch {
-    /// Get the epoch number.
+    /// Get the epoch ID.
     ///
     /// Requires `epoch` in the read_mask.
-    pub fn epoch_number(&self) -> Result<iota_sdk_types::EpochId, TryFromProtoError> {
+    pub fn epoch_id(&self) -> Result<iota_sdk_types::EpochId, TryFromProtoError> {
         self.epoch
             .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))
     }
