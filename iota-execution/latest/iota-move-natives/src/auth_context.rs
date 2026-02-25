@@ -218,11 +218,8 @@ fn from_value<T: DeserializeOwned>(
 }
 
 fn resolve_move_layout(context: &NativeContext, ty: &Type) -> PartialVMResult<MoveTypeLayout> {
-    match context.type_to_type_layout(ty)? {
-        Some(move_layout) => Ok(move_layout),
-        None => Err(
-            PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-                .with_message(format!("Can't resolve `MoveTypeLayout` for {ty:?}")),
-        ),
-    }
+    context.type_to_type_layout(ty)?.ok_or(
+        PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+            .with_message(format!("Can't resolve `MoveTypeLayout` for {ty:?}")),
+    )
 }
