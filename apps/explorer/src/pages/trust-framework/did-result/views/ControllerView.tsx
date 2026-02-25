@@ -24,8 +24,9 @@ interface ControllerViewProps {
 }
 
 export function ControllerView({ objectData }: ControllerViewProps) {
-    const { controllers, isPending, isError } = useGetControllerObjects(objectData);
     const threshold = extractThreshold(objectData);
+    const { results, isPending, isError } = useGetControllerObjects(objectData);
+    const controllers = results.map((each) => each.data).filter((each) => each != null);
 
     return (
         <div className="flex w-full flex-col gap-sm">
