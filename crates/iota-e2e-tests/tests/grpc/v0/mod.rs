@@ -55,10 +55,16 @@ impl_field_presence_checker!(ExecutedTransaction {
     input_objects,
     output_objects,
 });
-impl_field_presence_checker!(ExecuteTransactionResponse {
-    executed_transaction: ExecutedTransaction,
+impl_field_presence_checker!(ExecuteTransactionResponse, transparent(executed_transaction) {
+    transaction,
+    signatures,
+    effects,
+    events,
+    checkpoint,
+    timestamp,
+    input_objects,
+    output_objects,
 });
-
 impl_field_presence_checker!(Input { index });
 impl_field_presence_checker!(Result {
     index,

@@ -56,10 +56,11 @@ async fn execute_transaction_readmask_scenarios() {
     let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
     let amount = 9;
 
+    // ExecuteTransactionResponse is field_mask_transparent, so paths are relative
+    // to the inner ExecutedTransaction (e.g. "effects", not
+    // "executed_transaction.effects").
     type TestCase<'a> = (&'a str, Option<FieldMask>, Vec<&'a str>);
     let test_cases: Vec<TestCase> = vec![
-        // Default mask is "transaction.effects", so only transaction.effects with all subfields is
-        // returned
         (
             "default readmask",
             None,
