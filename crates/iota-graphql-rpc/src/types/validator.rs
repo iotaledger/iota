@@ -30,6 +30,7 @@ use crate::{
         base64::Base64,
         big_int::BigInt,
         cursor::{JsonCursor, Page},
+        epoch::Epoch,
         iota_address::IotaAddress,
         move_object::MoveObject,
         object::Object,
@@ -38,6 +39,9 @@ use crate::{
         validator_credentials::ValidatorCredentials,
     },
 };
+
+/// The protocol version that IIP8 was put in effect.
+const IIP8_PROTOCOL_VERSION: u64 = 20;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Validator {
@@ -332,9 +336,31 @@ impl Validator {
         Some(BigInt::from(self.validator_summary.gas_price))
     }
 
-    /// The fee charged by the validator for staking services.
+    /// The fee set by the validator for providing staking services.
     async fn commission_rate(&self) -> Option<u64> {
         Some(self.validator_summary.commission_rate)
+    }
+
+    /// The effective fee charged by the validator for staking services.
+    ///
+    /// This is evaluated according to [IIP8](https://github.com/iotaledger/IIPs/blob/main/iips/IIP-0008/IIP-0008.md)
+    /// for epochs with protocol version >= 20.
+    async fn effective_commission_rate(&self, ctx: &Context<'_>) -> Result<Option<u64>> {
+        let summary = &self.validator_summary;
+        let epoch = Epoch::query(
+            ctx,
+            Some(self.requested_for_epoch),
+            self.checkpoint_viewed_at,
+        )
+        .await
+        .extend()?;
+        if let Some(epoch) = epoch {
+            if epoch.protocol_version() < IIP8_PROTOCOL_VERSION {
+                // Pre IIP8
+                return Ok(Some(summary.commission_rate));
+            }
+        }
+        Ok(Some(summary.commission_rate.max(summary.voting_power)))
     }
 
     /// The total number of IOTA tokens in this pool plus
