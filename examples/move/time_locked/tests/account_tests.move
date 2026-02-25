@@ -206,5 +206,9 @@ fun create_time_locked_for_testing(
 }
 
 fun create_auth_context_for_testing(): AuthContext {
-    auth_context::new_with_tx_inputs(vector::empty(), vector::empty(), vector::empty())
+    auth_context::new_with_tx_inputs(
+        b"00000000000000000000000000000000",
+        vector::empty(),
+        vector::empty(),
+    )
 }
