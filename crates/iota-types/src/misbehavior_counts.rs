@@ -86,24 +86,23 @@ impl<T> MisbehaviorsV1<T> {
         ]
         .into_iter()
     }
-}
 
-impl<T> FromIterator<T> for MisbehaviorsV1<T> {
-    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        let mut iterator = iter.into_iter();
+    // Constructs a MisbehaviorsV1 by consuming exactly 4 elements from an
+    // iterator, mapping them to the struct fields in order.
+    fn collect_from(mut iter: impl Iterator<Item = T>) -> Self {
         Self {
-            faulty_blocks_provable: iterator
+            faulty_blocks_provable: iter
                 .next()
-                .expect("Element should exist in the iterator"),
-            faulty_blocks_unprovable: iterator
+                .expect("Element (faulty_blocks_provable) should exist in the iterator"),
+            faulty_blocks_unprovable: iter
                 .next()
-                .expect("Element should exist in the iterator"),
-            missing_proposals: iterator
+                .expect("Element (faulty_blocks_unprovable) should exist in the iterator"),
+            missing_proposals: iter
                 .next()
-                .expect("Element should exist in the iterator"),
-            equivocations: iterator
+                .expect("Element (missing_proposals) should exist in the iterator"),
+            equivocations: iter
                 .next()
-                .expect("Element should exist in the iterator"),
+                .expect("Element (equivocations) should exist in the iterator"),
         }
     }
 }
@@ -126,14 +125,12 @@ impl MisbehaviorsV1Reports {
     }
 
     pub fn as_atomic(&self) -> MisbehaviorsV1<Vec<AtomicU64>> {
-        self.iter()
-            .map(|metric| {
-                metric
-                    .iter()
-                    .map(|&x| AtomicU64::new(x))
-                    .collect::<Vec<AtomicU64>>()
-            })
-            .collect::<MisbehaviorsV1<Vec<AtomicU64>>>()
+        MisbehaviorsV1::collect_from(self.iter().map(|metric| {
+            metric
+                .iter()
+                .map(|&x| AtomicU64::new(x))
+                .collect::<Vec<AtomicU64>>()
+        }))
     }
 }
 
@@ -164,14 +161,12 @@ impl MisbehaviorsV1<Vec<AtomicU64>> {
     }
 
     pub fn as_non_atomic(&self) -> MisbehaviorsV1<Vec<u64>> {
-        self.iter()
-            .map(|metric| {
-                metric
-                    .iter()
-                    .map(|x| x.load(std::sync::atomic::Ordering::Relaxed))
-                    .collect::<Vec<u64>>()
-            })
-            .collect::<MisbehaviorsV1<Vec<u64>>>()
+        MisbehaviorsV1::collect_from(self.iter().map(|metric| {
+            metric
+                .iter()
+                .map(|x| x.load(std::sync::atomic::Ordering::Relaxed))
+                .collect::<Vec<u64>>()
+        }))
     }
 }
 
@@ -180,57 +175,59 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_iter_u64() {
+    fn test_collect_from_u64() {
         let original = MisbehaviorsV1::new(1_u64, 2, 3, 4);
-        let new: MisbehaviorsV1<u64> = original.iter().copied().collect();
+        let new = MisbehaviorsV1::collect_from(original.iter().copied());
         assert_eq!(original, new);
     }
 
     #[test]
     #[should_panic]
-    fn test_iter_u64_major() {
+    fn test_collect_from_major_panics() {
         let original = MisbehaviorsV1::new(1_u64, 2, 3, 4);
-        let _: MisbehaviorsV1<u64> = original.iter_major_misbehaviors().copied().collect();
+        let _ = MisbehaviorsV1::collect_from(original.iter_major_misbehaviors().copied());
     }
 
     #[test]
     #[should_panic]
-    fn test_iter_u64_minor() {
+    fn test_collect_from_minor_panics() {
         let original = MisbehaviorsV1::new(1_u64, 2, 3, 4);
-        let _: MisbehaviorsV1<u64> = original.iter_minor_misbehaviors().copied().collect();
+        let _ = MisbehaviorsV1::collect_from(original.iter_minor_misbehaviors().copied());
     }
 
     #[test]
-    fn test_iter_vec_u64() {
+    fn test_collect_from_vec_u64() {
         let original = MisbehaviorsV1::new(
             vec![1_u64, 2, 3],
             vec![4, 5, 6],
             vec![7, 8, 9],
             vec![10, 11, 12],
         );
-        let new: MisbehaviorsV1<Vec<u64>> = original.iter().cloned().collect();
+        let new = MisbehaviorsV1::collect_from(original.iter().cloned());
         assert_eq!(original, new);
     }
+
     #[test]
     #[should_panic]
-    fn test_iter_vec_u64_major() {
+    fn test_collect_from_vec_major_panics() {
         let original = MisbehaviorsV1::new(
             vec![1_u64, 2, 3],
             vec![4, 5, 6],
             vec![7, 8, 9],
             vec![10, 11, 12],
         );
-        let _: MisbehaviorsV1<Vec<u64>> = original.iter_major_misbehaviors().cloned().collect();
+        let _ = MisbehaviorsV1::collect_from(original.iter_major_misbehaviors().cloned());
     }
+
     #[test]
     #[should_panic]
-    fn test_iter_vec_u64_minor() {
+    fn test_collect_from_vec_minor_panics() {
         let original = MisbehaviorsV1::new(
             vec![1_u64, 2, 3],
             vec![4, 5, 6],
             vec![7, 8, 9],
             vec![10, 11, 12],
         );
-        let _: MisbehaviorsV1<Vec<u64>> = original.iter_minor_misbehaviors().cloned().collect();
+        let _ = MisbehaviorsV1::collect_from(original.iter_minor_misbehaviors().cloned());
     }
 }
