@@ -220,8 +220,8 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
 
         let verified_transactions = VerifiedTransactions::new(
             transactions,
-            verified_block_header.reference(),
-            verified_block_header.transactions_commitment(),
+            verified_block_header.transaction_ref(),
+            Some(verified_block_header.digest()),
             serialized_transactions,
         );
         let has_transactions = verified_transactions.has_transactions();
@@ -2794,8 +2794,8 @@ mod tests {
                 .unwrap();
             let verified_transactions = VerifiedTransactions::new(
                 transactions,
-                verified_block_header.reference(),
-                verified_block_header.transactions_commitment(),
+                verified_block_header.transaction_ref(),
+                Some(verified_block_header.digest()),
                 serialized_transactions,
             );
             let verified_block = VerifiedBlock::new(verified_block_header, verified_transactions);
@@ -2872,8 +2872,8 @@ mod tests {
                 .unwrap();
             let verified_transactions = VerifiedTransactions::new(
                 transactions,
-                verified_block_header.reference(),
-                verified_block_header.transactions_commitment(),
+                verified_block_header.transaction_ref(),
+                Some(verified_block_header.digest()),
                 serialized_transactions,
             );
             let verified_block = VerifiedBlock::new(verified_block_header, verified_transactions);

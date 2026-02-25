@@ -25,6 +25,7 @@ use crate::{
     encoder::{ShardEncoder, create_encoder},
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
     linearizer::{BlockStoreAPI, Linearizer},
+    transaction_ref::TransactionRef,
 };
 
 /// DagBuilder API
@@ -621,8 +622,8 @@ impl DagBuilder {
 
             let verified_transactions = VerifiedTransactions::new(
                 transactions,
-                block_ref,
-                commitment,
+                TransactionRef::new(block_ref, commitment),
+                Some(block_ref.digest),
                 serialized_transactions,
             );
             self.transactions.insert(block_ref, verified_transactions);
@@ -1123,8 +1124,8 @@ impl<'a> LayerBuilder<'a> {
 
                 let verified_transactions = VerifiedTransactions::new(
                     transactions,
-                    block_header.reference(),
-                    commitment,
+                    block_header.transaction_ref(),
+                    Some(block_header.digest()),
                     serialized_transactions,
                 );
 

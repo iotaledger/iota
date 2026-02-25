@@ -391,11 +391,17 @@ async fn read_and_contain_transactions(
         let actual = tx_opt.as_ref().unwrap();
         assert_eq!(actual, expected);
 
-        // Verify block reference matches
-        assert_eq!(
-            tx_opt.as_ref().unwrap().block_ref(),
-            written_blocks[i].reference()
-        );
+        if !transaction_ref_enabled {
+            assert_eq!(
+                tx_opt.as_ref().unwrap().block_ref().unwrap(),
+                written_blocks[i].reference()
+            );
+        } else {
+            assert_eq!(
+                tx_opt.as_ref().unwrap().transaction_ref(),
+                written_blocks[i].verified_block_header.transaction_ref()
+            );
+        }
     }
 
     // Test reading subset of transactions

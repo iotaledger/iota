@@ -20,7 +20,7 @@ use tokio::{
     task::JoinSet,
     time::{MissedTickBehavior, sleep},
 };
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::{
     CommitConsumerMonitor, CommitIndex,
@@ -337,7 +337,13 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                     {
                         GenericTransactionRef::TransactionRef(verified_txns.transaction_ref())
                     } else {
-                        GenericTransactionRef::BlockRef(verified_txns.block_ref())
+                        let Some(block_ref) = verified_txns.block_ref() else {
+                            error!(
+                                "block_ref unavailable for transactions in non-transaction-ref path"
+                            );
+                            continue;
+                        };
+                        GenericTransactionRef::BlockRef(block_ref)
                     };
                     available_transactions.insert(gen_tx_ref);
                 }

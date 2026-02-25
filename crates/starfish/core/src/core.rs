@@ -944,8 +944,8 @@ impl Core {
         // Construct verified transactions to be used for storing and broadcasting
         let verified_transactions = VerifiedTransactions::new(
             transactions,
-            verified_block_header.reference(),
-            transactions_commitment,
+            verified_block_header.transaction_ref(),
+            Some(verified_block_header.digest()),
             serialized_transactions,
         );
         let verified_block = VerifiedBlock {
@@ -1548,7 +1548,6 @@ mod test {
                         round: block.round(),
                         author: block.author(),
                         transactions_commitment: block.transactions_commitment(),
-                        block_digest: block.digest(),
                     })
                 } else {
                     // When disabled, use BlockRef variant
@@ -2541,20 +2540,31 @@ mod test {
                 // Transactions from all authors except authority_to_skip should also have a
                 // corresponding block_ref being traversed in the committed sub_dag
                 // Same after num_rounds_with_skip_ancestors
-                if transaction.block_ref().author != authority_to_skip
-                    || transaction.block_ref().round >= num_rounds_with_skip_ancestors
+                if transaction.author() != authority_to_skip
+                    || transaction.round() >= num_rounds_with_skip_ancestors
                 {
                     assert!(
-                        existing_headers.contains(&transaction.block_ref()),
+                        existing_headers.contains(
+                            &transaction
+                                .block_ref()
+                                .expect("block_ref should be set in test")
+                        ),
                         "{}",
-                        transaction.block_ref()
+                        transaction
+                            .block_ref()
+                            .expect("block_ref should be set in test")
                     );
                 } else {
                     assert!(
-                        !existing_headers.contains(&transaction.block_ref())
-                            && !commit_only_for_traversed_headers,
+                        !existing_headers.contains(
+                            &transaction
+                                .block_ref()
+                                .expect("block_ref should be set in test")
+                        ) && !commit_only_for_traversed_headers,
                         "{}",
-                        transaction.block_ref()
+                        transaction
+                            .block_ref()
+                            .expect("block_ref should be set in test")
                     );
                 }
             }
@@ -2579,12 +2589,6 @@ mod test {
             .find(|(a, _)| a.author() == authority_to_skip)
             .unwrap()
             .0;
-        let block_ref_for_first_missing_tx = match first_missing_transaction_from_skipped {
-            GenericTransactionRef::BlockRef(ref b) => BlockRef::new(b.round, b.author, b.digest),
-            GenericTransactionRef::TransactionRef(ref t) => {
-                BlockRef::new(t.round, t.author, t.block_digest)
-            }
-        };
         if commit_only_for_traversed_headers {
             assert_eq!(
                 first_missing_transaction_from_skipped.round(),
@@ -2596,14 +2600,23 @@ mod test {
         // Ensure that the block header corresponding to the
         // first_missing_transaction_from_skipped is not in dag_state
         // if commit_only_for_traversed_headers=false and in dag_state otherwise
-        assert_eq!(
-            core_catch_up
-                .dag_state
-                .read()
-                .get_verified_block_headers(&[block_ref_for_first_missing_tx])[0]
-                .is_some(),
-            commit_only_for_traversed_headers
-        );
+        let is_in_dag_state = {
+            let dag = core_catch_up.dag_state.read();
+            match first_missing_transaction_from_skipped {
+                GenericTransactionRef::BlockRef(ref b) => {
+                    let block_ref = BlockRef::new(b.round, b.author, b.digest);
+                    dag.get_verified_block_headers(&[block_ref])[0].is_some()
+                }
+                GenericTransactionRef::TransactionRef(ref t) => {
+                    // resolve_block_ref returns None iff the block header is absent from
+                    // dag_state, which is exactly the condition we want to check.
+                    dag.resolve_block_ref(t).is_some_and(|block_ref| {
+                        dag.get_verified_block_headers(&[block_ref])[0].is_some()
+                    })
+                }
+            }
+        };
+        assert_eq!(is_in_dag_state, commit_only_for_traversed_headers);
         let last_solid_commit_round = core_catch_up
             .dag_state
             .read()
@@ -2618,11 +2631,12 @@ mod test {
         let missing_verified_transactions: Vec<_> = all_sequenced_transactions
             .into_iter()
             .filter(|tx| {
-                let tx_ref = tx.transaction_ref();
                 let generic_ref = if consensus_transaction_ref {
-                    GenericTransactionRef::TransactionRef(tx_ref)
+                    GenericTransactionRef::TransactionRef(tx.transaction_ref())
                 } else {
-                    GenericTransactionRef::BlockRef(BlockRef::from(tx_ref))
+                    GenericTransactionRef::BlockRef(
+                        tx.block_ref().expect("block_ref should be set in test"),
+                    )
                 };
                 missing_transactions.contains_key(&generic_ref)
             })
@@ -2630,7 +2644,7 @@ mod test {
         core_catch_up
             .add_transactions(
                 missing_verified_transactions,
-                crate::dag_state::DataSource::TransactionSynchronizer,
+                DataSource::TransactionSynchronizer,
             )
             .unwrap();
 
@@ -3121,7 +3135,6 @@ mod test {
                         round: block.round(),
                         author: block.author(),
                         transactions_commitment: block.transactions_commitment(),
-                        block_digest: block.digest(),
                     })
                 } else {
                     // When disabled, use BlockRef variant

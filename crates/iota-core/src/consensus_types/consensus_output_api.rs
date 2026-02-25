@@ -151,15 +151,14 @@ impl_consensus_output_api! {
 
 // starfish_core::CommittedSubDag:
 // - iterate over `self.transactions` (VerifiedTransactions)
-// - per-item accessors via block_ref(): .round / .author.value()
-// - txs via vt.transactions()
+// - per-item accessors: round()/author().value()/transactions()
 // - committed_header_refs: use committed_header_refs from SubDagBase
 impl_consensus_output_api! {
     type = starfish_core::CommittedSubDag,
     commit_digest = starfish_core::CommitDigest,
     iterate = |self_, vt| self_.transactions.iter(),
-    round   = |vt| vt.block_ref().round,
-    author  = |vt| vt.block_ref().author.value(),
+    round   = |vt| vt.round(),
+    author  = |vt| vt.author().value(),
     txs     = |vt| vt.transactions(),
     committed_header_refs = |self_| &self_.base.committed_header_refs
 }
