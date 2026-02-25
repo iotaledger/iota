@@ -45,7 +45,7 @@ export function AccountList<A extends { address: string }>({
         return set;
     }, new Set<number>());
 
-    const rowIndexes = rowsData.map((_, i) => i);
+    const rowIndexes = accounts.map((_, i) => i);
 
     return (
         <Table selectedRowIndexes={selectedRowIndexes} rowIndexes={rowIndexes}>
@@ -80,7 +80,7 @@ function AccountRow<A extends { address: string }>({
     account: A;
     rowIndex: number;
     onAccountClick: (account: A, checked: boolean) => void;
-    isExisting;
+    isExisting: boolean;
 }) {
     const { data: coinBalance } = useBalance(account.address);
     const [totalAmount, totalAmountSymbol] = useFormatCoin({
