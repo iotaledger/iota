@@ -345,11 +345,13 @@ impl AuthorityStore {
                         .unwrap();
 
                     // Insert to events_2 table
-                    store
-                        .perpetual_tables
-                        .events_2
-                        .insert(transaction.digest(), events)
-                        .unwrap();
+                    if effects.events_digest().is_some() {
+                        store
+                            .perpetual_tables
+                            .events_2
+                            .insert(transaction.digest(), events)
+                            .unwrap();
+                    }
                 }
             }
         }
