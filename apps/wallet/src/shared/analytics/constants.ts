@@ -24,58 +24,47 @@ export const ACCOUNT_FORM_TYPE_TO_AMPLI: Record<
     {
         accountType: AccountsAddedProperties['accountType'];
         accountOrigin: AmpliAccountOrigin;
-        sourceFlow: AccountsAddedProperties['sourceFlow'];
     }
 > = {
     [AccountsFormType.NewMnemonic]: {
         accountType: AmpliAccountType.Mnemonic,
         accountOrigin: AmpliAccountOrigin.New,
-        sourceFlow: 'New Mnemonic',
     },
     [AccountsFormType.ImportMnemonic]: {
         accountType: AmpliAccountType.Mnemonic,
         accountOrigin: AmpliAccountOrigin.Import,
-        sourceFlow: 'Import Mnemonic',
     },
     [AccountsFormType.ImportSeed]: {
         accountType: AmpliAccountType.Seed,
         accountOrigin: AmpliAccountOrigin.Import,
-        sourceFlow: 'Import Seed',
     },
     [AccountsFormType.MnemonicSource]: {
         accountType: AmpliAccountType.Mnemonic,
         accountOrigin: AmpliAccountOrigin.Derived,
-        sourceFlow: 'Derived Mnemonic',
     },
     [AccountsFormType.SeedSource]: {
         accountType: AmpliAccountType.Seed,
         accountOrigin: AmpliAccountOrigin.Derived,
-        sourceFlow: 'Derived Seed',
     },
     [AccountsFormType.ImportPrivateKey]: {
         accountType: AmpliAccountType.PrivateKey,
         accountOrigin: AmpliAccountOrigin.Import,
-        sourceFlow: 'Import Private Key',
     },
     [AccountsFormType.Passkey]: {
         accountType: AmpliAccountType.Passkey,
         accountOrigin: AmpliAccountOrigin.New,
-        sourceFlow: 'New Passkey',
     },
     [AccountsFormType.ImportPasskey]: {
         accountType: AmpliAccountType.Passkey,
         accountOrigin: AmpliAccountOrigin.Import,
-        sourceFlow: 'Import Passkey',
     },
     [AccountsFormType.ImportLedger]: {
         accountType: AmpliAccountType.Ledger,
         accountOrigin: AmpliAccountOrigin.Import,
-        sourceFlow: 'Import Ledger',
     },
     [AccountsFormType.ImportKeystone]: {
         accountType: AmpliAccountType.Keystone,
         accountOrigin: AmpliAccountOrigin.Import,
-        sourceFlow: 'Import Keystone',
     },
 };
 

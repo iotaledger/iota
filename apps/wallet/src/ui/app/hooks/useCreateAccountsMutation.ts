@@ -38,7 +38,15 @@ export function useCreateAccountsMutation() {
 
     return useMutation({
         mutationKey: ['create accounts'],
-        mutationFn: async ({ type, password }: { type: AccountsFormType; password?: string }) => {
+        mutationFn: async ({
+            type,
+            password,
+            sourceFlow,
+        }: {
+            type: AccountsFormType;
+            password?: string;
+            sourceFlow: string;
+        }) => {
             let createdAccounts;
             const accountsFormValues = accountsFormValuesRef.current;
             const ampliData = ACCOUNT_FORM_TYPE_TO_AMPLI[type];
@@ -164,6 +172,7 @@ export function useCreateAccountsMutation() {
 
             ampli.accountsAdded({
                 ...ampliData,
+                sourceFlow,
                 numberOfAccounts: createdAccounts.length,
                 isFirstAccount,
             });
