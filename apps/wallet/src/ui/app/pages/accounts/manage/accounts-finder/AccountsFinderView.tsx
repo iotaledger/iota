@@ -21,6 +21,7 @@ import { getSourceId, getLedgerConnectionErrorMessage } from '_src/ui/app/helper
 import {
     useAccountSources,
     useAccounts,
+    useAccountsInfo,
     useUnlockMutation,
     useAccountsFinder,
     useGetOwnedObjectsMultipleAddresses,
@@ -106,6 +107,7 @@ export function AccountsFinderView(): JSX.Element {
     const mainPublicKey = searchParams.get('mainPublicKey');
     const { data: accountSources } = useAccountSources();
     const { data: accounts } = useAccounts();
+    const { isFirstAccount } = useAccountsInfo();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceId);
     const accountSourceType = getAccountSourceType(accountSource);
     const [password, setPassword] = useState('');
@@ -164,7 +166,7 @@ export function AccountsFinderView(): JSX.Element {
                     accountType,
                     accountOrigin: 'import',
                     numberOfAccounts: numberOfAccountsCreated,
-                    isFirstAccount: !accounts || accounts.length === 0,
+                    isFirstAccount,
                     sourceFlow: SOURCE_FLOW,
                 });
             }

@@ -17,6 +17,7 @@ export * from './useAccountByAddress';
 export * from './useAccountGroups';
 export * from './useAccountSources';
 export * from './useAccounts';
+export * from './useAccountsInfo';
 export * from './useAccountsFinder';
 export * from './useActiveAccount';
 export * from './useAutoLockMinutes';
