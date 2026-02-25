@@ -5,7 +5,7 @@ import { AccountType, type SerializedUIAccount } from '_src/background/accounts/
 import { useState, useRef } from 'react';
 import clsx from 'clsx';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { ExplorerLinkType, NicknameDialog, useUnlockAccount } from '_components';
+import { ExplorerLinkType, NicknameDialog } from '_components';
 import { useNavigate } from 'react-router-dom';
 import { useAccounts, useExplorerLink, useBackgroundClient } from '_hooks';
 import { toast, useGetDefaultIotaName } from '@iota/core';
@@ -38,7 +38,6 @@ export function AccountGroupItem({
     const anchorRef = useRef<HTMLDivElement>(null);
     const [isDialogNicknameOpen, setDialogNicknameOpen] = useState(false);
     const [isDialogRemoveOpen, setDialogRemoveOpen] = useState(false);
-    const { unlockAccount, lockAccount } = useUnlockAccount();
     const navigate = useNavigate();
     const allAccounts = useAccounts();
     const backgroundClient = useBackgroundClient();
@@ -61,15 +60,6 @@ export function AccountGroupItem({
         const newWindow = window.open(explorerHref!, '_blank', 'noopener,noreferrer');
         if (newWindow) newWindow.opener = null;
         ampli.externalLinkOpened({ type: 'address' });
-    }
-
-    function handleToggleLock(e: React.MouseEvent<HTMLButtonElement>) {
-        e.stopPropagation();
-        if (account.isLocked) {
-            unlockAccount(account);
-        } else {
-            lockAccount(account);
-        }
     }
 
     function handleRename() {
@@ -135,7 +125,6 @@ export function AccountGroupItem({
         <div className="relative overflow-visible [&_span]:whitespace-nowrap">
             <div onClick={handleSelectAccount} ref={anchorRef}>
                 <Account
-                    isLocked={account.isLocked}
                     isCopyable
                     isActive={isActive}
                     copyText={account.address}
@@ -148,8 +137,6 @@ export function AccountGroupItem({
                     subtitle={formatAddress(account.address)}
                     onCopy={handleCopySuccess}
                     onOptionsClick={handleOptionsClick}
-                    onLockAccountClick={handleToggleLock}
-                    onUnlockAccountClick={handleToggleLock}
                     badgeTooltipText={
                         isLegacy
                             ? 'Legacy address from the Chrysalis era. May not be supported by newer wallets, please consider migrating funds'
@@ -213,9 +200,7 @@ function AccountAvatar({ account }: { account: SerializedUIAccount }) {
         logo = <IotaLogoMark />;
     }
     return (
-        <div
-            className={`flex h-8 w-8 items-center justify-center rounded-full [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-iota-neutral-100 ${account.isLocked ? 'bg-iota-neutral-90 dark:bg-iota-neutral-20 [&_svg]:dark:text-iota-neutral-50' : 'bg-iota-primary-30 '}`}
-        >
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-iota-primary-30 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-iota-neutral-100">
             {logo}
         </div>
     );

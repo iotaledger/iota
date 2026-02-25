@@ -34,15 +34,6 @@ export function AccountList<A extends { address: string }>({
         { label: '', columnKey: 2 },
     ];
 
-    const rowsData = accounts.map((account) => {
-        const { data: coinBalance } = useBalance(account.address);
-        const [totalAmount, totalAmountSymbol] = useFormatCoin({
-            balance: coinBalance?.totalBalance ?? 0,
-        });
-
-        return [formatAddress(account.address), `${totalAmount} ${totalAmountSymbol}`];
-    });
-
     const selectedRowIndexes = accounts.reduce((set, acc, i) => {
         if (selectedAccounts.has(acc.address)) {
             set.add(i);
@@ -51,7 +42,7 @@ export function AccountList<A extends { address: string }>({
     }, new Set<number>());
 
     return (
-        <Table selectedRowIndexes={selectedRowIndexes} rowIndexes={rowsData.map((_, i) => i)}>
+        <Table selectedRowIndexes={selectedRowIndexes} rowIndexes={accounts.map((_, i) => i)}>
             <TableHeader>
                 <TableRow leading={<TableHeaderCheckbox onCheckboxChange={() => selectAll()} />}>
                     {headersData.map((header, index) => (
@@ -60,26 +51,48 @@ export function AccountList<A extends { address: string }>({
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {rowsData.map((row, rowIndex) => (
-                    <TableRow
-                        key={rowIndex}
-                        leading={
-                            <TableRowCheckbox
-                                rowIndex={rowIndex}
-                                onCheckboxChange={(checked) =>
-                                    onAccountClick(accounts[rowIndex], checked)
-                                }
-                            />
-                        }
-                    >
-                        {row.map((cell, cellIndex) => (
-                            <TableCellBase key={cellIndex}>
-                                <TableCellText>{cell}</TableCellText>
-                            </TableCellBase>
-                        ))}
-                    </TableRow>
+                {accounts.map((account, rowIndex) => (
+                    <AccountRow
+                        key={account.address}
+                        account={account}
+                        rowIndex={rowIndex}
+                        onAccountClick={onAccountClick}
+                    />
                 ))}
             </TableBody>
         </Table>
+    );
+}
+
+function AccountRow<A extends { address: string }>({
+    account,
+    rowIndex,
+    onAccountClick,
+}: {
+    account: A;
+    rowIndex: number;
+    onAccountClick: (account: A, checked: boolean) => void;
+}) {
+    const { data: coinBalance } = useBalance(account.address);
+    const [totalAmount, totalAmountSymbol] = useFormatCoin({
+        balance: coinBalance?.totalBalance ?? 0,
+    });
+    const cells = [formatAddress(account.address), `${totalAmount} ${totalAmountSymbol}`];
+
+    return (
+        <TableRow
+            leading={
+                <TableRowCheckbox
+                    rowIndex={rowIndex}
+                    onCheckboxChange={(checked) => onAccountClick(account, checked)}
+                />
+            }
+        >
+            {cells.map((cell, cellIndex) => (
+                <TableCellBase key={cellIndex}>
+                    <TableCellText>{cell}</TableCellText>
+                </TableCellBase>
+            ))}
+        </TableRow>
     );
 }
