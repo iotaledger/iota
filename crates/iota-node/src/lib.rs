@@ -123,7 +123,6 @@ use iota_types::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
-    messages_checkpoint::CertifiedCheckpointSummary,
     messages_consensus::{
         AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
         SignedAuthorityCapabilitiesV1, check_total_jwk_size,
@@ -672,13 +671,16 @@ impl IotaNode {
 
         let rest_index = if is_full_node && config.enable_rest_api && config.enable_index_processing
         {
-            Some(Arc::new(RestIndexStore::new(
-                config.db_path().join("rest_index"),
-                &store,
-                &checkpoint_store,
-                &epoch_store,
-                &cache_traits.backing_package_store,
-            )))
+            Some(Arc::new(
+                RestIndexStore::new(
+                    config.db_path().join("rest_index"),
+                    &store,
+                    &checkpoint_store,
+                    &epoch_store,
+                    &cache_traits.backing_package_store,
+                )
+                .await,
+            ))
         } else {
             None
         };
@@ -876,8 +878,16 @@ impl IotaNode {
         let iota_node_metrics =
             Arc::new(IotaNodeMetrics::new(&registry_service.default_registry()));
 
+        // Convert transaction orchestrator to executor trait object for gRPC server
+        // Note that the transaction_orchestrator (so as executor) will be None if it is
+        // a validator node or run_with_range is set
+        let executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>> =
+            transaction_orchestrator
+                .clone()
+                .map(|o| o as Arc<dyn iota_types::transaction_executor::TransactionExecutor>);
+
         let grpc_server_handle =
-            build_grpc_server(&config, state.clone(), state_sync_store.clone()).await?;
+            build_grpc_server(&config, state.clone(), state_sync_store.clone(), executor).await?;
 
         let validator_components = if state.is_committee_validator(&epoch_store) {
             let (components, _) = futures::join!(
@@ -1760,16 +1770,6 @@ impl IotaNode {
             );
 
             // Create closures that handle gRPC type conversion
-            let summary_sender = if let Ok(guard) = self.grpc_server_handle.try_lock() {
-                guard.as_ref().map(|handle| {
-                    let tx = handle.checkpoint_summary_broadcaster().clone();
-                    Box::new(move |summary: &CertifiedCheckpointSummary| {
-                        tx.send_traced(summary);
-                    }) as Box<dyn Fn(&CertifiedCheckpointSummary) + Send + Sync>
-                })
-            } else {
-                None
-            };
             let data_sender = if let Ok(guard) = self.grpc_server_handle.try_lock() {
                 guard.as_ref().map(|handle| {
                     let tx = handle.checkpoint_data_broadcaster().clone();
@@ -1789,7 +1789,6 @@ impl IotaNode {
                 self.backpressure_manager.clone(),
                 self.config.checkpoint_executor_config.clone(),
                 checkpoint_executor_metrics.clone(),
-                summary_sender,
                 data_sender,
             );
 
@@ -2423,6 +2422,7 @@ async fn build_grpc_server(
     config: &NodeConfig,
     state: Arc<AuthorityState>,
     state_sync_store: RocksDbStore,
+    executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
 ) -> Result<Option<GrpcServerHandle>> {
     // Validators do not expose gRPC APIs
     if config.consensus_config().is_some() || !config.enable_grpc_api {
@@ -2433,25 +2433,28 @@ async fn build_grpc_server(
         return Err(anyhow!("gRPC API is enabled but no configuration provided"));
     };
 
+    // Get chain identifier from state directly
+    let chain_id = state.get_chain_identifier();
+
     let rest_read_store = Arc::new(RestReadStore::new(state.clone(), state_sync_store));
 
     // Create cancellation token for proper shutdown hierarchy
     let shutdown_token = CancellationToken::new();
 
     // Create GrpcReader
-    let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(rest_read_store));
-
-    // Get the subscription handler from the state for event streaming
-    let event_subscriber =
-        state.subscription_handler.clone() as Arc<dyn iota_grpc_server::EventSubscriber>;
+    let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(
+        rest_read_store,
+        Some(env!("CARGO_PKG_VERSION").to_string()),
+    ));
 
     // Pass the same token to both GrpcReader (already done above) and
     // start_grpc_server
     let handle = start_grpc_server(
         grpc_reader,
-        event_subscriber,
+        executor,
         grpc_config.clone(),
         shutdown_token,
+        chain_id,
     )
     .await?;
 

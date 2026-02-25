@@ -12,16 +12,27 @@ export function useInitialPageView(activeNetwork: string): void {
 
     // Set user properties for the user's page information
     useEffect(() => {
-        ampli.identify(undefined);
+        // Wait 1.2s to ensure initAmplitude has finished loading (avoids race conditions)
+        const timer = setTimeout(() => {
+            if (ampli.isLoaded) {
+                ampli.identify(undefined);
+            }
+        }, 1200); // 1.2 seconds (giving 200ms buffer over the init)
+        return () => clearTimeout(timer);
     }, [location.pathname, activeNetwork]);
 
     // Log an initial page view event
     useEffect(() => {
-        ampli.openedIotaExplorer({
-            pageDomain: window.location.hostname,
-            pagePath: location.pathname,
-            pageUrl: window.location.href,
-            activeNetwork,
-        });
+        const timer = setTimeout(() => {
+            // Wait 1.2s before tracking page view to avoid ghost sessions
+            ampli.openedIotaExplorer({
+                pageDomain: window.location.hostname,
+                pagePath: location.pathname,
+                pageUrl: window.location.href,
+                activeNetwork,
+            });
+        }, 1200);
+        // Cancel event if user leaves before timeout (anti-bot ghost session measure)
+        return () => clearTimeout(timer);
     }, []);
 }

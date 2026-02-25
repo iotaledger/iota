@@ -30,6 +30,7 @@ const users = [
                   'users/iota-wallet/how-to/import/keystone',
                   'users/iota-wallet/how-to/import/mnemonic',
                   'users/iota-wallet/how-to/import/seed',
+                  'users/iota-wallet/how-to/import/passkey',
                   'users/iota-wallet/how-to/import/balance-finder',
                   'users/iota-wallet/how-to/import/migration',
                 ],

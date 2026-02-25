@@ -2770,14 +2770,18 @@ impl<'a> DBReader<'a> {
     ) -> IndexerResult<Vec<StoredTransaction>> {
         let pool = self.main_reader.get_pool();
         run_query_async!(&pool, |conn| {
+            // using two-step query to allow partition pruning during execution.
+            let tx_sequence_numbers = tx_digests::table
+                .filter(tx_digests::tx_digest.eq_any(&digests))
+                .select(tx_digests::tx_sequence_number)
+                .load::<i64>(conn)?;
+
+            if tx_sequence_numbers.is_empty() {
+                return Ok(vec![]);
+            }
+
             transactions::table
-                .inner_join(
-                    tx_digests::table
-                        .on(transactions::tx_sequence_number.eq(tx_digests::tx_sequence_number)),
-                )
-                // we filter the tx_digests table because it is indexed by digest,
-                // transactions table is not
-                .filter(tx_digests::tx_digest.eq_any(digests))
+                .filter(transactions::tx_sequence_number.eq_any(tx_sequence_numbers))
                 .select(StoredTransaction::as_select())
                 .load::<StoredTransaction>(conn)
         })

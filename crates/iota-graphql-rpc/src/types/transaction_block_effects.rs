@@ -6,13 +6,12 @@ use async_graphql::{
     connection::{Connection, ConnectionNameType, CursorType, Edge, EdgeNameType, EmptyFields},
     *,
 };
-use fastcrypto::encoding::{Base64 as FBase64, Encoding};
 use iota_indexer::models::transactions::{OptimisticTransaction, StoredTransaction};
-use iota_package_resolver::{CleverError, ErrorConstants};
+use iota_json_rpc_types::IotaExecutionStatus;
 use iota_types::{
     effects::{TransactionEffects as NativeTransactionEffects, TransactionEffectsAPI},
     event::Event as NativeEvent,
-    execution_status::{ExecutionFailureStatus, ExecutionStatus as NativeExecutionStatus},
+    execution_status::ExecutionStatus as NativeExecutionStatus,
     transaction::TransactionData as NativeTransactionData,
 };
 
@@ -127,78 +126,14 @@ impl TransactionBlockEffects {
     async fn errors(&self, ctx: &Context<'_>) -> Result<Option<String>> {
         let resolver: &PackageResolver = ctx.data_unchecked();
 
-        match self.native().status() {
-            NativeExecutionStatus::Success => Ok(None),
-
-            NativeExecutionStatus::Failure {
-                error,
-                command: None,
-            } => Ok(Some(error.to_string())),
-
-            NativeExecutionStatus::Failure {
-                error,
-                command: Some(command),
-            } => {
-                let error = 'error: {
-                    let ExecutionFailureStatus::MoveAbort(loc, code) = &error else {
-                        break 'error error.to_string();
-                    };
-                    let fname_string = if let Some(fname) = &loc.function_name {
-                        format!("::{fname}'")
-                    } else {
-                        "'".to_string()
-                    };
-
-                    let Some(CleverError {
-                        module_id,
-                        source_line_number,
-                        error_info,
-                    }) = resolver
-                        .resolve_clever_error(loc.module.clone(), *code)
-                        .await
-                    else {
-                        break 'error format!(
-                            "from '{}{fname_string} (instruction {}), abort code: {code}",
-                            loc.module.to_canonical_display(true),
-                            loc.instruction,
-                        );
-                    };
-
-                    match error_info {
-                        ErrorConstants::Rendered {
-                            identifier,
-                            constant,
-                        } => {
-                            format!(
-                                "from '{}{fname_string} (line {source_line_number}), abort '{identifier}': {constant}",
-                                module_id.to_canonical_display(true)
-                            )
-                        }
-                        ErrorConstants::Raw { identifier, bytes } => {
-                            let const_str = FBase64::encode(bytes);
-                            format!(
-                                "from '{}{fname_string} (line {source_line_number}), abort '{identifier}': {const_str}",
-                                module_id.to_canonical_display(true)
-                            )
-                        }
-                        ErrorConstants::None => {
-                            format!(
-                                "from '{}{fname_string} (line {source_line_number})",
-                                module_id.to_canonical_display(true)
-                            )
-                        }
-                    }
-                };
-                // Convert the command index into an ordinal.
-                let command = command + 1;
-                let suffix = match command % 10 {
-                    1 => "st",
-                    2 => "nd",
-                    3 => "rd",
-                    _ => "th",
-                };
-                Ok(Some(format!("Error in {command}{suffix} command, {error}")))
-            }
+        let status = IotaExecutionStatus::from_native_with_clever_error(
+            self.native().status().clone(),
+            resolver,
+        )
+        .await;
+        match status {
+            IotaExecutionStatus::Success => Ok(None),
+            IotaExecutionStatus::Failure { error } => Ok(Some(error)),
         }
     }
 

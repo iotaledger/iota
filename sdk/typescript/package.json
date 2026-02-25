@@ -90,7 +90,7 @@
     "scripts": {
         "clean": "rm -rf tsconfig.tsbuildinfo ./dist",
         "codegen:version": "node genversion.mjs",
-        "build": "node genversion.mjs && pnpm build:package",
+        "build": "pnpm build:package",
         "build:package": "build-package",
         "vitest": "vitest",
         "test": "pnpm test:typecheck && pnpm test:unit",
@@ -151,7 +151,6 @@
         "bignumber.js": "^9.1.1",
         "gql.tada": "^1.8.2",
         "graphql": "^16.9.0",
-        "tweetnacl": "^1.0.3",
         "valibot": "^1.2.0"
     }
 }

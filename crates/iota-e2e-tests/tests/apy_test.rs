@@ -13,12 +13,18 @@ use iota_types::{
 };
 use test_cluster::TestClusterBuilder;
 
-/// This e2e test ensures that the tokenomics implementation gives an ~8% APY
+/// This e2e test ensures that the tokenomics implementation gives an ~6% APY
 /// under certain assumptions. These assumptions are:
 ///
 /// - A total stake of 3.5B IOTA.
 /// - The default validator commission of 2%.
 /// - A validator subsidy (target reward) of 767K IOTA.
+///
+/// Note: Without IIP-8, the expected APY would be ~8%. However, with 4
+/// validators each having 25% voting power (2500 bp), the IIP-8 dynamic
+/// minimum commission of `max(commission_rate, voting_power)` results in an
+/// effective commission of 25% instead of 2%. This reduces the staker APY
+/// to ~6%.
 ///
 /// This test uses the TestCluster which has limitations on how the validators
 /// can be set up. Only the validator committee size can be changed, but not
@@ -134,6 +140,9 @@ async fn test_apy() {
         .unwrap();
 
     // See description above for the origin of this value.
+    // With IIP-8, effective commission = max(2%, 25%) = 25% for 4 validators.
+    // APY = deposit_per_epoch / pool_balance * 365
+    //     = 191750 * 0.75 / 876_500_000 * 365 ≈ 0.060.
     // Assert that the value is off by at most 0.2 percentage points.
-    assert!((validator_apy.apy - 0.08).abs() < 0.002);
+    assert!((validator_apy.apy - 0.06).abs() < 0.002);
 }

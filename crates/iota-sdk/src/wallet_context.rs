@@ -38,16 +38,13 @@ pub struct WalletContext {
     request_timeout: Option<std::time::Duration>,
     client: Arc<RwLock<Option<IotaClient>>>,
     max_concurrent_requests: Option<u64>,
+    env_override: Option<String>,
 }
 
 impl WalletContext {
     /// Create a new [`WalletContext`] with the config path to an existing
     /// [`IotaClientConfig`] and optional parameters for the client.
-    pub fn new(
-        config_path: &Path,
-        request_timeout: impl Into<Option<std::time::Duration>>,
-        max_concurrent_requests: impl Into<Option<u64>>,
-    ) -> Result<Self, anyhow::Error> {
+    pub fn new(config_path: &Path) -> Result<Self, anyhow::Error> {
         let config: IotaClientConfig = PersistedConfig::read(config_path).map_err(|err| {
             anyhow!(
                 "Cannot open wallet config file at {:?}. Err: {err}",
@@ -78,16 +75,36 @@ impl WalletContext {
         let config = config.persisted(config_path);
         let context = Self {
             config,
-            request_timeout: request_timeout.into(),
+            request_timeout: None,
             client: Default::default(),
-            max_concurrent_requests: max_concurrent_requests.into(),
+            max_concurrent_requests: None,
+            env_override: None,
         };
         Ok(context)
+    }
+
+    pub fn with_request_timeout(mut self, request_timeout: std::time::Duration) -> Self {
+        self.request_timeout = Some(request_timeout);
+        self
+    }
+
+    pub fn with_max_concurrent_requests(mut self, max_concurrent_requests: u64) -> Self {
+        self.max_concurrent_requests = Some(max_concurrent_requests);
+        self
+    }
+
+    pub fn with_env_override(mut self, env_override: String) -> Self {
+        self.env_override = Some(env_override);
+        self
     }
 
     /// Get all addresses from the keystore.
     pub fn get_addresses(&self) -> Vec<IotaAddress> {
         self.config.keystore.addresses()
+    }
+
+    pub fn get_env_override(&self) -> Option<String> {
+        self.env_override.clone()
     }
 
     /// Get the configured [`IotaClient`].
@@ -131,11 +148,20 @@ impl WalletContext {
             bail!("No managed environments. Create new environment with the `new-env` command.");
         }
 
-        Ok(if self.config.active_env().is_some() {
-            self.config.get_active_env()?
+        if let Some(env_override) = &self.env_override {
+            self.config.get_env(env_override).ok_or_else(|| {
+                anyhow!(
+                    "Environment configuration not found for env [{}]",
+                    env_override
+                )
+            })
         } else {
-            &self.config.envs()[0]
-        })
+            Ok(if self.config.active_env().is_some() {
+                self.config.get_active_env()?
+            } else {
+                &self.config.envs()[0]
+            })
+        }
     }
 
     /// Get the latest object reference given a object id.
