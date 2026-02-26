@@ -305,16 +305,14 @@ fn move_package_from_module_iter_with_type_origin_table<'p>(
         protocol_config,
     )?;
 
-    MovePackage::new(
+    Ok(MovePackage::new(
         storage_id,
         version,
         module_map,
         protocol_config.max_move_package_size(),
         type_origin_table,
         linkage_table,
-    )
-    // TODO not too sure about this...
-    .map_err(|e| ExecutionError::new(e, None))
+    )?)
 }
 
 /// The `Package ID` of the first version of this package.
