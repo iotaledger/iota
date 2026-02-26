@@ -2666,10 +2666,7 @@ mod tests {
                     MovePackage::new(
                         ObjectID::random(),
                         SequenceNumber::default(),
-                        BTreeMap::from([(
-                            Identifier::new_unchecked("m"),
-                            vec![0u8; 40000],
-                        )]),
+                        BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; 40000])]),
                         100_000,
                         // no modules so empty type_origin_table as no types are defined in this
                         // package
