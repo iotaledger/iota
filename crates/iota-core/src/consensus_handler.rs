@@ -155,8 +155,8 @@ mod additional_consensus_states {
         }
 
         // Setter for received_reports_state
-        pub(crate) fn set_received_reports_state(&mut self, state: ReceivedReportsState) {
-            self.received_reports_state = state;
+        pub(crate) fn set_received_reports_state(&mut self, state: &ReceivedReportsState) {
+            self.received_reports_state = state.iter().map(|s| s.snapshot()).collect();
         }
 
         // Returns an iterator over all state fields. Used for debugging and testing.

@@ -235,11 +235,8 @@ impl Scorer {
         state.has_not_sent_report.store(false, Ordering::Relaxed);
     }
 
-    pub(crate) fn received_reports_state_snapshot(&self) -> ReceivedReportsState {
-        self.received_reports_state
-            .iter()
-            .map(|state_per_authority| state_per_authority.snapshot())
-            .collect()
+    pub(crate) fn received_reports_state(&self) -> &ReceivedReportsState {
+        &self.received_reports_state
     }
 
     pub(crate) fn restore_from_tables(&self, tables: &AuthorityEpochTables) -> IotaResult<()> {
@@ -904,7 +901,7 @@ mod tests {
         // current state and write it to DB via write_to_batch
         {
             let mut output = ConsensusCommitOutput::new(99);
-            output.set_received_reports_state(epoch_store.scorer.received_reports_state_snapshot());
+            output.set_received_reports_state(epoch_store.scorer.received_reports_state());
             output.set_default_commit_stats_for_testing();
             let mut batch = epoch_store.db_batch_for_test();
             output.write_to_batch(&epoch_store, &mut batch).unwrap();
@@ -1062,7 +1059,7 @@ mod tests {
         // Simulate quarantine flushing commit 1 to DB.
         {
             let mut output = ConsensusCommitOutput::new(100);
-            output.set_received_reports_state(epoch_store.scorer.received_reports_state_snapshot());
+            output.set_received_reports_state(epoch_store.scorer.received_reports_state());
             output.set_default_commit_stats_for_testing();
             let mut batch = epoch_store.db_batch_for_test();
             output.write_to_batch(&epoch_store, &mut batch).unwrap();

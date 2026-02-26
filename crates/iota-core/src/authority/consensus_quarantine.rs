@@ -206,8 +206,8 @@ impl ConsensusCommitOutput {
         self.active_jwks.insert((round, key));
     }
 
-    pub fn set_received_reports_state(&mut self, state: ReceivedReportsState) {
-        self.received_reports_state = Some(state);
+    pub fn set_received_reports_state(&mut self, state: &ReceivedReportsState) {
+        self.received_reports_state = Some(state.iter().map(|s| s.snapshot()).collect());
     }
 
     pub fn set_congestion_control_object_debts(&mut self, object_debts: Vec<(ObjectID, u64)>) {

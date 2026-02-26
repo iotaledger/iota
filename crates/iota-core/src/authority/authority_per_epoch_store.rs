@@ -3217,15 +3217,13 @@ impl AuthorityPerEpochStore {
 
         // Snapshot the full received reports state into the output (so it gets
         // persisted when the quarantine flushes this commit) and into
-        // AdditionalConsensusStates. We snapshot the snapshot instead of the state to
-        // ensure consistency between what gets persisted and what is potentially added
-        // to ConsensusCommitPrologueV2.
+        // AdditionalConsensusStates.
         // We only update those states when at least one misbehavior report was seen, to
         // avoid unnecessary work.
         if misbehavior_report_seen {
-            let snapshot = self.scorer.received_reports_state_snapshot();
-            output.set_received_reports_state(snapshot.iter().map(|s| s.snapshot()).collect());
-            additional_consensus_states.set_received_reports_state(snapshot);
+            let state = self.scorer.received_reports_state();
+            output.set_received_reports_state(state);
+            additional_consensus_states.set_received_reports_state(state);
         }
 
         self.finish_consensus_certificate_process(&verified_transactions);
