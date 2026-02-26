@@ -112,10 +112,9 @@ pub(super) fn verify_foundry_output(
 
     ensure!(
         created_package
-            .get_module(
-                &created_package.id(),
-                &Identifier::from_str(&expected_package_data.module().module_name)?
-            )
+            .get_module(&Identifier::from_str(
+                &expected_package_data.module().module_name
+            )?)
             .is_some(),
         "package did not create expected module `{}`",
         expected_package_data.module().module_name
