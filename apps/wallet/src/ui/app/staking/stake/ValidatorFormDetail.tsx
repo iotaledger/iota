@@ -82,7 +82,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                         keyText="Commission"
                         value={commission}
                         fullwidth
-                        tooltipText="The charge imposed by the validator for their staking services."
+                        tooltipText="The share of rewards retained by the validator. This rate includes a protocol-enforced minimum to help maintain network decentralization."
                         tooltipPosition={TooltipPosition.Bottom}
                     />
                     <KeyValueInfo

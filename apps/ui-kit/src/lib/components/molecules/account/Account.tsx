@@ -4,13 +4,7 @@
 import cx from 'classnames';
 import type { BadgeType } from '@/components/atoms';
 import { Badge, Tooltip, TooltipPosition, ButtonUnstyled } from '@/components/atoms';
-import {
-    LockLocked,
-    LockUnlocked,
-    MoreHoriz,
-    CheckmarkFilled,
-    RadioOff,
-} from '@iota/apps-ui-icons';
+import { MoreHoriz, CheckmarkFilled, RadioOff } from '@iota/apps-ui-icons';
 import { Address } from '../address';
 
 interface AccountProps {
@@ -23,25 +17,13 @@ interface AccountProps {
      */
     subtitle: string;
     /**
-     * Whether the account is unlocked.
-     */
-    isLocked?: boolean;
-    /**
      * Handler for more options click.
      */
     onOptionsClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
     /**
-     * Handler for the lock account icon click.
-     */
-    onLockAccountClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
-    /**
-     * Handle for the unlock account icon click.
-     */
-    onUnlockAccountClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
-    /**
      * Function to render avatar content.
      */
-    avatarContent: ({ isLocked }: { isLocked?: boolean }) => React.JSX.Element;
+    avatarContent: () => React.JSX.Element;
     /**
      * The onCopy event of the Address  (optional).
      */
@@ -97,11 +79,8 @@ export function Account({
     subtitle,
     badgeType,
     badgeText,
-    isLocked,
     avatarContent,
     onOptionsClick,
-    onLockAccountClick,
-    onUnlockAccountClick,
     onCopy,
     copyText,
     onOpen,
@@ -121,14 +100,11 @@ export function Account({
             className={cx(
                 'state-layer group relative flex w-full items-center justify-between space-x-3 rounded-xl px-sm py-xs hover:cursor-pointer',
                 isActive && 'state-active',
-                {
-                    'opacity-60': isLocked && showSelected,
-                },
             )}
         >
             <div className="flex w-full items-center gap-x-3">
                 <div>
-                    <Avatar isLocked={isLocked} />
+                    <Avatar />
                 </div>
                 <div className="flex w-full min-w-0 flex-col items-start py-xs">
                     <div className="flex w-full min-w-0 items-center space-x-2">
@@ -162,23 +138,6 @@ export function Account({
                                 <MoreHoriz />
                             </ButtonUnstyled>
                         )}
-                        {onLockAccountClick &&
-                            onUnlockAccountClick &&
-                            (isLocked ? (
-                                <div className="flex items-center">
-                                    <ButtonUnstyled
-                                        onClick={onUnlockAccountClick}
-                                        testId="account-unlock"
-                                        className="locked"
-                                    >
-                                        <LockLocked />
-                                    </ButtonUnstyled>
-                                </div>
-                            ) : (
-                                <ButtonUnstyled onClick={onLockAccountClick} testId="account-lock">
-                                    <LockUnlocked />
-                                </ButtonUnstyled>
-                            ))}
                     </div>
                     {showSelected && (
                         <ButtonUnstyled>
