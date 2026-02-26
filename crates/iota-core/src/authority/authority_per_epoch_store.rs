@@ -4273,7 +4273,6 @@ impl AuthorityPerEpochStore {
                         "Received misbehavior report from {:?} but validator scores are disabled, so the report is ignored",
                         authority.concise()
                     );
-                    return Ok(ConsensusCertificateResult::ConsensusMessage);
                 }
                 if self
                     .get_reconfig_state_read_lock_guard()
@@ -4283,30 +4282,26 @@ impl AuthorityPerEpochStore {
                         .committee
                         .authority_index(authority)
                         .expect("authority in committee");
-
                     // Check validity of the report and update scores depending on the result. We
                     // already have consensus on inclusion of this report in the DAG.
-                    match report.is_valid_version(self.protocol_config()) {
-                        true => {
-                            if !report.verify(self.committee.num_members()) {
-                                self.scorer.increment_invalid_reports_count(authority_index);
-                                warn!(
-                                    "Received invalid misbehavior report from {:?}",
-                                    authority.concise()
-                                );
-                            } else {
-                                // Here we update all counts related to the information in the
-                                // reports.
-                                self.scorer.update_received_reports(authority_index, report);
-                            }
-                        }
-                        false => {
+                    if report.is_valid_version(self.protocol_config()) {
+                        if !report.verify(self.committee.num_members()) {
                             self.scorer.increment_invalid_reports_count(authority_index);
                             warn!(
-                                "Received misbehavior report with unsupported version from {:?}",
+                                "Received invalid misbehavior report from {:?}",
                                 authority.concise()
                             );
+                        } else {
+                            // Here we update all counts related to the information in the
+                            // reports.
+                            self.scorer.update_received_reports(authority_index, report);
                         }
+                    } else {
+                        self.scorer.increment_invalid_reports_count(authority_index);
+                        warn!(
+                            "Received misbehavior report with unsupported version from {:?}",
+                            authority.concise()
+                        );
                     }
                 } else {
                     debug!(
