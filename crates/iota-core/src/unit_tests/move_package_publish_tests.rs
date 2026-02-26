@@ -8,7 +8,7 @@ use expect_test::expect;
 use iota_framework::BuiltInFramework;
 use iota_move_build::{BuildConfig, check_unpublished_dependencies, gather_published_ids};
 use iota_types::{
-    base_types::ObjectID,
+    base_types::{Identifier, ObjectID},
     crypto::{AccountKeyPair, get_key_pair},
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
@@ -63,7 +63,7 @@ async fn test_publishing_with_unpublished_deps() {
         move_package
             .serialized_module_map()
             .keys()
-            .map(String::as_str)
+            .map(<Identifier>::as_str)
             .collect::<HashSet<_>>(),
         HashSet::from(["depends_on_basics", "object_basics"]),
     );

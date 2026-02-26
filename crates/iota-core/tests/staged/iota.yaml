@@ -655,14 +655,14 @@ MovePackage:
     - id:
         TYPENAME: ObjectId
     - version: U64
-    - module_map:
+    - modules:
         MAP:
           KEY: STR
           VALUE: BYTES
-    - type_origin_table:
+    - typeOriginTable:
         SEQ:
           TYPENAME: TypeOrigin
-    - linkage_table:
+    - linkageTable:
         MAP:
           KEY:
             TYPENAME: ObjectId

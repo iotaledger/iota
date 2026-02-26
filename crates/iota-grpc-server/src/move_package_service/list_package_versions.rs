@@ -6,7 +6,7 @@ use std::sync::Arc;
 use iota_grpc_types::v1::move_package_service::{
     ListPackageVersionsRequest, ListPackageVersionsResponse, PackageVersion,
 };
-use iota_types::base_types::ObjectID;
+use iota_types::{base_types::ObjectID, move_package::move_package_original_package_id};
 use prost::Message;
 use serde::{Deserialize, Serialize};
 
@@ -54,17 +54,14 @@ pub(crate) fn list_package_versions(
                     format!("Object {pkg_id} is not a package"),
                 ));
             }
-
-            current_object
-                .data
-                .try_as_package()
-                .ok_or_else(|| {
+            move_package_original_package_id(current_object.data.try_as_package().ok_or_else(
+                || {
                     RpcError::new(
                         tonic::Code::Internal,
                         format!("Object {pkg_id} passed is_package() but try_as_package() failed"),
                     )
-                })?
-                .original_package_id()
+                },
+            )?)
         }
         None => {
             // The object may have been pruned from the object store. Fall back

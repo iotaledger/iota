@@ -797,7 +797,7 @@ pub(crate) mod grpc_conversion {
         object::Objects as GrpcObjects,
     };
     use iota_json_rpc_types::{IotaArgument, IotaExecutionResult, IotaTypeTag};
-    use iota_types::{object::Object, transaction::Argument};
+    use iota_types::object::Object;
 
     use crate::types::IndexerResult;
 
@@ -818,7 +818,7 @@ pub(crate) mod grpc_conversion {
             .into_iter()
             .map(|command_output| -> IndexerResult<_> {
                 Ok((
-                    IotaArgument::from(Argument::from(command_output.argument()?)),
+                    IotaArgument::from(command_output.argument()?),
                     command_output.output_bcs()?.to_vec(),
                     command_output.type_tag()?.into(),
                 ))
