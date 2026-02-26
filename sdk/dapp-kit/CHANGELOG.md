@@ -1,5 +1,44 @@
 # @iota/dapp-kit
 
+## 0.9.0
+
+### Minor Changes
+
+-   e8ecc5f: Fix chain state not syncing when network changes in WalletProvider
+
+### Patch Changes
+
+-   00046c7: Update `@iota/iota-names-sdk` to `v0.5.1`
+-   c599ba2: Ensure wallet-icon is a non-empty string before rendering
+-   Updated dependencies [43cfa2b]
+-   Updated dependencies [3bcb711]
+-   Updated dependencies [0296e7d]
+-   Updated dependencies [54c7803]
+-   Updated dependencies [b903c0a]
+-   Updated dependencies [f5a4569]
+-   Updated dependencies [19c174f]
+-   Updated dependencies [8bd4574]
+-   Updated dependencies [5fc7e20]
+-   Updated dependencies [7a61cb5]
+-   Updated dependencies [f2b8160]
+-   Updated dependencies [abcdd2f]
+-   Updated dependencies [d5923e9]
+-   Updated dependencies [6fc20db]
+-   Updated dependencies [b72bfd2]
+-   Updated dependencies [38657f6]
+-   Updated dependencies [7fa1fde]
+-   Updated dependencies [2164846]
+-   Updated dependencies [4dc4b84]
+-   Updated dependencies [22f62d4]
+-   Updated dependencies [58891a9]
+-   Updated dependencies [924bf18]
+-   Updated dependencies [21a4820]
+-   Updated dependencies [ffbb296]
+-   Updated dependencies [088c577]
+-   Updated dependencies [0cc417d]
+    -   @iota/iota-sdk@1.11.0
+    -   @iota/wallet-standard@0.4.0
+
 ## 0.8.3
 
 ### Patch Changes
