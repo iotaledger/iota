@@ -17,6 +17,7 @@ use crate::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::IotaResult,
     execution::DynamicallyLoadedObjectMetadata,
+    move_package::deserialize_move_package_module,
     object::{Object, Owner},
     storage::{BackingPackageStore, InputKey, PackageObject},
 };
@@ -121,7 +122,8 @@ where
             .get(&ObjectID::new(id.address().into_bytes()));
         if let Some(o) = obj {
             if let Some(p) = o.data.try_as_package() {
-                return Ok(Some(Arc::new(p.deserialize_module(
+                return Ok(Some(Arc::new(deserialize_move_package_module(
+                    p,
                     &Identifier::new_unchecked(id.name().as_str()),
                     &self.temp_store.binary_config,
                 )?)));

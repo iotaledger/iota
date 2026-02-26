@@ -151,8 +151,9 @@ impl TransactionBuilder {
         let cap_owner = upgrade_cap
             .owner
             .ok_or_else(|| anyhow!("Unable to determine ownership of upgrade capability"))?;
-        let digest =
-            MovePackage::compute_digest_for_modules_and_deps(&compiled_modules, &dep_ids).to_vec();
+        let digest = MovePackage::compute_digest_for_modules_and_deps(&compiled_modules, &dep_ids)
+            .into_inner()
+            .to_vec();
         TransactionData::new_upgrade(
             sender,
             gas,

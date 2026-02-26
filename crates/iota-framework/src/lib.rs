@@ -7,7 +7,7 @@ use std::{fmt::Formatter, sync::LazyLock};
 use iota_types::{
     base_types::{ObjectID, ObjectRef},
     digests::TransactionDigest,
-    move_package::MovePackage,
+    move_package::{MovePackage, new_system_move_package, normalize_move_package},
     object::{OBJECT_START_VERSION, Object},
     storage::ObjectStore,
 };
@@ -72,7 +72,7 @@ impl SystemPackage {
     }
 
     pub fn genesis_move_package(&self) -> MovePackage {
-        MovePackage::new_system(
+        new_system_move_package(
             OBJECT_START_VERSION,
             &self.modules(),
             self.dependencies.iter().copied(),
@@ -247,16 +247,16 @@ pub async fn compare_system_package<S: ObjectStore>(
         .expect("Created as package");
 
     let pool = &mut normalized::RcPool::new();
-    let cur_normalized = match cur_pkg.normalize(pool, binary_config, /* include code */ false) {
-        Ok(v) => v,
-        Err(e) => {
-            error!("Could not normalize existing package: {e:?}");
-            return None;
-        }
-    };
-    let mut new_normalized = new_pkg
-        .normalize(pool, binary_config, /* include code */ false)
-        .ok()?;
+    let cur_normalized =
+        match normalize_move_package(cur_pkg, pool, binary_config, /* include code */ false) {
+            Ok(v) => v,
+            Err(e) => {
+                error!("Could not normalize existing package: {e:?}");
+                return None;
+            }
+        };
+    let mut new_normalized =
+        normalize_move_package(new_pkg, pool, binary_config, /* include code */ false).ok()?;
 
     for (name, cur_module) in cur_normalized {
         let new_module = new_normalized.remove(&name)?;
@@ -267,6 +267,9 @@ pub async fn compare_system_package<S: ObjectStore>(
         }
     }
 
-    new_pkg.increment_version();
+    new_pkg
+        .increment_version()
+        .expect("package version should never overflow");
+
     Some(new_object.compute_object_reference())
 }

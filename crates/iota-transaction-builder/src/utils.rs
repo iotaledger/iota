@@ -20,7 +20,7 @@ use iota_types::{
     error::UserInputError,
     fp_ensure,
     gas_coin::GasCoin,
-    move_package::MovePackage,
+    move_package::{MovePackage, deserialize_move_package_module},
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Argument, CallArg, ObjectArg},
@@ -192,7 +192,8 @@ impl TransactionBuilder {
     ) -> Result<Vec<Argument>, anyhow::Error> {
         // Fetch the move package for the given package ID.
         let package = self.fetch_move_package(package_id).await?;
-        let module = package.deserialize_module(module_ident, &BinaryConfig::standard())?;
+        let module =
+            deserialize_move_package_module(&package, module_ident, &BinaryConfig::standard())?;
 
         // Then resolve the function parameters type.
         let json_args_and_tokens = resolve_move_function_args(
@@ -230,7 +231,8 @@ impl TransactionBuilder {
         call_args: Vec<PtbInput>,
     ) -> Result<Vec<Argument>, anyhow::Error> {
         let package = self.fetch_move_package(package_id).await?;
-        let module_compiled = package.deserialize_module(module, &BinaryConfig::standard())?;
+        let module_compiled =
+            deserialize_move_package_module(&package, module, &BinaryConfig::standard())?;
         let parameters = get_function_parameters(&module_compiled, function)?;
         let expected_len = expected_arg_count(&module_compiled, parameters);
 
@@ -294,7 +296,8 @@ impl TransactionBuilder {
     ) -> Result<Vec<Argument>, anyhow::Error> {
         // Fetch the move package for the given package ID.
         let package = self.fetch_move_package(package_id).await?;
-        let module = package.deserialize_module(module_ident, &BinaryConfig::standard())?;
+        let module =
+            deserialize_move_package_module(&package, module_ident, &BinaryConfig::standard())?;
 
         // Extract the expected function signature and check the return type.
         // If the function is a view function, it MUST return at least a value.
@@ -361,7 +364,8 @@ impl TransactionBuilder {
         call_args: Vec<IotaJsonValue>,
     ) -> Result<Vec<CallArg>, anyhow::Error> {
         let package = self.fetch_move_package(package_id).await?;
-        let module_compiled = package.deserialize_module(module, &BinaryConfig::standard())?;
+        let module_compiled =
+            deserialize_move_package_module(&package, module, &BinaryConfig::standard())?;
         let parameters = get_function_parameters(&module_compiled, function)?;
         let expected_len = expected_arg_count(&module_compiled, parameters);
 
@@ -423,10 +427,15 @@ impl TransactionBuilder {
         let Some(IotaRawData::Package(package)) = object.bcs else {
             bail!("Bcs field in object [{package_id}] is missing or not a package.");
         };
+
         Ok(MovePackage::new(
             package.id,
             object.version,
-            package.module_map,
+            package
+                .module_map
+                .iter()
+                .map(|(k, v)| (Identifier::new_unchecked(k.as_str()), v.clone()))
+                .collect(),
             ProtocolConfig::get_for_min_version().max_move_package_size(),
             package.type_origin_table,
             package.linkage_table,
