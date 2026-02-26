@@ -70,7 +70,11 @@ export function Input({ input, dryRunInput }: InputProps) {
                     }
                     fullwidth
                 />
-            ) : null}
+            ) : (
+                <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
+                    Unknown input value
+                </span>
+            )}
         </div>
     );
 }
