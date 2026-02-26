@@ -37,7 +37,10 @@ message ExecuteTransactionRequest {
 
 // Response message for `NodeService.ExecuteTransaction`.
 message ExecuteTransactionResponse {
-  optional iota.grpc.v0.transaction.ExecutedTransaction transaction = 1;
+  option (iota.grpc.message_accessors) = "with";
+  option (iota.grpc.field_mask_transparent) = true;
+
+  optional iota.grpc.v0.transaction.ExecutedTransaction executed_transaction = 1;
 }
 
 message SimulateTransactionRequest {
@@ -77,7 +80,7 @@ message ExecutionError {
 }
 
 message SimulateTransactionResponse {
-  optional iota.grpc.v0.transaction.ExecutedTransaction transaction = 1;
+  optional iota.grpc.v0.transaction.ExecutedTransaction executed_transaction = 1;
   optional uint64 suggested_gas_price = 2;
   
   oneof execution_result {

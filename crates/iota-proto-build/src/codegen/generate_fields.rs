@@ -18,6 +18,93 @@ use crate::{
     ident::to_snake,
 };
 
+/// Information about a transparent wrapper message (one that should be skipped
+/// in read_mask paths / field path builders).
+pub(crate) struct TransparentInfo {
+    /// True when the single inner field is a map field.
+    pub is_map: bool,
+    /// Simple Rust type name of the inner message (e.g. "Event"), None for
+    /// maps.
+    pub inner_message_name: Option<String>,
+    /// Full protobuf type name of the inner message (e.g.
+    /// ".iota.grpc.v0.event.Event"), None for maps.
+    pub inner_full_type_name: Option<String>,
+}
+
+/// Parses the descriptor pool to find all messages with the
+/// `field_mask_transparent` option set to true. Returns a map keyed by full
+/// protobuf type name (e.g. `.iota.grpc.v0.event.Events`) with information
+/// about the inner field that should be surfaced through the transparent
+/// wrapper.
+pub fn parse_transparent_messages_from_pool(
+    pool: &prost_reflect::DescriptorPool,
+) -> HashMap<String, TransparentInfo> {
+    let mut map = HashMap::new();
+
+    let transparent_ext = match pool.get_extension_by_name("iota.grpc.field_mask_transparent") {
+        Some(ext) => ext,
+        None => return map,
+    };
+
+    for message in pool.all_messages() {
+        let options = message.options();
+        if !options.has_extension(&transparent_ext) {
+            continue;
+        }
+
+        let is_transparent = options
+            .get_extension(&transparent_ext)
+            .as_bool()
+            .unwrap_or(false);
+
+        if !is_transparent {
+            continue;
+        }
+
+        // The wrapper must contain exactly one field.
+        let fields: Vec<_> = message.fields().collect();
+        if fields.len() != 1 {
+            eprintln!(
+                "Warning: transparent message {} has {} fields, expected 1 — skipping",
+                message.full_name(),
+                fields.len()
+            );
+            continue;
+        }
+
+        let inner_field = fields[0].clone();
+
+        // Detect whether the inner field is a map field (a repeated field whose
+        // message type has map_entry = true).
+        let is_map = match inner_field.kind() {
+            prost_reflect::Kind::Message(ref msg) => msg.is_map_entry(),
+            _ => false,
+        };
+
+        let (inner_message_name, inner_full_type_name) = if is_map {
+            (None, None)
+        } else if let prost_reflect::Kind::Message(ref msg) = inner_field.kind() {
+            let name = msg.name().to_owned();
+            let full_name = format!(".{}", msg.full_name());
+            (Some(name), Some(full_name))
+        } else {
+            (None, None)
+        };
+
+        let full_type_name = format!(".{}", message.full_name());
+        map.insert(
+            full_type_name,
+            TransparentInfo {
+                is_map,
+                inner_message_name,
+                inner_full_type_name,
+            },
+        );
+    }
+
+    map
+}
+
 // Helper to search nested messages
 fn find_type_in_nested_messages(
     package: &str,
@@ -71,11 +158,15 @@ fn find_package_for_type(
 // This function identifies all external message types (and their
 // FieldPathBuilders) and tracks which package they come from to generate
 // the correct import paths like `use crate::v0::object::Object`.
+// For transparent wrapper types, the inner type is imported instead of the
+// wrapper, because the generated field_info code references the inner type
+// directly (e.g. `Some(Event::FIELDS)` instead of `Some(Events::FIELDS)`).
 fn collect_external_types(
     current_package: &str,
     messages: &[DescriptorProto],
     external_types: &mut HashMap<String, String>,
     all_packages: &HashMap<String, FileDescriptorSet>,
+    transparent_messages: &HashMap<String, TransparentInfo>,
 ) {
     for message in messages {
         for field in &message.field {
@@ -88,9 +179,31 @@ fn collect_external_types(
                 let is_external = !full_type_name.starts_with(&format!(".{}", current_package));
 
                 if is_external {
-                    // Find which package this type belongs to (returns None for map entries)
-                    if let Some(package) = find_package_for_type(field_message_name, all_packages) {
-                        external_types.insert(field_message_name.to_owned(), package);
+                    // Check if this external type is a transparent wrapper
+                    if let Some(info) = transparent_messages.get(full_type_name) {
+                        // For transparent non-map types, import the inner type instead of the
+                        // wrapper. The field_info code will reference the inner type directly.
+                        if !info.is_map {
+                            if let Some(inner_full_name) = &info.inner_full_type_name {
+                                let inner_msg_name =
+                                    inner_full_name.split('.').next_back().unwrap();
+                                if let Some(package) =
+                                    find_package_for_type(inner_msg_name, all_packages)
+                                {
+                                    external_types.insert(inner_msg_name.to_owned(), package);
+                                }
+                            }
+                        }
+                        // For transparent map types, no inner message to import
+                        // (the field becomes a leaf/map
+                        // field and doesn't reference a message type)
+                    } else {
+                        // Normal (non-transparent) external type
+                        if let Some(package) =
+                            find_package_for_type(field_message_name, all_packages)
+                        {
+                            external_types.insert(field_message_name.to_owned(), package);
+                        }
                     }
                 }
             }
@@ -101,6 +214,7 @@ fn collect_external_types(
             &message.nested_type,
             external_types,
             all_packages,
+            transparent_messages,
         );
     }
 }
@@ -157,6 +271,7 @@ pub(crate) fn generate_field_info(
     packages: &HashMap<String, FileDescriptorWithPackageVersion>,
     out_dir: &Path,
     boxed_types: &[String],
+    transparent_messages: &HashMap<String, TransparentInfo>,
 ) {
     let mut package_fds: HashMap<String, FileDescriptorSet> = HashMap::new();
     for (package, FileDescriptorWithPackageVersion { fd_set, .. }) in packages {
@@ -180,6 +295,7 @@ pub(crate) fn generate_field_info(
                 &file.message_type,
                 &mut external_types,
                 &package_fds,
+                transparent_messages,
             );
         }
 
@@ -188,6 +304,7 @@ pub(crate) fn generate_field_info(
                 package,
                 &file.message_type,
                 boxed_types,
+                transparent_messages,
             ));
         }
 
@@ -294,6 +411,7 @@ fn generate_field_info_for_all_messages(
     package: &str,
     messages: &[DescriptorProto],
     boxed_types: &[String],
+    transparent_messages: &HashMap<String, TransparentInfo>,
 ) -> TokenStream {
     let mut stream = TokenStream::new();
 
@@ -314,8 +432,12 @@ fn generate_field_info_for_all_messages(
         // Generate nested modules for nested messages
         if !message.nested_type.is_empty() {
             let module_name = quote::format_ident!("{}", to_snake(message.name()));
-            let nested_content =
-                generate_field_info_for_all_messages(package, &message.nested_type, boxed_types);
+            let nested_content = generate_field_info_for_all_messages(
+                package,
+                &message.nested_type,
+                boxed_types,
+                transparent_messages,
+            );
 
             if !nested_content.is_empty() {
                 stream.extend(quote! {
@@ -342,6 +464,7 @@ fn generate_field_info_for_all_messages(
             boxed_types,
             &dependency_graph,
             &nested_messages,
+            transparent_messages,
         ));
     }
 
@@ -354,6 +477,7 @@ fn generate_field_info_for_message(
     boxed_types: &[String],
     dependency_graph: &DependencyGraph,
     nested_messages: &HashMap<String, String>,
+    transparent_messages: &HashMap<String, TransparentInfo>,
 ) -> TokenStream {
     let map_types: HashSet<String> = message
         .nested_type
@@ -367,8 +491,14 @@ fn generate_field_info_for_message(
         })
         .collect();
 
-    let constants =
-        generate_field_constants(package, message, boxed_types, dependency_graph, &map_types);
+    let constants = generate_field_constants(
+        package,
+        message,
+        boxed_types,
+        dependency_graph,
+        &map_types,
+        transparent_messages,
+    );
     let oneof_constants = generate_oneof_name_constants(message);
     let message_fields_impl = generate_message_fields_impl(message);
     let field_path_builders = generate_field_path_builders_impl(
@@ -377,6 +507,7 @@ fn generate_field_info_for_message(
         &map_types,
         nested_messages,
         boxed_types,
+        transparent_messages,
     );
 
     quote! {
@@ -444,6 +575,7 @@ fn generate_field_constants(
     boxed_types: &[String],
     dependency_graph: &DependencyGraph,
     map_types: &HashSet<String>,
+    transparent_messages: &HashMap<String, TransparentInfo>,
 ) -> TokenStream {
     let message_ident = quote::format_ident!("{}", message.name());
     let mut field_consts = TokenStream::new();
@@ -456,6 +588,7 @@ fn generate_field_constants(
             boxed_types,
             dependency_graph,
             map_types,
+            transparent_messages,
         ));
     }
 
@@ -491,6 +624,7 @@ fn generate_field_constant(
     boxed_types: &[String],
     dependency_graph: &DependencyGraph,
     map_types: &HashSet<String>,
+    transparent_messages: &HashMap<String, TransparentInfo>,
 ) -> TokenStream {
     let ident = quote::format_ident!("{}_FIELD", field.name().to_ascii_uppercase());
     let name = field.name();
@@ -502,7 +636,8 @@ fn generate_field_constant(
 
     let (is_map, message_fields) =
         if matches!(field.r#type(), Type::Message) && !field.type_name().contains("google") {
-            let field_message_name = field.type_name().split('.').next_back().unwrap();
+            let full_type_name = field.type_name();
+            let field_message_name = full_type_name.split('.').next_back().unwrap();
 
             // Check for circular references that need to be broken:
             // 1. Self-reference (field_message_name == message_name)
@@ -525,6 +660,19 @@ fn generate_field_constant(
                 (quote! { false }, quote! { None })
             } else if map_types.contains(field_message_name) {
                 (quote! { true }, quote! { None })
+            } else if let Some(info) = transparent_messages.get(full_type_name) {
+                // Field points to a transparent wrapper: flatten through it.
+                if info.is_map {
+                    // The wrapper's inner field is a map → treat this field as a map directly.
+                    (quote! { true }, quote! { None })
+                } else if let Some(inner_name) = &info.inner_message_name {
+                    // The wrapper's inner field is a repeated message → use the inner type's
+                    // FIELDS.
+                    let inner = quote::format_ident!("{inner_name}");
+                    (quote! { false }, quote! { Some(#inner::FIELDS) })
+                } else {
+                    (quote! { false }, quote! { None })
+                }
             } else {
                 let field_message = quote::format_ident!("{field_message_name}");
                 (quote! { false }, quote! { Some(#field_message::FIELDS) })
@@ -559,6 +707,7 @@ fn generate_field_path_builders_impl(
     map_types: &HashSet<String>,
     nested_messages: &HashMap<String, String>,
     boxed_types: &[String],
+    transparent_messages: &HashMap<String, TransparentInfo>,
 ) -> TokenStream {
     let message_ident = quote::format_ident!("{}", message.name());
     let builder_ident = quote::format_ident!("{}FieldPathBuilder", message.name());
@@ -573,6 +722,7 @@ fn generate_field_path_builders_impl(
             map_types,
             nested_messages,
             boxed_types,
+            transparent_messages,
         ));
     }
 
@@ -626,6 +776,7 @@ fn generate_field_chain_methods(
     map_types: &HashSet<String>,
     nested_messages: &HashMap<String, String>, // Maps message name to parent module name
     boxed_types: &[String],
+    transparent_messages: &HashMap<String, TransparentInfo>,
 ) -> TokenStream {
     let message_ident = quote::format_ident!("{message_name}");
     let field_const = quote::format_ident!("{}_FIELD", field.name().to_ascii_uppercase());
@@ -637,13 +788,50 @@ fn generate_field_chain_methods(
 
     // we need to ignore google types, because we don't generate builders for them
     if matches!(field.r#type(), Type::Message) && !field.type_name().contains("google") {
-        let field_message_name = field.type_name().split('.').next_back().unwrap();
+        let full_type_name = field.type_name();
+        let field_message_name = full_type_name.split('.').next_back().unwrap();
 
         if field_message_name == message_name || map_types.contains(field_message_name) {
             quote! {
                 pub fn #name(mut self) -> String {
                     self.path.push(#message_ident::#field_const.name);
                     self.finish()
+                }
+            }
+        } else if let Some(info) = transparent_messages.get(full_type_name) {
+            // Field points to a transparent wrapper: generate builder for inner type.
+            if info.is_map {
+                // Transparent wrapper around a map → leaf method returning String.
+                quote! {
+                    pub fn #name(mut self) -> String {
+                        self.path.push(#message_ident::#field_const.name);
+                        self.finish()
+                    }
+                }
+            } else if let Some(inner_name) = &info.inner_message_name {
+                // Transparent wrapper around a repeated message → return inner type's builder.
+                let builder_name = format!("{inner_name}FieldPathBuilder");
+                let return_type =
+                    if let Some(parent_module) = nested_messages.get(inner_name.as_str()) {
+                        let module_ident = quote::format_ident!("{}", parent_module);
+                        let builder_ident = quote::format_ident!("{}", builder_name);
+                        quote! { #module_ident::#builder_ident }
+                    } else {
+                        let builder_ident = quote::format_ident!("{}", builder_name);
+                        quote! { #builder_ident }
+                    };
+                quote! {
+                    pub fn #name(mut self) -> #return_type {
+                        self.path.push(#message_ident::#field_const.name);
+                        #return_type::new_with_base(self.path)
+                    }
+                }
+            } else {
+                quote! {
+                    pub fn #name(mut self) -> String {
+                        self.path.push(#message_ident::#field_const.name);
+                        self.finish()
+                    }
                 }
             }
         } else {

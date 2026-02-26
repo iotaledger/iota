@@ -16,13 +16,13 @@ mod _accessor_impls {
             );
             self
         }
-        /// Sets `transactions` with the provided value.
+        /// Sets `executed_transactions` with the provided value.
         /// If any other oneof field in the same oneof is set, it will be cleared.
-        pub fn with_transactions<
+        pub fn with_executed_transactions<
             T: Into<super::super::transaction::ExecutedTransactions>,
         >(mut self, field: T) -> Self {
             self.payload = Some(
-                super::checkpoint_data::Payload::Transactions(field.into()),
+                super::checkpoint_data::Payload::ExecutedTransactions(field.into()),
             );
             self
         }
@@ -293,12 +293,12 @@ mod _accessor_impls {
         }
     }
     impl super::GetTransactionsResponse {
-        /// Sets `transactions` with the provided value.
-        pub fn with_transactions(
+        /// Sets `transaction_results` with the provided value.
+        pub fn with_transaction_results(
             mut self,
             field: Vec<super::TransactionResult>,
         ) -> Self {
-            self.transactions = field;
+            self.transaction_results = field;
             self
         }
         /// Sets `has_next` with the provided value.
@@ -361,14 +361,13 @@ mod _accessor_impls {
         }
     }
     impl super::TransactionResult {
-        /// Sets `transaction` with the provided value.
+        /// Sets `executed_transaction` with the provided value.
         /// If any other oneof field in the same oneof is set, it will be cleared.
-        pub fn with_transaction<T: Into<super::super::transaction::ExecutedTransaction>>(
-            mut self,
-            field: T,
-        ) -> Self {
+        pub fn with_executed_transaction<
+            T: Into<super::super::transaction::ExecutedTransaction>,
+        >(mut self, field: T) -> Self {
             self.result = Some(
-                super::transaction_result::Result::Transaction(field.into()),
+                super::transaction_result::Result::ExecutedTransaction(field.into()),
             );
             self
         }

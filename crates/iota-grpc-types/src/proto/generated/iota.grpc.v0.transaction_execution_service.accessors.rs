@@ -30,6 +30,15 @@ mod _accessor_impls {
             self
         }
     }
+    impl super::ExecuteTransactionResponse {
+        /// Sets `executed_transaction` with the provided value.
+        pub fn with_executed_transaction<
+            T: Into<super::super::transaction::ExecutedTransaction>,
+        >(mut self, field: T) -> Self {
+            self.executed_transaction = Some(field.into());
+            self
+        }
+    }
     impl super::ExecutionError {
         /// Sets `bcs_kind` with the provided value.
         pub fn with_bcs_kind<T: Into<super::super::bcs::BcsData>>(

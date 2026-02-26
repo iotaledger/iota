@@ -682,7 +682,7 @@ impl GrpcReader {
                                 if current_batch_size + tx_size > max_message_size_bytes && !current_batch.is_empty() {
                                     // Yield current transaction batch
                                     yield Ok(grpc_ledger_service::CheckpointData::default()
-                                        .with_transactions(grpc_transaction::ExecutedTransactions::default().with_transactions(current_batch)));
+                                        .with_executed_transactions(grpc_transaction::ExecutedTransactions::default().with_executed_transactions(current_batch)));
 
                                     // Reset transaction batch
                                     current_batch = vec![executed_tx];
@@ -703,7 +703,7 @@ impl GrpcReader {
                 // Send final batch of transactions if any
                 if transactions_mask.is_some() && !current_batch.is_empty() {
                     yield Ok(grpc_ledger_service::CheckpointData::default()
-                        .with_transactions(grpc_transaction::ExecutedTransactions::default().with_transactions(current_batch)));
+                        .with_executed_transactions(grpc_transaction::ExecutedTransactions::default().with_executed_transactions(current_batch)));
                 }
 
                 // Send final batch of events if any
@@ -1243,13 +1243,14 @@ impl Merge<CheckpointTransactionWithContext>
         }
 
         if let Some(submask) = mask.subtree(Self::EVENTS_FIELD.name) {
-            if let Some(events) = source.transaction.events {
-                self.events = Some(
-                    iota_grpc_types::v0::transaction::TransactionEvents::merge_from(
-                        events, &submask,
-                    )?,
-                );
-            }
+            // Use unwrap_or_default so that when no events were emitted we still
+            // compute a real digest (hash of the empty list) and populate an empty
+            // events vec — to distinguish between "no events" and "events
+            // not requested in the mask".
+            self.events = Some(grpc_transaction::TransactionEvents::merge_from(
+                source.transaction.events.unwrap_or_default(),
+                &submask,
+            )?);
         }
 
         // Set checkpoint sequence number if requested

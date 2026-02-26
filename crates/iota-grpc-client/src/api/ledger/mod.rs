@@ -6,8 +6,8 @@
 //! Provides ergonomic methods for querying transactions, objects, checkpoints,
 //! and epochs.
 
-mod checkpoints;
-mod epochs;
-mod objects;
-mod service_info;
-mod transactions;
+pub mod checkpoints;
+pub mod epochs;
+pub mod objects;
+pub mod service_info;
+pub mod transactions;

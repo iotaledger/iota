@@ -56,7 +56,7 @@ async fn execute_transaction_minimal_mask() {
     let signed_tx = create_signed_transaction(&test_cluster).await;
 
     let result = client
-        .execute_transaction(signed_tx, Some("transaction.effects"))
+        .execute_transaction(signed_tx, Some("effects"))
         .await
         .expect("Failed to execute transaction");
 

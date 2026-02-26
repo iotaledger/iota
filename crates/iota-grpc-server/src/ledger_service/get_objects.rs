@@ -6,6 +6,7 @@ use futures::Stream;
 use iota_grpc_types::{
     field::{FieldMaskTree, FieldMaskUtil},
     google::rpc::bad_request::FieldViolation,
+    read_masks::GET_OBJECTS_READ_MASK,
     v0::{
         error_reason::ErrorReason,
         ledger_service::{GetObjectsRequest, GetObjectsResponse, ObjectResult},
@@ -23,12 +24,6 @@ use crate::{
     types::{GrpcReader, ObjectsStreamResult},
 };
 
-pub const READ_MASK_DEFAULT: &str = crate::field_mask!(
-    "reference.object_id",
-    "reference.version",
-    "reference.digest",
-);
-
 type ValidationResult = Result<(Vec<(ObjectID, Option<u64>)>, FieldMaskTree), RpcError>;
 
 pub fn validate_get_object_requests(
@@ -36,7 +31,7 @@ pub fn validate_get_object_requests(
     read_mask: Option<FieldMask>,
 ) -> ValidationResult {
     let read_mask = {
-        let read_mask = read_mask.unwrap_or_else(|| FieldMask::from_str(READ_MASK_DEFAULT));
+        let read_mask = read_mask.unwrap_or_else(|| FieldMask::from_str(GET_OBJECTS_READ_MASK));
         read_mask.validate::<Object>().map_err(|path| {
             FieldViolation::new("read_mask")
                 .with_description(format!("invalid read_mask path: {path}"))
@@ -68,6 +63,22 @@ pub fn validate_get_object_requests(
     Ok((requests, read_mask))
 }
 
+/// Available Read Mask Fields
+///
+/// The `get_objects` function supports the following `read_mask` fields to
+/// control which data is included in the response:
+///
+/// ## Reference Fields
+/// - `reference` - includes all reference fields
+///   - `reference.object_id` - the ID of the object to fetch
+///   - `reference.version` - the version of the object, which can be used to
+///     fetch a specific historical version or the latest version if not
+///     provided
+///   - `reference.digest` - the digest of the object contents, which can be
+///     used for integrity verification
+///
+/// ## Data Fields
+/// - `bcs` - the full BCS-encoded object
 #[tracing::instrument(skip(reader))]
 pub(crate) fn get_objects(
     reader: GrpcReader,

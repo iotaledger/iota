@@ -245,16 +245,16 @@ mod _field_impls {
             json_name: "featureFlags",
             number: 2i32,
             is_optional: true,
-            is_map: false,
-            message_fields: Some(ProtocolFeatureFlags::FIELDS),
+            is_map: true,
+            message_fields: None,
         };
         pub const ATTRIBUTES_FIELD: &'static MessageField = &MessageField {
             name: "attributes",
             json_name: "attributes",
             number: 3i32,
             is_optional: true,
-            is_map: false,
-            message_fields: Some(ProtocolAttributes::FIELDS),
+            is_map: true,
+            message_fields: None,
         };
     }
     impl MessageFields for ProtocolConfig {
@@ -288,13 +288,13 @@ mod _field_impls {
             self.path.push(ProtocolConfig::PROTOCOL_VERSION_FIELD.name);
             self.finish()
         }
-        pub fn feature_flags(mut self) -> ProtocolFeatureFlagsFieldPathBuilder {
+        pub fn feature_flags(mut self) -> String {
             self.path.push(ProtocolConfig::FEATURE_FLAGS_FIELD.name);
-            ProtocolFeatureFlagsFieldPathBuilder::new_with_base(self.path)
+            self.finish()
         }
-        pub fn attributes(mut self) -> ProtocolAttributesFieldPathBuilder {
+        pub fn attributes(mut self) -> String {
             self.path.push(ProtocolConfig::ATTRIBUTES_FIELD.name);
-            ProtocolAttributesFieldPathBuilder::new_with_base(self.path)
+            self.finish()
         }
     }
     impl Epoch {

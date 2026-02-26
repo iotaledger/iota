@@ -7,6 +7,7 @@ use std::sync::Arc;
 use iota_grpc_types::{
     field::{FieldMaskTree, FieldMaskUtil},
     proto::timestamp_ms_to_proto,
+    read_masks::GET_EPOCH_READ_MASK,
     v0::{
         bcs::BcsData,
         epoch::{Epoch, ProtocolConfig},
@@ -19,16 +20,6 @@ use prost_types::FieldMask;
 use tonic::Status;
 
 use crate::{ledger_service::LedgerGrpcService, merge::Merge, types::GrpcReader};
-
-pub const READ_MASK_DEFAULT: &str = crate::field_mask!(
-    "epoch",
-    "first_checkpoint",
-    "last_checkpoint",
-    "start",
-    "end",
-    "reference_gas_price",
-    "protocol_config.protocol_version"
-);
 
 /// Source for building `Epoch` using the `Merge` trait.
 pub struct EpochReadSource {
@@ -137,6 +128,43 @@ impl Merge<&EpochReadSource> for Epoch {
     }
 }
 
+/// Available Read Mask Fields
+///
+/// The `get_epoch` function supports the following `read_mask` fields to
+/// control which data is included in the response:
+///
+/// ## Epoch Fields
+/// - `epoch` - the epoch number
+/// - `committee` - the validator committee for this epoch
+/// - `bcs_system_state` - the BCS-encoded system state at the beginning of the
+///   epoch for past epochs or the current system state for the current epoch,
+///   which can be used for historical state queries or to get the current state
+///   respectively
+///
+/// ## Checkpoint Fields
+/// - `first_checkpoint` - the first checkpoint included in the epoch
+/// - `last_checkpoint` - the last checkpoint included in the epoch, which may
+///   be unavailable for the current epoch if it has not ended yet
+///
+/// ## Timing Fields
+/// - `start` - the timestamp of the first checkpoint included in the epoch
+/// - `end` - the timestamp of the last checkpoint included in the epoch, which
+///   may be unavailable for the current epoch if it has not ended yet
+///
+/// ## Gas Fields
+/// - `reference_gas_price` - the reference gas price during the epoch,
+///   denominated in NANOS
+///
+/// ## Protocol Configuration Fields
+/// - `protocol_config` - the protocol configuration during the epoch
+///   - `protocol_config.protocol_version` - the protocol version during the
+///     epoch
+///   - `protocol_config.feature_flags` - the individual protocol feature flags
+///     during the epoch (use `protocol_config.feature_flags.<key>` to filter
+///     specific flags)
+///   - `protocol_config.attributes` - the individual protocol attributes during
+///     the epoch (use `protocol_config.attributes.<key>` to filter specific
+///     attributes)
 #[tracing::instrument(skip(service))]
 pub fn get_epoch(
     service: &LedgerGrpcService,
@@ -145,7 +173,7 @@ pub fn get_epoch(
     let read_mask = {
         let read_mask = request
             .read_mask
-            .unwrap_or_else(|| FieldMask::from_str(READ_MASK_DEFAULT));
+            .unwrap_or_else(|| FieldMask::from_str(GET_EPOCH_READ_MASK));
         read_mask
             .validate::<Epoch>()
             .map_err(|path| Status::invalid_argument(format!("invalid read_mask path: {path}")))?;

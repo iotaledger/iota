@@ -23,7 +23,9 @@ pub struct ExecuteTransactionRequest {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ExecuteTransactionResponse {
     #[prost(message, optional, tag = "1")]
-    pub transaction: ::core::option::Option<super::transaction::ExecutedTransaction>,
+    pub executed_transaction: ::core::option::Option<
+        super::transaction::ExecutedTransaction,
+    >,
 }
 #[non_exhaustive]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -102,7 +104,9 @@ pub struct ExecutionError {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SimulateTransactionResponse {
     #[prost(message, optional, tag = "1")]
-    pub transaction: ::core::option::Option<super::transaction::ExecutedTransaction>,
+    pub executed_transaction: ::core::option::Option<
+        super::transaction::ExecutedTransaction,
+    >,
     #[prost(uint64, optional, tag = "2")]
     pub suggested_gas_price: ::core::option::Option<u64>,
     #[prost(oneof = "simulate_transaction_response::ExecutionResult", tags = "3, 4")]

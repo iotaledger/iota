@@ -70,49 +70,6 @@ pub type Result<T> = std::result::Result<T, Error>;
 // =============================================================================
 // Field Masks
 // =============================================================================
-//
-// These masks specify which fields to request from the server. Users can
-// provide custom masks to optimize bandwidth by only requesting necessary
-// fields.
-//
-// If `None` is passed, these defaults are used.
-
-/// Default field mask for [`crate::Client::get_service_info`].
-/// possible fields:
-/// chain_id,chain,epoch,executed_checkpoint_height,
-/// executed_checkpoint_timestamp,lowest_available_checkpoint,
-/// lowest_available_checkpoint_objects,server
-pub const SERVICE_INFO_READ_MASK: &str = "chain_id,epoch,executed_checkpoint_height";
-
-/// Default field mask for [`crate::Client::get_epoch`].
-/// possible fields:
-/// epoch,committee,bcs_system_state,first_checkpoint,last_checkpoint,
-/// start,end,reference_gas_price,protocol_config
-pub const EPOCH_READ_MASK: &str = "epoch,first_checkpoint,last_checkpoint,start,end,reference_gas_price,protocol_config.protocol_version";
-
-/// Default field mask for [`crate::Client::get_transactions`].
-/// possible fields:
-/// transaction,signatures,effects,events,checkpoint,timestamp,input_objects,
-/// output_objects
-pub const TRANSACTIONS_READ_MASK: &str =
-    "transaction,signatures,effects,events,checkpoint,timestamp";
-
-/// Default field mask for [`crate::Client::get_objects`].
-/// possible fields: reference,bcs
-pub const OBJECTS_READ_MASK: &str = "reference,bcs";
-
-/// Default field mask for checkpoint queries.
-/// possible fields: checkpoint,transactions,events
-///
-/// checkpoint,transactions,events
-pub const CHECKPOINT_READ_MASK: &str = "checkpoint.summary";
-
-/// Default field mask for [`crate::Client::execute_transaction`] and
-/// [`crate::Client::simulate_transaction`].
-/// possible fields:
-/// transaction,signatures,effects,events,checkpoint,timestamp,input_objects,
-/// output_objects
-pub const EXECUTION_READ_MASK: &str = "transaction,effects,events,input_objects,output_objects";
 
 /// Build a field mask with a custom value or default.
 ///
@@ -153,7 +110,7 @@ impl ProtoResult for TransactionResult {
 
     fn into_result(self) -> Result<Self::Value> {
         match self.result {
-            Some(transaction_result::Result::Transaction(tx)) => Ok(tx),
+            Some(transaction_result::Result::ExecutedTransaction(tx)) => Ok(tx),
             Some(transaction_result::Result::Error(e)) => Err(Error::Server(e)),
             None => Err(TryFromProtoError::missing("result").into()),
             Some(_) => Err(Error::Protocol("Unknown transaction result type".into())),

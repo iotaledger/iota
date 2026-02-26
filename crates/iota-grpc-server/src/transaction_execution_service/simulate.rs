@@ -7,6 +7,7 @@ use std::sync::Arc;
 use iota_grpc_types::{
     field::FieldMaskTree,
     google::rpc::bad_request::FieldViolation,
+    read_masks::SIMULATE_TRANSACTION_READ_MASK,
     v0::{
         bcs::{self as grpc_bcs},
         command::CommandResults,
@@ -33,14 +34,104 @@ use crate::{
     types::GrpcReader,
 };
 
-pub const SIMULATE_TRANSACTION_READ_MASK_DEFAULT: &str = crate::field_mask!(
-    "transaction.digest",
-    "transaction.transaction",
-    "transaction.effects",
-    "suggested_gas_price",
-    "execution_result",
-);
-
+/// Available Read Mask Fields
+///
+/// The `simulate_transaction` function supports the following `read_mask`
+/// fields to control which data is included in the response:
+///
+/// ## Transaction Fields
+/// - `executed_transaction` - includes all executed transaction fields
+///   - `executed_transaction.transaction` - includes all transaction fields
+///     - `executed_transaction.transaction.digest` - the transaction digest
+///     - `executed_transaction.transaction.bcs` - the full BCS-encoded
+///       transaction
+///   - `executed_transaction.signatures` - includes all signature fields
+///     - `executed_transaction.signatures.bcs` - the full BCS-encoded signature
+///   - `executed_transaction.effects` - includes all effects fields
+///     - `executed_transaction.effects.digest` - the effects digest
+///     - `executed_transaction.effects.bcs` - the full BCS-encoded effects
+///   - `executed_transaction.events` - includes all event fields
+///     - `executed_transaction.events.digest` - the events digest
+///     - `executed_transaction.events.events` - includes all event fields (all
+///       events of the transaction)
+///       - `executed_transaction.events.events.bcs` - the full BCS-encoded
+///         event
+///       - `executed_transaction.events.events.package_id` - the ID of the
+///         package that emitted the event
+///       - `executed_transaction.events.events.module` - the module that
+///         emitted the event
+///       - `executed_transaction.events.events.sender` - the sender that
+///         triggered the event
+///       - `executed_transaction.events.events.event_type` - the type of the
+///         event
+///       - `executed_transaction.events.events.bcs_contents` - the full
+///         BCS-encoded contents of the event
+///       - `executed_transaction.events.events.json_contents` - the
+///         JSON-encoded contents of the event
+///   - `executed_transaction.checkpoint` - the checkpoint that included the
+///     transaction (not available for just-executed transactions)
+///   - `executed_transaction.timestamp` - the timestamp of the checkpoint (not
+///     available for just-executed transactions)
+///   - `executed_transaction.input_objects` - includes all input object fields
+///     - `executed_transaction.input_objects.reference` - includes all
+///       reference fields
+///       - `executed_transaction.input_objects.reference.object_id` - the ID of
+///         the input object
+///       - `executed_transaction.input_objects.reference.version` - the version
+///         of the input object
+///       - `executed_transaction.input_objects.reference.digest` - the digest
+///         of the input object contents
+///     - `executed_transaction.input_objects.bcs` - the full BCS-encoded object
+///   - `executed_transaction.output_objects` - includes all output object
+///     fields
+///     - `executed_transaction.output_objects.reference` - includes all
+///       reference fields
+///       - `executed_transaction.output_objects.reference.object_id` - the ID
+///         of the output object
+///       - `executed_transaction.output_objects.reference.version` - the
+///         version of the output object
+///       - `executed_transaction.output_objects.reference.digest` - the digest
+///         of the output object contents
+///     - `executed_transaction.output_objects.bcs` - the full BCS-encoded
+///       object
+///
+/// ## Gas Fields
+/// - `suggested_gas_price` - the suggested gas price for the transaction,
+///   denominated in NANOS
+///
+/// ## Execution Result Fields
+/// - `execution_result` - the execution result (oneof: command_results on
+///   success, execution_error on failure)
+///   - `execution_result.command_results` - includes all fields of per-command
+///     results if execution succeeded
+///     - `execution_result.command_results.mutated_by_ref` - includes all
+///       fields of objects mutated by reference
+///       - `execution_result.command_results.mutated_by_ref.argument` - the
+///         argument reference
+///       - `execution_result.command_results.mutated_by_ref.type_tag` - the
+///         Move type tag
+///       - `execution_result.command_results.mutated_by_ref.bcs` - the
+///         BCS-encoded value
+///       - `execution_result.command_results.mutated_by_ref.json` - the
+///         JSON-encoded value
+///     - `execution_result.command_results.return_values` - includes all fields
+///       of return values returned by the command
+///       - `execution_result.command_results.return_values.argument` - the
+///         argument reference
+///       - `execution_result.command_results.return_values.type_tag` - the Move
+///         type tag
+///       - `execution_result.command_results.return_values.bcs` - the
+///         BCS-encoded value
+///       - `execution_result.command_results.return_values.json` - the
+///         JSON-encoded value
+///   - `execution_result.execution_error` - includes all fields of the
+///     execution error if execution failed
+///     - `execution_result.execution_error.bcs_kind` - the BCS-encoded error
+///       kind
+///     - `execution_result.execution_error.source` - the error source
+///       description
+///     - `execution_result.execution_error.command_index` - the index of the
+///       command that failed
 pub async fn simulate_transaction(
     reader: &Arc<GrpcReader>,
     executor: &Arc<dyn TransactionExecutor>,
@@ -52,7 +143,7 @@ pub async fn simulate_transaction(
         .read_mask
         .map(|mask| FieldMaskTree::from_field_mask(&mask))
         .unwrap_or_else(|| {
-            SIMULATE_TRANSACTION_READ_MASK_DEFAULT
+            SIMULATE_TRANSACTION_READ_MASK
                 .parse::<FieldMaskTree>()
                 .unwrap()
         });
@@ -220,7 +311,9 @@ pub async fn simulate_transaction(
     let mut response = SimulateTransactionResponse::default();
 
     // Only include transaction if requested
-    if let Some(tx_mask) = read_mask.subtree(SimulateTransactionResponse::TRANSACTION_FIELD.name) {
+    if let Some(tx_mask) =
+        read_mask.subtree(SimulateTransactionResponse::EXECUTED_TRANSACTION_FIELD.name)
+    {
         let transaction: iota_sdk_types::Transaction = transaction_data.try_into()?;
 
         // Create a source for the merge
@@ -237,14 +330,14 @@ pub async fn simulate_transaction(
             output_objects: Some(output_objects.into_values().collect()),
         };
 
-        response.transaction = Some(ExecutedTransaction::merge_from(&source, &tx_mask).map_err(
-            |e| {
+        response.executed_transaction = Some(
+            ExecutedTransaction::merge_from(&source, &tx_mask).map_err(|e| {
                 RpcError::new(
                     tonic::Code::Internal,
                     format!("failed to build executed transaction in simulation response: {e}"),
                 )
-            },
-        )?);
+            })?,
+        );
     }
 
     // Only include suggested gas price if requested
@@ -263,7 +356,9 @@ pub async fn simulate_transaction(
     {
         match execution_result {
             Ok(ref execution_results) => {
-                if let Some(command_results_mask) = result_mask.subtree("command_results") {
+                if let Some(command_results_mask) =
+                    result_mask.subtree(SimulateTransactionResponse::COMMAND_RESULTS_FIELD.name)
+                {
                     // Only build command results if the execution was successful
                     let cmd_source = CommandResultsReadSource {
                         reader: reader.clone(),
@@ -287,7 +382,9 @@ pub async fn simulate_transaction(
                 }
             }
             Err(ref execution_error) => {
-                if let Some(error_mask) = result_mask.subtree("execution_error") {
+                if let Some(error_mask) =
+                    result_mask.subtree(SimulateTransactionResponse::EXECUTION_ERROR_FIELD.name)
+                {
                     let mut exec_error = ExecutionError::default();
 
                     // Serialize the execution error kind as BCS
