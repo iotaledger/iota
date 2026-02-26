@@ -26,7 +26,7 @@ use iota_sdk_types::{
     events::TransactionEvents,
     gas::GasCostSummary,
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
-    object::{GenesisObject, MovePackage, MoveStruct, Object, ObjectData, TypeOrigin, UpgradeInfo},
+    object::{GenesisObject, MoveStruct, Object, ObjectData},
     transaction::{
         CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
         ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
@@ -104,9 +104,7 @@ impl TryFrom<crate::object::Data> for ObjectData {
     fn try_from(value: crate::object::Data) -> Result<Self, Self::Error> {
         match value {
             crate::object::Data::Move(move_object) => Self::Struct(move_object_to_sdk(move_object)),
-            crate::object::Data::Package(move_package) => {
-                Self::Package(move_package_to_sdk(move_package))
-            }
+            crate::object::Data::Package(move_package) => Self::Package(move_package),
         }
         .pipe(Ok)
     }
@@ -118,58 +116,9 @@ impl TryFrom<ObjectData> for crate::object::Data {
     fn try_from(value: ObjectData) -> Result<Self, Self::Error> {
         match value {
             ObjectData::Struct(move_object) => Self::Move(sdk_object_to_move(move_object)),
-            ObjectData::Package(move_package) => Self::Package(sdk_package_to_move(move_package)),
+            ObjectData::Package(move_package) => Self::Package(move_package),
         }
         .pipe(Ok)
-    }
-}
-
-fn move_package_to_sdk(package: crate::move_package::MovePackage) -> MovePackage {
-    MovePackage {
-        id: package.id(),
-        version: package.version(),
-        modules: package
-            .module_map
-            .into_iter()
-            .map(|(name, bytes)| {
-                (
-                    Identifier::new(name).expect("package name identifier conversion failed"),
-                    bytes,
-                )
-            })
-            .collect(),
-        type_origin_table: package
-            .type_origin_table
-            .into_iter()
-            .map(move_type_origin_to_sdk)
-            .collect(),
-        linkage_table: package
-            .linkage_table
-            .into_iter()
-            .map(|(id, info)| (id, move_upgrade_info_to_sdk(info)))
-            .collect(),
-    }
-}
-
-fn sdk_package_to_move(package: MovePackage) -> crate::move_package::MovePackage {
-    crate::move_package::MovePackage {
-        id: package.id,
-        version: package.version,
-        module_map: package
-            .modules
-            .into_iter()
-            .map(|(name, bytes)| (name.to_string(), bytes))
-            .collect(),
-        type_origin_table: package
-            .type_origin_table
-            .into_iter()
-            .map(sdk_type_origin_to_move)
-            .collect(),
-        linkage_table: package
-            .linkage_table
-            .into_iter()
-            .map(|(id, info)| (id, sdk_upgrade_info_to_move(info)))
-            .collect(),
     }
 }
 
@@ -200,38 +149,6 @@ pub fn move_object_type_to_sdk(type_: crate::base_types::MoveObjectType) -> Stru
 
 fn sdk_object_type_to_move(type_: &StructTag) -> crate::base_types::MoveObjectType {
     crate::base_types::MoveObjectType::from(type_)
-}
-
-fn move_type_origin_to_sdk(origin: crate::move_package::TypeOrigin) -> TypeOrigin {
-    TypeOrigin {
-        module_name: Identifier::new(&origin.module_name)
-            .expect("module identifier conversion failed"),
-        struct_name: Identifier::new(&origin.datatype_name)
-            .expect("struct identifier conversion failed"),
-        package: origin.package,
-    }
-}
-
-fn sdk_type_origin_to_move(origin: TypeOrigin) -> crate::move_package::TypeOrigin {
-    crate::move_package::TypeOrigin {
-        module_name: origin.module_name.to_string(),
-        datatype_name: origin.struct_name.to_string(),
-        package: origin.package,
-    }
-}
-
-fn move_upgrade_info_to_sdk(info: crate::move_package::UpgradeInfo) -> UpgradeInfo {
-    UpgradeInfo {
-        upgraded_id: info.upgraded_id,
-        upgraded_version: info.upgraded_version,
-    }
-}
-
-fn sdk_upgrade_info_to_move(info: UpgradeInfo) -> crate::move_package::UpgradeInfo {
-    crate::move_package::UpgradeInfo {
-        upgraded_id: info.upgraded_id,
-        upgraded_version: info.upgraded_version,
-    }
 }
 
 impl TryFrom<crate::transaction::TransactionData> for TransactionV1 {

@@ -3,7 +3,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs::File, io::Write, str::FromStr};
+use std::{collections::BTreeMap, fs::File, io::Write, str::FromStr};
 
 use clap::*;
 use iota_sdk_types::crypto::{Intent, IntentMessage, PersonalMessage};
@@ -33,9 +33,9 @@ use iota_types::{
     },
     messages_consensus::ConsensusDeterminedVersionAssignments,
     messages_grpc::ObjectInfoRequestKind,
-    move_package::TypeOrigin,
+    move_package::{MovePackage, TypeOrigin},
     multisig::{MultiSig, MultiSigPublicKey},
-    object::{Data, Object, Owner},
+    object::{Data, MoveObject, Object, Owner},
     signature::GenericSignature,
     storage::DeleteKind,
     transaction::{
@@ -206,8 +206,8 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_value(&mut samples, &ccd).unwrap();
 
     let tot = TypeOrigin {
-        module_name: "module_name".to_string(),
-        datatype_name: "datatype_name".to_string(),
+        module_name: Identifier::from_static("module_name"),
+        datatype_name: Identifier::from_static("datatype_name"),
         package: ObjectID::random(),
     };
     tracer.trace_value(&mut samples, &tot).unwrap();
@@ -230,6 +230,33 @@ fn get_registry() -> Result<Registry> {
         contents: vec![0],
     };
     tracer.trace_value(&mut samples, &event).unwrap();
+
+    // Seed both Data variants. trace_type::<Data> is skipped because the SDK's
+    // MovePackage uses BTreeMap<Identifier, Vec<u8>> with serde_with, and
+    // Identifier's custom serde (DisplayFromStr) is incompatible with
+    // serde_reflection's tracing deserializer for map keys.
+    let sample_move_obj = MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO, 0);
+    tracer
+        .trace_value(&mut samples, &Data::Move(sample_move_obj))
+        .unwrap();
+    let sample_upgrade_info = iota_types::move_package::UpgradeInfo {
+        upgraded_id: ObjectID::ZERO,
+        upgraded_version: 1u64.into(),
+    };
+    tracer
+        .trace_value(&mut samples, &sample_upgrade_info)
+        .unwrap();
+    let sample_move_pkg = MovePackage {
+        id: ObjectID::ZERO,
+        version: 1u64.into(),
+        modules: BTreeMap::from([(Identifier::from_static("module"), vec![0u8])]),
+        type_origin_table: vec![tot.clone()],
+        linkage_table: BTreeMap::from([(ObjectID::ZERO, sample_upgrade_info)]),
+    };
+    tracer.trace_value(&mut samples, &sample_move_pkg).unwrap();
+    tracer
+        .trace_value(&mut samples, &Data::Package(sample_move_pkg))
+        .unwrap();
 
     // Trace SDK types with custom serde (ExecutionStatus, ExecutionFailureStatus,
     // CommandArgumentError, PackageUpgradeError). These delegate to internal
@@ -277,7 +304,6 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_type::<Owner>(&samples).unwrap();
     tracer.trace_type::<CallArg>(&samples).unwrap();
     tracer.trace_type::<ObjectArg>(&samples).unwrap();
-    tracer.trace_type::<Data>(&samples).unwrap();
     tracer.trace_type::<TypedStoreError>(&samples).unwrap();
     tracer
         .trace_type::<ObjectInfoRequestKind>(&samples)

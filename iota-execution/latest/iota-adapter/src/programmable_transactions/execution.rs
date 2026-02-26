@@ -33,7 +33,8 @@ mod checked {
         move_package::{
             IotaAttribute, MovePackage, PackageMetadata, RuntimeModuleMetadata,
             RuntimeModuleMetadataWrapper, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
-            normalize_deserialized_modules,
+            move_package_original_package_id, normalize_deserialized_modules,
+            normalize_move_package,
         },
         object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
@@ -679,7 +680,7 @@ mod checked {
 
         // Check digest.
         let computed_digest =
-            MovePackage::compute_digest_for_modules_and_deps(&module_bytes, &dep_ids).into();
+            MovePackage::compute_digest_for_modules_and_deps(&module_bytes, &dep_ids);
         if computed_digest != upgrade_ticket.digest {
             return Err(ExecutionError::from_kind(
                 ExecutionErrorKind::PackageUpgradeError {
@@ -695,7 +696,7 @@ mod checked {
         let current_package = fetch_package(context, &upgrade_ticket.package.bytes)?;
 
         let mut modules = deserialize_modules::<Mode>(context, &module_bytes)?;
-        let runtime_id = current_package.move_package().original_package_id();
+        let runtime_id = move_package_original_package_id(current_package.move_package());
         substitute_package_id(&mut modules, runtime_id)?;
 
         // Upgraded packages share their predecessor's runtime ID but get a new storage
@@ -769,9 +770,13 @@ mod checked {
 
         let pool = &mut normalized::RcPool::new();
         let binary_config = to_binary_config(context.protocol_config);
-        let Ok(current_normalized) =
-            existing_package.normalize(pool, &binary_config, /* include code */ true)
-        else {
+        let Ok(current_normalized) = normalize_move_package(
+            existing_package,
+            pool,
+            &binary_config,
+            // include code
+            true,
+        ) else {
             invariant_violation!("Tried to normalize modules in existing package but failed")
         };
 

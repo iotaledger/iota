@@ -18,6 +18,7 @@ use iota_types::{
     full_checkpoint_content::CheckpointData,
     iota_system_state::IotaSystemStateTrait,
     messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
+    move_package::move_package_original_package_id,
     object::{Object, Owner},
     storage::{
         AccountOwnedObjectInfo, DynamicFieldKey, EpochInfo, OwnedObjectCursor,
@@ -1221,7 +1222,7 @@ fn try_create_package_version_info(
     let package = object.data.try_as_package()?;
     Some((
         PackageVersionKey {
-            original_package_id: package.original_package_id(),
+            original_package_id: move_package_original_package_id(package),
             version: object.version().as_u64(),
         },
         PackageVersionInfo {

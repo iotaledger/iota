@@ -505,6 +505,7 @@ impl CompiledPackage {
             &self.get_package_bytes(with_unpublished_deps),
             self.dependency_ids.published.values(),
         )
+        .into_inner()
     }
 
     /// Return a serialized representation of the bytecode modules in this

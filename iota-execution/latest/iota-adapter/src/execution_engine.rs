@@ -1840,7 +1840,8 @@ mod checked {
                     .data
                     .try_as_package_mut()
                     .unwrap()
-                    .decrement_version();
+                    .decrement_version()
+                    .expect("package version should never underflow");
 
                 // upgrade of a previously existing framework module
                 temporary_store.upgrade_system_package(new_package);

@@ -2710,7 +2710,7 @@ mod tests {
     use iota_macros::sim_test;
     use iota_protocol_config::{Chain, ProtocolConfig};
     use iota_types::{
-        base_types::{ObjectID, SequenceNumber, TransactionEffectsDigest},
+        base_types::{Identifier, ObjectID, SequenceNumber, TransactionEffectsDigest},
         crypto::Signature,
         effects::{TransactionEffects, TransactionEvents},
         messages_checkpoint::SignedCheckpointSummary,
@@ -2742,7 +2742,7 @@ mod tests {
                     MovePackage::new(
                         ObjectID::random(),
                         SequenceNumber::default(),
-                        BTreeMap::from([(format!("{:0>40000}", "1"), Vec::new())]),
+                        BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; 40000])]),
                         100_000,
                         // no modules so empty type_origin_table as no types are defined in this
                         // package
