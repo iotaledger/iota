@@ -3,8 +3,8 @@
 
 import { afterEach, describe, expect, test } from 'vitest';
 
-import { getDefaultNetwork, getNetwork } from '../../src/client/network';
-import { GraphQLWebSocketClient } from '../../src/graphql/graphql-websocket-client';
+import { getDefaultNetwork, getNetwork } from '../../typescript/src/client/network';
+import { GraphQLWebSocketClient } from '../src/graphql-websocket-client';
 
 const network = getDefaultNetwork();
 const graphqlUrl = getNetwork(network).graphql;
@@ -26,7 +26,7 @@ describe(`GraphQLWebSocketClient E2E (${network})`, () => {
     });
 
     test(
-        'connects to devnet and completes handshake',
+        'connects to network and completes handshake',
         async () => {
             client = new GraphQLWebSocketClient(subscriptionUrl);
 
@@ -44,7 +44,7 @@ describe(`GraphQLWebSocketClient E2E (${network})`, () => {
     );
 
     test(
-        'receives events from devnet (or unsubscribes cleanly)',
+        'receives events from network (or unsubscribes cleanly)',
         async () => {
             client = new GraphQLWebSocketClient(subscriptionUrl);
 
@@ -78,7 +78,7 @@ describe(`GraphQLWebSocketClient E2E (${network})`, () => {
     );
 
     test(
-        'subscribes to transactions on devnet',
+        'subscribes to transactions on network',
         async () => {
             client = new GraphQLWebSocketClient(subscriptionUrl);
 

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { GraphQLDocument } from './client.js';
+import type { GraphQLDocument } from '@iota/iota-sdk/graphql';
 
 interface ConnectionInitMessage {
     type: 'connection_init';

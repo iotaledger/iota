@@ -25,8 +25,8 @@ import type {
     SubscriptionEventFilter,
     SubscriptionTransactionFilter,
 } from './generated/queries.js';
-import type { GraphQLWebSocketClientOptions } from '@iota/iota-sdk/graphql';
-import { GraphQLWebSocketClient } from '@iota/iota-sdk/graphql';
+import type { GraphQLWebSocketClientOptions } from './graphql-websocket-client.js';
+import { GraphQLWebSocketClient } from './graphql-websocket-client.js';
 import { RPC_METHODS, UnsupportedMethodError, UnsupportedParamError } from './methods.js';
 import { toShortTypeString } from './mappers/util.js';
 

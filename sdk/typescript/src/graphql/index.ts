@@ -11,9 +11,3 @@ export {
     IotaGraphQLClient,
     IotaGraphQLRequestError,
 } from './client.js';
-
-export {
-    type GraphQLSubscriptionRequest,
-    type GraphQLWebSocketClientOptions,
-    GraphQLWebSocketClient,
-} from './graphql-websocket-client.js';
