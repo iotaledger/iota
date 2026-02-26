@@ -1063,6 +1063,61 @@ impl fmt::Debug for MisbehaviorReportDigest {
     }
 }
 
+/// AdditionalConsensusStatesDigest is a digest of any additional state computed
+/// by the consensus handler that was added to AdditionalConsensusStates. It can
+/// be included in ConsensusCommitPrologueV2 to detect forking bugs as early as
+/// possible.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+pub struct AdditionalConsensusStatesDigest(Digest);
+
+impl AdditionalConsensusStatesDigest {
+    pub const ZERO: Self = Self(Digest::ZERO);
+
+    pub const fn new(digest: [u8; 32]) -> Self {
+        Self(Digest::new(digest))
+    }
+
+    pub const fn inner(&self) -> &[u8; 32] {
+        self.0.inner()
+    }
+
+    pub const fn into_inner(self) -> [u8; 32] {
+        self.0.into_inner()
+    }
+}
+
+impl Default for AdditionalConsensusStatesDigest {
+    fn default() -> Self {
+        Self::ZERO
+    }
+}
+
+impl fmt::Display for AdditionalConsensusStatesDigest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
+
+impl fmt::Debug for AdditionalConsensusStatesDigest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("AdditionalConsensusStatesDigest")
+            .field(&self.0)
+            .finish()
+    }
+}
+
+impl From<AdditionalConsensusStatesDigest> for [u8; 32] {
+    fn from(digest: AdditionalConsensusStatesDigest) -> Self {
+        digest.into_inner()
+    }
+}
+
+impl From<[u8; 32]> for AdditionalConsensusStatesDigest {
+    fn from(digest: [u8; 32]) -> Self {
+        Self::new(digest)
+    }
+}
+
 mod test {
     #[allow(unused_imports)]
     use crate::digests::ChainIdentifier;

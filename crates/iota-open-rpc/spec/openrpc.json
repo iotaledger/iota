@@ -1334,6 +1334,7 @@
                 "passkey_auth": true,
                 "protocol_defined_base_fee": true,
                 "publish_package_metadata": false,
+                "record_additional_states_digests_in_prologue": false,
                 "relocate_event_module": true,
                 "rethrow_serialization_type_layout_errors": true,
                 "select_committee_from_eligible_validators": false,
@@ -6020,6 +6021,9 @@
   ],
   "components": {
     "schemas": {
+      "AdditionalConsensusStatesDigest": {
+        "$ref": "#/components/schemas/Digest"
+      },
       "AddressMetrics": {
         "description": "Provides metrics about the addresses.",
         "type": "object",
@@ -9868,7 +9872,8 @@
               "ConsensusCommitPrologueV1",
               "AuthenticatorStateUpdateV1",
               "RandomnessStateUpdate",
-              "EndOfEpochTransaction"
+              "EndOfEpochTransaction",
+              "ConsensusCommitPrologueV2"
             ]
           },
           {
@@ -12576,6 +12581,59 @@
                 "items": {
                   "$ref": "#/components/schemas/IotaEndOfEpochTransactionKind"
                 }
+              }
+            }
+          },
+          {
+            "description": "A system transaction marking the start of a series of transactions scheduled as part of a checkpoint (V2 with additional state digest)",
+            "type": "object",
+            "required": [
+              "additional_states_digests",
+              "commit_timestamp_ms",
+              "consensus_commit_digest",
+              "consensus_determined_version_assignments",
+              "epoch",
+              "kind",
+              "round"
+            ],
+            "properties": {
+              "additional_states_digests": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AdditionalConsensusStatesDigest"
+                }
+              },
+              "commit_timestamp_ms": {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              },
+              "consensus_commit_digest": {
+                "$ref": "#/components/schemas/ConsensusCommitDigest"
+              },
+              "consensus_determined_version_assignments": {
+                "$ref": "#/components/schemas/ConsensusDeterminedVersionAssignments"
+              },
+              "epoch": {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "ConsensusCommitPrologueV2"
+                ]
+              },
+              "round": {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              },
+              "sub_dag_index": {
+                "default": null,
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/BigInt_for_uint64"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             }
           }

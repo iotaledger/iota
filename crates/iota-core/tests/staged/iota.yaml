@@ -11,6 +11,9 @@ ActiveJwk:
     - jwk:
         TYPENAME: JWK
     - epoch: U64
+AdditionalConsensusStatesDigest:
+  NEWTYPESTRUCT:
+    TYPENAME: Digest
 Argument:
   ENUM:
     0:
@@ -338,6 +341,20 @@ ConsensusCommitPrologueV1:
         TYPENAME: ConsensusCommitDigest
     - consensus_determined_version_assignments:
         TYPENAME: ConsensusDeterminedVersionAssignments
+ConsensusCommitPrologueV2:
+  STRUCT:
+    - epoch: U64
+    - round: U64
+    - sub_dag_index:
+        OPTION: U64
+    - commit_timestamp_ms: U64
+    - consensus_commit_digest:
+        TYPENAME: ConsensusCommitDigest
+    - consensus_determined_version_assignments:
+        TYPENAME: ConsensusDeterminedVersionAssignments
+    - additional_states_digests:
+        SEQ:
+          TYPENAME: AdditionalConsensusStatesDigest
 ConsensusDeterminedVersionAssignments:
   ENUM:
     0:
@@ -646,7 +663,7 @@ Intent:
   STRUCT:
     - scope: U8
     - version: U8
-    - app_id: U8
+    - appId: U8
 IntentMessage:
   STRUCT:
     - intent:
@@ -1056,6 +1073,10 @@ TransactionKind:
       RandomnessStateUpdate:
         NEWTYPE:
           TYPENAME: RandomnessStateUpdate
+    6:
+      ConsensusCommitPrologueV2:
+        NEWTYPE:
+          TYPENAME: ConsensusCommitPrologueV2
 TypeArgumentError:
   ENUM:
     0:
