@@ -108,16 +108,15 @@ impl AuthenticationContext {
             self.cached_tx_inputs = Some(to_global_value(&rust_value, inputs_move_layout)?);
         }
 
-        let cached_tx_inputs = self.cached_tx_inputs.as_ref().unwrap();
+        let (cached_tx_inputs, move_value_size) = self.cached_tx_inputs.as_ref().unwrap();
 
         Ok((
             cached_tx_inputs
-                .0
                 .borrow_global()
                 .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
                 .value_as::<StructRef>()?
                 .borrow_field(0)?,
-            cached_tx_inputs.1,
+            *move_value_size,
         ))
     }
 
@@ -141,16 +140,15 @@ impl AuthenticationContext {
             self.cached_tx_commands = Some(to_global_value(&rust_value, commands_move_layout)?);
         }
 
-        let cached_tx_commands = self.cached_tx_commands.as_ref().unwrap();
+        let (cached_tx_commands, move_value_size) = self.cached_tx_commands.as_ref().unwrap();
 
         Ok((
             cached_tx_commands
-                .0
                 .borrow_global()
                 .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
                 .value_as::<StructRef>()?
                 .borrow_field(0)?,
-            cached_tx_commands.1,
+            *move_value_size,
         ))
     }
 
@@ -209,11 +207,11 @@ fn to_global_value<T: ?Sized + Serialize>(
     let move_layout = struct_layout_with_field(field_move_layout);
 
     let move_value = to_value(field, &move_layout)?;
-    let legacy_size = move_value.legacy_size();
+    let move_value_size = move_value.legacy_size();
 
     Ok((
         GlobalValue::cached(move_value).expect("Failed to cache global value"),
-        legacy_size,
+        move_value_size,
     ))
 }
 

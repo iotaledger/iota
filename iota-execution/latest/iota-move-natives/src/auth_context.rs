@@ -93,7 +93,8 @@ pub fn native_tx_commands(
 
     let auth_context: &mut AuthenticationContext = get_extension_mut!(context)?;
 
-    let (tx_commands_ref, legacy_size) = auth_context.tx_commands_ref(command_move_layout)?;
+    let (tx_commands_ref, tx_commands_value_size) =
+        auth_context.tx_commands_ref(command_move_layout)?;
 
     native_charge_gas_early_exit!(
         context,
@@ -104,7 +105,7 @@ pub fn native_tx_commands(
                     "Gas cost per byte for native_tx_commands not available".to_string(),
                 )
             })?
-            * u64::from(legacy_size).into()
+            * u64::from(tx_commands_value_size).into()
     );
 
     Ok(NativeResult::ok(
@@ -150,7 +151,7 @@ pub fn native_tx_inputs(
 
     let auth_context: &mut AuthenticationContext = get_extension_mut!(context)?;
 
-    let (tx_inputs_ref, legacy_size) = auth_context.tx_inputs_ref(input_move_layout)?;
+    let (tx_inputs_ref, tx_inputs_value_size) = auth_context.tx_inputs_ref(input_move_layout)?;
 
     native_charge_gas_early_exit!(
         context,
@@ -161,7 +162,7 @@ pub fn native_tx_inputs(
                     "Gas cost per byte for native_tx_inputs not available".to_string()
                 )
             )?
-            * u64::from(legacy_size).into()
+            * u64::from(tx_inputs_value_size).into()
     );
 
     Ok(NativeResult::ok(
@@ -202,7 +203,7 @@ pub fn native_replace(
             })?
     );
 
-    let legacy_size = args
+    let args_size = args
         .iter()
         .fold(0_u64, |acc, v| acc + u64::from(v.legacy_size()));
     native_charge_gas_early_exit!(
@@ -213,7 +214,7 @@ pub fn native_replace(
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                     .with_message("Gas cost per byte for native_replace not available".to_string())
             })?
-            * legacy_size.into()
+            * args_size.into()
     );
 
     let command_type = ty_args.pop().unwrap();
