@@ -5,7 +5,7 @@
 pub mod bench_driver;
 pub mod driver;
 
-use std::{fmt::Formatter, str::FromStr, time::Duration};
+use std::{cmp::max, fmt::Formatter, str::FromStr, time::Duration};
 
 use comfy_table::{Cell, Color, ContentArrangement, Row, Table};
 use duration_str::parse;
@@ -195,8 +195,12 @@ impl BenchmarkStats {
             ]);
         let mut row = Row::new();
         row.add_cell(Cell::new(self.duration.as_secs()));
-        row.add_cell(Cell::new(self.num_success_txes / self.duration.as_secs()));
-        row.add_cell(Cell::new(self.num_success_cmds / self.duration.as_secs()));
+        row.add_cell(Cell::new(
+            self.num_success_txes / max(self.duration.as_secs(), 1),
+        ));
+        row.add_cell(Cell::new(
+            self.num_success_cmds / max(self.duration.as_secs(), 1),
+        ));
         row.add_cell(Cell::new(
             (100 * self.num_error_txes) as f32
                 / (self.num_error_txes + self.num_success_txes) as f32,
@@ -220,7 +224,7 @@ impl BenchmarkStats {
             ",",
         )));
         row.add_cell(Cell::new(format_num_with_separators(
-            self.total_gas_used * 60 * 60 / self.duration.as_secs(),
+            self.total_gas_used * 60 * 60 / max(self.duration.as_secs(), 1),
             3,
             ",",
         )));
