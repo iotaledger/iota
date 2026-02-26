@@ -13226,7 +13226,7 @@
         }
       },
       "TypeOrigin": {
-        "description": "Store the origin of a data type where it first appeared in the version chain.\n\nA data type is identified by the name of the module and the name of the struct/enum in combination.\n\n# Undefined behavior\n\nDirectly modifying any field is undefined behavior. The fields are only public for read-only access.",
+        "description": "Stores the origin of a data type where it first appeared in the version chain. A data type is identified by the name of the module and the name of the struct/enum in combination.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text type-origin = identifier identifier object-id ```",
         "type": "object",
         "required": [
           "datatype_name",
@@ -13235,15 +13235,23 @@
         ],
         "properties": {
           "datatype_name": {
-            "description": "The name of the data type.\n\nHere this either refers to an enum or a struct identifier.",
-            "type": "string"
+            "description": "The name of the data type. Either refers to an enum or a struct identifier.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Identifier"
+              }
+            ]
           },
           "module_name": {
             "description": "The name of the module the data type resides in.",
-            "type": "string"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Identifier"
+              }
+            ]
           },
           "package": {
-            "description": "`Storage ID` of the package, where the given type first appeared.",
+            "description": "ID of the package, where the given type first appeared.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/ObjectId"
@@ -13256,7 +13264,7 @@
         "type": "string"
       },
       "UpgradeInfo": {
-        "description": "Value for the [MovePackage]'s linkage_table.\n\n# Undefined behavior\n\nDirectly modifying any field is undefined behavior. The fields are only public for read-only access.",
+        "description": "Upgraded package info for [MovePackage]'s linkage_table.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text upgrade-info = object-id u64 ```",
         "type": "object",
         "required": [
           "upgraded_id",
@@ -13264,7 +13272,7 @@
         ],
         "properties": {
           "upgraded_id": {
-            "description": "`Storage ID`/`Package ID` of the referred package.",
+            "description": "ID of the upgraded package",
             "allOf": [
               {
                 "$ref": "#/components/schemas/ObjectId"
@@ -13272,7 +13280,7 @@
             ]
           },
           "upgraded_version": {
-            "description": "The version of the package at `upgraded_id`.",
+            "description": "Version of the upgraded package",
             "type": "integer",
             "format": "uint64",
             "minimum": 0.0

@@ -600,7 +600,10 @@ impl TryInto<Object> for IotaObjectData {
             Some(IotaRawData::Package(p)) => Data::Package(MovePackage::new(
                 p.id,
                 self.version,
-                p.module_map,
+                p.module_map
+                    .iter()
+                    .map(|(k, v)| (Identifier::new_unchecked(k), v.clone()))
+                    .collect(),
                 protocol_config.max_move_package_size(),
                 p.type_origin_table,
                 p.linkage_table,
@@ -1005,7 +1008,11 @@ impl From<MovePackage> for IotaRawMovePackage {
         Self {
             id: p.id(),
             version: p.version(),
-            module_map: p.serialized_module_map().clone(),
+            module_map: p
+                .serialized_module_map()
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.clone()))
+                .collect(),
             type_origin_table: p.type_origin_table().clone(),
             linkage_table: p.linkage_table().clone(),
         }
@@ -1017,14 +1024,17 @@ impl IotaRawMovePackage {
         &self,
         max_move_package_size: u64,
     ) -> Result<MovePackage, ExecutionError> {
-        MovePackage::new(
+        Ok(MovePackage::new(
             self.id,
             self.version,
-            self.module_map.clone(),
+            self.module_map
+                .iter()
+                .map(|(k, v)| (Identifier::new_unchecked(k), v.clone()))
+                .collect(),
             max_move_package_size,
             self.type_origin_table.clone(),
             self.linkage_table.clone(),
-        )
+        )?)
     }
 }
 

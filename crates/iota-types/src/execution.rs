@@ -129,7 +129,8 @@ impl ExecutionResultsV1 {
                     // and they are left alone.
                     if self.modified_objects.contains(id) {
                         debug_assert!(id.is_system_package());
-                        pkg.increment_version();
+                        pkg.increment_version()
+                            .expect("package version should never overflow");
                     }
                 }
             }

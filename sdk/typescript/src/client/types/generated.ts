@@ -1940,37 +1940,36 @@ export interface TransferObjectParams {
     recipient: string;
 }
 /**
- * Store the origin of a data type where it first appeared in the version chain.
+ * Stores the origin of a data type where it first appeared in the version chain. A data type is
+ * identified by the name of the module and the name of the struct/enum in combination.
  *
- * A data type is identified by the name of the module and the name of the struct/enum in combination.
+ * # BCS
  *
- * # Undefined behavior
+ * The BCS serialized form for this type is defined by the following ABNF:
  *
- * Directly modifying any field is undefined behavior. The fields are only public for read-only access.
+ * `text type-origin = identifier identifier object-id `
  */
 export interface TypeOrigin {
-    /**
-     * The name of the data type.
-     *
-     * Here this either refers to an enum or a struct identifier.
-     */
+    /** The name of the data type. Either refers to an enum or a struct identifier. */
     datatype_name: string;
     /** The name of the module the data type resides in. */
     module_name: string;
-    /** `Storage ID` of the package, where the given type first appeared. */
+    /** ID of the package, where the given type first appeared. */
     package: string;
 }
 /**
- * Value for the [MovePackage]'s linkage_table.
+ * Upgraded package info for [MovePackage]'s linkage_table.
  *
- * # Undefined behavior
+ * # BCS
  *
- * Directly modifying any field is undefined behavior. The fields are only public for read-only access.
+ * The BCS serialized form for this type is defined by the following ABNF:
+ *
+ * `text upgrade-info = object-id u64 `
  */
 export interface UpgradeInfo {
-    /** `Storage ID`/`Package ID` of the referred package. */
+    /** ID of the upgraded package */
     upgraded_id: string;
-    /** The version of the package at `upgraded_id`. */
+    /** Version of the upgraded package */
     upgraded_version: string;
 }
 export interface ValidatorApy {

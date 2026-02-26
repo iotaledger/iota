@@ -11,7 +11,7 @@ use std::{
 use iota_types::{
     base_types::ObjectID,
     error::{ExecutionError, IotaError, IotaResult},
-    move_package::{MovePackage, TypeOrigin, UpgradeInfo},
+    move_package::{MovePackage, TypeOrigin, UpgradeInfo, move_package_original_package_id},
     storage::{BackingPackageStore, PackageObject, get_module},
 };
 use move_core_types::{
@@ -137,7 +137,7 @@ impl<'state> LinkageView<'state> {
         // packages, but will also speed up other requests.
         for TypeOrigin {
             module_name,
-            datatype_name: struct_name,
+            datatype_name,
             package: defining_id,
         } in context.type_origin_table()
         {
@@ -145,12 +145,12 @@ impl<'state> LinkageView<'state> {
                 invariant_violation!("Module name isn't an identifier: {module_name}");
             };
 
-            let Ok(struct_name) = Identifier::from_str(struct_name) else {
-                invariant_violation!("Struct name isn't an identifier: {struct_name}");
+            let Ok(datatype_name) = Identifier::from_str(datatype_name) else {
+                invariant_violation!("Datatype name isn't an identifier: {datatype_name}");
             };
 
             let runtime_id = ModuleId::new(runtime_id, module_name);
-            self.add_type_origin(runtime_id, struct_name, *defining_id)?;
+            self.add_type_origin(runtime_id, datatype_name, *defining_id)?;
         }
 
         Ok(runtime_id)
@@ -276,11 +276,11 @@ impl<'state> LinkageView<'state> {
 
         for TypeOrigin {
             module_name,
-            datatype_name: struct_name,
+            datatype_name,
             package,
         } in package.move_package().type_origin_table()
         {
-            if module_name == runtime_id.name().as_str() && struct_name == struct_.as_str() {
+            if module_name == runtime_id.name().as_str() && datatype_name == struct_.as_str() {
                 self.add_type_origin(runtime_id.clone(), struct_.to_owned(), *package)?;
                 return Ok(ModuleId::new(
                     AccountAddress::new(package.into_bytes()),
@@ -300,7 +300,7 @@ impl From<&MovePackage> for LinkageInfo {
     fn from(package: &MovePackage) -> Self {
         Self {
             storage_id: AccountAddress::new(package.id().into_bytes()),
-            runtime_id: AccountAddress::new(package.original_package_id().into_bytes()),
+            runtime_id: AccountAddress::new(move_package_original_package_id(package).into_bytes()),
             link_table: package.linkage_table().clone(),
         }
     }

@@ -70,7 +70,11 @@ pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
                     package_id: p.id(),
                     version: p.version(),
                     digest,
-                    modules: p.serialized_module_map().keys().cloned().collect(),
+                    modules: p
+                        .serialized_module_map()
+                        .keys()
+                        .map(|k| k.to_string())
+                        .collect(),
                 })
             }
         };

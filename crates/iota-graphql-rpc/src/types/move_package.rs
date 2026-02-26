@@ -15,6 +15,7 @@ use diesel::{
 };
 use iota_indexer::{models::objects::StoredHistoryObject, schema::packages};
 use iota_package_resolver::{Package as ParsedMovePackage, error::Error as PackageCacheError};
+use iota_sdk_types::Identifier;
 use iota_types::{move_package::MovePackage as NativeMovePackage, object::Data};
 use serde::{Deserialize, Serialize};
 
@@ -514,7 +515,11 @@ impl MovePackage {
         });
 
         for (name, parsed) in modules {
-            let Some(native) = self.native.serialized_module_map().get(name) else {
+            let Some(native) = self
+                .native
+                .serialized_module_map()
+                .get(&Identifier::new_unchecked(name))
+            else {
                 return Err(Error::Internal(format!(
                     "Module '{name}' exists in PackageCache but not in serialized map.",
                 ))
@@ -567,8 +572,8 @@ impl MovePackage {
             .type_origin_table()
             .iter()
             .map(|origin| TypeOrigin {
-                module: origin.module_name.clone(),
-                struct_: origin.datatype_name.clone(),
+                module: origin.module_name.to_string(),
+                struct_: origin.datatype_name.to_string(),
                 defining_id: origin.package.into(),
             })
             .collect();
@@ -616,7 +621,9 @@ impl MovePackage {
     pub(crate) fn module_impl(&self, name: &str) -> Result<Option<MoveModule>, Error> {
         use PackageCacheError as E;
         match (
-            self.native.serialized_module_map().get(name),
+            self.native
+                .serialized_module_map()
+                .get(&Identifier::new_unchecked(name)),
             self.parsed_package()?.module(name),
         ) {
             (Some(native), Ok(parsed)) => Ok(Some(MoveModule {
