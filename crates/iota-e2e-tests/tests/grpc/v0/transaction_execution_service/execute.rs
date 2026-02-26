@@ -4,7 +4,6 @@
 
 use iota_grpc_types::{
     field::FieldMaskUtil,
-    read_masks::EXECUTE_TRANSACTION_READ_MASK,
     v0::{
         bcs::BcsData,
         signatures::{UserSignature, UserSignatures},
@@ -19,7 +18,7 @@ use iota_macros::sim_test;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use prost_types::FieldMask;
 
-use crate::utils::{assert_field_presence, comma_separated_field_mask_to_paths, setup_grpc_test};
+use crate::utils::{assert_field_presence, setup_grpc_test};
 
 async fn assert_execute_transaction_request(
     exec_client: &mut TransactionExecutionServiceClient<iota_grpc_client::InterceptedChannel>,
@@ -64,7 +63,18 @@ async fn execute_transaction_readmask_scenarios() {
         (
             "default readmask",
             None,
-            comma_separated_field_mask_to_paths(EXECUTE_TRANSACTION_READ_MASK),
+            // EXECUTE_TRANSACTION_READ_MASK =
+            // "transaction.digest,effects,events,input_objects,output_objects"
+            // "effects" and "events" are wildcards that expand to all their sub-fields.
+            vec![
+                "transaction.digest",
+                "effects.digest",
+                "effects.bcs",
+                "events.digest",
+                "events.events",
+                "input_objects",
+                "output_objects",
+            ],
         ),
         (
             "empty readmask",
@@ -89,7 +99,8 @@ async fn execute_transaction_readmask_scenarios() {
                 "signatures",
                 "effects.digest",
                 "effects.bcs",
-                "events",
+                "events.digest",
+                "events.events",
                 "input_objects",
                 "output_objects",
             ],

@@ -4,7 +4,6 @@
 
 use iota_grpc_types::{
     field::FieldMaskUtil,
-    read_masks::SIMULATE_TRANSACTION_READ_MASK,
     v0::{
         bcs::BcsData,
         transaction::Transaction as ProtoTransaction,
@@ -21,7 +20,7 @@ use iota_types::{
 };
 use prost_types::FieldMask;
 
-use crate::utils::{assert_field_presence, comma_separated_field_mask_to_paths, setup_grpc_test};
+use crate::utils::{assert_field_presence, setup_grpc_test};
 
 async fn assert_simulate_transaction_request(
     exec_client: &mut TransactionExecutionServiceClient<iota_grpc_client::InterceptedChannel>,
@@ -144,7 +143,23 @@ async fn simulate_transaction_readmask_scenarios() {
         (
             "default readmask",
             None,
-            comma_separated_field_mask_to_paths(SIMULATE_TRANSACTION_READ_MASK),
+            // SIMULATE_TRANSACTION_READ_MASK = "executed_transaction.transaction,
+            // executed_transaction.effects,executed_transaction.events,
+            // executed_transaction.input_objects,executed_transaction.output_objects,
+            // suggested_gas_price,execution_result"
+            // Wildcard paths expand to all their sub-fields.
+            vec![
+                "executed_transaction.transaction.digest",
+                "executed_transaction.transaction.bcs",
+                "executed_transaction.effects.digest",
+                "executed_transaction.effects.bcs",
+                "executed_transaction.events.digest",
+                "executed_transaction.events.events",
+                "executed_transaction.input_objects",
+                "executed_transaction.output_objects",
+                "suggested_gas_price",
+                "execution_result",
+            ],
         ),
         (
             "empty readmask",
@@ -161,30 +176,35 @@ async fn simulate_transaction_readmask_scenarios() {
                 "suggested_gas_price",
                 "execution_result",
             ])),
+            // "executed_transaction" is a wildcard → all sub-fields returned.
+            // checkpoint and timestamp are absent: simulate/execute transactions
+            // are not yet included in a checkpoint.
             vec![
                 "executed_transaction.transaction.digest",
                 "executed_transaction.transaction.bcs",
-                "executed_transaction.signatures.bcs",
+                "executed_transaction.signatures",
                 "executed_transaction.effects.digest",
                 "executed_transaction.effects.bcs",
-                "executed_transaction.events",
+                "executed_transaction.events.digest",
+                "executed_transaction.events.events",
                 "executed_transaction.input_objects",
                 "executed_transaction.output_objects",
                 "suggested_gas_price",
-                "execution_result.command_results",
-                "execution_result.execution_error",
+                "execution_result",
             ],
         ),
         (
             "partial readmask (executed_transaction only)",
             Some(FieldMask::from_paths(["executed_transaction"])),
+            // checkpoint and timestamp absent: not yet in a checkpoint.
             vec![
                 "executed_transaction.transaction.digest",
                 "executed_transaction.transaction.bcs",
-                "executed_transaction.signatures.bcs",
+                "executed_transaction.signatures",
                 "executed_transaction.effects.digest",
                 "executed_transaction.effects.bcs",
-                "executed_transaction.events",
+                "executed_transaction.events.digest",
+                "executed_transaction.events.events",
                 "executed_transaction.input_objects",
                 "executed_transaction.output_objects",
             ],
@@ -333,7 +353,8 @@ async fn simulate_transaction_command_results() {
                 "executed_transaction.transaction.bcs",
                 "executed_transaction.effects.digest",
                 "executed_transaction.effects.bcs",
-                "executed_transaction.events",
+                "executed_transaction.events.digest",
+                "executed_transaction.events.events",
                 "executed_transaction.input_objects",
                 "executed_transaction.output_objects",
                 "suggested_gas_price",

@@ -4,7 +4,6 @@
 use futures::StreamExt;
 use iota_grpc_types::{
     field::FieldMaskUtil,
-    read_masks::GET_TRANSACTIONS_READ_MASK,
     v0::ledger_service::{
         GetTransactionsRequest, GetTransactionsResponse, TransactionRequest, TransactionRequests,
         ledger_service_client::LedgerServiceClient, transaction_result,
@@ -16,7 +15,7 @@ use iota_types::digests::TransactionDigest;
 use prost_types::FieldMask;
 use test_cluster::TestCluster;
 
-use crate::utils::{assert_field_presence, comma_separated_field_mask_to_paths, setup_grpc_test};
+use crate::utils::{assert_field_presence, setup_grpc_test};
 
 /// Helper to create a test transaction and return its digest
 async fn create_test_transaction(test_cluster: &TestCluster) -> TransactionDigest {
@@ -143,11 +142,19 @@ async fn get_transactions_readmask_scenarios() {
     // fields. So "effects" means "effects.digest" AND "effects.bcs".
     type TestCase<'a> = (&'a str, Option<FieldMask>, Vec<&'a str>);
     let test_cases: Vec<TestCase> = vec![
-        // Default readmask (None) - returns only digest
+        // Default readmask (None) - GET_TRANSACTIONS_READ_MASK =
+        // "transaction,signatures,checkpoint,timestamp" "transaction" is a wildcard that
+        // expands to all its sub-fields.
         (
             "default readmask",
             None,
-            comma_separated_field_mask_to_paths(GET_TRANSACTIONS_READ_MASK),
+            vec![
+                "transaction.digest",
+                "transaction.bcs",
+                "signatures",
+                "checkpoint",
+                "timestamp",
+            ],
         ),
         // Empty readmask - returns no fields
         (
@@ -171,13 +178,15 @@ async fn get_transactions_readmask_scenarios() {
                 "checkpoint",
                 "timestamp",
             ])),
+            // "events" is a wildcard → server returns events.digest AND events.events.
             vec![
                 "transaction.digest",
                 "transaction.bcs",
                 "signatures",
                 "effects.digest",
                 "effects.bcs",
-                "events",
+                "events.digest",
+                "events.events",
                 "checkpoint",
                 "timestamp",
             ],

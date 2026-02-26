@@ -5,7 +5,6 @@
 use futures::StreamExt;
 use iota_grpc_types::{
     field::FieldMaskUtil,
-    read_masks::GET_OBJECTS_READ_MASK,
     v0::{
         ledger_service::{
             GetObjectsRequest, GetObjectsResponse, ObjectRequest, ObjectRequests,
@@ -18,7 +17,7 @@ use iota_macros::sim_test;
 use iota_types::base_types::ObjectID;
 use prost_types::FieldMask;
 
-use crate::utils::{assert_field_presence, comma_separated_field_mask_to_paths, setup_grpc_test};
+use crate::utils::{assert_field_presence, setup_grpc_test};
 
 async fn assert_get_objects_request(
     ledger_client: &mut LedgerServiceClient<iota_grpc_client::InterceptedChannel>,
@@ -111,7 +110,14 @@ async fn get_objects_readmask_scenarios() {
         (
             "default readmask",
             None,
-            comma_separated_field_mask_to_paths(GET_OBJECTS_READ_MASK),
+            // GET_OBJECTS_READ_MASK = "reference,bcs"
+            // "reference" is a wildcard that expands to all its sub-fields.
+            vec![
+                "reference.object_id",
+                "reference.version",
+                "reference.digest",
+                "bcs",
+            ],
         ),
         (
             "empty readmask",

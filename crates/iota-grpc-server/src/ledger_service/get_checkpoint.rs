@@ -222,7 +222,6 @@ fn parse_checkpoint_read_mask(
 ///   - `sequence_number` - the sequence number of the checkpoint to fetch
 ///   - `digest` - the digest of the checkpoint to fetch
 ///   - `latest` - if set, fetches the latest checkpoint
-/// ```
 pub(crate) fn get_checkpoint_data(
     service: &LedgerGrpcService,
     request: Request<grpc_ledger_service::GetCheckpointDataRequest>,
@@ -321,7 +320,6 @@ pub(crate) fn get_checkpoint_data(
 /// * `max_message_size_bytes` - Optional maximum message size in bytes that the
 ///   client can handle. The server will use this to limit the size of the
 ///   response and avoid sending messages that are too large.
-/// ```
 pub(crate) fn stream_checkpoint_data(
     service: &LedgerGrpcService,
     request: Request<grpc_ledger_service::CheckpointDataStreamRequest>,
