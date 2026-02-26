@@ -305,11 +305,6 @@ async fn read_and_scan_commits(
 async fn scan_scoring_metrics(
     #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
 ) {
-    use consensus_config::{Stake, local_committee_and_keys};
-
-    let epoch = 100;
-    let authority_stakes = (1..=3).map(|s| s as Stake).collect();
-    let (committee, _) = local_committee_and_keys(epoch, authority_stakes);
     let store = test_store.store();
 
     // Create a VersionedScoringMetrics blob with 3 authorities.
@@ -322,7 +317,7 @@ async fn scan_scoring_metrics(
         .unwrap();
 
     {
-        if let Ok(Some(scanned)) = store.scan_scoring_metrics(&committee) {
+        if let Ok(Some(scanned)) = store.scan_scoring_metrics() {
             assert_eq!(scanned.load_faulty_blocks_provable(), vec![1, 0, 0]);
             assert_eq!(scanned.load_faulty_blocks_unprovable(), vec![2, 0, 0]);
             assert_eq!(scanned.load_missing_proposals(), vec![3, 0, 0]);
@@ -340,7 +335,7 @@ async fn scan_scoring_metrics(
         .unwrap();
 
     {
-        if let Ok(Some(scanned)) = store.scan_scoring_metrics(&committee) {
+        if let Ok(Some(scanned)) = store.scan_scoring_metrics() {
             assert_eq!(scanned.load_faulty_blocks_provable(), vec![0, 0, 0]);
             assert_eq!(scanned.load_faulty_blocks_unprovable(), vec![0, 0, 0]);
             assert_eq!(scanned.load_missing_proposals(), vec![0, 0, 0]);

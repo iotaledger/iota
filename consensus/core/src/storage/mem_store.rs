@@ -7,7 +7,7 @@ use std::{
     ops::Bound::Included,
 };
 
-use consensus_config::{AuthorityIndex, Committee};
+use consensus_config::AuthorityIndex;
 use iota_common::scoring_metrics::VersionedScoringMetrics;
 use parking_lot::RwLock;
 
@@ -134,10 +134,7 @@ impl Store for MemStore {
         Ok(blocks)
     }
 
-    fn scan_scoring_metrics(
-        &self,
-        _committee: &Committee,
-    ) -> ConsensusResult<Option<VersionedScoringMetrics>> {
+    fn scan_scoring_metrics(&self) -> ConsensusResult<Option<VersionedScoringMetrics>> {
         Ok(self
             .inner
             .read()

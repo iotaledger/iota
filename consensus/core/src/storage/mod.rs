@@ -9,7 +9,7 @@ pub(crate) mod rocksdb_store;
 #[cfg(test)]
 mod store_tests;
 
-use consensus_config::{AuthorityIndex, Committee};
+use consensus_config::AuthorityIndex;
 use iota_common::scoring_metrics::VersionedScoringMetrics;
 
 use crate::{
@@ -43,10 +43,7 @@ pub(crate) trait Store: Send + Sync {
 
     /// Reads and returns all metrics stored. Used for restoring the scoring
     /// metrics in case of DagState initialization from storage
-    fn scan_scoring_metrics(
-        &self,
-        committee: &Committee,
-    ) -> ConsensusResult<Option<VersionedScoringMetrics>>;
+    fn scan_scoring_metrics(&self) -> ConsensusResult<Option<VersionedScoringMetrics>>;
 
     /// Returns the last `num_of_rounds` rounds blocks by author in round
     /// ascending order. When a `before_round` is defined then the blocks of
@@ -124,8 +121,8 @@ impl WriteBatch {
     }
 }
 
-// Legacy storage type for scoring metrics. Kept only for migration from
-// the old per-authority format to the new single-blob VersionedScoringMetrics.
+// Legacy storage type for scoring metrics. Kept only so RocksDB can open the
+// existing column family without errors.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
 pub(crate) struct StorageScoringMetrics {
     pub(crate) faulty_blocks_provable: u64,

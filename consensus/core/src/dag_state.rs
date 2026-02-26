@@ -250,7 +250,7 @@ impl DagState {
         // that were loaded to cache.
         let recovered_scoring_metrics = state
             .store
-            .scan_scoring_metrics(&state.context.committee)
+            .scan_scoring_metrics()
             .expect("database scan should succeed");
         state
             .context
