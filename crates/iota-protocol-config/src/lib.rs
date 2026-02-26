@@ -2540,11 +2540,11 @@ impl ProtocolConfig {
                         // randomness on testnet.
                         cfg.feature_flags
                             .separate_gas_price_feedback_mechanism_for_randomness = true;
-                        if chain != Chain::Testnet {
-                            // Enable ConsensusCommitPrologueV2 on devnet
-                            cfg.feature_flags
-                                .record_additional_states_digests_in_prologue = true;
-                        }
+                    }
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable ConsensusCommitPrologueV2 on devnet
+                        cfg.feature_flags
+                            .record_additional_states_digests_in_prologue = true;
                     }
                 }
 

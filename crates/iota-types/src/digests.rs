@@ -1063,6 +1063,10 @@ impl fmt::Debug for MisbehaviorReportDigest {
     }
 }
 
+/// AdditionalConsensusStatesDigest is a digest of any additional state computed
+/// by the consensus handler that was added to AdditionalConsensusStates. It can
+/// be included in ConsensusCommitPrologueV2 to detect forking bugs as early as
+/// possible.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
 pub struct AdditionalConsensusStatesDigest(Digest);
 
