@@ -773,7 +773,7 @@ impl Package {
         let mut runtime_id = None;
         let mut modules = BTreeMap::new();
         for (name, bytes) in package.serialized_module_map() {
-            let origins = type_origins.remove(name).unwrap_or_default();
+            let origins = type_origins.remove(&name.to_string()).unwrap_or_default();
             let bytecode = CompiledModule::deserialize_with_defaults(bytes)
                 .map_err(|e| Error::Deserialize(e.finish(Location::Undefined)))?;
 
@@ -781,9 +781,13 @@ impl Package {
 
             let name = name.clone();
             match Module::read(bytecode, origins) {
-                Ok(module) => modules.insert(name, module),
+                Ok(module) => modules.insert(name.to_string(), module),
                 Err(struct_) => {
-                    return Err(Error::NoTypeOrigin(package.id().into(), name, struct_));
+                    return Err(Error::NoTypeOrigin(
+                        package.id().into(),
+                        name.to_string(),
+                        struct_,
+                    ));
                 }
             };
         }

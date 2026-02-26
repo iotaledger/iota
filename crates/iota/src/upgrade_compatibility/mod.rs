@@ -22,7 +22,9 @@ use iota_move_build::CompiledPackage;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk::apis::ReadApi;
 use iota_types::{
-    base_types::ObjectID, execution_config_utils::to_binary_config, move_package::UpgradePolicy,
+    base_types::ObjectID,
+    execution_config_utils::to_binary_config,
+    move_package::{UpgradePolicy, move_package_original_package_id},
 };
 use move_binary_format::{
     CompiledModule,
@@ -729,10 +731,11 @@ pub(crate) async fn check_compatibility(
 
     compare_packages(
         AccountAddress::new(
-            existing_package
-                .to_move_package(u64::MAX /* safe as this pkg comes from the network */)?
-                .original_package_id()
-                .into_bytes(),
+            move_package_original_package_id(
+                &existing_package
+                    .to_move_package(u64::MAX /* safe as this pkg comes from the network */)?,
+            )
+            .into_bytes(),
         ),
         existing_modules,
         new_package,
