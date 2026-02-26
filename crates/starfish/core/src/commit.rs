@@ -65,7 +65,7 @@ pub(crate) enum Commit {
 
 impl Commit {
     /// Create a new commit. The variant (V1 or V2) is determined by the
-    /// consensus_transaction_ref protocol flag.
+    /// consensus_fast_commit_sync protocol flag.
     pub(crate) fn new(
         context: &Arc<Context>,
         index: CommitIndex,
@@ -76,15 +76,15 @@ impl Commit {
         committed_transactions: Vec<GenericTransactionRef>,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
     ) -> Self {
-        if context.protocol_config.consensus_transaction_ref() {
-            debug!("Creating CommitV2 as consensus_transaction_ref is enabled");
+        if context.protocol_config.consensus_fast_commit_sync() {
+            debug!("Creating CommitV2 as consensus_fast_commit_sync is enabled");
             // Extract TransactionRefs from GenericTransactionRef
             let transaction_refs: Vec<TransactionRef> = committed_transactions
                 .into_iter()
                 .map(|gen_ref| match gen_ref {
                     GenericTransactionRef::TransactionRef(tr) => tr,
                     GenericTransactionRef::BlockRef(_) => {
-                        panic!("Expected TransactionRef when consensus_transaction_ref is enabled")
+                        panic!("Expected TransactionRef when consensus_fast_commit_sync is enabled")
                     }
                 })
                 .collect();
@@ -99,14 +99,14 @@ impl Commit {
                 reputation_scores_desc,
             })
         } else {
-            debug!("Creating CommitV1 as consensus_transaction_ref is disabled");
+            debug!("Creating CommitV1 as consensus_fast_commit_sync is disabled");
             // Extract BlockRefs from GenericTransactionRef
             let block_refs: Vec<BlockRef> = committed_transactions
                 .into_iter()
                 .map(|gen_ref| match gen_ref {
                     GenericTransactionRef::BlockRef(br) => br,
                     GenericTransactionRef::TransactionRef(_) => {
-                        panic!("Expected BlockRef when consensus_transaction_ref is disabled")
+                        panic!("Expected BlockRef when consensus_fast_commit_sync is disabled")
                     }
                 })
                 .collect();

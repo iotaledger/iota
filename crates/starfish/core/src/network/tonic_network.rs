@@ -854,7 +854,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             .block_refs
             .iter()
             .filter_map(|r| {
-                if self.context.protocol_config.consensus_transaction_ref() {
+                if self.context.protocol_config.consensus_fast_commit_sync() {
                     match bcs::from_bytes::<TransactionRef>(r) {
                         Ok(transaction_ref) => {
                             Some(GenericTransactionRef::TransactionRef(transaction_ref))

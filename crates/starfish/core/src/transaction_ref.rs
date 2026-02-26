@@ -114,7 +114,7 @@ impl GenericTransactionRefAPI for TransactionRef {
 
 impl GenericTransactionRef {
     /// Extract TransactionRef, returning error if this is a BlockRef variant.
-    /// This should only be called when consensus_transaction_ref flag is true.
+    /// This should only be called when consensus_fast_commit_sync flag is true.
     pub(crate) fn expect_transaction_ref(self) -> ConsensusResult<TransactionRef> {
         match self {
             GenericTransactionRef::TransactionRef(tr) => Ok(tr),
@@ -129,7 +129,8 @@ impl GenericTransactionRef {
     }
 
     /// Extract BlockRef, returning error if this is a TransactionRef variant.
-    /// This should only be called when consensus_transaction_ref flag is false.
+    /// This should only be called when consensus_fast_commit_sync flag is
+    /// false.
     #[allow(dead_code)]
     pub(crate) fn expect_block_ref(self) -> ConsensusResult<BlockRef> {
         match self {
@@ -171,7 +172,7 @@ pub(crate) fn convert_block_refs_to_generic_transaction_refs(
     store: &dyn crate::storage::Store,
     block_refs: &[BlockRef],
 ) -> Vec<GenericTransactionRef> {
-    if context.protocol_config.consensus_transaction_ref() {
+    if context.protocol_config.consensus_fast_commit_sync() {
         // Fetch headers to get transactions_commitment for TransactionRef
         let headers = store.read_verified_block_headers(block_refs).unwrap();
         block_refs

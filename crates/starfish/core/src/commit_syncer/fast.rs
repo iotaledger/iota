@@ -240,7 +240,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 self.inner
                     .context
                     .protocol_config
-                    .consensus_transaction_ref(),
+                    .consensus_fast_commit_sync()
+                    && self.inner.context.parameters.enable_fast_commit_syncer,
             );
 
         if should_schedule {
@@ -483,7 +484,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .commit_sync_fetch_once_latency
             .with_label_values(&[inner.sync_type.as_str()])
             .start_timer();
-        assert!(inner.context.protocol_config.consensus_transaction_ref());
+        assert!(inner.context.protocol_config.consensus_fast_commit_sync());
 
         // 1. Fetch commits, voting headers, and transactions in the commit range from
         //    the target authority. Each transaction is serialized as
@@ -838,7 +839,7 @@ mod tests {
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_transaction_ref_for_testing(true);
+        protocol_config.set_consensus_fast_commit_sync_for_testing(true);
 
         let temp_dirs: Vec<TempDir> = (0..NUM_AUTHORITIES)
             .map(|_| TempDir::new().unwrap())
@@ -861,6 +862,7 @@ mod tests {
                 commit_sync_batch_size: 10,
                 commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
                 fast_commit_sync_batch_size: 20,
+                enable_fast_commit_syncer: true,
                 sync_last_known_own_block_timeout: Duration::from_millis(2_000),
                 ..Default::default()
             };
@@ -963,6 +965,7 @@ mod tests {
             commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
             fast_commit_sync_batch_size: 20,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
+            enable_fast_commit_syncer: true,
             ..Default::default()
         };
         let (authority, receiver, monitor) = make_authority_with_params(
@@ -1033,6 +1036,7 @@ mod tests {
             commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
             fast_commit_sync_batch_size: 20,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
+            enable_fast_commit_syncer: true,
             ..Default::default()
         };
         let (authority, receiver, monitor) = make_authority_with_params(
@@ -1218,7 +1222,7 @@ mod tests {
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_transaction_ref_for_testing(true);
+        protocol_config.set_consensus_fast_commit_sync_for_testing(true);
 
         let temp_dirs: Vec<TempDir> = (0..NUM_AUTHORITIES)
             .map(|_| TempDir::new().unwrap())
@@ -1241,6 +1245,7 @@ mod tests {
                 commit_sync_batch_size: COMMIT_SYNC_BATCH_SIZE,
                 commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
                 fast_commit_sync_batch_size: COMMIT_SYNC_BATCH_SIZE,
+                enable_fast_commit_syncer: true,
                 sync_last_known_own_block_timeout: Duration::from_millis(2_000),
                 ..Default::default()
             };
@@ -1430,6 +1435,7 @@ mod tests {
             commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
             fast_commit_sync_batch_size: COMMIT_SYNC_BATCH_SIZE,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
+            enable_fast_commit_syncer: true,
             ..Default::default()
         };
         let (authority, receiver, monitor) = make_authority_with_params(

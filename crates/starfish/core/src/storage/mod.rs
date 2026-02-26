@@ -105,7 +105,7 @@ pub(crate) trait Store: Send + Sync {
         start_round: Round,
         context: Arc<Context>,
     ) -> ConsensusResult<Vec<VerifiedTransactions>> {
-        let refs = if context.protocol_config.consensus_transaction_ref() {
+        let refs = if context.protocol_config.consensus_fast_commit_sync() {
             self.scan_transaction_references_by_author(author, start_round)?
                 .into_iter()
                 .map(GenericTransactionRef::from)

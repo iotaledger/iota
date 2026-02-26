@@ -234,7 +234,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 proof_for_shard,
                 block_ref,
                 transaction_commitment,
-                self.context.protocol_config.consensus_transaction_ref(),
+                self.context.protocol_config.consensus_fast_commit_sync(),
             ))
         } else {
             None
@@ -607,7 +607,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         )?;
         let block_ref = verified_block.reference();
         let transaction_ref = verified_block.transaction_ref();
-        let gen_transaction_ref = if self.context.protocol_config.consensus_transaction_ref() {
+        let gen_transaction_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
             GenericTransactionRef::from(transaction_ref)
         } else {
             GenericTransactionRef::from(block_ref)
@@ -1013,6 +1013,15 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
     ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
         fail_point_async!("consensus-rpc-response");
 
+        // TODO: This gate can be removed once consensus_fast_commit_sync is enabled on
+        // all networks. Fast commit sync type is controlled by the client, so
+        // we need to validate that the protocol supports it before processing.
+        if matches!(commit_sync_type, CommitSyncType::Fast)
+            && !self.context.protocol_config.consensus_fast_commit_sync()
+        {
+            return Err(ConsensusError::FastCommitSyncNotEnabled);
+        }
+
         // Bound the range based on sync type.
         let batch_size = commit_sync_type.commit_sync_batch_size(&self.context);
         let inclusive_bound = commit_range
@@ -1110,7 +1119,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .zip(certifier_block_refs.iter())
             .map(|(h, block_ref)| {
                 h.or_else(|| fallback_iter.next().flatten()).ok_or(
-                    ConsensusError::MissingVoringBlockHeaderInStorage {
+                    ConsensusError::MissingVotingBlockHeaderInStorage {
                         block_ref: *block_ref,
                     },
                 )
@@ -1126,6 +1135,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         commit_range: CommitRange,
     ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
         fail_point_async!("consensus-rpc-response");
+
+        // TODO: This gate can be removed once consensus_fast_commit_sync is enabled on
+        // all networks. This endpoint is gated by the
+        // consensus_fast_commit_sync feature flag as it is more expensive than
+        // just fetching commits or headers.
+        if !self.context.protocol_config.consensus_fast_commit_sync() {
+            return Err(ConsensusError::FastCommitSyncNotEnabled);
+        }
 
         let (commits, certifier_block_headers) = self
             .handle_fetch_commits(peer, commit_range, CommitSyncType::Fast)
@@ -1215,8 +1232,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // Apply truncation based on fetch mode
         match fetch_mode {
             TransactionFetchMode::FastCommitSync => {
-                // No truncation for fast commit sync - all transactions
-                // referenced by commits must be fetched
+                // TODO: This gate can be removed once consensus_fast_commit_sync is enabled on
+                // all networks. FastCommitSync mode is controlled by the
+                // client, so we need to validate that the protocol supports it
+                // before processing. No truncation for fast commit sync - all
+                // transactions referenced by commits must be fetched.
+                if !self.context.protocol_config.consensus_fast_commit_sync() {
+                    return Err(ConsensusError::FastCommitSyncNotEnabled);
+                }
             }
             TransactionFetchMode::TransactionSync => {
                 let max_transactions = max(
@@ -1281,7 +1304,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .chain(dag_transactions.into_iter())
         {
             if let Some(serialized_tx) = opt_serialized_tx {
-                let serialized = if !self.context.protocol_config.consensus_transaction_ref() {
+                let serialized = if !self.context.protocol_config.consensus_fast_commit_sync() {
                     if let GenericTransactionRef::BlockRef(block_ref) = gen_ref {
                         bcs::to_bytes(&SerializedTransactionsV1 {
                             block_ref,
@@ -1654,12 +1677,13 @@ mod tests {
     #[rstest]
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_handle_subscribed_block_bundle_time_drift(
-        #[values(false, true)] transaction_ref_enabled: bool,
+        #[values(false, true)] consensus_fast_commit_sync: bool,
     ) {
         let (mut context, _keys) = Context::new_for_test(4);
         context
             .protocol_config
-            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
@@ -1738,12 +1762,13 @@ mod tests {
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribed_block_bundle_wrong_peer(
-        #[values(false, true)] transaction_ref_enabled: bool,
+        #[values(false, true)] consensus_fast_commit_sync: bool,
     ) {
         let (mut context, _keys) = Context::new_for_test(4);
         context
             .protocol_config
-            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
@@ -1831,12 +1856,13 @@ mod tests {
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribed_block_bundle_wrong_transaction_commitment(
-        #[values(false, true)] transaction_ref_enabled: bool,
+        #[values(false, true)] consensus_fast_commit_sync: bool,
     ) {
         let (mut context, _keys) = Context::new_for_test(4);
         context
             .protocol_config
-            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
@@ -1916,13 +1942,14 @@ mod tests {
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribed_block_bundle_with_bad_headers(
-        #[values(false, true)] transaction_ref_enabled: bool,
+        #[values(false, true)] consensus_fast_commit_sync: bool,
     ) {
         let committee_size = 4;
         let (mut context, _keys) = Context::new_for_test(committee_size);
         context
             .protocol_config
-            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
@@ -2246,7 +2273,7 @@ mod tests {
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribed_block_bundle_with_additional_headers(
-        #[values(false, true)] transaction_ref_enabled: bool,
+        #[values(false, true)] consensus_fast_commit_sync: bool,
     ) {
         // GIVEN
         let rounds = 10;
@@ -2254,7 +2281,8 @@ mod tests {
         let (mut context, key_pairs) = Context::new_for_test(validators);
         context
             .protocol_config
-            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -2410,7 +2438,7 @@ mod tests {
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribe_bundle_without_additional_headers(
-        #[values(false, true)] transaction_ref_enabled: bool,
+        #[values(false, true)] consensus_fast_commit_sync: bool,
     ) {
         // GIVEN
         let rounds = 10;
@@ -2418,7 +2446,8 @@ mod tests {
         let (mut context, key_pairs) = Context::new_for_test(validators);
         context
             .protocol_config
-            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -2588,7 +2617,7 @@ mod tests {
     #[rstest]
     #[tokio::test]
     async fn test_handle_subscribe_block_bundles_request(
-        #[values(false, true)] transaction_ref_enabled: bool,
+        #[values(false, true)] consensus_fast_commit_sync: bool,
     ) {
         telemetry_subscribers::init_for_testing();
         // GIVEN
@@ -2598,7 +2627,8 @@ mod tests {
         let (mut context, key_pairs) = Context::new_for_test(validators);
         context
             .protocol_config
-            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -3219,14 +3249,15 @@ mod tests {
 
     #[rstest]
     #[tokio::test]
-    async fn test_handle_fetch_commits(#[values(false, true)] transaction_ref_enabled: bool) {
+    async fn test_handle_fetch_commits(#[values(false, true)] consensus_fast_commit_sync: bool) {
         // GIVEN
         let rounds = 15;
         let validators = 4;
         let (mut context, key_pairs) = Context::new_for_test(validators);
         context
             .protocol_config
-            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -3403,18 +3434,21 @@ mod tests {
 
     #[rstest]
     #[tokio::test]
-    async fn test_handle_fetch_transactions(#[values(false, true)] transaction_ref_enabled: bool) {
+    async fn test_handle_fetch_transactions(
+        #[values(false, true)] consensus_fast_commit_sync: bool,
+    ) {
         // GIVEN
         let rounds = 10;
         let validators = 4;
         let (mut context, key_pairs) = Context::new_for_test(validators);
         context
             .protocol_config
-            .set_consensus_transaction_ref_for_testing(transaction_ref_enabled);
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
         let context = Context {
             parameters: Parameters {
                 max_transactions_per_regular_sync_fetch: 20,
                 max_transactions_per_commit_sync_fetch: 10,
+                enable_fast_commit_syncer: consensus_fast_commit_sync,
                 ..context.parameters
             },
             ..context
@@ -3517,7 +3551,7 @@ mod tests {
         let mut block_refs_to_request_first_batch: Vec<GenericTransactionRef> = (1..=rounds)
             .flat_map(|round| {
                 all_block_headers[round as usize].iter().map(|bh| {
-                    if transaction_ref_enabled {
+                    if consensus_fast_commit_sync {
                         GenericTransactionRef::TransactionRef(bh.transaction_ref())
                     } else {
                         GenericTransactionRef::from(bh.reference())
@@ -3530,7 +3564,7 @@ mod tests {
             ..=2 * rounds)
             .flat_map(|round| {
                 all_block_headers[round as usize].iter().map(|bh| {
-                    if transaction_ref_enabled {
+                    if consensus_fast_commit_sync {
                         GenericTransactionRef::TransactionRef(bh.transaction_ref())
                     } else {
                         GenericTransactionRef::from(bh.reference())
@@ -3561,7 +3595,7 @@ mod tests {
 
         // Check the correctness of the received transactions
         for (i, serialized_transactions_bytes) in serialized_transactions.iter().enumerate() {
-            if transaction_ref_enabled {
+            if consensus_fast_commit_sync {
                 // Deserialize V2 format with TransactionRef
                 let deserialized: SerializedTransactionsV2 =
                     bcs::from_bytes(serialized_transactions_bytes)

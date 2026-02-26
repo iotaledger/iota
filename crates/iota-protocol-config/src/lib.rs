@@ -118,6 +118,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 21;
 //             mechanism on testnet.
 //             Enable a separate gas price feedback mechanism for transactions
 //             using randomness on testnet.
+//             Enable fast commit syncer for faster recovery in devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -436,9 +437,13 @@ struct FeatureFlags {
     // If false, a default score (MAX_SCORE) is passed
     #[serde(skip_serializing_if = "is_false")]
     pass_calculated_validator_scores_to_advance_epoch: bool,
-    // If true, then TransactionRef is used in commit instead of BlockRef
+
+    // If true, enables the fast commit syncer in Starfish consensus for faster recovery
+    // from large commit gaps. Also controls whether TransactionRef is used in commits
+    // instead of BlockRef, and enables the associated gRPC endpoints for fetching
+    // commits and transactions.
     #[serde(skip_serializing_if = "is_false")]
-    consensus_transaction_ref: bool,
+    consensus_fast_commit_sync: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1585,11 +1590,11 @@ impl ProtocolConfig {
         );
         pass
     }
-    pub fn consensus_transaction_ref(&self) -> bool {
-        let res = self.feature_flags.consensus_transaction_ref;
+    pub fn consensus_fast_commit_sync(&self) -> bool {
+        let res = self.feature_flags.consensus_fast_commit_sync;
         assert!(
             !res || self.consensus_commit_transactions_only_for_traversed_headers(),
-            "The consensus transaction ref requires consensus_commit_transactions_only_for_traversed_headers to be enabled"
+            "consensus_fast_commit_sync requires consensus_commit_transactions_only_for_traversed_headers to be enabled"
         );
         res
     }
@@ -2525,6 +2530,10 @@ impl ProtocolConfig {
                     }
                 }
                 21 => {
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable fast commit syncer for faster recovery in devnet.
+                        cfg.feature_flags.consensus_fast_commit_sync = true;
+                    }
                     if chain != Chain::Mainnet {
                         // Enable overshoot of 100 in congestion control on testnet.
                         // This allows bursts of shared-object transactions
@@ -2759,8 +2768,8 @@ impl ProtocolConfig {
     pub fn set_enable_move_authentication_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_move_authentication = val;
     }
-    pub fn set_consensus_transaction_ref_for_testing(&mut self, val: bool) {
-        self.feature_flags.consensus_transaction_ref = val;
+    pub fn set_consensus_fast_commit_sync_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_fast_commit_sync = val;
     }
 }
 

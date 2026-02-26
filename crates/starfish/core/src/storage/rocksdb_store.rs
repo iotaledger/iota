@@ -208,7 +208,7 @@ impl Store for RocksDBStore {
         // Store transactions data
         for transaction in write_batch.transactions {
             let transaction_ref = transaction.transaction_ref();
-            if context.protocol_config.consensus_transaction_ref() {
+            if context.protocol_config.consensus_fast_commit_sync() {
                 batch
                     .insert_batch(
                         &self.transactions_by_tx_refs,
@@ -245,7 +245,7 @@ impl Store for RocksDBStore {
                                 transaction_ref.round,
                                 transaction_ref.author,
                                 transaction.block_digest().expect(
-                                    "block digest should exist for consensus_transaction_ref=false",
+                                    "block digest should exist for consensus_fast_commit_sync=false",
                                 ),
                             ),
                             transaction.serialized(),
@@ -316,7 +316,7 @@ impl Store for RocksDBStore {
     fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
         // Get both headers and transactions for the given references
         let headers = self.read_verified_block_headers(refs)?;
-        let tx_refs = if self.context.protocol_config.consensus_transaction_ref() {
+        let tx_refs = if self.context.protocol_config.consensus_fast_commit_sync() {
             headers
                 .iter()
                 .map(|vh| {
@@ -398,12 +398,12 @@ impl Store for RocksDBStore {
         }
         let serialized_vec_transactions = self.read_serialized_transactions(refs)?;
 
-        let transaction_ref_enabled = match &refs[0] {
+        let use_transaction_ref = match &refs[0] {
             GenericTransactionRef::BlockRef { .. } => false,
             GenericTransactionRef::TransactionRef { .. } => true,
         };
         let mut result = Vec::with_capacity(refs.len());
-        if transaction_ref_enabled {
+        if use_transaction_ref {
             for (gen_tx_ref, serialized_transactions) in
                 refs.iter().zip(serialized_vec_transactions)
             {

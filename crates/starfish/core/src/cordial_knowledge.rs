@@ -639,13 +639,13 @@ impl CordialKnowledge {
         // 3) The block_author now acknowledges previously known transactions
         // Use the provided transaction commitments to create the proper
         // GenericTransactionRef variant
-        let transaction_ref_enabled = self.context.protocol_config.consensus_transaction_ref();
+        let consensus_fast_commit_sync = self.context.protocol_config.consensus_fast_commit_sync();
         for (acknowledgment, &transactions_commitment) in header
             .acknowledgments()
             .iter()
             .zip(ack_transactions_commitments.iter())
         {
-            let gen_tx_ref = if transaction_ref_enabled {
+            let gen_tx_ref = if consensus_fast_commit_sync {
                 if let Some(transactions_commitment) = transactions_commitment {
                     GenericTransactionRef::TransactionRef(crate::transaction_ref::TransactionRef {
                         round: acknowledgment.round,
@@ -1321,18 +1321,18 @@ mod tests {
                     dag_state
                         .write()
                         .accept_block_header(verified_block_header, DataSource::Test);
-                    let gen_transaction_ref = if context.protocol_config.consensus_transaction_ref()
-                    {
-                        GenericTransactionRef::TransactionRef(
-                            verified_transactions.transaction_ref(),
-                        )
-                    } else {
-                        GenericTransactionRef::BlockRef(
-                            verified_transactions
-                                .block_ref()
-                                .expect("block_ref must be present in non-transaction-ref path"),
-                        )
-                    };
+                    let gen_transaction_ref =
+                        if context.protocol_config.consensus_fast_commit_sync() {
+                            GenericTransactionRef::TransactionRef(
+                                verified_transactions.transaction_ref(),
+                            )
+                        } else {
+                            GenericTransactionRef::BlockRef(
+                                verified_transactions.block_ref().expect(
+                                    "block_ref must be present in non-transaction-ref path",
+                                ),
+                            )
+                        };
                     let shard_for_core = VerifiedOwnShard {
                         serialized_shard: Bytes::from([0u8; 32].to_vec()), /* put some dummy
                                                                             * shard data */
@@ -1354,7 +1354,7 @@ mod tests {
                 dag_state
                     .write()
                     .accept_block_header(verified_block_header, DataSource::Test);
-                let gen_transaction_ref = if context.protocol_config.consensus_transaction_ref() {
+                let gen_transaction_ref = if context.protocol_config.consensus_fast_commit_sync() {
                     GenericTransactionRef::TransactionRef(verified_transactions.transaction_ref())
                 } else {
                     GenericTransactionRef::BlockRef(

@@ -183,9 +183,9 @@ mod test {
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
 
-        // Enable transaction_ref (always enabled in this test)
+        // Enable fast commit sync (always enabled in this test)
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_transaction_ref_for_testing(true);
+        protocol_config.set_consensus_fast_commit_sync_for_testing(true);
 
         // Calculate timing based on flags
         let run_time = if long_run {

@@ -919,11 +919,6 @@ mod tests {
             .map(|b| b.verified_block_header.clone())
             .collect::<Vec<_>>();
 
-        let round_2_block_refs = round_2_blocks
-            .iter()
-            .map(|b| b.reference())
-            .collect::<Vec<_>>();
-
         // WHEN: First, accept only the headers (without transactions) for round 1 and 2
         let (accepted_round_1_headers, missing) =
             block_manager.try_accept_block_headers(round_1_headers.clone(), DataSource::Test);
@@ -959,9 +954,15 @@ mod tests {
 
         // Verify that transactions were actually added to DagState
         let has_transactions_results = dag_state.read().contains_transactions(
-            round_2_block_refs
+            round_2_blocks
                 .iter()
-                .map(|br| GenericTransactionRef::BlockRef(*br))
+                .map(|b| {
+                    if context.protocol_config.consensus_fast_commit_sync() {
+                        GenericTransactionRef::TransactionRef(b.transaction_ref())
+                    } else {
+                        GenericTransactionRef::BlockRef(b.reference())
+                    }
+                })
                 .collect(),
         );
 

@@ -283,7 +283,7 @@ pub(crate) enum ConsensusError {
     InconsistentTransactionRefVariants,
 
     #[error(
-        "Transaction reference variant is inconsistent with protocol flag consensus_transaction_ref={protocol_flag_enabled}. Expected {expected_variant}, but received {received_variant}"
+        "Transaction reference variant is inconsistent with protocol flag consensus_fast_commit_sync={protocol_flag_enabled}. Expected {expected_variant}, but received {received_variant}"
     )]
     TransactionRefVariantMismatch {
         protocol_flag_enabled: bool,
@@ -295,7 +295,13 @@ pub(crate) enum ConsensusError {
     FailedToFetchBlockHeaders { num_requested: usize },
 
     #[error("Voting block header {block_ref:?} for commit certification was not found in storage")]
-    MissingVoringBlockHeaderInStorage { block_ref: BlockRef },
+    MissingVotingBlockHeaderInStorage { block_ref: BlockRef },
+
+    // TODO: This error can be removed once consensus_fast_commit_sync is enabled on all networks.
+    // It's currently used to gate fast commit sync endpoints and features during the gradual
+    // rollout phase.
+    #[error("Fast commit sync is not enabled in the current protocol version")]
+    FastCommitSyncNotEnabled,
 }
 
 impl ConsensusError {

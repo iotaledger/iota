@@ -114,6 +114,18 @@ pub struct Parameters {
     // CommitSyncer fetches.
     #[serde(default = "Parameters::default_commit_sync_gap_threshold")]
     pub commit_sync_gap_threshold: u32,
+
+    /// Enable FastCommitSyncer for faster recovery from large commit gaps.
+    /// This is a local node configuration that works in conjunction with the
+    /// protocol-level consensus_fast_commit_sync feature flag. Both must be
+    /// enabled for FastCommitSyncer to run. The protocol flag controls
+    /// whether gRPC endpoints are available, while this local flag controls
+    /// whether this specific node creates and runs the FastCommitSyncer.
+    /// Disabled by default; operators can enable it locally once the protocol
+    /// flag is active, or disable it again if bugs are discovered, without
+    /// affecting protocol-level endpoint availability.
+    #[serde(default = "Parameters::default_enable_fast_commit_syncer")]
+    pub enable_fast_commit_syncer: bool,
 }
 
 impl Parameters {
@@ -247,6 +259,13 @@ impl Parameters {
             1000
         }
     }
+
+    pub(crate) fn default_enable_fast_commit_syncer() -> bool {
+        // Disabled by default. Operators can enable it locally once the protocol-level
+        // consensus_fast_commit_sync flag is active, or disable it again if bugs are
+        // discovered, without waiting for a protocol upgrade.
+        false
+    }
 }
 
 impl Default for Parameters {
@@ -275,6 +294,7 @@ impl Default for Parameters {
             tonic: TonicParameters::default(),
             fast_commit_sync_batch_size: Parameters::default_fast_commit_sync_batch_size(),
             commit_sync_gap_threshold: Parameters::default_commit_sync_gap_threshold(),
+            enable_fast_commit_syncer: Parameters::default_enable_fast_commit_syncer(),
         }
     }
 }
