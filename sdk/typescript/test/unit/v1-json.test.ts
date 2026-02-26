@@ -41,7 +41,7 @@ describe('V1 JSON serialization', () => {
         });
 
         const jsonv2 = await tx.toJSON();
-        const jsonv1 = JSON.parse(tx.serialize());
+        const jsonv1 = JSON.parse(await tx.toJSON());
 
         expect(jsonv1).toMatchInlineSnapshot(`
 			{
