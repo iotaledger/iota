@@ -46,7 +46,7 @@ jobs:
     concurrency:
       group: turbo-sync-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
-    if: (!cancelled() && needs.diff.outputs.isTypeScriptCodegenSync == 'true' && (github.ref_name == 'develop' || github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (!cancelled() && !failure() && needs.diff.outputs.isTypeScriptCodegenSync == 'true' && (github.ref_name == 'develop' || github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     steps:
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1

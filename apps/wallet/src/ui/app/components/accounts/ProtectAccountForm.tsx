@@ -13,6 +13,7 @@ import { CheckboxField } from '../../shared/forms/CheckboxField';
 import { Form } from '../../shared/forms/Form';
 import { AutoLockSelector, zodSchema } from './AutoLockSelector';
 import { Button, ButtonHtmlType, ButtonType, Input, InputType } from '@iota/apps-ui-kit';
+import { ExternalLink } from '_components';
 
 function addDot(str: string | undefined) {
     if (str && !str.endsWith('.')) {
@@ -134,14 +135,13 @@ export function ProtectAccountForm({
                                 <span className="text-label-lg text-iota-neutral-40 dark:text-iota-neutral-60">
                                     I read and agreed to the
                                 </span>
-                                <a
+                                <ExternalLink
                                     href={ToS_LINK}
                                     className="text-label-lg text-iota-primary-30 dark:text-iota-primary-80"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                    type="legal"
                                 >
                                     Terms of Services
-                                </a>
+                                </ExternalLink>
                             </div>
                         }
                     />

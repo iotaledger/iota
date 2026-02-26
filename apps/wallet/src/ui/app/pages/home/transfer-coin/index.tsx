@@ -139,6 +139,7 @@ export function TransferCoinPage() {
 
             ampli.coinsSent({
                 coinType: selectedCoinType!,
+                amount: Number(formik.values.amount),
             });
 
             const receiptUrl = `/receipt?txdigest=${encodeURIComponent(

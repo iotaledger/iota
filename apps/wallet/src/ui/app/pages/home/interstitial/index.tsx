@@ -60,6 +60,7 @@ export function Interstitial({
                             closeInterstitial();
                         }}
                         className="h-full w-full"
+                        trackEvent={false}
                     >
                         <img src={imageUrl} alt="interstitial-banner" />
                     </ExternalLink>

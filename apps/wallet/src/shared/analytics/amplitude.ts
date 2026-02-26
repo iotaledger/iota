@@ -6,7 +6,6 @@ import * as amplitude from '@amplitude/analytics-browser';
 import { LogLevel } from '@amplitude/analytics-types';
 import { attachEnvironmentPlugin, getCustomNetwork } from '@iota/core';
 import { getNetwork, type Network } from '@iota/iota-sdk/client';
-
 import { ampli } from './ampli';
 import { dialogContextPlugin } from './plugins/dialogContextPlugin';
 

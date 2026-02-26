@@ -58,19 +58,28 @@ export function HiddenAsset(item: HiddenAssetProps) {
                   }).toString()}`,
         );
         ampli.collectibleCardClicked({
-            objectId,
             collectibleType: type!,
         });
     }
 
     function handleShowAsset() {
         showAsset(objectId);
+
+        ampli.collectibleUnHidden({
+            collectibleType: type!,
+        });
+
         toast(
             (t) => (
                 <MovedAssetNotification
                     t={t}
                     destination="Visual Assets"
-                    onUndo={() => hideAsset(objectId)}
+                    onUndo={() => {
+                        hideAsset(objectId);
+                        ampli.collectibleHidden({
+                            collectibleType: type!,
+                        });
+                    }}
                 />
             ),
             {

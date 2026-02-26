@@ -133,6 +133,7 @@ export function IotaApp({
             onClick={() => {
                 ampli.applicationOpened({ applicationName: name });
             }}
+            trackEvent={false}
         >
             {AppDetails}
         </ExternalLink>

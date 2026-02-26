@@ -133,6 +133,10 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     if (isError || errorValidators) {
         toast.error(error?.message ?? 'An error occurred fetching validator information');
     }
+
+    // Temporarily needed to compute the effectiveCommissionRate until infra exposes it in commissionRate directly
+    const hasEffectiveCommissionRate = Number(system?.protocolVersion ?? 0) >= 20;
+
     function handleAddNewStake() {
         navigate(stakeByValidatorAddress);
         ampli.stakeClicked({
@@ -192,9 +196,12 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                         />
                         <KeyValueInfo
                             keyText="Commission"
-                            value={getValidatorCommission(validatorData)}
+                            value={getValidatorCommission(
+                                validatorData,
+                                hasEffectiveCommissionRate,
+                            )}
                             fullwidth
-                            tooltipText="The charge imposed by the validator for their staking services."
+                            tooltipText="The share of rewards retained by the validator. This rate includes a protocol-enforced minimum to help maintain network decentralization."
                             tooltipPosition={TooltipPosition.Right}
                         />
                     </div>
