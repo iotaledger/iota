@@ -81,7 +81,6 @@ pub struct IotaProtocol {
     use_fullnode_for_execution: bool,
     use_precompiled_binaries: bool,
     build_configs: HashMap<String, BinaryBuildConfig>,
-    additional_setup_commands: HashMap<String, Vec<String>>,
     enable_flamegraph: bool,
 }
 
@@ -95,16 +94,6 @@ impl IotaProtocol {
             use_fullnode_for_execution: settings.use_fullnode_for_execution,
             use_precompiled_binaries: settings.build_cache_enabled(),
             build_configs: settings.build_configs.clone(),
-            additional_setup_commands: settings
-                .env
-                .iter()
-                .map(|(binary, env)| {
-                    (
-                        binary.clone(),
-                        env.iter().map(|(k, v)| format!("export {k}={v}")).collect(),
-                    )
-                })
-                .collect(),
             enable_flamegraph: settings.enable_flamegraph,
         }
     }
@@ -131,12 +120,6 @@ impl IotaProtocol {
             let all_commands: Vec<String> = setup_commands
                 .iter()
                 .map(|s| s.as_ref().to_string())
-                .chain(
-                    self.additional_setup_commands
-                        .get(binary_name)
-                        .cloned()
-                        .unwrap_or_default(),
-                )
                 .chain(std::iter::once(binary_command))
                 .collect();
 

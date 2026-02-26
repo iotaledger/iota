@@ -209,9 +209,6 @@ pub struct Settings {
     /// Enable prometheus snapshots.
     #[serde(default)]
     pub enable_prometheus_snapshots: bool,
-    /// Binary environment.
-    #[serde(default)]
-    pub env: HashMap<String, HashMap<String, String>>,
 }
 
 fn default_working_dir() -> PathBuf {
@@ -381,7 +378,6 @@ impl Settings {
             build_configs: HashMap::new(),
             enable_flamegraph: false,
             enable_prometheus_snapshots: false,
-            env: HashMap::new(),
         }
     }
 }
