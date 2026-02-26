@@ -59,18 +59,15 @@ impl std::fmt::Display for RunInterval {
     }
 }
 
-#[derive(ValueEnum, Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(
+    ValueEnum, Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default,
+)]
 pub enum AbstractAccountAuthenticator {
+    #[default]
     Ed25519,
     Ed25519Heavy,
     HelloWorld,
     MaxArgs125,
-}
-
-impl Default for AbstractAccountAuthenticator {
-    fn default() -> Self {
-        Self::Ed25519
-    }
 }
 
 impl AbstractAccountAuthenticator {
@@ -103,16 +100,13 @@ impl Default for OtelConfig {
     }
 }
 
-#[derive(ValueEnum, Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(
+    ValueEnum, Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default,
+)]
 pub enum TxPayloadObjType {
+    #[default]
     OwnedObject,
     SharedObject,
-}
-
-impl Default for TxPayloadObjType {
-    fn default() -> Self {
-        Self::OwnedObject
-    }
 }
 
 impl TxPayloadObjType {
@@ -283,6 +277,7 @@ impl<T> Display for BenchmarkParameters<T> {
 
 impl<T> BenchmarkParameters<T> {
     /// Make a new benchmark parameters.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         benchmark_type: T,
         otel: Option<OtelConfig>,

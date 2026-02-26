@@ -177,7 +177,7 @@ impl<P, T> Orchestrator<P, T> {
                 // aiming for around 30 samples, but never less than 1s and never more than
                 // self.scrape_interval.
                 let qps = parameters.load.max(1) as u64; // protect against division by zero, even if load is set to 0
-                let est_secs = (tx_count + qps - 1) / qps;
+                let est_secs = tx_count.div_ceil(qps);
 
                 let target_samples = 30u64;
                 let raw = (est_secs / target_samples).max(1);

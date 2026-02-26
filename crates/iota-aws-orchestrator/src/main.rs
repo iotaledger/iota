@@ -66,6 +66,7 @@ fn parse_run_interval(s: &str) -> Result<RunInterval, String> {
 }
 
 #[derive(Parser)]
+#[allow(clippy::large_enum_variant)]
 pub enum Operation {
     /// Get or modify the status of the testbed.
     Testbed {
