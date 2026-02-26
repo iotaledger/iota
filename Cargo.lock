@@ -6773,6 +6773,7 @@ dependencies = [
  "iota-names",
  "iota-network-stack",
  "iota-package-resolver",
+ "iota-protocol-config",
  "iota-rest-api",
  "iota-sdk-types",
  "iota-swarm-config",

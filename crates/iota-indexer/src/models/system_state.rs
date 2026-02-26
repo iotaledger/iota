@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::encoding::Base64;
+use iota_protocol_config::PROTOCOL_VERSION_IIP8;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     iota_serde::{BigInt, Readable},
@@ -12,9 +13,6 @@ use iota_types::{
 };
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-
-/// Protocol version that IIP8 was put in effect.
-const PROTOCOL_VERSION_IIP8: u64 = 20;
 
 /// The representation of system state.
 #[non_exhaustive]

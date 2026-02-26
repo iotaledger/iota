@@ -4,6 +4,7 @@
 
 use anyhow::Result;
 use fastcrypto::traits::ToFromBytes;
+use iota_protocol_config::PROTOCOL_VERSION_IIP8;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
@@ -40,9 +41,6 @@ const E_METADATA_INVALID_PROTOCOL_PUBKEY: u64 = 3;
 const E_METADATA_INVALID_NET_ADDR: u64 = 4;
 const E_METADATA_INVALID_P2P_ADDR: u64 = 5;
 const E_METADATA_INVALID_PRIMARY_ADDR: u64 = 6;
-
-/// Protocol version that IIP8 took effect.
-const PROTOCOL_VERSION_IIP8: u64 = 20;
 
 /// Rust version of the Move iota::iota_system::SystemParametersV1 type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
