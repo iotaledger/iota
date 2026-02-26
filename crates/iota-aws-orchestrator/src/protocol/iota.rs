@@ -396,14 +396,8 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                 let gas_key = &gas_keys[client_key_offset + i];
                 let gas_address = IotaAddress::from(&gas_key.public());
 
-                // Preserve existing bench behavior, but allow AA to use tunable threads.
-                let (client_threads, server_threads) = match parameters.benchmark_type {
-                    IotaBenchmarkType::SharedObjectsRatio(_) => (24, 1),
-                    IotaBenchmarkType::AbstractAccountBench => (
-                        parameters.stress_num_client_threads,
-                        parameters.stress_num_server_threads,
-                    ),
-                };
+                let client_threads = parameters.stress_num_client_threads;
+                let server_threads = parameters.stress_num_server_threads;
 
                 let mut stress_args: Vec<String> = vec![
                     format!("--num-client-threads {client_threads} --num-server-threads {server_threads}"),

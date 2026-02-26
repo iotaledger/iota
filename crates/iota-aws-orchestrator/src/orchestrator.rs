@@ -326,7 +326,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
         let command = [
             &basic_commands[..],
-            // &Prometheus::install_commands(), TODO: remove
+            &Prometheus::install_commands(),
             &cloud_provider_specific_dependencies[..],
             &protocol_dependencies[..],
         ]

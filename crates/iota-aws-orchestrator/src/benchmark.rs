@@ -399,11 +399,13 @@ pub struct BenchmarkParametersGenerator<T> {
     /// Type of object transaction uses - owned or shared.
     tx_payload_obj_type: TxPayloadObjType,
 
-    /// AA tuning.
+    /// Number of worker tasks inside stress.
     stress_num_workers: u64,
 
+    /// AA workload: split amount inside stress.
     aa_split_amount: u64,
 
+    /// In-flight ratio inside stress.
     stress_in_flight_ratio: u64,
 
     /// Stress threads used for AA.

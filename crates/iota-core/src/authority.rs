@@ -877,7 +877,7 @@ impl AuthorityState {
     /// This is a private method and should be kept that way. It doesn't check
     /// whether the provided transaction is a system transaction, and hence
     /// can only be called internally.
-    #[instrument(name = "handle_transaction_impl", level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     async fn handle_transaction_impl(
         &self,
         transaction: VerifiedTransaction,
@@ -1602,7 +1602,7 @@ impl AuthorityState {
     /// somehow invalid, the correct locks are not held, etc. However, this
     /// is not entirely true, as a transient db read error may also cause
     /// this function to fail.
-    #[instrument(level = "trace", skip_all, fields(tx_digest = ?certificate.digest(), sender = ?certificate.data().transaction_data().gas_owner().to_string()))]
+    #[instrument(level = "trace", skip_all)]
     fn prepare_certificate(
         &self,
         _execution_guard: &ExecutionLockReadGuard<'_>,
