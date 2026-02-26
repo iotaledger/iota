@@ -57,21 +57,24 @@ impl AuthenticationContext {
     /// The returned `GlobalValue` is expected to be used as a reference in
     /// native functions, so it should not be mutated or stored beyond the
     /// scope of a single native function call.
-    pub fn struct_with_digest(&mut self) -> &GlobalValue {
+    pub fn struct_with_digest(&mut self) -> PartialVMResult<&GlobalValue> {
         if self.cached_with_digest.is_none() {
+            let auth_context_ref = self.auth_context.borrow();
+            // Wrap in a tuple to match the expected Move layout of
+            // `struct AuthContext {
+            //     digest: vector<u8>
+            // }`
+            let struct_value_rust = (auth_context_ref.digest(),);
+            let digest_move_layout = MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8));
             let value = to_value(
-                &(self.auth_context.borrow().digest(),), /* Wrap in a tuple to match the
-                                                          * expected Move layout of `struct
-                                                          * AuthContext { digest: vector<u8>
-                                                          * }` */
-                &MoveTypeLayout::Struct(Box::new(AuthContext::layout_with_auth_digest())),
-            )
-            .expect("Failed to convert auth digest to a Move value");
+                &struct_value_rust,
+                &AuthContext::layout_with_custom_field(digest_move_layout),
+            )?;
             self.cached_with_digest =
                 Some(GlobalValue::cached(value).expect("Failed to cache global value"));
         }
 
-        self.cached_with_digest.as_ref().unwrap()
+        Ok(self.cached_with_digest.as_ref().unwrap())
     }
 
     /// Returns a `GlobalValue` containing a struct with the auth tx inputs.
@@ -81,21 +84,37 @@ impl AuthenticationContext {
     /// The returned `GlobalValue` is expected to be used as a reference in
     /// native functions, so it should not be mutated or stored beyond the
     /// scope of a single native function call.
-    pub fn struct_with_tx_inputs(&mut self) -> &GlobalValue {
-        if self.cached_with_tx_inputs.is_none() {
-            let value = to_value(
-                &(self.auth_context.borrow().tx_inputs(),), /* Wrap in a tuple to match the
-                                                             * expected Move layout of `struct
-                                                             * AuthContext { tx_inputs:
-                                                             * vector<CallArg> }` */
-                &MoveTypeLayout::Struct(Box::new(AuthContext::layout_with_tx_inputs())),
-            )
-            .expect("Failed to convert auth tx inputs to a Move value");
-            self.cached_with_tx_inputs =
-                Some(GlobalValue::cached(value).expect("Failed to cache global value"));
+    pub fn struct_with_tx_inputs(
+        &mut self,
+        input_move_layout: MoveTypeLayout,
+    ) -> PartialVMResult<&GlobalValue> {
+        // For fields V1 the tx inputs are a vector<CallArg>, so check that
+        // input_move_layout is an Enum, i.e. a CallArg enum
+        if !matches!(input_move_layout, MoveTypeLayout::Enum(_)) {
+            return Err(
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
+                    format!("Unexpected `MoveTypeLayout` for tx inputs: {input_move_layout:?}"),
+                ),
+            );
         }
 
-        self.cached_with_tx_inputs.as_ref().unwrap()
+        if self.cached_with_tx_inputs.is_none() {
+            let auth_context_ref = self.auth_context.borrow();
+            // Wrap in a tuple to match the expected Move layout of
+            // `struct AuthContext {
+            //     tx_inputs: vector<CallArg>
+            // }`
+            let struct_value_rust = (auth_context_ref.tx_inputs(),);
+            let vector_input_move_layout = MoveTypeLayout::Vector(Box::new(input_move_layout));
+            let value = to_value(
+                &struct_value_rust,
+                &AuthContext::layout_with_custom_field(vector_input_move_layout),
+            )?;
+            self.cached_with_tx_inputs =
+                Some(GlobalValue::cached(value).expect("Failed to cache valid global value"));
+        }
+
+        Ok(self.cached_with_tx_inputs.as_ref().unwrap())
     }
 
     /// Returns a `GlobalValue` containing a struct with the auth tx commands.
@@ -105,21 +124,37 @@ impl AuthenticationContext {
     /// The returned `GlobalValue` is expected to be used as a reference in
     /// native functions, so it should not be mutated or stored beyond the
     /// scope of a single native function call.
-    pub fn struct_with_tx_commands(&mut self) -> &GlobalValue {
+    pub fn struct_with_tx_commands(
+        &mut self,
+        command_move_layout: MoveTypeLayout,
+    ) -> PartialVMResult<&GlobalValue> {
+        // For fields V1 the tx commands are a vector<Command>, so check that
+        // command_move_layout is an Enum, i.e. a Command enum
+        if !matches!(command_move_layout, MoveTypeLayout::Enum(_)) {
+            return Err(
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
+                    format!("Unexpected `MoveTypeLayout` for tx commands: {command_move_layout:?}"),
+                ),
+            );
+        }
+
         if self.cached_with_tx_commands.is_none() {
+            let auth_context_ref = self.auth_context.borrow();
+            // Wrap in a tuple to match the expected Move layout of
+            //`struct AuthContext {
+            //     tx_commands: vector<Command>
+            // }`
+            let struct_value_rust = (auth_context_ref.tx_commands(),);
+            let vector_command_move_layout = MoveTypeLayout::Vector(Box::new(command_move_layout));
             let value = to_value(
-                &(self.auth_context.borrow().tx_commands(),), /* Wrap in a tuple to match the
-                                                               * expected Move layout of `struct
-                                                               * AuthContext { tx_commands:
-                                                               * vector<Command> }` */
-                &MoveTypeLayout::Struct(Box::new(AuthContext::layout_with_tx_commands())),
-            )
-            .expect("Failed to convert auth tx commands to a Move value");
+                &struct_value_rust,
+                &AuthContext::layout_with_custom_field(vector_command_move_layout),
+            )?;
             self.cached_with_tx_commands =
                 Some(GlobalValue::cached(value).expect("Failed to cache global value"));
         }
 
-        self.cached_with_tx_commands.as_ref().unwrap()
+        Ok(self.cached_with_tx_commands.as_ref().unwrap())
     }
 
     /// Replaces the contents of the `AuthContext` with the provided values.
@@ -131,7 +166,9 @@ impl AuthenticationContext {
         &self,
         auth_digest_value: Vec<u8>,
         tx_inputs_value: Vec<Value>,
+        input_move_layout: MoveTypeLayout,
         tx_commands_value: Vec<Value>,
+        command_move_layout: MoveTypeLayout,
     ) -> PartialVMResult<()> {
         if !self.test_only {
             return Err(
@@ -140,24 +177,34 @@ impl AuthenticationContext {
             );
         }
 
+        // For fields V1 the tx inputs are a vector<CallArg>, so check that
+        // input_move_layout is an Enum, i.e. a CallArg enum
+        if !matches!(input_move_layout, MoveTypeLayout::Enum(_)) {
+            return Err(
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
+                    format!("Unexpected `MoveTypeLayout` for tx inputs: {input_move_layout:?}"),
+                ),
+            );
+        }
+
+        // For fields V1 the tx commands are a vector<Command>, so check that
+        // command_move_layout is an Enum, i.e. a Command enum
+        if !matches!(command_move_layout, MoveTypeLayout::Enum(_)) {
+            return Err(
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
+                    format!("Unexpected `MoveTypeLayout` for tx commands: {command_move_layout:?}"),
+                ),
+            );
+        }
+
         let tx_commands = tx_commands_value
             .into_iter()
-            .map(|value| {
-                from_value::<AuthContextCommand>(
-                    value,
-                    &MoveTypeLayout::Enum(Box::new(AuthContextCommand::layout())),
-                )
-            })
+            .map(|value| from_value::<AuthContextCommand>(value, &command_move_layout))
             .collect::<PartialVMResult<Vec<_>>>()?;
 
         let tx_inputs = tx_inputs_value
             .into_iter()
-            .map(|value| {
-                from_value::<AuthContextCallArg>(
-                    value,
-                    &MoveTypeLayout::Enum(Box::new(AuthContextCallArg::layout())),
-                )
-            })
+            .map(|value| from_value::<AuthContextCallArg>(value, &input_move_layout))
             .collect::<PartialVMResult<Vec<_>>>()?;
 
         let auth_digest =

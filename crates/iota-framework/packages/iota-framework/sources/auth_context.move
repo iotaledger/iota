@@ -41,9 +41,9 @@ public fun tx_commands(_actx: &AuthContext): &vector<Command> {
 
 native fun native_digest(): &vector<u8>;
 
-native fun native_tx_inputs(): &vector<CallArg>;
+native fun native_tx_inputs<I>(): &vector<I>;
 
-native fun native_tx_commands(): &vector<Command>;
+native fun native_tx_commands<C>(): &vector<C>;
 
 // === Test-only functions ===
 
@@ -61,8 +61,8 @@ public fun new_with_tx_inputs(
 }
 
 #[test_only]
-native fun native_replace(
+native fun native_replace<I, C>(
     auth_digest: vector<u8>,
-    tx_inputs: vector<CallArg>,
-    tx_commands: vector<Command>,
+    tx_inputs: vector<I>,
+    tx_commands: vector<C>,
 );

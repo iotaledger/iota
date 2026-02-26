@@ -129,6 +129,10 @@ impl AuthContext {
         }
     }
 
+    pub fn layout_with_custom_field(custom_field: MoveTypeLayout) -> MoveTypeLayout {
+        MoveTypeLayout::Struct(Box::new(MoveStructLayout(Box::new(vec![custom_field]))))
+    }
+
     pub fn layout_with_auth_digest() -> MoveStructLayout {
         MoveStructLayout(Box::new(vec![MoveTypeLayout::Vector(Box::new(
             MoveTypeLayout::U8,
