@@ -112,9 +112,10 @@ impl Merge<iota_types::signature::GenericSignature> for UserSignature {
             return Ok(());
         }
 
-        let sdk_signature: iota_sdk_types::UserSignature = source
-            .try_into()
-            .map_err(|e| format!("Failed to convert signature: {}", e))?;
+        let sdk_signature: iota_sdk_types::UserSignature =
+            source.try_into().map_err(|e: bcs::Error| {
+                RpcError::from(e).with_context("failed to convert signature")
+            })?;
 
         Merge::merge(self, sdk_signature, mask)
     }
@@ -166,10 +167,10 @@ impl Merge<iota_types::transaction::Transaction> for UserSignatures {
             .iter()
             .map(|sig| {
                 // Convert iota_types signature to SDK signature, then merge
-                let sdk_sig: iota_sdk_types::UserSignature = sig
-                    .clone()
-                    .try_into()
-                    .map_err(|e| format!("Failed to convert signature: {e}"))?;
+                let sdk_sig: iota_sdk_types::UserSignature =
+                    sig.clone().try_into().map_err(|e: bcs::Error| {
+                        RpcError::from(e).with_context("failed to convert signature")
+                    })?;
                 UserSignature::merge_from(sdk_sig, mask)
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -226,9 +227,7 @@ impl Merge<&iota_sdk_types::TransactionEvents> for Events {
         self.events = source
             .0
             .iter()
-            .map(|event| -> Result<_, Box<dyn std::error::Error>> {
-                Merge::merge_from(event, mask)
-            })
+            .map(|event| Merge::merge_from(event, mask))
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(())
@@ -291,9 +290,10 @@ impl Merge<iota_types::object::Object> for Object {
             return Ok(());
         }
 
-        let sdk_object: iota_sdk_types::object::Object = source
-            .try_into()
-            .map_err(|e: SdkTypeConversionError| format!("Failed to convert SDK object: {}", e))?;
+        let sdk_object: iota_sdk_types::object::Object =
+            source.try_into().map_err(|e: SdkTypeConversionError| {
+                RpcError::from(e).with_context("failed to convert object")
+            })?;
 
         Merge::merge(self, &sdk_object, mask)
     }
@@ -585,9 +585,10 @@ impl Merge<iota_types::effects::TransactionEffects> for TransactionEffects {
         }
 
         // Convert iota_types to iota_sdk_types types for external compatibility
-        let sdk_effects: iota_sdk_types::TransactionEffects = source
-            .try_into()
-            .map_err(|e| format!("failed to convert effects to SDK type: {e}"))?;
+        let sdk_effects: iota_sdk_types::TransactionEffects =
+            source.try_into().map_err(|e: SdkTypeConversionError| {
+                RpcError::from(e).with_context("failed to convert effects")
+            })?;
 
         Merge::merge(self, &sdk_effects, mask)
     }
@@ -648,9 +649,10 @@ impl Merge<iota_types::effects::TransactionEvents> for TransactionEvents {
             return Ok(());
         }
 
-        let sdk_events: iota_sdk_types::TransactionEvents = source
-            .try_into()
-            .map_err(|e| format!("failed to convert events to SDK type: {e}"))?;
+        let sdk_events: iota_sdk_types::TransactionEvents =
+            source.try_into().map_err(|e: SdkTypeConversionError| {
+                RpcError::from(e).with_context("failed to convert events")
+            })?;
 
         Merge::merge(self, &sdk_events, mask)
     }
@@ -782,7 +784,9 @@ impl Merge<iota_types::transaction::Transaction> for Transaction {
             .transaction_data()
             .clone()
             .try_into()
-            .map_err(|e| format!("failed to convert transaction to SDK type: {e}"))?;
+            .map_err(|e: SdkTypeConversionError| {
+                RpcError::from(e).with_context("failed to convert transaction")
+            })?;
 
         Merge::merge(self, &sdk_transaction, mask)
     }

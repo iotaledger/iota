@@ -187,10 +187,6 @@ fn get_transaction_impl(
         output_objects: tx_read.output_objects,
     };
 
-    ExecutedTransaction::merge_from(&source, read_mask).map_err(|e| {
-        RpcError::new(
-            tonic::Code::Internal,
-            format!("failed to build executed transaction in get_transaction response: {e}"),
-        )
-    })
+    ExecutedTransaction::merge_from(&source, read_mask)
+        .map_err(|e| e.with_context("failed to merge transaction"))
 }

@@ -110,7 +110,10 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::Transaction {
             return Ok(());
         }
 
-        let transaction = source.transaction.as_ref().ok_or("missing transaction")?;
+        let transaction = source
+            .transaction
+            .as_ref()
+            .ok_or_else(|| RpcError::new(tonic::Code::Internal, "missing transaction"))?;
 
         // Set digest if requested
         if mask.contains(Self::DIGEST_FIELD.name) {
@@ -351,9 +354,11 @@ impl Merge<&CommandOutputReadSource<'_>> for CommandOutput {
         if mask.contains(Self::ARGUMENT_FIELD.name) {
             self.argument = source
                 .arg
-                .map(|arg| -> Result<_, Box<dyn std::error::Error>> {
+                .map(|arg| -> Result<_, RpcError> {
                     let sdk_arg: iota_sdk_types::Argument = arg.into();
-                    sdk_arg.try_into().map_err(Into::into)
+                    sdk_arg
+                        .try_into()
+                        .map_err(|e| RpcError::from(e).with_context("failed to merge argument"))
                 })
                 .transpose()?;
         }
@@ -361,7 +366,7 @@ impl Merge<&CommandOutputReadSource<'_>> for CommandOutput {
         if mask.contains(Self::TYPE_TAG_FIELD.name) {
             self.type_tag = Some({
                 let sdk_type_tag = type_tag_core_to_sdk(source.ty.clone())
-                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+                    .map_err(|e| RpcError::from(e).with_context("failed to convert type tag"))?;
                 (&sdk_type_tag).into()
             });
         }

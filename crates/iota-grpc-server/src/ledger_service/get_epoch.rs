@@ -51,7 +51,7 @@ impl Merge<&EpochReadSource> for Epoch {
             source
                 .reader
                 .get_epoch_info(source.epoch)
-                .map_err(|e| format!("Failed to get epoch info: {e}"))?
+                .map_err(|e| RpcError::from(e).with_context("failed to get epoch info"))?
         } else {
             None
         };
@@ -98,15 +98,17 @@ impl Merge<&EpochReadSource> for Epoch {
                 source
                     .reader
                     .get_system_state()
-                    .map_err(|e| format!("Failed to get system state: {e}"))?
+                    .map_err(|e| RpcError::from(e).with_context("failed to get system state"))?
             } else if let Some(ref info) = epoch_info {
                 info.system_state.clone()
             } else {
-                return Err(format!(
-                    "Cannot get system state for historical epoch {}: epoch info not available",
-                    source.epoch
-                )
-                .into());
+                return Err(RpcError::new(
+                    tonic::Code::Internal,
+                    format!(
+                        "cannot get system state for historical epoch {}: epoch info not available",
+                        source.epoch
+                    ),
+                ));
             };
             self.bcs_system_state = Some(BcsData::serialize(&system_state)?);
         }
@@ -115,7 +117,7 @@ impl Merge<&EpochReadSource> for Epoch {
             let committee = source
                 .reader
                 .get_committee(source.epoch)
-                .map_err(|e| format!("Failed to get committee: {e}"))?
+                .map_err(|e| RpcError::from(e).with_context("failed to get committee"))?
                 .ok_or_else(|| CommitteeNotFoundError::new(source.epoch))?;
             let sdk_committee: iota_sdk_types::ValidatorCommittee =
                 committee.as_ref().clone().into();
@@ -193,7 +195,7 @@ pub fn get_epoch(
     };
 
     let message = Epoch::merge_from(&source, &read_mask)
-        .map_err(|e| Status::internal(format!("Failed to build epoch response: {e}")))?;
+        .map_err(|e| e.with_context("failed to merge epoch"))?;
 
     Ok(GetEpochResponse::default().with_epoch(message))
 }
@@ -217,9 +219,9 @@ impl std::fmt::Display for CommitteeNotFoundError {
 
 impl std::error::Error for CommitteeNotFoundError {}
 
-impl From<CommitteeNotFoundError> for Status {
+impl From<CommitteeNotFoundError> for RpcError {
     fn from(value: CommitteeNotFoundError) -> Self {
-        Status::not_found(value.to_string())
+        RpcError::new(tonic::Code::NotFound, value.to_string())
     }
 }
 
@@ -242,8 +244,8 @@ impl std::fmt::Display for ProtocolVersionNotFoundError {
 
 impl std::error::Error for ProtocolVersionNotFoundError {}
 
-impl From<ProtocolVersionNotFoundError> for Status {
+impl From<ProtocolVersionNotFoundError> for RpcError {
     fn from(value: ProtocolVersionNotFoundError) -> Self {
-        Status::not_found(value.to_string())
+        RpcError::new(tonic::Code::NotFound, value.to_string())
     }
 }

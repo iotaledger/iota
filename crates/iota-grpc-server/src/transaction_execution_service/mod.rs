@@ -292,12 +292,8 @@ pub async fn execute_transaction(
 
     Ok(
         ExecuteTransactionResponse::default().with_executed_transaction(
-            ExecutedTransaction::merge_from(&source, &read_mask).map_err(|e| {
-                RpcError::new(
-                    tonic::Code::Internal,
-                    format!("failed to build executed transaction in execution response: {e}"),
-                )
-            })?,
+            ExecutedTransaction::merge_from(&source, &read_mask)
+                .map_err(|e| e.with_context("failed to merge executed transaction"))?,
         ),
     )
 }

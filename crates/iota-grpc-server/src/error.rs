@@ -28,6 +28,16 @@ impl RpcError {
         }
     }
 
+    /// Add context to an existing error
+    pub fn with_context<T: Into<String>>(mut self, context: T) -> Self {
+        let context_str = context.into();
+        self.message = Some(match self.message {
+            Some(existing) => format!("{}: {}", context_str, existing),
+            None => context_str,
+        });
+        self
+    }
+
     pub fn not_found() -> Self {
         Self {
             code: Code::NotFound,
@@ -44,6 +54,15 @@ impl RpcError {
                 .details
                 .map(ErrorDetails::into_status_details)
                 .unwrap_or_default(),
+        }
+    }
+}
+
+impl std::fmt::Display for RpcError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.message {
+            Some(msg) => write!(f, "{:?}: {}", self.code, msg),
+            None => write!(f, "{:?}", self.code),
         }
     }
 }
@@ -83,6 +102,16 @@ impl From<iota_types::iota_sdk_types_conversions::SdkTypeConversionError> for Rp
 
 impl From<bcs::Error> for RpcError {
     fn from(value: bcs::Error) -> Self {
+        Self {
+            code: Code::Internal,
+            message: Some(value.to_string()),
+            details: None,
+        }
+    }
+}
+
+impl From<iota_grpc_types::proto::GrpcConversionError> for RpcError {
+    fn from(value: iota_grpc_types::proto::GrpcConversionError) -> Self {
         Self {
             code: Code::Internal,
             message: Some(value.to_string()),
@@ -155,11 +184,6 @@ impl ErrorDetails {
     }
 }
 
-// NOTE: Similar errors exist in iota-rest-api, but are intentionally duplicated
-// here. The REST API will be deprecated soon, so we avoid creating a shared
-// dependency. This keeps the gRPC server independent and allows the REST API to
-// be removed cleanly without impacting gRPC error handling.
-// TODO: Remove the above comments when the REST API is removed.
 #[derive(Debug, Clone)]
 pub struct ObjectNotFoundError {
     object_id: ObjectID,

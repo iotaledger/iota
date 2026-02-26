@@ -331,12 +331,8 @@ pub async fn simulate_transaction(
         };
 
         response.executed_transaction = Some(
-            ExecutedTransaction::merge_from(&source, &tx_mask).map_err(|e| {
-                RpcError::new(
-                    tonic::Code::Internal,
-                    format!("failed to build executed transaction in simulation response: {e}"),
-                )
-            })?,
+            ExecutedTransaction::merge_from(&source, &tx_mask)
+                .map_err(|e| e.with_context("failed to merge executed transaction"))?,
         );
     }
 
@@ -366,16 +362,9 @@ pub async fn simulate_transaction(
                         execution_results: execution_results.clone(),
                     };
 
-                    let command_results = CommandResults::merge_from(
-                        &cmd_source,
-                        &command_results_mask,
-                    )
-                    .map_err(|e| {
-                        RpcError::new(
-                            tonic::Code::Internal,
-                            format!("failed to build command results in execution result: {e}"),
-                        )
-                    })?;
+                    let command_results =
+                        CommandResults::merge_from(&cmd_source, &command_results_mask)
+                            .map_err(|e| e.with_context("failed to merge command results"))?;
 
                     response.execution_result =
                         Some(ExecutionResult::CommandResults(command_results));

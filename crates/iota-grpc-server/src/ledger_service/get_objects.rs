@@ -144,10 +144,5 @@ fn get_object_impl(
             .ok_or_else(|| ObjectNotFoundError::new(object_id))?
     };
 
-    Object::merge_from(object, read_mask).map_err(|e| {
-        RpcError::new(
-            tonic::Code::Internal,
-            format!("Failed to build object response: {e}"),
-        )
-    })
+    Object::merge_from(object, read_mask).map_err(|e| e.with_context("failed to merge object"))
 }
