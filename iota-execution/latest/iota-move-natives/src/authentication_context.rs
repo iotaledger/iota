@@ -14,7 +14,7 @@ use move_core_types::{
     vm_status::StatusCode,
 };
 use move_vm_runtime::native_extensions::NativeExtensionMarker;
-use move_vm_types::values::{GlobalValue, Value};
+use move_vm_types::values::{GlobalValue, StructRef, Value};
 use serde::{Serialize, de::DeserializeOwned};
 
 // AuthenticationContext is a wrapper around AuthContext that is exposed to
@@ -61,70 +61,85 @@ impl AuthenticationContext {
         }
     }
 
-    /// Returns a `GlobalValue` containing a struct with the auth digest field.
+    /// Returns a `Value` containing an auth digest ref.
     /// Caches the result to avoid redundant conversions and allocations on
     /// subsequent calls.
-    ///
-    /// The returned `GlobalValue` is expected to be used as a reference in
-    /// native functions, so it should not be mutated or stored beyond the
-    /// scope of a single native function call.
-    pub fn struct_with_digest(&mut self) -> PartialVMResult<&GlobalValue> {
+    pub fn digest_ref(&mut self) -> PartialVMResult<Value> {
         if self.cached_digest.is_none() {
             let auth_context = self.auth_context.borrow();
 
+            // Wrap in a tuple to match the expected Move layout of
+            // `struct AuthContext {
+            //     digest: vector<u8>
+            // }`
             let rust_value = (auth_context.digest(),);
             let digest_move_layout = MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8));
 
             self.cached_digest = Some(to_global_value(&rust_value, digest_move_layout)?);
         }
 
-        Ok(self.cached_digest.as_ref().unwrap())
+        self.cached_digest
+            .as_ref()
+            .unwrap()
+            .borrow_global()
+            .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
+            .value_as::<StructRef>()?
+            .borrow_field(0)
     }
 
-    /// Returns a `GlobalValue` containing a struct with the auth tx inputs.
+    /// Returns a `Value` containing an auth tx inputs ref.
     /// Caches the result to avoid redundant conversions and allocations on
     /// subsequent calls.
-    ///
-    /// The returned `GlobalValue` is expected to be used as a reference in
-    /// native functions, so it should not be mutated or stored beyond the
-    /// scope of a single native function call.
-    pub fn struct_with_tx_inputs(
-        &mut self,
-        input_move_layout: MoveTypeLayout,
-    ) -> PartialVMResult<&GlobalValue> {
+    pub fn tx_inputs_ref(&mut self, input_move_layout: MoveTypeLayout) -> PartialVMResult<Value> {
         if self.cached_tx_inputs.is_none() {
             let auth_context = self.auth_context.borrow();
 
+            // Wrap in a tuple to match the expected Move layout of
+            // `struct AuthContext {
+            //     tx_inputs: vector<CallArg>
+            // }`
             let rust_value = (auth_context.tx_inputs(),);
             let inputs_move_layout = MoveTypeLayout::Vector(Box::new(input_move_layout));
 
             self.cached_tx_inputs = Some(to_global_value(&rust_value, inputs_move_layout)?);
         }
 
-        Ok(self.cached_tx_inputs.as_ref().unwrap())
+        self.cached_tx_inputs
+            .as_ref()
+            .unwrap()
+            .borrow_global()
+            .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
+            .value_as::<StructRef>()?
+            .borrow_field(0)
     }
 
-    /// Returns a `GlobalValue` containing a struct with the auth tx commands.
+    /// Returns a `Value` containing an auth tx commands ref.
     /// Caches the result to avoid redundant conversions and allocations on
     /// subsequent calls.
-    ///
-    /// The returned `GlobalValue` is expected to be used as a reference in
-    /// native functions, so it should not be mutated or stored beyond the
-    /// scope of a single native function call.
-    pub fn struct_with_tx_commands(
+    pub fn tx_commands_ref(
         &mut self,
         command_move_layout: MoveTypeLayout,
-    ) -> PartialVMResult<&GlobalValue> {
+    ) -> PartialVMResult<Value> {
         if self.cached_tx_commands.is_none() {
             let auth_context = self.auth_context.borrow();
 
+            // Wrap in a tuple to match the expected Move layout of
+            //`struct AuthContext {
+            //     tx_commands: vector<Command>
+            // }`
             let rust_value = (auth_context.tx_commands(),);
             let commands_move_layout = MoveTypeLayout::Vector(Box::new(command_move_layout));
 
             self.cached_tx_commands = Some(to_global_value(&rust_value, commands_move_layout)?);
         }
 
-        Ok(self.cached_tx_commands.as_ref().unwrap())
+        self.cached_tx_commands
+            .as_ref()
+            .unwrap()
+            .borrow_global()
+            .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
+            .value_as::<StructRef>()?
+            .borrow_field(0)
     }
 
     /// Replaces the contents of the `AuthContext` with the provided values.
@@ -179,10 +194,6 @@ fn to_global_value<T: ?Sized + Serialize>(
     field: &T,
     field_move_layout: MoveTypeLayout,
 ) -> PartialVMResult<GlobalValue> {
-    // Wrap in a tuple to match the expected Move layout of
-    //`struct AuthContext {
-    //     field: FieldType,
-    // }`
     let move_layout = struct_layout_with_field(field_move_layout);
 
     let move_value = to_value(field, &move_layout)?;

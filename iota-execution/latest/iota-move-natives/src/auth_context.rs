@@ -9,10 +9,7 @@ use move_core_types::{
 };
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
 use move_vm_types::{
-    loaded_data::runtime_types::Type,
-    natives::function::NativeResult,
-    pop_arg,
-    values::{StructRef, Value},
+    loaded_data::runtime_types::Type, natives::function::NativeResult, pop_arg, values::Value,
 };
 use smallvec::smallvec;
 
@@ -23,7 +20,7 @@ use crate::{
 
 #[derive(Clone)]
 pub struct AuthContextDigestCostParams {
-    pub auth_context_digest_cost_base: InternalGas,
+    pub auth_context_digest_cost_base: Option<InternalGas>,
 }
 
 /// ****************************************************************************
@@ -44,25 +41,25 @@ pub fn native_digest(
         .clone();
     native_charge_gas_early_exit!(
         context,
-        auth_context_digest_cost_params.auth_context_digest_cost_base
+        auth_context_digest_cost_params
+            .auth_context_digest_cost_base
+            .ok_or_else(|| {
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                    .with_message("Gas cost base for native_digest not available".to_string())
+            })?
     );
 
     let auth_context: &mut AuthenticationContext = get_extension_mut!(context)?;
 
-    let digest_ref = auth_context
-        .struct_with_digest()?
-        .borrow_global()
-        .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
-        .value_as::<StructRef>()?
-        .borrow_field(0)?;
+    let digest_ref = auth_context.digest_ref()?;
 
     Ok(NativeResult::ok(context.gas_used(), smallvec![digest_ref]))
 }
 
 #[derive(Clone)]
 pub struct AuthContextTxCommandsCostParams {
-    pub auth_context_tx_commands_cost_base: InternalGas,
-    pub auth_context_tx_commands_cost_per_byte: InternalGas,
+    pub auth_context_tx_commands_cost_base: Option<InternalGas>,
+    pub auth_context_tx_commands_cost_per_byte: Option<InternalGas>,
 }
 
 /// ****************************************************************************
@@ -83,7 +80,12 @@ pub fn native_tx_commands(
         .clone();
     native_charge_gas_early_exit!(
         context,
-        auth_context_tx_commands_cost_params.auth_context_tx_commands_cost_base
+        auth_context_tx_commands_cost_params
+            .auth_context_tx_commands_cost_base
+            .ok_or_else(|| {
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                    .with_message("Gas cost base for native_tx_commands not available".to_string())
+            })?
     );
 
     let command_type = ty_args.pop().unwrap();
@@ -91,16 +93,17 @@ pub fn native_tx_commands(
 
     let auth_context: &mut AuthenticationContext = get_extension_mut!(context)?;
 
-    let tx_commands_ref = auth_context
-        .struct_with_tx_commands(command_move_layout)?
-        .borrow_global()
-        .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
-        .value_as::<StructRef>()?
-        .borrow_field(0)?;
+    let tx_commands_ref = auth_context.tx_commands_ref(command_move_layout)?;
 
     native_charge_gas_early_exit!(
         context,
-        auth_context_tx_commands_cost_params.auth_context_tx_commands_cost_per_byte
+        auth_context_tx_commands_cost_params
+            .auth_context_tx_commands_cost_per_byte
+            .ok_or_else(|| {
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
+                    "Gas cost per byte for native_tx_commands not available".to_string(),
+                )
+            })?
             * u64::from(tx_commands_ref.legacy_size()).into()
     );
 
@@ -112,8 +115,8 @@ pub fn native_tx_commands(
 
 #[derive(Clone)]
 pub struct AuthContextTxInputsCostParams {
-    pub auth_context_tx_inputs_cost_base: InternalGas,
-    pub auth_context_tx_inputs_cost_per_byte: InternalGas,
+    pub auth_context_tx_inputs_cost_base: Option<InternalGas>,
+    pub auth_context_tx_inputs_cost_per_byte: Option<InternalGas>,
 }
 
 /// ****************************************************************************
@@ -134,7 +137,12 @@ pub fn native_tx_inputs(
         .clone();
     native_charge_gas_early_exit!(
         context,
-        auth_context_tx_inputs_cost_params.auth_context_tx_inputs_cost_base
+        auth_context_tx_inputs_cost_params
+            .auth_context_tx_inputs_cost_base
+            .ok_or_else(
+                || PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                    .with_message("Gas cost base for native_tx_inputs not available".to_string())
+            )?
     );
 
     let input_type = ty_args.pop().unwrap();
@@ -142,16 +150,17 @@ pub fn native_tx_inputs(
 
     let auth_context: &mut AuthenticationContext = get_extension_mut!(context)?;
 
-    let tx_inputs_ref = auth_context
-        .struct_with_tx_inputs(input_move_layout)?
-        .borrow_global()
-        .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
-        .value_as::<StructRef>()?
-        .borrow_field(0)?;
+    let tx_inputs_ref = auth_context.tx_inputs_ref(input_move_layout)?;
 
     native_charge_gas_early_exit!(
         context,
-        auth_context_tx_inputs_cost_params.auth_context_tx_inputs_cost_per_byte
+        auth_context_tx_inputs_cost_params
+            .auth_context_tx_inputs_cost_per_byte
+            .ok_or_else(
+                || PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
+                    "Gas cost per byte for native_tx_inputs not available".to_string()
+                )
+            )?
             * u64::from(tx_inputs_ref.legacy_size()).into()
     );
 
@@ -163,8 +172,8 @@ pub fn native_tx_inputs(
 
 #[derive(Clone)]
 pub struct AuthContextReplaceCostParams {
-    pub auth_context_replace_cost_base: InternalGas,
-    pub auth_context_replace_cost_per_byte: InternalGas,
+    pub auth_context_replace_cost_base: Option<InternalGas>,
+    pub auth_context_replace_cost_per_byte: Option<InternalGas>,
 }
 
 /// ****************************************************************************
@@ -185,7 +194,12 @@ pub fn native_replace(
         .clone();
     native_charge_gas_early_exit!(
         context,
-        auth_context_replace_cost_params.auth_context_replace_cost_base
+        auth_context_replace_cost_params
+            .auth_context_replace_cost_base
+            .ok_or_else(|| {
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                    .with_message("Gas cost base for native_replace not available".to_string())
+            })?
     );
 
     let legacy_size = args
@@ -193,7 +207,13 @@ pub fn native_replace(
         .fold(0_u64, |acc, v| acc + u64::from(v.legacy_size()));
     native_charge_gas_early_exit!(
         context,
-        auth_context_replace_cost_params.auth_context_replace_cost_per_byte * legacy_size.into()
+        auth_context_replace_cost_params
+            .auth_context_replace_cost_per_byte
+            .ok_or_else(|| {
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                    .with_message("Gas cost per byte for native_replace not available".to_string())
+            })?
+            * legacy_size.into()
     );
 
     let command_type = ty_args.pop().unwrap();
