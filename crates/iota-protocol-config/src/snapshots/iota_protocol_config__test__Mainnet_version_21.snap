@@ -304,5 +304,8 @@ max_committee_members_count: 100
 consensus_gc_depth: 60
 auth_context_digest_cost_base: 100
 auth_context_tx_commands_cost_base: 100
+auth_context_tx_commands_cost_per_byte: 10
 auth_context_tx_inputs_cost_base: 100
+auth_context_tx_inputs_cost_per_byte: 10
 auth_context_replace_cost_base: 100
+auth_context_replace_cost_per_byte: 10

@@ -1257,11 +1257,14 @@ pub struct ProtocolConfig {
     auth_context_digest_cost_base: Option<u64>,
     // Cost params for the Move native function `native_tx_commands<C>(): vector<C>`
     auth_context_tx_commands_cost_base: Option<u64>,
+    auth_context_tx_commands_cost_per_byte: Option<u64>,
     // Cost params for the Move native function `native_tx_inputs<I>(): vector<I>`
     auth_context_tx_inputs_cost_base: Option<u64>,
+    auth_context_tx_inputs_cost_per_byte: Option<u64>,
     // Cost params for the Move native function `fun native_replace<I, C>(auth_digest: vector<u8>,
     // tx_inputs: vector<I>, tx_commands: vector<C>)`
     auth_context_replace_cost_base: Option<u64>,
+    auth_context_replace_cost_per_byte: Option<u64>,
 }
 
 // feature flags
@@ -2161,8 +2164,11 @@ impl ProtocolConfig {
             // `auth_context` module
             auth_context_digest_cost_base: None,
             auth_context_tx_commands_cost_base: None,
+            auth_context_tx_commands_cost_per_byte: None,
             auth_context_tx_inputs_cost_base: None,
+            auth_context_tx_inputs_cost_per_byte: None,
             auth_context_replace_cost_base: None,
+            auth_context_replace_cost_per_byte: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -2549,8 +2555,11 @@ impl ProtocolConfig {
 
                     cfg.auth_context_digest_cost_base = Some(100);
                     cfg.auth_context_tx_commands_cost_base = Some(100);
+                    cfg.auth_context_tx_commands_cost_per_byte = Some(10);
                     cfg.auth_context_tx_inputs_cost_base = Some(100);
+                    cfg.auth_context_tx_inputs_cost_per_byte = Some(10);
                     cfg.auth_context_replace_cost_base = Some(100);
+                    cfg.auth_context_replace_cost_per_byte = Some(10);
                 }
 
                 // Use this template when making changes:

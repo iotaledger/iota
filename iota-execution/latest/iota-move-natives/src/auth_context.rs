@@ -62,6 +62,7 @@ pub fn native_digest(
 #[derive(Clone)]
 pub struct AuthContextTxCommandsCostParams {
     pub auth_context_tx_commands_cost_base: InternalGas,
+    pub auth_context_tx_commands_cost_per_byte: InternalGas,
 }
 
 /// ****************************************************************************
@@ -89,12 +90,19 @@ pub fn native_tx_commands(
     let command_move_layout = resolve_move_layout(context, &command_type)?;
 
     let auth_context: &mut AuthenticationContext = get_extension_mut!(context)?;
+
     let tx_commands_ref = auth_context
         .struct_with_tx_commands(command_move_layout)?
         .borrow_global()
         .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
         .value_as::<StructRef>()?
         .borrow_field(0)?;
+
+    native_charge_gas_early_exit!(
+        context,
+        auth_context_tx_commands_cost_params.auth_context_tx_commands_cost_per_byte
+            * u64::from(tx_commands_ref.legacy_size()).into()
+    );
 
     Ok(NativeResult::ok(
         context.gas_used(),
@@ -105,6 +113,7 @@ pub fn native_tx_commands(
 #[derive(Clone)]
 pub struct AuthContextTxInputsCostParams {
     pub auth_context_tx_inputs_cost_base: InternalGas,
+    pub auth_context_tx_inputs_cost_per_byte: InternalGas,
 }
 
 /// ****************************************************************************
@@ -140,6 +149,12 @@ pub fn native_tx_inputs(
         .value_as::<StructRef>()?
         .borrow_field(0)?;
 
+    native_charge_gas_early_exit!(
+        context,
+        auth_context_tx_inputs_cost_params.auth_context_tx_inputs_cost_per_byte
+            * u64::from(tx_inputs_ref.legacy_size()).into()
+    );
+
     Ok(NativeResult::ok(
         context.gas_used(),
         smallvec![tx_inputs_ref],
@@ -149,6 +164,7 @@ pub fn native_tx_inputs(
 #[derive(Clone)]
 pub struct AuthContextReplaceCostParams {
     pub auth_context_replace_cost_base: InternalGas,
+    pub auth_context_replace_cost_per_byte: InternalGas,
 }
 
 /// ****************************************************************************
@@ -170,6 +186,14 @@ pub fn native_replace(
     native_charge_gas_early_exit!(
         context,
         auth_context_replace_cost_params.auth_context_replace_cost_base
+    );
+
+    let legacy_size = args
+        .iter()
+        .fold(0_u64, |acc, v| acc + u64::from(v.legacy_size()));
+    native_charge_gas_early_exit!(
+        context,
+        auth_context_replace_cost_params.auth_context_replace_cost_per_byte * legacy_size.into()
     );
 
     let command_type = ty_args.pop().unwrap();

@@ -21,7 +21,15 @@ const AUTH_DIGEST_LENGTH: u64 = 32;
 
 // === Structs ===
 
-public struct AuthContext has drop {}
+#[allow(unused_field)]
+public struct AuthContext has drop {
+    /// The digest of the MoveAuthenticator
+    auth_digest: vector<u8>,
+    /// The transaction input objects or primitive values
+    tx_inputs: vector<CallArg>,
+    /// The transaction commands to be executed sequentially.
+    tx_commands: vector<Command>,
+}
 
 // === Public functions ===
 
@@ -57,7 +65,13 @@ public fun new_with_tx_inputs(
 
     native_replace(auth_digest, tx_inputs, tx_commands);
 
-    AuthContext {}
+    // The fields of the returned `AuthContext` are not actually used,
+    // since the native functions are used to manage the state.
+    AuthContext {
+        auth_digest: vector::empty(),
+        tx_inputs: vector::empty(),
+        tx_commands: vector::empty(),
+    }
 }
 
 #[test_only]

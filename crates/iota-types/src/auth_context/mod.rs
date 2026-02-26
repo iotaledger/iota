@@ -6,11 +6,7 @@ pub use fields_v1::*;
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
-    account_address::AccountAddress,
-    ident_str,
-    identifier::IdentStr,
-    language_storage::StructTag,
-    runtime_value::{MoveStructLayout, MoveTypeLayout},
+    account_address::AccountAddress, ident_str, identifier::IdentStr, language_storage::StructTag,
 };
 use serde::Serialize;
 
@@ -25,7 +21,6 @@ pub const AUTH_CONTEXT_STRUCT_NAME: &IdentStr = ident_str!("AuthContext");
 /// authentication phase of a transaction.
 ///
 /// It allows authenticator functions to:
-/// - Identify the transaction sender
 /// - Inspect the programmable transaction block (PTB) inputs and commands
 /// - Perform function-level permission checks
 /// - Support OTP, time-locked auth, or regulatory rule enforcement
@@ -38,9 +33,10 @@ pub const AUTH_CONTEXT_STRUCT_NAME: &IdentStr = ident_str!("AuthContext");
 ///
 /// Typical use:
 /// ```move
-/// public fun authenticate(tx_hash: vector<u8>, input: &MyAuthInput, ctx: &AuthContext) {
-///     assert!(ed25519::ed25519_verify(&input.sig, &input.pk, &tx_hash), 0);
-///     assert!(verify_digest(ctx.digest()), 1);
+/// public fun authenticate(account: &Account, signature: &vector<u8>, auth_ctx: &AuthContext, , ctx: &TxContext) {
+///     assert!(ed25519::ed25519_verify(signature, &account.pub_key, ctx.digest()), EEd25519VerificationFailed);
+///     
+///     assert!(is_authorized(&extract_function_key(&auth_ctx)), EUnauthorized);
 ///     ...
 /// }
 /// ```
@@ -129,10 +125,6 @@ impl AuthContext {
         }
     }
 
-    pub fn layout_with_custom_field(custom_field: MoveTypeLayout) -> MoveTypeLayout {
-        MoveTypeLayout::Struct(Box::new(MoveStructLayout(Box::new(vec![custom_field]))))
-    }
-
     // Move test only API
     //
     pub fn replace(
@@ -147,11 +139,14 @@ impl AuthContext {
     }
 }
 
+/// A Move-side `AuthContext` representation.
+/// It is supposed to be used with empty fields since the Move `AuthContext`
+/// struct is managed by the native functions.
 #[derive(Default, Serialize)]
 pub struct MoveAuthContext {
-    // An empty Move struct contains a 1-byte dummy bool field because empty fields are not
-    // allowed in the bytecode.
-    dummy_field: bool,
+    auth_digest: MoveAuthenticatorDigest,
+    tx_inputs: Vec<AuthContextCallArg>,
+    tx_commands: Vec<AuthContextCommand>,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]

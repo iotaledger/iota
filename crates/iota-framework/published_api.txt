@@ -1690,19 +1690,19 @@ AuthContext
 digest
 	public fun
 	0x2::auth_context
-tx_commands
+tx_inputs
 	public fun
 	0x2::auth_context
-tx_inputs
+tx_commands
 	public fun
 	0x2::auth_context
 native_digest
 	fun
 	0x2::auth_context
-native_tx_commands
+native_tx_inputs
 	fun
 	0x2::auth_context
-native_tx_inputs
+native_tx_commands
 	fun
 	0x2::auth_context
 Receiving

@@ -378,15 +378,24 @@ impl NativesCostTable {
                 auth_context_tx_commands_cost_base: protocol_config
                     .auth_context_tx_commands_cost_base()
                     .into(),
+                auth_context_tx_commands_cost_per_byte: protocol_config
+                    .auth_context_tx_commands_cost_per_byte()
+                    .into(),
             },
             auth_context_tx_inputs_cost_params: AuthContextTxInputsCostParams {
                 auth_context_tx_inputs_cost_base: protocol_config
                     .auth_context_tx_inputs_cost_base()
                     .into(),
+                auth_context_tx_inputs_cost_per_byte: protocol_config
+                    .auth_context_tx_inputs_cost_per_byte()
+                    .into(),
             },
             auth_context_replace_cost_params: AuthContextReplaceCostParams {
                 auth_context_replace_cost_base: protocol_config
                     .auth_context_replace_cost_base()
+                    .into(),
+                auth_context_replace_cost_per_byte: protocol_config
+                    .auth_context_replace_cost_per_byte()
                     .into(),
             },
             type_is_one_time_witness_cost_params: TypesIsOneTimeWitnessCostParams {
