@@ -1,6 +1,8 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import type { GraphQLDocument } from './client.js';
+
 interface ConnectionInitMessage {
     type: 'connection_init';
     payload?: Record<string, unknown>;
@@ -61,7 +63,7 @@ type ServerMessage =
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type GraphQLSubscriptionRequest<T = any> = {
-    query: string;
+    query: GraphQLDocument;
     variables?: Record<string, unknown>;
     onMessage: (data: T) => void;
     onError?: (errors: Array<{ message: string }>) => void;
@@ -311,7 +313,7 @@ class GraphQLSubscription {
             id,
             type: 'subscribe',
             payload: {
-                query: this.#request.query,
+                query: this.#request.query as string,
                 ...(this.#request.variables ? { variables: this.#request.variables } : {}),
             },
         });
