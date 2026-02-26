@@ -893,7 +893,7 @@ pub struct IotaValidatorSummary {
     pub gas_price: u64,
     /// The fee set by the validator for providing staking services.
     ///
-    /// This might be overriden by the protocol, that uses instead
+    /// This might be overridden by the protocol, that uses instead
     /// an effective commission rate. See more on the associated field.
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
