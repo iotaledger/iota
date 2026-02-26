@@ -7,8 +7,6 @@ tags:
   - move-vm
 ---
 
-# Dynamic Multisig Account
-
 ## About account abstraction
 
 Account Abstraction lets you attach a Move `authenticate` function to a shared account object. The runtime will call that function to decide whether a transaction where the account is the sender is allowed.
@@ -32,7 +30,7 @@ The full package contains additional helpers and modules, but this snippet highl
 
 ### Define the multisig account object
 
-```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/dynamic_multisig_account.move#L37-L40
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L44-L48
 ```
 
 **What this does**
@@ -42,7 +40,7 @@ The full package contains additional helpers and modules, but this snippet highl
 
 ### Define dynamic field keys (account state)
 
-```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/dynamic_multisig_account.move#L26-L34
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L34-L43
 ```
 
 **What this does**
@@ -54,7 +52,7 @@ The full package contains additional helpers and modules, but this snippet highl
 
 ### Create the multisig account and attach authenticator
 
-```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/dynamic_multisig_account.move#L41-L71
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L51-L79
 ```
 
 **What this does**
@@ -64,48 +62,9 @@ The full package contains additional helpers and modules, but this snippet highl
 - Stores all multisig state as dynamic fields.
 - Attaches the authenticator → converts it into an abstract account.
 
-### Track approvals for a transaction
-
-```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/dynamic_multisig_account.move#L95-L113
-```
-
-**What this does**
-- Computes approval weight, not count.
-- Ignores approvals from removed members.
-- This value is later checked by the authenticator.
-
-### Propose a transaction (on-chain)
-
-```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/dynamic_multisig_account.move#L126-L136
-```
-
-**What this does**
-- Any member can propose a transaction.
-- Stores only the digest, not full tx bytes.
-- Proposer is automatically the first approver.
-
-### Approve a transaction
-
-```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/dynamic_multisig_account.move#L138-L152
-```
-
-**What this does**
-- Records approval on-chain.
-- Prevents duplicate approvals.
-- Updates approval weight used during authentication.
-
-### Remove a transaction (account-only)
-
-```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/dynamic_multisig_account.move#L154-L167
-```
-
-**What this does**
-- Garbage-collects executed or cancelled proposals.
-- Can only be called via an **account-approved transaction**.
-
 ### Update members, threshold, and authenticator
 
-```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/dynamic_multisig_account.move#L171-L199
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L80-L109
 ```
 
 **What this does**
@@ -117,12 +76,320 @@ The full package contains additional helpers and modules, but this snippet highl
 - Keeps the same account address.
 - Old approvals from removed members are ignored automatically.
 
-### Core authenticator (account abstraction)
+### Propose a transaction (on-chain)
 
-```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/dynamic_multisig_account.move#L201-L217
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L110-L122
 ```
 
-## Code Outcome
+**What this does**
+- Any member can propose a transaction.
+- Stores only the digest, not full tx bytes.
+- Proposer is automatically the first approver.
+
+### Approve a transaction
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L124-L139
+```
+
+**What this does**
+- Records approval on-chain.
+- Prevents duplicate approvals.
+- Updates approval weight used during authentication.
+
+### Remove a transaction (account-only)
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L140-L154
+```
+
+**What this does**
+- Garbage-collects executed or cancelled proposals.
+- Can only be called via an **account-approved transaction**.
+
+### Track approvals for a transaction
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L193-L212
+```
+
+**What this does**
+- Computes approval weight, not count.
+- Ignores approvals from removed members.
+- This value is later checked by the authenticator.
+
+### Core authenticator (account abstraction)
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L155-L170
+```
+
+## Verify the result:
+
+**Multisig approval succeeded (propose + approve worked)**
+
+```bash
+iota client ptb \
+--move-call $PACKAGE_ID::$CREATE_MODULE_NAME::approve_transaction @$ABSTRACTACCOUNT vector"$TX_DIGEST_BYTES" \
+--sender @$ALICE_SIGN_ADDRESS
+```
+
+<details>
+
+<summary>Expected output</summary>
+```bash
+Transaction Digest: FNymx4ubvuwZ7i68UDZhznhdeJtQc9DTeRiCZX2YrwXC
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Transaction Data                                                                                                                                              │
+├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Sender: 0x2da66b11dbdd5ef21fb0e9d3c30cce27f92a67c0d012ee79fa5c13b614bdd5ab                                                                                    │
+│ Gas Owner: 0x2da66b11dbdd5ef21fb0e9d3c30cce27f92a67c0d012ee79fa5c13b614bdd5ab                                                                                 │
+│ Gas Budget: 3223600 NANOS                                                                                                                                     │
+│ Gas Price: 1000 NANOS                                                                                                                                         │
+│ Gas Payment:                                                                                                                                                  │
+│  ┌──                                                                                                                                                          │
+│  │ ID: 0x029cacb1dbe26e737da1805a71dc80f58ebbdd4bb1ec9ee8a82be66cf222d77a                                                                                     │
+│  │ Version: 2                                                                                                                                                 │
+│  │ Digest: 4LhGLt3mfNoiD6ixq3Adyj3LfHnyFTvHPB9G78mKZwyd                                                                                                       │
+│  └──                                                                                                                                                          │
+│                                                                                                                                                               │
+│ Transaction Kind: Programmable                                                                                                                                │
+│ ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮ │
+│ │ Input Objects                                                                                                                                             │ │
+│ ├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤ │
+│ │ 0   Shared Object    ID: 0xad984d55022ec68fcca34eb019f6fdad3a844f4b87b32f1c653f2b95351b6893                                                               │ │
+│ │ 1   Pure Arg: Type: vector<u8>, Value: [14,29,1,114,254,157,195,10,114,169,242,33,236,30,211,189,111,182,64,133,54,58,217,68,112,191,114,27,15,149,120,7] │ │
+│ ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│ ╭──────────────────────────────────────────────────────────────────────────────────╮                                                                          │
+│ │ Commands                                                                         │                                                                          │
+│ ├──────────────────────────────────────────────────────────────────────────────────┤                                                                          │
+│ │ 0  MoveCall:                                                                     │                                                                          │
+│ │  ┌                                                                               │                                                                          │
+│ │  │ Function:  approve_transaction                                                │                                                                          │
+│ │  │ Module:    dynamic_multisig_account                                           │                                                                          │
+│ │  │ Package:   0x490bf1f4c1c8de619c9285cf82a96e6039c6061779eb284afef4ca43a9206392 │                                                                          │
+│ │  │ Arguments:                                                                    │                                                                          │
+│ │  │   Input  0                                                                    │                                                                          │
+│ │  │   Input  1                                                                    │                                                                          │
+│ │  └                                                                               │                                                                          │
+│ ╰──────────────────────────────────────────────────────────────────────────────────╯                                                                          │
+│                                                                                                                                                               │
+│ Signatures:                                                                                                                                                   │
+│    tTlI6EIS2SiqJMZJiyB/NzWmH4rAj8cP4ueY5FMTH4t3uwlCmiUQAE591UqcyBEwHt6zBZiGeFnVhSOrkp1GAg==                                                                   │
+│                                                                                                                                                               │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Transaction Effects                                                                               │
+├───────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Digest: FNymx4ubvuwZ7i68UDZhznhdeJtQc9DTeRiCZX2YrwXC                                              │
+│ Status: Success                                                                                   │
+│ Executed Epoch: 9                                                                                 │
+│ Mutated Objects:                                                                                  │
+│  ┌──                                                                                              │
+│  │ ID: 0x029cacb1dbe26e737da1805a71dc80f58ebbdd4bb1ec9ee8a82be66cf222d77a                         │
+│  │ Owner: Account Address ( 0x2da66b11dbdd5ef21fb0e9d3c30cce27f92a67c0d012ee79fa5c13b614bdd5ab )  │
+│  │ Version: 6                                                                                     │
+│  │ Digest: 9mwgSsEH3x1xBVpake2o9SYqTELG9oSgGesheLtqZNwA                                           │
+│  └──                                                                                              │
+│  ┌──                                                                                              │
+│  │ ID: 0xa109238b1b3634bd7450fbdb3349cbb069defc012e4617660219a210cb0d87b1                         │
+│  │ Owner: Object ID: ( 0xef8507b42003ba35ce5c680eaecceeb3455975806325567738c2f6594192ddb8 )       │
+│  │ Version: 6                                                                                     │
+│  │ Digest: 7fP93bDUcXw1839eHjJNFEGLXVYSBRn94fTFZP3Wa9Ge                                           │
+│  └──                                                                                              │
+│  ┌──                                                                                              │
+│  │ ID: 0xad984d55022ec68fcca34eb019f6fdad3a844f4b87b32f1c653f2b95351b6893                         │
+│  │ Owner: Shared( 4 )                                                                             │
+│  │ Version: 6                                                                                     │
+│  │ Digest: 4vAgLSew3pKVFZJ6AtAo3Ke8k65DKUsJH2WCjhtirKov                                           │
+│  └──                                                                                              │
+│ Shared Objects:                                                                                   │
+│  ┌──                                                                                              │
+│  │ ID: 0xad984d55022ec68fcca34eb019f6fdad3a844f4b87b32f1c653f2b95351b6893                         │
+│  │ Version: 5                                                                                     │
+│  │ Digest: H3Uyx6uoDHwWWoDQCQ11tdcTiQwAaRpd7uhdJW2xpVAB                                           │
+│  └──                                                                                              │
+│ Gas Object:                                                                                       │
+│  ┌──                                                                                              │
+│  │ ID: 0x029cacb1dbe26e737da1805a71dc80f58ebbdd4bb1ec9ee8a82be66cf222d77a                         │
+│  │ Owner: Account Address ( 0x2da66b11dbdd5ef21fb0e9d3c30cce27f92a67c0d012ee79fa5c13b614bdd5ab )  │
+│  │ Version: 6                                                                                     │
+│  │ Digest: 9mwgSsEH3x1xBVpake2o9SYqTELG9oSgGesheLtqZNwA                                           │
+│  └──                                                                                              │
+│ Gas Cost Summary:                                                                                 │
+│    Storage Cost: 5297200 NANOS                                                                    │
+│    Computation Cost: 1000000 NANOS                                                                │
+│    Computation Cost Burned: 1000000 NANOS                                                         │
+│    Storage Rebate: 5054000 NANOS                                                                  │
+│    Non-refundable Storage Fee: 0 NANOS                                                            │
+│                                                                                                   │
+│ Transaction Dependencies:                                                                         │
+│    7U7XDMeqfpUzKt99EW9VBUKxJk7rwE4xxhqFF9X9qPGF                                                   │
+│    Co5HvYBrAYJapNsaRbqpuD5umcGc8gJwdGun2G9MkM5h                                                   │
+│    HRuQUCyVpryh56v24VgaF2RLZtDMN4qwuzqrncMRC8Hd                                                   │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────╮
+│ No transaction block events │
+╰─────────────────────────────╯
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Object Changes                                                                                                                                       │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Mutated Objects:                                                                                                                                     │
+│  ┌──                                                                                                                                                 │
+│  │ ObjectID: 0x029cacb1dbe26e737da1805a71dc80f58ebbdd4bb1ec9ee8a82be66cf222d77a                                                                      │
+│  │ Sender: 0x2da66b11dbdd5ef21fb0e9d3c30cce27f92a67c0d012ee79fa5c13b614bdd5ab                                                                        │
+│  │ Owner: Account Address ( 0x2da66b11dbdd5ef21fb0e9d3c30cce27f92a67c0d012ee79fa5c13b614bdd5ab )                                                     │
+│  │ ObjectType: 0x2::coin::Coin<0x2::iota::IOTA>                                                                                                      │
+│  │ Version: 6                                                                                                                                        │
+│  │ Digest: 9mwgSsEH3x1xBVpake2o9SYqTELG9oSgGesheLtqZNwA                                                                                              │
+│  └──                                                                                                                                                 │
+│  ┌──                                                                                                                                                 │
+│  │ ObjectID: 0xa109238b1b3634bd7450fbdb3349cbb069defc012e4617660219a210cb0d87b1                                                                      │
+│  │ Sender: 0x2da66b11dbdd5ef21fb0e9d3c30cce27f92a67c0d012ee79fa5c13b614bdd5ab                                                                        │
+│  │ Owner: Object ID: ( 0xef8507b42003ba35ce5c680eaecceeb3455975806325567738c2f6594192ddb8 )                                                          │
+│  │ ObjectType: 0x2::dynamic_field::Field<vector<u8>, 0x490bf1f4c1c8de619c9285cf82a96e6039c6061779eb284afef4ca43a9206392::transactions::Transaction>  │
+│  │ Version: 6                                                                                                                                        │
+│  │ Digest: 7fP93bDUcXw1839eHjJNFEGLXVYSBRn94fTFZP3Wa9Ge                                                                                              │
+│  └──                                                                                                                                                 │
+│  ┌──                                                                                                                                                 │
+│  │ ObjectID: 0xad984d55022ec68fcca34eb019f6fdad3a844f4b87b32f1c653f2b95351b6893                                                                      │
+│  │ Sender: 0x2da66b11dbdd5ef21fb0e9d3c30cce27f92a67c0d012ee79fa5c13b614bdd5ab                                                                        │
+│  │ Owner: Shared( 4 )                                                                                                                                │
+│  │ ObjectType: 0x490bf1f4c1c8de619c9285cf82a96e6039c6061779eb284afef4ca43a9206392::dynamic_multisig_account::DynamicMultisigAccount                  │
+│  │ Version: 6                                                                                                                                        │
+│  │ Digest: 4vAgLSew3pKVFZJ6AtAo3Ke8k65DKUsJH2WCjhtirKov                                                                                              │
+│  └──                                                                                                                                                 │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Balance Changes                                                                                   │
+├───────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  ┌──                                                                                              │
+│  │ Owner: Account Address ( 0x2da66b11dbdd5ef21fb0e9d3c30cce27f92a67c0d012ee79fa5c13b614bdd5ab )  │
+│  │ CoinType: 0x2::iota::IOTA                                                                      │
+│  │ Amount: -1243200                                                                               │
+│  └──                                                                                              │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
+</details>
+
+**Account abstraction authenticator allowed execution**
+
+```bash
+iota client execute-combined-signed-tx --signed-tx-bytes $SIGNED_TX_BYTES
+```
+
+<details>
+<summary>Expected output</summary>
+
+```bash
+Transaction Digest: x6MuoDJBEps84RbXMAPYW5wbq31QXhUQCmZv8Sw5214
+╭─────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Transaction Data                                                                                │
+├─────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Sender: 0xad984d55022ec68fcca34eb019f6fdad3a844f4b87b32f1c653f2b95351b6893                      │
+│ Gas Owner: 0xad984d55022ec68fcca34eb019f6fdad3a844f4b87b32f1c653f2b95351b6893                   │
+│ Gas Budget: 2980400 NANOS                                                                       │
+│ Gas Price: 1000 NANOS                                                                           │
+│ Gas Payment:                                                                                    │
+│  ┌──                                                                                            │
+│  │ ID: 0x3c96ea0728cf1b825ecd69e17d6fa4e4a09b2e1f5b6a4bba4b511cc834bc9353                       │
+│  │ Version: 2                                                                                   │
+│  │ Digest: J4TfUGunqtZ3QUgr6exSusMZ9Q7RRd3H1cp8RczPLyWZ                                         │
+│  └──                                                                                            │
+│                                                                                                 │
+│ Transaction Kind: Programmable                                                                  │
+│ ╭─────────────────────────────────────────────────────────────────────────────────────────────╮ │
+│ │ Input Objects                                                                               │ │
+│ ├─────────────────────────────────────────────────────────────────────────────────────────────┤ │
+│ │ 0   Shared Object    ID: 0x0000000000000000000000000000000000000000000000000000000000000006 │ │
+│ ╰─────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│ ╭──────────────────────────────────────────────────────────────────────────────────╮            │
+│ │ Commands                                                                         │            │
+│ ├──────────────────────────────────────────────────────────────────────────────────┤            │
+│ │ 0  MoveCall:                                                                     │            │
+│ │  ┌                                                                               │            │
+│ │  │ Function:  timestamp_ms                                                       │            │
+│ │  │ Module:    clock                                                              │            │
+│ │  │ Package:   0x0000000000000000000000000000000000000000000000000000000000000002 │            │
+│ │  │ Arguments:                                                                    │            │
+│ │  │   Input  0                                                                    │            │
+│ │  └                                                                               │            │
+│ ╰──────────────────────────────────────────────────────────────────────────────────╯            │
+│                                                                                                 │
+│ Signatures:                                                                                     │
+│    BwAAAQGtmE1VAi7Gj8yjTrAZ9v2tOoRPS4ezLxxlPyuVNRtokwQAAAAAAAAAAA==                             │
+│                                                                                                 │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Transaction Effects                                                                               │
+├───────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Digest: x6MuoDJBEps84RbXMAPYW5wbq31QXhUQCmZv8Sw5214                                               │
+│ Status: Success                                                                                   │
+│ Executed Epoch: 10                                                                                │
+│ Mutated Objects:                                                                                  │
+│  ┌──                                                                                              │
+│  │ ID: 0x3c96ea0728cf1b825ecd69e17d6fa4e4a09b2e1f5b6a4bba4b511cc834bc9353                         │
+│  │ Owner: Account Address ( 0xad984d55022ec68fcca34eb019f6fdad3a844f4b87b32f1c653f2b95351b6893 )  │
+│  │ Version: 2509                                                                                  │
+│  │ Digest: 7YSZ9A2nUaXooS3mzb3dwAU2tsCu4yibEN5ML1VjSV94                                           │
+│  └──                                                                                              │
+│ Shared Objects:                                                                                   │
+│  ┌──                                                                                              │
+│  │ ID: 0x0000000000000000000000000000000000000000000000000000000000000006                         │
+│  │ Version: 2508                                                                                  │
+│  │ Digest: 8uwhsiVZjEmzyumAoJB1DJLk6hFJW5a5B2rcdhShxnPs                                           │
+│  └──                                                                                              │
+│  ┌──                                                                                              │
+│  │ ID: 0xad984d55022ec68fcca34eb019f6fdad3a844f4b87b32f1c653f2b95351b6893                         │
+│  │ Version: 6                                                                                     │
+│  │ Digest: 4vAgLSew3pKVFZJ6AtAo3Ke8k65DKUsJH2WCjhtirKov                                           │
+│  └──                                                                                              │
+│ Gas Object:                                                                                       │
+│  ┌──                                                                                              │
+│  │ ID: 0x3c96ea0728cf1b825ecd69e17d6fa4e4a09b2e1f5b6a4bba4b511cc834bc9353                         │
+│  │ Owner: Account Address ( 0xad984d55022ec68fcca34eb019f6fdad3a844f4b87b32f1c653f2b95351b6893 )  │
+│  │ Version: 2509                                                                                  │
+│  │ Digest: 7YSZ9A2nUaXooS3mzb3dwAU2tsCu4yibEN5ML1VjSV94                                           │
+│  └──                                                                                              │
+│ Gas Cost Summary:                                                                                 │
+│    Storage Cost: 980400 NANOS                                                                     │
+│    Computation Cost: 1000000 NANOS                                                                │
+│    Computation Cost Burned: 1000000 NANOS                                                         │
+│    Storage Rebate: 980400 NANOS                                                                   │
+│    Non-refundable Storage Fee: 0 NANOS                                                            │
+│                                                                                                   │
+│ Transaction Dependencies:                                                                         │
+│    4ctKMJt5PMmuMCvjr8dxCE6TbxijzUQy4tp9vXR4jjFG                                                   │
+│    6XbqMk5zSAZ1iPpUXAoTpQQAHRnE7AFAb6nkosRxDEDf                                                   │
+│    FNymx4ubvuwZ7i68UDZhznhdeJtQc9DTeRiCZX2YrwXC                                                   │
+│    HTucmULRF4u8nLbjyiSC7JBEGUxybCAKDD9DhJTtufvF                                                   │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────╮
+│ No transaction block events │
+╰─────────────────────────────╯
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Object Changes                                                                                   │
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Mutated Objects:                                                                                 │
+│  ┌──                                                                                             │
+│  │ ObjectID: 0x3c96ea0728cf1b825ecd69e17d6fa4e4a09b2e1f5b6a4bba4b511cc834bc9353                  │
+│  │ Sender: 0xad984d55022ec68fcca34eb019f6fdad3a844f4b87b32f1c653f2b95351b6893                    │
+│  │ Owner: Account Address ( 0xad984d55022ec68fcca34eb019f6fdad3a844f4b87b32f1c653f2b95351b6893 ) │
+│  │ ObjectType: 0x2::coin::Coin<0x2::iota::IOTA>                                                  │
+│  │ Version: 2509                                                                                 │
+│  │ Digest: 7YSZ9A2nUaXooS3mzb3dwAU2tsCu4yibEN5ML1VjSV94                                          │
+│  └──                                                                                             │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Balance Changes                                                                                   │
+├───────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  ┌──                                                                                              │
+│  │ Owner: Account Address ( 0xad984d55022ec68fcca34eb019f6fdad3a844f4b87b32f1c653f2b95351b6893 )  │
+│  │ CoinType: 0x2::iota::IOTA                                                                      │
+│  │ Amount: -1000000                                                                               │
+│  └──                                                                                              │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
+
+</details>
 
 After deploying and using this dynamic multisig account implementation:
 
@@ -135,6 +402,11 @@ After deploying and using this dynamic multisig account implementation:
 - Members, weights, threshold, and even the authenticator itself can be updated without changing the account address.
 - Old approvals from removed members are automatically ignored, keeping the approval logic consistent.
 
+## Expected Behavior
+
+- After the account is created, members propose and approve transaction digests on-chain.
+- Any transaction sent from the account executes only if the attached authenticator confirms that the total approval weight meets the configured threshold.
+
 ## Full Example Code
 
 The complete Move package, including comments and setup logic, is available here:
@@ -143,13 +415,8 @@ The complete Move package, including comments and setup logic, is available here
 
 <TabItem value="move" label="Move">
 
-```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/dynamic_multisig_account.move
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move
 ```
 
 </TabItem>
 </Tabs>
-
-## Expected Behavior
-
-After the account is created, members propose and approve transaction digests on-chain.
-Any transaction sent from the account executes only if the attached authenticator confirms that the total approval weight meets the configured threshold.

@@ -7,8 +7,6 @@ tags:
   - move-vm
 ---
 
-# Multisig Members
-
 ## About account abstraction
 
 In Account Abstraction, the account itself defines how transactions are authorized.  
@@ -16,12 +14,11 @@ For a multisig account, this requires a clear on-chain definition of **who the m
 
 This module defines the data structures and logic for managing multisig members and their voting weights.
 
-
 ## What this example shows
 
 This how-to demonstrates the **member management layer** of a dynamic multisig account:
 
-- Defining members with addresses and weights  
+- Defining members with addresses and weights
 - Validating multisig configuration (no duplicates, matching inputs)  
 - Querying members and total approval weight  
 - Providing safe accessors used by the authenticator and transaction logic  
@@ -30,13 +27,12 @@ This module contains **no transaction execution logic** and focuses purely on me
 
 ## Example code
 
-
 Below is the **minimal core code** required to define and manage multisig members.  
 The full module includes additional helpers, but this snippet highlights the essential logic.
 
 ### Define member and members data structures
 
-```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/members.move#L19-L32
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/members.move#L19-L32
 ```
 
 **What this does**
@@ -47,7 +43,7 @@ The full module includes additional helpers, but this snippet highlights the ess
 
 ### Create a members list with validation
 
-```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/members.move#L33-L47
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/members.move#L33-L47
 ```
 
 **What this does**
@@ -58,32 +54,9 @@ The full module includes additional helpers, but this snippet highlights the ess
   - no duplicate member addresses exist
 - Guarantees a valid multisig configuration at creation time.
 
-### Check and access members
-
-```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/members.move#L50-L62
-```
-
-**What this does**
-- Allows other modules to verify whether an address is a multisig member.
-- Provides safe immutable access to a member’s data.
-- Aborts if a non-member address is queried.
-
-### Query member addresses, weights, and total voting power
-
-```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/members.move#L64-L83
-```
-
-**What this does**
-
-- Exposes member data for:
-  -  threshold checks
-  -  approval weight calculation
-  -  frontend and indexer reads
-- `total_weight` is a core building block for multisig authorization.
-
 ### Mutate member state (internal use)
 
-```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/members.move#L85-L92
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/members.move#L48-L55
 ```
 
 **What this does**
@@ -94,9 +67,32 @@ The full module includes additional helpers, but this snippet highlights the ess
   -  rotating multisig configuration
 - Not exposed publicly to prevent unauthorized mutation.
 
+### Check and access members
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/members.move#L58-L72
+```
+
+**What this does**
+- Allows other modules to verify whether an address is a multisig member.
+- Provides safe immutable access to a member’s data.
+- Aborts if a non-member address is queried.
+
+### Query member addresses, weights, and total voting power
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/members.move#L73-L93
+```
+
+**What this does**
+
+- Exposes member data for:
+  -  threshold checks
+  -  approval weight calculation
+  -  frontend and indexer reads
+- `total_weight` is a core building block for multisig authorization.
+
 ### Validate multisig member inputs
 
-```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/members.move#L108-L119
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/members.move#L106-L118
 ```
 
 **What this does**
@@ -107,13 +103,18 @@ The full module includes additional helpers, but this snippet highlights the ess
   -  duplicate members
 - Ensures deterministic approval calculations.
 
-## Code Outcome
+## Verify the result:
 
 After using this members module:
 - Multisig members are stored on-chain with explicit voting weights.
 - Invalid multisig configurations are rejected at creation time.
 - Approval weight can be calculated deterministically and safely.
 - Other modules (transactions, authenticator) can rely on consistent member state.
+
+## Expected Behavior
+
+Only valid multisig member configurations can be created.
+All approval and authorization logic built on top of this module operates on a consistent, validated member set.
 
 ## Full Example Code
 
@@ -123,13 +124,8 @@ The complete members module is available here:
 
 <TabItem value="move" label="Move">
 
-```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/members.move
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/members.move
 ```
 
 </TabItem>
 </Tabs>
-
-## Expected Behavior
-
-Only valid multisig member configurations can be created.
-All approval and authorization logic built on top of this module operates on a consistent, validated member set.
