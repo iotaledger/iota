@@ -10,9 +10,9 @@ import { useBackgroundClient } from './useBackgroundClient';
 export function useUnlockMutation() {
     const backgroundClient = useBackgroundClient();
     return useMutation({
-        mutationKey: ['accounts', 'unlock', 'account source or account'],
+        mutationKey: ['accounts', 'unlock', 'account sources'],
         mutationFn: async (
-            inputs: Parameters<BackgroundClient['unlockAccountSourceOrAccount']>['0'],
-        ) => backgroundClient.unlockAccountSourceOrAccount(inputs),
+            inputs: Parameters<BackgroundClient['unlockAllAccountsAndSources']>['0'],
+        ) => backgroundClient.unlockAllAccountsAndSources(inputs),
     });
 }

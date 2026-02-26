@@ -32,17 +32,16 @@ import { NamedAddressTooltip } from '../NamedAddressTooltip';
 
 interface ObjectDetailProps {
     change: IotaObjectChangeWithDisplay;
-    ownerKey: string;
     renderExplorerLink: RenderExplorerLink;
-    display?: boolean;
 }
 
 export function ObjectDetail({ change, renderExplorerLink: ExplorerLink }: ObjectDetailProps) {
+    const [open, setOpen] = useState(false);
+
     if (change.type === 'transferred' || change.type === 'published') {
         return null;
     }
 
-    const [open, setOpen] = useState(false);
     const [packageId, moduleName, typeName] = change.objectType?.split('<')[0]?.split('::') || [];
 
     return (
@@ -224,7 +223,6 @@ function ObjectChangeByOwnerPanel({
                                 items={change.changes.map((change) => (
                                     <ObjectDetail
                                         renderExplorerLink={renderExplorerLink}
-                                        ownerKey={owner}
                                         change={change}
                                     />
                                 ))}
@@ -238,15 +236,21 @@ function ObjectChangeByOwnerPanel({
                         <KeyValueInfo
                             keyText="Owner"
                             value={
-                                <NamedAddressTooltip name={iotaName} address={owner}>
-                                    <ExplorerLink
-                                        type={ExplorerLinkType.Address}
-                                        address={owner}
-                                        eventType="address"
-                                    >
-                                        {formatIotaName(iotaName) || formatAddress(owner)}
-                                    </ExplorerLink>
-                                </NamedAddressTooltip>
+                                owner === 'Shared' ? (
+                                    <span className="text-iota-neutral-10 dark:text-iota-neutral-92">
+                                        {owner}
+                                    </span>
+                                ) : (
+                                    <NamedAddressTooltip name={iotaName} address={owner}>
+                                        <ExplorerLink
+                                            type={ExplorerLinkType.Address}
+                                            address={owner}
+                                            eventType="address"
+                                        >
+                                            {formatIotaName(iotaName) || formatAddress(owner)}
+                                        </ExplorerLink>
+                                    </NamedAddressTooltip>
+                                )
                             }
                             fullwidth
                         />
