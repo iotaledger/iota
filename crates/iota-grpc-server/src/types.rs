@@ -33,7 +33,7 @@ use tokio_util::sync::CancellationToken;
 use tonic::Status;
 use tracing::debug;
 
-use crate::merge::Merge;
+use crate::{error::RpcError, merge::Merge};
 
 /// Flags indicating which optional transaction fields to fetch from storage.
 /// Derived from a `FieldMaskTree` to skip unnecessary storage reads.
@@ -1214,11 +1214,13 @@ impl CheckpointTransactionWithContext {
 impl Merge<CheckpointTransactionWithContext>
     for iota_grpc_types::v0::transaction::ExecutedTransaction
 {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: CheckpointTransactionWithContext,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         if let Some(submask) = mask.subtree(Self::TRANSACTION_FIELD.name) {
             self.transaction = Some(iota_grpc_types::v0::transaction::Transaction::merge_from(
                 source.transaction.transaction.clone(),

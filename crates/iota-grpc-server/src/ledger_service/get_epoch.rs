@@ -19,7 +19,7 @@ use iota_types::committee::EpochId;
 use prost_types::FieldMask;
 use tonic::Status;
 
-use crate::{ledger_service::LedgerGrpcService, merge::Merge, types::GrpcReader};
+use crate::{error::RpcError, ledger_service::LedgerGrpcService, merge::Merge, types::GrpcReader};
 
 /// Source for building `Epoch` using the `Merge` trait.
 pub struct EpochReadSource {
@@ -30,11 +30,9 @@ pub struct EpochReadSource {
 }
 
 impl Merge<&EpochReadSource> for Epoch {
-    fn merge(
-        &mut self,
-        source: &EpochReadSource,
-        mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    type Error = RpcError;
+
+    fn merge(&mut self, source: &EpochReadSource, mask: &FieldMaskTree) -> Result<(), Self::Error> {
         if mask.contains(Self::EPOCH_FIELD.name) {
             self.epoch = Some(source.epoch);
         }
