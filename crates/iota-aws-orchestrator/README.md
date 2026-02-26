@@ -169,9 +169,9 @@ for example when running the command `cargo run --bin iota-aws-orchestrator -- b
 In this case, you’re likely using SSH keys that are password-protected. During instance authorization, AWS prompts for the passphrase, but since the process is automated, there's no one to provide it - which causes the deployment to hang.
 
 To resolve this, you should use a separate SSH key pair without a passphrase.
-***Important***: Make sure to store this key securely and avoid exposing it to anyone, as it is not protected by a passphrase.
+**Important**: Make sure to store this key securely and avoid exposing it to anyone, as it is not protected by a passphrase.
 
-#### Cleaning up testbed ... 
+#### Cleaning up testbed ...
 
 In this case, if you encounter a hang during the testbed deploy stage, the process may also hang later during the cleanup stage.
 

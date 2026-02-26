@@ -20,6 +20,7 @@ bcs.workspace = true
 clap.workspace = true
 comfy-table.workspace = true
 duration-str = "0.5.0"
+fastcrypto.workspace = true
 futures.workspace = true
 hdrhistogram.workspace = true
 indicatif.workspace = true
@@ -35,7 +36,6 @@ sysinfo.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tokio-util.workspace = true
 tracing.workspace = true
-fastcrypto.workspace = true
 
 # internal dependencies
 iota-config.workspace = true
