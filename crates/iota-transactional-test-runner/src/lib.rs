@@ -48,7 +48,9 @@ use test_adapter::{IotaTestAdapter, PRE_COMPILED};
 #[cfg_attr(not(msim), tokio::main)]
 #[cfg_attr(msim, msim::main)]
 pub async fn run_test(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    telemetry_subscribers::init_for_testing();
+    let (_guard, _filter_handle) = telemetry_subscribers::TelemetryConfig::new()
+        .with_env()
+        .init();
     run_test_impl::<IotaTestAdapter>(path, Some(std::sync::Arc::new(PRE_COMPILED.clone()))).await?;
     Ok(())
 }
