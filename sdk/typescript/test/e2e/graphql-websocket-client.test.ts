@@ -3,13 +3,21 @@
 
 import { afterEach, describe, expect, test } from 'vitest';
 
+import { getDefaultNetwork, getNetwork } from '../../src/client/network';
 import { GraphQLWebSocketClient } from '../../src/graphql/graphql-websocket-client';
 
-const DEVNET_WS_URL = 'wss://graphql.devnet.iota.cafe/subscriptions';
+const network = getDefaultNetwork();
+const graphqlUrl = getNetwork(network).graphql;
+if (!graphqlUrl) {
+    throw new Error(
+        `Missing GraphQL URL for ${network}. Ensure IOTA_NETWORKS env var is configured.`,
+    );
+}
+const subscriptionUrl = graphqlUrl.replace(/\/?$/, '/subscriptions');
 
 const SUBSCRIPTION_TIMEOUT = 15_000;
 
-describe('GraphQLWebSocketClient E2E (devnet)', () => {
+describe(`GraphQLWebSocketClient E2E (${network})`, () => {
     let client: GraphQLWebSocketClient | null = null;
 
     afterEach(() => {
@@ -20,7 +28,7 @@ describe('GraphQLWebSocketClient E2E (devnet)', () => {
     test(
         'connects to devnet and completes handshake',
         async () => {
-            client = new GraphQLWebSocketClient(DEVNET_WS_URL);
+            client = new GraphQLWebSocketClient(subscriptionUrl);
 
             const unsub = await client.subscribe({
                 query: `subscription { events { ... on Event { json } ... on Lagged { count } } }`,
@@ -38,7 +46,7 @@ describe('GraphQLWebSocketClient E2E (devnet)', () => {
     test(
         'receives events from devnet (or unsubscribes cleanly)',
         async () => {
-            client = new GraphQLWebSocketClient(DEVNET_WS_URL);
+            client = new GraphQLWebSocketClient(subscriptionUrl);
 
             const messages: unknown[] = [];
             const errors: unknown[] = [];
@@ -72,7 +80,7 @@ describe('GraphQLWebSocketClient E2E (devnet)', () => {
     test(
         'subscribes to transactions on devnet',
         async () => {
-            client = new GraphQLWebSocketClient(DEVNET_WS_URL);
+            client = new GraphQLWebSocketClient(subscriptionUrl);
 
             const unsub = await client.subscribe({
                 query: `subscription { transactions { ... on TransactionBlock { digest } ... on Lagged { count } } }`,

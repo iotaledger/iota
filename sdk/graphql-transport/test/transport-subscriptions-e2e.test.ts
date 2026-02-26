@@ -3,13 +3,20 @@
 
 import { afterEach, describe, expect, test } from 'vitest';
 
+import { getDefaultNetwork, getNetwork } from '../../typescript/src/client/network';
 import { IotaClientGraphQLTransport } from '../src/transport';
 
-const DEVNET_GRAPHQL_URL = 'https://graphql.devnet.iota.cafe';
+const network = getDefaultNetwork();
+const graphqlUrl = getNetwork(network).graphql;
+if (!graphqlUrl) {
+    throw new Error(
+        `Missing GraphQL URL for ${network}. Ensure IOTA_NETWORKS env var is configured.`,
+    );
+}
 
 const SUBSCRIPTION_TIMEOUT = 15_000;
 
-describe('IotaClientGraphQLTransport Subscriptions E2E (devnet)', () => {
+describe(`IotaClientGraphQLTransport Subscriptions E2E (${network})`, () => {
     let transport: IotaClientGraphQLTransport | null = null;
 
     afterEach(() => {
@@ -20,7 +27,7 @@ describe('IotaClientGraphQLTransport Subscriptions E2E (devnet)', () => {
         'subscribes to events via GraphQL WS',
         async () => {
             transport = new IotaClientGraphQLTransport({
-                url: DEVNET_GRAPHQL_URL,
+                url: graphqlUrl,
             });
 
             const messages: unknown[] = [];
@@ -52,7 +59,7 @@ describe('IotaClientGraphQLTransport Subscriptions E2E (devnet)', () => {
         'subscribes to events with MoveModule filter',
         async () => {
             transport = new IotaClientGraphQLTransport({
-                url: DEVNET_GRAPHQL_URL,
+                url: graphqlUrl,
             });
 
             const messages: unknown[] = [];
@@ -78,7 +85,7 @@ describe('IotaClientGraphQLTransport Subscriptions E2E (devnet)', () => {
         'subscribes to transactions via GraphQL WS',
         async () => {
             transport = new IotaClientGraphQLTransport({
-                url: DEVNET_GRAPHQL_URL,
+                url: graphqlUrl,
             });
 
             const messages: unknown[] = [];
@@ -109,7 +116,7 @@ describe('IotaClientGraphQLTransport Subscriptions E2E (devnet)', () => {
         'supports AbortSignal for subscriptions',
         async () => {
             transport = new IotaClientGraphQLTransport({
-                url: DEVNET_GRAPHQL_URL,
+                url: graphqlUrl,
             });
 
             const controller = new AbortController();
