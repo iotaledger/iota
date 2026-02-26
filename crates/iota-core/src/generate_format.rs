@@ -320,11 +320,6 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_type::<Owner>(&samples).unwrap();
     tracer.trace_type::<CallArg>(&samples).unwrap();
     tracer.trace_type::<ObjectArg>(&samples).unwrap();
-    // trace_type::<Data> is skipped — the SDK's MovePackage (in Data::Package)
-    // uses BTreeMap<Identifier, Vec<u8>> with serde_with, and Identifier's
-    // custom serde (DisplayFromStr) is incompatible with serde_reflection's
-    // tracing deserializer for map keys. Both Data variants are fully covered
-    // by trace_value calls above.
     tracer.trace_type::<TypedStoreError>(&samples).unwrap();
     tracer
         .trace_type::<ObjectInfoRequestKind>(&samples)
