@@ -103,9 +103,6 @@ pub struct NodeConfig {
     #[serde(default = "default_enable_index_processing")]
     pub enable_index_processing: bool,
 
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub remove_deprecated_tables: bool,
-
     // only allow websocket connections for jsonrpc traffic
     #[serde(default)]
     /// Determines the jsonrpc server type as either:
