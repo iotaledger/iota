@@ -131,7 +131,9 @@ export function NFTDetailsPage() {
                                                                 address={ownerAddress}
                                                                 eventType="address"
                                                             >
-                                                                {formatAddress(ownerAddress)}
+                                                                <span data-amp-mask>
+                                                                    {formatAddress(ownerAddress)}
+                                                                </span>
                                                             </ExplorerLink>
                                                         }
                                                         fullwidth
