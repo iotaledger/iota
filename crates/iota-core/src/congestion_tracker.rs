@@ -25,11 +25,11 @@ const HOTNESS_CUTOFF: f64 = 1.0;
 
 /// Controls how quickly congestion tracker updates object hotness.
 /// Values should be > 0.0. Higher values mean faster adjustments.
-const HOTNESS_ADJUSTMENT_FACTOR: f64 = 1.0;
+const HOTNESS_ADJUSTMENT_FACTOR: f64 = 2.0;
 
 /// Controls how quickly hotness decays for objects not seen in congestion.
 /// Values should be >= 1.0: set to > 1.0 for decay, or 1.0 for no decay.
-const MAX_DECAY_FACTOR: f64 = 2.0;
+const MAX_DECAY_FACTOR: f64 = 1.1;
 
 /// Alias for type holding congestion info per checkpoint.
 type CongestionInfoMap = HashMap<ObjectID, CongestionInfo>;
@@ -161,6 +161,11 @@ impl CongestionTracker {
                 .transaction_data()
                 .gas_price();
 
+            // Skip system transactions
+            if gas_price == 1 {
+                continue;
+            }
+
             if let Some(CongestedObjects(congested_objects)) =
                 effects.status().get_congested_objects()
             {
@@ -174,21 +179,23 @@ impl CongestionTracker {
                     gas_price_feedback: Some(gas_price_feedback),
                 });
             } else {
-                clearing_txs_data.push(TxData {
-                    objects: effects
-                        .input_shared_objects()
-                        .into_iter()
-                        .filter_map(|object| match object {
-                            InputSharedObject::Mutate((id, _, _)) => Some(id),
-                            InputSharedObject::Cancelled(_, _)
-                            | InputSharedObject::ReadOnly(_)
-                            | InputSharedObject::ReadDeleted(_, _)
-                            | InputSharedObject::MutateDeleted(_, _) => None,
-                        })
-                        .collect::<Vec<_>>(),
-                    gas_price,
-                    gas_price_feedback: None,
-                });
+                let mutated_objects: Vec<ObjectID> = effects
+                    .input_shared_objects()
+                    .into_iter()
+                    .filter_map(|object| match object {
+                        InputSharedObject::Mutate((id, _, _)) => Some(id),
+                        _ => None,
+                    })
+                    .collect();
+
+                // Only push to clearing_txs_data if there are mutated objects
+                if !mutated_objects.is_empty() {
+                    clearing_txs_data.push(TxData {
+                        objects: mutated_objects,
+                        gas_price,
+                        gas_price_feedback: None,
+                    });
+                }
             }
         }
 
