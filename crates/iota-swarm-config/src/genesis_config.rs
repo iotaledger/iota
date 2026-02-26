@@ -367,7 +367,10 @@ impl GenesisConfig {
         total_available_amount: u64,
     ) -> Self {
         // this translates to an assert in iota::balance::increase_supply
-        assert!(total_available_amount < u64::MAX, "Total available amount must be less than 18446744073709551615u64");
+        assert!(
+            total_available_amount < u64::MAX,
+            "Total available amount must be less than 18446744073709551615u64"
+        );
         // Set the validator's configs. They should be the same across multiple runs to
         // ensure reproducibility.
         let mut rng = StdRng::seed_from_u64(Self::BENCHMARKS_RNG_SEED);

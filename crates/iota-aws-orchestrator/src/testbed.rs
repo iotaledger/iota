@@ -209,7 +209,7 @@ impl<C: ServerProviderClient> Testbed<C> {
                     )
                 });
 
-                // Run them all concurrently, flatten Vec<Vec<Instance>> →Vec<Instance>
+                // Run them all concurrently, flatten Vec<Vec<Instance>> → Vec<Instance>
                 try_join_all(tasks)
                     .await?
                     .into_iter()
@@ -243,7 +243,6 @@ impl<C: ServerProviderClient> Testbed<C> {
             Some(client_instances)
         };
         self.metrics_instance = metrics_instance.into_iter().next();
-        display::action("testing");
 
         display::action("Deployment completed\n\n");
         display::done();
