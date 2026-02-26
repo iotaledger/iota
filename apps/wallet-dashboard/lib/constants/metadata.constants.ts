@@ -10,7 +10,7 @@ const METADATA_INFO = {
     title: 'IOTA Wallet Dashboard',
     description: 'IOTA Wallet Dashboard - Connecting you to the decentralized web and IOTA network',
     image: '/metadata-image.png',
-    metadataBase: new URL(`https://${VERCEL_URL ?? PRODUCTION_BASE_URL}`),
+    metadataBase: new URL(`https://${VERCEL_URL || PRODUCTION_BASE_URL}`),
 };
 
 export const METADATA: Metadata = {
