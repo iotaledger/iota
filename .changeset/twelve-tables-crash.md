@@ -2,4 +2,4 @@
 '@iota/iota-sdk': patch
 ---
 
-refactor getAppsBackend
+Remove getAppsBackend function
