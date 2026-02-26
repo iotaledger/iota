@@ -2,13 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export const PURE_VALUETYPE_LABEL_MAP = {
-    bool: 'bool',
-    u8: 'u8',
-    u16: 'u16',
-    u32: 'u32',
-    u64: 'u64',
-    u128: 'u128',
-    u256: 'u256',
     address: 'Address',
     signer: 'Signer',
     'vector<u8>': 'String',
