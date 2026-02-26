@@ -2553,13 +2553,13 @@ impl ProtocolConfig {
                             .separate_gas_price_feedback_mechanism_for_randomness = true;
                     }
 
-                    cfg.auth_context_digest_cost_base = Some(100);
-                    cfg.auth_context_tx_commands_cost_base = Some(100);
-                    cfg.auth_context_tx_commands_cost_per_byte = Some(10);
-                    cfg.auth_context_tx_inputs_cost_base = Some(100);
-                    cfg.auth_context_tx_inputs_cost_per_byte = Some(10);
-                    cfg.auth_context_replace_cost_base = Some(100);
-                    cfg.auth_context_replace_cost_per_byte = Some(10);
+                    cfg.auth_context_digest_cost_base = Some(30);
+                    cfg.auth_context_tx_commands_cost_base = Some(30);
+                    cfg.auth_context_tx_commands_cost_per_byte = Some(2);
+                    cfg.auth_context_tx_inputs_cost_base = Some(30);
+                    cfg.auth_context_tx_inputs_cost_per_byte = Some(2);
+                    cfg.auth_context_replace_cost_base = Some(30);
+                    cfg.auth_context_replace_cost_per_byte = Some(2);
                 }
 
                 // Use this template when making changes:
