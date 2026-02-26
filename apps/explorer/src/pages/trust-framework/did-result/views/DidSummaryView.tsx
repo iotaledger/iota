@@ -37,11 +37,9 @@ export function DidSummaryView({
                         </div>
                     )}
 
-                    {isActive && (
-                        <div>
-                            <DisplayStats label="Active" value={isActive ? 'Yes' : 'No'} />
-                        </div>
-                    )}
+                    <div>
+                        <DisplayStats label="Active" value={isActive ? 'Yes' : 'No'} />
+                    </div>
 
                     {storageRebate && (
                         <div>
