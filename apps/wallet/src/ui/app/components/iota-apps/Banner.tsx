@@ -32,8 +32,7 @@ export function AppsPageBanner() {
                             bannerUrl: AppsBannerConfig.value?.bannerUrl,
                         })
                     }
-                    type="application"
-                    isPublic
+                    trackEvent={false}
                 >
                     <img
                         className="w-full"

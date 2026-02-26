@@ -1,5 +1,49 @@
 # @iota/iota-sdk
 
+## 1.11.0
+
+### Minor Changes
+
+-   43cfa2b: Improve typing for the return type of splitCoins and update the splitCoins result type
+    to have a concrete size
+-   3bcb711: Add a new `address` options on methods that verify signatures that ensures the
+    signature is valid for the provided address. Add a new `publicKey.verifyAddress` method on
+    PublicKey instances.
+-   0296e7d: add abort signals to all IotaClient methods
+-   b903c0a: expose `pureBcsSchemaFromTypeName` utility
+-   19c174f: Add enum pagination support to getNormalizedMoveModule and fix type generator for
+    arrays without items
+-   8bd4574: Sync types with the new score integration.
+-   7a61cb5: Change the default value of `waitMode` in `waitForTransaction` to be `checkpoint`.
+-   d5923e9: Add the `MoveAuthenticator` variant to the `GenericSignature` to allow the
+    authentication of Abstract Accounts.
+-   6fc20db: Sync with the renaming of `callArgs` field to `arguments` in the `view` JSON-RPC method
+    params.
+-   2164846: Remove dependency on tweetnacl and replace with @noble/curves/ed25519
+-   924bf18: Support and helpers for the Move Authenticator (Also known as 'Account Abstraction').
+-   21a4820: Parallel Executor: add additional signatures
+-   ffbb296: Update the GraphQL queries to support new fields
+-   088c577: expose isArgument util from @iota/iota-sdk/transactions
+-   0cc417d: replace bs58 and bech32 packages with @scure/base
+
+### Patch Changes
+
+-   54c7803: Update @types/node to v24.
+-   f5a4569: Fix transaction construction for royalty_rule::fee_amount
+-   5fc7e20: Add execution error to response.
+-   f2b8160: fix graphql transport error
+-   abcdd2f: add transactionBlocksByDigests tests
+-   b72bfd2: Remove duplicate applyEffects in serial transaction executor
+-   38657f6: Fix coinWithBalance with a 0 balance when using a gas coin
+-   7fa1fde: add getSigningDigest and signingDigest methods
+-   4dc4b84: fix bug in object cache's applyEffects method that doesn't correctly await cache
+    deletes
+-   58891a9: Allow coinWithBalance return value to be used in multiple commands
+-   Updated dependencies [94b38e1]
+-   Updated dependencies [f445f37]
+-   Updated dependencies [0cc417d]
+    -   @iota/bcs@1.5.0
+
 ## 1.10.1
 
 ### Patch Changes
