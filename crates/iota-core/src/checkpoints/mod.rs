@@ -2667,8 +2667,8 @@ mod tests {
                         ObjectID::random(),
                         SequenceNumber::default(),
                         BTreeMap::from([(
-                            Identifier::new_unchecked(format!("{:0>40000}", "1")),
-                            Vec::new(),
+                            Identifier::new_unchecked("m"),
+                            vec![0u8; 40000],
                         )]),
                         100_000,
                         // no modules so empty type_origin_table as no types are defined in this
