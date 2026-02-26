@@ -27,6 +27,8 @@ export function ControllerView({ objectData }: ControllerViewProps) {
     const threshold = extractThreshold(objectData);
     const { results, isPending, isError } = useGetControllerObjects(objectData);
     const controllers = results.map((each) => each.data).filter((each) => each != null);
+    const controllersFailedToLoad = controllers.filter((controller) => controller.isError);
+    const controllersLoaded = controllers.filter((controller) => !controller.isError);
 
     return (
         <div className="flex w-full flex-col gap-sm">
@@ -46,49 +48,43 @@ export function ControllerView({ objectData }: ControllerViewProps) {
                         style={InfoBoxStyle.Elevated}
                     />
                 )}
-                {controllers.map((controller) => (
-                    <>
-                        {controller.isError ? (
-                            <InfoBox
-                                key={controller.objectId}
-                                title="Error Fetching Controller"
-                                supportingText={`Could not fetch ControllerCap ${controller.objectId} on the current network.`}
-                                icon={<Warning />}
-                                type={InfoBoxType.Error}
-                                style={InfoBoxStyle.Elevated}
+                {controllersFailedToLoad.map((controller) => (
+                    <InfoBox
+                        key={controller.objectId}
+                        title="Error Fetching Controller"
+                        supportingText={`Could not fetch ControllerCap ${controller.objectId} on the current network.`}
+                        icon={<Warning />}
+                        type={InfoBoxType.Error}
+                        style={InfoBoxStyle.Elevated}
+                    />
+                ))}
+                {controllersLoaded.map((controller) => (
+                    <CollapsibleCard
+                        key={controller.objectId}
+                        collapsible
+                        title="Controller Capability"
+                        titleSize={TitleSize.Small}
+                        footer={
+                            <ControllerCardFooter
+                                weight={controller.weight}
+                                threshold={threshold}
+                                ownerType={controller.ownerType!}
+                                ownerAddress={controller.owner!}
                             />
-                        ) : (
-                            <CollapsibleCard
-                                key={controller.objectId}
-                                collapsible
-                                title="Controller Capability"
-                                titleSize={TitleSize.Small}
-                                footer={
-                                    <ControllerCardFooter
-                                        weight={controller.weight}
-                                        threshold={threshold}
-                                        ownerType={controller.ownerType!}
-                                        ownerAddress={controller.owner!}
-                                    />
-                                }
-                                supportingTitleElement={
-                                    <div className="ml-1 flex">
-                                        <Badge
-                                            label={controller.ownerType}
-                                            type={BadgeType.PrimarySoft}
-                                        />
-                                    </div>
-                                }
-                            >
-                                <div className="flex flex-col gap-4">
-                                    <ObjectDetail
-                                        objectId={controller.objectId}
-                                        objectType={controller.objectType!}
-                                    />
-                                </div>
-                            </CollapsibleCard>
-                        )}
-                    </>
+                        }
+                        supportingTitleElement={
+                            <div className="ml-1 flex">
+                                <Badge label={controller.ownerType} type={BadgeType.PrimarySoft} />
+                            </div>
+                        }
+                    >
+                        <div className="flex flex-col gap-4">
+                            <ObjectDetail
+                                objectId={controller.objectId}
+                                objectType={controller.objectType!}
+                            />
+                        </div>
+                    </CollapsibleCard>
                 ))}
             </div>
         </div>
