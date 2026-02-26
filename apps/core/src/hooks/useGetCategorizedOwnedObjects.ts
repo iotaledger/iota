@@ -45,14 +45,12 @@ function useVirtualPagination(
     const end = start + limit;
     const pageData = allItems.slice(start, end);
 
-    // Auto-fetch more RPC pages when we don't have enough items for the next virtual page
     useEffect(() => {
         if (canFetchMore && !isFetchingMore && allItems.length <= end) {
             fetchMore();
         }
     }, [canFetchMore, isFetchingMore, allItems.length, end, fetchMore]);
 
-    // Reset to first page when limit changes
     useEffect(() => {
         setCurrentPage(0);
     }, [limit]);
@@ -67,7 +65,6 @@ function useVirtualPagination(
         if (nextStart < allItems.length) {
             setCurrentPage(nextPage);
         } else if (canFetchMore && !isFetchingMore) {
-            // Need more data — fetch another RPC page, then advance
             fetchMore();
             setCurrentPage(nextPage);
         }
