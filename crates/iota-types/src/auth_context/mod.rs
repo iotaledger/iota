@@ -133,24 +133,6 @@ impl AuthContext {
         MoveTypeLayout::Struct(Box::new(MoveStructLayout(Box::new(vec![custom_field]))))
     }
 
-    pub fn layout_with_auth_digest() -> MoveStructLayout {
-        MoveStructLayout(Box::new(vec![MoveTypeLayout::Vector(Box::new(
-            MoveTypeLayout::U8,
-        ))]))
-    }
-
-    pub fn layout_with_tx_inputs() -> MoveStructLayout {
-        MoveStructLayout(Box::new(vec![MoveTypeLayout::Vector(Box::new(
-            MoveTypeLayout::Enum(Box::new(AuthContextCallArg::layout())),
-        ))]))
-    }
-
-    pub fn layout_with_tx_commands() -> MoveStructLayout {
-        MoveStructLayout(Box::new(vec![MoveTypeLayout::Vector(Box::new(
-            MoveTypeLayout::Enum(Box::new(AuthContextCommand::layout())),
-        ))]))
-    }
-
     // Move test only API
     //
     pub fn replace(
