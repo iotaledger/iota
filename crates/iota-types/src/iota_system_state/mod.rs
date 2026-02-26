@@ -366,7 +366,7 @@ where
                             err
                         ))
                     })?;
-            Ok(validator.into_iota_validator_summary(protocol_version))
+            Ok(validator.into_iota_validator_summary())
         }
         #[cfg(msim)]
         IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V1 => {
@@ -378,7 +378,7 @@ where
                             err
                         ))
                     })?;
-            Ok(validator.into_iota_validator_summary(protocol_version))
+            Ok(validator.into_iota_validator_summary())
         }
         _ => Err(IotaError::IotaSystemStateRead(format!(
             "Unsupported Validator version: {version}"
