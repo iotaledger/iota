@@ -7,11 +7,13 @@ use std::{collections::BTreeMap, path::PathBuf};
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::ObjectID,
+    base_types::{Identifier, ObjectID},
     digests::TransactionDigest,
     error::ExecutionErrorKind,
     execution_status::PackageUpgradeError,
-    move_package::{MovePackage, TypeOrigin, UpgradeInfo},
+    move_package::{
+        MovePackage, TypeOrigin, UpgradeInfo, new_initial_move_package, new_upgraded_move_package,
+    },
     object::{Data, OBJECT_START_VERSION, Object},
 };
 use move_binary_format::file_format::CompiledModule;
@@ -20,8 +22,8 @@ macro_rules! type_origin_table {
     {} => { Vec::new() };
     {$($module:ident :: $type:ident => $pkg:expr),* $(,)?} => {{
         vec![$(TypeOrigin {
-            module_name: stringify!($module).to_string(),
-            datatype_name: stringify!($type).to_string(),
+            module_name: Identifier::new(stringify!($module)).unwrap(),
+            datatype_name: Identifier::new(stringify!($type)).unwrap(),
             package: $pkg,
         },)*]
     }}
@@ -47,7 +49,7 @@ macro_rules! linkage_table {
 #[test]
 fn test_new_initial() {
     let c_id1 = ObjectID::from_u16(0xc1);
-    let c_pkg = MovePackage::new_initial(
+    let c_pkg = new_initial_move_package(
         &build_test_modules("Cv1"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [],
@@ -55,14 +57,14 @@ fn test_new_initial() {
     .unwrap();
 
     let b_id1 = ObjectID::from_u16(0xb1);
-    let b_pkg = MovePackage::new_initial(
+    let b_pkg = new_initial_move_package(
         &build_test_modules("B"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [&c_pkg],
     )
     .unwrap();
 
-    let a_pkg = MovePackage::new_initial(
+    let a_pkg = new_initial_move_package(
         &build_test_modules("A"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [&b_pkg, &c_pkg],
@@ -113,7 +115,7 @@ fn test_new_initial() {
 #[test]
 fn test_upgraded() {
     let c_id1 = ObjectID::from_u16(0xc1);
-    let c_pkg = MovePackage::new_initial(
+    let c_pkg = new_initial_move_package(
         &build_test_modules("Cv1"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [],
@@ -121,14 +123,14 @@ fn test_upgraded() {
     .unwrap();
 
     let c_id2 = ObjectID::from_u16(0xc2);
-    let c_new = c_pkg
-        .new_upgraded(
-            c_id2,
-            &build_test_modules("Cv2"),
-            &ProtocolConfig::get_for_max_version_UNSAFE(),
-            [],
-        )
-        .unwrap();
+    let c_new = new_upgraded_move_package(
+        &c_pkg,
+        c_id2,
+        &build_test_modules("Cv2"),
+        &ProtocolConfig::get_for_max_version_UNSAFE(),
+        [],
+    )
+    .unwrap();
 
     let mut expected_version = OBJECT_START_VERSION;
     expected_version.increment().unwrap();
@@ -146,7 +148,7 @@ fn test_upgraded() {
 #[test]
 fn test_depending_on_upgrade() {
     let c_id1 = ObjectID::from_u16(0xc1);
-    let c_pkg = MovePackage::new_initial(
+    let c_pkg = new_initial_move_package(
         &build_test_modules("Cv1"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [],
@@ -154,16 +156,16 @@ fn test_depending_on_upgrade() {
     .unwrap();
 
     let c_id2 = ObjectID::from_u16(0xc2);
-    let c_new = c_pkg
-        .new_upgraded(
-            c_id2,
-            &build_test_modules("Cv2"),
-            &ProtocolConfig::get_for_max_version_UNSAFE(),
-            [],
-        )
-        .unwrap();
+    let c_new = new_upgraded_move_package(
+        &c_pkg,
+        c_id2,
+        &build_test_modules("Cv2"),
+        &ProtocolConfig::get_for_max_version_UNSAFE(),
+        [],
+    )
+    .unwrap();
 
-    let b_pkg = MovePackage::new_initial(
+    let b_pkg = new_initial_move_package(
         &build_test_modules("B"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [&c_new],
@@ -181,7 +183,7 @@ fn test_depending_on_upgrade() {
 #[test]
 fn test_upgrade_upgrades_linkage() {
     let c_id1 = ObjectID::from_u16(0xc1);
-    let c_pkg = MovePackage::new_initial(
+    let c_pkg = new_initial_move_package(
         &build_test_modules("Cv1"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [],
@@ -189,16 +191,16 @@ fn test_upgrade_upgrades_linkage() {
     .unwrap();
 
     let c_id2 = ObjectID::from_u16(0xc2);
-    let c_new = c_pkg
-        .new_upgraded(
-            c_id2,
-            &build_test_modules("Cv2"),
-            &ProtocolConfig::get_for_max_version_UNSAFE(),
-            [],
-        )
-        .unwrap();
+    let c_new = new_upgraded_move_package(
+        &c_pkg,
+        c_id2,
+        &build_test_modules("Cv2"),
+        &ProtocolConfig::get_for_max_version_UNSAFE(),
+        [],
+    )
+    .unwrap();
 
-    let b_pkg = MovePackage::new_initial(
+    let b_pkg = new_initial_move_package(
         &build_test_modules("B"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [&c_pkg],
@@ -206,14 +208,14 @@ fn test_upgrade_upgrades_linkage() {
     .unwrap();
 
     let b_id2 = ObjectID::from_u16(0xb2);
-    let b_new = b_pkg
-        .new_upgraded(
-            b_id2,
-            &build_test_modules("B"),
-            &ProtocolConfig::get_for_max_version_UNSAFE(),
-            [&c_new],
-        )
-        .unwrap();
+    let b_new = new_upgraded_move_package(
+        &b_pkg,
+        b_id2,
+        &build_test_modules("B"),
+        &ProtocolConfig::get_for_max_version_UNSAFE(),
+        [&c_new],
+    )
+    .unwrap();
 
     assert_eq!(
         b_pkg.linkage_table(),
@@ -233,7 +235,7 @@ fn test_upgrade_upgrades_linkage() {
 #[test]
 fn test_upgrade_linkage_digest_to_new_dep() {
     let c_id1 = ObjectID::from_u16(0xc1);
-    let c_pkg = MovePackage::new_initial(
+    let c_pkg = new_initial_move_package(
         &build_test_modules("Cv1"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [],
@@ -241,16 +243,16 @@ fn test_upgrade_linkage_digest_to_new_dep() {
     .unwrap();
 
     let c_id2 = ObjectID::from_u16(0xc2);
-    let c_new = c_pkg
-        .new_upgraded(
-            c_id2,
-            &build_test_modules("Cv2"),
-            &ProtocolConfig::get_for_max_version_UNSAFE(),
-            [],
-        )
-        .unwrap();
+    let c_new = new_upgraded_move_package(
+        &c_pkg,
+        c_id2,
+        &build_test_modules("Cv2"),
+        &ProtocolConfig::get_for_max_version_UNSAFE(),
+        [],
+    )
+    .unwrap();
 
-    let b_pkg = MovePackage::new_initial(
+    let b_pkg = new_initial_move_package(
         &build_test_modules("B"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [&c_pkg],
@@ -258,14 +260,14 @@ fn test_upgrade_linkage_digest_to_new_dep() {
     .unwrap();
 
     let b_id2 = ObjectID::from_u16(0xb2);
-    let b_new = b_pkg
-        .new_upgraded(
-            b_id2,
-            &build_test_modules("B"),
-            &ProtocolConfig::get_for_max_version_UNSAFE(),
-            [&c_new],
-        )
-        .unwrap();
+    let b_new = new_upgraded_move_package(
+        &b_pkg,
+        b_id2,
+        &build_test_modules("B"),
+        &ProtocolConfig::get_for_max_version_UNSAFE(),
+        [&c_new],
+    )
+    .unwrap();
 
     assert_eq!(
         b_new.linkage_table(),
@@ -297,7 +299,7 @@ fn test_upgrade_linkage_digest_to_new_dep() {
 #[test]
 fn test_upgrade_downgrades_linkage() {
     let c_id1 = ObjectID::from_u16(0xc1);
-    let c_pkg = MovePackage::new_initial(
+    let c_pkg = new_initial_move_package(
         &build_test_modules("Cv1"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [],
@@ -305,16 +307,16 @@ fn test_upgrade_downgrades_linkage() {
     .unwrap();
 
     let c_id2 = ObjectID::from_u16(0xc2);
-    let c_new = c_pkg
-        .new_upgraded(
-            c_id2,
-            &build_test_modules("Cv2"),
-            &ProtocolConfig::get_for_max_version_UNSAFE(),
-            [],
-        )
-        .unwrap();
+    let c_new = new_upgraded_move_package(
+        &c_pkg,
+        c_id2,
+        &build_test_modules("Cv2"),
+        &ProtocolConfig::get_for_max_version_UNSAFE(),
+        [],
+    )
+    .unwrap();
 
-    let b_pkg = MovePackage::new_initial(
+    let b_pkg = new_initial_move_package(
         &build_test_modules("B"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [&c_new],
@@ -322,14 +324,14 @@ fn test_upgrade_downgrades_linkage() {
     .unwrap();
 
     let b_id2 = ObjectID::from_u16(0xb2);
-    let b_new = b_pkg
-        .new_upgraded(
-            b_id2,
-            &build_test_modules("B"),
-            &ProtocolConfig::get_for_max_version_UNSAFE(),
-            [&c_pkg],
-        )
-        .unwrap();
+    let b_new = new_upgraded_move_package(
+        &b_pkg,
+        b_id2,
+        &build_test_modules("B"),
+        &ProtocolConfig::get_for_max_version_UNSAFE(),
+        [&c_pkg],
+    )
+    .unwrap();
 
     assert_eq!(
         b_pkg.linkage_table(),
@@ -349,7 +351,7 @@ fn test_upgrade_downgrades_linkage() {
 #[test]
 fn test_transitively_depending_on_upgrade() {
     let c_id1 = ObjectID::from_u16(0xc1);
-    let c_pkg = MovePackage::new_initial(
+    let c_pkg = new_initial_move_package(
         &build_test_modules("Cv1"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [],
@@ -357,24 +359,24 @@ fn test_transitively_depending_on_upgrade() {
     .unwrap();
 
     let c_id2 = ObjectID::from_u16(0xc2);
-    let c_new = c_pkg
-        .new_upgraded(
-            c_id2,
-            &build_test_modules("Cv2"),
-            &ProtocolConfig::get_for_max_version_UNSAFE(),
-            [],
-        )
-        .unwrap();
+    let c_new = new_upgraded_move_package(
+        &c_pkg,
+        c_id2,
+        &build_test_modules("Cv2"),
+        &ProtocolConfig::get_for_max_version_UNSAFE(),
+        [],
+    )
+    .unwrap();
 
     let b_id1 = ObjectID::from_u16(0xb1);
-    let b_pkg = MovePackage::new_initial(
+    let b_pkg = new_initial_move_package(
         &build_test_modules("B"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [&c_pkg],
     )
     .unwrap();
 
-    let a_pkg = MovePackage::new_initial(
+    let a_pkg = new_initial_move_package(
         &build_test_modules("A"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [&b_pkg, &c_new],
@@ -392,7 +394,7 @@ fn test_transitively_depending_on_upgrade() {
 
 #[test]
 fn package_digest_changes_with_dep_upgrades_and_in_sync_with_move_package_digest() {
-    let c_v1 = MovePackage::new_initial(
+    let c_v1 = new_initial_move_package(
         &build_test_modules("Cv1"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [],
@@ -400,22 +402,22 @@ fn package_digest_changes_with_dep_upgrades_and_in_sync_with_move_package_digest
     .unwrap();
 
     let c_id2 = ObjectID::from_u16(0xc2);
-    let c_v2 = c_v1
-        .new_upgraded(
-            c_id2,
-            &build_test_modules("Cv2"),
-            &ProtocolConfig::get_for_max_version_UNSAFE(),
-            [],
-        )
-        .unwrap();
+    let c_v2 = new_upgraded_move_package(
+        &c_v1,
+        c_id2,
+        &build_test_modules("Cv2"),
+        &ProtocolConfig::get_for_max_version_UNSAFE(),
+        [],
+    )
+    .unwrap();
 
-    let b_pkg = MovePackage::new_initial(
+    let b_pkg = new_initial_move_package(
         &build_test_modules("B"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [&c_v1],
     )
     .unwrap();
-    let b_v2 = MovePackage::new_initial(
+    let b_v2 = new_initial_move_package(
         &build_test_modules("Bv2"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [&c_v2],
@@ -435,12 +437,12 @@ fn package_digest_changes_with_dep_upgrades_and_in_sync_with_move_package_digest
 #[test]
 #[should_panic]
 fn test_panic_on_empty_package() {
-    let _ = MovePackage::new_initial(&[], &ProtocolConfig::get_for_max_version_UNSAFE(), []);
+    let _ = new_initial_move_package(&[], &ProtocolConfig::get_for_max_version_UNSAFE(), []);
 }
 
 #[test]
 fn test_fail_on_missing_dep() {
-    let err = MovePackage::new_initial(
+    let err = new_initial_move_package(
         &build_test_modules("B"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [],
@@ -455,21 +457,21 @@ fn test_fail_on_missing_dep() {
 
 #[test]
 fn test_fail_on_missing_transitive_dep() {
-    let c_pkg = MovePackage::new_initial(
+    let c_pkg = new_initial_move_package(
         &build_test_modules("Cv1"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [],
     )
     .unwrap();
 
-    let b_pkg = MovePackage::new_initial(
+    let b_pkg = new_initial_move_package(
         &build_test_modules("B"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [&c_pkg],
     )
     .unwrap();
 
-    let err = MovePackage::new_initial(
+    let err = new_initial_move_package(
         &build_test_modules("A"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [&b_pkg],
@@ -484,7 +486,7 @@ fn test_fail_on_missing_transitive_dep() {
 
 #[test]
 fn test_fail_on_transitive_dependency_downgrade() {
-    let c_pkg = MovePackage::new_initial(
+    let c_pkg = new_initial_move_package(
         &build_test_modules("Cv1"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [],
@@ -492,23 +494,23 @@ fn test_fail_on_transitive_dependency_downgrade() {
     .unwrap();
 
     let c_id2 = ObjectID::from_u16(0xc2);
-    let c_new = c_pkg
-        .new_upgraded(
-            c_id2,
-            &build_test_modules("Cv2"),
-            &ProtocolConfig::get_for_max_version_UNSAFE(),
-            [],
-        )
-        .unwrap();
+    let c_new = new_upgraded_move_package(
+        &c_pkg,
+        c_id2,
+        &build_test_modules("Cv2"),
+        &ProtocolConfig::get_for_max_version_UNSAFE(),
+        [],
+    )
+    .unwrap();
 
-    let b_pkg = MovePackage::new_initial(
+    let b_pkg = new_initial_move_package(
         &build_test_modules("B"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [&c_new],
     )
     .unwrap();
 
-    let err = MovePackage::new_initial(
+    let err = new_initial_move_package(
         &build_test_modules("A"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [&b_pkg, &c_pkg],
@@ -523,7 +525,7 @@ fn test_fail_on_transitive_dependency_downgrade() {
 
 #[test]
 fn test_fail_on_upgrade_missing_type() {
-    let c_pkg = MovePackage::new_initial(
+    let c_pkg = new_initial_move_package(
         &build_test_modules("Cv2"),
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         [],
@@ -531,14 +533,14 @@ fn test_fail_on_upgrade_missing_type() {
     .unwrap();
 
     let c_id2 = ObjectID::from_u16(0xc2);
-    let err = c_pkg
-        .new_upgraded(
-            c_id2,
-            &build_test_modules("Cv1"),
-            &ProtocolConfig::get_for_max_version_UNSAFE(),
-            [],
-        )
-        .unwrap_err();
+    let err = new_upgraded_move_package(
+        &c_pkg,
+        c_id2,
+        &build_test_modules("Cv1"),
+        &ProtocolConfig::get_for_max_version_UNSAFE(),
+        [],
+    )
+    .unwrap_err();
 
     assert_eq!(
         err.kind(),

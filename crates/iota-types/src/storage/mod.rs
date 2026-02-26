@@ -31,7 +31,9 @@ pub use write_store::WriteStore;
 
 use crate::{
     auth_context::AuthContext,
-    base_types::{ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionNumber},
+    base_types::{
+        Identifier, ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionNumber,
+    },
     committee::EpochId,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{ExecutionError, IotaError, IotaResult},
@@ -336,7 +338,7 @@ pub fn get_module(
             package
                 .move_package()
                 .serialized_module_map()
-                .get(module_id.name().as_str())
+                .get(&Identifier::new_unchecked(module_id.name().as_str()))
                 .cloned()
         }))
 }

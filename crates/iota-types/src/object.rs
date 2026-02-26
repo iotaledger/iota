@@ -34,7 +34,9 @@ use crate::{
     gas_coin::{GAS, GasCoin},
     iota_sdk_types_conversions::type_tag_sdk_to_core,
     layout_resolver::LayoutResolver,
-    move_package::MovePackage,
+    move_package::{
+        MovePackage, new_initial_move_package, new_system_move_package, new_upgraded_move_package,
+    },
     timelock::timelock::TimeLock,
 };
 
@@ -540,7 +542,7 @@ impl Object {
         dependencies: impl IntoIterator<Item = &'p MovePackage>,
     ) -> Result<Self, ExecutionError> {
         Ok(Self::new_package_from_data(
-            Data::Package(MovePackage::new_initial(
+            Data::Package(new_initial_move_package(
                 modules,
                 protocol_config,
                 dependencies,
@@ -558,7 +560,8 @@ impl Object {
         dependencies: impl IntoIterator<Item = &'p MovePackage>,
     ) -> Result<Self, ExecutionError> {
         Ok(Self::new_package_from_data(
-            Data::Package(previous_package.new_upgraded(
+            Data::Package(new_upgraded_move_package(
+                previous_package,
                 new_package_id,
                 modules,
                 protocol_config,
@@ -587,7 +590,7 @@ impl Object {
         previous_transaction: TransactionDigest,
     ) -> Self {
         let ret = Self::new_package_from_data(
-            Data::Package(MovePackage::new_system(version, modules, dependencies)),
+            Data::Package(new_system_move_package(version, modules, dependencies)),
             previous_transaction,
         );
 
@@ -735,14 +738,14 @@ impl ObjectInner {
     }
 
     /// Approximate size of the object in bytes. This is used for gas metering.
-    /// This will be slgihtly different from the serialized size, but
+    /// This will be slightly different from the serialized size, but
     /// we also don't want to serialize the object just to get the size.
     /// This approximation should be good enough for gas metering.
     pub fn object_size_for_gas_metering(&self) -> usize {
         let meta_data_size = size_of::<Owner>() + size_of::<TransactionDigest>() + size_of::<u64>();
         let data_size = match &self.data {
             Data::Move(m) => m.object_size_for_gas_metering(),
-            Data::Package(p) => p.object_size_for_gas_metering(),
+            Data::Package(p) => p.size(),
         };
         meta_data_size + data_size
     }

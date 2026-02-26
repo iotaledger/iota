@@ -8,7 +8,9 @@ use iota_config::genesis;
 use iota_protocol_config::ProtocolVersion;
 use iota_swarm_config::{genesis_config::AccountConfig, network_config_builder::ConfigBuilder};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, StructTag, VersionNumber},
+    base_types::{
+        Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, StructTag, VersionNumber,
+    },
     committee::{Committee, EpochId},
     crypto::AccountKeyPair,
     digests::TransactionDigest,
@@ -437,7 +439,7 @@ impl ModuleResolver for PersistedStore {
                 package
                     .move_package()
                     .serialized_module_map()
-                    .get(module_id.name().as_str())
+                    .get(&Identifier::new_unchecked(module_id.name().as_str()))
                     .cloned()
             }))
     }
