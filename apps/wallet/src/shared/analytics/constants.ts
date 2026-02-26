@@ -13,39 +13,59 @@ enum AmpliAccountType {
     Seed = 'Seed',
 }
 
-enum AmpliAccountOrigin {
+export enum AmpliAccountOrigin {
     New = 'new',
     Import = 'import',
     Derived = 'derived',
 }
 
-export const ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE: Record<
+export const ACCOUNT_FORM_TYPE_TO_AMPLI: Record<
     AccountsFormType,
-    AccountsAddedProperties['accountType']
+    {
+        accountType: AccountsAddedProperties['accountType'];
+        accountOrigin: AmpliAccountOrigin;
+    }
 > = {
-    [AccountsFormType.NewMnemonic]: AmpliAccountType.Mnemonic,
-    [AccountsFormType.ImportMnemonic]: AmpliAccountType.Mnemonic,
-    [AccountsFormType.ImportSeed]: AmpliAccountType.Seed,
-    [AccountsFormType.MnemonicSource]: AmpliAccountType.Mnemonic,
-    [AccountsFormType.SeedSource]: AmpliAccountType.Seed,
-    [AccountsFormType.ImportPrivateKey]: AmpliAccountType.PrivateKey,
-    [AccountsFormType.Passkey]: AmpliAccountType.Passkey,
-    [AccountsFormType.ImportPasskey]: AmpliAccountType.Passkey,
-    [AccountsFormType.ImportLedger]: AmpliAccountType.Ledger,
-    [AccountsFormType.ImportKeystone]: AmpliAccountType.Keystone,
-};
-
-export const ACCOUNT_FORM_TYPE_TO_ACCOUNT_ORIGIN: Record<AccountsFormType, AmpliAccountOrigin> = {
-    [AccountsFormType.NewMnemonic]: AmpliAccountOrigin.New,
-    [AccountsFormType.ImportMnemonic]: AmpliAccountOrigin.Import,
-    [AccountsFormType.ImportSeed]: AmpliAccountOrigin.Import,
-    [AccountsFormType.MnemonicSource]: AmpliAccountOrigin.Derived,
-    [AccountsFormType.SeedSource]: AmpliAccountOrigin.Derived,
-    [AccountsFormType.ImportPrivateKey]: AmpliAccountOrigin.Import,
-    [AccountsFormType.Passkey]: AmpliAccountOrigin.New,
-    [AccountsFormType.ImportPasskey]: AmpliAccountOrigin.Import,
-    [AccountsFormType.ImportLedger]: AmpliAccountOrigin.Import,
-    [AccountsFormType.ImportKeystone]: AmpliAccountOrigin.Import,
+    [AccountsFormType.NewMnemonic]: {
+        accountType: AmpliAccountType.Mnemonic,
+        accountOrigin: AmpliAccountOrigin.New,
+    },
+    [AccountsFormType.ImportMnemonic]: {
+        accountType: AmpliAccountType.Mnemonic,
+        accountOrigin: AmpliAccountOrigin.Import,
+    },
+    [AccountsFormType.ImportSeed]: {
+        accountType: AmpliAccountType.Seed,
+        accountOrigin: AmpliAccountOrigin.Import,
+    },
+    [AccountsFormType.MnemonicSource]: {
+        accountType: AmpliAccountType.Mnemonic,
+        accountOrigin: AmpliAccountOrigin.Derived,
+    },
+    [AccountsFormType.SeedSource]: {
+        accountType: AmpliAccountType.Seed,
+        accountOrigin: AmpliAccountOrigin.Derived,
+    },
+    [AccountsFormType.ImportPrivateKey]: {
+        accountType: AmpliAccountType.PrivateKey,
+        accountOrigin: AmpliAccountOrigin.Import,
+    },
+    [AccountsFormType.Passkey]: {
+        accountType: AmpliAccountType.Passkey,
+        accountOrigin: AmpliAccountOrigin.New,
+    },
+    [AccountsFormType.ImportPasskey]: {
+        accountType: AmpliAccountType.Passkey,
+        accountOrigin: AmpliAccountOrigin.Import,
+    },
+    [AccountsFormType.ImportLedger]: {
+        accountType: AmpliAccountType.Ledger,
+        accountOrigin: AmpliAccountOrigin.Import,
+    },
+    [AccountsFormType.ImportKeystone]: {
+        accountType: AmpliAccountType.Keystone,
+        accountOrigin: AmpliAccountOrigin.Import,
+    },
 };
 
 export const ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE: Record<

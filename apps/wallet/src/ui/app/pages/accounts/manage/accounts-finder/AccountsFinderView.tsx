@@ -21,6 +21,7 @@ import { getSourceId, getLedgerConnectionErrorMessage } from '_src/ui/app/helper
 import {
     useAccountSources,
     useAccounts,
+    useAccountsInfo,
     useUnlockMutation,
     useAccountsFinder,
     useGetOwnedObjectsMultipleAddresses,
@@ -42,7 +43,7 @@ import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAcco
 import { MigrationDialog } from '../../../home/tokens/MigrationDialog';
 import { SupplyIncreaseVestingStakingDialog } from '../../../home/tokens/SupplyIncreaseVestingStakingDialog';
 import { ampli } from '_src/shared/analytics/ampli';
-import { ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE } from '_src/shared/analytics';
+import { ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE, AmpliAccountOrigin } from '_src/shared/analytics';
 import type { AccountsAddedProperties } from '_src/shared/analytics/ampli';
 
 function getAccountSourceType(
@@ -97,6 +98,8 @@ enum SearchPhase {
     Idle, // search has finished and is idle, ready to start again
 }
 
+const SOURCE_FLOW = 'Balance Finder';
+
 export function AccountsFinderView(): JSX.Element {
     const navigate = useNavigate();
     const { accountSourceId } = useParams();
@@ -104,6 +107,7 @@ export function AccountsFinderView(): JSX.Element {
     const mainPublicKey = searchParams.get('mainPublicKey');
     const { data: accountSources } = useAccountSources();
     const { data: accounts } = useAccounts();
+    const { isFirstAccount } = useAccountsInfo();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceId);
     const accountSourceType = getAccountSourceType(accountSource);
     const [password, setPassword] = useState('');
@@ -115,7 +119,7 @@ export function AccountsFinderView(): JSX.Element {
     const [dialogMigrationOpen, setDialogMigrationOpen] = useState(false);
 
     const ledgerIotaClient = useIotaLedgerClient();
-    const unlockAccountSourceMutation = useUnlockMutation();
+    const unlockAllAccountsMutation = useUnlockMutation();
     const sourceStrategy: SourceStrategyToFind = useMemo(
         () =>
             accountSourceType == AllowedAccountSourceTypes.LedgerDerived
@@ -160,10 +164,10 @@ export function AccountsFinderView(): JSX.Element {
 
                 ampli.accountsAdded({
                     accountType,
-                    accountOrigin: 'import',
+                    accountOrigin: AmpliAccountOrigin.Import,
                     numberOfAccounts: numberOfAccountsCreated,
-                    isFirstAccount: !accounts || accounts.length === 0,
-                    sourceFlow: 'Balance Finder',
+                    isFirstAccount,
+                    sourceFlow: SOURCE_FLOW,
                 });
             }
         } finally {
@@ -334,8 +338,7 @@ export function AccountsFinderView(): JSX.Element {
                             setPassword(password);
                         } else if (accountSourceId) {
                             // unlock software account sources
-                            await unlockAccountSourceMutation.mutateAsync({
-                                id: accountSourceId,
+                            await unlockAllAccountsMutation.mutateAsync({
                                 password,
                             });
                         }
