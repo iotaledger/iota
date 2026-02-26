@@ -267,6 +267,9 @@ pub async fn compare_system_package<S: ObjectStore>(
         }
     }
 
-    new_pkg.increment_version();
+    new_pkg
+        .increment_version()
+        .expect("package version should never overflow");
+
     Some(new_object.compute_object_reference())
 }
