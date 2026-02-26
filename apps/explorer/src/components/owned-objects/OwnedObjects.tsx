@@ -3,10 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+    useGetKioskContents,
+    useGetOwnedObjects,
     useLocalStorage,
+    useCursorPagination,
     useIotaNamesClient,
-    useGetCategorizedOwnedObjects,
-    OwnedObjectCategory,
+    hasDisplayData,
 } from '@iota/core';
 import {
     Button,
@@ -35,6 +37,7 @@ import { ObjectViewMode } from '~/lib/enums';
 import { Pagination } from '~/components/ui';
 import { PAGE_SIZES_RANGE_10_50 } from '~/lib/constants';
 import { getNameRegistrationType, getSubnameRegistrationType } from '@iota/iota-names-sdk';
+import type { IotaObjectResponse } from '@iota/iota-sdk/client';
 
 const SHOW_PAGINATION_MAX_ITEMS = 9;
 const OWNED_OBJECTS_LOCAL_STORAGE_VIEW_MODE = 'owned-objects/viewMode';
@@ -45,16 +48,23 @@ interface ItemsRangeFromCurrentPage {
     end: number;
 }
 
+enum FilterValue {
+    Nft = 'nft',
+    Name = 'name',
+    Kiosk = 'kiosk',
+    Other = 'other',
+}
+
 enum OwnedObjectsContainerHeight {
     Small = 'h-[400px]',
     Default = 'h-[400px] md:h-[570px]',
 }
 
 const FILTER_OPTIONS = [
-    { label: 'NFT', value: OwnedObjectCategory.Nft },
-    { label: 'NAME', value: OwnedObjectCategory.Name },
-    { label: 'KIOSK', value: OwnedObjectCategory.Kiosk },
-    { label: 'OTHER', value: OwnedObjectCategory.Other },
+    { label: 'NFT', value: FilterValue.Nft },
+    { label: 'NAME', value: FilterValue.Name },
+    { label: 'KIOSK', value: FilterValue.Kiosk },
+    { label: 'OTHER', value: FilterValue.Other },
 ];
 
 const VIEW_MODES = [
@@ -84,7 +94,7 @@ function getShowPagination(
     currentPage: number,
     isFetching: boolean,
 ): boolean {
-    if (filter === OwnedObjectCategory.Kiosk) {
+    if (filter === FilterValue.Kiosk) {
         return false;
     }
 
@@ -116,6 +126,17 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
         ObjectViewMode.Thumbnail,
     );
 
+    const ownedObjects = useGetOwnedObjects(
+        id,
+        {
+            MatchNone: [{ StructType: '0x2::coin::Coin' }],
+        },
+        limit,
+    );
+    const { data: kioskData, isFetching: kioskDataFetching } = useGetKioskContents(id);
+
+    const { data, isError, isFetching, pagination } = useCursorPagination(ownedObjects);
+
     const { iotaNamesClient } = useIotaNamesClient();
 
     const packageId = iotaNamesClient?.getPackage('packageId', 'v1');
@@ -124,83 +145,77 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
         ? [getNameRegistrationType(packageId), getSubnameRegistrationType(packageId)]
         : [];
 
-    const ownedObjects = useGetCategorizedOwnedObjects({
-        address: id,
-        limit,
-        nameTypes,
-    });
+    const categorizedObjects = useMemo(() => {
+        const kiosk = kioskData?.list ?? [];
+        const name: IotaObjectResponse[] = [];
+        const nft: IotaObjectResponse[] = [];
+        const other: IotaObjectResponse[] = [];
 
-    const { availableCategories, isError } = ownedObjects;
+        for (const obj of data?.data ?? []) {
+            const isIotaName = !!obj.data?.type && nameTypes.includes(obj.data.type);
 
-    const isPending = (() => {
-        switch (filter) {
-            case OwnedObjectCategory.Kiosk:
-                return ownedObjects.kiosk.isFetching;
-            case OwnedObjectCategory.Name:
-                return ownedObjects.name.isFetching;
-            case OwnedObjectCategory.Nft:
-                return ownedObjects.nft.isFetching;
-            case OwnedObjectCategory.Other:
-                return ownedObjects.other.isFetching;
-            default:
-                return false;
+            if (isIotaName) {
+                name.push(obj);
+                continue;
+            }
+
+            if (hasDisplayData(obj)) {
+                nft.push(obj);
+                continue;
+            }
+
+            other.push(obj);
         }
-    })();
 
-    const activePagination = (() => {
-        switch (filter) {
-            case OwnedObjectCategory.Name:
-                return ownedObjects.name.pagination;
-            case OwnedObjectCategory.Nft:
-                return ownedObjects.nft.pagination;
-            case OwnedObjectCategory.Other:
-                return ownedObjects.other.pagination;
-            default:
-                return null;
-        }
-    })();
+        return { nft, name, kiosk, other };
+    }, [data?.data, kioskData?.list, nameTypes]);
+
+    const availableFilters = useMemo(
+        () =>
+            (Object.keys(categorizedObjects) as FilterValue[]).filter(
+                (key) => categorizedObjects[key].length > 0,
+            ),
+        [categorizedObjects],
+    );
+
+    const isPending = filter === FilterValue.Kiosk ? kioskDataFetching : isFetching;
 
     useEffect(() => {
-        if (!isPending && availableCategories.length) {
-            if (!filter || !availableCategories.includes(filter as OwnedObjectCategory)) {
-                setFilter(availableCategories[0]);
+        if (!isPending && availableFilters.length) {
+            if (!filter || !availableFilters.includes(filter as FilterValue)) {
+                setFilter(availableFilters[0]);
                 return;
             }
         }
-    }, [filter, availableCategories, isPending, setFilter]);
+    }, [filter, availableFilters, isPending, setFilter]);
 
-    const effectiveViewMode = filter === OwnedObjectCategory.Other ? ObjectViewMode.List : viewMode;
+    const effectiveViewMode = filter === FilterValue.Other ? ObjectViewMode.List : viewMode;
 
     const availableViewModes =
-        filter === OwnedObjectCategory.Other
+        filter === FilterValue.Other
             ? VIEW_MODES.filter((mode) => mode.value === ObjectViewMode.List)
             : VIEW_MODES;
 
     const filteredData = (() => {
+        if (!data?.data && filter !== FilterValue.Kiosk) return [];
         switch (filter) {
-            case OwnedObjectCategory.Kiosk:
-                return ownedObjects.kiosk.data;
-            case OwnedObjectCategory.Name:
-                return ownedObjects.name.data;
-            case OwnedObjectCategory.Nft:
-                return ownedObjects.nft.data;
-            case OwnedObjectCategory.Other:
-                return ownedObjects.other.data;
+            case FilterValue.Kiosk:
+                return categorizedObjects.kiosk;
+            case FilterValue.Name:
+                return categorizedObjects.name;
+            case FilterValue.Nft:
+                return categorizedObjects.nft;
+            case FilterValue.Other:
+                return categorizedObjects.other;
             default:
                 return [];
         }
     })();
 
     const { start, end } = useMemo(
-        () =>
-            getItemsRangeFromCurrentPage(
-                activePagination?.currentPage ?? 0,
-                limit,
-                filteredData?.length,
-            ),
-        [filteredData?.length, activePagination?.currentPage, limit],
+        () => getItemsRangeFromCurrentPage(pagination.currentPage, limit, filteredData?.length),
+        [filteredData?.length, pagination.currentPage],
     );
-
     const sortedDataByDisplayImages = useMemo(() => {
         if (!filteredData) {
             return [];
@@ -234,7 +249,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
     const showPagination = getShowPagination(
         filter,
         filteredData?.length || 0,
-        activePagination?.currentPage ?? 0,
+        pagination.currentPage,
         isPending,
     );
 
@@ -266,7 +281,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                 >
                     <div className="flex w-full flex-col flex-wrap items-start justify-between gap-xs sm:min-h-[72px] sm:flex-row sm:items-center md:gap-0">
                         <Title size={TitleSize.Medium} title="Assets" />
-                        {hasVisualAssets && availableCategories.length > 0 && (
+                        {hasVisualAssets && availableFilters.length > 0 && (
                             <div className="flex flex-col gap-sm px-md--rs sm:flex-row sm:gap-0">
                                 <div className="flex items-center gap-sm">
                                     {availableViewModes.map((mode) => {
@@ -303,7 +318,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                                     type={SegmentedButtonType.Outlined}
                                     shape={ButtonSegmentType.Rounded}
                                 >
-                                    {availableCategories.map((value) => {
+                                    {availableFilters.map((value) => {
                                         const option = FILTER_OPTIONS.find(
                                             (opt) => opt.value === value,
                                         );
@@ -353,9 +368,9 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                         </div>
                     )}
 
-                    {showPagination && hasVisualAssets && activePagination && (
+                    {showPagination && hasVisualAssets && (
                         <div className="flex flex-col items-center justify-between gap-sm px-sm--rs py-sm--rs md:flex-row">
-                            <Pagination {...activePagination} />
+                            <Pagination {...pagination} />
                             <div className="flex items-center gap-sm">
                                 {!isPending && (
                                     <span className="shrink-0 text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
@@ -371,7 +386,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                                     }))}
                                     onValueChange={(value) => {
                                         setLimit(Number(value));
-                                        activePagination.onFirst();
+                                        pagination.onFirst();
                                     }}
                                     size={SelectSize.Small}
                                 />
