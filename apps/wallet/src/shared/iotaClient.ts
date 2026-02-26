@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type NetworkEnvType, SentryHttpTransport } from '@iota/core';
+import { type NetworkEnvType, createSentryRequestInspector } from '@iota/core';
 import { getNetwork, Network, IotaClient, IotaHTTPTransport } from '@iota/iota-sdk/client';
 
 const iotaClientPerNetwork = new Map<string, IotaClient>();
@@ -18,10 +18,13 @@ export function getIotaClient({ network, customRpcUrl }: NetworkEnvType): IotaCl
         iotaClientPerNetwork.set(
             key,
             new IotaClient({
-                transport:
-                    !customRpcUrl && SENTRY_MONITORED_ENVS.includes(network)
-                        ? new SentryHttpTransport(connection)
-                        : new IotaHTTPTransport({ url: connection }),
+                transport: new IotaHTTPTransport({
+                    url: connection,
+                    inspector:
+                        !customRpcUrl && SENTRY_MONITORED_ENVS.includes(network)
+                            ? createSentryRequestInspector(connection)
+                            : undefined,
+                }),
             }),
         );
     }

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { SentryHttpTransport } from '@iota/core';
+import { createSentryRequestInspector } from '@iota/core';
 import {
     IotaClient,
     IotaHTTPTransport,
@@ -26,10 +26,13 @@ export const createIotaClient = (network: NetworkId): IotaClient => {
     const networkUrl = supportedNetwork?.url ?? network;
 
     const client = new IotaClient({
-        transport:
-            supportedNetwork && network === Network.Mainnet // Sentry dev hint: change this to eg [Network.Localnet]
-                ? new SentryHttpTransport(networkUrl)
-                : new IotaHTTPTransport({ url: networkUrl }),
+        transport: new IotaHTTPTransport({
+            url: networkUrl,
+            inspector:
+                supportedNetwork && network === Network.Mainnet // Sentry dev hint: change this to eg Network.Localnet
+                    ? createSentryRequestInspector(networkUrl)
+                    : undefined,
+        }),
     });
     defaultClientMap.set(network, client);
     return client;
