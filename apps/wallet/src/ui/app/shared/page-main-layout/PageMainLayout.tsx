@@ -83,19 +83,13 @@ function LeftContent({ account }: { account: SerializedUIAccount | null }) {
     const isKeystoneAccount = account && isKeystoneAccountSerializedUI(account);
     const isPasskeyAccount = account && isPasskeyAccountSerializedUI(account);
 
-    const backgroundColor = account?.isLocked ? 'bg-iota-neutral-90' : 'bg-iota-primary-30';
     return (
         <Link
             to="/accounts/manage"
             className="flex flex-row items-center gap-sm p-xs text-pink-200 no-underline"
             data-testid="accounts-manage"
         >
-            <div
-                className={cn(
-                    'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-iota-primary-30 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white',
-                    backgroundColor,
-                )}
-            >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-iota-primary-30 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white">
                 {isLedgerAccount ? (
                     <Ledger />
                 ) : isKeystoneAccount ? (

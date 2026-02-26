@@ -29,9 +29,6 @@ export function BackupMnemonicPage() {
     const passphraseMutation = useExportPassphraseMutation();
 
     const navigate = useNavigate();
-    if (!isPending && selectedSource?.type !== AccountSourceType.Mnemonic) {
-        return <Navigate to="/" replace />;
-    }
 
     useEffect(() => {
         (async () => {
@@ -41,6 +38,10 @@ export function BackupMnemonicPage() {
             passphraseMutation.mutate({ accountSourceID: accountSourceID });
         })();
     }, [accountSourceID, passphraseMutation]);
+
+    if (!isPending && selectedSource?.type !== AccountSourceType.Mnemonic) {
+        return <Navigate to="/" replace />;
+    }
 
     return (
         <PageTemplate title="Export Mnemonic" isTitleCentered>

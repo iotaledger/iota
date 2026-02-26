@@ -30,7 +30,7 @@ import { HashRouter } from 'react-router-dom';
 import { App } from './app';
 import { walletApiProvider } from './app/apiProvider';
 import { AccountsFormProvider } from './app/components/accounts/AccountsFormContext';
-import { UnlockAccountProvider } from './app/components/accounts/UnlockAccountContext';
+import { UnlockAccountsProvider } from './app/components/accounts/UnlockAccountsContext';
 import { IotaLedgerClientProvider } from './app/components/ledger/IotaLedgerClientProvider';
 import { growthbook } from './app/experimentation/featureGating';
 import { persister, queryClient } from './app/helpers/queryClient';
@@ -103,7 +103,7 @@ function AppWrapper() {
                                             <KioskClientProvider>
                                                 <AccountsFormProvider>
                                                     <ThemeProvider appId="iota-wallet">
-                                                        <UnlockAccountProvider>
+                                                        <UnlockAccountsProvider>
                                                             <ClipboardPasteSafetyWrapper>
                                                                 <KeystoneProvider>
                                                                     <div
@@ -126,7 +126,7 @@ function AppWrapper() {
                                                                     </div>
                                                                 </KeystoneProvider>
                                                             </ClipboardPasteSafetyWrapper>
-                                                        </UnlockAccountProvider>
+                                                        </UnlockAccountsProvider>
                                                     </ThemeProvider>
                                                 </AccountsFormProvider>
                                             </KioskClientProvider>
