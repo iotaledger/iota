@@ -252,12 +252,12 @@ fn calculate_median_report(
     MisbehaviorsV1::new(
         medians
             .next()
-            .expect("Expected faulty_blocks_provable metric"),
+            .expect("expected faulty_blocks_provable metric"),
         medians
             .next()
-            .expect("Expected faulty_blocks_unprovable metric"),
-        medians.next().expect("Expected missing_proposals metric"),
-        medians.next().expect("Expected equivocations metric"),
+            .expect("expected faulty_blocks_unprovable metric"),
+        medians.next().expect("expected missing_proposals metric"),
+        medians.next().expect("expected equivocations metric"),
     )
 }
 
