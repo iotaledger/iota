@@ -7,8 +7,9 @@ import { useMutation } from '@tanstack/react-query';
 import { useAccountsFormContext, AccountsFormType, type AccountsFormValues } from '_components';
 import { useBackgroundClient } from './useBackgroundClient';
 import { AccountType } from '_src/background/accounts/account';
-import { useAccountsInfo } from './useAccountsInfo';
 import { useCreatePasskeyAccount } from './useCreatePasskeyAccount';
+import { useAccounts } from './useAccounts';
+import { isFirstAccount } from '_src/ui/app/helpers';
 
 function validateAccountFormValues(
     createType: AccountsFormType,
@@ -34,7 +35,7 @@ export function useCreateAccountsMutation() {
     const backgroundClient = useBackgroundClient();
     const [accountsFormValuesRef, setAccountFormValues] = useAccountsFormContext();
     const { createPasskeyAccount } = useCreatePasskeyAccount();
-    const { isFirstAccount } = useAccountsInfo();
+    const { data: accounts } = useAccounts();
 
     return useMutation({
         mutationKey: ['create accounts'],
@@ -174,7 +175,7 @@ export function useCreateAccountsMutation() {
                 ...ampliData,
                 sourceFlow,
                 numberOfAccounts: createdAccounts.length,
-                isFirstAccount,
+                isFirstAccount: isFirstAccount(accounts),
             });
             setAccountFormValues(null);
             const selectedAccount = createdAccounts[0];
