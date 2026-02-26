@@ -25,15 +25,15 @@ public struct AuthContext has drop {}
 
 // === Public functions ===
 
-public fun digest(_actx: &AuthContext): &vector<u8> {
+public fun digest(_ctx: &AuthContext): &vector<u8> {
     native_digest()
 }
 
-public fun tx_inputs(_actx: &AuthContext): &vector<CallArg> {
+public fun tx_inputs(_ctx: &AuthContext): &vector<CallArg> {
     native_tx_inputs()
 }
 
-public fun tx_commands(_actx: &AuthContext): &vector<Command> {
+public fun tx_commands(_ctx: &AuthContext): &vector<Command> {
     native_tx_commands()
 }
 
