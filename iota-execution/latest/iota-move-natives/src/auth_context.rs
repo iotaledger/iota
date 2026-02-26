@@ -93,7 +93,7 @@ pub fn native_tx_commands(
 
     let auth_context: &mut AuthenticationContext = get_extension_mut!(context)?;
 
-    let tx_commands_ref = auth_context.tx_commands_ref(command_move_layout)?;
+    let (tx_commands_ref, legacy_size) = auth_context.tx_commands_ref(command_move_layout)?;
 
     native_charge_gas_early_exit!(
         context,
@@ -104,7 +104,7 @@ pub fn native_tx_commands(
                     "Gas cost per byte for native_tx_commands not available".to_string(),
                 )
             })?
-            * u64::from(tx_commands_ref.legacy_size()).into()
+            * u64::from(legacy_size).into()
     );
 
     Ok(NativeResult::ok(
@@ -150,7 +150,7 @@ pub fn native_tx_inputs(
 
     let auth_context: &mut AuthenticationContext = get_extension_mut!(context)?;
 
-    let tx_inputs_ref = auth_context.tx_inputs_ref(input_move_layout)?;
+    let (tx_inputs_ref, legacy_size) = auth_context.tx_inputs_ref(input_move_layout)?;
 
     native_charge_gas_early_exit!(
         context,
@@ -161,7 +161,7 @@ pub fn native_tx_inputs(
                     "Gas cost per byte for native_tx_inputs not available".to_string()
                 )
             )?
-            * u64::from(tx_inputs_ref.legacy_size()).into()
+            * u64::from(legacy_size).into()
     );
 
     Ok(NativeResult::ok(

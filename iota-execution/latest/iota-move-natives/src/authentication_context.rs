@@ -10,6 +10,7 @@ use iota_types::{
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
+    gas_algebra::AbstractMemorySize,
     runtime_value::{MoveStructLayout, MoveTypeLayout},
     vm_status::StatusCode,
 };
@@ -34,8 +35,8 @@ pub struct AuthenticationContext {
     /// Cached `GlobalValue` containing AuthContext data. Caching is used to
     /// avoid redundant conversions and allocations.
     cached_digest: Option<GlobalValue>,
-    cached_tx_inputs: Option<GlobalValue>,
-    cached_tx_commands: Option<GlobalValue>,
+    cached_tx_inputs: Option<(GlobalValue, AbstractMemorySize)>,
+    cached_tx_commands: Option<(GlobalValue, AbstractMemorySize)>,
 }
 
 impl NativeExtensionMarker<'_> for AuthenticationContext {}
@@ -75,7 +76,7 @@ impl AuthenticationContext {
             let rust_value = (auth_context.digest(),);
             let digest_move_layout = MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8));
 
-            self.cached_digest = Some(to_global_value(&rust_value, digest_move_layout)?);
+            self.cached_digest = Some(to_global_value(&rust_value, digest_move_layout)?.0);
         }
 
         self.cached_digest
@@ -90,7 +91,10 @@ impl AuthenticationContext {
     /// Returns a `Value` containing an auth tx inputs ref.
     /// Caches the result to avoid redundant conversions and allocations on
     /// subsequent calls.
-    pub fn tx_inputs_ref(&mut self, input_move_layout: MoveTypeLayout) -> PartialVMResult<Value> {
+    pub fn tx_inputs_ref(
+        &mut self,
+        input_move_layout: MoveTypeLayout,
+    ) -> PartialVMResult<(Value, AbstractMemorySize)> {
         if self.cached_tx_inputs.is_none() {
             let auth_context = self.auth_context.borrow();
 
@@ -104,13 +108,17 @@ impl AuthenticationContext {
             self.cached_tx_inputs = Some(to_global_value(&rust_value, inputs_move_layout)?);
         }
 
-        self.cached_tx_inputs
-            .as_ref()
-            .unwrap()
-            .borrow_global()
-            .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
-            .value_as::<StructRef>()?
-            .borrow_field(0)
+        let cached_tx_inputs = self.cached_tx_inputs.as_ref().unwrap();
+
+        Ok((
+            cached_tx_inputs
+                .0
+                .borrow_global()
+                .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
+                .value_as::<StructRef>()?
+                .borrow_field(0)?,
+            cached_tx_inputs.1,
+        ))
     }
 
     /// Returns a `Value` containing an auth tx commands ref.
@@ -119,7 +127,7 @@ impl AuthenticationContext {
     pub fn tx_commands_ref(
         &mut self,
         command_move_layout: MoveTypeLayout,
-    ) -> PartialVMResult<Value> {
+    ) -> PartialVMResult<(Value, AbstractMemorySize)> {
         if self.cached_tx_commands.is_none() {
             let auth_context = self.auth_context.borrow();
 
@@ -133,13 +141,17 @@ impl AuthenticationContext {
             self.cached_tx_commands = Some(to_global_value(&rust_value, commands_move_layout)?);
         }
 
-        self.cached_tx_commands
-            .as_ref()
-            .unwrap()
-            .borrow_global()
-            .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
-            .value_as::<StructRef>()?
-            .borrow_field(0)
+        let cached_tx_commands = self.cached_tx_commands.as_ref().unwrap();
+
+        Ok((
+            cached_tx_commands
+                .0
+                .borrow_global()
+                .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
+                .value_as::<StructRef>()?
+                .borrow_field(0)?,
+            cached_tx_commands.1,
+        ))
     }
 
     /// Replaces the contents of the `AuthContext` with the provided values.
@@ -193,12 +205,16 @@ fn struct_layout_with_field(field: MoveTypeLayout) -> MoveTypeLayout {
 fn to_global_value<T: ?Sized + Serialize>(
     field: &T,
     field_move_layout: MoveTypeLayout,
-) -> PartialVMResult<GlobalValue> {
+) -> PartialVMResult<(GlobalValue, AbstractMemorySize)> {
     let move_layout = struct_layout_with_field(field_move_layout);
 
     let move_value = to_value(field, &move_layout)?;
+    let legacy_size = move_value.legacy_size();
 
-    Ok(GlobalValue::cached(move_value).expect("Failed to cache global value"))
+    Ok((
+        GlobalValue::cached(move_value).expect("Failed to cache global value"),
+        legacy_size,
+    ))
 }
 
 fn to_value<T: ?Sized + Serialize>(
