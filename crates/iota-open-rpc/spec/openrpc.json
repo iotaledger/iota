@@ -9926,7 +9926,7 @@
             "$ref": "#/components/schemas/Base64"
           },
           "commissionRate": {
-            "description": "The fee set by the validator for providing staking services.\n\nThis might be overriden by the protocol, that uses instead an effective commission rate. See more on the associated field.",
+            "description": "The fee set by the validator for providing staking services.\n\nThis might be overridden by the protocol, that uses instead an effective commission rate. See more on the associated field.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
