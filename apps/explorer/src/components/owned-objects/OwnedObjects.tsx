@@ -2,14 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-    useGetKioskContents,
-    useGetOwnedObjects,
-    useLocalStorage,
-    useCursorPagination,
-    useIotaNamesClient,
-    hasDisplayData,
-} from '@iota/core';
+import { useGetCategorizedOwnedObjects, OwnedObjectCategory, useLocalStorage } from '@iota/core';
 import {
     Button,
     ButtonSize,
@@ -36,8 +29,6 @@ import { ListView, NoObjectsOwnedMessage, SmallThumbnailsView, ThumbnailsView } 
 import { ObjectViewMode } from '~/lib/enums';
 import { Pagination } from '~/components/ui';
 import { PAGE_SIZES_RANGE_10_50 } from '~/lib/constants';
-import { getNameRegistrationType, getSubnameRegistrationType } from '@iota/iota-names-sdk';
-import type { IotaObjectResponse } from '@iota/iota-sdk/client';
 
 const SHOW_PAGINATION_MAX_ITEMS = 9;
 const OWNED_OBJECTS_LOCAL_STORAGE_VIEW_MODE = 'owned-objects/viewMode';
@@ -48,23 +39,16 @@ interface ItemsRangeFromCurrentPage {
     end: number;
 }
 
-enum FilterValue {
-    Nft = 'nft',
-    Name = 'name',
-    Kiosk = 'kiosk',
-    Other = 'other',
-}
-
 enum OwnedObjectsContainerHeight {
     Small = 'h-[400px]',
     Default = 'h-[400px] md:h-[570px]',
 }
 
 const FILTER_OPTIONS = [
-    { label: 'NFT', value: FilterValue.Nft },
-    { label: 'NAME', value: FilterValue.Name },
-    { label: 'KIOSK', value: FilterValue.Kiosk },
-    { label: 'OTHER', value: FilterValue.Other },
+    { label: 'NFT', value: OwnedObjectCategory.Nft },
+    { label: 'NAME', value: OwnedObjectCategory.Name },
+    { label: 'KIOSK', value: OwnedObjectCategory.Kiosk },
+    { label: 'OTHER', value: OwnedObjectCategory.Other },
 ];
 
 const VIEW_MODES = [
@@ -88,16 +72,7 @@ function getItemsRangeFromCurrentPage(
     return { start, end };
 }
 
-function getShowPagination(
-    filter: string | undefined,
-    itemsLength: number,
-    currentPage: number,
-    isFetching: boolean,
-): boolean {
-    if (filter === FilterValue.Kiosk) {
-        return false;
-    }
-
+function getShowPagination(itemsLength: number, currentPage: number, isFetching: boolean): boolean {
     if (isFetching) {
         return true;
     }
@@ -126,96 +101,57 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
         ObjectViewMode.Thumbnail,
     );
 
-    const ownedObjects = useGetOwnedObjects(
-        id,
-        {
-            MatchNone: [{ StructType: '0x2::coin::Coin' }],
-        },
-        limit,
-    );
-    const { data: kioskData, isFetching: kioskDataFetching } = useGetKioskContents(id);
+    const ownedObjects = useGetCategorizedOwnedObjects(id, limit);
 
-    const { data, isError, isFetching, pagination } = useCursorPagination(ownedObjects);
+    const activeCategory = (filter as OwnedObjectCategory) ?? undefined;
 
-    const { iotaNamesClient } = useIotaNamesClient();
-
-    const packageId = iotaNamesClient?.getPackage('packageId', 'v1');
-
-    const nameTypes = packageId
-        ? [getNameRegistrationType(packageId), getSubnameRegistrationType(packageId)]
-        : [];
-
-    const categorizedObjects = useMemo(() => {
-        const kiosk = kioskData?.list ?? [];
-        const name: IotaObjectResponse[] = [];
-        const nft: IotaObjectResponse[] = [];
-        const other: IotaObjectResponse[] = [];
-
-        for (const obj of data?.data ?? []) {
-            const isIotaName = !!obj.data?.type && nameTypes.includes(obj.data.type);
-
-            if (isIotaName) {
-                name.push(obj);
-                continue;
-            }
-
-            if (hasDisplayData(obj)) {
-                nft.push(obj);
-                continue;
-            }
-
-            other.push(obj);
-        }
-
-        return { nft, name, kiosk, other };
-    }, [data?.data, kioskData?.list, nameTypes]);
-
-    const availableFilters = useMemo(
-        () =>
-            (Object.keys(categorizedObjects) as FilterValue[]).filter(
-                (key) => categorizedObjects[key].length > 0,
-            ),
-        [categorizedObjects],
-    );
-
-    const isPending = filter === FilterValue.Kiosk ? kioskDataFetching : isFetching;
-
-    useEffect(() => {
-        if (!isPending && availableFilters.length) {
-            if (!filter || !availableFilters.includes(filter as FilterValue)) {
-                setFilter(availableFilters[0]);
-                return;
-            }
-        }
-    }, [filter, availableFilters, isPending, setFilter]);
-
-    const effectiveViewMode = filter === FilterValue.Other ? ObjectViewMode.List : viewMode;
-
-    const availableViewModes =
-        filter === FilterValue.Other
-            ? VIEW_MODES.filter((mode) => mode.value === ObjectViewMode.List)
-            : VIEW_MODES;
-
-    const filteredData = (() => {
-        if (!data?.data && filter !== FilterValue.Kiosk) return [];
-        switch (filter) {
-            case FilterValue.Kiosk:
-                return categorizedObjects.kiosk;
-            case FilterValue.Name:
-                return categorizedObjects.name;
-            case FilterValue.Nft:
-                return categorizedObjects.nft;
-            case FilterValue.Other:
-                return categorizedObjects.other;
+    const activeCategoryData = (() => {
+        switch (activeCategory) {
+            case OwnedObjectCategory.Nft:
+                return ownedObjects.nft;
+            case OwnedObjectCategory.Name:
+                return ownedObjects.name;
+            case OwnedObjectCategory.Kiosk:
+                return ownedObjects.kiosk;
+            case OwnedObjectCategory.Other:
+                return ownedObjects.other;
             default:
-                return [];
+                return undefined;
         }
     })();
 
+    const isPending = activeCategoryData?.isFetching ?? false;
+
+    const { availableCategories } = ownedObjects;
+
+    useEffect(() => {
+        if (!isPending && availableCategories.length) {
+            if (!filter || !availableCategories.includes(filter as OwnedObjectCategory)) {
+                setFilter(availableCategories[0]);
+                return;
+            }
+        }
+    }, [filter, availableCategories, isPending, setFilter]);
+
+    const effectiveViewMode = filter === OwnedObjectCategory.Other ? ObjectViewMode.List : viewMode;
+
+    const availableViewModes =
+        filter === OwnedObjectCategory.Other
+            ? VIEW_MODES.filter((mode) => mode.value === ObjectViewMode.List)
+            : VIEW_MODES;
+
+    const filteredData = activeCategoryData?.data ?? [];
+
     const { start, end } = useMemo(
-        () => getItemsRangeFromCurrentPage(pagination.currentPage, limit, filteredData?.length),
-        [filteredData?.length, pagination.currentPage],
+        () =>
+            getItemsRangeFromCurrentPage(
+                activeCategoryData?.pagination.currentPage ?? 0,
+                limit,
+                filteredData?.length,
+            ),
+        [filteredData?.length, activeCategoryData?.pagination.currentPage, limit],
     );
+
     const sortedDataByDisplayImages = useMemo(() => {
         if (!filteredData) {
             return [];
@@ -247,9 +183,8 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
     }
 
     const showPagination = getShowPagination(
-        filter,
         filteredData?.length || 0,
-        pagination.currentPage,
+        activeCategoryData?.pagination.currentPage ?? 0,
         isPending,
     );
 
@@ -257,7 +192,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
 
     const noVisualAssets = !hasVisualAssets && !isPending;
 
-    if (isError) {
+    if (ownedObjects.isAnyError) {
         return (
             <div className="p-sm--rs">
                 <InfoBox
@@ -281,7 +216,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                 >
                     <div className="flex w-full flex-col flex-wrap items-start justify-between gap-xs sm:min-h-[72px] sm:flex-row sm:items-center md:gap-0">
                         <Title size={TitleSize.Medium} title="Assets" />
-                        {hasVisualAssets && availableFilters.length > 0 && (
+                        {hasVisualAssets && availableCategories.length > 0 && (
                             <div className="flex flex-col gap-sm px-md--rs sm:flex-row sm:gap-0">
                                 <div className="flex items-center gap-sm">
                                     {availableViewModes.map((mode) => {
@@ -318,7 +253,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                                     type={SegmentedButtonType.Outlined}
                                     shape={ButtonSegmentType.Rounded}
                                 >
-                                    {availableFilters.map((value) => {
+                                    {availableCategories.map((value) => {
                                         const option = FILTER_OPTIONS.find(
                                             (opt) => opt.value === value,
                                         );
@@ -368,15 +303,17 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                         </div>
                     )}
 
-                    {showPagination && hasVisualAssets && (
-                        <div className="flex flex-col items-center justify-between gap-sm px-sm--rs py-sm--rs md:flex-row">
-                            <Pagination {...pagination} />
-                            <div className="flex items-center gap-sm">
-                                {!isPending && (
-                                    <span className="shrink-0 text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
-                                        Showing {start} - {end}
-                                    </span>
-                                )}
+                    <div className="flex flex-col items-center justify-between gap-sm px-sm--rs py-sm--rs md:flex-row">
+                        {showPagination && hasVisualAssets && activeCategoryData && (
+                            <Pagination {...activeCategoryData.pagination} />
+                        )}
+                        <div className="flex items-center gap-sm">
+                            {!isPending && showPagination && hasVisualAssets && (
+                                <span className="dark:text-iota-neutral-60 shrink-0 text-body-sm text-iota-neutral-40">
+                                    Showing {start} - {end}
+                                </span>
+                            )}
+                            {showPagination && hasVisualAssets && (
                                 <Select
                                     dropdownPosition={DropdownPosition.Top}
                                     value={limit.toString()}
@@ -386,13 +323,13 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                                     }))}
                                     onValueChange={(value) => {
                                         setLimit(Number(value));
-                                        pagination.onFirst();
+                                        activeCategoryData?.pagination.onFirst();
                                     }}
                                     size={SelectSize.Small}
                                 />
-                            </div>
+                            )}
                         </div>
-                    )}
+                    </div>
                 </div>
             </div>
         </div>
