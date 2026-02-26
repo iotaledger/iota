@@ -11,7 +11,7 @@ use iota_types::{
     move_package::MovePackage,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, CallArg, SharedInputObject, TransactionData, TransactionKind},
+    transaction::{Argument, CallArg, SharedObjectRef, TransactionData, TransactionKind},
 };
 
 use crate::TransactionBuilder;
@@ -83,7 +83,7 @@ impl TransactionBuilder {
             let mut builder = ProgrammableTransactionBuilder::new();
             let capability_arg = match capability_owner {
                 Owner::Address(_) => CallArg::ImmutableOrOwned(upgrade_capability.object_ref()),
-                Owner::Shared(initial_shared_version) => CallArg::Shared(SharedInputObject {
+                Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef {
                     object_id: upgrade_capability.object_ref().object_id,
                     initial_shared_version,
                     mutable: true,

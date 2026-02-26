@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::fmt::{self, Display, Formatter, Write};
 
 use enum_dispatch::enum_dispatch;
@@ -37,7 +38,7 @@ use iota_types::{
     transaction::{
         Argument, CallArg, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
         EndOfEpochTransactionKind, GenesisObject, InputObjectKind, ProgrammableMoveCall,
-        ProgrammableTransaction, SenderSignedData, SharedInputObject, TransactionData,
+        ProgrammableTransaction, SenderSignedData, SharedObjectRef, TransactionData,
         TransactionDataAPI, TransactionKind,
     },
 };
@@ -2513,7 +2514,7 @@ impl IotaCallArg {
                     digest: object_ref.digest,
                 })
             }
-            CallArg::Shared(SharedInputObject {
+            CallArg::Shared(SharedObjectRef {
                 object_id: id,
                 initial_shared_version,
                 mutable,

@@ -1784,7 +1784,7 @@ async fn test_handle_soft_bundle_certificates() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Shared(SharedInputObject {
+                    CallArg::Shared(SharedObjectRef {
                         object_id: shared_object.id(),
                         initial_shared_version,
                         mutable: true,
@@ -2059,7 +2059,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Shared(SharedInputObject {
+                    CallArg::Shared(SharedObjectRef {
                         object_id: shared_object.id(),
                         initial_shared_version,
                         mutable: true,
@@ -2089,7 +2089,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Shared(SharedInputObject {
+                    CallArg::Shared(SharedObjectRef {
                         object_id: shared_object.id(),
                         initial_shared_version,
                         mutable: true,
@@ -2145,7 +2145,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Shared(SharedInputObject {
+                    CallArg::Shared(SharedObjectRef {
                         object_id: shared_object.id(),
                         initial_shared_version,
                         mutable: true,
@@ -2175,7 +2175,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Shared(SharedInputObject {
+                    CallArg::Shared(SharedObjectRef {
                         object_id: shared_object.id(),
                         initial_shared_version,
                         mutable: true,

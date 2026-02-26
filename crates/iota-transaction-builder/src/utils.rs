@@ -23,7 +23,7 @@ use iota_types::{
     move_package::{MovePackage, deserialize_move_package_module},
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, CallArg, SharedInputObject},
+    transaction::{Argument, CallArg, SharedObjectRef},
 };
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
@@ -119,7 +119,7 @@ impl TransactionBuilder {
             return Ok(CallArg::Receiving(obj_ref));
         }
         Ok(match owner {
-            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedInputObject {
+            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef {
                 object_id: id,
                 initial_shared_version,
                 mutable: is_mutable_ref,

@@ -11,7 +11,7 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::{OBJECT_START_VERSION, Owner},
-    transaction::{CallArg, SharedInputObject},
+    transaction::{CallArg, SharedObjectRef},
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
 
@@ -208,7 +208,7 @@ impl TestEnvironment {
         let (fx, _) = self
             .move_call(
                 "increment_counter",
-                vec![CallArg::Shared(SharedInputObject {
+                vec![CallArg::Shared(SharedObjectRef {
                     object_id: counter,
                     initial_shared_version,
                     mutable: true,

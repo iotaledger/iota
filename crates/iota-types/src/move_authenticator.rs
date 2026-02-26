@@ -22,7 +22,7 @@ use crate::{
     error::{IotaError, IotaResult, UserInputError, UserInputResult},
     signature::{AuthenticatorTrait, VerifyParams},
     signature_verification::VerifiedDigestCache,
-    transaction::{CallArg, CallArgExt, InputObjectKind, SharedInputObject},
+    transaction::{CallArg, CallArgExt, InputObjectKind, SharedObjectRef},
     type_input::TypeInput,
 };
 
@@ -103,7 +103,7 @@ impl MoveAuthenticator {
                 Some(object_ref.version),
                 Some(object_ref.digest),
             ),
-            CallArg::Shared(SharedInputObject {
+            CallArg::Shared(SharedObjectRef {
                 object_id, mutable, ..
             }) => {
                 if *mutable {
@@ -146,7 +146,7 @@ impl MoveAuthenticator {
 
     /// Returns all shared input objects used by the MoveAuthenticator,
     /// including those from the object to authenticate.
-    pub fn shared_objects(&self) -> Vec<SharedInputObject> {
+    pub fn shared_objects(&self) -> Vec<SharedObjectRef> {
         self.call_args
             .iter()
             .filter_map(|e| e.as_shared_opt())

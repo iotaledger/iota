@@ -14,7 +14,7 @@ use iota_types::{
     },
     effects::{TransactionEffects, TransactionEffectsAPI},
     object::Object,
-    transaction::{CallArg, SharedInputObject, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
+    transaction::{CallArg, SharedObjectRef, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
 };
 
 use crate::authority::{
@@ -100,7 +100,7 @@ async fn test_regulated_coin_v1_types() {
         "coin",
         "deny_list_v1_add",
         vec![
-            CallArg::Shared(SharedInputObject {
+            CallArg::Shared(SharedObjectRef {
                 object_id: ObjectID::DENY_LIST,
                 initial_shared_version: deny_list_object_init_version,
                 mutable: true,
@@ -174,7 +174,7 @@ async fn test_regulated_coin_v1_types() {
         "coin",
         "deny_list_v1_enable_global_pause",
         vec![
-            CallArg::Shared(SharedInputObject {
+            CallArg::Shared(SharedObjectRef {
                 object_id: ObjectID::DENY_LIST,
                 initial_shared_version: deny_list_object_init_version,
                 mutable: true,

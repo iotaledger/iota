@@ -34,7 +34,7 @@ mod checked {
         },
         object::{Data, MoveObject, Object, ObjectInner, Owner},
         storage::{BackingPackageStore, DenyListResult, PackageObject},
-        transaction::{Argument, CallArg, SharedInputObject},
+        transaction::{Argument, CallArg, SharedObjectRef},
     };
     use move_binary_format::{
         CompiledModule,
@@ -1537,7 +1537,7 @@ mod checked {
                 false,
                 object_ref.object_id,
             ),
-            CallArg::Shared(SharedInputObject {
+            CallArg::Shared(SharedObjectRef {
                 object_id: id,
                 mutable,
                 ..

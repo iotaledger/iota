@@ -7,7 +7,7 @@ use std::{cmp::Ordering, collections::HashMap};
 use iota_types::{
     base_types::{CommitRound, ObjectID},
     executable_transaction::VerifiedExecutableTransaction,
-    transaction::{SharedInputObject, TransactionDataAPI},
+    transaction::{SharedObjectRef, TransactionDataAPI},
 };
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
@@ -252,7 +252,7 @@ impl SharedObjectCongestionTracker {
     /// tracker.
     pub(super) fn initialize_object_execution_slots(
         &mut self,
-        shared_input_objects: &[SharedInputObject],
+        shared_input_objects: &[SharedObjectRef],
     ) {
         for obj in shared_input_objects {
             self.object_execution_slots
@@ -274,7 +274,7 @@ impl SharedObjectCongestionTracker {
     #[instrument(level = "trace", skip_all)]
     fn compute_tx_start_time(
         &self,
-        shared_input_objects: &[SharedInputObject],
+        shared_input_objects: &[SharedObjectRef],
         tx_duration: ExecutionTime,
     ) -> Option<ExecutionTime> {
         if self
@@ -320,7 +320,7 @@ impl SharedObjectCongestionTracker {
     /// given the objects that have been checked so far.
     fn compute_min_free_execution_slot(
         &self,
-        shared_input_objects: &[SharedInputObject],
+        shared_input_objects: &[SharedObjectRef],
         tx_duration: ExecutionTime,
         lookup_interval: ExecutionSlot,
     ) -> Option<ExecutionTime> {
@@ -797,7 +797,7 @@ pub mod shared_object_test_utils {
                         objects
                             .iter()
                             .map(|(id, mutable)| {
-                                CallArg::Shared(SharedInputObject {
+                                CallArg::Shared(SharedObjectRef {
                                     object_id: *id,
                                     initial_shared_version: SequenceNumber::default(),
                                     mutable: *mutable,
@@ -813,7 +813,7 @@ pub mod shared_object_test_utils {
 
     pub(crate) fn initialize_tracker_and_compute_tx_start_time(
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
-        shared_input_objects: &[SharedInputObject],
+        shared_input_objects: &[SharedObjectRef],
         tx_duration: ExecutionTime,
     ) -> Option<ExecutionTime> {
         shared_object_congestion_tracker.initialize_object_execution_slots(shared_input_objects);
@@ -845,10 +845,10 @@ pub mod shared_object_test_utils {
         )
     }
 
-    pub fn construct_shared_input_objects(objects: &[(ObjectID, bool)]) -> Vec<SharedInputObject> {
+    pub fn construct_shared_input_objects(objects: &[(ObjectID, bool)]) -> Vec<SharedObjectRef> {
         objects
             .iter()
-            .map(|(id, mutable)| SharedInputObject {
+            .map(|(id, mutable)| SharedObjectRef {
                 object_id: *id,
                 initial_shared_version: SequenceNumber::default(),
                 mutable: *mutable,

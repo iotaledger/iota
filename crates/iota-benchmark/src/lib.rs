@@ -45,7 +45,7 @@ use iota_types::{
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::{QuorumDriverError, QuorumDriverResponse},
-    transaction::{Argument, CallArg, SharedInputObject, Transaction},
+    transaction::{Argument, CallArg, SharedObjectRef, Transaction},
 };
 use prometheus::Registry;
 use rand::Rng;
@@ -617,7 +617,7 @@ impl From<CallArg> for BenchMoveCallArg {
         match ca {
             CallArg::Pure(value) => BenchMoveCallArg::Pure(value),
             CallArg::ImmutableOrOwned(obj_ref) => BenchMoveCallArg::ImmOrOwnedObject(obj_ref),
-            CallArg::Shared(SharedInputObject {
+            CallArg::Shared(SharedObjectRef {
                 object_id,
                 initial_shared_version,
                 mutable,
@@ -641,7 +641,7 @@ pub fn convert_move_call_args(
                 pt_builder.input(CallArg::Pure(bytes.clone())).unwrap()
             }
             BenchMoveCallArg::Shared((id, initial_shared_version, mutable)) => pt_builder
-                .input(CallArg::Shared(SharedInputObject {
+                .input(CallArg::Shared(SharedObjectRef {
                     object_id: *id,
                     initial_shared_version: *initial_shared_version,
                     mutable: *mutable,
@@ -658,7 +658,7 @@ pub fn convert_move_call_args(
                     obj_refs
                         .iter()
                         .map(|(id, initial_shared_version, mutable)| {
-                            CallArg::Shared(SharedInputObject {
+                            CallArg::Shared(SharedObjectRef {
                                 object_id: *id,
                                 initial_shared_version: *initial_shared_version,
                                 mutable: *mutable,

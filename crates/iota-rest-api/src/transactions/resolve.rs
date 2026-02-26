@@ -17,7 +17,7 @@ use iota_types::{
     gas_coin::GasCoin,
     move_package::{MovePackage, normalize_move_package},
     transaction::{
-        CallArg, GasData, ProgrammableTransaction, SharedInputObject, TransactionData,
+        CallArg, GasData, ProgrammableTransaction, SharedObjectRef, TransactionData,
         TransactionDataAPI,
     },
     transaction_executor::VmChecks,
@@ -485,7 +485,7 @@ fn resolve_arg(
                 }
             }
 
-            CallArg::Shared(SharedInputObject {
+            CallArg::Shared(SharedObjectRef {
                 object_id: id,
                 initial_shared_version,
                 mutable,

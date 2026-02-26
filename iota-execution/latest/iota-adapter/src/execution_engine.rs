@@ -54,7 +54,7 @@ mod checked {
             Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, CallArg, ChangeEpoch,
             ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, CheckedInputObjects, Command,
             EndOfEpochTransactionKind, GenesisTransaction, InputObjects, ProgrammableTransaction,
-            RandomnessStateUpdate, SharedInputObject, TransactionKind,
+            RandomnessStateUpdate, SharedObjectRef, TransactionKind,
         },
     };
     use move_binary_format::CompiledModule;
@@ -1884,7 +1884,7 @@ mod checked {
                 AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME,
                 vec![],
                 vec![
-                    CallArg::Shared(SharedInputObject {
+                    CallArg::Shared(SharedObjectRef {
                         object_id: ObjectID::AUTHENTICATOR_STATE,
                         initial_shared_version: update.authenticator_obj_initial_shared_version,
                         mutable: true,
@@ -1925,7 +1925,7 @@ mod checked {
                 AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME,
                 vec![],
                 vec![
-                    CallArg::Shared(SharedInputObject {
+                    CallArg::Shared(SharedObjectRef {
                         object_id: ObjectID::AUTHENTICATOR_STATE,
                         initial_shared_version: expire.authenticator_obj_initial_shared_version,
                         mutable: true,
@@ -1960,7 +1960,7 @@ mod checked {
                 RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
                 vec![],
                 vec![
-                    CallArg::Shared(SharedInputObject {
+                    CallArg::Shared(SharedObjectRef {
                         object_id: ObjectID::RANDOMNESS_STATE,
                         initial_shared_version: update.randomness_obj_initial_shared_version,
                         mutable: true,

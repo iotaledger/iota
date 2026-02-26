@@ -26,7 +26,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
     transaction::{
-        CallArg, InputObjectKind, ProgrammableTransaction, SharedInputObject, Transaction,
+        CallArg, InputObjectKind, ProgrammableTransaction, SharedObjectRef, Transaction,
         TransactionData, TransactionKind,
     },
 };
@@ -145,7 +145,7 @@ impl Client {
         // (4) Check whether the game has ended or not.
         let mut builder = ProgrammableTransactionBuilder::new();
         let g = if let Owner::Shared(initial_shared_version) = owner {
-            builder.obj(CallArg::Shared(SharedInputObject {
+            builder.obj(CallArg::Shared(SharedObjectRef {
                 object_id: id,
                 initial_shared_version,
                 mutable: false,
@@ -349,7 +349,7 @@ impl Client {
 
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let g = builder.obj(CallArg::Shared(SharedInputObject {
+        let g = builder.obj(CallArg::Shared(SharedObjectRef {
             object_id: game.board.id,
             initial_shared_version,
             mutable: true,
@@ -426,7 +426,7 @@ impl Client {
 
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let g = builder.obj(CallArg::Shared(SharedInputObject {
+        let g = builder.obj(CallArg::Shared(SharedObjectRef {
             object_id: game.board.id,
             initial_shared_version,
             mutable: true,

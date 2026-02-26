@@ -12,7 +12,7 @@ use iota_types::{
     move_package::UpgradePolicy,
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, CallArg, SharedInputObject},
+    transaction::{Argument, CallArg, SharedObjectRef},
 };
 use move_compiler::editions::Flavor;
 use move_core_types::{
@@ -556,7 +556,7 @@ impl IotaValue {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
         let id = obj.id();
         if let Owner::Shared(initial_shared_version) = obj.owner {
-            Ok(CallArg::Shared(SharedInputObject {
+            Ok(CallArg::Shared(SharedObjectRef {
                 object_id: id,
                 initial_shared_version,
                 mutable: false,
@@ -574,7 +574,7 @@ impl IotaValue {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
         let id = obj.id();
         match obj.owner {
-            Owner::Shared(initial_shared_version) => Ok(CallArg::Shared(SharedInputObject {
+            Owner::Shared(initial_shared_version) => Ok(CallArg::Shared(SharedObjectRef {
                 object_id: id,
                 initial_shared_version,
                 mutable: true,

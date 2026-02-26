@@ -98,7 +98,7 @@ impl TestCallArg {
             Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
                 CallArg::ImmutableOrOwned(object.compute_object_reference())
             }
-            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedInputObject {
+            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef {
                 object_id,
                 initial_shared_version: *initial_shared_version,
                 mutable: true,
@@ -175,7 +175,7 @@ async fn construct_shared_object_transaction_with_sequence_number(
         gas_object_ref,
         // args
         vec![
-            CallArg::Shared(SharedInputObject {
+            CallArg::Shared(SharedObjectRef {
                 object_id: shared_object_id,
                 initial_shared_version,
                 mutable: true,
@@ -2988,7 +2988,7 @@ async fn test_invalid_randomness_parameter() {
     let init_random_version =
         get_randomness_state_obj_initial_shared_version(authority_state.get_object_store())
             .unwrap();
-    let random_mut = CallArg::Shared(SharedInputObject {
+    let random_mut = CallArg::Shared(SharedObjectRef {
         object_id: ObjectID::RANDOMNESS_STATE,
         initial_shared_version: init_random_version,
         mutable: true,
@@ -4555,7 +4555,7 @@ async fn make_test_transaction(
         shared_objects
             .iter()
             .map(|(shared_object_id, initial_shared_version, mutable)| {
-                CallArg::Shared(SharedInputObject {
+                CallArg::Shared(SharedObjectRef {
                     object_id: *shared_object_id,
                     initial_shared_version: *initial_shared_version,
                     mutable: *mutable,

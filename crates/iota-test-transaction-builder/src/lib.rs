@@ -22,7 +22,7 @@ use iota_types::{
     object::Owner,
     signature::GenericSignature,
     transaction::{
-        CallArg, DEFAULT_VALIDATOR_GAS_PRICE, ProgrammableTransaction, SharedInputObject,
+        CallArg, DEFAULT_VALIDATOR_GAS_PRICE, ProgrammableTransaction, SharedObjectRef,
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         Transaction, TransactionData,
     },
@@ -104,7 +104,7 @@ impl TestTransactionBuilder {
             package_id,
             "counter",
             "increment",
-            vec![CallArg::Shared(SharedInputObject {
+            vec![CallArg::Shared(SharedObjectRef {
                 object_id: counter_id,
                 initial_shared_version: counter_initial_shared_version,
                 mutable: true,
@@ -122,7 +122,7 @@ impl TestTransactionBuilder {
             package_id,
             "counter",
             "value",
-            vec![CallArg::Shared(SharedInputObject {
+            vec![CallArg::Shared(SharedObjectRef {
                 object_id: counter_id,
                 initial_shared_version: counter_initial_shared_version,
                 mutable: false,
@@ -140,7 +140,7 @@ impl TestTransactionBuilder {
             package_id,
             "counter",
             "delete",
-            vec![CallArg::Shared(SharedInputObject {
+            vec![CallArg::Shared(SharedObjectRef {
                 object_id: counter_id,
                 initial_shared_version: counter_initial_shared_version,
                 mutable: true,
@@ -192,7 +192,7 @@ impl TestTransactionBuilder {
             package_id,
             "random",
             "new",
-            vec![CallArg::Shared(SharedInputObject {
+            vec![CallArg::Shared(SharedObjectRef {
                 object_id: ObjectID::RANDOMNESS_STATE,
                 initial_shared_version: randomness_initial_shared_version,
                 mutable: false,
@@ -655,7 +655,7 @@ pub async fn emit_new_random_u128(
     let Owner::Shared(initial_shared_version) = random_obj_owner else {
         panic!("Expect Randomness to be shared object")
     };
-    let random_call_arg = CallArg::Shared(SharedInputObject {
+    let random_call_arg = CallArg::Shared(SharedObjectRef {
         object_id: ObjectID::RANDOMNESS_STATE,
         initial_shared_version,
         mutable: false,

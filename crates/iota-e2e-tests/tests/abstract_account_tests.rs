@@ -41,7 +41,7 @@ use iota_types::{
     signature::GenericSignature,
     storage::WriteKind,
     transaction::{
-        Argument, CallArg, ProgrammableTransaction, SharedInputObject,
+        Argument, CallArg, ProgrammableTransaction, SharedObjectRef,
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction, TransactionData,
     },
 };
@@ -1184,7 +1184,7 @@ impl TestEnvironment {
             ) {
                 // Create the delayed abstract account.
                 let arguments = vec![
-                    builder.obj(CallArg::Shared(SharedInputObject {
+                    builder.obj(CallArg::Shared(SharedObjectRef {
                         object_id: delayed_aa_ref.object_id,
                         initial_shared_version: delayed_aa_ref.version,
                         mutable: true,
@@ -1275,7 +1275,7 @@ impl TestEnvironment {
         let (Some(owner), Some(aa_ref)) = (self.owner, self.aa_ref) else {
             anyhow::bail!("Abstract account not created yet");
         };
-        let self_call_arg = CallArg::Shared(SharedInputObject {
+        let self_call_arg = CallArg::Shared(SharedObjectRef {
             object_id: aa_ref.object_id,
             initial_shared_version: aa_ref.version,
             mutable: false,
@@ -1310,7 +1310,7 @@ impl TestEnvironment {
             anyhow::bail!("Abstract account not created yet");
         };
 
-        let self_call_arg = CallArg::Shared(SharedInputObject {
+        let self_call_arg = CallArg::Shared(SharedObjectRef {
             object_id: aa_ref.object_id,
             initial_shared_version: aa_ref.version,
             mutable: false,
@@ -1334,7 +1334,7 @@ impl TestEnvironment {
 
         // Random IOTA account command.
         let arguments = vec![
-            builder.obj(CallArg::Shared(SharedInputObject {
+            builder.obj(CallArg::Shared(SharedObjectRef {
                 object_id: aa_ref.object_id,
                 initial_shared_version: aa_ref.version,
                 mutable: true,
@@ -1404,7 +1404,7 @@ impl TestEnvironment {
         ) {
             // rotate the key in the abstract account.
             let arguments = vec![
-                builder.obj(CallArg::Shared(SharedInputObject {
+                builder.obj(CallArg::Shared(SharedObjectRef {
                     object_id: aa_ref.object_id,
                     initial_shared_version: aa_ref.version,
                     mutable: true,
@@ -1519,7 +1519,7 @@ impl TestEnvironment {
         let mut b = ProgrammableTransactionBuilder::new();
 
         let args = vec![
-            b.obj(CallArg::Shared(SharedInputObject {
+            b.obj(CallArg::Shared(SharedObjectRef {
                 object_id: aa_ref.object_id,
                 initial_shared_version: aa_ref.version,
                 mutable: true,

@@ -15,7 +15,7 @@ use iota_types::{
     crypto::Signature,
     move_authenticator::MoveAuthenticator,
     signature::GenericSignature,
-    transaction::{CallArg, SharedInputObject, TransactionData},
+    transaction::{CallArg, SharedObjectRef, TransactionData},
     type_input::TypeInput,
 };
 use serde::Serialize;
@@ -83,7 +83,7 @@ pub(crate) async fn sign_transaction(
         return Ok(GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
             auth_call_args,
             auth_type_args,
-            CallArg::Shared(SharedInputObject {
+            CallArg::Shared(SharedObjectRef {
                 object_id: ObjectID::from(*signer_address),
                 initial_shared_version,
                 mutable: false,

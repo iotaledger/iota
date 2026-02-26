@@ -22,7 +22,7 @@ use iota_types::{
     event::Event,
     execution_status::ExecutionStatus,
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest},
-    transaction::{CallArg, SharedInputObject},
+    transaction::{CallArg, SharedObjectRef},
 };
 use rand::distributions::Distribution;
 use test_cluster::TestClusterBuilder;
@@ -325,12 +325,12 @@ async fn call_shared_object_contract() {
     let package_id = package.object_id;
     let counter_id = counter.object_id;
     let counter_initial_shared_version = counter.version;
-    let counter_object_arg = CallArg::Shared(SharedInputObject {
+    let counter_object_arg = CallArg::Shared(SharedObjectRef {
         object_id: counter_id,
         initial_shared_version: counter_initial_shared_version,
         mutable: true,
     });
-    let counter_object_arg_imm = CallArg::Shared(SharedInputObject {
+    let counter_object_arg_imm = CallArg::Shared(SharedObjectRef {
         object_id: counter_id,
         initial_shared_version: counter_initial_shared_version,
         mutable: false,

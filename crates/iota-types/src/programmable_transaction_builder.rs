@@ -12,7 +12,7 @@ use serde::Serialize;
 
 use crate::{
     base_types::{IotaAddress, ObjectID, ObjectRef},
-    transaction::{Argument, CallArg, Command, ProgrammableTransaction, SharedInputObject},
+    transaction::{Argument, CallArg, Command, ProgrammableTransaction, SharedObjectRef},
 };
 
 #[derive(PartialEq, Eq, Hash)]
@@ -74,12 +74,12 @@ impl ProgrammableTransactionBuilder {
         let obj_arg = if let Some(old_value) = self.inputs.get(&BuilderArg::Object(id)) {
             match (old_value.as_shared_opt(), obj_arg.as_shared_opt()) {
                 (
-                    Some(&SharedInputObject {
+                    Some(&SharedObjectRef {
                         object_id: id1,
                         initial_shared_version: v1,
                         mutable: mut1,
                     }),
-                    Some(&SharedInputObject {
+                    Some(&SharedObjectRef {
                         object_id: id2,
                         initial_shared_version: v2,
                         mutable: mut2,
@@ -89,7 +89,7 @@ impl ProgrammableTransactionBuilder {
                         id1 == id2 && id == id2,
                         "invariant violation! object has id does not match call arg"
                     );
-                    CallArg::Shared(SharedInputObject {
+                    CallArg::Shared(SharedObjectRef {
                         object_id: id,
                         initial_shared_version: v2,
                         mutable: mut1 || mut2,

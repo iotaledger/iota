@@ -9,7 +9,7 @@ use iota_macros::sim_test;
 use iota_types::{
     base_types::{EpochId, Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, SharedInputObject, TransactionData},
+    transaction::{CallArg, SharedObjectRef, TransactionData},
 };
 use rand::random;
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -140,7 +140,7 @@ async fn create_deny_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionDa
                 "deny_list_v1_remove"
             },
             vec![
-                CallArg::Shared(SharedInputObject {
+                CallArg::Shared(SharedObjectRef {
                     object_id: ObjectID::DENY_LIST,
                     initial_shared_version: test_env.deny_list_object_init_version,
                     mutable: true,
