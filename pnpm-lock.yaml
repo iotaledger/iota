@@ -1457,11 +1457,11 @@ importers:
         specifier: ^1.24.1
         version: 1.26.2(@docusaurus/logger@3.9.2)(@docusaurus/types@3.9.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql-config@5.1.2(@types/node@24.10.12)(bufferutil@4.0.9)(graphql@16.9.0)(typescript@5.6.2)(utf-8-validate@5.0.10))(graphql@16.9.0)(prettier@3.3.3)(typescript@5.6.2)
       '@iota/dapp-kit':
-        specifier: 0.8.3
-        version: 0.8.3(@tanstack/react-query@5.56.2(react@18.3.1))(@types/react-dom@18.3.7(@types/react@18.3.9))(@types/react@18.3.9)(babel-plugin-macros@3.1.0)(immer@9.0.21)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.6.2)
+        specifier: workspace:*
+        version: link:../../sdk/dapp-kit
       '@iota/iota-sdk':
-        specifier: 1.10.1
-        version: 1.10.1(typescript@5.6.2)
+        specifier: workspace:*
+        version: link:../../sdk/typescript
       '@mdx-js/react':
         specifier: ^3.0.1
         version: 3.0.1(@types/react@18.3.9)(react@18.3.1)
@@ -5972,15 +5972,6 @@ packages:
     resolution: {integrity: sha512-XvJRx+2KR3YXyYtPUUy+qd9i7p+GO9Ko6VIIpWlBrpWwXDv8WLFeHTxz35CfQFUiBMLXlGHhGzys7lqit9gWag==}
     engines: {node: '>=18'}
 
-  '@iota/bcs@1.4.0':
-    resolution: {integrity: sha512-Bpg8uPB3UTweJyFS3G+aycGcTCxaJQi2a9bEy2QXWMBM8a/tLN1KCg4IzKWkAJ4FyMNrZZrdXiBqAzmNK6xdVQ==}
-
-  '@iota/dapp-kit@0.8.3':
-    resolution: {integrity: sha512-pbnpv4CHou9wm4stntB/WuaY6vZNw2wOFKlI5rPpWo8JQXmh9sEWOtColzckDscuSGsB1ffilySH9aeADok7qA==}
-    peerDependencies:
-      '@tanstack/react-query': ^5.50.1
-      react: '*'
-
   '@iota/identity-wasm@1.7.0-beta.1':
     resolution: {integrity: sha512-wB+VyLR7tqwwXdKNN6HThBu8T5OGMFYNITg3aPP9opL8TvnHQJS4HPvrSH+5zMkTXLxV8XNP24xXZbugkyIV2Q==}
     engines: {node: '>=20'}
@@ -6005,18 +5996,11 @@ packages:
     peerDependencies:
       '@iota/iota-sdk': ^1.10.0
 
-  '@iota/iota-sdk@1.10.1':
-    resolution: {integrity: sha512-q0GxOCFzPqIcaw1lFuFljmMDj1ajIK6UZFzOYnnPqfs/nufOZrJQ9Bg/hLj23xbMno/tdND+aIjDWY6GG8MAXw==}
-    engines: {node: '>=20'}
-
   '@iota/notarization@0.1.8':
     resolution: {integrity: sha512-rCgx7IRZaYlJSQK+G++u0p61Ky3smNFYFiX321CGV1YZWFP/jIItfvFYiGA9vIbk3BRm0jcTreLHDUuXQZ8Jqw==}
     engines: {node: '>=20'}
     peerDependencies:
       '@iota/iota-sdk': ^1.9.1
-
-  '@iota/wallet-standard@0.3.2':
-    resolution: {integrity: sha512-Xc0WXL+JY5WXrlkO9nNWrv73eiz9JM82H0thOTJzapnAgXSFcs1s/l57iXmn4FiwQ6jnM0pkQ8ObpGC+Duqk2w==}
 
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
@@ -9061,9 +9045,6 @@ packages:
   '@storybook/types@7.6.20':
     resolution: {integrity: sha512-GncdY3x0LpbhmUAAJwXYtJDUQEwfF175gsjH0/fxPkxPoV7Sef9TM41jQLJW/5+6TnZoCZP/+aJZTJtq3ni23Q==}
 
-  '@suchipi/femver@1.0.0':
-    resolution: {integrity: sha512-bprE8+K5V+DPX7q2e2K57ImqNBdfGHDIWaGI5xHxZoxbKOuQZn4wzPiUxOAHnsUr3w3xHrWXwN7gnG/iIuEMIg==}
-
   '@svgr/babel-plugin-add-jsx-attribute@7.0.0':
     resolution: {integrity: sha512-khWbXesWIP9v8HuKCl2NU2HNAyqpSQ/vkIl36Nbn4HIwEYSRWL0H7Gs6idJdha2DkpFDWlsqMELvoCE8lfFY6Q==}
     engines: {node: '>=14'}
@@ -11244,9 +11225,6 @@ packages:
 
   batch@0.6.1:
     resolution: {integrity: sha512-x+VAiMRL6UPkx+kudNvxTl6hB2XNNCG2r+7wixVfIYwu/2HKRXimwQyaumLjMveWvT2Hkd/cAJw+QBMfJ/EKVw==}
-
-  bech32@2.0.0:
-    resolution: {integrity: sha512-LcknSilhIGatDAsY1ak2I8VtGaHNhgMSYVxFrGLXv+xLHytaKZKcaUJJUE7qmBr7h33o5YQwP55pMI0xmkpJwg==}
 
   better-opn@3.0.2:
     resolution: {integrity: sha512-aVNobHnJqLiUelTaHat9DZ1qM2w0C0Eym4LPI/3JxOnSokGVdsl1T1kN7TFvsEAD8G47A6VKQ0TVHqbBnYMJlQ==}
@@ -20259,9 +20237,6 @@ packages:
   tween-functions@1.2.0:
     resolution: {integrity: sha512-PZBtLYcCLtEcjL14Fzb1gSxPBeL7nWvGhO5ZFPGqziCcr8uvHp0NDmdjBchp6KHL+tExcg0m3NISmKxhU394dA==}
 
-  tweetnacl@1.0.3:
-    resolution: {integrity: sha512-6rt+RN7aOi1nGMyC4Xa5DdYiukl2UWCbcJft7YhxReBGQD7OAM8Pbxw6YMo4r2diNEA8FEmu32YOn9rhaiE5yw==}
-
   type-check@0.4.0:
     resolution: {integrity: sha512-XleUoc9uwGXqjWwXaUTZAmzMcFZ5858QA2vvx1Ur5xIcixXIP+8LnFDgRplU30us6teqdlskFfu+ae4K79Ooew==}
     engines: {node: '>= 0.8.0'}
@@ -27563,35 +27538,6 @@ snapshots:
     dependencies:
       mute-stream: 1.0.0
 
-  '@iota/bcs@1.4.0':
-    dependencies:
-      bs58: 6.0.0
-
-  '@iota/dapp-kit@0.8.3(@tanstack/react-query@5.56.2(react@18.3.1))(@types/react-dom@18.3.7(@types/react@18.3.9))(@types/react@18.3.9)(babel-plugin-macros@3.1.0)(immer@9.0.21)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.6.2)':
-    dependencies:
-      '@iota/iota-names-sdk': 0.5.1(@iota/iota-sdk@1.10.1(typescript@5.6.2))
-      '@iota/iota-sdk': 1.10.1(typescript@5.6.2)
-      '@iota/wallet-standard': 0.3.2(typescript@5.6.2)
-      '@radix-ui/react-dialog': 1.1.1(@types/react-dom@18.3.7(@types/react@18.3.9))(@types/react@18.3.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@radix-ui/react-dropdown-menu': 2.1.1(@types/react-dom@18.3.7(@types/react@18.3.9))(@types/react@18.3.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@radix-ui/react-slot': 1.1.0(@types/react@18.3.9)(react@18.3.1)
-      '@tanstack/react-query': 5.56.2(react@18.3.1)
-      '@vanilla-extract/css': 1.17.3(babel-plugin-macros@3.1.0)
-      '@vanilla-extract/dynamic': 2.1.4
-      '@vanilla-extract/recipes': 0.5.5(@vanilla-extract/css@1.17.3(babel-plugin-macros@3.1.0))
-      clsx: 2.1.1
-      react: 18.3.1
-      zustand: 4.5.5(@types/react@18.3.9)(immer@9.0.21)(react@18.3.1)
-    transitivePeerDependencies:
-      - '@gql.tada/svelte-support'
-      - '@gql.tada/vue-support'
-      - '@types/react'
-      - '@types/react-dom'
-      - babel-plugin-macros
-      - immer
-      - react-dom
-      - typescript
-
   '@iota/identity-wasm@1.7.0-beta.1(@iota/iota-sdk@sdk+typescript)':
     dependencies:
       '@iota/iota-interaction-ts': 0.8.0(@iota/iota-sdk@sdk+typescript)
@@ -27615,49 +27561,15 @@ snapshots:
     dependencies:
       '@iota/iota-sdk': link:sdk/typescript
 
-  '@iota/iota-names-sdk@0.5.1(@iota/iota-sdk@1.10.1(typescript@5.6.2))':
-    dependencies:
-      '@iota/iota-sdk': 1.10.1(typescript@5.6.2)
-      '@noble/hashes': 1.8.0
-
   '@iota/iota-names-sdk@0.5.1(@iota/iota-sdk@sdk+typescript)':
     dependencies:
       '@iota/iota-sdk': link:sdk/typescript
       '@noble/hashes': 1.8.0
 
-  '@iota/iota-sdk@1.10.1(typescript@5.6.2)':
-    dependencies:
-      '@graphql-typed-document-node/core': 3.2.0(graphql@16.9.0)
-      '@iota/bcs': 1.4.0
-      '@noble/curves': 1.9.2
-      '@noble/hashes': 1.8.0
-      '@scure/bip32': 1.7.0
-      '@scure/bip39': 1.6.0
-      '@suchipi/femver': 1.0.0
-      bech32: 2.0.0
-      bignumber.js: 9.1.2
-      gql.tada: 1.8.9(graphql@16.9.0)(typescript@5.6.2)
-      graphql: 16.9.0
-      tweetnacl: 1.0.3
-      valibot: 1.2.0(typescript@5.6.2)
-    transitivePeerDependencies:
-      - '@gql.tada/svelte-support'
-      - '@gql.tada/vue-support'
-      - typescript
-
   '@iota/notarization@0.1.8(@iota/iota-sdk@sdk+typescript)':
     dependencies:
       '@iota/iota-interaction-ts': 0.10.0(@iota/iota-sdk@sdk+typescript)
       '@iota/iota-sdk': link:sdk/typescript
-
-  '@iota/wallet-standard@0.3.2(typescript@5.6.2)':
-    dependencies:
-      '@iota/iota-sdk': 1.10.1(typescript@5.6.2)
-      '@wallet-standard/core': 1.0.3
-    transitivePeerDependencies:
-      - '@gql.tada/svelte-support'
-      - '@gql.tada/vue-support'
-      - typescript
 
   '@isaacs/cliui@8.0.2':
     dependencies:
@@ -32257,8 +32169,6 @@ snapshots:
       '@types/express': 4.17.21
       file-system-cache: 2.3.0
 
-  '@suchipi/femver@1.0.0': {}
-
   '@svgr/babel-plugin-add-jsx-attribute@7.0.0(@babel/core@7.25.2)':
     dependencies:
       '@babel/core': 7.25.2
@@ -33630,10 +33540,6 @@ snapshots:
   '@vanilla-extract/recipes@0.5.5(@vanilla-extract/css@1.15.5(babel-plugin-macros@3.1.0))':
     dependencies:
       '@vanilla-extract/css': 1.15.5(babel-plugin-macros@3.1.0)
-
-  '@vanilla-extract/recipes@0.5.5(@vanilla-extract/css@1.17.3(babel-plugin-macros@3.1.0))':
-    dependencies:
-      '@vanilla-extract/css': 1.17.3(babel-plugin-macros@3.1.0)
 
   '@vanilla-extract/sprinkles@1.6.4(@vanilla-extract/css@1.17.3(babel-plugin-macros@3.1.0))':
     dependencies:
@@ -35440,8 +35346,6 @@ snapshots:
   baseline-browser-mapping@2.10.0: {}
 
   batch@0.6.1: {}
-
-  bech32@2.0.0: {}
 
   better-opn@3.0.2:
     dependencies:
@@ -46847,8 +46751,6 @@ snapshots:
       turbo-windows-arm64: 2.8.0
 
   tween-functions@1.2.0: {}
-
-  tweetnacl@1.0.3: {}
 
   type-check@0.4.0:
     dependencies:
