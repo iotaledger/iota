@@ -25,9 +25,8 @@ export function SupplyIncreaseVestingStakingDialog({
             : 'https://files.iota.org/media/tooling/wallet-dashboard-staking-light.mp4';
 
     function navigateToDashboard() {
-        ampli.externalLinkOpened({
-            value: WALLET_DASHBOARD_URL,
-            type: 'application',
+        ampli.applicationOpened({
+            applicationName: 'IOTA Wallet Dashboard',
         });
         window.open(WALLET_DASHBOARD_URL, '_blank', 'noopener noreferrer');
     }

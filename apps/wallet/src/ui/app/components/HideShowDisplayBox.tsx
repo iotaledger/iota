@@ -11,6 +11,7 @@ export interface HideShowDisplayBoxProps {
     hideCopy?: boolean;
     copiedMessage?: string;
     isContentVisible?: boolean;
+    eventType?: string;
 }
 
 export function HideShowDisplayBox({
@@ -18,6 +19,7 @@ export function HideShowDisplayBox({
     hideCopy = false,
     copiedMessage,
     isContentVisible = false,
+    eventType = 'secrets',
 }: HideShowDisplayBoxProps) {
     async function handleCopy() {
         if (!value) {
@@ -27,8 +29,7 @@ export function HideShowDisplayBox({
         try {
             await navigator.clipboard.writeText(textToCopy);
             ampli.elementCopied({
-                type: 'mnemonic',
-                value: textToCopy,
+                type: eventType,
             });
             toast(copiedMessage || 'Copied');
         } catch {

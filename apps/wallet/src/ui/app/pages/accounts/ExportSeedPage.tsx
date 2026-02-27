@@ -36,6 +36,7 @@ export function ExportSeedPage() {
                         <HideShowDisplayBox
                             value={exportMutation.data}
                             copiedMessage="Seed copied"
+                            eventType="seed"
                         />
                     </div>
                 ) : (

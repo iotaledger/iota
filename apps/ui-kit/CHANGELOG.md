@@ -1,5 +1,21 @@
 # @iota/apps-ui-kit
 
+## 0.9.3
+
+### Patch Changes
+
+-   67cba64: improve Address component to allow onOpen prop
+-   54c7803: Update @types/node to v24.
+-   0528d86: add data testId to Account component
+-   10ee721: Increase Dialog height
+-   fc9eba3: Add "isDisabled" to TableRowCheckbox
+-   205e35d: improve button segment for mobile devices
+-   10ee721: remove lock action from account component
+-   5613ae1: Correct Toggle's right spacing when enabled
+-   b294bf5: add proper readme
+-   Updated dependencies [bb33d49]
+    -   @iota/apps-ui-icons@0.7.3
+
 ## 0.9.2
 
 ### Patch Changes
