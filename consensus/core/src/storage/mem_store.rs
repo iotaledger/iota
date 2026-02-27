@@ -32,7 +32,7 @@ struct Inner {
     commits: BTreeMap<(CommitIndex, CommitDigest), TrustedCommit>,
     commit_votes: BTreeSet<(CommitIndex, CommitDigest, BlockRef)>,
     commit_info: BTreeMap<(CommitIndex, CommitDigest), CommitInfo>,
-    scoring_metrics: Option<VersionedScoringMetrics>,
+    misbehavior_counts: Option<VersionedScoringMetrics>,
 }
 
 impl MemStore {
@@ -44,7 +44,7 @@ impl MemStore {
                 commits: BTreeMap::new(),
                 commit_votes: BTreeSet::new(),
                 commit_info: BTreeMap::new(),
-                scoring_metrics: None,
+                misbehavior_counts: None,
             }),
         }
     }
@@ -84,8 +84,8 @@ impl Store for MemStore {
                 .insert((commit_ref.index, commit_ref.digest), commit_info);
         }
 
-        if let Some(metrics) = write_batch.scoring_metrics {
-            inner.scoring_metrics = Some(metrics);
+        if let Some(metrics) = write_batch.misbehavior_counts {
+            inner.misbehavior_counts = Some(metrics);
         }
 
         Ok(())
@@ -138,7 +138,7 @@ impl Store for MemStore {
         Ok(self
             .inner
             .read()
-            .scoring_metrics
+            .misbehavior_counts
             .as_ref()
             .map(|metrics| metrics.snapshot()))
     }

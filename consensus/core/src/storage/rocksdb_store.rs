@@ -15,7 +15,7 @@ use typed_store::{
     rocks::{DBMap, MetricConf, ReadWriteOptions, default_db_options, open_cf_opts},
 };
 
-use super::{CommitInfo, StorageScoringMetrics, Store, WriteBatch};
+use super::{CommitInfo, Store, WriteBatch};
 use crate::{
     block::{BlockAPI as _, BlockDigest, BlockRef, Round, SignedBlock, VerifiedBlock},
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
@@ -35,12 +35,8 @@ pub(crate) struct RocksDBStore {
     commit_votes: DBMap<(CommitIndex, CommitDigest, BlockRef), ()>,
     /// Stores info related to Commit that helps recovery.
     commit_info: DBMap<(CommitIndex, CommitDigest), CommitInfo>,
-    /// Legacy column family. Kept so RocksDB can open existing databases.
-    #[expect(dead_code)]
-    #[deprecated]
-    scoring_metrics: DBMap<AuthorityIndex, StorageScoringMetrics>,
-    /// Stores versioned scoring metrics as a single blob under key `()`.
-    scoring_metrics_v2: DBMap<(), VersionedScoringMetrics>,
+    /// Stores versioned misbehavior counts as a single blob under key `()`.
+    misbehavior_counts: DBMap<(), VersionedScoringMetrics>,
 }
 
 impl RocksDBStore {
@@ -49,8 +45,7 @@ impl RocksDBStore {
     const COMMITS_CF: &'static str = "commits";
     const COMMIT_VOTES_CF: &'static str = "commit_votes";
     const COMMIT_INFO_CF: &'static str = "commit_info";
-    const SCORING_METRICS_CF: &'static str = "scoring_metrics";
-    const SCORING_METRICS_V2_CF: &'static str = "scoring_metrics_v2";
+    const MISBEHAVIOR_COUNTS_CF: &'static str = "misbehavior_counts";
 
     /// Creates a new instance of RocksDB storage.
     pub(crate) fn new(path: &str) -> Self {
@@ -73,8 +68,7 @@ impl RocksDBStore {
             (Self::COMMITS_CF, cf_options.clone()),
             (Self::COMMIT_VOTES_CF, cf_options.clone()),
             (Self::COMMIT_INFO_CF, cf_options.clone()),
-            (Self::SCORING_METRICS_CF, cf_options.clone()),
-            (Self::SCORING_METRICS_V2_CF, cf_options.clone()),
+            (Self::MISBEHAVIOR_COUNTS_CF, cf_options.clone()),
         ];
         let rocksdb = open_cf_opts(
             path,
@@ -90,16 +84,14 @@ impl RocksDBStore {
             commits,
             commit_votes,
             commit_info,
-            scoring_metrics,
-            scoring_metrics_v2,
+            misbehavior_counts,
         ) = reopen!(&rocksdb,
             Self::BLOCKS_CF;<(Round, AuthorityIndex, BlockDigest), bytes::Bytes>,
             Self::DIGESTS_BY_AUTHORITIES_CF;<(AuthorityIndex, Round, BlockDigest), ()>,
             Self::COMMITS_CF;<(CommitIndex, CommitDigest), Bytes>,
             Self::COMMIT_VOTES_CF;<(CommitIndex, CommitDigest, BlockRef), ()>,
             Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>,
-            Self::SCORING_METRICS_CF;<AuthorityIndex, StorageScoringMetrics>,
-            Self::SCORING_METRICS_V2_CF;<(), VersionedScoringMetrics>
+            Self::MISBEHAVIOR_COUNTS_CF;<(), VersionedScoringMetrics>
         );
 
         Self {
@@ -108,9 +100,7 @@ impl RocksDBStore {
             commits,
             commit_votes,
             commit_info,
-            #[allow(deprecated)]
-            scoring_metrics,
-            scoring_metrics_v2,
+            misbehavior_counts,
         }
     }
 }
@@ -164,8 +154,8 @@ impl Store for RocksDBStore {
                 )
                 .map_err(ConsensusError::RocksDBFailure)?;
         }
-        if let Some(metrics) = &write_batch.scoring_metrics {
-            batch.insert_batch(&self.scoring_metrics_v2, [(&(), metrics)])?;
+        if let Some(metrics) = &write_batch.misbehavior_counts {
+            batch.insert_batch(&self.misbehavior_counts, [(&(), metrics)])?;
         }
 
         batch.write()?;
@@ -240,9 +230,10 @@ impl Store for RocksDBStore {
         Ok(blocks)
     }
 
-    // Reads scoring metrics from the v2 CF (single blob under key `()`).
+    // Reads scoring metrics from the `misbehavior_counts` CF (single blob under key
+    // `()`).
     fn scan_scoring_metrics(&self) -> ConsensusResult<Option<VersionedScoringMetrics>> {
-        Ok(self.scoring_metrics_v2.get(&())?)
+        Ok(self.misbehavior_counts.get(&())?)
     }
 
     // The method returns the last `num_of_rounds` rounds blocks by author in round

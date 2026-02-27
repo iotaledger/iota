@@ -76,7 +76,7 @@ pub(crate) struct WriteBatch {
     pub(crate) blocks: Vec<VerifiedBlock>,
     pub(crate) commits: Vec<TrustedCommit>,
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
-    pub(crate) scoring_metrics: Option<VersionedScoringMetrics>,
+    pub(crate) misbehavior_counts: Option<VersionedScoringMetrics>,
 }
 
 impl WriteBatch {
@@ -84,13 +84,13 @@ impl WriteBatch {
         blocks: Vec<VerifiedBlock>,
         commits: Vec<TrustedCommit>,
         commit_info: Vec<(CommitRef, CommitInfo)>,
-        scoring_metrics: VersionedScoringMetrics,
+        misbehavior_counts: VersionedScoringMetrics,
     ) -> Self {
         WriteBatch {
             blocks,
             commits,
             commit_info,
-            scoring_metrics: Some(scoring_metrics),
+            misbehavior_counts: Some(misbehavior_counts),
         }
     }
 
@@ -115,18 +115,8 @@ impl WriteBatch {
     }
 
     #[cfg(test)]
-    pub(crate) fn scoring_metrics(mut self, scoring_metrics: VersionedScoringMetrics) -> Self {
-        self.scoring_metrics = Some(scoring_metrics);
+    pub(crate) fn scoring_metrics(mut self, misbehavior_counts: VersionedScoringMetrics) -> Self {
+        self.misbehavior_counts = Some(misbehavior_counts);
         self
     }
-}
-
-// Legacy storage type for scoring metrics. Kept only so RocksDB can open the
-// existing column family without errors.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
-pub(crate) struct StorageScoringMetrics {
-    pub(crate) faulty_blocks_provable: u64,
-    pub(crate) faulty_blocks_unprovable: u64,
-    pub(crate) equivocations: u64,
-    pub(crate) missing_proposals: u64,
 }

@@ -317,12 +317,14 @@ async fn scan_scoring_metrics(
         .unwrap();
 
     {
-        if let Ok(Some(scanned)) = store.scan_scoring_metrics() {
-            assert_eq!(scanned.load_faulty_blocks_provable(), vec![1, 0, 0]);
-            assert_eq!(scanned.load_faulty_blocks_unprovable(), vec![2, 0, 0]);
-            assert_eq!(scanned.load_missing_proposals(), vec![3, 0, 0]);
-            assert_eq!(scanned.load_equivocations(), vec![4, 0, 0]);
-        }
+        let scanned = store
+            .scan_scoring_metrics()
+            .expect("scan_scoring_metrics should not fail")
+            .expect("scan_scoring_metrics should return Some after write");
+        assert_eq!(scanned.load_faulty_blocks_provable(), vec![1, 0, 0]);
+        assert_eq!(scanned.load_faulty_blocks_unprovable(), vec![2, 0, 0]);
+        assert_eq!(scanned.load_missing_proposals(), vec![3, 0, 0]);
+        assert_eq!(scanned.load_equivocations(), vec![4, 0, 0]);
     }
 
     // Overwrite with zeroed blob.
@@ -335,11 +337,13 @@ async fn scan_scoring_metrics(
         .unwrap();
 
     {
-        if let Ok(Some(scanned)) = store.scan_scoring_metrics() {
-            assert_eq!(scanned.load_faulty_blocks_provable(), vec![0, 0, 0]);
-            assert_eq!(scanned.load_faulty_blocks_unprovable(), vec![0, 0, 0]);
-            assert_eq!(scanned.load_missing_proposals(), vec![0, 0, 0]);
-            assert_eq!(scanned.load_equivocations(), vec![0, 0, 0]);
-        }
+        let scanned = store
+            .scan_scoring_metrics()
+            .expect("scan_scoring_metrics should not fail")
+            .expect("scan_scoring_metrics should return Some after overwrite");
+        assert_eq!(scanned.load_faulty_blocks_provable(), vec![0, 0, 0]);
+        assert_eq!(scanned.load_faulty_blocks_unprovable(), vec![0, 0, 0]);
+        assert_eq!(scanned.load_missing_proposals(), vec![0, 0, 0]);
+        assert_eq!(scanned.load_equivocations(), vec![0, 0, 0]);
     }
 }
