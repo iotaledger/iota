@@ -43,7 +43,7 @@ export function ReceiveFundsDialog({
                             <QR value={address} size={130} marginSize={2} />
                         </div>
 
-                        <div className="flex flex-col gap-xs">
+                        <div className="flex flex-col gap-xs" data-amp-mask>
                             {iotaName && (
                                 <Panel bgColor="bg-iota-neutral-96 dark:bg-iota-neutral-12">
                                     <div className="break-words px-md--rs py-xs text-title-lg text-iota-neutral-12 dark:text-iota-neutral-96">
