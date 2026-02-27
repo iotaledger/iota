@@ -142,6 +142,7 @@ export interface ApplicationOpenedProperties {
 }
 
 export interface AppsBannerCtaClickedProperties {
+    bannerUrl?: string;
     /**
      * | Rule | Value |
      * |---|---|
