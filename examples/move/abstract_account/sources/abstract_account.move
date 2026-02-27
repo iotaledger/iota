@@ -5,7 +5,6 @@ module abstract_account::abstract_account;
 
 use iota::account;
 use iota::authenticator_function;
-
 use iota::dynamic_field;
 use iota::ed25519;
 use iota::package_metadata::PackageMetadataV1;
