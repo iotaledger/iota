@@ -115,6 +115,7 @@ pub struct Opts {
 
 #[derive(Debug, Clone, Parser, Eq, PartialEq)]
 #[non_exhaustive]
+#[allow(clippy::large_enum_variant)]
 pub enum RunSpec {
     // Allow the ability to mix shared object and
     // single owner transactions in the benchmarking

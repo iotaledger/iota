@@ -29,9 +29,9 @@ use crate::{
     },
 };
 
-/// ------------------------------
-/// AA init helpers
-/// ------------------------------
+// ------------------------------
+// AA init helpers
+// ------------------------------
 
 /// Publish AA package and return:
 /// - package_id (ObjectID)

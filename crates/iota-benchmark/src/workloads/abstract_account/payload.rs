@@ -215,7 +215,7 @@ impl AbstractAccountPayload {
     }
 
     pub fn build_split_and_transfer_pt(&self) -> ProgrammableTransaction {
-        let pt = {
+        {
             let mut builder = ProgrammableTransactionBuilder::new();
 
             let pay_arg: Argument = builder
@@ -234,12 +234,11 @@ impl AbstractAccountPayload {
             builder.command(Command::TransferObjects(vec![new_coins], recipient_arg));
 
             builder.finish()
-        };
-        pt
+        }
     }
 
     pub fn build_touch_shared_object_pt(&self) -> ProgrammableTransaction {
-        let pt = {
+        {
             let mut b = ProgrammableTransactionBuilder::new();
 
             let shared = self.shared_object.unwrap();
@@ -253,7 +252,7 @@ impl AbstractAccountPayload {
             // Move call: iota_system::request_add_stake(state, pay_coin,
             // validator_to_stake_address)
             b.programmable_move_call(
-                self.aa_package_id.into(),
+                self.aa_package_id,
                 Identifier::new(AA_MODULE_NAME).unwrap(),
                 Identifier::new("touch").unwrap(),
                 vec![],
@@ -261,8 +260,7 @@ impl AbstractAccountPayload {
             );
 
             b.finish()
-        };
-        pt
+        }
     }
 }
 
@@ -289,7 +287,7 @@ fn build_move_auth_args(
                     .take(Ed25519Signature::LENGTH * 2)
                     .collect()
             } else {
-                Hex::encode("".to_string())
+                Hex::encode("")
             };
 
             auth_args.push(CallArg::Pure(bcs::to_bytes(&hex_encoded)?));
