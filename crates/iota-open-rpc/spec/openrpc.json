@@ -1308,6 +1308,7 @@
                 "consensus_batched_block_sync": false,
                 "consensus_commit_transactions_only_for_traversed_headers": false,
                 "consensus_distributed_vote_scoring_strategy": false,
+                "consensus_fast_commit_sync": false,
                 "consensus_linearize_subdag_v2": false,
                 "consensus_median_timestamp_with_checkpoint_enforcement": false,
                 "consensus_round_prober": false,

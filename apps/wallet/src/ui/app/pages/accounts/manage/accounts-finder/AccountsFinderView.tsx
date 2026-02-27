@@ -17,11 +17,10 @@ import {
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
 import { type SourceStrategyToFind } from '_src/shared/messaging/messages/payloads/accounts-finder';
 import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
-import { getSourceId, getLedgerConnectionErrorMessage } from '_src/ui/app/helpers';
+import { getSourceId, getLedgerConnectionErrorMessage, isFirstAccount } from '_src/ui/app/helpers';
 import {
     useAccountSources,
     useAccounts,
-    useAccountsInfo,
     useUnlockMutation,
     useAccountsFinder,
     useGetOwnedObjectsMultipleAddresses,
@@ -107,7 +106,6 @@ export function AccountsFinderView(): JSX.Element {
     const mainPublicKey = searchParams.get('mainPublicKey');
     const { data: accountSources } = useAccountSources();
     const { data: accounts } = useAccounts();
-    const { isFirstAccount } = useAccountsInfo();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceId);
     const accountSourceType = getAccountSourceType(accountSource);
     const [password, setPassword] = useState('');
@@ -166,7 +164,7 @@ export function AccountsFinderView(): JSX.Element {
                     accountType,
                     accountOrigin: AmpliAccountOrigin.Import,
                     numberOfAccounts: numberOfAccountsCreated,
-                    isFirstAccount,
+                    isFirstAccount: isFirstAccount(accounts),
                     sourceFlow: SOURCE_FLOW,
                 });
             }

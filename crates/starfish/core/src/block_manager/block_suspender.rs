@@ -64,6 +64,15 @@ impl BlockSuspender {
             headers_to_fetch: BTreeMap::new(),
         }
     }
+
+    /// Reinitialize BlockSuspender after fast sync completes.
+    /// Clears all suspended blocks, missing ancestors, and fetch queues.
+    pub(crate) fn reinitialize(&mut self) {
+        self.suspended_headers.clear();
+        self.missing_ancestors.clear();
+        self.headers_to_fetch.clear();
+    }
+
     /// Accept or suspend a batch of received block headers based on their
     /// missing ancestors.
     ///

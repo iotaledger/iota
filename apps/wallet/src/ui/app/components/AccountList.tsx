@@ -15,6 +15,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { useBalance, useFormatCoin } from '@iota/core';
+import { useAccounts } from '_hooks';
 
 interface AccountListProps<A> {
     accounts: A[];
@@ -29,20 +30,25 @@ export function AccountList<A extends { address: string }>({
     onAccountClick,
     selectAll,
 }: AccountListProps<A>) {
+    const { data: existingAccounts } = useAccounts();
+
+    const existingAddresses = new Set((existingAccounts ?? []).map((acc) => acc.address));
     const headersData = [
         { label: 'Address', columnKey: 1 },
         { label: '', columnKey: 2 },
     ];
 
     const selectedRowIndexes = accounts.reduce((set, acc, i) => {
-        if (selectedAccounts.has(acc.address)) {
+        if (selectedAccounts.has(acc.address) || existingAddresses.has(acc.address)) {
             set.add(i);
         }
         return set;
     }, new Set<number>());
 
+    const rowIndexes = accounts.map((_, i) => i);
+
     return (
-        <Table selectedRowIndexes={selectedRowIndexes} rowIndexes={accounts.map((_, i) => i)}>
+        <Table selectedRowIndexes={selectedRowIndexes} rowIndexes={rowIndexes}>
             <TableHeader>
                 <TableRow leading={<TableHeaderCheckbox onCheckboxChange={() => selectAll()} />}>
                     {headersData.map((header, index) => (
@@ -57,6 +63,7 @@ export function AccountList<A extends { address: string }>({
                         account={account}
                         rowIndex={rowIndex}
                         onAccountClick={onAccountClick}
+                        isExisting={existingAddresses.has(accounts[rowIndex].address)}
                     />
                 ))}
             </TableBody>
@@ -68,10 +75,12 @@ function AccountRow<A extends { address: string }>({
     account,
     rowIndex,
     onAccountClick,
+    isExisting,
 }: {
     account: A;
     rowIndex: number;
     onAccountClick: (account: A, checked: boolean) => void;
+    isExisting: boolean;
 }) {
     const { data: coinBalance } = useBalance(account.address);
     const [totalAmount, totalAmountSymbol] = useFormatCoin({
@@ -84,7 +93,11 @@ function AccountRow<A extends { address: string }>({
             leading={
                 <TableRowCheckbox
                     rowIndex={rowIndex}
-                    onCheckboxChange={(checked) => onAccountClick(account, checked)}
+                    isDisabled={isExisting}
+                    onCheckboxChange={(checked) => {
+                        if (isExisting) return;
+                        onAccountClick(account, checked);
+                    }}
                 />
             }
         >

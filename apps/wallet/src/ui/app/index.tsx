@@ -48,7 +48,7 @@ import {
 import { TokenDetailsPage } from './pages/home/tokens/TokenDetailsPage';
 import { RestrictedPage } from './pages/restricted';
 import { SiteConnectPage } from './pages/site-connect';
-import { AppType } from './redux/slices/app/appType';
+import { ExtensionViewType } from './redux/slices/app/appType';
 import { StakingPage } from './staking/home';
 import { StorageMigrationPage } from './pages/StorageMigrationPage';
 import { AccountsFinderPage } from './pages/accounts/manage/accounts-finder/AccountsFinderPage';
@@ -73,7 +73,9 @@ const NOTIFY_USER_ACTIVE_INTERVAL = 5 * 1000; // 5 seconds
 
 export function App() {
     const dispatch = useAppDispatch();
-    const isPopup = useAppSelector((state) => state.app.appType === AppType.Popup);
+    const isPopup = useAppSelector(
+        (state) => state.app.extensionViewType === ExtensionViewType.Popup,
+    );
     useEffect(() => {
         document.body.classList.remove('app-initializing');
     }, [isPopup]);
