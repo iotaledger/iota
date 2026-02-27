@@ -6,7 +6,7 @@ import { useParams } from 'react-router-dom';
 import { PageLayout } from '~/components';
 import { useDecodeDidFromUrl } from '~/hooks/useDecodeDidFromUrl';
 import { Warning } from '@iota/apps-ui-icons';
-import { DidContent } from './views/DidContent';
+import { IdentityContent } from './views/IdentityContent';
 
 export function IdentityResult() {
     const { id: encodedDid } = useParams();
@@ -32,5 +32,5 @@ export function IdentityResult() {
         );
     }
 
-    return <DidContent did={decodedDid!} />;
+    return <IdentityContent did={decodedDid} />;
 }

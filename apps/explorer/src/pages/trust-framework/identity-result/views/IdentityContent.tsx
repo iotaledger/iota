@@ -18,11 +18,11 @@ import { SideBySidePanelsView } from './SideBySidePanelsView';
 import { TransactionsView } from './TransactionsView';
 import { extractDidDoc } from '../helper';
 
-interface DidContentProps {
+interface IdentityContentProps {
     did: IotaDID;
 }
 
-export function DidContent({ did }: DidContentProps) {
+export function IdentityContent({ did }: IdentityContentProps) {
     const { data: didDocument, isPending: isDidDocumentPending } = useResolveDid(did);
     const { data: objectResult, isPending: isObjectPending } = useGetObjectOrPastObject(did.tag());
     const didObject = objectResult?.data ?? null;
