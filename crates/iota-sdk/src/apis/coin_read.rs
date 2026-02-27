@@ -306,7 +306,12 @@ impl CoinReadApi {
     /// }
     /// ```
     pub async fn get_total_supply(&self, coin_type: impl Into<String>) -> IotaRpcResult<Supply> {
-        Ok(self.api.http.get_total_supply(coin_type.into()).await?)
+        Ok(self
+            .api
+            .http
+            .get_total_supply(coin_type.into())
+            .await?
+            .into())
     }
 
     /// Get the IOTA circulating supply summary.

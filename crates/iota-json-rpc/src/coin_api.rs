@@ -10,7 +10,7 @@ use cached::{SizedCache, proc_macro::cached};
 use chrono::DateTime;
 use iota_core::{authority::AuthorityState, jsonrpc_index::TotalBalance};
 use iota_json_rpc_api::{CoinReadApiOpenRpc, CoinReadApiServer, JsonRpcMetrics, cap_page_limit};
-use iota_json_rpc_types::{Balance, CoinPage, IotaCirculatingSupply, IotaCoinMetadata};
+use iota_json_rpc_types::{Balance, CoinPage, IotaCirculatingSupply, IotaCoinMetadata, IotaSupply};
 use iota_mainnet_unlocks::MainnetUnlocksStore;
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
@@ -257,18 +257,18 @@ impl CoinReadApiServer for CoinReadApi {
     }
 
     #[instrument(skip(self))]
-    async fn get_total_supply(&self, coin_type: String) -> RpcResult<Supply> {
+    async fn get_total_supply(&self, coin_type: String) -> RpcResult<IotaSupply> {
         async move {
             let coin_struct = parse_to_struct_tag(&coin_type)?;
 
             if let Some(s) = gas_total_supply(&*self.internal, &coin_struct).await? {
-                return Ok(s);
+                return Ok(s.into());
             }
             if let Some(s) = treasury_cap_total_supply(&*self.internal, &coin_struct).await? {
-                return Ok(s);
+                return Ok(s.into());
             }
             if let Some(s) = coin_manager_total_supply(&*self.internal, &coin_struct).await? {
-                return Ok(s);
+                return Ok(s.into());
             }
 
             Err(IotaRpcInputError::GenericNotFound(format!(
@@ -1519,7 +1519,10 @@ mod tests {
                 .returning(move |_, _| Ok((create_fake_transaction(), effects_clone.clone())));
 
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
-            let response = coin_read_api.get_total_supply(coin_name.clone()).await;
+            let response = coin_read_api
+                .get_total_supply(coin_name.clone())
+                .await
+                .map(Supply::from);
 
             assert!(response.is_err());
             let error_result = response.unwrap_err();
@@ -1563,7 +1566,10 @@ mod tests {
                 unlocks_store: MainnetUnlocksStore::new().unwrap(),
             };
 
-            let response = coin_read_api.get_total_supply(coin_name.clone()).await;
+            let response = coin_read_api
+                .get_total_supply(coin_name.clone())
+                .await
+                .map(Supply::from);
             let error_result = response.unwrap_err();
             assert_eq!(
                 error_result.code(),

@@ -1,3 +1,4 @@
+use core::panic;
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use std::{path::Path, str::FromStr};
@@ -16,7 +17,7 @@ use iota_json_rpc_api::{
 };
 use iota_json_rpc_types::{
     IotaData, IotaExecutionStatus, IotaMoveStruct, IotaMoveValue, IotaObjectDataOptions,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaSystemStateSummary, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, ObjectChange, TransactionBlockBytes,
 };
 use iota_move_build::BuildConfig;
@@ -166,7 +167,7 @@ fn dry_run_transaction_block() {
                         .with_events()
                         .with_input(),
                 ),
-                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+                Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
             )
             .await
             .unwrap();
@@ -180,7 +181,7 @@ fn dry_run_transaction_block() {
                 .effects
                 .mutated()
                 .iter()
-                .any(|obj| obj.reference.object_id == object_to_transfer.0)
+                .any(|obj| obj.reference.0 == object_to_transfer.0)
         );
 
         assert_eq!(
@@ -266,7 +267,7 @@ fn dev_inspect_transaction_block() {
             .effects
             .mutated()
             .iter()
-            .find_map(|obj| (obj.reference.object_id == obj_id).then_some(obj.owner))
+            .find_map(|obj| (obj.reference.0 == obj_id).then_some(obj.owner))
             .unwrap();
 
         assert_eq!(owner, Owner::AddressOwner(receiver));
@@ -347,7 +348,7 @@ fn execute_transaction_block() {
                 tx_bytes,
                 signatures,
                 Some(IotaTransactionBlockResponseOptions::new().with_effects()),
-                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+                Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
             )
             .await
             .unwrap();
@@ -359,8 +360,7 @@ fn execute_transaction_block() {
             .mutated()
             .iter()
             .find_map(|obj| {
-                (obj.reference.object_id == object_to_transfer_id)
-                    .then_some((obj.reference.version, obj.owner))
+                (obj.reference.0 == object_to_transfer_id).then_some((obj.reference.1, obj.owner))
             })
             .unwrap();
 
@@ -791,7 +791,7 @@ fn test_repeated_tx_execution() {
                     tx_bytes.clone(),
                     signatures.clone(),
                     Some(IotaTransactionBlockResponseOptions::new().with_effects()),
-                    Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+                    Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
                 )
                 .await
                 .unwrap();
@@ -1278,7 +1278,7 @@ async fn create_new_bear(
             tx_bytes,
             signatures,
             Some(IotaTransactionBlockResponseOptions::full_content()),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
         )
         .await
         .unwrap();
@@ -1350,7 +1350,7 @@ async fn deploy_package(
             tx_bytes,
             signatures,
             Some(IotaTransactionBlockResponseOptions::full_content()),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
         )
         .await
         .unwrap();
@@ -1493,7 +1493,7 @@ fn clever_errors() {
                 tx_bytes,
                 signatures,
                 Some(IotaTransactionBlockResponseOptions::new().with_effects()),
-                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+                Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
             )
             .await
             .unwrap();
@@ -1549,12 +1549,11 @@ fn dry_run_request_add_stake() {
             .await;
         indexer_wait_for_object(client, coin_ref.0, coin_ref.1).await;
 
-        let validator = client
-            .get_latest_iota_system_state_v2()
-            .await
-            .unwrap()
-            .active_validators()[0]
-            .iota_address;
+        let validator = match client.get_latest_iota_system_state_v2().await.unwrap() {
+            IotaSystemStateSummary::V1(s) => s.active_validators[0].iota_address,
+            IotaSystemStateSummary::V2(s) => s.active_validators[0].iota_address,
+            _ => unimplemented!("there is a new system state summary variant that must be handled"),
+        };
 
         let tx_bytes: TransactionBlockBytes = client
             .request_add_stake(

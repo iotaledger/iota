@@ -655,9 +655,9 @@ fn convert_past_obj_response(resp: IotaPastObjectResponse) -> Result<Object, Rep
     match resp {
         IotaPastObjectResponse::VersionFound(o) => obj_from_iota_obj_data(&o),
         IotaPastObjectResponse::ObjectDeleted(r) => Err(ReplayEngineError::ObjectDeleted {
-            id: r.object_id,
-            version: r.version,
-            digest: r.digest,
+            id: r.0,
+            version: r.1,
+            digest: r.2,
         }),
         IotaPastObjectResponse::ObjectNotExists(id) => {
             Err(ReplayEngineError::ObjectNotExist { id })

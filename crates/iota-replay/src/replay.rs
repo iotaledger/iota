@@ -1741,23 +1741,19 @@ impl LocalExec {
             .shared_objects()
             .iter()
             .map(|so_ref| {
-                if so_ref.digest == ObjectDigest::OBJECT_DIGEST_DELETED {
+                if so_ref.2 == ObjectDigest::OBJECT_DIGEST_DELETED {
                     unimplemented!(
                         "Replay of deleted shared object transactions is not supported yet"
                     );
                 } else {
-                    so_ref.to_object_ref()
+                    *so_ref
                 }
             })
             .collect();
         let gas_data = match tx_info.clone().transaction.unwrap().data {
             iota_json_rpc_types::IotaTransactionBlockData::V1(tx) => tx.gas_data,
         };
-        let gas_object_refs: Vec<_> = gas_data
-            .payment
-            .iter()
-            .map(|obj_ref| obj_ref.to_object_ref())
-            .collect();
+        let gas_object_refs = gas_data.payment;
         let receiving_objs = orig_tx
             .transaction_data()
             .receiving_objects()
@@ -1840,12 +1836,12 @@ impl LocalExec {
             .shared_objects()
             .iter()
             .map(|so_ref| {
-                if so_ref.digest == ObjectDigest::OBJECT_DIGEST_DELETED {
+                if so_ref.2 == ObjectDigest::OBJECT_DIGEST_DELETED {
                     unimplemented!(
                         "Replay of deleted shared object transactions is not supported yet"
                     );
                 } else {
-                    so_ref.to_object_ref()
+                    *so_ref
                 }
             })
             .collect();

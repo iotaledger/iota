@@ -62,7 +62,11 @@ fn test_staking() {
         let staked_iota: Vec<DelegatedStake> = client.get_stakes(sender).await.unwrap();
         assert!(staked_iota.is_empty());
 
-        let iota_system_state = client.get_latest_iota_system_state_v2().await.unwrap();
+        let iota_system_state = client
+            .get_latest_iota_system_state_v2()
+            .await
+            .unwrap()
+            .into();
         let validator = match iota_system_state {
             IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
             IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
@@ -139,7 +143,11 @@ fn test_unstaking() {
         let staked_iota: Vec<DelegatedStake> = client.get_stakes(sender).await.unwrap();
         assert!(staked_iota.is_empty());
 
-        let iota_system_state = client.get_latest_iota_system_state_v2().await.unwrap();
+        let iota_system_state = client
+            .get_latest_iota_system_state_v2()
+            .await
+            .unwrap()
+            .into();
         let validator = match iota_system_state {
             IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
             IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
@@ -270,7 +278,11 @@ fn test_timelocked_staking() {
             );
 
             // Step 3: Delegate the timelocked IOTA balance.
-            let iota_system_state = client.get_latest_iota_system_state_v2().await.unwrap();
+            let iota_system_state = client
+                .get_latest_iota_system_state_v2()
+                .await
+                .unwrap()
+                .into();
             let validator = match iota_system_state {
                 IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
                 IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
@@ -382,7 +394,11 @@ fn test_timelocked_unstaking() {
             );
 
             // Step 3: Delegate the timelocked IOTA balance.
-            let iota_system_state = client.get_latest_iota_system_state_v2().await.unwrap();
+            let iota_system_state = client
+                .get_latest_iota_system_state_v2()
+                .await
+                .unwrap()
+                .into();
             let validator = match iota_system_state {
                 IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
                 IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
@@ -495,7 +511,12 @@ fn get_latest_iota_system_state_v2() {
         // reflect the end of epoch checkpoint changes
         indexer_wait_for_latest_checkpoint(store, cluster).await;
 
-        let system_state = client.get_latest_iota_system_state_v2().await.unwrap();
+        let system_state = client
+            .get_latest_iota_system_state_v2()
+            .await
+            .unwrap()
+            .into();
+
         let IotaSystemStateSummary::V2(system_state_v2) = system_state else {
             panic!("expected IotaSystemStateSummaryV2");
         };

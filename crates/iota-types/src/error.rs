@@ -5,7 +5,6 @@
 
 use std::{collections::BTreeMap, fmt::Debug};
 
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, IntoStaticStr};
 use thiserror::Error;
@@ -381,17 +380,7 @@ pub enum UserInputError {
 }
 
 #[derive(
-    Eq,
-    PartialEq,
-    Clone,
-    Debug,
-    Serialize,
-    Deserialize,
-    Hash,
-    AsRefStr,
-    IntoStaticStr,
-    JsonSchema,
-    Error,
+    Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Hash, AsRefStr, IntoStaticStr, Error,
 )]
 #[serde(tag = "code", rename = "ObjectResponseError", rename_all = "camelCase")]
 pub enum IotaObjectResponseError {

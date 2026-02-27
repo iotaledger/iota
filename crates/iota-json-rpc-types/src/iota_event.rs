@@ -10,7 +10,6 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, TransactionDigest},
     error::IotaResult,
     event::{Event, EventEnvelope, EventID},
-    iota_serde::{BigInt, IotaStructTag},
 };
 use json_to_table::json_to_table;
 use move_core_types::{
@@ -19,12 +18,70 @@ use move_core_types::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use serde_with::{DisplayFromStr, serde_as};
+use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 use tabled::settings::Style as TableStyle;
 
-use crate::{Page, type_and_fields_from_move_event_data};
+use crate::{
+    Page,
+    serde_utils::{
+        Base58 as Base58Schema, IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema,
+        StructTag as StructTagSchema,
+    },
+    type_and_fields_from_move_event_data,
+};
 
 pub type EventPage = Page<IotaEvent, EventID>;
+
+/// Unique ID of an IOTA Event, the ID is a combination of transaction digest
+/// and event seq number.
+#[serde_as]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct IotaEventID {
+    #[schemars(with = "Base58")]
+    pub tx_digest: TransactionDigest,
+
+    #[schemars(with = "String")]
+    pub event_seq: u64,
+}
+
+impl SerializeAs<EventID> for IotaEventID {
+    fn serialize_as<S>(source: &EventID, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let iota_event_id: IotaEventID = (*source).into();
+        iota_event_id.serialize(serializer)
+    }
+}
+
+impl<'de> DeserializeAs<'de, EventID> for IotaEventID {
+    fn deserialize_as<D>(deserializer: D) -> Result<EventID, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let iota_event_id = IotaEventID::deserialize(deserializer)?;
+        Ok(iota_event_id.into())
+    }
+}
+
+impl From<EventID> for IotaEventID {
+    fn from(id: EventID) -> Self {
+        Self {
+            tx_digest: id.tx_digest,
+            event_seq: id.event_seq,
+        }
+    }
+}
+
+impl From<IotaEventID> for EventID {
+    fn from(id: IotaEventID) -> Self {
+        Self {
+            tx_digest: id.tx_digest,
+            event_seq: id.event_seq,
+        }
+    }
+}
 
 #[serde_as]
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -35,18 +92,21 @@ pub struct IotaEvent {
     /// 2) Also serves to sequence events for the purposes of pagination and
     ///    querying. A higher id is an event seen later by that fullnode.
     /// This ID is the "cursor" for event querying.
+    #[schemars(with = "IotaEventID")]
     pub id: EventID,
     /// Move package where this event was emitted.
+    #[schemars(with = "ObjectIDSchema")]
     pub package_id: ObjectID,
     #[schemars(with = "String")]
     #[serde_as(as = "DisplayFromStr")]
     /// Move module where this event was emitted.
     pub transaction_module: Identifier,
     /// Sender's IOTA address.
+    #[schemars(with = "IotaAddressSchema")]
     pub sender: IotaAddress,
-    #[schemars(with = "String")]
-    #[serde_as(as = "IotaStructTag")]
     /// Move event type.
+    #[schemars(with = "String")]
+    #[serde_as(as = "StructTagSchema")]
     pub type_: StructTag,
     /// Parsed json value of the event
     pub parsed_json: Value,
@@ -55,8 +115,8 @@ pub struct IotaEvent {
     pub bcs: BcsEvent,
     /// UTC timestamp in milliseconds since epoch (1/1/1970)
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<BigInt<u64>>")]
-    #[serde_as(as = "Option<BigInt<u64>>")]
+    #[schemars(with = "Option<String>")]
+    #[serde_as(as = "Option<DisplayFromStr>")]
     pub timestamp_ms: Option<u64>,
 }
 
@@ -288,20 +348,22 @@ fn try_into_byte(v: &Value) -> Option<u8> {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub enum EventFilter {
     /// Query by sender address.
-    Sender(IotaAddress),
+    Sender(#[schemars(with = "IotaAddressSchema")] IotaAddress),
     /// Return events emitted by the given transaction.
     Transaction(
         /// digest of the transaction, as base-64 encoded string
+        #[schemars(with = "Base58Schema")]
         TransactionDigest,
     ),
     /// Return events emitted in a specified Package.
-    Package(ObjectID),
+    Package(#[schemars(with = "ObjectIDSchema")] ObjectID),
     /// Return events emitted in a specified Move module.
     /// If the event is defined in Module A but emitted in a tx with Module B,
     /// query `MoveModule` by module B returns the event.
     /// Query `MoveEventModule` by module A returns the event too.
     MoveModule {
         /// the Move package ID
+        #[schemars(with = "ObjectIDSchema")]
         package: ObjectID,
         /// the module name
         #[schemars(with = "String")]
@@ -313,7 +375,7 @@ pub enum EventFilter {
     /// `Foo`, then the struct tag is `0xabcd::MyModule::Foo`.
     MoveEventType(
         #[schemars(with = "String")]
-        #[serde_as(as = "IotaStructTag")]
+        #[serde_as(as = "StructTagSchema")]
         StructTag,
     ),
     /// Return events with the given Move module name where the event struct is
@@ -322,6 +384,7 @@ pub enum EventFilter {
     /// event. Query `MoveModule` by module B returns the event too.
     MoveEventModule {
         /// the Move package ID
+        #[schemars(with = "ObjectIDSchema")]
         package: ObjectID,
         /// the module name
         #[schemars(with = "String")]
@@ -336,12 +399,10 @@ pub enum EventFilter {
     #[serde(rename_all = "camelCase")]
     TimeRange {
         /// left endpoint of time interval, milliseconds since epoch, inclusive
-        #[schemars(with = "BigInt<u64>")]
-        #[serde_as(as = "BigInt<u64>")]
+        #[schemars(with = "String")]
         start_time: u64,
         /// right endpoint of time interval, milliseconds since epoch, exclusive
-        #[schemars(with = "BigInt<u64>")]
-        #[serde_as(as = "BigInt<u64>")]
+        #[schemars(with = "String")]
         end_time: u64,
     },
 

@@ -785,8 +785,7 @@ impl TestCluster {
             .created()
             .first()
             .unwrap()
-            .reference
-            .to_object_ref();
+            .reference;
 
         let tx_digest = response.digest;
 
@@ -926,7 +925,7 @@ impl TestCluster {
                 tx_bytes,
                 signatures,
                 options,
-                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+                Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
             )
             .await?;
 

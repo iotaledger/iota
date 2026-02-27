@@ -118,11 +118,11 @@ impl RpcCommandProcessor {
             match current {
                 Some(mut c) => {
                     if c.1 < owned_object_ref.version() {
-                        *c = owned_object_ref.reference.to_object_ref();
+                        *c = owned_object_ref.reference;
                     }
                 }
                 None => {
-                    object_ref_cache.insert(id, owned_object_ref.reference.to_object_ref());
+                    object_ref_cache.insert(id, owned_object_ref.reference);
                 }
             };
         }
@@ -180,7 +180,7 @@ impl RpcCommandProcessor {
                 let all_changed_objects = effects.all_changed_objects();
                 for (object_ref, _) in all_changed_objects {
                     self.object_ref_cache
-                        .insert(object_ref.object_id(), object_ref.reference.to_object_ref());
+                        .insert(object_ref.object_id(), object_ref.reference);
                 }
             }
         }
@@ -773,7 +773,7 @@ async fn split_coins(
     .unwrap()
     .created()
     .iter()
-    .map(|owned_object_ref| owned_object_ref.reference.object_id)
+    .map(|owned_object_ref| owned_object_ref.reference.0)
     .chain(std::iter::once(coin_to_split))
     .collect::<Vec<_>>()
 }

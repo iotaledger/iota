@@ -13,7 +13,6 @@ use iota_macros::EnumVariantOrder;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     error::{IotaError, UserInputError},
-    iota_serde::IotaStructTag,
 };
 use itertools::Itertools;
 use move_binary_format::{
@@ -33,6 +32,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use serde_with::serde_as;
 use tracing::warn;
+
+use crate::serde_utils::{
+    IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema, StructTag as StructTagSchema,
+};
 
 pub type IotaMoveTypeParameterIndex = u16;
 
@@ -141,6 +144,7 @@ pub struct IotaMoveModuleId {
 #[serde(rename_all = "camelCase")]
 pub struct MoveFunctionName {
     /// The package ID to which the function belongs.
+    #[schemars(with = "ObjectIDSchema")]
     pub package: ObjectID,
     /// The module name to which the function belongs.
     pub module: String,
@@ -417,10 +421,13 @@ pub enum IotaMoveValue {
     // u64 and u128 are converted to String to avoid overflow
     Number(u32),
     Bool(bool),
-    Address(IotaAddress),
+    Address(#[schemars(with = "IotaAddressSchema")] IotaAddress),
     Vector(Vec<IotaMoveValue>),
     String(String),
-    UID { id: ObjectID },
+    UID {
+        #[schemars(with = "ObjectIDSchema")]
+        id: ObjectID,
+    },
     Struct(IotaMoveStruct),
     Option(Box<Option<IotaMoveValue>>),
     Variant(IotaMoveVariant),
@@ -530,9 +537,9 @@ fn to_bytearray(value: &[MoveValue]) -> Option<Vec<u8>> {
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, Eq, PartialEq)]
 #[serde(rename = "MoveVariant")]
 pub struct IotaMoveVariant {
-    #[schemars(with = "String")]
     #[serde(rename = "type")]
-    #[serde_as(as = "IotaStructTag")]
+    #[schemars(with = "String")]
+    #[serde_as(as = "StructTagSchema")]
     pub type_: StructTag,
     pub variant: String,
     pub fields: BTreeMap<String, IotaMoveValue>,
@@ -585,9 +592,9 @@ impl Display for IotaMoveVariant {
 pub enum IotaMoveStruct {
     Runtime(Vec<IotaMoveValue>),
     WithTypes {
-        #[schemars(with = "String")]
         #[serde(rename = "type")]
-        #[serde_as(as = "IotaStructTag")]
+        #[schemars(with = "String")]
+        #[serde_as(as = "StructTagSchema")]
         type_: StructTag,
         fields: BTreeMap<String, IotaMoveValue>,
     },

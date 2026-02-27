@@ -45,7 +45,6 @@ proptest-derive = { workspace = true, optional = true }
 prost-types.workspace = true
 rand.workspace = true
 roaring.workspace = true
-schemars.workspace = true
 serde.workspace = true
 serde-name = "0.2.1"
 serde_json.workspace = true
@@ -65,7 +64,7 @@ iota-enum-compat-util.workspace = true
 iota-macros.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-types.workspace = true
+iota-sdk-types = { workspace = true, features = ["serde", "rand", "hash"] }
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true

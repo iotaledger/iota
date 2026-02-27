@@ -15,7 +15,6 @@ use move_core_types::{
     identifier::IdentStr,
     language_storage::{StructTag, TypeTag},
 };
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use serde_with::{DisplayFromStr, serde_as};
@@ -79,16 +78,14 @@ pub struct DynamicFieldInfo {
 }
 
 #[serde_as]
-#[derive(Clone, Serialize, Deserialize, JsonSchema, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct DynamicFieldName {
-    #[schemars(with = "String")]
     #[serde_as(as = "Readable<IotaTypeTag, _>")]
     pub type_: TypeTag,
     // Bincode does not like serde_json::Value, rocksdb will not insert the value without
     // serializing value as string. TODO: investigate if this can be removed after switch to
     // BCS.
-    #[schemars(with = "Value")]
     #[serde_as(as = "Readable<_, DisplayFromStr>")]
     pub value: Value,
 }
@@ -99,9 +96,7 @@ impl Display for DynamicFieldName {
     }
 }
 
-#[derive(
-    Copy, Clone, Serialize, Deserialize, JsonSchema, Ord, PartialOrd, Eq, PartialEq, Debug,
-)]
+#[derive(Copy, Clone, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Debug)]
 pub enum DynamicFieldType {
     #[serde(rename_all = "camelCase")]
     DynamicField,

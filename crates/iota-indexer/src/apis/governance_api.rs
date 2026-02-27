@@ -10,7 +10,8 @@ use iota_json_rpc::{IotaRpcModule, governance_api::ValidatorExchangeRates};
 use iota_json_rpc_api::GovernanceReadApiServer;
 use iota_json_rpc_types::{
     DelegatedStake, DelegatedTimelockedStake, EpochInfo, IotaCommittee, IotaObjectDataFilter,
-    StakeStatus, ValidatorApys,
+    IotaSystemStateSummary as IotaSystemStateSummarySchema,
+    IotaSystemStateSummaryV1 as IotaSystemStateSummaryV1Schema, StakeStatus, ValidatorApys,
 };
 use iota_open_rpc::Module;
 use iota_types::{
@@ -697,16 +698,16 @@ impl GovernanceReadApiServer for GovernanceReadApi {
         Ok(epoch.committee().map_err(IndexerError::from)?.into())
     }
 
-    async fn get_latest_iota_system_state_v2(&self) -> RpcResult<IotaSystemStateSummary> {
-        Ok(self.get_latest_iota_system_state().await?)
+    async fn get_latest_iota_system_state_v2(&self) -> RpcResult<IotaSystemStateSummarySchema> {
+        Ok(self.get_latest_iota_system_state().await?.into())
     }
 
-    async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummaryV1> {
-        Ok(self
-            .get_latest_iota_system_state()
-            .await?
-            .try_into()
-            .map_err(IndexerError::from)?)
+    async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummaryV1Schema> {
+        Ok(
+            IotaSystemStateSummaryV1::try_from(self.get_latest_iota_system_state().await?)
+                .map_err(IndexerError::from)?
+                .into(),
+        )
     }
 
     async fn get_reference_gas_price(&self) -> RpcResult<BigInt<u64>> {

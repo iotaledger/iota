@@ -15,7 +15,6 @@ use move_core_types::{
     account_address::AccountAddress,
     language_storage::{StructTag, TypeTag},
 };
-use schemars::JsonSchema;
 use serde::{
     self, Deserialize, Serialize,
     de::{Deserializer, Error},
@@ -184,12 +183,8 @@ impl<'de> DeserializeAs<'de, TypeTag> for IotaTypeTag {
 }
 
 #[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy, JsonSchema)]
-pub struct BigInt<T>(
-    #[schemars(with = "String")]
-    #[serde_as(as = "DisplayFromStr")]
-    T,
-)
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy)]
+pub struct BigInt<T>(#[serde_as(as = "DisplayFromStr")] T)
 where
     T: Display + FromStr,
     <T as FromStr>::Err: Display;
@@ -263,8 +258,8 @@ where
 }
 
 #[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy, JsonSchema)]
-pub struct SequenceNumber(#[schemars(with = "BigInt<u64>")] u64);
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy)]
+pub struct SequenceNumber(u64);
 
 impl SerializeAs<crate::base_types::SequenceNumber> for SequenceNumber {
     fn serialize_as<S>(
@@ -290,9 +285,9 @@ impl<'de> DeserializeAs<'de, crate::base_types::SequenceNumber> for SequenceNumb
 }
 
 #[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy)]
 #[serde(rename = "ProtocolVersion")]
-pub struct AsProtocolVersion(#[schemars(with = "BigInt<u64>")] u64);
+pub struct AsProtocolVersion(u64);
 
 impl SerializeAs<ProtocolVersion> for AsProtocolVersion {
     fn serialize_as<S>(value: &ProtocolVersion, serializer: S) -> Result<S::Ok, S::Error>

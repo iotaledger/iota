@@ -75,7 +75,7 @@ async fn create_and_mint_coins(
                     .with_object_changes()
                     .with_events(),
             ),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
         )
         .await
         .unwrap();
@@ -96,7 +96,8 @@ async fn create_and_mint_coins(
     let result: Supply = http_client
         .get_total_supply(coin_name.clone())
         .await
-        .unwrap();
+        .unwrap()
+        .into();
 
     assert_eq!(0, result.value);
 
@@ -140,7 +141,7 @@ async fn create_and_mint_coins(
             tx_bytes,
             signatures,
             Some(IotaTransactionBlockResponseOptions::new().with_effects()),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
         )
         .await
         .unwrap();
@@ -282,7 +283,7 @@ async fn get_metadata() -> Result<(), anyhow::Error> {
                     .with_object_changes()
                     .with_events(),
             ),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
         )
         .await?;
 
@@ -326,7 +327,7 @@ async fn get_total_supply() -> Result<(), anyhow::Error> {
     .await
     .unwrap();
 
-    let result: Supply = http_client.get_total_supply(coin_name).await?;
+    let result: Supply = http_client.get_total_supply(coin_name).await?.into();
     assert_eq!(total_amount, result.value);
 
     Ok(())
@@ -348,7 +349,10 @@ async fn staking_multiple_coins() -> Result<(), anyhow::Error> {
     let staked_iota: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
     assert!(staked_iota.is_empty());
 
-    let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
+    let iota_system_state = http_client
+        .get_latest_iota_system_state_v2()
+        .await
+        .map(Into::into)?;
     let validator = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
         IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
@@ -389,7 +393,7 @@ async fn staking_multiple_coins() -> Result<(), anyhow::Error> {
                     .with_balance_changes()
                     .with_input(),
             ),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
         )
         .await?;
 
@@ -792,7 +796,7 @@ async fn execute_tx(
                     .with_object_changes()
                     .with_balance_changes(),
             ),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
         )
         .await?;
     assert_eq!(tx_response.status_ok(), Some(true));

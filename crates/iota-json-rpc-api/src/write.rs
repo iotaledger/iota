@@ -5,13 +5,13 @@
 use fastcrypto::encoding::Base64;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaMoveViewCallResults,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, IotaTypeTag,
+    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse,
+    ExecuteTransactionRequestType, IotaMoveViewCallResults, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, IotaTypeTag,
+    serde_utils::IotaAddress as IotaAddressSchema,
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_types::{
-    base_types::IotaAddress, iota_serde::BigInt, quorum_driver_types::ExecuteTransactionRequestType,
-};
+use iota_types::{base_types::IotaAddress, iota_serde::BigInt};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 /// Provides methods for executing and testing transactions.
@@ -62,12 +62,15 @@ pub trait WriteApi {
     #[method(name = "devInspectTransactionBlock")]
     async fn dev_inspect_transaction_block(
         &self,
+        #[schemars(with = "IotaAddressSchema")]
         sender_address: IotaAddress,
         /// BCS encoded TransactionKind(as opposed to TransactionData, which include gasBudget and gasPrice)
         tx_bytes: Base64,
         /// Gas is not charged, but gas usage is still calculated. Default to use reference gas price
+        #[schemars(with = "Option<String>")]
         gas_price: Option<BigInt<u64>>,
         /// The epoch to perform the call. Will be set from the system state object if not provided
+        #[schemars(with = "Option<String>")]
         epoch: Option<BigInt<u64>>,
         /// Additional arguments including gas_budget, gas_objects, gas_sponsor and skip_checks.
         additional_args: Option<DevInspectArgs>,

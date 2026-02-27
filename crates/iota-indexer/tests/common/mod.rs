@@ -612,7 +612,7 @@ pub async fn publish_test_move_package(
                     .with_object_changes()
                     .with_events(),
             ),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
         )
         .await
         .unwrap();

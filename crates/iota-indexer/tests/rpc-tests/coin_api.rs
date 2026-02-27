@@ -10,7 +10,7 @@ use iota_json_rpc_api::{
     CoinReadApiClient, IndexerApiClient, TransactionBuilderClient, WriteApiClient,
 };
 use iota_json_rpc_types::{
-    Balance, CoinPage, IotaCoinMetadata, IotaObjectData, IotaObjectDataFilter, IotaObjectRef,
+    Balance, CoinPage, IotaCoinMetadata, IotaObjectData, IotaObjectDataFilter,
     IotaObjectResponseQuery, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, IotaTypeTag, TransactionBlockBytes,
 };
@@ -18,7 +18,7 @@ use iota_keys::keystore::AccountKeystore;
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, TypeTag,
     balance::Supply,
-    base_types::{IotaAddress, ObjectID},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     coin::{COIN_MODULE_NAME, CoinMetadata, TreasuryCap},
     crypto::{AccountKeyPair, IotaKeyPair, Signature, get_key_pair},
     parse_iota_struct_tag,
@@ -66,12 +66,7 @@ async fn create_addr_and_custom_coins(
         .await
         .unwrap();
 
-    indexer_wait_for_object(
-        indexer_client,
-        coin_object_ref.object_id,
-        coin_object_ref.version,
-    )
-    .await;
+    indexer_wait_for_object(indexer_client, coin_object_ref.0, coin_object_ref.1).await;
 
     (address, keypair, coin_name)
 }
@@ -746,8 +741,13 @@ async fn get_total_supply_fullnode_indexer(
         .rpc_client()
         .get_total_supply(coin_type.clone())
         .await
+        .map(Into::into)
         .ok();
-    let result_indexer = client.get_total_supply(coin_type).await.ok();
+    let result_indexer = client
+        .get_total_supply(coin_type)
+        .await
+        .map(Into::into)
+        .ok();
     (result_fullnode, result_indexer)
 }
 
@@ -813,7 +813,7 @@ pub async fn execute_move_call(
                     .with_events()
                     .with_object_changes(),
             ),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
         )
         .await
         .unwrap())
@@ -825,13 +825,14 @@ async fn mint_trusted_coin(
     address: IotaAddress,
     account_keypair: &IotaKeyPair,
     amount: u64,
-) -> Result<IotaObjectRef, anyhow::Error> {
+) -> Result<ObjectRef, anyhow::Error> {
     let http_client = cluster.rpc_client();
 
     let result: Supply = http_client
         .get_total_supply(coin_name.clone())
         .await
-        .unwrap();
+        .unwrap()
+        .into();
     assert_eq!(0, result.value);
 
     let coin_type = parse_iota_struct_tag(&coin_name).unwrap();

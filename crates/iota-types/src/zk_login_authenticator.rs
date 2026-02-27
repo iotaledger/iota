@@ -15,7 +15,6 @@ use fastcrypto_zkp::bn254::{
 };
 use iota_sdk_types::crypto::IntentMessage;
 use once_cell::sync::OnceCell;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -31,7 +30,7 @@ use crate::{
 mod zk_login_authenticator_test;
 
 /// An zk login authenticator with all the necessary fields.
-#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ZkLoginAuthenticator {
     pub inputs: ZkLoginInputs,

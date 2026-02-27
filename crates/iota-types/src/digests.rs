@@ -8,7 +8,6 @@ use anyhow::{anyhow, bail};
 use fastcrypto::encoding::{Base58, Encoding, Hex};
 use iota_protocol_config::Chain;
 use once_cell::sync::{Lazy, OnceCell};
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
 use tracing::info;
@@ -17,14 +16,8 @@ use crate::{error::IotaError, iota_serde::Readable};
 
 /// A representation of a 32 byte digest
 #[serde_as]
-#[derive(
-    Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
-pub struct Digest(
-    #[schemars(with = "Base58")]
-    #[serde_as(as = "Readable<Base58, Bytes>")]
-    [u8; 32],
-);
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct Digest(#[serde_as(as = "Readable<Base58, Bytes>")] [u8; 32]);
 
 impl Digest {
     pub const ZERO: Self = Digest([0; 32]);
@@ -145,18 +138,7 @@ impl fmt::UpperHex for Digest {
 
 /// Representation of a network's identifier by the genesis checkpoint's digest
 #[derive(
-    Clone,
-    Copy,
-    Debug,
-    Default,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
+    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
 pub struct ChainIdentifier(pub(crate) CheckpointDigest);
 
@@ -281,9 +263,7 @@ impl From<CheckpointDigest> for ChainIdentifier {
 }
 
 /// Representation of a Checkpoint's digest
-#[derive(
-    Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct CheckpointDigest(Digest);
 
 impl CheckpointDigest {
@@ -386,7 +366,7 @@ impl std::str::FromStr for CheckpointDigest {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct CheckpointContentsDigest(Digest);
 
 impl CheckpointContentsDigest {
@@ -524,7 +504,7 @@ impl fmt::Debug for SenderSignedDataDigest {
 }
 
 /// A transaction will have a (unique) digest.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct TransactionDigest(Digest);
 
 impl Default for TransactionDigest {
@@ -647,7 +627,7 @@ impl std::str::FromStr for TransactionDigest {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct TransactionEffectsDigest(Digest);
 
 impl TransactionEffectsDigest {
@@ -733,7 +713,7 @@ impl fmt::UpperHex for TransactionEffectsDigest {
 }
 
 #[serde_as]
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize)]
 pub struct TransactionEventsDigest(Digest);
 
 impl TransactionEventsDigest {
@@ -791,7 +771,7 @@ impl std::str::FromStr for TransactionEventsDigest {
 }
 
 #[serde_as]
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize)]
 pub struct EffectsAuxDataDigest(Digest);
 
 impl EffectsAuxDataDigest {
@@ -849,7 +829,7 @@ impl std::str::FromStr for EffectsAuxDataDigest {
 }
 
 // Each object has a unique digest
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ObjectDigest(Digest);
 
 impl ObjectDigest {
@@ -991,7 +971,7 @@ impl ZKLoginInputsDigest {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ConsensusCommitDigest(Digest);
 
 impl ConsensusCommitDigest {
@@ -1046,7 +1026,7 @@ impl fmt::Debug for ConsensusCommitDigest {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct MisbehaviorReportDigest(Digest);
 
 impl MisbehaviorReportDigest {
@@ -1096,7 +1076,7 @@ mod test {
 /// payload when the transaction uses a `MoveAuthenticator` as its signature
 /// scheme. It is evaluated during the authentication phase of a transaction and
 /// is part of the `AuthContext`.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct MoveAuthenticatorDigest(Digest);
 
 impl Default for MoveAuthenticatorDigest {

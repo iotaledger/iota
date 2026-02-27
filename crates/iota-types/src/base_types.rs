@@ -28,7 +28,6 @@ use move_core_types::{
     language_storage::{ModuleId, StructTag, TypeTag},
 };
 use rand::Rng;
-use schemars::JsonSchema;
 use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
     ser::{Error, SerializeSeq},
@@ -76,18 +75,7 @@ pub use crate::{
 mod base_types_tests;
 
 #[derive(
-    Eq,
-    PartialEq,
-    Ord,
-    PartialOrd,
-    Copy,
-    Clone,
-    Hash,
-    Default,
-    Debug,
-    Serialize,
-    Deserialize,
-    JsonSchema,
+    Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Default, Debug, Serialize, Deserialize,
 )]
 #[cfg_attr(feature = "fuzzing", derive(proptest_derive::Arbitrary))]
 pub struct SequenceNumber(u64);
@@ -130,12 +118,8 @@ pub trait ConciseableName<'a> {
 }
 
 #[serde_as]
-#[derive(Eq, PartialEq, Clone, Copy, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
-pub struct ObjectID(
-    #[schemars(with = "Hex")]
-    #[serde_as(as = "Readable<HexAccountAddress, _>")]
-    AccountAddress,
-);
+#[derive(Eq, PartialEq, Clone, Copy, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct ObjectID(#[serde_as(as = "Readable<HexAccountAddress, _>")] AccountAddress);
 
 pub type VersionDigest = (SequenceNumber, ObjectDigest);
 
@@ -644,15 +628,9 @@ impl From<&ObjectInfo> for ObjectRef {
 pub const IOTA_ADDRESS_LENGTH: usize = ObjectID::LENGTH;
 
 #[serde_as]
-#[derive(
-    Eq, Default, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Eq, Default, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "fuzzing", derive(proptest_derive::Arbitrary))]
-pub struct IotaAddress(
-    #[schemars(with = "Hex")]
-    #[serde_as(as = "Readable<Hex, _>")]
-    [u8; IOTA_ADDRESS_LENGTH],
-);
+pub struct IotaAddress(#[serde_as(as = "Readable<Hex, _>")] [u8; IOTA_ADDRESS_LENGTH]);
 
 impl IotaAddress {
     pub const ZERO: Self = Self([0u8; IOTA_ADDRESS_LENGTH]);
@@ -843,9 +821,7 @@ pub fn dbg_addr(name: u8) -> IotaAddress {
     IotaAddress(addr)
 }
 
-#[derive(
-    Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize, JsonSchema, Debug,
-)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize, Debug)]
 pub struct ExecutionDigests {
     pub transaction: TransactionDigest,
     pub effects: TransactionEffectsDigest,

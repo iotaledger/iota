@@ -250,7 +250,7 @@ async fn publish_package(
         .find(|refe| matches!(refe.owner, Owner::AddressOwner(_)))
         .unwrap();
 
-    Ok((package_a.reference.object_id, cap.reference.object_id))
+    Ok((package_a.reference.0, cap.reference.0))
 }
 
 // Recursively copy a directory and all its contents

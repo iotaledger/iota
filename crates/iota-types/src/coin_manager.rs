@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::TypeTag};
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -23,7 +22,7 @@ pub const COIN_MANAGER_TREASURY_CAP_STRUCT_NAME: &IdentStr = ident_str!("CoinMan
 /// In addition a optional maximum supply can be set and a custom
 /// additional Metadata field can be added.
 /// Holds all related objects to a Coin in a convenient shared function.
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct CoinManager {
     /// The unique identifier of the object.
     pub id: UID,
@@ -70,7 +69,7 @@ impl CoinManager {
 
 /// The immutable version of CoinMetadata, used in case of migrating from frozen
 /// objects to a `CoinManager` holding the metadata.
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct ImmutableCoinMetadata {
     /// Number of decimal places the coin uses.
     pub decimals: u8,
@@ -86,7 +85,7 @@ pub struct ImmutableCoinMetadata {
 
 /// Like `TreasuryCap`, but for dealing with `TreasuryCap` inside `CoinManager`
 /// objects
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct CoinManagerTreasuryCap {
     /// The unique identifier of the object.
     pub id: UID,

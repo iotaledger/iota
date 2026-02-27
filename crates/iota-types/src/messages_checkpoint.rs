@@ -14,7 +14,6 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::crypto::{Intent, IntentScope};
 use once_cell::sync::OnceCell;
 use prometheus::Histogram;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use tap::TapFallible;
@@ -85,9 +84,8 @@ pub struct CheckpointResponse {
 
 /// The Sha256 digest of an EllipticCurveMultisetHash committing to the live
 /// object set.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ECMHLiveObjectSetDigest {
-    #[schemars(with = "[u8; 32]")]
     pub digest: Digest,
 }
 
@@ -105,7 +103,7 @@ impl Default for ECMHLiveObjectSetDigest {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum CheckpointCommitment {
     ECMHLiveObjectSetDigest(ECMHLiveObjectSetDigest),
     // Other commitment types (e.g. merkle roots) go here.
@@ -118,7 +116,7 @@ impl From<ECMHLiveObjectSetDigest> for CheckpointCommitment {
 }
 
 #[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct EndOfEpochData {
     /// next_epoch_committee is `Some` if and only if the current checkpoint is
@@ -129,13 +127,11 @@ pub struct EndOfEpochData {
     /// from genesis to the end of an epoch. The committee is stored as a
     /// vector of validator pub key and stake pairs. The vector
     /// should be sorted based on the Committee data structure.
-    #[schemars(with = "Vec<(AuthorityName, BigInt<u64>)>")]
     #[serde_as(as = "Vec<(_, Readable<BigInt<u64>, _>)>")]
     pub next_epoch_committee: Vec<(AuthorityName, StakeUnit)>,
 
     /// The protocol version that is in effect during the epoch that starts
     /// immediately after this checkpoint.
-    #[schemars(with = "AsProtocolVersion")]
     #[serde_as(as = "Readable<AsProtocolVersion, _>")]
     pub next_epoch_protocol_version: ProtocolVersion,
 
@@ -407,7 +403,7 @@ impl CheckpointSignatureMessage {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CheckpointContents {
     V1(CheckpointContentsV1),
 }
@@ -416,7 +412,7 @@ pub enum CheckpointContents {
 /// They must have already been causally ordered. Since the causal order
 /// algorithm is the same among validators, we expect all honest validators to
 /// come up with the same order for each checkpoint content.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CheckpointContentsV1 {
     #[serde(skip)]
     digest: OnceCell<CheckpointContentsDigest>,

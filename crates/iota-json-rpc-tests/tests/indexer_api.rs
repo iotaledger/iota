@@ -36,6 +36,7 @@ use move_core_types::{
     language_storage::{StructTag, TypeTag},
 };
 use test_cluster::TestClusterBuilder;
+
 #[sim_test]
 async fn test_nft_display_object() -> Result<(), anyhow::Error> {
     // Create a cluster

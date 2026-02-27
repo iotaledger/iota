@@ -587,7 +587,7 @@ fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error> {
                     tx_bytes,
                     signatures,
                     Some(IotaTransactionBlockResponseOptions::new().with_effects()),
-                    Some(ExecuteTransactionRequestType::WaitForEffectsCert),
+                    Some(ExecuteTransactionRequestType::WaitForEffectsCert.into()),
                 )
                 .await?;
 
@@ -694,7 +694,7 @@ async fn test_query_transaction_blocks_pagination_with_partial_global_order()
                 tx_bytes,
                 signatures,
                 Some(IotaTransactionBlockResponseOptions::new().with_effects()),
-                Some(ExecuteTransactionRequestType::WaitForEffectsCert),
+                Some(ExecuteTransactionRequestType::WaitForEffectsCert.into()),
             )
             .await?;
         indexer_wait_for_transaction(res.digest, store, client).await;
@@ -715,7 +715,7 @@ async fn test_query_transaction_blocks_pagination_with_partial_global_order()
                 tx_bytes,
                 signatures,
                 Some(IotaTransactionBlockResponseOptions::new().with_effects()),
-                Some(ExecuteTransactionRequestType::WaitForEffectsCert),
+                Some(ExecuteTransactionRequestType::WaitForEffectsCert.into()),
             )
             .await?;
         indexer_wait_for_transaction(res.digest, store, client).await;

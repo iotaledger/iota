@@ -168,7 +168,7 @@ impl QuorumDriverError {
 
 pub type GroupedErrors = Vec<(IotaError, StakeUnit, Vec<ConciseAuthorityPublicKeyBytes>)>;
 
-#[derive(Serialize, Deserialize, Clone, Debug, schemars::JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ExecuteTransactionRequestType {
     WaitForEffectsCert,
     WaitForLocalExecution,

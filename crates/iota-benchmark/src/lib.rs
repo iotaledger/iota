@@ -69,7 +69,7 @@ impl ExecutionEffects {
             ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => iota_tx_effects
                 .mutated()
                 .iter()
-                .map(|refe| (refe.reference.to_object_ref(), refe.owner))
+                .map(|refe| (refe.reference, refe.owner))
                 .collect(),
         }
     }
@@ -82,7 +82,7 @@ impl ExecutionEffects {
             ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => iota_tx_effects
                 .created()
                 .iter()
-                .map(|refe| (refe.reference.to_object_ref(), refe.owner))
+                .map(|refe| (refe.reference, refe.owner))
                 .collect(),
         }
     }
@@ -92,11 +92,9 @@ impl ExecutionEffects {
             ExecutionEffects::CertifiedTransactionEffects(certified_effects, ..) => {
                 certified_effects.data().deleted().to_vec()
             }
-            ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => iota_tx_effects
-                .deleted()
-                .iter()
-                .map(|refe| refe.to_object_ref())
-                .collect(),
+            ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => {
+                iota_tx_effects.deleted().to_vec()
+            }
         }
     }
 
@@ -116,7 +114,7 @@ impl ExecutionEffects {
             }
             ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => {
                 let refe = &iota_tx_effects.gas_object();
-                (refe.reference.to_object_ref(), refe.owner)
+                (refe.reference, refe.owner)
             }
         }
     }

@@ -12,7 +12,6 @@ use fastcrypto::{error::FastCryptoError, traits::ToFromBytes};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::crypto::IntentMessage;
 use once_cell::sync::OnceCell;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -31,7 +30,7 @@ use crate::{
 /// method of authentication through Move code.
 /// This function represents the data received by the Move authenticate function
 /// during the Account Abstraction authentication flow.
-#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MoveAuthenticator {
     #[serde(flatten)]
     pub(crate) inner: MoveAuthenticatorInner,
@@ -230,7 +229,7 @@ impl Eq for MoveAuthenticator {}
 /// MoveAuthenticatorInner is an enum that represents the different versions
 /// of MoveAuthenticator.
 #[enum_dispatch(AuthenticatorTrait)]
-#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MoveAuthenticatorInner {
     V1(MoveAuthenticatorV1),
 }
@@ -312,12 +311,11 @@ impl MoveAuthenticatorInner {
 }
 
 /// MoveAuthenticatorV1 is the first version of MoveAuthenticator.
-#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MoveAuthenticatorV1 {
     /// Input objects or primitive values
     call_args: Vec<CallArg>,
     /// Type arguments for the Move authenticate function
-    #[schemars(with = "Vec<String>")]
     type_arguments: Vec<TypeInput>,
     /// The object that is authenticated. Represents the account being the
     /// sender of the transaction.

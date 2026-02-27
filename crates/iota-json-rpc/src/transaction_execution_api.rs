@@ -13,7 +13,8 @@ use iota_core::{
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{JsonRpcMetrics, WriteApiOpenRpc, WriteApiServer};
 use iota_json_rpc_types::{
-    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaExecutionStatus,
+    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse,
+    ExecuteTransactionRequestType as ExecuteTransactionRequestTypeSchema, IotaExecutionStatus,
     IotaMoveViewCallResults, IotaTransactionBlock, IotaTransactionBlockEffects,
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, IotaTypeTag, MoveFunctionName,
@@ -382,9 +383,9 @@ impl WriteApiServer for TransactionExecutionApi {
         tx_bytes: Base64,
         signatures: Vec<Base64>,
         opts: Option<IotaTransactionBlockResponseOptions>,
-        request_type: Option<ExecuteTransactionRequestType>,
+        request_type: Option<ExecuteTransactionRequestTypeSchema>,
     ) -> RpcResult<IotaTransactionBlockResponse> {
-        self.execute_transaction_block(tx_bytes, signatures, opts, request_type)
+        self.execute_transaction_block(tx_bytes, signatures, opts, request_type.map(Into::into))
             .trace_timeout(Duration::from_secs(10))
             .await
     }
@@ -460,7 +461,7 @@ impl WriteApiServer for TransactionExecutionApi {
                     sender_address,
                     tx_kind,
                     gas_price.map(|i| *i),
-                    gas_budget.map(|i| *i),
+                    gas_budget,
                     gas_sponsor,
                     gas_objects,
                     show_raw_txn_data_and_effects,

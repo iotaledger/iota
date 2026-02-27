@@ -299,7 +299,10 @@ async fn test_staking() -> Result<(), anyhow::Error> {
         .await?;
     assert_eq!(5, objects.data.len());
 
-    let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
+    let iota_system_state = http_client
+        .get_latest_iota_system_state_v2()
+        .await
+        .map(Into::into)?;
     let validator = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
         IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
@@ -329,7 +332,7 @@ async fn test_staking() -> Result<(), anyhow::Error> {
             tx_bytes,
             signatures,
             Some(IotaTransactionBlockResponseOptions::new()),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
         )
         .await?;
 
@@ -380,7 +383,10 @@ async fn test_unstaking() -> Result<(), anyhow::Error> {
     let staked_iota: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
     assert!(staked_iota.is_empty());
 
-    let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
+    let iota_system_state = http_client
+        .get_latest_iota_system_state_v2()
+        .await
+        .map(Into::into)?;
     let validator = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
         IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
@@ -410,7 +416,7 @@ async fn test_unstaking() -> Result<(), anyhow::Error> {
                 tx_bytes,
                 signatures,
                 Some(IotaTransactionBlockResponseOptions::new()),
-                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+                Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
             )
             .await?;
     }
@@ -561,7 +567,10 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
     assert!(staked_iota.is_empty());
 
     // Delegate some timelocked IOTA
-    let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
+    let iota_system_state = http_client
+        .get_latest_iota_system_state_v2()
+        .await
+        .map(Into::into)?;
     let validator = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
         IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
@@ -587,7 +596,7 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
             tx_bytes,
             signatures,
             Some(IotaTransactionBlockResponseOptions::new()),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
         )
         .await?;
 
@@ -713,7 +722,10 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     assert!(staked_iota.is_empty());
 
     // Delegate some timelocked IOTA
-    let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
+    let iota_system_state = http_client
+        .get_latest_iota_system_state_v2()
+        .await
+        .map(Into::into)?;
     let validator = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
         IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
@@ -739,7 +751,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
             tx_bytes,
             signatures,
             Some(IotaTransactionBlockResponseOptions::full_content()),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
         )
         .await?;
 
@@ -774,7 +786,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
             tx_bytes,
             signatures,
             Some(IotaTransactionBlockResponseOptions::new()),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
         )
         .await?;
 

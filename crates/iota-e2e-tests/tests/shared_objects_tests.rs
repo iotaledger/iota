@@ -79,7 +79,7 @@ async fn shared_object_deletion() {
     assert_eq!(effects.shared_objects().len(), 1);
 
     // assert the shared object was deleted
-    let deleted_obj_id = effects.deleted()[0].object_id;
+    let deleted_obj_id = effects.deleted()[0].0;
     assert_eq!(deleted_obj_id, counter_id);
 }
 
@@ -666,7 +666,7 @@ async fn replay_shared_object_transaction() {
             .unwrap();
 
         // Ensure the sequence number of the shared object did not change.
-        let curr = effects.created()[0].reference.version;
+        let curr = effects.created()[0].reference.1;
         if let Some(prev) = version {
             assert_eq!(
                 prev, curr,

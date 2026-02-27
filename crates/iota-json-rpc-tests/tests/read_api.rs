@@ -400,7 +400,7 @@ async fn publish_move_package(cluster: &TestCluster) -> IotaTransactionBlockResp
             tx_bytes,
             signatures,
             Some(IotaTransactionBlockResponseOptions::full_content()),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
         )
         .await
         .unwrap();
@@ -1628,7 +1628,7 @@ async fn try_get_past_object_deleted() {
         .unwrap();
 
     assert!(
-        matches!(rpc_past_obj, IotaPastObjectResponse::ObjectDeleted(obj) if obj.object_id == created_object_id && obj.version == seq_num)
+        matches!(rpc_past_obj, IotaPastObjectResponse::ObjectDeleted(obj) if obj.0 == created_object_id && obj.1 == seq_num)
     );
 }
 

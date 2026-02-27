@@ -734,7 +734,7 @@ impl SimpleFaucet {
         );
         let coin_ids: Vec<ObjectID> = created
             .iter()
-            .map(|created_coin_owner_ref| created_coin_owner_ref.reference.object_id)
+            .map(|created_coin_owner_ref| created_coin_owner_ref.reference.0)
             .collect();
         Ok((res.digest, coin_ids))
     }
@@ -1670,7 +1670,7 @@ mod tests {
 
         let effects = execute_tx(&mut context, tx_data).await.unwrap();
 
-        let tiny_coin_id = effects.created()[0].reference.object_id;
+        let tiny_coin_id = effects.created()[0].reference.0;
 
         // Get the latest list of gas
         let gas_coins = context.gas_objects(address).await.unwrap();

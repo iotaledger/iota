@@ -1441,7 +1441,7 @@ impl TestEnvironment {
                 .effects
                 .all_changed_objects()
                 .iter()
-                .map(|e| (e.0.reference.to_object_ref(), e.0.owner, e.1))
+                .map(|e| (e.0.reference, e.0.owner, e.1))
                 .collect::<Vec<(ObjectRef, Owner, WriteKind)>>(),
         ));
         self.aa_create_transaction = Some(transaction);

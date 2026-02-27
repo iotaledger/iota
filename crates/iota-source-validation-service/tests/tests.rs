@@ -90,7 +90,7 @@ async fn test_end_to_end() -> anyhow::Result<()> {
         packages: vec![PackageSource::Directory(DirectorySource {
             paths: vec![Package {
                 path: "unused".into(),
-                watch: Some(cap.reference.object_id), // watch the upgrade cap
+                watch: Some(cap.reference.0), // watch the upgrade cap
             }],
             network: Some(Network::Localnet),
         })],
@@ -118,8 +118,8 @@ async fn test_end_to_end() -> anyhow::Result<()> {
         .iter()
         .find(|refe| matches!(refe.owner, Owner::Immutable))
         .unwrap();
-    let package_id = package.reference.object_id;
-    let tmp_dir = iota_common::tempdir();
+    let package_id = package.reference.0;
+    let tmp_dir = tempfile::tempdir();
     let upgrade_pkg_path =
         copy_with_published_at_manifest(&package_path, &tmp_dir.path().to_path_buf(), package_id);
     // Run the upgrade.
@@ -220,7 +220,7 @@ async fn run_upgrade(
     let build_config = BuildConfig::new_for_testing().config;
     let resp = IotaClientCommands::Upgrade {
         package_path: upgrade_pkg_path,
-        upgrade_capability: cap.reference.object_id,
+        upgrade_capability: cap.reference.0,
         build_config,
         skip_dependency_verification: false,
         verify_deps: true,

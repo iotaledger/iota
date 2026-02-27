@@ -465,7 +465,7 @@ async fn execute_move_fn(cluster: &TestCluster) -> Result<(), anyhow::Error> {
             tx_bytes,
             signatures,
             Some(IotaTransactionBlockResponseOptions::new().with_effects()),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
         )
         .await?;
     assert!(tx_response.status_ok().unwrap_or(false));

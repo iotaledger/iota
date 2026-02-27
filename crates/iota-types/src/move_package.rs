@@ -51,7 +51,6 @@ use move_core_types::{
     identifier::{IdentStr, Identifier},
     language_storage::{ModuleId, StructTag},
 };
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
 
@@ -109,9 +108,7 @@ pub type FnInfoMap = BTreeMap<FnInfoKey, FnInfo>;
 ///
 /// Directly modifying any field is undefined behavior. The fields are only
 /// public for read-only access.
-#[derive(
-    Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Deserialize, Serialize, Hash, JsonSchema,
-)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Deserialize, Serialize, Hash)]
 pub struct TypeOrigin {
     /// The name of the module the data type resides in.
     pub module_name: String,
@@ -131,7 +128,7 @@ pub struct TypeOrigin {
 ///
 /// Directly modifying any field is undefined behavior. The fields are only
 /// public for read-only access.
-#[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash, JsonSchema)]
+#[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 pub struct UpgradeInfo {
     /// `Storage ID`/`Package ID` of the referred package.
     pub upgraded_id: ObjectID,

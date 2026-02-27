@@ -18,7 +18,6 @@ use fastcrypto_zkp::bn254::{
 };
 use im::hashmap::HashMap as ImHashMap;
 use iota_sdk_types::crypto::IntentMessage;
-use schemars::JsonSchema;
 use serde::Serialize;
 use tracing::instrument;
 
@@ -94,7 +93,7 @@ pub trait AuthenticatorTrait {
 /// AuthenticatorTrait]. This way MultiSig (and future Authenticators) can
 /// implement its own `verify`.
 #[enum_dispatch(AuthenticatorTrait)]
-#[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GenericSignature {
     MultiSig,
     Signature,

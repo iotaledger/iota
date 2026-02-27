@@ -15,9 +15,10 @@ use iota_json_rpc::{
 };
 use iota_json_rpc_api::WriteApiServer;
 use iota_json_rpc_types::{
-    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaMoveViewCallResults,
-    IotaTransactionBlock, IotaTransactionBlockEffects, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, IotaTypeTag, MoveFunctionName,
+    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse,
+    ExecuteTransactionRequestType, IotaMoveViewCallResults, IotaTransactionBlock,
+    IotaTransactionBlockEffects, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaTypeTag, MoveFunctionName,
 };
 use iota_open_rpc::Module;
 use iota_package_resolver::{PackageStore, Resolver};
@@ -30,7 +31,6 @@ use iota_types::{
     error::ExecutionError,
     iota_serde::BigInt,
     object::{Object, PastObjectRead},
-    quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     transaction::{
         GasData, SenderSignedData, TransactionData, TransactionDataAPI, TransactionDataV1,
@@ -219,12 +219,12 @@ impl WriteApi {
         let skip_checks = skip_checks.unwrap_or(true);
 
         let (price, budget) = match (gas_price, gas_budget) {
-            (Some(price), Some(budget)) => (price.into_inner(), budget.into_inner()),
+            (Some(price), Some(budget)) => (price.into_inner(), budget),
             (price, budget) => {
                 let (ref_price, max_gas) = self.reference_gas_price_and_max_tx_gas().await?;
                 (
                     price.map(BigInt::into_inner).unwrap_or(ref_price),
-                    budget.map(BigInt::into_inner).unwrap_or(max_gas),
+                    budget.unwrap_or(max_gas),
                 )
             }
         };
