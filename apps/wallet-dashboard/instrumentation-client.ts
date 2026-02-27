@@ -3,15 +3,17 @@
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 
 import * as Sentry from '@sentry/nextjs';
-import { IS_PROD, SENTRY_DSN } from './sentry.common.config.mjs';
+import { IS_PROD, IS_SENTRY_ENABLED, SENTRY_DSN } from './sentry.common.config.mjs';
 
 Sentry.init({
-    enabled: IS_PROD,
+    enabled: IS_SENTRY_ENABLED,
     dsn: SENTRY_DSN,
 
     // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
-    tracesSampleRate: 0, // Server is not traced
+    tracesSampleRate: IS_PROD ? 0.0025 : 1.0,
 
     // Setting this option to true will print useful information to the console while you're setting up Sentry.
-    debug: false,
+    debug: !IS_PROD,
 });
+
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
