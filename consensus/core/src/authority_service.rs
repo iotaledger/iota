@@ -459,37 +459,44 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             // For commit sync, optimize by fetching from store for blocks below GC round
             let gc_round = self.dag_state.read().gc_round();
 
-            // Partition block_refs into those below and at-or-above GC round
-            let (below_gc, above_gc): (Vec<_>, Vec<_>) = block_refs
-                .iter()
-                .partition(|block_ref| block_ref.round < gc_round);
+            // Separate indices for below/above GC while preserving original order
+            let mut below_gc_indices = Vec::new();
+            let mut above_gc_indices = Vec::new();
+            let mut below_gc_refs = Vec::new();
+            let mut above_gc_refs = Vec::new();
+            for (i, block_ref) in block_refs.iter().enumerate() {
+                if block_ref.round < gc_round {
+                    below_gc_indices.push(i);
+                    below_gc_refs.push(*block_ref);
+                } else {
+                    above_gc_indices.push(i);
+                    above_gc_refs.push(*block_ref);
+                }
+            }
 
-            let mut blocks = Vec::new();
+            let mut blocks: Vec<Option<VerifiedBlock>> = vec![None; block_refs.len()];
 
             // Fetch blocks below GC from store
-            if !below_gc.is_empty() {
-                let store_blocks = self
-                    .store
-                    .read_blocks(&below_gc)?
-                    .into_iter()
-                    .flatten()
-                    .collect::<Vec<_>>();
-                blocks.extend(store_blocks);
+            if !below_gc_refs.is_empty() {
+                for (idx, block) in below_gc_indices
+                    .iter()
+                    .zip(self.store.read_blocks(&below_gc_refs)?)
+                {
+                    blocks[*idx] = block;
+                }
             }
 
             // Fetch blocks at-or-above GC from dag_state
-            if !above_gc.is_empty() {
-                let dag_blocks = self
-                    .dag_state
-                    .read()
-                    .get_blocks(&above_gc)
-                    .into_iter()
-                    .flatten()
-                    .collect::<Vec<_>>();
-                blocks.extend(dag_blocks);
+            if !above_gc_refs.is_empty() {
+                for (idx, block) in above_gc_indices
+                    .iter()
+                    .zip(self.dag_state.read().get_blocks(&above_gc_refs))
+                {
+                    blocks[*idx] = block;
+                }
             }
 
-            blocks
+            blocks.into_iter().flatten().collect()
         } else {
             // For periodic or live synchronizer, we respond with requested blocks from the
             // store and with additional blocks from the cache
