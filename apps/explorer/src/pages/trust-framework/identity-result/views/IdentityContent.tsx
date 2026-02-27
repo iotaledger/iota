@@ -12,7 +12,7 @@ import { Warning } from '@iota/apps-ui-icons';
 import { getIdentityType, getLegacyMetadata, MetadataBuilder } from '../headerMetadataHelper';
 import { ControllerView } from './ControllerView';
 import { ServiceView } from './ServiceView';
-import { DidSummaryView } from './DidSummaryView';
+import { IdentitySummaryView } from './IdentitySummaryView';
 import { DidDocumentJsonView } from './DidDocumentJsonView';
 import { SideBySidePanelsView } from './SideBySidePanelsView';
 import { TransactionsView } from './TransactionsView';
@@ -119,7 +119,7 @@ export function IdentityContent({ did }: IdentityContentProps) {
                             .addItem(getLegacyMetadata(didObject))
                             .build()}
                     />
-                    <DidSummaryView objectData={didObject} didDocument={didDocument} />
+                    <IdentitySummaryView objectData={didObject} didDocument={didDocument} />
                     <SideBySidePanelsView
                         firstPanelView={<ControllerView objectData={didObject} />}
                         secondPanelView={<ServiceView didDocument={didDocument} />}

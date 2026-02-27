@@ -16,7 +16,7 @@ interface DidSummaryViewProps {
     objectData: IotaObjectData;
 }
 
-export function DidSummaryView({
+export function IdentitySummaryView({
     didDocument,
     objectData: { objectId, storageRebate, previousTransaction },
 }: DidSummaryViewProps): JSX.Element {
