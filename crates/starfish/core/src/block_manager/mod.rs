@@ -143,15 +143,24 @@ impl BlockManager {
     ) {
         let _s = monitored_scope("BlockManager::try_accept_block_headers_internal");
 
+        let present_header_and_ancestor_refs_in_dag_state =
+            self.present_header_and_ancestor_refs_in_dag_state(&block_headers);
+
         // Filter out already processed and suspended block headers.
-        let (block_headers, already_in_dag_state) =
-            self.filter_out_already_processed_and_sort(block_headers, source);
+        let (block_headers, already_in_dag_state) = self.filter_out_already_processed_and_sort(
+            block_headers,
+            &present_header_and_ancestor_refs_in_dag_state,
+            source,
+        );
         // update received block rounds
         for block_header in &block_headers {
             self.update_block_received_metrics(block_header);
         }
         // Find missing ancestors for the provided block headers in the DAG state.
-        let missing_ancestors = self.find_missing_ancestors(block_headers);
+        let missing_ancestors = self.find_missing_ancestors(
+            block_headers,
+            &present_header_and_ancestor_refs_in_dag_state,
+        );
         let (accepted_headers, missing_ancestors) = self
             .block_suspender
             .accept_or_suspend_received_headers(missing_ancestors);
@@ -341,21 +350,47 @@ impl BlockManager {
     pub(crate) fn suspended_full_blocks_count(&self) -> usize {
         self.suspended_transactions.len()
     }
+    // helper method, to read the dag state once and output all present headers and
+    // ancestors.
+    fn present_header_and_ancestor_refs_in_dag_state(
+        &self,
+        block_headers: &[VerifiedBlockHeader],
+    ) -> BTreeSet<BlockRef> {
+        // make a single vector of references that contains both headers and ancestors
+        // to check.
+        let mut block_refs_and_ancestors = Vec::new();
+        for h in block_headers {
+            block_refs_and_ancestors.push(h.reference());
+            block_refs_and_ancestors.extend(h.ancestors().iter().copied());
+        }
+        // deduplicate
+        block_refs_and_ancestors.sort();
+        block_refs_and_ancestors.dedup();
+        // single dag_state read call
+        let present_flags = self
+            .dag_state
+            .read()
+            .contains_block_headers(block_refs_and_ancestors.clone());
+
+        block_refs_and_ancestors
+            .into_iter()
+            .zip(present_flags)
+            .filter_map(|(block_ref, found)| found.then_some(block_ref))
+            .collect()
+    }
 
     fn find_missing_ancestors(
         &self,
         incoming_headers: Vec<VerifiedBlockHeader>,
+        present_header_and_ancestor_refs_in_dag_states_in_dag_state: &BTreeSet<BlockRef>,
     ) -> BTreeMap<VerifiedBlockHeader, BTreeSet<BlockRef>> {
         let mut missing_ancestors = BTreeMap::new();
-        let dag_state = self.dag_state.read();
         for incoming_header in incoming_headers {
             let ancestors: &[BlockRef] = incoming_header.ancestors();
             let mut missing_ancestors_set = BTreeSet::new();
-            for (found, ancestor) in dag_state
-                .contains_block_headers(ancestors.to_vec())
-                .into_iter()
-                .zip(ancestors.iter())
-            {
+            for ancestor in ancestors {
+                let found =
+                    present_header_and_ancestor_refs_in_dag_states_in_dag_state.contains(ancestor);
                 if !found {
                     missing_ancestors_set.insert(*ancestor);
                 }
@@ -369,18 +404,15 @@ impl BlockManager {
     fn filter_out_already_processed_and_sort(
         &self,
         block_headers: Vec<VerifiedBlockHeader>,
+        present_header_and_ancestor_refs_in_dag_state: &BTreeSet<BlockRef>,
         source: DataSource,
     ) -> (Vec<VerifiedBlockHeader>, Vec<VerifiedBlockHeader>) {
-        let block_references = block_headers
-            .iter()
-            .map(|b| b.reference())
-            .collect::<Vec<_>>();
-        let dag_state = self.dag_state.read();
         let mut already_in_dag_state_headers = Vec::new();
         let mut filtered = block_headers
             .into_iter()
-            .zip(dag_state.contains_block_headers(block_references))
-            .filter_map(|(block_header, found)| {
+            .filter_map(|block_header| {
+                let found = present_header_and_ancestor_refs_in_dag_state
+                    .contains(&block_header.reference());
                 if found
                     || self
                         .block_suspender
