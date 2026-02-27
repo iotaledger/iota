@@ -6,7 +6,7 @@ use std::{ops::Bound::Included, time::Duration};
 
 use bytes::Bytes;
 use consensus_config::AuthorityIndex;
-use iota_common::scoring_metrics::VersionedScoringMetrics;
+use iota_common::misbehaviors::VersionedMisbehaviors;
 use iota_macros::fail_point;
 use typed_store::{
     Map as _,
@@ -36,7 +36,7 @@ pub(crate) struct RocksDBStore {
     /// Stores info related to Commit that helps recovery.
     commit_info: DBMap<(CommitIndex, CommitDigest), CommitInfo>,
     /// Stores versioned misbehavior counts as a single blob under key `()`.
-    misbehavior_counts: DBMap<(), VersionedScoringMetrics>,
+    misbehavior_counts: DBMap<(), VersionedMisbehaviors>,
 }
 
 impl RocksDBStore {
@@ -91,7 +91,7 @@ impl RocksDBStore {
             Self::COMMITS_CF;<(CommitIndex, CommitDigest), Bytes>,
             Self::COMMIT_VOTES_CF;<(CommitIndex, CommitDigest, BlockRef), ()>,
             Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>,
-            Self::MISBEHAVIOR_COUNTS_CF;<(), VersionedScoringMetrics>
+            Self::MISBEHAVIOR_COUNTS_CF;<(), VersionedMisbehaviors>
         );
 
         Self {
@@ -230,9 +230,9 @@ impl Store for RocksDBStore {
         Ok(blocks)
     }
 
-    // Reads scoring metrics from the `misbehavior_counts` CF (single blob under key
+    // Reads misbehaviors from the `misbehavior_counts` CF (single blob under key
     // `()`).
-    fn scan_scoring_metrics(&self) -> ConsensusResult<Option<VersionedScoringMetrics>> {
+    fn scan_misbehaviors(&self) -> ConsensusResult<Option<VersionedMisbehaviors>> {
         Ok(self.misbehavior_counts.get(&())?)
     }
 

@@ -15,7 +15,7 @@ use tokio::time::Instant;
 #[cfg(test)]
 use crate::metrics::test_metrics;
 use crate::{
-    block::BlockTimestampMs, metrics::Metrics, scoring_metrics_store::MysticetiScoringMetricsStore,
+    block::BlockTimestampMs, metrics::Metrics, misbehaviors_store::MysticetiMisbehaviorsStore,
 };
 /// Context contains per-epoch configuration and metrics shared by all
 /// components of this authority.
@@ -33,8 +33,8 @@ pub(crate) struct Context {
     pub protocol_config: ProtocolConfig,
     /// Metrics of this authority.
     pub metrics: Arc<Metrics>,
-    /// Store for scoring metrics collected by this authority.
-    pub(crate) scoring_metrics_store: Arc<MysticetiScoringMetricsStore>,
+    /// Store for misbehavior counts collected by this authority.
+    pub(crate) misbehaviors_store: Arc<MysticetiMisbehaviorsStore>,
     /// Access to local clock
     pub clock: Arc<Clock>,
 }
@@ -47,7 +47,7 @@ impl Context {
         parameters: Parameters,
         protocol_config: ProtocolConfig,
         metrics: Arc<Metrics>,
-        scoring_metrics_store: Arc<MysticetiScoringMetricsStore>,
+        misbehaviors_store: Arc<MysticetiMisbehaviorsStore>,
 
         clock: Arc<Clock>,
     ) -> Self {
@@ -58,7 +58,7 @@ impl Context {
             parameters,
             protocol_config,
             metrics,
-            scoring_metrics_store,
+            misbehaviors_store,
             clock,
         }
     }
@@ -75,7 +75,7 @@ impl Context {
         let clock = Arc::new(Clock::default());
         let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
 
-        let scoring_metrics_store = Arc::new(MysticetiScoringMetricsStore::dummy_for_test(
+        let misbehaviors_store = Arc::new(MysticetiMisbehaviorsStore::dummy_for_test(
             committee_size,
             &protocol_config,
         ));
@@ -89,7 +89,7 @@ impl Context {
             },
             protocol_config,
             metrics,
-            scoring_metrics_store,
+            misbehaviors_store,
             clock,
         );
         (context, keypairs)

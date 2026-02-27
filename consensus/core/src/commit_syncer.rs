@@ -63,8 +63,8 @@ use crate::{
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
+    misbehaviors_store::ErrorSource,
     network::NetworkClient,
-    scoring_metrics_store::ErrorSource,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
 };
 
@@ -513,8 +513,8 @@ impl<C: NetworkClient> CommitSyncer<C> {
                             .clone();
                         inner
                             .context
-                            .scoring_metrics_store
-                            .update_scoring_metrics_on_block_receival(
+                            .misbehaviors_store
+                            .update_misbehaviors_on_block_receival(
                                 authority,
                                 hostname.as_str(),
                                 e.clone(),

@@ -10,7 +10,7 @@ pub(crate) mod rocksdb_store;
 mod store_tests;
 
 use consensus_config::AuthorityIndex;
-use iota_common::scoring_metrics::VersionedScoringMetrics;
+use iota_common::misbehaviors::VersionedMisbehaviors;
 
 use crate::{
     CommitIndex,
@@ -41,9 +41,9 @@ pub(crate) trait Store: Send + Sync {
         start_round: Round,
     ) -> ConsensusResult<Vec<VerifiedBlock>>;
 
-    /// Reads and returns all metrics stored. Used for restoring the scoring
-    /// metrics in case of DagState initialization from storage
-    fn scan_scoring_metrics(&self) -> ConsensusResult<Option<VersionedScoringMetrics>>;
+    /// Reads and returns all misbehavior counts stored. Used for restoring the
+    /// misbehavior counts in case of DagState initialization from storage
+    fn scan_misbehaviors(&self) -> ConsensusResult<Option<VersionedMisbehaviors>>;
 
     /// Returns the last `num_of_rounds` rounds blocks by author in round
     /// ascending order. When a `before_round` is defined then the blocks of
@@ -76,7 +76,7 @@ pub(crate) struct WriteBatch {
     pub(crate) blocks: Vec<VerifiedBlock>,
     pub(crate) commits: Vec<TrustedCommit>,
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
-    pub(crate) misbehavior_counts: Option<VersionedScoringMetrics>,
+    pub(crate) misbehavior_counts: Option<VersionedMisbehaviors>,
 }
 
 impl WriteBatch {
@@ -84,7 +84,7 @@ impl WriteBatch {
         blocks: Vec<VerifiedBlock>,
         commits: Vec<TrustedCommit>,
         commit_info: Vec<(CommitRef, CommitInfo)>,
-        misbehavior_counts: VersionedScoringMetrics,
+        misbehavior_counts: VersionedMisbehaviors,
     ) -> Self {
         WriteBatch {
             blocks,
@@ -115,7 +115,7 @@ impl WriteBatch {
     }
 
     #[cfg(test)]
-    pub(crate) fn scoring_metrics(mut self, misbehavior_counts: VersionedScoringMetrics) -> Self {
+    pub(crate) fn misbehavior_counts(mut self, misbehavior_counts: VersionedMisbehaviors) -> Self {
         self.misbehavior_counts = Some(misbehavior_counts);
         self
     }

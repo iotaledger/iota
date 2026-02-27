@@ -5,7 +5,7 @@
 use std::{sync::Arc, time::Instant};
 
 use consensus_config::{AuthorityIndex, Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
-use iota_common::scoring_metrics::VersionedScoringMetrics;
+use iota_common::misbehaviors::VersionedMisbehaviors;
 use iota_protocol_config::{ConsensusNetwork, ProtocolConfig};
 use itertools::Itertools;
 use parking_lot::RwLock;
@@ -28,9 +28,9 @@ use crate::{
     leader_schedule::LeaderSchedule,
     leader_timeout::{LeaderTimeoutTask, LeaderTimeoutTaskHandle},
     metrics::initialise_metrics,
+    misbehaviors_store::MysticetiMisbehaviorsStore,
     network::{NetworkClient as _, NetworkManager, tonic_network::TonicManager},
     round_prober::{RoundProber, RoundProberHandle},
-    scoring_metrics_store::MysticetiScoringMetricsStore,
     storage::rocksdb_store::RocksDBStore,
     subscriber::Subscriber,
     synchronizer::{Synchronizer, SynchronizerHandle},
@@ -60,7 +60,7 @@ impl ConsensusAuthority {
         transaction_verifier: Arc<dyn TransactionVerifier>,
         commit_consumer: CommitConsumer,
         registry: Registry,
-        current_local_metrics_count: Arc<VersionedScoringMetrics>,
+        current_local_metrics_count: Arc<VersionedMisbehaviors>,
         // A counter that keeps track of how many times the authority node has been booted while
         // the binary or the component that is calling the `ConsensusAuthority` has been
         // running. It's mostly useful to make decisions on whether amnesia recovery should
@@ -168,7 +168,7 @@ where
         transaction_verifier: Arc<dyn TransactionVerifier>,
         commit_consumer: CommitConsumer,
         registry: Registry,
-        current_local_metrics_count: Arc<VersionedScoringMetrics>,
+        current_local_metrics_count: Arc<VersionedMisbehaviors>,
         boot_counter: u64,
     ) -> Self {
         assert!(
@@ -190,7 +190,7 @@ where
         info!("Consensus parameters: {:?}", parameters);
         info!("Consensus committee: {:?}", committee);
 
-        let scoring_metrics_store = Arc::new(MysticetiScoringMetricsStore::new(
+        let misbehaviors_store = Arc::new(MysticetiMisbehaviorsStore::new(
             committee.size(),
             current_local_metrics_count,
             &protocol_config,
@@ -203,7 +203,7 @@ where
             parameters,
             protocol_config,
             initialise_metrics(registry),
-            scoring_metrics_store,
+            misbehaviors_store,
             clock,
         ));
         let start_time = Instant::now();
@@ -478,7 +478,7 @@ mod tests {
         let (sender, _receiver) = unbounded_channel("consensus_output");
         let commit_consumer = CommitConsumer::new(sender, 0);
         let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        let current_local_metrics_count = Arc::new(VersionedScoringMetrics::new(
+        let current_local_metrics_count = Arc::new(VersionedMisbehaviors::new(
             committee.size(),
             &protocol_config,
         ));
@@ -883,7 +883,7 @@ mod tests {
 
         let (sender, receiver) = unbounded_channel("consensus_output");
         let commit_consumer = CommitConsumer::new(sender, 0);
-        let current_local_metrics_count = Arc::new(VersionedScoringMetrics::new(
+        let current_local_metrics_count = Arc::new(VersionedMisbehaviors::new(
             committee.size(),
             &protocol_config,
         ));

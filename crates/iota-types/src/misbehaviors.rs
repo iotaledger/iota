@@ -10,40 +10,40 @@ use crate::{messages_consensus::VersionedMisbehaviorReport, misbehavior_counts::
 
 // Misbehavior counts using atomic counters, for in-memory concurrent updates.
 // Each field is a `Vec<AtomicU64>` with one entry per authority.
-type ScoringMetricsV1 = MisbehaviorsV1<Vec<AtomicU64>>;
+type MisbehaviorsV1Atomic = MisbehaviorsV1<Vec<AtomicU64>>;
 
-// We can't serialize VersionedScoringMetrics directly because it contains
+// We can't serialize VersionedMisbehaviors directly because it contains
 // atomic types. This type is only introduces to enable this serialization.
 // Converts between atomic (in-memory) and non-atomic (serialized)
 // representations.
 #[derive(Serialize, Deserialize)]
-enum SerializableScoringMetrics {
+enum SerializableMisbehaviors {
     V1(MisbehaviorsV1<Vec<u64>>),
 }
 
-// Versioned container for scoring metrics using atomic counters.
+// Versioned container for Misbehaviors using atomic counters.
 #[derive(Debug)]
-pub enum VersionedScoringMetrics {
-    V1(ScoringMetricsV1),
+pub enum VersionedMisbehaviors {
+    V1(MisbehaviorsV1Atomic),
 }
 
-impl Serialize for VersionedScoringMetrics {
+impl Serialize for VersionedMisbehaviors {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let serializable = match self {
-            VersionedScoringMetrics::V1(metrics) => {
-                SerializableScoringMetrics::V1(metrics.as_non_atomic())
+            VersionedMisbehaviors::V1(metrics) => {
+                SerializableMisbehaviors::V1(metrics.as_non_atomic())
             }
         };
         serializable.serialize(serializer)
     }
 }
 
-impl<'de> Deserialize<'de> for VersionedScoringMetrics {
+impl<'de> Deserialize<'de> for VersionedMisbehaviors {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let serializable = SerializableScoringMetrics::deserialize(deserializer)?;
+        let serializable = SerializableMisbehaviors::deserialize(deserializer)?;
         Ok(match serializable {
-            SerializableScoringMetrics::V1(non_atomic) => {
-                VersionedScoringMetrics::V1(non_atomic.as_atomic())
+            SerializableMisbehaviors::V1(non_atomic) => {
+                VersionedMisbehaviors::V1(non_atomic.as_atomic())
             }
         })
     }
@@ -53,13 +53,13 @@ impl<'de> Deserialize<'de> for VersionedScoringMetrics {
 // methods to convert to/from VersionedMisbehaviorReport. For all increment and
 // store methods, validity checks for the authority_index are expected to be
 // done at a higher level.
-impl VersionedScoringMetrics {
+impl VersionedMisbehaviors {
     pub fn new(committee_size: usize, protocol_config: &ProtocolConfig) -> Self {
         // All metrics must be initialized to zero independently of the Misbehaviors
         // version.
         match protocol_config.scorer_version_as_option() {
             None | Some(1) => {
-                VersionedScoringMetrics::V1(ScoringMetricsV1::new_zeroed(committee_size))
+                VersionedMisbehaviors::V1(MisbehaviorsV1Atomic::new_zeroed(committee_size))
             }
             _ => panic!("Unsupported scorer version"),
         }
@@ -67,7 +67,7 @@ impl VersionedScoringMetrics {
 
     pub fn increment_faulty_blocks_provable(&self, authority_index: usize, increment: u64) {
         match self {
-            VersionedScoringMetrics::V1(metrics) => {
+            VersionedMisbehaviors::V1(metrics) => {
                 metrics.faulty_blocks_provable()[authority_index]
                     .fetch_add(increment, Ordering::Relaxed);
             }
@@ -76,7 +76,7 @@ impl VersionedScoringMetrics {
 
     pub fn increment_faulty_blocks_unprovable(&self, authority_index: usize, increment: u64) {
         match self {
-            VersionedScoringMetrics::V1(metrics) => {
+            VersionedMisbehaviors::V1(metrics) => {
                 metrics.faulty_blocks_unprovable()[authority_index]
                     .fetch_add(increment, Ordering::Relaxed);
             }
@@ -85,7 +85,7 @@ impl VersionedScoringMetrics {
 
     pub fn increment_equivocations(&self, authority_index: usize, increment: u64) {
         match self {
-            VersionedScoringMetrics::V1(metrics) => {
+            VersionedMisbehaviors::V1(metrics) => {
                 metrics.equivocations()[authority_index].fetch_add(increment, Ordering::Relaxed);
             }
         }
@@ -93,7 +93,7 @@ impl VersionedScoringMetrics {
 
     pub fn increment_missing_proposals(&self, authority_index: usize, increment: u64) {
         match self {
-            VersionedScoringMetrics::V1(metrics) => {
+            VersionedMisbehaviors::V1(metrics) => {
                 metrics.missing_proposals()[authority_index]
                     .fetch_add(increment, Ordering::Relaxed);
             }
@@ -102,7 +102,7 @@ impl VersionedScoringMetrics {
 
     pub fn store_faulty_blocks_provable(&self, authority_index: usize, value: u64) {
         match self {
-            VersionedScoringMetrics::V1(metrics) => {
+            VersionedMisbehaviors::V1(metrics) => {
                 metrics.faulty_blocks_provable()[authority_index].store(value, Ordering::Relaxed);
             }
         }
@@ -110,7 +110,7 @@ impl VersionedScoringMetrics {
 
     pub fn store_faulty_blocks_unprovable(&self, authority_index: usize, value: u64) {
         match self {
-            VersionedScoringMetrics::V1(metrics) => {
+            VersionedMisbehaviors::V1(metrics) => {
                 metrics.faulty_blocks_unprovable()[authority_index].store(value, Ordering::Relaxed);
             }
         }
@@ -118,7 +118,7 @@ impl VersionedScoringMetrics {
 
     pub fn store_equivocations(&self, authority_index: usize, value: u64) {
         match self {
-            VersionedScoringMetrics::V1(metrics) => {
+            VersionedMisbehaviors::V1(metrics) => {
                 metrics.equivocations()[authority_index].store(value, Ordering::Relaxed);
             }
         }
@@ -126,7 +126,7 @@ impl VersionedScoringMetrics {
 
     pub fn store_missing_proposals(&self, authority_index: usize, value: u64) {
         match self {
-            VersionedScoringMetrics::V1(metrics) => {
+            VersionedMisbehaviors::V1(metrics) => {
                 metrics.missing_proposals()[authority_index].store(value, Ordering::Relaxed);
             }
         }
@@ -134,7 +134,7 @@ impl VersionedScoringMetrics {
 
     pub fn load_faulty_blocks_provable(&self) -> Vec<u64> {
         match self {
-            VersionedScoringMetrics::V1(metrics) => metrics
+            VersionedMisbehaviors::V1(metrics) => metrics
                 .faulty_blocks_provable()
                 .iter()
                 .map(|metric| metric.load(Ordering::Relaxed))
@@ -144,7 +144,7 @@ impl VersionedScoringMetrics {
 
     pub fn load_faulty_blocks_unprovable(&self) -> Vec<u64> {
         match self {
-            VersionedScoringMetrics::V1(metrics) => metrics
+            VersionedMisbehaviors::V1(metrics) => metrics
                 .faulty_blocks_unprovable()
                 .iter()
                 .map(|metric| metric.load(Ordering::Relaxed))
@@ -154,7 +154,7 @@ impl VersionedScoringMetrics {
 
     pub fn load_equivocations(&self) -> Vec<u64> {
         match self {
-            VersionedScoringMetrics::V1(metrics) => metrics
+            VersionedMisbehaviors::V1(metrics) => metrics
                 .equivocations()
                 .iter()
                 .map(|metric| metric.load(Ordering::Relaxed))
@@ -164,7 +164,7 @@ impl VersionedScoringMetrics {
 
     pub fn load_missing_proposals(&self) -> Vec<u64> {
         match self {
-            VersionedScoringMetrics::V1(metrics) => metrics
+            VersionedMisbehaviors::V1(metrics) => metrics
                 .missing_proposals()
                 .iter()
                 .map(|metric| metric.load(Ordering::Relaxed))
@@ -174,25 +174,25 @@ impl VersionedScoringMetrics {
 
     pub fn faulty_blocks_provable(&self) -> &Vec<AtomicU64> {
         match self {
-            VersionedScoringMetrics::V1(metrics) => metrics.faulty_blocks_provable(),
+            VersionedMisbehaviors::V1(metrics) => metrics.faulty_blocks_provable(),
         }
     }
 
     pub fn faulty_blocks_unprovable(&self) -> &Vec<AtomicU64> {
         match self {
-            VersionedScoringMetrics::V1(metrics) => metrics.faulty_blocks_unprovable(),
+            VersionedMisbehaviors::V1(metrics) => metrics.faulty_blocks_unprovable(),
         }
     }
 
     pub fn equivocations(&self) -> &Vec<AtomicU64> {
         match self {
-            VersionedScoringMetrics::V1(metrics) => metrics.equivocations(),
+            VersionedMisbehaviors::V1(metrics) => metrics.equivocations(),
         }
     }
 
     pub fn missing_proposals(&self) -> &Vec<AtomicU64> {
         match self {
-            VersionedScoringMetrics::V1(metrics) => metrics.missing_proposals(),
+            VersionedMisbehaviors::V1(metrics) => metrics.missing_proposals(),
         }
     }
 
@@ -204,12 +204,12 @@ impl VersionedScoringMetrics {
 
     pub fn iter(&self) -> impl Iterator<Item = &Vec<AtomicU64>> {
         match self {
-            VersionedScoringMetrics::V1(metrics) => metrics.iter(),
+            VersionedMisbehaviors::V1(metrics) => metrics.iter(),
         }
     }
 
     // Given a VersionedMisbehaviorReport received from another authority, we use
-    // this method to update the received scoring metrics counts. To avoid
+    // this method to update the received misbehavior counts. To avoid
     // updates to be dependent on the order they are applied, we only effectively
     // update counts that are increased by the report. This also means that any type
     // of metric contained in this struct must be guaranteed to be monotonically
@@ -218,30 +218,30 @@ impl VersionedScoringMetrics {
     // not.
     pub fn update_from_report(&self, report: &VersionedMisbehaviorReport) {
         match (self, report) {
-            (VersionedScoringMetrics::V1(metrics), VersionedMisbehaviorReport::V1(report, _)) => {
+            (VersionedMisbehaviors::V1(metrics), VersionedMisbehaviorReport::V1(report, _)) => {
                 metrics.element_wise_fetch_max(report);
             }
         }
     }
 
-    // Given a VersionedMisbehaviorReport, create a VersionedScoringMetrics struct
+    // Given a VersionedMisbehaviorReport, create a VersionedMisbehaviors struct
     // with the same values. Used when an authority receives a report from the
     // network and needs to create a local copy of the metrics contained in it.
     pub fn from_report(report: &VersionedMisbehaviorReport) -> Self {
         match report {
             VersionedMisbehaviorReport::V1(non_atomic_metrics, _) => {
                 let atomic_metrics = non_atomic_metrics.as_atomic();
-                VersionedScoringMetrics::V1(atomic_metrics)
+                VersionedMisbehaviors::V1(atomic_metrics)
             }
         }
     }
 
-    // Given a VersionedScoringMetrics struct, create a VersionedMisbehaviorReport
+    // Given a VersionedMisbehaviors struct, create a VersionedMisbehaviorReport
     // with the same values. Used when an authority needs to share its local
     // metrics with the network.
     pub fn to_report(&self) -> VersionedMisbehaviorReport {
         match self {
-            VersionedScoringMetrics::V1(atomic_metrics) => {
+            VersionedMisbehaviors::V1(atomic_metrics) => {
                 let non_atomic_metrics = atomic_metrics.as_non_atomic();
                 VersionedMisbehaviorReport::new_v1(non_atomic_metrics)
             }
@@ -252,8 +252,8 @@ impl VersionedScoringMetrics {
     // new atomics. Used to produce an owned copy for storage writes.
     pub fn snapshot(&self) -> Self {
         match self {
-            VersionedScoringMetrics::V1(metrics) => {
-                VersionedScoringMetrics::V1(metrics.as_non_atomic().as_atomic())
+            VersionedMisbehaviors::V1(metrics) => {
+                VersionedMisbehaviors::V1(metrics.as_non_atomic().as_atomic())
             }
         }
     }

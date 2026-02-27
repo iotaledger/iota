@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use consensus_config::AuthorityIndex;
-use iota_common::{misbehavior_counts::MisbehaviorsV1, scoring_metrics::VersionedScoringMetrics};
+use iota_common::{misbehavior_counts::MisbehaviorsV1, misbehaviors::VersionedMisbehaviors};
 use rstest::rstest;
 use tempfile::TempDir;
 
@@ -302,25 +302,25 @@ async fn read_and_scan_commits(
 
 #[rstest]
 #[tokio::test]
-async fn scan_scoring_metrics(
+async fn scan_misbehaviors(
     #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
 ) {
     let store = test_store.store();
 
-    // Create a VersionedScoringMetrics blob with 3 authorities.
-    let blob = VersionedScoringMetrics::V1(
+    // Create a VersionedMisbehaviors blob with 3 authorities.
+    let blob = VersionedMisbehaviors::V1(
         MisbehaviorsV1::new(vec![1, 0, 0], vec![2, 0, 0], vec![3, 0, 0], vec![4, 0, 0]).as_atomic(),
     );
 
     store
-        .write(WriteBatch::default().scoring_metrics(blob.snapshot()))
+        .write(WriteBatch::default().misbehavior_counts(blob.snapshot()))
         .unwrap();
 
     {
         let scanned = store
-            .scan_scoring_metrics()
-            .expect("scan_scoring_metrics should not fail")
-            .expect("scan_scoring_metrics should return Some after write");
+            .scan_misbehaviors()
+            .expect("scan_misbehaviors should not fail")
+            .expect("scan_misbehaviors should return Some after write");
         assert_eq!(scanned.load_faulty_blocks_provable(), vec![1, 0, 0]);
         assert_eq!(scanned.load_faulty_blocks_unprovable(), vec![2, 0, 0]);
         assert_eq!(scanned.load_missing_proposals(), vec![3, 0, 0]);
@@ -328,19 +328,19 @@ async fn scan_scoring_metrics(
     }
 
     // Overwrite with zeroed blob.
-    let zeroed_blob = VersionedScoringMetrics::V1(
+    let zeroed_blob = VersionedMisbehaviors::V1(
         MisbehaviorsV1::new(vec![0, 0, 0], vec![0, 0, 0], vec![0, 0, 0], vec![0, 0, 0]).as_atomic(),
     );
 
     store
-        .write(WriteBatch::default().scoring_metrics(zeroed_blob.snapshot()))
+        .write(WriteBatch::default().misbehavior_counts(zeroed_blob.snapshot()))
         .unwrap();
 
     {
         let scanned = store
-            .scan_scoring_metrics()
-            .expect("scan_scoring_metrics should not fail")
-            .expect("scan_scoring_metrics should return Some after overwrite");
+            .scan_misbehaviors()
+            .expect("scan_misbehaviors should not fail")
+            .expect("scan_misbehaviors should return Some after overwrite");
         assert_eq!(scanned.load_faulty_blocks_provable(), vec![0, 0, 0]);
         assert_eq!(scanned.load_faulty_blocks_unprovable(), vec![0, 0, 0]);
         assert_eq!(scanned.load_missing_proposals(), vec![0, 0, 0]);

@@ -7,57 +7,57 @@ use std::{
 };
 
 use consensus_config::AuthorityIndex;
-use iota_common::scoring_metrics::VersionedScoringMetrics;
+use iota_common::misbehaviors::VersionedMisbehaviors;
 use iota_protocol_config::ProtocolConfig;
 use itertools::izip;
 use tracing::warn;
 
 use crate::{BlockRef, context::Context, error::ConsensusError, metrics::NodeMetrics};
-/// Struct that holds the scoring metrics for all authorities in the committee,
-/// both cached and uncached. It also holds a shared reference to the current
-/// local metrics count used by Scorer.
-pub(crate) struct MysticetiScoringMetricsStore {
-    pub current_local_metrics_count: Arc<VersionedScoringMetrics>,
-    pub cached_metrics: VersionedScoringMetrics,
-    pub uncached_metrics: VersionedScoringMetrics,
+/// Struct that holds the misbehavior counts for all authorities in the
+/// committee, both cached and uncached. It also holds a shared reference to the
+/// current local metrics count used by Scorer.
+pub(crate) struct MysticetiMisbehaviorsStore {
+    pub current_local_metrics_count: Arc<VersionedMisbehaviors>,
+    pub cached_metrics: VersionedMisbehaviors,
+    pub uncached_metrics: VersionedMisbehaviors,
 }
 
-impl MysticetiScoringMetricsStore {
+impl MysticetiMisbehaviorsStore {
     pub(crate) fn new(
         committee_size: usize,
-        current_local_metrics_count: Arc<VersionedScoringMetrics>,
+        current_local_metrics_count: Arc<VersionedMisbehaviors>,
         protocol_config: &ProtocolConfig,
     ) -> Self {
         Self {
             current_local_metrics_count,
-            cached_metrics: VersionedScoringMetrics::new(committee_size, protocol_config),
-            uncached_metrics: VersionedScoringMetrics::new(committee_size, protocol_config),
+            cached_metrics: VersionedMisbehaviors::new(committee_size, protocol_config),
+            uncached_metrics: VersionedMisbehaviors::new(committee_size, protocol_config),
         }
     }
 
-    // Initializes the scoring metrics store according to the
-    // recovered_scoring_metrics and blocks_in_cache_by_authority.
-    pub(crate) fn initialize_scoring_metrics(
+    // Initializes the misbehaviors store according to the
+    // recovered_misbehaviors and blocks_in_cache_by_authority.
+    pub(crate) fn initialize_misbehaviors(
         &self,
-        recovered_scoring_metrics: Option<VersionedScoringMetrics>,
+        recovered_misbehaviors: Option<VersionedMisbehaviors>,
         blocks_in_cache_by_authority: &Vec<BTreeSet<BlockRef>>,
         threshold_clock_round: u32,
         eviction_rounds: &Vec<u32>,
         context: &Arc<Context>,
     ) {
         // At the beginning of the epoch (i.e., before the epoch's first eviction),
-        // there is nothing to be recovered from storage, so recovered_scoring_metrics
+        // there is nothing to be recovered from storage, so recovered_misbehaviors
         // will be None. In this case, the initialization functions will simply
         // initialize zeroed metrics for all authorities, so we can return here.
-        let Some(recovered_scoring_metrics) = recovered_scoring_metrics else {
+        let Some(recovered_misbehaviors) = recovered_misbehaviors else {
             return;
         };
 
-        // If recovered_scoring_metrics is not empty, we initialize metrics according to
+        // If recovered_misbehaviors is not empty, we initialize metrics according to
         // them.
         match &context.protocol_config.scorer_version_as_option() {
-            None | Some(1) => self.initialize_scoring_metrics_v1(
-                recovered_scoring_metrics,
+            None | Some(1) => self.initialize_misbehaviors_v1(
+                recovered_misbehaviors,
                 blocks_in_cache_by_authority,
                 threshold_clock_round,
                 eviction_rounds,
@@ -67,21 +67,20 @@ impl MysticetiScoringMetricsStore {
         }
     }
 
-    // Initializes the scoring metrics store according to the
-    // recovered_scoring_metrics and blocks_in_cache_by_authority.
-    pub(crate) fn initialize_scoring_metrics_v1(
+    // Initializes the misbehaviors store according to the
+    // recovered_misbehaviors and blocks_in_cache_by_authority.
+    pub(crate) fn initialize_misbehaviors_v1(
         &self,
-        recovered_scoring_metrics: VersionedScoringMetrics,
+        recovered_misbehaviors: VersionedMisbehaviors,
         blocks_in_cache_by_authority: &Vec<BTreeSet<BlockRef>>,
         threshold_clock_round: u32,
         eviction_rounds: &Vec<u32>,
         context: &Arc<Context>,
     ) {
-        let faulty_blocks_provable_vec = recovered_scoring_metrics.load_faulty_blocks_provable();
-        let faulty_blocks_unprovable_vec =
-            recovered_scoring_metrics.load_faulty_blocks_unprovable();
-        let missing_proposals_vec = recovered_scoring_metrics.load_missing_proposals();
-        let equivocations_vec = recovered_scoring_metrics.load_equivocations();
+        let faulty_blocks_provable_vec = recovered_misbehaviors.load_faulty_blocks_provable();
+        let faulty_blocks_unprovable_vec = recovered_misbehaviors.load_faulty_blocks_unprovable();
+        let missing_proposals_vec = recovered_misbehaviors.load_missing_proposals();
+        let equivocations_vec = recovered_misbehaviors.load_equivocations();
 
         for (
             (authority_index, authority),
@@ -102,8 +101,8 @@ impl MysticetiScoringMetricsStore {
         ) {
             let hostname = authority.hostname.as_str();
 
-            // Initialize the uncached scoring metrics according to
-            // recovered_scoring_metrics
+            // Initialize the uncached misbehaviors according to
+            // recovered_misbehaviors
             self.initialize_faulty_blocks_metrics(
                 faulty_blocks_provable,
                 faulty_blocks_unprovable,
@@ -120,13 +119,13 @@ impl MysticetiScoringMetricsStore {
                 &context.metrics.node_metrics,
             );
 
-            // Initialize the cached scoring metrics according to blocks_in_cache.
+            // Initialize the cached misbehaviors according to blocks_in_cache.
             let block_rounds_in_cache = blocks_in_cache
                 .iter()
                 .map(|block_ref| block_ref.round)
                 .collect();
             let (cached_equivocations, missing_blocks_in_cached_rounds) =
-                calculate_scoring_metrics_for_range(
+                calculate_misbehaviors_for_range(
                     block_rounds_in_cache,
                     eviction_round + 1,
                     threshold_clock_round - 1,
@@ -142,9 +141,9 @@ impl MysticetiScoringMetricsStore {
         }
     }
 
-    // Updates the scoring metrics according to the received block's
+    // Updates the misbehaviors according to the received block's
     // authority and error encountered during its processing.
-    pub(crate) fn update_scoring_metrics_on_block_receival(
+    pub(crate) fn update_misbehaviors_on_block_receival(
         &self,
         authority_index: AuthorityIndex,
         hostname: &str,
@@ -165,7 +164,7 @@ impl MysticetiScoringMetricsStore {
         }
 
         match protocol_config.scorer_version_as_option() {
-            None | Some(1) => self.update_scoring_metrics_on_block_receival_v1(
+            None | Some(1) => self.update_misbehaviors_on_block_receival_v1(
                 authority_index,
                 hostname,
                 error,
@@ -176,9 +175,9 @@ impl MysticetiScoringMetricsStore {
         }
     }
 
-    // Updates the scoring metrics according to the received block's
+    // Updates the misbehaviors according to the received block's
     // authority and error encountered during its processing.
-    pub(crate) fn update_scoring_metrics_on_block_receival_v1(
+    pub(crate) fn update_misbehaviors_on_block_receival_v1(
         &self,
         authority_index: AuthorityIndex,
         hostname: &str,
@@ -210,12 +209,12 @@ impl MysticetiScoringMetricsStore {
                     .inc();
             }
             MetricType::Untracked => {
-                // No scoring metrics need to be updated.
+                // No misbehaviors need to be updated.
             }
         }
     }
 
-    // Auxiliary function to initialize scoring metrics relative to faulty blocks.
+    // Auxiliary function to initialize misbehaviors relative to faulty blocks.
     // The `authority` parameter should be a valid index, otherwise the function
     // will panic. This check is not performed here, as it is assumed that the
     // caller has already checked it.
@@ -241,7 +240,7 @@ impl MysticetiScoringMetricsStore {
             .store_faulty_blocks_unprovable(authority_index.value(), faulty_blocks_unprovable);
     }
 
-    // Auxiliary function to update scoring metrics relative to missing blocks
+    // Auxiliary function to update misbehaviors relative to missing blocks
     // and equivocations. The `authority` parameter should be a valid index,
     // otherwise the function will panic. This check is not performed here, as
     // it is assumed that the caller has already checked it.
@@ -287,11 +286,11 @@ impl MysticetiScoringMetricsStore {
         }
     }
 
-    // Updates the authority's scoring metrics according to the recent changes in
+    // Updates the authority's misbehaviors according to the recent changes in
     // the DAG state, i.e., recent evictions and additions to cache. It also
     // updates the current local metrics count used by Scorer. authority_index
     // should be a valid AuthorityIndex, otherwise this function will panic.
-    pub(crate) fn update_scoring_metrics_on_eviction(
+    pub(crate) fn update_misbehaviors_on_eviction(
         &self,
         authority_index: AuthorityIndex,
         hostname: &str,
@@ -304,7 +303,7 @@ impl MysticetiScoringMetricsStore {
         let node_metrics = &context.metrics.node_metrics;
         // threshold_clock_round should be always at least 1.
         if threshold_clock_round == 0 {
-            warn!("update_scoring_metrics_on_eviction called with threshold clock round = 0.");
+            warn!("update_misbehaviors_on_eviction called with threshold clock round = 0.");
             return;
         }
 
@@ -317,7 +316,7 @@ impl MysticetiScoringMetricsStore {
 
         // Update metrics according to the blocks from rounds still in cache.
         let (cached_equivocations, missing_blocks_in_cached_rounds) =
-            calculate_scoring_metrics_for_range(
+            calculate_misbehaviors_for_range(
                 cached_block_rounds,
                 eviction_round + 1,
                 threshold_clock_round.saturating_sub(1),
@@ -347,7 +346,7 @@ impl MysticetiScoringMetricsStore {
 
         // Calculate metrics according to the blocks from evicted rounds.
         let (evicted_equivocations, missing_blocks_in_evicted_rounds) =
-            calculate_scoring_metrics_for_range(
+            calculate_misbehaviors_for_range(
                 evicted_block_rounds,
                 last_eviction_round + 1,
                 eviction_round,
@@ -392,7 +391,7 @@ impl MysticetiScoringMetricsStore {
 // range [start, end], this function calculates and returns the number of
 // equivocations and missing blocks in that range . The function should receive
 // the vector with the rounds of such blocks and the range start and end points.
-fn calculate_scoring_metrics_for_range(
+fn calculate_misbehaviors_for_range(
     mut block_rounds: Vec<u32>,
     start: u32,
     end: u32,
@@ -532,15 +531,13 @@ impl ErrorSource {
 }
 
 #[cfg(test)]
-impl MysticetiScoringMetricsStore {
-    // Creates a dummy scoring metrics store for testing purposes (i.e., without any
+impl MysticetiMisbehaviorsStore {
+    // Creates a dummy misbehaviors store for testing purposes (i.e., without any
     // connection to a Scorer)
     pub(crate) fn dummy_for_test(committee_size: usize, protocol_config: &ProtocolConfig) -> Self {
-        let current_local_metrics_count = Arc::new(VersionedScoringMetrics::new(
-            committee_size,
-            protocol_config,
-        ));
-        MysticetiScoringMetricsStore::new(
+        let current_local_metrics_count =
+            Arc::new(VersionedMisbehaviors::new(committee_size, protocol_config));
+        MysticetiMisbehaviorsStore::new(
             committee_size,
             current_local_metrics_count,
             protocol_config,
@@ -568,7 +565,7 @@ mod tests {
         context::Context,
         dag_state::DagState,
         error::ConsensusError,
-        scoring_metrics_store::{ErrorSource, MysticetiScoringMetricsStore},
+        misbehaviors_store::{ErrorSource, MysticetiMisbehaviorsStore},
         storage::mem_store::MemStore,
         synchronizer::Synchronizer,
         test_dag_builder::DagBuilder,
@@ -582,7 +579,7 @@ mod tests {
         }
     }
 
-    // Creates a new authority service for scoring metrics testing purposes.
+    // Creates a new authority service for misbehaviors testing purposes.
     fn new_authority_service_for_metrics_tests(
         committee_size: usize,
     ) -> (
@@ -625,7 +622,7 @@ mod tests {
         (keys, context, core_dispatcher, authority_service)
     }
 
-    impl MysticetiScoringMetricsStore {
+    impl MysticetiMisbehaviorsStore {
         pub(crate) fn uncached_missing_proposals_by_authority(&self) -> Vec<u64> {
             self.uncached_metrics.load_missing_proposals()
         }
@@ -774,9 +771,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_update_scoring_metrics_on_eviction_edge_cases() {
+    async fn test_update_misbehaviors_on_eviction_edge_cases() {
         let context = Arc::new(Context::new_for_test(4).0);
-        let scoring_metrics_store = context.scoring_metrics_store.clone();
+        let misbehaviors_store = context.misbehaviors_store.clone();
         let authority_index = AuthorityIndex::new_for_test(0);
         let hostname = "test_host";
         let recent_refs_by_authority = BTreeSet::new();
@@ -792,7 +789,7 @@ mod tests {
         let last_evicted_round = 5;
         let eviction_round = 5;
         let threshold_clock_round = 5;
-        scoring_metrics_store.update_scoring_metrics_on_eviction(
+        misbehaviors_store.update_misbehaviors_on_eviction(
             authority_index,
             hostname,
             &recent_refs_by_authority,
@@ -802,16 +799,16 @@ mod tests {
             &context,
         );
         assert!(is_all_zeroes(
-            &scoring_metrics_store.uncached_equivocations_by_authority()
+            &misbehaviors_store.uncached_equivocations_by_authority()
         ));
         assert!(is_all_zeroes(
-            &scoring_metrics_store.faulty_blocks_provable_by_authority()
+            &misbehaviors_store.faulty_blocks_provable_by_authority()
         ));
         assert!(is_all_zeroes(
-            &scoring_metrics_store.faulty_blocks_unprovable_by_authority()
+            &misbehaviors_store.faulty_blocks_unprovable_by_authority()
         ));
         assert!(is_all_zeroes(
-            &scoring_metrics_store.uncached_missing_proposals_by_authority()
+            &misbehaviors_store.uncached_missing_proposals_by_authority()
         ));
 
         // Unexpected because: threshold_clock_round = 0 means that genesis is missing.
@@ -819,7 +816,7 @@ mod tests {
         let last_evicted_round = 0;
         let eviction_round = 0;
         let threshold_clock_round = 0;
-        scoring_metrics_store.update_scoring_metrics_on_eviction(
+        misbehaviors_store.update_misbehaviors_on_eviction(
             authority_index,
             hostname,
             &recent_refs_by_authority,
@@ -829,16 +826,16 @@ mod tests {
             &context,
         );
         assert!(is_all_zeroes(
-            &scoring_metrics_store.uncached_equivocations_by_authority()
+            &misbehaviors_store.uncached_equivocations_by_authority()
         ));
         assert!(is_all_zeroes(
-            &scoring_metrics_store.faulty_blocks_provable_by_authority()
+            &misbehaviors_store.faulty_blocks_provable_by_authority()
         ));
         assert!(is_all_zeroes(
-            &scoring_metrics_store.faulty_blocks_unprovable_by_authority()
+            &misbehaviors_store.faulty_blocks_unprovable_by_authority()
         ));
         assert!(is_all_zeroes(
-            &scoring_metrics_store.uncached_missing_proposals_by_authority()
+            &misbehaviors_store.uncached_missing_proposals_by_authority()
         ));
 
         // Unexpected because: threshold_clock_round < eviction_round means that a
@@ -847,7 +844,7 @@ mod tests {
         let last_evicted_round = 0;
         let eviction_round = 3;
         let threshold_clock_round = 2;
-        scoring_metrics_store.update_scoring_metrics_on_eviction(
+        misbehaviors_store.update_misbehaviors_on_eviction(
             authority_index,
             hostname,
             &recent_refs_by_authority,
@@ -857,17 +854,17 @@ mod tests {
             &context,
         );
         assert_eq!(
-            scoring_metrics_store.uncached_missing_proposals_by_authority(),
+            misbehaviors_store.uncached_missing_proposals_by_authority(),
             vec![3, 0, 0, 0]
         );
         assert!(is_all_zeroes(
-            &scoring_metrics_store.uncached_equivocations_by_authority()
+            &misbehaviors_store.uncached_equivocations_by_authority()
         ));
         assert!(is_all_zeroes(
-            &scoring_metrics_store.faulty_blocks_provable_by_authority()
+            &misbehaviors_store.faulty_blocks_provable_by_authority()
         ));
         assert!(is_all_zeroes(
-            &scoring_metrics_store.faulty_blocks_unprovable_by_authority()
+            &misbehaviors_store.faulty_blocks_unprovable_by_authority()
         ));
 
         // Unexpected because: eviction_round < last_evicted_round means that blocks
@@ -876,7 +873,7 @@ mod tests {
         let last_evicted_round = 1;
         let eviction_round = 0;
         let threshold_clock_round = 2;
-        scoring_metrics_store.update_scoring_metrics_on_eviction(
+        misbehaviors_store.update_misbehaviors_on_eviction(
             authority_index,
             hostname,
             &recent_refs_by_authority,
@@ -886,17 +883,17 @@ mod tests {
             &context,
         );
         assert_eq!(
-            scoring_metrics_store.uncached_missing_proposals_by_authority(),
+            misbehaviors_store.uncached_missing_proposals_by_authority(),
             vec![3, 0, 0, 0]
         );
         assert!(is_all_zeroes(
-            &scoring_metrics_store.uncached_equivocations_by_authority()
+            &misbehaviors_store.uncached_equivocations_by_authority()
         ));
         assert!(is_all_zeroes(
-            &scoring_metrics_store.faulty_blocks_provable_by_authority()
+            &misbehaviors_store.faulty_blocks_provable_by_authority()
         ));
         assert!(is_all_zeroes(
-            &scoring_metrics_store.faulty_blocks_unprovable_by_authority()
+            &misbehaviors_store.faulty_blocks_unprovable_by_authority()
         ));
 
         // Unexpected because: threshold_clock_round < eviction_round <
@@ -905,7 +902,7 @@ mod tests {
         let last_evicted_round = 2;
         let eviction_round = 0;
         let threshold_clock_round = 1;
-        scoring_metrics_store.update_scoring_metrics_on_eviction(
+        misbehaviors_store.update_misbehaviors_on_eviction(
             authority_index,
             hostname,
             &recent_refs_by_authority,
@@ -915,17 +912,17 @@ mod tests {
             &context,
         );
         assert_eq!(
-            scoring_metrics_store.uncached_missing_proposals_by_authority(),
+            misbehaviors_store.uncached_missing_proposals_by_authority(),
             vec![3, 0, 0, 0]
         );
         assert!(is_all_zeroes(
-            &scoring_metrics_store.uncached_equivocations_by_authority()
+            &misbehaviors_store.uncached_equivocations_by_authority()
         ));
         assert!(is_all_zeroes(
-            &scoring_metrics_store.faulty_blocks_provable_by_authority()
+            &misbehaviors_store.faulty_blocks_provable_by_authority()
         ));
         assert!(is_all_zeroes(
-            &scoring_metrics_store.faulty_blocks_unprovable_by_authority()
+            &misbehaviors_store.faulty_blocks_unprovable_by_authority()
         ));
 
         // Unexpected because: threshold_clock_round < last_evicted_round means that a
@@ -935,7 +932,7 @@ mod tests {
         let last_evicted_round = 1;
         let eviction_round = 2;
         let threshold_clock_round = 0;
-        scoring_metrics_store.update_scoring_metrics_on_eviction(
+        misbehaviors_store.update_misbehaviors_on_eviction(
             authority_index,
             hostname,
             &recent_refs_by_authority,
@@ -945,24 +942,24 @@ mod tests {
             &context,
         );
         assert_eq!(
-            scoring_metrics_store.uncached_missing_proposals_by_authority(),
+            misbehaviors_store.uncached_missing_proposals_by_authority(),
             vec![3, 0, 0, 0]
         );
         assert!(is_all_zeroes(
-            &scoring_metrics_store.uncached_equivocations_by_authority()
+            &misbehaviors_store.uncached_equivocations_by_authority()
         ));
         assert!(is_all_zeroes(
-            &scoring_metrics_store.faulty_blocks_provable_by_authority()
+            &misbehaviors_store.faulty_blocks_provable_by_authority()
         ));
         assert!(is_all_zeroes(
-            &scoring_metrics_store.faulty_blocks_unprovable_by_authority()
+            &misbehaviors_store.faulty_blocks_unprovable_by_authority()
         ));
 
         // Same as above but with eviction_round < last_evicted_round.
         let last_evicted_round = 2;
         let eviction_round = 1;
         let threshold_clock_round = 0;
-        scoring_metrics_store.update_scoring_metrics_on_eviction(
+        misbehaviors_store.update_misbehaviors_on_eviction(
             authority_index,
             hostname,
             &recent_refs_by_authority,
@@ -972,17 +969,17 @@ mod tests {
             &context,
         );
         assert_eq!(
-            scoring_metrics_store.uncached_missing_proposals_by_authority(),
+            misbehaviors_store.uncached_missing_proposals_by_authority(),
             vec![3, 0, 0, 0]
         );
         assert!(is_all_zeroes(
-            &scoring_metrics_store.uncached_equivocations_by_authority()
+            &misbehaviors_store.uncached_equivocations_by_authority()
         ));
         assert!(is_all_zeroes(
-            &scoring_metrics_store.faulty_blocks_provable_by_authority()
+            &misbehaviors_store.faulty_blocks_provable_by_authority()
         ));
         assert!(is_all_zeroes(
-            &scoring_metrics_store.faulty_blocks_unprovable_by_authority()
+            &misbehaviors_store.faulty_blocks_unprovable_by_authority()
         ));
     }
 
@@ -1010,7 +1007,7 @@ mod tests {
             .authorities()
             .map(|a| a.1.hostname.as_str())
             .collect();
-        let scoring_metrics = &context.scoring_metrics_store;
+        let misbehaviors = &context.misbehaviors_store;
         let node_metrics = &context.metrics.node_metrics;
         let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());
@@ -1067,10 +1064,10 @@ mod tests {
         // flushed.
         assert_eq!(
             [
-                scoring_metrics.uncached_equivocations_by_authority(),
-                scoring_metrics.uncached_missing_proposals_by_authority(),
-                scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                misbehaviors.uncached_equivocations_by_authority(),
+                misbehaviors.uncached_missing_proposals_by_authority(),
+                misbehaviors.equivocations_in_cache_by_authority(),
+                misbehaviors.missing_proposals_in_cache_by_authority(),
                 get_uncached_equivocations(&context),
                 get_uncached_missing_proposals(&context),
                 get_equivocations_in_cache(&context),
@@ -1108,10 +1105,10 @@ mod tests {
         //      - 0 missing proposals for authorities 1, 2, and 3.
         assert_eq!(
             [
-                scoring_metrics.uncached_equivocations_by_authority(),
-                scoring_metrics.uncached_missing_proposals_by_authority(),
-                scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                misbehaviors.uncached_equivocations_by_authority(),
+                misbehaviors.uncached_missing_proposals_by_authority(),
+                misbehaviors.equivocations_in_cache_by_authority(),
+                misbehaviors.missing_proposals_in_cache_by_authority(),
                 get_uncached_equivocations(&context),
                 get_uncached_missing_proposals(&context),
                 get_equivocations_in_cache(&context),
@@ -1130,8 +1127,8 @@ mod tests {
         );
 
         // Clear and check all metrics
-        scoring_metrics.uncached_metrics.reset();
-        scoring_metrics.cached_metrics.reset();
+        misbehaviors.uncached_metrics.reset();
+        misbehaviors.cached_metrics.reset();
         node_metrics
             .uncached_missing_proposals_by_authority
             .with_label_values(&[hostnames[0]])
@@ -1142,10 +1139,10 @@ mod tests {
             .set(0);
         assert_eq!(
             [
-                scoring_metrics.uncached_equivocations_by_authority(),
-                scoring_metrics.uncached_missing_proposals_by_authority(),
-                scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                misbehaviors.uncached_equivocations_by_authority(),
+                misbehaviors.uncached_missing_proposals_by_authority(),
+                misbehaviors.equivocations_in_cache_by_authority(),
+                misbehaviors.missing_proposals_in_cache_by_authority(),
                 get_uncached_equivocations(&context),
                 get_uncached_missing_proposals(&context),
                 get_equivocations_in_cache(&context),
@@ -1170,10 +1167,10 @@ mod tests {
         // Metrics should have been initialized as before the recovery.
         assert_eq!(
             [
-                scoring_metrics.uncached_equivocations_by_authority(),
-                scoring_metrics.uncached_missing_proposals_by_authority(),
-                scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                misbehaviors.uncached_equivocations_by_authority(),
+                misbehaviors.uncached_missing_proposals_by_authority(),
+                misbehaviors.equivocations_in_cache_by_authority(),
+                misbehaviors.missing_proposals_in_cache_by_authority(),
                 get_uncached_equivocations(&context),
                 get_uncached_missing_proposals(&context),
                 get_equivocations_in_cache(&context),
@@ -1218,10 +1215,10 @@ mod tests {
 
         assert_eq!(
             [
-                scoring_metrics.uncached_equivocations_by_authority(),
-                scoring_metrics.uncached_missing_proposals_by_authority(),
-                scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                misbehaviors.uncached_equivocations_by_authority(),
+                misbehaviors.uncached_missing_proposals_by_authority(),
+                misbehaviors.equivocations_in_cache_by_authority(),
+                misbehaviors.missing_proposals_in_cache_by_authority(),
                 get_uncached_equivocations(&context),
                 get_uncached_missing_proposals(&context),
                 get_equivocations_in_cache(&context),
@@ -1246,8 +1243,8 @@ mod tests {
         }
 
         // Clear and check all metrics
-        scoring_metrics.uncached_metrics.reset();
-        scoring_metrics.cached_metrics.reset();
+        misbehaviors.uncached_metrics.reset();
+        misbehaviors.cached_metrics.reset();
         node_metrics
             .uncached_missing_proposals_by_authority
             .with_label_values(&[hostnames[0]])
@@ -1259,10 +1256,10 @@ mod tests {
 
         assert_eq!(
             [
-                scoring_metrics.uncached_equivocations_by_authority(),
-                scoring_metrics.uncached_missing_proposals_by_authority(),
-                scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                misbehaviors.uncached_equivocations_by_authority(),
+                misbehaviors.uncached_missing_proposals_by_authority(),
+                misbehaviors.equivocations_in_cache_by_authority(),
+                misbehaviors.missing_proposals_in_cache_by_authority(),
                 get_uncached_equivocations(&context),
                 get_uncached_missing_proposals(&context),
                 get_equivocations_in_cache(&context),
@@ -1289,10 +1286,10 @@ mod tests {
         // the same as before this acceptance.
         assert_eq!(
             [
-                scoring_metrics.uncached_equivocations_by_authority(),
-                scoring_metrics.uncached_missing_proposals_by_authority(),
-                scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                misbehaviors.uncached_equivocations_by_authority(),
+                misbehaviors.uncached_missing_proposals_by_authority(),
+                misbehaviors.equivocations_in_cache_by_authority(),
+                misbehaviors.missing_proposals_in_cache_by_authority(),
                 get_uncached_equivocations(&context),
                 get_uncached_missing_proposals(&context),
                 get_equivocations_in_cache(&context),
@@ -1320,10 +1317,10 @@ mod tests {
         // Now all misbehaviors should be accounted for in the uncached metrics.
         assert_eq!(
             [
-                scoring_metrics.uncached_equivocations_by_authority(),
-                scoring_metrics.uncached_missing_proposals_by_authority(),
-                scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                misbehaviors.uncached_equivocations_by_authority(),
+                misbehaviors.uncached_missing_proposals_by_authority(),
+                misbehaviors.equivocations_in_cache_by_authority(),
+                misbehaviors.missing_proposals_in_cache_by_authority(),
                 get_uncached_equivocations(&context),
                 get_uncached_missing_proposals(&context),
                 get_equivocations_in_cache(&context),
@@ -1369,7 +1366,7 @@ mod tests {
             .authorities()
             .map(|a| a.1.hostname.as_str())
             .collect();
-        let scoring_metrics = &context.scoring_metrics_store;
+        let misbehaviors = &context.misbehaviors_store;
         let node_metrics = &context.metrics.node_metrics;
 
         let store = Arc::new(MemStore::new());
@@ -1428,10 +1425,10 @@ mod tests {
         // flushed.
         assert_eq!(
             [
-                scoring_metrics.uncached_equivocations_by_authority(),
-                scoring_metrics.uncached_missing_proposals_by_authority(),
-                scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                misbehaviors.uncached_equivocations_by_authority(),
+                misbehaviors.uncached_missing_proposals_by_authority(),
+                misbehaviors.equivocations_in_cache_by_authority(),
+                misbehaviors.missing_proposals_in_cache_by_authority(),
                 get_uncached_equivocations(&context),
                 get_uncached_missing_proposals(&context),
                 get_equivocations_in_cache(&context),
@@ -1469,10 +1466,10 @@ mod tests {
         //      - 0 missing proposals for authorities 1, 2, and 3.
         assert_eq!(
             [
-                scoring_metrics.uncached_equivocations_by_authority(),
-                scoring_metrics.uncached_missing_proposals_by_authority(),
-                scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                misbehaviors.uncached_equivocations_by_authority(),
+                misbehaviors.uncached_missing_proposals_by_authority(),
+                misbehaviors.equivocations_in_cache_by_authority(),
+                misbehaviors.missing_proposals_in_cache_by_authority(),
                 get_uncached_equivocations(&context),
                 get_uncached_missing_proposals(&context),
                 get_equivocations_in_cache(&context),
@@ -1491,8 +1488,8 @@ mod tests {
         );
 
         // Clear and check all metrics
-        scoring_metrics.uncached_metrics.reset();
-        scoring_metrics.cached_metrics.reset();
+        misbehaviors.uncached_metrics.reset();
+        misbehaviors.cached_metrics.reset();
         node_metrics
             .uncached_missing_proposals_by_authority
             .with_label_values(&[hostnames[0]])
@@ -1503,10 +1500,10 @@ mod tests {
             .set(0);
         assert_eq!(
             [
-                scoring_metrics.uncached_equivocations_by_authority(),
-                scoring_metrics.uncached_missing_proposals_by_authority(),
-                scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                misbehaviors.uncached_equivocations_by_authority(),
+                misbehaviors.uncached_missing_proposals_by_authority(),
+                misbehaviors.equivocations_in_cache_by_authority(),
+                misbehaviors.missing_proposals_in_cache_by_authority(),
                 get_uncached_equivocations(&context),
                 get_uncached_missing_proposals(&context),
                 get_equivocations_in_cache(&context),
@@ -1534,10 +1531,10 @@ mod tests {
         // Metrics should have been initialized as before the recovery.
         assert_eq!(
             [
-                scoring_metrics.uncached_equivocations_by_authority(),
-                scoring_metrics.uncached_missing_proposals_by_authority(),
-                scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority()
+                misbehaviors.uncached_equivocations_by_authority(),
+                misbehaviors.uncached_missing_proposals_by_authority(),
+                misbehaviors.equivocations_in_cache_by_authority(),
+                misbehaviors.missing_proposals_in_cache_by_authority()
             ],
             [
                 vec![0; committee_size],
@@ -1577,10 +1574,10 @@ mod tests {
 
         assert_eq!(
             [
-                scoring_metrics.uncached_equivocations_by_authority(),
-                scoring_metrics.uncached_missing_proposals_by_authority(),
-                scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                misbehaviors.uncached_equivocations_by_authority(),
+                misbehaviors.uncached_missing_proposals_by_authority(),
+                misbehaviors.equivocations_in_cache_by_authority(),
+                misbehaviors.missing_proposals_in_cache_by_authority(),
                 get_uncached_equivocations(&context),
                 get_uncached_missing_proposals(&context),
                 get_equivocations_in_cache(&context),
@@ -1605,8 +1602,8 @@ mod tests {
         }
 
         // Clear and check all metrics
-        scoring_metrics.uncached_metrics.reset();
-        scoring_metrics.cached_metrics.reset();
+        misbehaviors.uncached_metrics.reset();
+        misbehaviors.cached_metrics.reset();
         node_metrics
             .uncached_missing_proposals_by_authority
             .with_label_values(&[hostnames[0]])
@@ -1622,10 +1619,10 @@ mod tests {
 
         assert_eq!(
             [
-                scoring_metrics.uncached_equivocations_by_authority(),
-                scoring_metrics.uncached_missing_proposals_by_authority(),
-                scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                misbehaviors.uncached_equivocations_by_authority(),
+                misbehaviors.uncached_missing_proposals_by_authority(),
+                misbehaviors.equivocations_in_cache_by_authority(),
+                misbehaviors.missing_proposals_in_cache_by_authority(),
                 get_uncached_equivocations(&context),
                 get_uncached_missing_proposals(&context),
                 get_equivocations_in_cache(&context),
@@ -1652,10 +1649,10 @@ mod tests {
         // the same as before this acceptance.
         assert_eq!(
             [
-                scoring_metrics.uncached_equivocations_by_authority(),
-                scoring_metrics.uncached_missing_proposals_by_authority(),
-                scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                misbehaviors.uncached_equivocations_by_authority(),
+                misbehaviors.uncached_missing_proposals_by_authority(),
+                misbehaviors.equivocations_in_cache_by_authority(),
+                misbehaviors.missing_proposals_in_cache_by_authority(),
                 get_uncached_equivocations(&context),
                 get_uncached_missing_proposals(&context),
                 get_equivocations_in_cache(&context),
@@ -1683,10 +1680,10 @@ mod tests {
         // Now all misbehaviors should be accounted for in the uncached metrics.
         assert_eq!(
             [
-                scoring_metrics.uncached_equivocations_by_authority(),
-                scoring_metrics.uncached_missing_proposals_by_authority(),
-                scoring_metrics.equivocations_in_cache_by_authority(),
-                scoring_metrics.missing_proposals_in_cache_by_authority(),
+                misbehaviors.uncached_equivocations_by_authority(),
+                misbehaviors.uncached_missing_proposals_by_authority(),
+                misbehaviors.equivocations_in_cache_by_authority(),
+                misbehaviors.missing_proposals_in_cache_by_authority(),
                 get_uncached_equivocations(&context),
                 get_uncached_missing_proposals(&context),
                 get_equivocations_in_cache(&context),
@@ -1710,7 +1707,7 @@ mod tests {
         // Initialize context and authority service given a committee_size
         let committee_size = 4;
         let (_, context, _, _) = new_authority_service_for_metrics_tests(committee_size);
-        let scoring_metrics = &context.scoring_metrics_store;
+        let misbehaviors = &context.misbehaviors_store;
         let source = ErrorSource::Subscriber;
         // Create a set of errors to test
         let ignored_error = ConsensusError::Shutdown;
@@ -1727,8 +1724,8 @@ mod tests {
         // Metrics should not be updated for this error.
         for authority in context.committee.authorities() {
             context
-                .scoring_metrics_store
-                .update_scoring_metrics_on_block_receival(
+                .misbehaviors_store
+                .update_misbehaviors_on_block_receival(
                     authority.0,
                     authority.1.hostname.as_str(),
                     ignored_error.clone(),
@@ -1739,8 +1736,8 @@ mod tests {
         }
         assert_eq!(
             [
-                scoring_metrics.faulty_blocks_provable_by_authority(),
-                scoring_metrics.faulty_blocks_unprovable_by_authority(),
+                misbehaviors.faulty_blocks_provable_by_authority(),
+                misbehaviors.faulty_blocks_unprovable_by_authority(),
                 get_faulty_blocks_provable(&context, &source, ignored_error.name()),
                 get_faulty_blocks_provable(&context, &source, parsing_error.name()),
                 get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
@@ -1766,8 +1763,8 @@ mod tests {
         // Only unprovable metrics should be updated for this error.
         for authority in context.committee.authorities() {
             context
-                .scoring_metrics_store
-                .update_scoring_metrics_on_block_receival(
+                .misbehaviors_store
+                .update_misbehaviors_on_block_receival(
                     authority.0,
                     authority.1.hostname.as_str(),
                     parsing_error.clone(),
@@ -1778,8 +1775,8 @@ mod tests {
         }
         assert_eq!(
             [
-                scoring_metrics.faulty_blocks_provable_by_authority(),
-                scoring_metrics.faulty_blocks_unprovable_by_authority(),
+                misbehaviors.faulty_blocks_provable_by_authority(),
+                misbehaviors.faulty_blocks_unprovable_by_authority(),
                 get_faulty_blocks_provable(&context, &source, ignored_error.name()),
                 get_faulty_blocks_provable(&context, &source, parsing_error.name()),
                 get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
@@ -1805,8 +1802,8 @@ mod tests {
         // Only unprovable metrics should be updated for this error.
         for authority in context.committee.authorities() {
             context
-                .scoring_metrics_store
-                .update_scoring_metrics_on_block_receival(
+                .misbehaviors_store
+                .update_misbehaviors_on_block_receival(
                     authority.0,
                     authority.1.hostname.as_str(),
                     block_verification_error.clone(),
@@ -1817,8 +1814,8 @@ mod tests {
         }
         assert_eq!(
             [
-                scoring_metrics.faulty_blocks_provable_by_authority(),
-                scoring_metrics.faulty_blocks_unprovable_by_authority(),
+                misbehaviors.faulty_blocks_provable_by_authority(),
+                misbehaviors.faulty_blocks_unprovable_by_authority(),
                 get_faulty_blocks_provable(&context, &source, ignored_error.name()),
                 get_faulty_blocks_provable(&context, &source, parsing_error.name()),
                 get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
@@ -1844,8 +1841,8 @@ mod tests {
         // No metrics should be updated for this error.
         for authority in context.committee.authorities() {
             context
-                .scoring_metrics_store
-                .update_scoring_metrics_on_block_receival(
+                .misbehaviors_store
+                .update_misbehaviors_on_block_receival(
                     authority.0,
                     authority.1.hostname.as_str(),
                     block_rejected_error.clone(),
@@ -1856,8 +1853,8 @@ mod tests {
         }
         assert_eq!(
             [
-                scoring_metrics.faulty_blocks_provable_by_authority(),
-                scoring_metrics.faulty_blocks_unprovable_by_authority(),
+                misbehaviors.faulty_blocks_provable_by_authority(),
+                misbehaviors.faulty_blocks_unprovable_by_authority(),
                 get_faulty_blocks_provable(&context, &source, ignored_error.name()),
                 get_faulty_blocks_provable(&context, &source, parsing_error.name()),
                 get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
@@ -1885,7 +1882,7 @@ mod tests {
         // Initialize context and authority service given a committee_size
         let committee_size = 4;
         let (_, context, _, _) = new_authority_service_for_metrics_tests(committee_size);
-        let scoring_metrics = &context.scoring_metrics_store;
+        let misbehaviors = &context.misbehaviors_store;
         let source = ErrorSource::CommitSyncer;
         // Create a set of errors to test
         let ignored_error = ConsensusError::Shutdown;
@@ -1896,8 +1893,8 @@ mod tests {
         // Metrics should not be updated for this error.
         for authority in context.committee.authorities() {
             context
-                .scoring_metrics_store
-                .update_scoring_metrics_on_block_receival(
+                .misbehaviors_store
+                .update_misbehaviors_on_block_receival(
                     authority.0,
                     authority.1.hostname.as_str(),
                     ignored_error.clone(),
@@ -1908,8 +1905,8 @@ mod tests {
         }
         assert_eq!(
             [
-                scoring_metrics.faulty_blocks_provable_by_authority(),
-                scoring_metrics.faulty_blocks_unprovable_by_authority(),
+                misbehaviors.faulty_blocks_provable_by_authority(),
+                misbehaviors.faulty_blocks_unprovable_by_authority(),
                 get_faulty_blocks_provable(&context, &source, ignored_error.name()),
                 get_faulty_blocks_provable(&context, &source, parsing_error.name()),
                 get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
@@ -1933,8 +1930,8 @@ mod tests {
         // Only unprovable metrics should be updated for this error.
         for authority in context.committee.authorities() {
             context
-                .scoring_metrics_store
-                .update_scoring_metrics_on_block_receival(
+                .misbehaviors_store
+                .update_misbehaviors_on_block_receival(
                     authority.0,
                     authority.1.hostname.as_str(),
                     parsing_error.clone(),
@@ -1945,8 +1942,8 @@ mod tests {
         }
         assert_eq!(
             [
-                scoring_metrics.faulty_blocks_provable_by_authority(),
-                scoring_metrics.faulty_blocks_unprovable_by_authority(),
+                misbehaviors.faulty_blocks_provable_by_authority(),
+                misbehaviors.faulty_blocks_unprovable_by_authority(),
                 get_faulty_blocks_provable(&context, &source, ignored_error.name()),
                 get_faulty_blocks_provable(&context, &source, parsing_error.name()),
                 get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
@@ -1972,8 +1969,8 @@ mod tests {
         // sent this block. Only unprovable metrics should be updated for this error.
         for authority in context.committee.authorities() {
             context
-                .scoring_metrics_store
-                .update_scoring_metrics_on_block_receival(
+                .misbehaviors_store
+                .update_misbehaviors_on_block_receival(
                     authority.0,
                     authority.1.hostname.as_str(),
                     block_verification_error.clone(),
@@ -1984,8 +1981,8 @@ mod tests {
         }
         assert_eq!(
             [
-                scoring_metrics.faulty_blocks_provable_by_authority(),
-                scoring_metrics.faulty_blocks_unprovable_by_authority(),
+                misbehaviors.faulty_blocks_provable_by_authority(),
+                misbehaviors.faulty_blocks_unprovable_by_authority(),
                 get_faulty_blocks_provable(&context, &source, ignored_error.name()),
                 get_faulty_blocks_provable(&context, &source, parsing_error.name()),
                 get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
@@ -2011,7 +2008,7 @@ mod tests {
         // Initialize context and authority service given a committee_size
         let committee_size = 4;
         let (_, context, _, _) = new_authority_service_for_metrics_tests(committee_size);
-        let scoring_metrics = &context.scoring_metrics_store;
+        let misbehaviors = &context.misbehaviors_store;
         let source = ErrorSource::Synchronizer;
         // Create a set of errors to test
         let ignored_error = ConsensusError::Shutdown;
@@ -2022,8 +2019,8 @@ mod tests {
         // Metrics should not be updated for this error.
         for authority in context.committee.authorities() {
             context
-                .scoring_metrics_store
-                .update_scoring_metrics_on_block_receival(
+                .misbehaviors_store
+                .update_misbehaviors_on_block_receival(
                     authority.0,
                     authority.1.hostname.as_str(),
                     ignored_error.clone(),
@@ -2034,8 +2031,8 @@ mod tests {
         }
         assert_eq!(
             [
-                scoring_metrics.faulty_blocks_provable_by_authority(),
-                scoring_metrics.faulty_blocks_unprovable_by_authority(),
+                misbehaviors.faulty_blocks_provable_by_authority(),
+                misbehaviors.faulty_blocks_unprovable_by_authority(),
                 get_faulty_blocks_provable(&context, &source, ignored_error.name()),
                 get_faulty_blocks_provable(&context, &source, parsing_error.name()),
                 get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
@@ -2059,8 +2056,8 @@ mod tests {
         // Only unprovable metrics should be updated for this error.
         for authority in context.committee.authorities() {
             context
-                .scoring_metrics_store
-                .update_scoring_metrics_on_block_receival(
+                .misbehaviors_store
+                .update_misbehaviors_on_block_receival(
                     authority.0,
                     authority.1.hostname.as_str(),
                     parsing_error.clone(),
@@ -2071,8 +2068,8 @@ mod tests {
         }
         assert_eq!(
             [
-                scoring_metrics.faulty_blocks_provable_by_authority(),
-                scoring_metrics.faulty_blocks_unprovable_by_authority(),
+                misbehaviors.faulty_blocks_provable_by_authority(),
+                misbehaviors.faulty_blocks_unprovable_by_authority(),
                 get_faulty_blocks_provable(&context, &source, ignored_error.name()),
                 get_faulty_blocks_provable(&context, &source, parsing_error.name()),
                 get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
@@ -2098,8 +2095,8 @@ mod tests {
         // sent this block. Only unprovable metrics should be updated for this error.
         for authority in context.committee.authorities() {
             context
-                .scoring_metrics_store
-                .update_scoring_metrics_on_block_receival(
+                .misbehaviors_store
+                .update_misbehaviors_on_block_receival(
                     authority.0,
                     authority.1.hostname.as_str(),
                     block_verification_error.clone(),
@@ -2110,8 +2107,8 @@ mod tests {
         }
         assert_eq!(
             [
-                scoring_metrics.faulty_blocks_provable_by_authority(),
-                scoring_metrics.faulty_blocks_unprovable_by_authority(),
+                misbehaviors.faulty_blocks_provable_by_authority(),
+                misbehaviors.faulty_blocks_unprovable_by_authority(),
                 get_faulty_blocks_provable(&context, &source, ignored_error.name()),
                 get_faulty_blocks_provable(&context, &source, parsing_error.name()),
                 get_faulty_blocks_provable(&context, &source, block_verification_error.name()),
