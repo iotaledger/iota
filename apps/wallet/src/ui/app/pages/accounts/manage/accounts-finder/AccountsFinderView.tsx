@@ -114,7 +114,7 @@ export function AccountsFinderView(): JSX.Element {
     const [dialogMigrationOpen, setDialogMigrationOpen] = useState(false);
 
     const ledgerIotaClient = useIotaLedgerClient();
-    const unlockAccountSourceMutation = useUnlockMutation();
+    const unlockAllAccountsMutation = useUnlockMutation();
     const sourceStrategy: SourceStrategyToFind = useMemo(
         () =>
             accountSourceType == AllowedAccountSourceTypes.LedgerDerived
@@ -319,8 +319,7 @@ export function AccountsFinderView(): JSX.Element {
                             setPassword(password);
                         } else if (accountSourceId) {
                             // unlock software account sources
-                            await unlockAccountSourceMutation.mutateAsync({
-                                id: accountSourceId,
+                            await unlockAllAccountsMutation.mutateAsync({
                                 password,
                             });
                         }

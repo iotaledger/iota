@@ -11,6 +11,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import {
     convertErrorToLedgerConnectionFailedError,
     LedgerDeviceNotFoundError,
+    LedgerDeviceMismatchError,
     LedgerNoTransportMechanismError,
 } from './ledgerErrors';
 
@@ -20,7 +21,10 @@ interface IotaLedgerClientProviderProps {
 
 interface IotaLedgerClientContextValue {
     iotaLedgerClient: IotaLedgerClient | undefined;
-    connectToLedger: (requestPermissionsFirst?: boolean) => Promise<IotaLedgerClient>;
+    connectToLedger: (
+        requestPermissionsFirst?: boolean,
+        verifyConnection?: (client: IotaLedgerClient) => Promise<boolean>,
+    ) => Promise<IotaLedgerClient>;
 }
 
 const IotaLedgerClientContext = createContext<IotaLedgerClientContextValue | undefined>(undefined);
@@ -42,7 +46,10 @@ export function IotaLedgerClientProvider({ children }: IotaLedgerClientProviderP
     }, [resetIotaLedgerClient, iotaLedgerClient?.transport]);
 
     const connectToLedger = useCallback(
-        async (requestPermissionsFirst = false) => {
+        async (
+            requestPermissionsFirst = false,
+            verifyConnection?: (client: IotaLedgerClient) => Promise<boolean>,
+        ) => {
             let ledgerTransport: TransportWebHID | TransportWebUSB | SpeculosHttpTransport;
             // If we've already connected to a Ledger device, we need
             // to close the connection before we try to re-connect
@@ -51,9 +58,41 @@ export function IotaLedgerClientProvider({ children }: IotaLedgerClientProviderP
             if (await SpeculosHttpTransport.check()) {
                 ledgerTransport = await SpeculosHttpTransport.open();
             } else {
-                ledgerTransport = requestPermissionsFirst
-                    ? await requestLedgerConnection()
-                    : await openLedgerConnection();
+                // Try openConnected first (unless explicitly requesting permissions)
+                if (!requestPermissionsFirst) {
+                    try {
+                        ledgerTransport = await openLedgerConnection();
+                        const ledgerClient = new IotaLedgerClient(ledgerTransport);
+
+                        // If verification callback provided, verify the connection
+                        if (verifyConnection) {
+                            const isValid = await verifyConnection(ledgerClient);
+                            if (!isValid) {
+                                // Wrong device - close and fallback to request()
+                                await ledgerTransport.close();
+                                throw new LedgerDeviceMismatchError(
+                                    'Connected Ledger device does not match the expected device',
+                                );
+                            }
+                        }
+
+                        setIotaLedgerClient(ledgerClient);
+                        return ledgerClient;
+                    } catch (error) {
+                        // Fallback to request() on device not found or mismatch
+                        if (
+                            error instanceof LedgerDeviceNotFoundError ||
+                            error instanceof LedgerDeviceMismatchError
+                        ) {
+                            ledgerTransport = await requestLedgerConnection();
+                        } else {
+                            throw error;
+                        }
+                    }
+                } else {
+                    // Directly request permissions
+                    ledgerTransport = await requestLedgerConnection();
+                }
             }
 
             const ledgerClient = new IotaLedgerClient(ledgerTransport);

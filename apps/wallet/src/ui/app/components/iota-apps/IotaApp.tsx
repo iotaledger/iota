@@ -133,9 +133,6 @@ export function IotaApp({
             onClick={() => {
                 ampli.applicationOpened({ applicationName: name });
             }}
-            type="application"
-            isPublic
-            // Disable tracking for this link since application opened event is triggered here
             trackEvent={false}
         >
             {AppDetails}

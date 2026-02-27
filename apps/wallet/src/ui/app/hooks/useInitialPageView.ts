@@ -9,16 +9,18 @@ import { getNetwork } from '@iota/iota-sdk/client';
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import Browser from 'webextension-polyfill';
-import { AppType } from '../redux/slices/app/appType';
+import { ExtensionViewType } from '../redux/slices/app/appType';
 import { useActiveAccount } from './useActiveAccount';
 import { useAppSelector } from './useAppSelector';
 
 export function useInitialPageView() {
     const activeAccount = useActiveAccount();
     const location = useLocation();
-    const { network, customRpc, activeOrigin, appType } = useAppSelector((state) => state.app);
+    const { network, customRpc, activeOrigin, extensionViewType } = useAppSelector(
+        (state) => state.app,
+    );
     const activeNetwork = customRpc ? getCustomNetwork(customRpc).url : getNetwork(network)?.url;
-    const isFullScreen = appType === AppType.Fullscreen;
+    const isFullScreen = extensionViewType === ExtensionViewType.FullScreen;
 
     useEffect(() => {
         ampli.identify(undefined);
