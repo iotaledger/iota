@@ -650,14 +650,20 @@ impl CallArgExt for CallArg {
     }
 
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
-        if let Some(value) = self.as_pure_value() {
-            fp_ensure!(
-                value.len() < config.max_pure_argument_size() as usize,
-                UserInputError::SizeLimitExceeded {
-                    limit: "maximum pure argument size".to_string(),
-                    value: config.max_pure_argument_size().to_string()
-                }
-            );
+        match self {
+            CallArg::Pure(bytes) => {
+                fp_ensure!(
+                    bytes.len() < config.max_pure_argument_size() as usize,
+                    UserInputError::SizeLimitExceeded {
+                        limit: "maximum pure argument size".to_string(),
+                        value: config.max_pure_argument_size().to_string()
+                    }
+                );
+            }
+            CallArg::ImmutableOrOwned(_) | CallArg::Shared(_) | CallArg::Receiving(_) => {
+                // No validation needed for these variants
+            }
+            _ => unreachable!("a new CallArg variant was added and needs to be handled"),
         }
         Ok(())
     }
