@@ -487,6 +487,22 @@ impl CommitObserver {
             committed_subdags.push(committed_subdag);
         }
 
+        // If we couldn't resend any commits, still initialize
+        // last_solid_subdag_base from last_processed so fast sync
+        // starts from the right position instead of index 0.
+        if committed_subdags.is_empty() && last_processed_commit_index > 0 {
+            if let Some(commit) = self
+                .store
+                .scan_commits((last_processed_commit_index..=last_processed_commit_index).into())
+                .ok()
+                .and_then(|commits| commits.into_iter().next())
+            {
+                if let Some(subdag) = self.build_committed_subdag_from_commit(&commit, vec![]) {
+                    self.update_with_solid_subdags_and_flush(&[subdag]);
+                }
+            }
+        }
+
         self.finalize_and_send_solid_subdags(&[], &committed_subdags, source)
             .expect("We should successfully send committed subdags during resend");
     }
