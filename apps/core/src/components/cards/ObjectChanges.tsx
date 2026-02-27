@@ -255,7 +255,7 @@ function ObjectChangeByOwnerPanel({
                         </div>
                     </>
                 </Collapsible>
-                {['AddressOwner', 'ObjectOwner', 'Shared'].includes(change.ownerType) ? (
+                {owner ? (
                     <div className="flex flex-col gap-y-sm px-md pb-md">
                         <Divider />
                         <KeyValueInfo
