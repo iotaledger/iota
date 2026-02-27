@@ -79,6 +79,8 @@ export function CreateNewWallet() {
                     navigate(url);
                 }
                 break;
+            default:
+                throw new Error('Unsupported action type');
         }
     };
 

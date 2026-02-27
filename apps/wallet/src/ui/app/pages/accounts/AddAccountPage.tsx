@@ -150,6 +150,8 @@ export function AddAccountPage() {
                     navigate('/accounts/import-keystone');
                 }
                 break;
+            default:
+                throw new Error('Unsupported action type');
         }
     }
 

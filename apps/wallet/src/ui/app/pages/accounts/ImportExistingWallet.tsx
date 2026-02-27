@@ -98,6 +98,8 @@ export function ImportExistingWallet() {
             case AccountsFormType.ImportSeed:
                 navigate('/accounts/import-seed');
                 break;
+            default:
+                throw new Error('Unsupported action type');
         }
     };
 
