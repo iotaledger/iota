@@ -4,7 +4,7 @@
 import { ConnectButton } from '@iota/dapp-kit';
 import { useEffect } from 'react';
 import { useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
-import { ampli, setWalletUserGroup, clearWalletUserGroup } from '../../../shared/analytics';
+import { ampli, setAmplitudeIdentity } from '../../../shared/analytics';
 
 interface ConnectButtonL1Props {
     connectText?: string;
@@ -26,10 +26,10 @@ export function ConnectButtonL1({
         if (l1Wallet.isConnected && l1Account?.address) {
             // TODO this event calls 2 times on page load, because we use component twice. Fix it later.
             const walletType = l1Wallet.currentWallet?.name || 'unknown';
-            setWalletUserGroup({ l1WalletType: walletType });
+            setAmplitudeIdentity({ l1WalletType: walletType });
             ampli.connectedL1Wallet({ walletType });
         } else {
-            clearWalletUserGroup('l1');
+            setAmplitudeIdentity({ l1WalletType: '' });
         }
     }, [l1Wallet.isConnected, l1Wallet.currentWallet?.name, l1Account?.address]);
 

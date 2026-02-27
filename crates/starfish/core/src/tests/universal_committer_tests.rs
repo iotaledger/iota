@@ -12,7 +12,7 @@ use crate::{
     block_header::{BlockHeaderAPI, Slot, TestBlockHeader, VerifiedBlockHeader},
     commit::{DecidedLeader, WaveNumber},
     context::Context,
-    dag_state::DagState,
+    dag_state::{DagState, DataSource},
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
     storage::mem_store::MemStore,
     test_dag::build_dag,
@@ -255,7 +255,7 @@ async fn direct_skip_no_leader_votes() {
     let dag_builder = parse_dag(dag_str).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
-        Arc::new(MemStore::new()),
+        Arc::new(MemStore::new(dag_builder.context.clone())),
     )));
     let leader_schedule = Arc::new(LeaderSchedule::new(
         dag_builder.context.clone(),
@@ -375,7 +375,7 @@ async fn indirect_commit() {
     let dag_builder = parse_dag(dag_str).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
-        Arc::new(MemStore::new()),
+        Arc::new(MemStore::new(dag_builder.context.clone())),
     )));
     let leader_schedule = Arc::new(LeaderSchedule::new(
         dag_builder.context.clone(),
@@ -457,7 +457,7 @@ async fn indirect_skip() {
     let dag_builder = parse_dag(dag_str).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
-        Arc::new(MemStore::new()),
+        Arc::new(MemStore::new(dag_builder.context.clone())),
     )));
     let leader_schedule = Arc::new(LeaderSchedule::new(
         dag_builder.context.clone(),
@@ -543,7 +543,7 @@ async fn undecided() {
     let dag_builder = parse_dag(dag_str).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
-        Arc::new(MemStore::new()),
+        Arc::new(MemStore::new(dag_builder.context.clone())),
     )));
     let leader_schedule = Arc::new(LeaderSchedule::new(
         dag_builder.context.clone(),
@@ -622,7 +622,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(byzantine_block_c13_1.clone());
+        .accept_block_header(byzantine_block_c13_1.clone(), DataSource::Test);
 
     let byzantine_block_c13_2 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(13, 2)
@@ -631,7 +631,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(byzantine_block_c13_2.clone());
+        .accept_block_header(byzantine_block_c13_2.clone(), DataSource::Test);
 
     let byzantine_block_c13_3 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(13, 2)
@@ -640,7 +640,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(byzantine_block_c13_3.clone());
+        .accept_block_header(byzantine_block_c13_3.clone(), DataSource::Test);
 
     // Ancestors of certifying blocks in round 14 should include multiple byzantine
     // non-votes C13 but there are enough good votes to prevent a skip.
@@ -653,7 +653,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(certifying_block_a14.clone());
+        .accept_block_header(certifying_block_a14.clone(), DataSource::Test);
 
     let good_references_voting_round_for_round_12_without_c13 =
         good_references_voting_round_for_round_12
@@ -674,7 +674,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(certifying_block_b14.clone());
+        .accept_block_header(certifying_block_b14.clone(), DataSource::Test);
 
     let certifying_block_c14 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(14, 2)
@@ -689,7 +689,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(certifying_block_c14.clone());
+        .accept_block_header(certifying_block_c14.clone(), DataSource::Test);
 
     let certifying_block_d14 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(14, 3)
@@ -704,7 +704,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(certifying_block_d14.clone());
+        .accept_block_header(certifying_block_d14.clone(), DataSource::Test);
 
     // DagState Update:
     // - We have A13, B13, D13 & C13 as good votes in the voting round for round-12
@@ -740,7 +740,7 @@ fn basic_test_setup() -> (
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
-        Arc::new(MemStore::new()),
+        Arc::new(MemStore::new(context.clone())),
     )));
     let leader_schedule = Arc::new(LeaderSchedule::new(
         context.clone(),
@@ -768,11 +768,11 @@ struct TestSetup {
 fn basic_dag_builder_test_setup() -> TestSetup {
     telemetry_subscribers::init_for_testing();
     let context = Arc::new(Context::new_for_test(4).0);
-    let dag_builder = DagBuilder::new(context);
+    let dag_builder = DagBuilder::new(context.clone());
 
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
-        Arc::new(MemStore::new()),
+        Arc::new(MemStore::new(context.clone())),
     )));
     let leader_schedule = Arc::new(LeaderSchedule::new(
         dag_builder.context.clone(),

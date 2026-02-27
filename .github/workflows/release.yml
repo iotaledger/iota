@@ -38,6 +38,7 @@ env:
   # from transient network timeouts or other issues.
   CARGO_NET_RETRY: 10
   RUSTUP_MAX_RETRIES: 10
+  # Path to temporary build directory. If this gets changed the chocolatey nuspec files needs to be updated
   TMP_BUILD_DIR: "./tmp/release"
   RELEASE_NOTES_FILE: "release_notes.txt"
 
@@ -117,10 +118,6 @@ jobs:
         run: |
           echo "extension=$(echo ".exe")" >> $GITHUB_ENV
 
-      - name: Setup caching
-        # Fork of 'Swatinem/rust-cache' which allows caching additional paths
-        uses: bmwill/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # v1.4.0
-
       - name: Install postgres (Windows)
         if: ${{ matrix.os_type == 'windows-x86_64' }}
         shell: bash
@@ -190,27 +187,6 @@ jobs:
           done
 
           tar -cvzf ./tmp/${{ steps.create-artifact.outputs.artifact_name }}.tgz -C ${{ env.TMP_BUILD_DIR }} .
-
-      #      - name: Publish Windows iota binary to Chocolatey
-      #        if: ${{ matrix.os == 'windows-latest' && github.event_name == 'release' &&  && contains(env.iota_ref, '-rc') }}
-      #        shell: bash
-      #        run: |
-      #          choco install checksum
-      #          export iota_sha=$(checksum -t sha256 ${{ env.TMP_BUILD_DIR }}/iota.exe)
-      #          cd chocolatey
-      #
-      #          cat <<EOF >>VERIFICATION.txt
-      #          IOTA Binary verification steps
-      #          1. Download https://github.com/iotaledger/iota/releases/download/${{ env.iota_ref }}/${{ env.artifact_name }}.tgz
-      #          2. Extract iota.exe
-      #          3. Verify binary: checksum.exe -t sha256 iota.exe: ${iota_sha}
-      #
-      #          File 'LICENSE.txt' is obtained from: https://github.com/iotaledger/iota/blob/develop/LICENSE
-      #          EOF
-      #
-      #          choco pack --version ${{ env.iota_ref }} configuration=release
-      #          choco apikey --api-key ${{ secrets.CHOCO_API_KEY }} --source https://push.chocolatey.org/
-      #          choco push iota.${{ env.iota_ref }}.nupkg --source https://push.chocolatey.org/
 
       - name: Upload artifacts for ${{ matrix.os_type }} platform
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3

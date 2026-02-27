@@ -4,7 +4,12 @@
 
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
 import { AccountsFormType, useAccountsFormContext, VerifyPasswordModal } from '_components';
-import { useAccountSources, useCreateAccountsMutation, useActiveAccount } from '_hooks';
+import {
+    useAccountSources,
+    useActiveAccount,
+    useBackgroundClient,
+    useCreateAccountsMutation,
+} from '_hooks';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
@@ -28,6 +33,8 @@ import { parseDerivationPath } from '_src/background/account-sources/bip44Path';
 import { isMnemonicSerializedUiAccount } from '_src/background/accounts/mnemonicAccount';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
 import { isKeystoneAccountSerializedUI } from '_src/background/accounts/keystoneAccount';
+import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
+import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 
 const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
     [AccountType.MnemonicDerived]: 'Mnemonic',
@@ -64,13 +71,14 @@ export function AccountGroup({
     const [isCollapsibleGroupOpen, setIsCollapsibleGroupOpen] = useState(true);
     const navigate = useNavigate();
     const activeAccount = useActiveAccount();
-    const createAccountMutation = useCreateAccountsMutation();
+    const createAccountsMutation = useCreateAccountsMutation();
     const isMnemonicDerivedGroup = type === AccountType.MnemonicDerived;
     const isSeedDerivedGroup = type === AccountType.SeedDerived;
     const [accountsFormValues, setAccountsFormValues] = useAccountsFormContext();
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
     const { data: accountSources } = useAccountSources();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceID);
+    const backgroundClient = useBackgroundClient();
 
     async function handleAdd(e: React.MouseEvent<HTMLButtonElement>) {
         if (!accountSource) return;
@@ -89,14 +97,31 @@ export function AccountGroup({
         if (accountSource.isLocked) {
             setPasswordModalVisible(true);
         } else {
-            createAccountMutation.mutate({
+            createAccountsMutation.mutate({
                 type: accountsFormType,
             });
         }
     }
 
+    function getUrlForLedgerDerivedAccounts(url: string) {
+        const ledgerAcc = accounts.find((acc) => isLedgerAccountSerializedUI(acc));
+        if (ledgerAcc) {
+            const params = ledgerAcc.mainPublicKey
+                ? new URLSearchParams({
+                      mainPublicKey: ledgerAcc.mainPublicKey,
+                  })
+                : undefined;
+            return url + (params ? `?${params.toString()}` : '');
+        }
+        return url;
+    }
+
     function handleBalanceFinder() {
-        navigate(`/accounts/manage/accounts-finder/${accountSourceID}`);
+        let url = `/accounts/manage/accounts-finder/${accountSourceID}`;
+        if (accountSourceID === AllowedAccountSourceTypes.LedgerDerived) {
+            url = getUrlForLedgerDerivedAccounts(url);
+        }
+        navigate(url);
     }
 
     function handleExportMnemonic() {
@@ -281,10 +306,13 @@ export function AccountGroup({
                 <VerifyPasswordModal
                     open
                     onVerify={async (password) => {
+                        await backgroundClient.unlockAllAccountsAndSources({
+                            password,
+                        });
+
                         if (accountsFormValues.current) {
-                            await createAccountMutation.mutateAsync({
+                            await createAccountsMutation.mutateAsync({
                                 type: accountsFormValues.current.type,
-                                password,
                             });
                         }
                         setPasswordModalVisible(false);

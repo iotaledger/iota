@@ -25,7 +25,7 @@ use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_data_ingestion_core::Worker;
 use iota_storage::http_key_value_store::{ItemType, TaggedKey};
 use iota_types::{full_checkpoint_content::CheckpointData, storage::ObjectKey};
-use object_store::{DynObjectStore, path::Path};
+use object_store::{DynObjectStore, ObjectStoreExt, path::Path};
 use serde::{Deserialize, Serialize};
 use tracing::{error, info, warn};
 

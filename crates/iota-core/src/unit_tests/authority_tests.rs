@@ -921,7 +921,12 @@ async fn test_dev_inspect_uses_unbound_object() {
         )
         .await;
     let Err(err) = result else { panic!() };
-    assert!(err.to_string().contains("ObjectNotFound"));
+    assert!(matches!(
+        err,
+        IotaError::UserInput {
+            error: UserInputError::ObjectNotFound { .. }
+        }
+    ));
 }
 
 #[tokio::test]
@@ -1072,9 +1077,13 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
     );
     let transaction = to_sender_signed_transaction(data.clone(), &sender_key);
     let digest = *transaction.digest();
-    let DryRunTransactionBlockResponse { effects, .. } =
-        fullnode.dry_exec_transaction(data, digest).unwrap().0;
+    let DryRunTransactionBlockResponse {
+        effects,
+        execution_error_source,
+        ..
+    } = fullnode.dry_exec_transaction(data, digest).unwrap().0;
     assert_eq!(effects.deleted().len(), 0);
+    assert_eq!(execution_error_source, Some("VMError with status ABORTED with sub status 1 at location Module ModuleId { address: 0000000000000000000000000000000000000000000000000000000000000002, name: Identifier(\"dynamic_field\") } at code offset 0 in function definition 13".to_string()));
 }
 
 // tests using a gas coin with version MAX - 1
@@ -1815,10 +1824,12 @@ async fn test_publish_non_existing_dependent_module() {
     let response = authority
         .handle_transaction(&epoch_store, transaction)
         .await;
-    assert!(
-        std::string::ToString::to_string(&response.unwrap_err())
-            .contains("DependentPackageNotFound")
-    );
+    assert!(matches!(
+        response.unwrap_err(),
+        IotaError::UserInput {
+            error: UserInputError::DependentPackageNotFound { .. }
+        }
+    ));
     // Check that gas was not charged.
     assert_eq!(
         authority
@@ -2741,193 +2752,6 @@ async fn test_account_state_unknown_account() {
     assert!(authority_state.get_object(&unknown_address).await.is_none());
 }
 
-// Reproducer and fix test for https://github.com/iotaledger/iota/issues/7267
-#[tokio::test]
-async fn test_authority_store_init() {
-    // The failure originates within AuthorityState::try_create_dynamic_field_info.
-    // To trigger it we need to meet several conditions:
-    // - index store must be enabled and empty;
-    // - object store must have an object owned object, ie. a dynamic object field
-    //   object with version > 1;
-    // - genesis must have this dof object with version 1.
-    //
-    // The test proceeds in two stages:
-    // 1. prepare the objects and the store using one AuthorityState;
-    // 2. create another AuthorityState with the proper genesis and store so that
-    //    the proper code path is used to test the fix.
-
-    use crate::authority::move_integration_tests::build_and_publish_test_package;
-    telemetry_subscribers::init_for_testing();
-
-    let authority_seed = [1u8; 32];
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_id = ObjectID::random();
-    let gas_obj = Object::with_id_owner_for_testing(gas_id, sender);
-
-    // Create a random directory to store the DB; it'll be reused in both
-    // authorities.
-    let dir = std::env::temp_dir();
-    let store_base_path = dir.join(format!(
-        "DB_{:?}",
-        iota_macros::nondeterministic!(ObjectID::random())
-    ));
-    std::fs::create_dir(&store_base_path).unwrap();
-
-    // Create initial authority.
-    let authority = {
-        let network_config = iota_swarm_config::network_config_builder::ConfigBuilder::new(&dir)
-            .rng(&mut StdRng::from_seed(authority_seed))
-            .with_objects([gas_obj.clone()])
-            .build();
-        let genesis = network_config.genesis;
-        let authority_key = network_config.validator_configs[0]
-            .authority_key_pair()
-            .copy();
-
-        TestAuthorityBuilder::new()
-            .with_store_base_path(store_base_path.clone())
-            .with_genesis_and_keypair(&genesis, &authority_key)
-            // Disable indexer, the index store must be empty.
-            .disable_indexer()
-            // Use passthrough cache so that the new objects end up in object store.
-            // It's hard to flush the writeback cache that is enabled by default.
-            .with_cache_type(iota_config::ExecutionCacheType::PassthroughCache)
-            .with_cache_config(iota_config::ExecutionCacheConfig::default())
-            .build()
-            .await
-    };
-
-    // Create an object owned object.
-    let (package_obj, parent_obj, child_obj, field_obj) = {
-        // Publish ./data/object_owner package.
-        let package = build_and_publish_test_package(
-            &authority,
-            &sender,
-            &sender_key,
-            &gas_id,
-            "object_owner",
-            // with_unpublished_deps
-            false,
-        )
-        .await;
-        let package_obj = authority.get_object(&package.0).await.unwrap();
-
-        // Create a parent.
-        let effects = call_move(
-            &authority,
-            &gas_id,
-            &sender,
-            &sender_key,
-            &package.0,
-            "object_owner",
-            "create_parent",
-            vec![],
-            vec![],
-        )
-        .await
-        .unwrap();
-        assert!(effects.status().is_ok());
-        let parent = effects.created()[0].0;
-        let parent_obj = authority.get_object(&parent.0).await.unwrap();
-
-        // Create a child.
-        let effects = call_move(
-            &authority,
-            &gas_id,
-            &sender,
-            &sender_key,
-            &package.0,
-            "object_owner",
-            "create_child",
-            vec![],
-            vec![],
-        )
-        .await
-        .unwrap();
-        assert!(effects.status().is_ok());
-        let child = effects.created()[0].0;
-        let child_obj = authority.get_object(&child.0).await.unwrap();
-
-        // Add the child to the parent.
-        let effects = call_move(
-            &authority,
-            &gas_id,
-            &sender,
-            &sender_key,
-            &package.0,
-            "object_owner",
-            "add_child",
-            vec![],
-            vec![TestCallArg::Object(parent.0), TestCallArg::Object(child.0)],
-        )
-        .await
-        .unwrap();
-        effects.status().unwrap();
-        let child_effect = effects
-            .mutated()
-            .into_iter()
-            .find(|((id, _, _), _)| id == &child.0)
-            .unwrap();
-        // Check that the child is now owned by the parent.
-        let field_id = match child_effect.1 {
-            Owner::ObjectOwner(field_id) => field_id.into(),
-            Owner::Shared { .. } | Owner::Immutable | Owner::AddressOwner(_) => panic!(),
-        };
-        // This is the object that we need to trigger the failure code path.
-        let field_obj = authority.get_object(&field_id).await.unwrap();
-        assert_eq!(field_obj.owner, parent.0);
-
-        (package_obj, parent_obj, child_obj, field_obj)
-    };
-
-    drop(authority);
-
-    // Just in case, let rocksdb time to sync or something.
-    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-
-    // Create the test authority.
-    let network_config = iota_swarm_config::network_config_builder::ConfigBuilder::new(&dir)
-        .rng(&mut StdRng::from_seed(authority_seed))
-        // Add the relevant and target objects to the genesis.
-        // The object version will reset to 1 when genesis is created.
-        .with_objects([
-            gas_obj.clone(),
-            package_obj.clone(),
-            parent_obj.clone(),
-            child_obj.clone(),
-            field_obj.clone(),
-        ])
-        .build();
-    let genesis = network_config.genesis;
-    let authority_key = network_config.validator_configs[0]
-        .authority_key_pair()
-        .copy();
-
-    let authority_state = TestAuthorityBuilder::new()
-        // Reuse the object store, there's no index store at this point.
-        .with_store_base_path(store_base_path)
-        .with_genesis_and_keypair(&genesis, &authority_key)
-        // Do not execute genesis transactions again,
-        // otherwise we try to insert objects that are older than the ones that already exist in
-        // the cache, which will then panic.
-        .disable_execute_genesis_transactions()
-        // Index is enabled by default and empty.
-        // We don't care about writeback cache now.
-        // Build invokes AuthorityState::new down to try_create_dynamic_field_info.
-        .build()
-        .await;
-
-    // Check that the objects are present in the store.
-    for obj in [gas_obj, package_obj, parent_obj, child_obj, field_obj] {
-        authority_state
-            .get_object(&obj.id())
-            .await
-            .expect("failed to get object");
-    }
-
-    // The test is passed if the build didn't panic and authority is created.
-}
-
 #[tokio::test]
 async fn test_authority_persist() {
     async fn init_state(
@@ -3228,7 +3052,7 @@ async fn test_invalid_object_ownership() {
         UserInputError::try_from(e).unwrap(),
         UserInputError::IncorrectUserSignature {
             error: format!(
-                "Object {invalid_ownership_object_id:?} is owned by account address {invalid_owner:?}, but given owner/signer address is {sender:?}"
+                "Object {invalid_ownership_object_id:?} is owned by account address {invalid_owner}, but given owner/signer address is {sender}"
             )
         }
     );
@@ -5874,6 +5698,119 @@ async fn test_for_inc_201_dry_run() {
 }
 
 #[tokio::test]
+async fn test_function_not_found() {
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let gas_object_id = ObjectID::random();
+    let (_, fullnode, _) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
+
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder
+        .move_call(
+            ObjectID::from_single_byte(1),
+            ident_str!("option").to_owned(),
+            ident_str!("bad_function").to_owned(),
+            vec![],
+            vec![],
+        )
+        .unwrap();
+    let kind = TransactionKind::programmable(builder.finish());
+
+    let rgp = fullnode.reference_gas_price_for_testing().unwrap();
+    let txn_data = TransactionData::new_with_gas_coins(
+        kind,
+        sender,
+        vec![],
+        TEST_ONLY_GAS_UNIT_FOR_PUBLISH * rgp,
+        rgp,
+    );
+
+    let signed = to_sender_signed_transaction(txn_data, &sender_key);
+    let (
+        DryRunTransactionBlockResponse {
+            effects,
+            execution_error_source,
+            ..
+        },
+        _,
+        _,
+        _,
+    ) = fullnode
+        .dry_exec_transaction(
+            signed.data().intent_message().value.clone(),
+            *signed.digest(),
+        )
+        .unwrap();
+    assert_eq!(
+        effects.status(),
+        &IotaExecutionStatus::Failure {
+            error: "Function Not Found. in command 0".to_string(),
+        }
+    );
+
+    assert_eq!(execution_error_source, Some("Could not resolve function 'bad_function' in module 0000000000000000000000000000000000000000000000000000000000000001::option".to_string()),)
+}
+
+#[tokio::test]
+async fn test_arity_mismatch() {
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let gas = ObjectID::random();
+    let obj_id = ObjectID::random();
+    let (_, authority, _) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas), (sender, obj_id)])
+            .await;
+
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder
+        .move_call(
+            ObjectID::from_single_byte(1),
+            ident_str!("option").to_owned(),
+            ident_str!("is_none").to_owned(),
+            vec![TypeTag::U64],
+            vec![],
+        )
+        .unwrap();
+    let kind = TransactionKind::programmable(builder.finish());
+
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let txn_data = TransactionData::new_with_gas_coins(
+        kind,
+        sender,
+        vec![],
+        TEST_ONLY_GAS_UNIT_FOR_PUBLISH * rgp,
+        rgp,
+    );
+
+    let signed = to_sender_signed_transaction(txn_data, &sender_key);
+    let (
+        DryRunTransactionBlockResponse {
+            effects,
+            execution_error_source,
+            ..
+        },
+        _,
+        _,
+        _,
+    ) = authority
+        .dry_exec_transaction(
+            signed.data().intent_message().value.clone(),
+            *signed.digest(),
+        )
+        .unwrap();
+    assert_eq!(
+        effects.status(),
+        &IotaExecutionStatus::Failure {
+            error: "Arity mismatch for Move function. The number of arguments does not match the number of parameters in command 0".to_string(),
+        }
+    );
+
+    assert_eq!(
+        execution_error_source,
+        Some("Expected 1 argument calling function 'is_none', but found 0".to_string()),
+    )
+}
+
+#[tokio::test]
 async fn test_publish_transitive_dependencies_ok() {
     use iota_move_build::BuildConfig;
 
@@ -6333,10 +6270,8 @@ async fn test_consensus_handler_per_object_congestion_control(
         assert!(
             cert.data().transaction_data().gas_price() >= 4000
                 || cert
-                    .data()
-                    .transaction_data()
                     .shared_input_objects()
-                    .iter()
+                    .into_iter()
                     .any(|obj| { obj.id() == shared_objects[1].id() })
         );
     }
@@ -6393,10 +6328,8 @@ async fn test_consensus_handler_per_object_congestion_control(
         assert!(
             cert.data().transaction_data().gas_price() >= 2000
                 || cert
-                    .data()
-                    .transaction_data()
                     .shared_input_objects()
-                    .iter()
+                    .into_iter()
                     .any(|obj| { obj.id() == shared_objects[1].id() })
         );
     }

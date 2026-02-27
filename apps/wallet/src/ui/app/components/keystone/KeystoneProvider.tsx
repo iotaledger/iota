@@ -22,11 +22,16 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { KeystoneSigningCanceledByUserError } from './keystoneErrors';
 import { useAppSelector, useCheckCameraPermissionStatus, useFullscreenGuard } from '_hooks';
-import { AppType } from '../../redux/slices/app/appType';
+import { ExtensionViewType } from '../../redux/slices/app/appType';
 import { Warning } from '@iota/apps-ui-icons';
 
+export enum SignatureType {
+    Transaction = 'transaction',
+    Message = 'message',
+}
+
 interface KeystoneContextValue {
-    requestSignature: (ur: UR) => Promise<string>;
+    requestSignature: (ur: UR, signatureType?: SignatureType) => Promise<string>;
 }
 
 const KeystoneContext = createContext<KeystoneContextValue | undefined>(undefined);
@@ -37,6 +42,7 @@ interface KeystoneProviderProps {
 
 interface Request {
     ur: UR;
+    signatureType: SignatureType;
     reply: (signature: string) => void;
     cancel: () => void;
 }
@@ -46,7 +52,9 @@ export function KeystoneProvider({ children }: KeystoneProviderProps) {
     const [goFullscreen, setGoFullscreen] = useState(false);
     useFullscreenGuard(goFullscreen);
 
-    const isFullscreen = useAppSelector((state) => state.app.appType === AppType.Fullscreen);
+    const isFullscreen = useAppSelector(
+        (state) => state.app.extensionViewType === ExtensionViewType.FullScreen,
+    );
 
     useEffect(() => {
         if (currentRequest) {
@@ -69,10 +77,11 @@ export function KeystoneProvider({ children }: KeystoneProviderProps) {
 
     const context = useMemo(() => {
         return {
-            requestSignature: (ur: UR) =>
+            requestSignature: (ur: UR, signatureType = SignatureType.Transaction) =>
                 new Promise<string>((resolve, reject) => {
                     setCurrentRequest({
                         ur,
+                        signatureType,
                         reply: (signature) => {
                             setCurrentRequest(null);
                             resolve(signature);
@@ -103,7 +112,11 @@ enum Step {
     ScanQr,
 }
 
-export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Request }) {
+export function ScanBothWays({
+    request: { ur, signatureType, reply, cancel },
+}: {
+    request: Request;
+}) {
     const [step, setStep] = useState<Step>(Step.ShowQr);
     const [cameraPermissionStatus] = useCheckCameraPermissionStatus();
 
@@ -128,10 +141,13 @@ export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Requ
         toast.error(`Error while scanning QR: ${error}`);
     }
 
+    const headerTitle =
+        signatureType === SignatureType.Message ? 'Confirm Message' : 'Confirm Transaction';
+
     return (
         <Dialog open onOpenChange={(open) => {}}>
             <DialogContent containerId="overlay-portal-container">
-                <Header title="Confirm Transaction" titleCentered onClose={() => onCancel()} />
+                <Header title={headerTitle} titleCentered onClose={() => onCancel()} />
                 <DialogBody>
                     <div className="flex flex-col items-center gap-2">
                         {step === Step.ShowQr ? (

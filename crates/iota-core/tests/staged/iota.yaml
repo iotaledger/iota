@@ -118,6 +118,30 @@ ChangeEpochV3:
                 TYPENAME: ObjectID
     - eligible_active_validators:
         SEQ: U64
+ChangeEpochV4:
+  STRUCT:
+    - epoch: U64
+    - protocol_version:
+        TYPENAME: ProtocolVersion
+    - storage_charge: U64
+    - computation_charge: U64
+    - computation_charge_burned: U64
+    - storage_rebate: U64
+    - non_refundable_storage_fee: U64
+    - epoch_start_timestamp_ms: U64
+    - system_packages:
+        SEQ:
+          TUPLE:
+            - TYPENAME: SequenceNumber
+            - SEQ:
+                SEQ: U8
+            - SEQ:
+                TYPENAME: ObjectID
+    - eligible_active_validators:
+        SEQ: U64
+    - scores:
+        SEQ: U64
+    - adjust_rewards_by_score: BOOL
 CheckpointCommitment:
   ENUM:
     0:
@@ -391,8 +415,12 @@ EndOfEpochTransactionKind:
         NEWTYPE:
           TYPENAME: ChangeEpochV3
     3:
-      AuthenticatorStateCreate: UNIT
+      ChangeEpochV4:
+        NEWTYPE:
+          TYPENAME: ChangeEpochV4
     4:
+      AuthenticatorStateCreate: UNIT
+    5:
       AuthenticatorStateExpire:
         NEWTYPE:
           TYPENAME: AuthenticatorStateExpire

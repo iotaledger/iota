@@ -46,7 +46,7 @@ use crate::{
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     core_thread::CoreThreadDispatcher,
-    dag_state::DagState,
+    dag_state::{DagState, DataSource},
     error::{ConsensusError, ConsensusResult},
     network::NetworkClient,
     transactions_synchronizer::TransactionsSynchronizerHandle,
@@ -715,7 +715,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         // we don't want this mechanism to keep feedback looping on fetching
         // more blocks. The periodic synchronization will take care of that.
         let (missing_blocks, missing_committed_txns) = core_dispatcher
-            .add_block_headers(block_headers)
+            .add_block_headers(block_headers, DataSource::HeaderSynchronizer)
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
 
@@ -1531,7 +1531,7 @@ mod tests {
         context::Context,
         core::ReasonToCreateBlock,
         core_thread::{CoreError, CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
-        dag_state::{DagState, TransactionSource},
+        dag_state::{DagState, DataSource},
         error::{ConsensusError, ConsensusResult},
         header_synchronizer::{
             FETCH_BLOCK_HEADERS_CONCURRENCY, FETCH_REQUEST_TIMEOUT, HeaderSynchronizer,
@@ -1539,6 +1539,7 @@ mod tests {
         },
         network::{BlockBundleStream, NetworkClient},
         storage::mem_store::MemStore,
+        transaction_ref::GenericTransactionRef,
         transactions_synchronizer::TransactionsSynchronizer,
     };
 
@@ -1602,7 +1603,7 @@ mod tests {
         async fn fetch_transactions(
             &self,
             _peer: AuthorityIndex,
-            _block_refs: Vec<BlockRef>,
+            _block_refs: Vec<GenericTransactionRef>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
@@ -1673,6 +1674,15 @@ mod tests {
             }
 
             Ok(serialized_headers)
+        }
+
+        async fn fetch_commits_and_transactions(
+            &self,
+            _peer: AuthorityIndex,
+            _commit_range: CommitRange,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+            unimplemented!("fetch_commits_and_transactions not implemented in mock")
         }
     }
 
@@ -2020,7 +2030,7 @@ mod tests {
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let network_client = Arc::new(MockNetworkClient::default());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -2088,7 +2098,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let network_client = Arc::new(MockNetworkClient::default());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -2171,7 +2181,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let network_client = Arc::new(MockNetworkClient::default());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let transactions_synchronizer = TransactionsSynchronizer::start(
             network_client.clone(),
@@ -2281,7 +2291,7 @@ mod tests {
         let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let network_client = Arc::new(MockNetworkClient::default());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -2417,7 +2427,7 @@ mod tests {
         let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let network_client = Arc::new(MockNetworkClient::default());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -2511,6 +2521,7 @@ mod tests {
             let mut d = dag_state.write();
             for index in 1..=commit_index {
                 let commit = TrustedCommit::new_for_test(
+                    &context,
                     index,
                     CommitDigest::MIN,
                     0,
@@ -2567,7 +2578,7 @@ mod tests {
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let network_client = Arc::new(MockNetworkClient::default());
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let our_index = AuthorityIndex::new_for_test(0);
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -2706,10 +2717,11 @@ mod tests {
         async fn add_blocks(
             &self,
             blocks: Vec<VerifiedBlock>,
+            _source: DataSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -2723,10 +2735,11 @@ mod tests {
         async fn add_block_headers(
             &self,
             _blocks: Vec<VerifiedBlockHeader>,
+            _source: DataSource,
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -2736,7 +2749,7 @@ mod tests {
         async fn add_transactions(
             &self,
             _transactions: Vec<VerifiedTransactions>,
-            _source: TransactionSource,
+            _source: DataSource,
         ) -> Result<(), CoreError> {
             unimplemented!("Unimplemented")
         }
@@ -2747,7 +2760,7 @@ mod tests {
 
         async fn get_missing_transaction_data(
             &self,
-        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!("Unimplemented")
         }
 
@@ -2758,7 +2771,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -2766,11 +2779,25 @@ mod tests {
             Ok((BTreeSet::new(), BTreeMap::new()))
         }
 
+        async fn add_subdags_from_fast_sync(
+            &self,
+            _output: crate::commit_syncer::fast::FastSyncOutput,
+        ) -> Result<(), CoreError> {
+            unimplemented!()
+        }
+
+        async fn reinitialize_components(
+            &self,
+            _block_headers: Vec<crate::block_header::VerifiedBlockHeader>,
+        ) -> Result<(), CoreError> {
+            unimplemented!()
+        }
+
         async fn new_block(
             &self,
             _round: Round,
             _reason: ReasonToCreateBlock,
-        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             Ok(BTreeMap::new())
         }
 
@@ -2787,10 +2814,6 @@ mod tests {
         fn set_last_known_proposed_round(&self, _round: Round) -> Result<(), CoreError> {
             Ok(())
         }
-
-        fn highest_received_rounds(&self) -> Vec<Round> {
-            Vec::new()
-        }
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -2799,7 +2822,7 @@ mod tests {
             // 1) Setup 10‐node context and in‐mem DAG
             let (ctx, _) = Context::new_for_test(10);
             let context = Arc::new(ctx);
-            let store = Arc::new(MemStore::new());
+            let store = Arc::new(MemStore::new(context.clone()));
             let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
             let inflight = InflightBlockHeadersMap::new();
 
@@ -2889,7 +2912,7 @@ mod tests {
         // 1) Setup a 10-node context, in-memory DAG, and inflight map
         let (ctx, _) = Context::new_for_test(10);
         let context = Arc::new(ctx);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let inflight = InflightBlockHeadersMap::new();
         let network_client = Arc::new(MockNetworkClient::default());
@@ -3060,7 +3083,7 @@ mod tests {
         let context = Arc::new(context);
         let block_verifier = Arc::new(NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
@@ -3139,7 +3162,7 @@ mod tests {
         let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let (commands_sender, _commands_receiver) =
             monitored_mpsc::channel("consensus_synchronizer_commands", 1000);

@@ -4,12 +4,14 @@
 
 pub mod verifier;
 
+pub mod authenticator_verifier;
 pub mod entry_points_verifier;
 pub mod global_storage_access_verifier;
 pub mod id_leak_verifier;
 pub mod meter;
 pub mod one_time_witness_verifier;
 pub mod private_generics;
+pub mod runtime_module_metadata;
 pub mod struct_with_key_verifier;
 
 use iota_types::error::{ExecutionError, ExecutionErrorKind};

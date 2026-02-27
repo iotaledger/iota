@@ -6,9 +6,9 @@ use std::str::FromStr;
 
 use anyhow::Ok;
 use fastcrypto::{
-    ed25519::Ed25519KeyPair,
+    ed25519::{Ed25519KeyPair, Ed25519PublicKey, Ed25519Signature},
     encoding::{Base64, Encoding, Hex},
-    traits::ToFromBytes,
+    traits::{ToFromBytes, VerifyingKey},
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
 use iota_sdk_types::crypto::{Intent, IntentScope};
@@ -578,8 +578,8 @@ async fn test_keytool_bls12381() -> Result<(), anyhow::Error> {
 async fn test_sign_command() -> Result<(), anyhow::Error> {
     // Add a keypair
     let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(1));
-    let binding = keystore.addresses();
-    let sender = binding.first().unwrap();
+    let addresses = keystore.addresses();
+    let sender = addresses.first().unwrap();
     let alias = keystore.get_alias_by_address(sender).unwrap();
 
     // Create a dummy TransactionData
@@ -633,6 +633,57 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
 }
 
 #[test]
+async fn test_sign_raw_command() -> Result<(), anyhow::Error> {
+    // Add a keypair
+    let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(1));
+    let addresses = keystore.addresses();
+    let sender = addresses.first().unwrap();
+    let alias = keystore.get_alias_by_address(sender).unwrap();
+
+    let raw_data = Hex::encode_with_format("IOTA");
+
+    let verify_sign_raw_output =
+        |output: CommandOutput, expected_address: &IotaAddress, expected_data: &str| {
+            let CommandOutput::SignRaw(sign_raw_data) = output else {
+                panic!("Expected SignRaw output");
+            };
+            assert_eq!(sign_raw_data.iota_address, *expected_address);
+            assert_eq!(sign_raw_data.raw_data, expected_data);
+            // Verify the signature with actual Ed25519 verification
+            let ed_sig =
+                Ed25519Signature::from_bytes(&Hex::decode(&sign_raw_data.signature_hex).unwrap())
+                    .expect("Invalid Ed25519 signature bytes");
+            let ed_pk =
+                Ed25519PublicKey::from_bytes(&Hex::decode(&sign_raw_data.public_key_hex).unwrap())
+                    .expect("Invalid Ed25519 public key bytes");
+            let data_bytes = Hex::decode(&sign_raw_data.raw_data).unwrap();
+            ed_pk
+                .verify(&data_bytes, &ed_sig)
+                .expect("Ed25519 signature verification failed");
+        };
+
+    // Test with address
+    let output = KeyToolCommand::SignRaw {
+        address: KeyIdentity::Address(*sender),
+        data: raw_data.to_string(),
+    }
+    .execute(&mut keystore)
+    .await?;
+    verify_sign_raw_output(output, sender, &raw_data);
+
+    // Test with alias
+    let output_alias = KeyToolCommand::SignRaw {
+        address: KeyIdentity::Alias(alias),
+        data: raw_data.to_string(),
+    }
+    .execute(&mut keystore)
+    .await?;
+    verify_sign_raw_output(output_alias, sender, &raw_data);
+
+    Ok(())
+}
+
+#[test]
 async fn test_show() -> Result<(), anyhow::Error> {
     let temp_dir = TempDir::new().unwrap();
     let path = temp_dir.path().join("iota.key");
@@ -655,15 +706,15 @@ async fn test_show() -> Result<(), anyhow::Error> {
                 "0x5f60f23c01486c6af8540144cf9fa74c167257b93c08fc33b74b8f173a885038"
             );
             assert_eq!(
-                &key.public_base64_key,
+                key.public_base64_key.unwrap(),
                 "svUb1I94/15y2k6LKaEWqNLFf1rNMHq0hcWFAJynu0g="
             );
             assert_eq!(
-                &key.public_base64_key_with_flag,
+                key.public_base64_key_with_flag.unwrap(),
                 "ALL1G9SPeP9ectpOiymhFqjSxX9azTB6tIXFhQCcp7tI"
             );
-            assert_eq!(&key.key_scheme, "ed25519");
-            assert_eq!(key.flag, 0);
+            assert_eq!(key.key_scheme.unwrap(), "ed25519");
+            assert_eq!(key.flag.unwrap(), 0);
             assert_eq!(
                 &key.peer_id.unwrap(),
                 "b2f51bd48f78ff5e72da4e8b29a116a8d2c57f5acd307ab485c585009ca7bb48"
@@ -787,6 +838,117 @@ async fn test_tx_digest() -> Result<(), anyhow::Error> {
             );
         }
         _ => panic!("Wrong output type"),
+    }
+
+    Ok(())
+}
+
+#[test]
+async fn test_decode_sig() -> Result<(), anyhow::Error> {
+    use crate::keytool::DecodedSigOutput;
+
+    let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
+
+    // Test 1: Decode a direct Ed25519 signature
+    let ed25519_sig = "AG4IVInVEl5QyY97PaJfvwrPi4vI4EUP6ZSKLx2oVQeAx6D6Kgc/dwj/cuc1z6J38kfKNGmXUuBz21d1Gmc+gAMNHamrF2PHX08fsHkxUQxLY8tTL3sINA2AMLW9tCo9dA==";
+    let output = KeyToolCommand::DecodeSig {
+        sig: ed25519_sig.to_string(),
+    }
+    .execute(&mut keystore)
+    .await?;
+    let CommandOutput::DecodeSig(decoded) = output else {
+        panic!("unexpected output: {output:?}");
+    };
+    match decoded {
+        DecodedSigOutput::Signature {
+            scheme,
+            public_key_base64,
+            address,
+            signature_hex,
+        } => {
+            assert_eq!(scheme, "ed25519");
+            assert_eq!(
+                public_key_base64,
+                "AA0dqasXY8dfTx+weTFRDEtjy1Mvewg0DYAwtb20Kj10"
+            );
+            assert_eq!(
+                address,
+                "0x2a771079fddd6faed3b4ff8062112ca1cf3a33c98b027c0685b8fbff720ad261"
+            );
+            assert_eq!(
+                signature_hex,
+                "0x6e085489d5125e50c98f7b3da25fbf0acf8b8bc8e0450fe9948a2f1da8550780c7a0fa2a073f7708ff72e735cfa277f247ca34699752e073db57751a673e8003"
+            );
+        }
+        _ => panic!("Expected Signature variant"),
+    }
+
+    // Test 2: Decode a MoveAuthenticator signature
+    let move_auth_sig = "BwEAggGAAWRjNTczYTU4YzdkYTAxNmFmYzYwMmQyYWU1NWFiZGFhNmRkYzNlNzljMmY0YzA4NTM5NGM2YzI0YjQ4MzllYzRlMDEyMGRiNjkwMmIwOTc3NzIxMThhNzhhYmE2MjA4OTg4MjAwNTEwOWYxZmEzYTVjMDc4ZDkxNjQ0NDU2NjBjAAEByLo1vvdMf/26NtUKB9kj0Pu354Q/ITlRsZ5jYimoCR4EAAAAAAAAAAA=";
+    let output = KeyToolCommand::DecodeSig {
+        sig: move_auth_sig.to_string(),
+    }
+    .execute(&mut keystore)
+    .await?;
+    let CommandOutput::DecodeSig(decoded) = output else {
+        panic!("unexpected output: {output:?}");
+    };
+    match decoded {
+        DecodedSigOutput::MoveAuthenticator {
+            call_arguments,
+            type_arguments,
+            object_to_authenticate,
+        } => {
+            assert_eq!(
+                call_arguments,
+                vec![
+                    "0x80016463353733613538633764613031366166633630326432616535356162646161366464633365373963326634633038353339346336633234623438333965633465303132306462363930326230393737373231313861373861626136323038393838323030353130396631666133613563303738643931363434343536363063"
+                ]
+            );
+            assert_eq!(type_arguments, serde_json::json!([]));
+            assert_eq!(
+                object_to_authenticate,
+                serde_json::json!({"Object": {"SharedObject": {"id": "0xc8ba35bef74c7ffdba36d50a07d923d0fbb7e7843f213951b19e636229a8091e", "initial_shared_version": 4, "mutable": false}}})
+            );
+        }
+        _ => panic!("Expected MoveAuthenticator variant"),
+    }
+
+    // Test 3: Decode signature from a full SenderSignedData (transaction with
+    // signature) The fallback decodes the transaction and extracts the first
+    // signature
+    let full_tx = "AQAAAAAAAgAIAMqaOwAAAAAAIBEREREVBOk1DmNdZc04zNLAKUNMajpIDYlHqbpqFbIVAgIAAQEAAAEBAwAAAAABAQARERERFQTpNQ5jXWXNOMzSwClDTGo6SA2JR6m6ahWyFQFODzG01xo0l0JIwq9SzbRyvRKR/9TvCUbh8lrerlLQWT9uOykAAAAAIBTjvmRbByY+0uGCBeTvSXQnUXonVSdJMuPOIwfGCZ/4ERERERUE6TUOY11lzTjM0sApQ0xqOkgNiUepumoVshXoAwAAAAAAAOBvPAAAAAAAAAFhAKFqV1NustAADKOOOfAZIA/9HrnmA9PqwAmOrqTs7OKjaEXylfywifj2XZyBmEJYodGE89xlkDOthe+bpBIrkwEoe8lptdiMUw3h3rcxQJf3bWp9zFLP4Eq3rpQOam52cw==";
+    let output = KeyToolCommand::DecodeSig {
+        sig: full_tx.to_string(),
+    }
+    .execute(&mut keystore)
+    .await?;
+    let CommandOutput::DecodeSig(decoded) = output else {
+        panic!("unexpected output: {output:?}");
+    };
+    // Verify we successfully decoded an ed25519 signature from the transaction
+    match decoded {
+        DecodedSigOutput::Signature {
+            scheme,
+            public_key_base64,
+            address,
+            signature_hex,
+        } => {
+            assert_eq!(scheme, "ed25519");
+            assert_eq!(
+                public_key_base64,
+                "ACh7yWm12IxTDeHetzFAl/dtan3MUs/gSreulA5qbnZz"
+            );
+            assert_eq!(
+                address,
+                "0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215"
+            );
+            assert_eq!(
+                signature_hex,
+                "0xa16a57536eb2d0000ca38e39f019200ffd1eb9e603d3eac0098eaea4ecece2a36845f295fcb089f8f65d9c81984258a1d184f3dc659033ad85ef9ba4122b9301"
+            );
+        }
+        _ => panic!("Expected Signature variant"),
     }
 
     Ok(())

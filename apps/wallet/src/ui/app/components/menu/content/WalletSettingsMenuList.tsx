@@ -3,19 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useNextMenuUrl, Overlay } from '_components';
-import {
-    useAppSelector,
-    formatAutoLock,
-    useAutoLockMinutes,
-    useBackgroundClient,
-    useActiveAccount,
-} from '_hooks';
+import { useAppSelector, formatAutoLock, useAutoLockMinutes, useLogoutMutation } from '_hooks';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQueryClient, useMutation } from '@tanstack/react-query';
-import { persister } from '_src/ui/app/helpers/queryClient';
 import { useState } from 'react';
 import { ConfirmationModal } from '_src/ui/app/shared/ConfirmationModal';
 import {
@@ -23,10 +15,10 @@ import {
     Globe,
     Info,
     LockLocked,
-    LockUnlocked,
     Logout,
     Expand,
     Discord,
+    Sidepanel,
 } from '@iota/apps-ui-icons';
 import {
     ButtonType,
@@ -37,16 +29,19 @@ import {
     CardImage,
     CardType,
     ImageType,
+    Toggle,
 } from '@iota/apps-ui-kit';
 import { ampli } from '_src/shared/analytics/ampli';
 import { useTheme, getCustomNetwork, FAQ_LINK, ToS_LINK, DISCORD_SUPPORT_LINK } from '@iota/core';
+import { useSidePanel } from '_src/ui/app/hooks/useSidePanel';
+import { useSidePanelMutation } from '_src/ui/app/hooks/useSidePanelMutation';
+import { SidePanel } from '_src/polyfills/sidepanel';
 import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 import { openInNewTab } from '_src/shared/utils';
 
 export function MenuList() {
     const { themePreference } = useTheme();
     const navigate = useNavigate();
-    const activeAccount = useActiveAccount();
     const networkUrl = useNextMenuUrl(true, '/network');
     const autoLockUrl = useNextMenuUrl(true, '/auto-lock');
     const themeUrl = useNextMenuUrl(true, '/theme');
@@ -54,24 +49,13 @@ export function MenuList() {
     const networkConfig = network === Network.Custom ? getCustomNetwork() : getNetwork(network);
     const version = Browser.runtime.getManifest().version;
     const autoLockInterval = useAutoLockMinutes();
-    const isAppPopup = useAppSelector(
-        (state) => state.app.extensionViewType === ExtensionViewType.Popup,
-    );
+    const sidePanel = useSidePanel();
+    const sidePanelMutation = useSidePanelMutation();
+    const extensionType = useAppSelector((state) => state.app.extensionViewType);
 
     // Logout
     const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
-    const backgroundClient = useBackgroundClient();
-    const queryClient = useQueryClient();
-    const logoutMutation = useMutation({
-        mutationKey: ['logout', 'clear wallet'],
-        mutationFn: async () => {
-            ampli.client.reset();
-            queryClient.cancelQueries();
-            queryClient.clear();
-            await persister.removeClient();
-            await backgroundClient.clearWallet();
-        },
-    });
+    const logoutMutation = useLogoutMutation();
 
     function handleAutoLockSubtitle(): string {
         if (autoLockInterval.data === null) {
@@ -94,14 +78,42 @@ export function MenuList() {
     function onThemeClick() {
         navigate(themeUrl);
     }
+    async function onSidePanelClick(
+        _isToggled: boolean,
+        event: React.ChangeEvent<HTMLInputElement>,
+    ) {
+        const isSidePanelVisible = event.target.checked;
+
+        if (!isSidePanelVisible) {
+            // Track before the mutation: SidePanel.close() destroys this window, so we must flush before it runs
+            ampli.sidePanelChanged({ enabled: false });
+            await ampli.client.flush?.();
+        }
+
+        try {
+            await sidePanelMutation.mutateAsync(isSidePanelVisible);
+        } catch {
+            // If the mutation fails, don't track the enabled event
+            return;
+        }
+
+        if (isSidePanelVisible) {
+            // Track after the mutation: the popup is still alive, so it's safe to flush before closing
+            ampli.sidePanelChanged({ enabled: true });
+            await ampli.client.flush?.();
+            window.close();
+        }
+    }
 
     function onSupportClick() {
-        ampli.openedLink({ url: DISCORD_SUPPORT_LINK });
+        ampli.externalLinkOpened({
+            type: 'discord support',
+        });
         window.open(DISCORD_SUPPORT_LINK, '_blank', 'noopener noreferrer');
     }
 
     function onFAQClick() {
-        ampli.openedLink({ url: FAQ_LINK });
+        ampli.externalLinkOpened({ type: 'faqs documentation' });
         window.open(FAQ_LINK, '_blank', 'noopener noreferrer');
     }
 
@@ -117,7 +129,7 @@ export function MenuList() {
         {
             title: 'Auto Lock Profile',
             subtitle: autoLockSubtitle,
-            icon: activeAccount?.isLocked ? <LockLocked /> : <LockUnlocked />,
+            icon: <LockLocked />,
             onClick: onAutoLockClick,
         },
         {
@@ -135,8 +147,18 @@ export function MenuList() {
             title: 'Expand View',
             icon: <Expand />,
             onClick: () => openInNewTab('/tokens'),
-            hidden: !isAppPopup,
+            hidden: extensionType !== ExtensionViewType.Popup,
         },
+        ...(SidePanel.isSupported()
+            ? [
+                  {
+                      title: 'Side Panel',
+                      subtitle: sidePanel.data ? `Enabled` : 'Disabled',
+                      icon: <Sidepanel />,
+                      tailIcon: <Toggle isToggled={!!sidePanel.data} onChange={onSidePanelClick} />,
+                  },
+              ]
+            : []),
         {
             title: 'FAQ',
             icon: <Info />,
@@ -161,7 +183,7 @@ export function MenuList() {
                                 </div>
                             </CardImage>
                             <CardBody title={item.title} subtitle={item.subtitle} />
-                            <CardAction type={CardActionType.Link} />
+                            {item.tailIcon ?? <CardAction type={CardActionType.Link} />}
                         </Card>
                     ))}
                     <ConfirmationModal

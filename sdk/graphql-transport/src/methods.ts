@@ -326,11 +326,13 @@ export const RPC_METHODS: {
             let hasMoreFriends = moveModule.friends?.pageInfo.hasNextPage ?? false;
             let hasMoreFunctions = moveModule.functions?.pageInfo.hasNextPage ?? false;
             let hasMoreStructs = moveModule.structs?.pageInfo.hasNextPage ?? false;
+            let hasMoreEnums = moveModule.enums?.pageInfo.hasNextPage ?? false;
             let afterFriends = moveModule.friends?.pageInfo.endCursor;
             let afterFunctions = moveModule.functions?.pageInfo.endCursor;
             let afterStructs = moveModule.structs?.pageInfo.endCursor;
+            let afterEnums = moveModule.enums?.pageInfo.endCursor;
 
-            while (hasMoreFriends || hasMoreStructs || hasMoreFunctions) {
+            while (hasMoreFriends || hasMoreStructs || hasMoreFunctions || hasMoreEnums) {
                 const page = await transport.graphqlQuery(
                     {
                         query: PaginateMoveModuleListsDocument,
@@ -340,9 +342,11 @@ export const RPC_METHODS: {
                             hasMoreFriends,
                             hasMoreFunctions,
                             hasMoreStructs,
+                            hasMoreEnums,
                             afterFriends,
                             afterFunctions,
                             afterStructs,
+                            afterEnums,
                         },
                     },
                     (data) => data.object?.asMovePackage?.module,
@@ -351,12 +355,15 @@ export const RPC_METHODS: {
                 moveModule.friends.nodes.push(...(page.friends?.nodes ?? []));
                 moveModule.functions?.nodes.push(...(page.functions?.nodes ?? []));
                 moveModule.structs?.nodes.push(...(page.structs?.nodes ?? []));
+                moveModule.enums?.nodes.push(...(page.enums?.nodes ?? []));
                 hasMoreFriends = page.friends?.pageInfo.hasNextPage ?? false;
                 hasMoreFunctions = page.functions?.pageInfo.hasNextPage ?? false;
                 hasMoreStructs = page.structs?.pageInfo.hasNextPage ?? false;
+                hasMoreEnums = page.enums?.pageInfo.hasNextPage ?? false;
                 afterFriends = page.friends?.pageInfo.endCursor;
                 afterFunctions = page.functions?.pageInfo.endCursor;
                 afterStructs = page.structs?.pageInfo.endCursor;
+                afterEnums = page.enums?.pageInfo.endCursor;
             }
         }
 
@@ -381,11 +388,13 @@ export const RPC_METHODS: {
         let hasMoreFriends = moveModule.friends?.pageInfo.hasNextPage ?? false;
         let hasMoreFunctions = moveModule.functions?.pageInfo.hasNextPage ?? false;
         let hasMoreStructs = moveModule.structs?.pageInfo.hasNextPage ?? false;
+        let hasMoreEnums = moveModule.enums?.pageInfo.hasNextPage ?? false;
         let afterFriends = moveModule.friends?.pageInfo.endCursor;
         let afterFunctions = moveModule.functions?.pageInfo.endCursor;
         let afterStructs = moveModule.structs?.pageInfo.endCursor;
+        let afterEnums = moveModule.enums?.pageInfo.endCursor;
 
-        while (hasMoreFriends || hasMoreStructs || hasMoreFunctions) {
+        while (hasMoreFriends || hasMoreStructs || hasMoreFunctions || hasMoreEnums) {
             const page = await transport.graphqlQuery(
                 {
                     query: PaginateMoveModuleListsDocument,
@@ -395,9 +404,11 @@ export const RPC_METHODS: {
                         hasMoreFriends,
                         hasMoreFunctions,
                         hasMoreStructs,
+                        hasMoreEnums,
                         afterFriends,
                         afterFunctions,
                         afterStructs,
+                        afterEnums,
                     },
                 },
                 (data) => data.object?.asMovePackage?.module,
@@ -406,12 +417,15 @@ export const RPC_METHODS: {
             moveModule.friends.nodes.push(...(page.friends?.nodes ?? []));
             moveModule.functions?.nodes.push(...(page.functions?.nodes ?? []));
             moveModule.structs?.nodes.push(...(page.structs?.nodes ?? []));
+            moveModule.enums?.nodes.push(...(page.enums?.nodes ?? []));
             hasMoreFriends = page.friends?.pageInfo.hasNextPage ?? false;
             hasMoreFunctions = page.functions?.pageInfo.hasNextPage ?? false;
             hasMoreStructs = page.structs?.pageInfo.hasNextPage ?? false;
+            hasMoreEnums = page.enums?.pageInfo.hasNextPage ?? false;
             afterFriends = page.friends?.pageInfo.endCursor;
             afterFunctions = page.functions?.pageInfo.endCursor;
             afterStructs = page.structs?.pageInfo.endCursor;
+            afterEnums = page.enums?.pageInfo.endCursor;
         }
 
         return mapNormalizedMoveModule(moveModule, normalizeIotaAddress(pkg));
@@ -459,7 +473,9 @@ export const RPC_METHODS: {
                           ? inputFilter.AddressOwner
                           : undefined,
             };
-            const unsupportedFilters: string[] = [];
+
+            // GraphQL's ObjectFilter doesn't support complex filter composition or version filtering.
+            const unsupportedFilters = ['MatchAll', 'MatchAny', 'MatchNone', 'Version'];
 
             for (const unsupportedFilter of unsupportedFilters) {
                 if (unsupportedFilter in inputFilter) {
@@ -497,26 +513,35 @@ export const RPC_METHODS: {
         };
     },
     async getObject(transport, [id, options]) {
-        const object = await transport.graphqlQuery(
-            {
-                query: GetObjectDocument,
-                variables: {
-                    id,
-                    showBcs: options?.showBcs,
-                    showContent: options?.showContent,
-                    showDisplay: options?.showDisplay,
-                    showOwner: options?.showOwner,
-                    showPreviousTransaction: options?.showPreviousTransaction,
-                    showStorageRebate: options?.showStorageRebate,
-                    showType: options?.showType,
+        try {
+            const object = await transport.graphqlQuery(
+                {
+                    query: GetObjectDocument,
+                    variables: {
+                        id,
+                        showBcs: options?.showBcs,
+                        showContent: options?.showContent,
+                        showDisplay: options?.showDisplay,
+                        showOwner: options?.showOwner,
+                        showPreviousTransaction: options?.showPreviousTransaction,
+                        showStorageRebate: options?.showStorageRebate,
+                        showType: options?.showType,
+                    },
                 },
-            },
-            (data) => data.object,
-        );
+                (data) => data.object,
+            );
 
-        return {
-            data: mapGraphQLObjectToRpcObject(object, options ?? {}),
-        };
+            return {
+                data: mapGraphQLObjectToRpcObject(object, options ?? {}),
+            };
+        } catch (_) {
+            return {
+                error: {
+                    code: 'notExists',
+                    object_id: id,
+                },
+            };
+        }
     },
     async tryGetPastObject(transport, [id, version, options]) {
         const data = await transport.graphqlQuery({
@@ -536,7 +561,7 @@ export const RPC_METHODS: {
 
         if (!data.current) {
             return {
-                details: 'Could not find the referenced object',
+                details: id,
                 status: 'ObjectNotExists',
             };
         }
@@ -1440,6 +1465,7 @@ export const RPC_METHODS: {
             max_package_dependencies: 'u32',
             bridge_should_try_to_finalize_committee: 'bool',
             consensus_gc_depth: 'u32',
+            scorer_version: 'u16',
         };
 
         for (const { key, value } of protocolConfig.configs) {

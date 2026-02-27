@@ -1948,15 +1948,20 @@ async fn failed_stored_tx_into_transaction_block() {
         failed_tx
             .try_into_iota_transaction_block_response(
                 IotaTransactionBlockResponseOptions::full_content(),
-                package_resolver
+                &package_resolver
             )
             .await
             .is_ok()
     );
+    // We have to drop the package resolver before dropping the test db because it
+    // holds a reference to the db pool and the active connection will prevent the
+    // db from being dropped.
+    drop(package_resolver);
     test_db.drop_if_exists();
 }
 
 #[test]
+#[ignore = "https://github.com/iotaledger/iota/issues/10291"]
 fn get_chain_identifier_with_pruning_enabled() {
     let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
 

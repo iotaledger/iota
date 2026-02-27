@@ -1,0 +1,9 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 1 task
+
+task 0, lines 4-22:
+//# publish
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("Invalid parameter type for authenticator function: &vector<_::vector::NonObjectTemplated<T0>>. Non object immutable references are invalid. Valid types are immutable references to objects or primitive types."), command: Some(0) } }

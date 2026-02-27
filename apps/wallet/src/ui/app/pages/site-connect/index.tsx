@@ -2,13 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-    AccountItemApproveConnection,
-    AccountMultiSelectWithControls,
-    Loading,
-    SectionHeader,
-    UserApproveContainer,
-} from '_components';
+import { AccountMultiSelectWithControls, Loading, UserApproveContainer } from '_components';
 import { useAppDispatch, useAppSelector, useAccountGroups, useActiveAccount } from '_hooks';
 import type { RootState } from '_src/ui/app/redux/rootReducer';
 import { permissionsSelectors, respondToPermissionRequest } from '_redux/slices/permissions';
@@ -19,9 +13,12 @@ import { useParams } from 'react-router-dom';
 import { PageMainLayoutTitle } from '../../shared/page-main-layout/PageMainLayoutTitle';
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import { Warning, Info } from '@iota/apps-ui-icons';
+import { ExtensionViewType } from '../../redux/slices/app/appType';
+import { SidePanel } from '_src/polyfills/sidepanel';
 
 export function SiteConnectPage() {
     const { requestID } = useParams();
+    const extensionViewType = useAppSelector((state) => state.app.extensionViewType);
     const permissionsInitialized = useAppSelector(({ permissions }) => permissions.initialized);
     const loading = !permissionsInitialized;
     const permissionSelector = useMemo(
@@ -34,18 +31,24 @@ export function SiteConnectPage() {
     const activeAccount = useActiveAccount();
     const accountGroups = useAccountGroups();
     const accounts = accountGroups.list();
-    const unlockedAccounts = accounts.filter((account) => !account.isLocked);
-    const lockedAccounts = accounts.filter((account) => account.isLocked);
 
     const [accountsToConnect, setAccountsToConnect] = useState<SerializedUIAccount[]>(() => {
         const preselectedAccounts = activeAccount && !activeAccount.isLocked ? [activeAccount] : [];
 
         const previouslyPermittedAccounts = permissionRequest?.accounts.length
-            ? unlockedAccounts.filter((acc) => permissionRequest.accounts.includes(acc.address))
+            ? accounts.filter((acc) => permissionRequest.accounts.includes(acc.address))
             : [];
 
         return preselectedAccounts.concat(previouslyPermittedAccounts);
     });
+
+    function handleOnFinish() {
+        if (extensionViewType === ExtensionViewType.SidePanel) {
+            SidePanel.enableAndGoTo(`${location.pathname}`);
+        } else {
+            window.close();
+        }
+    }
 
     const handleOnSubmit = useCallback(
         async (allowed: boolean) => {
@@ -64,14 +67,14 @@ export function SiteConnectPage() {
                     applicationUrl: permissionRequest.origin,
                     approvedConnection: allowed,
                 });
-                window.close();
+                handleOnFinish();
             }
         },
         [requestID, accountsToConnect, permissionRequest, dispatch],
     );
     useEffect(() => {
         if (!loading && !permissionRequest) {
-            window.close();
+            handleOnFinish();
         }
     }, [loading, permissionRequest]);
 
@@ -81,12 +84,13 @@ export function SiteConnectPage() {
     );
 
     const isSecure = parsedOrigin?.protocol === 'https:';
-    const [displayWarning, setDisplayWarning] = useState(!isSecure);
+    const [warningDismissed, setWarningDismissed] = useState(false);
+    const displayWarning = !isSecure && !warningDismissed;
 
     const handleHideWarning = useCallback(
         async (allowed: boolean) => {
             if (allowed) {
-                setDisplayWarning(false);
+                setWarningDismissed(true);
             } else {
                 await handleOnSubmit(false);
             }
@@ -94,9 +98,6 @@ export function SiteConnectPage() {
         [handleOnSubmit],
     );
 
-    useEffect(() => {
-        setDisplayWarning(!isSecure);
-    }, [isSecure]);
     return (
         <Loading loading={loading}>
             {permissionRequest &&
@@ -146,21 +147,16 @@ export function SiteConnectPage() {
                         blended
                     >
                         <div className="flex flex-col gap-md">
-                            {unlockedAccounts.length > 0 ? (
+                            {accounts.length > 0 ? (
                                 <AccountMultiSelectWithControls
                                     selectedAccountIDs={accountsToConnect.map(
                                         (account) => account.id,
                                     )}
-                                    accounts={unlockedAccounts ?? []}
+                                    accounts={accounts ?? []}
                                     onChange={(value) => {
                                         setAccountsToConnect(
                                             value.map((id) => accounts.find((a) => a.id === id)!),
                                         );
-                                    }}
-                                    onLock={(id) => {
-                                        setAccountsToConnect((prev) => {
-                                            return prev.filter((account) => account.id !== id);
-                                        });
                                     }}
                                 />
                             ) : (
@@ -170,17 +166,6 @@ export function SiteConnectPage() {
                                     type={InfoBoxType.Default}
                                     title="All accounts are currently locked. Unlock accounts to connect."
                                 />
-                            )}
-                            {lockedAccounts?.length > 0 && (
-                                <div className="flex flex-col gap-3">
-                                    <SectionHeader title="Locked & Unavailable" />
-                                    {lockedAccounts?.map((account) => (
-                                        <AccountItemApproveConnection
-                                            key={account.id}
-                                            account={account}
-                                        />
-                                    ))}
-                                </div>
                             )}
                         </div>
                     </UserApproveContainer>

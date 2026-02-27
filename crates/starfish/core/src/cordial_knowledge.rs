@@ -9,25 +9,39 @@ use std::{
 
 use ahash::{AHashMap, AHashSet};
 use bytes::Bytes;
-use iota_metrics::monitored_mpsc::{self, UnboundedReceiver, UnboundedSender};
+use iota_metrics::monitored_mpsc::{self, Receiver, Sender};
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
-use tokio::{sync::Mutex, task::JoinError};
-use tracing::debug;
+use tokio::{
+    sync::{Mutex, mpsc::error::TrySendError},
+    task::JoinError,
+};
+use tracing::{debug, warn};
 
 use crate::{
     BlockHeaderAPI, BlockRef, Round, VerifiedBlockHeader,
-    block_header::{BlockHeaderDigest, VerifiedBlock},
+    block_header::{BlockHeaderDigest, TransactionsCommitment, VerifiedBlock},
     context::Context,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     network::{BlockBundle, SerializedBlockBundleParts},
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
 };
 
 /// Maximum round gap to consider a peer's useful shards/headers as still
 /// relevant. 40 rounds correspond to at least 2 second due to the minimum block
 /// delay
 const MAX_ROUND_GAP_FOR_USEFUL_PARTS: Round = 40;
+/// Capacity of the cordial knowledge channel. For normal operation with
+/// 100 authorities, this allows buffering up to 5 seconds of headers at 20
+/// blocks/sec. When the channel is full, the sender will skip sending new
+/// messages.
+const CORDIAL_KNOWLEDGE_CHANNEL_CAPACITY: usize = 10_000;
+/// Eviction is performed every EVICTION_CHECK_INTERVAL processed messages.
+/// This allows batching eviction checks instead of checking on every
+/// message. For this operation, we don't need high precision, but we don't
+/// skip evictions for too long either.
+const EVICTION_CHECK_INTERVAL: usize = 10_000;
 
 /// Represents a subset of authorities using a bitmask.
 /// Each bit in the `low` and `high` fields corresponds to an authority index.
@@ -72,9 +86,11 @@ impl SubsetAuthorities {
 /// notifies per-connection tasks.
 pub(crate) struct CordialKnowledge {
     context: Arc<Context>,
-    /// Receives high-level updates from DAG state (new headers, new own shards,
-    /// evictions) and AuthorityService
-    cordial_knowledge_receiver: UnboundedReceiver<CordialKnowledgeMessage>,
+    /// Receives high-level updates from DAG state (new headers, new own shards)
+    /// and AuthorityService
+    cordial_knowledge_receiver: Receiver<CordialKnowledgeMessage>,
+    /// Receives eviction rounds from DagState (latest-only).
+    eviction_rounds_receiver: tokio::sync::watch::Receiver<Vec<Round>>,
     /// Keeps track of the last round for which each peer's shards were
     /// considered useful to us. This is a global knowledge and is shared with
     /// all connection tasks. Initialized to None for all authorities and
@@ -98,16 +114,19 @@ pub(crate) struct CordialKnowledge {
 }
 
 /// High-level messages sent to the CordialKnowledge task.
-/// NewHeader, NewShard, EvictBelow are received from DAG state.
+/// NewHeader, NewShard are received from DAG state.
 /// UsefulShardsFromPeers is received from AuthorityService.
 #[derive(Debug)]
 pub enum CordialKnowledgeMessage {
     /// A new verified block header to integrate into cordial knowledge.
-    NewHeader(VerifiedBlockHeader),
+    /// Includes transaction commitments of all blocks acknowledged by this
+    /// header.
+    NewHeader {
+        header: VerifiedBlockHeader,
+        ack_transactions_commitments: Vec<Option<TransactionsCommitment>>,
+    },
     /// A new verified own shard to integrate into cordial knowledge.
-    NewShard(BlockRef),
-    /// Evict old rounds globally.
-    EvictBelow(Vec<Round>),
+    NewShard(GenericTransactionRef),
     /// Update internal state about shards from which authorities are useful for
     /// the local node
     UsefulShardsFromPeers(BTreeMap<AuthorityIndex, Round>),
@@ -117,9 +136,8 @@ impl CordialKnowledgeMessage {
     /// Outputs the type of CordialKnowledgeMessage in a string slice format
     fn type_label(&self) -> &'static str {
         match self {
-            CordialKnowledgeMessage::NewHeader(_) => "New header",
+            CordialKnowledgeMessage::NewHeader { .. } => "New header",
             CordialKnowledgeMessage::NewShard(_) => "New shard",
-            CordialKnowledgeMessage::EvictBelow(_) => "Eviction",
             CordialKnowledgeMessage::UsefulShardsFromPeers(_) => "Useful authors for shards",
         }
     }
@@ -128,7 +146,7 @@ impl CordialKnowledgeMessage {
 /// Handle to the CordialKnowledge task, allowing interaction and graceful
 /// shutdown.
 pub struct CordialKnowledgeHandle {
-    cordial_knowledge_sender: UnboundedSender<CordialKnowledgeMessage>,
+    cordial_knowledge_sender: Sender<CordialKnowledgeMessage>,
     connection_knowledges: Vec<Arc<RwLock<ConnectionKnowledge>>>,
     cordial_knowledge_handle: Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
@@ -225,9 +243,11 @@ impl CordialKnowledgeHandle {
         if !useful_shard_authors.is_empty() {
             let cordial_knowledge_message =
                 CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shard_authors);
-            cordial_knowledge_sender
-                .send(cordial_knowledge_message)
-                .map_err(|_err| ConsensusError::Shutdown)?;
+            if let Err(TrySendError::Closed(_)) =
+                cordial_knowledge_sender.try_send(cordial_knowledge_message)
+            {
+                return Err(ConsensusError::Shutdown);
+            }
         }
 
         Ok(())
@@ -243,15 +263,18 @@ impl CordialKnowledge {
     ) -> (
         Self,
         Vec<Arc<RwLock<ConnectionKnowledge>>>,
-        UnboundedSender<CordialKnowledgeMessage>,
+        Sender<CordialKnowledgeMessage>,
+        tokio::sync::watch::Sender<Vec<Round>>,
     ) {
         let num_authorities = context.committee.size();
 
-        // Main unbounded channel for high-level DAG updates (monitored for metrics)
+        // Main bounded channel for high-level DAG updates (monitored for metrics)
         let (cordial_knowledge_sender, cordial_knowledge_receiver): (
-            UnboundedSender<CordialKnowledgeMessage>,
-            UnboundedReceiver<CordialKnowledgeMessage>,
-        ) = monitored_mpsc::unbounded_channel("cordial_knowledge");
+            Sender<CordialKnowledgeMessage>,
+            Receiver<CordialKnowledgeMessage>,
+        ) = monitored_mpsc::channel("cordial_knowledge", CORDIAL_KNOWLEDGE_CHANNEL_CAPACITY);
+        let (eviction_rounds_sender, eviction_rounds_receiver) =
+            tokio::sync::watch::channel(Vec::new());
 
         let mut connection_knowledges = Vec::with_capacity(num_authorities);
 
@@ -269,12 +292,14 @@ impl CordialKnowledge {
             Self {
                 context,
                 cordial_knowledge_receiver,
+                eviction_rounds_receiver,
                 cordial_knowledge: vec![BTreeMap::new(); num_authorities],
                 last_useful_shards_from_peer_round: vec![None; num_authorities],
                 connection_knowledges: connection_knowledges.clone(),
             },
             connection_knowledges,
             cordial_knowledge_sender,
+            eviction_rounds_sender,
         )
     }
 
@@ -286,16 +311,21 @@ impl CordialKnowledge {
         dag_state: Arc<RwLock<DagState>>,
     ) -> Arc<CordialKnowledgeHandle> {
         // Build main CordialKnowledge and associated channels
-        let (cordial_knowledge, connection_knowledges, cordial_knowledge_sender) =
-            CordialKnowledge::new(context.clone(), dag_state.clone());
+        let (
+            cordial_knowledge,
+            connection_knowledges,
+            cordial_knowledge_sender,
+            eviction_rounds_sender,
+        ) = CordialKnowledge::new(context.clone(), dag_state.clone());
         // Spawn the main CordialKnowledge loop
         let cordial_knowledge_handle = tokio::spawn(async move {
             cordial_knowledge.run().await;
         });
 
-        dag_state
-            .write()
-            .set_cordial_knowledge_sender(cordial_knowledge_sender.clone());
+        dag_state.write().set_cordial_knowledge_senders(
+            cordial_knowledge_sender.clone(),
+            eviction_rounds_sender.clone(),
+        );
 
         // Return handle with all pieces assembled
         Arc::new(CordialKnowledgeHandle {
@@ -305,11 +335,12 @@ impl CordialKnowledge {
         })
     }
 
-    /// Main async loop: receives high-level updates (headers, shards,
-    /// evictions) from DAG state and updates global knowledge + notifies
-    /// per-connection tasks.
+    /// Main async loop: receives high-level updates (headers, shards)
+    /// from DAG state and updates global knowledge + notifies per-connection
+    /// tasks. Evictions are checked periodically via a watch channel.
     async fn run(mut self) {
         debug!("Cordial Knowledge main loop started");
+        let mut processed_since_eviction = 0usize;
 
         loop {
             match self.cordial_knowledge_receiver.recv().await {
@@ -318,6 +349,7 @@ impl CordialKnowledge {
                     while let Ok(msg) = self.cordial_knowledge_receiver.try_recv() {
                         batch.push(msg);
                     }
+                    processed_since_eviction = processed_since_eviction.saturating_add(batch.len());
                     // Report the buffer size
                     self.context
                         .metrics
@@ -339,6 +371,14 @@ impl CordialKnowledge {
                         }
                     }
 
+                    if processed_since_eviction >= EVICTION_CHECK_INTERVAL {
+                        self.append_eviction_msgs_if_changed(
+                            &mut vec_connection_knowledge_msgs_batch,
+                        );
+                        self.report_sizes();
+                        processed_since_eviction = 0;
+                    }
+
                     for (index, msgs) in vec_connection_knowledge_msgs_batch.into_iter().enumerate()
                     {
                         if !msgs.is_empty() {
@@ -357,6 +397,29 @@ impl CordialKnowledge {
         debug!("Cordial Knowledge main loop finished");
     }
 
+    fn append_eviction_msgs_if_changed(
+        &mut self,
+        vec_connection_knowledge_msgs_batch: &mut [Vec<ConnectionKnowledgeMessage>],
+    ) {
+        if !self.eviction_rounds_receiver.has_changed().unwrap_or(false) {
+            return;
+        }
+        let evicted_rounds = self.eviction_rounds_receiver.borrow_and_update().clone();
+        if evicted_rounds.len() != self.context.committee.size() {
+            warn!(
+                "Eviction rounds length {} does not match committee size {}; skipping eviction",
+                evicted_rounds.len(),
+                self.context.committee.size()
+            );
+            return;
+        }
+        if let Some(vec_connection_knowledge_msgs) = self.handle_evict_below(evicted_rounds) {
+            for (index, msgs) in vec_connection_knowledge_msgs.into_iter().enumerate() {
+                vec_connection_knowledge_msgs_batch[index].extend(msgs);
+            }
+        }
+    }
+
     /// Processes a single high-level cordial knowledge message.
     fn process_message(
         &mut self,
@@ -373,9 +436,13 @@ impl CordialKnowledge {
         // Handle the cordial knowledge message depending on its type
 
         match cordial_knowledge_message {
-            CordialKnowledgeMessage::NewHeader(header) => self.update_cordial_knowledge(&header),
-            CordialKnowledgeMessage::NewShard(block_ref) => self.prepare_new_shard_msgs(block_ref),
-            CordialKnowledgeMessage::EvictBelow(round) => self.handle_evict_below(round),
+            CordialKnowledgeMessage::NewHeader {
+                header,
+                ack_transactions_commitments,
+            } => self.update_cordial_knowledge(&header, &ack_transactions_commitments),
+            CordialKnowledgeMessage::NewShard(gen_tx_ref) => {
+                self.prepare_new_shard_msgs(gen_tx_ref)
+            }
             CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shards_from_peer) => {
                 self.handle_useful_shards_from(useful_shards_from_peer)
             }
@@ -443,17 +510,21 @@ impl CordialKnowledge {
     /// Called when a new own shard (created locally) is added to dag state.
     fn prepare_new_shard_msgs(
         &mut self,
-        block_ref: BlockRef,
+        gen_transaction_ref: GenericTransactionRef,
     ) -> Option<Vec<Vec<ConnectionKnowledgeMessage>>> {
         let mut vec_msgs: Vec<Vec<ConnectionKnowledgeMessage>> =
             Vec::with_capacity(self.cordial_knowledge.len());
         for index in 0..self.cordial_knowledge.len() {
             // Don't send own shard to the author of the block and local node
-            if index == block_ref.author.value() || index == self.context.own_index.value() {
+            if index == gen_transaction_ref.author().value()
+                || index == self.context.own_index.value()
+            {
                 vec_msgs.push(vec![]);
                 continue;
             }
-            let msg = ConnectionKnowledgeMessage::NewShard { block_ref };
+            let msg = ConnectionKnowledgeMessage::NewShard {
+                gen_tx_ref: gen_transaction_ref,
+            };
             vec_msgs.push(vec![msg]);
         }
         Some(vec_msgs)
@@ -489,6 +560,33 @@ impl CordialKnowledge {
         Some(vec_msgs)
     }
 
+    /// Report current sizes of cordial knowledge data structures.
+    fn report_sizes(&self) {
+        let metrics = &self.context.metrics.node_metrics;
+
+        let global_entries: usize = self
+            .cordial_knowledge
+            .iter()
+            .map(|m| m.values().map(|v| v.len()).sum::<usize>())
+            .sum();
+        metrics.cordial_knowledge_entries.set(global_entries as i64);
+
+        let mut total_headers_not_known: usize = 0;
+        let mut total_shards_not_known: usize = 0;
+        for ck in &self.connection_knowledges {
+            let guard = ck.read();
+            let (headers, shards) = guard.sizes();
+            total_headers_not_known += headers;
+            total_shards_not_known += shards;
+        }
+        metrics
+            .cordial_knowledge_headers_not_known
+            .set(total_headers_not_known as i64);
+        metrics
+            .cordial_knowledge_shards_not_known
+            .set(total_shards_not_known as i64);
+    }
+
     /// Update cordial knowledge for exactly one new header.
     /// Assumes all parents are already stored somewhere in
     /// `recent_dag_cordial_knowledge` (if not, they will be skipped).
@@ -500,6 +598,7 @@ impl CordialKnowledge {
     fn update_cordial_knowledge(
         &mut self,
         header: &VerifiedBlockHeader,
+        ack_transactions_commitments: &[Option<TransactionsCommitment>],
     ) -> Option<Vec<Vec<ConnectionKnowledgeMessage>>> {
         let block_ref = header.reference();
         let block_author = block_ref.author.value();
@@ -538,10 +637,30 @@ impl CordialKnowledge {
         }
 
         // 3) The block_author now acknowledges previously known transactions
-        for acknowledgment in header.acknowledgments() {
-            vec_knowledge_msgs[block_author].push(ConnectionKnowledgeMessage::RemoveShard {
-                block_ref: *acknowledgment,
-            });
+        // Use the provided transaction commitments to create the proper
+        // GenericTransactionRef variant
+        let consensus_fast_commit_sync = self.context.protocol_config.consensus_fast_commit_sync();
+        for (acknowledgment, &transactions_commitment) in header
+            .acknowledgments()
+            .iter()
+            .zip(ack_transactions_commitments.iter())
+        {
+            let gen_tx_ref = if consensus_fast_commit_sync {
+                if let Some(transactions_commitment) = transactions_commitment {
+                    GenericTransactionRef::TransactionRef(crate::transaction_ref::TransactionRef {
+                        round: acknowledgment.round,
+                        author: acknowledgment.author,
+                        transactions_commitment,
+                    })
+                } else {
+                    continue;
+                }
+            } else {
+                GenericTransactionRef::BlockRef(*acknowledgment)
+            };
+
+            vec_knowledge_msgs[block_author]
+                .push(ConnectionKnowledgeMessage::RemoveShard { gen_tx_ref });
         }
 
         // 4) Traversing back and marking the causal past as known by block_author
@@ -598,9 +717,9 @@ pub enum ConnectionKnowledgeMessage {
     /// Remove a block header from the "unknown" set .
     RemoveHeader { block_ref: BlockRef },
     /// A new shard was added globally.
-    NewShard { block_ref: BlockRef },
+    NewShard { gen_tx_ref: GenericTransactionRef },
     /// Remove a header from the "unknown" set.
-    RemoveShard { block_ref: BlockRef },
+    RemoveShard { gen_tx_ref: GenericTransactionRef },
     /// Update useful info about which authorities are useful to/from the peer.
     UsefulAuthors {
         useful_headers_to_peer: BTreeMap<AuthorityIndex, Round>,
@@ -621,7 +740,7 @@ pub struct ConnectionKnowledge {
     /// Keeps track of which headers are not known by the peer yet.
     headers_not_known: Vec<BTreeMap<Round, AHashSet<BlockRef>>>,
     /// Keeps track of which shards are not known by the peer yet.
-    shards_not_known: Vec<BTreeMap<Round, AHashSet<BlockRef>>>,
+    shards_not_known: Vec<BTreeMap<Round, AHashSet<GenericTransactionRef>>>,
     /// Last rounds for (potentially) useful shards that can be sent to this
     /// peer
     last_useful_shards_to_peer_round: Vec<Option<Round>>,
@@ -663,15 +782,21 @@ impl ConnectionKnowledge {
             self.process_one_message(msg);
         }
     }
-    /// Take useful block refs (headers or shards) for the given authorities
+    /// Take useful refs (headers or shards) for the given authorities
     /// up to the given round (exclusive), up to max_take total.
-    /// Used for both headers and shards.
-    fn take_useful_refs_round(
-        maps: &mut [BTreeMap<Round, AHashSet<BlockRef>>],
+    /// Generic function that works with both BlockRef and
+    /// GenericTransactionRef.
+    fn take_useful_refs_round<T>(
+        maps: &mut [BTreeMap<Round, AHashSet<T>>],
         round_upper_bound_exclusive: Round,
         useful_authorities: &[usize],
         max_take: usize,
-    ) -> Vec<BlockRef> {
+        get_author: impl Fn(&T) -> usize,
+        get_round: impl Fn(&T) -> Round,
+    ) -> Vec<T>
+    where
+        T: Copy + Eq + std::hash::Hash,
+    {
         if useful_authorities.is_empty() || max_take == 0 {
             return Vec::new();
         }
@@ -691,9 +816,9 @@ impl ConnectionKnowledge {
         'outer: while current_round < round_upper_bound_exclusive {
             for &authority in useful_authorities {
                 let map = &maps[authority];
-                if let Some(block_refs_from_authority_in_round) = map.get(&current_round) {
-                    for &block_ref in block_refs_from_authority_in_round {
-                        taken.push(block_ref);
+                if let Some(refs_from_authority_in_round) = map.get(&current_round) {
+                    for &item_ref in refs_from_authority_in_round {
+                        taken.push(item_ref);
                         if taken.len() >= max_take {
                             break 'outer;
                         }
@@ -703,16 +828,15 @@ impl ConnectionKnowledge {
             current_round += 1;
         }
 
-        // Remove the taken blocks from the corresponding authorities
-        for block_ref in &taken {
-            let authority = block_ref.author.value();
-            if let Some(block_refs_from_authority_in_round) =
-                maps[authority].get_mut(&block_ref.round)
-            {
-                block_refs_from_authority_in_round.remove(block_ref);
+        // Remove the taken refs from the corresponding authorities
+        for item_ref in &taken {
+            let authority = get_author(item_ref);
+            let round = get_round(item_ref);
+            if let Some(refs_from_authority_in_round) = maps[authority].get_mut(&round) {
+                refs_from_authority_in_round.remove(item_ref);
                 // Remove empty rounds to keep map small
-                if block_refs_from_authority_in_round.is_empty() {
-                    maps[authority].remove(&block_ref.round);
+                if refs_from_authority_in_round.is_empty() {
+                    maps[authority].remove(&round);
                 }
             }
         }
@@ -733,6 +857,8 @@ impl ConnectionKnowledge {
             round_upper_bound_exclusive,
             useful_authorities,
             max_take,
+            |block_ref| block_ref.author.value(),
+            |block_ref| block_ref.round,
         )
     }
 
@@ -742,13 +868,15 @@ impl ConnectionKnowledge {
         &mut self,
         round_upper_bound_exclusive: Round,
         useful_authorities: &[usize],
-    ) -> Vec<BlockRef> {
+    ) -> Vec<GenericTransactionRef> {
         let max_take = self.context.parameters.max_shards_per_bundle;
         Self::take_useful_refs_round(
             &mut self.shards_not_known,
             round_upper_bound_exclusive,
             useful_authorities,
             max_take,
+            |gen_tx_ref| gen_tx_ref.author().value(),
+            |gen_tx_ref| gen_tx_ref.round(),
         )
     }
 
@@ -777,11 +905,11 @@ impl ConnectionKnowledge {
             ConnectionKnowledgeMessage::RemoveHeader { block_ref } => {
                 self.handle_remove_header(block_ref);
             }
-            ConnectionKnowledgeMessage::NewShard { block_ref } => {
-                self.handle_new_shard(block_ref);
+            ConnectionKnowledgeMessage::NewShard { gen_tx_ref } => {
+                self.handle_new_shard(gen_tx_ref);
             }
-            ConnectionKnowledgeMessage::RemoveShard { block_ref } => {
-                self.handle_remove_shard(block_ref);
+            ConnectionKnowledgeMessage::RemoveShard { gen_tx_ref } => {
+                self.handle_remove_shard(gen_tx_ref);
             }
             ConnectionKnowledgeMessage::EvictBelow(rounds) => {
                 self.evict_below(rounds);
@@ -1014,14 +1142,29 @@ impl ConnectionKnowledge {
     }
 
     /// Handles adding a new shard to the set of potentially unknown shards.
-    fn handle_new_shard(&mut self, block_ref: BlockRef) {
-        let round = block_ref.round;
-        let authority = block_ref.author.value();
+    fn handle_new_shard(&mut self, gen_tx_ref: GenericTransactionRef) {
+        let round = gen_tx_ref.round();
+        let authority = gen_tx_ref.author().value();
 
         self.shards_not_known[authority]
             .entry(round)
             .or_default()
-            .insert(block_ref);
+            .insert(gen_tx_ref);
+    }
+
+    /// Returns (total_headers_not_known, total_shards_not_known) entry counts.
+    fn sizes(&self) -> (usize, usize) {
+        let headers: usize = self
+            .headers_not_known
+            .iter()
+            .map(|m| m.values().map(|s| s.len()).sum::<usize>())
+            .sum();
+        let shards: usize = self
+            .shards_not_known
+            .iter()
+            .map(|m| m.values().map(|s| s.len()).sum::<usize>())
+            .sum();
+        (headers, shards)
     }
 
     /// Handles removing a header that this peer now knows.
@@ -1039,12 +1182,12 @@ impl ConnectionKnowledge {
     }
 
     /// Handles removing a shard that this peer now knows.
-    fn handle_remove_shard(&mut self, block_ref: BlockRef) {
-        let authority = block_ref.author.value();
-        let round = block_ref.round;
+    fn handle_remove_shard(&mut self, gen_tx_ref: GenericTransactionRef) {
+        let authority = gen_tx_ref.author().value();
+        let round = gen_tx_ref.round();
 
         if let Some(set) = self.shards_not_known[authority].get_mut(&round) {
-            set.remove(&block_ref);
+            set.remove(&gen_tx_ref);
             if set.is_empty() {
                 self.shards_not_known[authority].remove(&round);
             }
@@ -1064,7 +1207,7 @@ mod tests {
         TestBlockHeader,
         block_header::{GENESIS_ROUND, VerifiedBlock, VerifiedOwnShard},
         context::Context,
-        dag_state::DagState,
+        dag_state::{DagState, DataSource},
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
         test_dag_parser::parse_dag,
@@ -1082,7 +1225,7 @@ mod tests {
         let byzantine_index = AuthorityIndex::new_for_test(3);
         let (context, _key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         // Set up DAG with blocks from all validators.
@@ -1175,11 +1318,25 @@ mod tests {
                         verified_block_header,
                         verified_transactions,
                     } = block.clone();
-                    dag_state.write().accept_block_header(verified_block_header);
+                    dag_state
+                        .write()
+                        .accept_block_header(verified_block_header, DataSource::Test);
+                    let gen_transaction_ref =
+                        if context.protocol_config.consensus_fast_commit_sync() {
+                            GenericTransactionRef::TransactionRef(
+                                verified_transactions.transaction_ref(),
+                            )
+                        } else {
+                            GenericTransactionRef::BlockRef(
+                                verified_transactions.block_ref().expect(
+                                    "block_ref must be present in non-transaction-ref path",
+                                ),
+                            )
+                        };
                     let shard_for_core = VerifiedOwnShard {
                         serialized_shard: Bytes::from([0u8; 32].to_vec()), /* put some dummy
                                                                             * shard data */
-                        block_ref: verified_transactions.block_ref(),
+                        gen_transaction_ref,
                     };
                     dag_state.write().add_shard(shard_for_core);
                 }
@@ -1194,10 +1351,21 @@ mod tests {
                     verified_block_header,
                     verified_transactions,
                 } = block.clone();
-                dag_state.write().accept_block_header(verified_block_header);
+                dag_state
+                    .write()
+                    .accept_block_header(verified_block_header, DataSource::Test);
+                let gen_transaction_ref = if context.protocol_config.consensus_fast_commit_sync() {
+                    GenericTransactionRef::TransactionRef(verified_transactions.transaction_ref())
+                } else {
+                    GenericTransactionRef::BlockRef(
+                        verified_transactions
+                            .block_ref()
+                            .expect("block_ref must be present in non-transaction-ref path"),
+                    )
+                };
                 let shard_for_core = VerifiedOwnShard {
                     serialized_shard: Bytes::from([0u8; 32].to_vec()), // put some dummy shard data
-                    block_ref: verified_transactions.block_ref(),
+                    gen_transaction_ref,
                 };
                 dag_state.write().add_shard(shard_for_core);
             }
@@ -1264,7 +1432,7 @@ mod tests {
         let protocol_keypairs = key_pairs.iter().map(|kp| kp.1.clone()).collect();
         let context = Arc::new(context);
         let final_round: Round = MAX_ROUND_GAP_FOR_USEFUL_PARTS / 2;
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         // Report useful info to connection knowledge corresponding to to_whom_index

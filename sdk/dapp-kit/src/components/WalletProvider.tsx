@@ -76,6 +76,10 @@ export function WalletProvider({
         }),
     );
 
+    if (storeRef.current.getState().chain != chain) {
+        storeRef.current.getState().setChain(chain);
+    }
+
     return (
         <WalletContext.Provider value={storeRef.current}>
             <WalletConnectionManager

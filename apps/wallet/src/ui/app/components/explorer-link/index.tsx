@@ -11,19 +11,19 @@ import clsx from 'clsx';
 import { ArrowTopRight } from '@iota/apps-ui-icons';
 
 export type ExplorerLinkProps = ExplorerLinkConfig & {
-    track?: boolean;
     children?: ReactNode;
     className?: string;
     title?: string;
     showIcon?: boolean;
+    eventType?: string;
 };
 
 export function ExplorerLink({
-    track,
     children,
     className,
     title,
     showIcon,
+    eventType,
     ...linkConfig
 }: ExplorerLinkProps) {
     const explorerHref = useExplorerLink(linkConfig);
@@ -39,6 +39,7 @@ export function ExplorerLink({
                 className,
             )}
             title={title}
+            type={eventType}
         >
             <>
                 {children} {showIcon && <ArrowTopRight className={st.explorerIcon} />}

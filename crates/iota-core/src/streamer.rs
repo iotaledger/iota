@@ -142,15 +142,26 @@ where
     }
 
     pub fn try_send(&self, data: T) -> Result<(), IotaError> {
-        self.streamer_queue.try_send(data).map_err(|e| {
-            self.metrics
-                .dropped_submissions
-                .with_label_values(&[self.metrics_label])
-                .inc();
+        // Only attempt to send if there are active subscribers
+        if self.has_subscribers() {
+            self.streamer_queue.try_send(data).map_err(|e| {
+                self.metrics
+                    .dropped_submissions
+                    .with_label_values(&[self.metrics_label])
+                    .inc();
 
-            IotaError::FailedToDispatchSubscription {
-                error: e.to_string(),
-            }
-        })
+                IotaError::FailedToDispatchSubscription {
+                    error: e.to_string(),
+                }
+            })
+        } else {
+            // Silently drop the data if no subscribers - this is expected behavior
+            Ok(())
+        }
+    }
+
+    /// Check if there are any active subscribers
+    pub fn has_subscribers(&self) -> bool {
+        !self.subscribers.read().is_empty()
     }
 }

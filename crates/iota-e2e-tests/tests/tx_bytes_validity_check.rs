@@ -72,7 +72,7 @@ async fn version_9_accepts() {
     assert_eq!(
         *dev_inspect_result.effects.status(),
         IotaExecutionStatus::Failure {
-            error: "VMVerificationOrDeserializationError in command 0".to_string(),
+            error: "Move Bytecode Verification Error. Please run the Bytecode Verifier for more information. in command 0".to_string(),
         }
     );
 }
@@ -95,7 +95,7 @@ async fn above_version_9_it_fails() {
         assert_eq!(error_object.code(), ErrorCode::InvalidParams.code());
         assert_eq!(
             error_object.message(),
-            "Error checking transaction input objects: InvalidIdentifier { error: \"_\" }"
+            "Error checking transaction input objects: Invalid identifier found in the transaction: _"
                 .to_string()
         );
     } else {

@@ -1,0 +1,48 @@
+{
+    "name": "@iota/examples",
+    "author": "IOTA Foundation <info@iota.org>",
+    "description": "IOTA SDK Examples",
+    "repository": "https://github.com/iotaledger/iota",
+    "version": "0.1.0",
+    "license": "Apache-2.0",
+    "type": "module",
+    "private": true,
+    "exports": {
+        "./custom-signer.js": "./dist/esm/custom-signer.js",
+        "./get-balance.js": "./dist/esm/get-balance.js",
+        "./transfer-iota.js": "./dist/esm/transfer-iota.js",
+        "./tx-with-graphql.js": "./dist/esm/tx-with-graphql.js"
+    },
+    "files": [
+        "dist",
+        "src"
+    ],
+    "engines": {
+        "node": ">=20"
+    },
+    "scripts": {
+        "example": "tsx",
+        "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
+        "prettier:fix": "prettier -w --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
+        "eslint:check": "eslint --max-warnings=0",
+        "eslint:fix": "pnpm run eslint:check --fix",
+        "lint": "pnpm run eslint:check && pnpm run prettier:check",
+        "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix"
+    },
+    "dependencies": {
+        "@iota/graphql-transport": "workspace:*",
+        "@iota/iota-sdk": "workspace:*",
+        "@noble/curves": "^1.4.2"
+    },
+    "devDependencies": {
+        "@types/node": "^24.0.0",
+        "tsx": "^3.12.7",
+        "typescript": "^5.5.3"
+    },
+    "lint-staged": {
+        "**/*.{ts,js,mjs}": [
+            "eslint --fix",
+            "prettier --write"
+        ]
+    }
+}

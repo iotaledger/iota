@@ -11,7 +11,7 @@ use crate::{
     block_header::{BlockHeaderAPI, Slot, TestBlockHeader, VerifiedBlockHeader},
     commit::{DecidedLeader, WAVE_LENGTH},
     context::Context,
-    dag_state::DagState,
+    dag_state::{DagState, DataSource},
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
     storage::mem_store::MemStore,
     test_dag::{build_dag, build_dag_layer},
@@ -628,7 +628,7 @@ async fn test_byzantine_validator() {
     );
     dag_state
         .write()
-        .accept_block_header(byzantine_block_b13_1.clone());
+        .accept_block_header(byzantine_block_b13_1.clone(), DataSource::Test);
 
     // Make equivocation through timestamp
     let timestamp = byzantine_block_b13_1.timestamp_ms();
@@ -641,7 +641,7 @@ async fn test_byzantine_validator() {
     );
     dag_state
         .write()
-        .accept_block_header(byzantine_block_b13_2.clone());
+        .accept_block_header(byzantine_block_b13_2.clone(), DataSource::Test);
 
     let byzantine_block_b13_3 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(13, 1)
@@ -651,7 +651,7 @@ async fn test_byzantine_validator() {
     );
     dag_state
         .write()
-        .accept_block_header(byzantine_block_b13_3.clone());
+        .accept_block_header(byzantine_block_b13_3.clone(), DataSource::Test);
 
     // Ancestors of decision blocks in round 14 should include multiple byzantine
     // non-votes B13 but there are enough good votes to prevent a skip.
@@ -666,7 +666,7 @@ async fn test_byzantine_validator() {
     references_round_14.push(decision_block_a14.reference());
     dag_state
         .write()
-        .accept_block_header(decision_block_a14.clone());
+        .accept_block_header(decision_block_a14.clone(), DataSource::Test);
 
     let good_references_voting_round_wave_4_without_b13 = good_references_voting_round_wave_4
         .into_iter()
@@ -687,7 +687,7 @@ async fn test_byzantine_validator() {
     references_round_14.push(decision_block_b14.reference());
     dag_state
         .write()
-        .accept_block_header(decision_block_b14.clone());
+        .accept_block_header(decision_block_b14.clone(), DataSource::Test);
 
     let decision_block_c14 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(14, 2)
@@ -703,7 +703,7 @@ async fn test_byzantine_validator() {
     references_round_14.push(decision_block_c14.reference());
     dag_state
         .write()
-        .accept_block_header(decision_block_c14.clone());
+        .accept_block_header(decision_block_c14.clone(), DataSource::Test);
 
     let decision_block_d14 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(14, 3)
@@ -719,7 +719,7 @@ async fn test_byzantine_validator() {
     references_round_14.push(decision_block_d14.reference());
     dag_state
         .write()
-        .accept_block_header(decision_block_d14.clone());
+        .accept_block_header(decision_block_d14.clone(), DataSource::Test);
 
     // DagState Update:
     // - We have A13, B13, D13 & C13 as good votes in the voting round of leader A12
@@ -792,7 +792,7 @@ fn basic_test_setup() -> (
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
-        Arc::new(MemStore::new()),
+        Arc::new(MemStore::new(context.clone())),
     )));
     let leader_schedule = Arc::new(LeaderSchedule::new(
         context.clone(),

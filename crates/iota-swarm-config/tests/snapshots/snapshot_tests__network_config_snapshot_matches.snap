@@ -65,6 +65,7 @@ validator_configs:
       receiving-objects-disabled: false
       zklogin-sig-disabled: false
       zklogin-disabled-providers: []
+      move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
     state-archive-write-config:
@@ -196,6 +197,7 @@ validator_configs:
       receiving-objects-disabled: false
       zklogin-sig-disabled: false
       zklogin-disabled-providers: []
+      move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
     state-archive-write-config:
@@ -327,6 +329,7 @@ validator_configs:
       receiving-objects-disabled: false
       zklogin-sig-disabled: false
       zklogin-disabled-providers: []
+      move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
     state-archive-write-config:
@@ -458,6 +461,7 @@ validator_configs:
       receiving-objects-disabled: false
       zklogin-sig-disabled: false
       zklogin-disabled-providers: []
+      move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
     state-archive-write-config:
@@ -589,6 +593,7 @@ validator_configs:
       receiving-objects-disabled: false
       zklogin-sig-disabled: false
       zklogin-disabled-providers: []
+      move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
     state-archive-write-config:
@@ -720,6 +725,7 @@ validator_configs:
       receiving-objects-disabled: false
       zklogin-sig-disabled: false
       zklogin-disabled-providers: []
+      move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
     state-archive-write-config:
@@ -851,6 +857,7 @@ validator_configs:
       receiving-objects-disabled: false
       zklogin-sig-disabled: false
       zklogin-disabled-providers: []
+      move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
     state-archive-write-config:

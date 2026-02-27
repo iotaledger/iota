@@ -6,7 +6,7 @@ import { ErrorBoundary, MenuContent, Navigation, WalletSettingsButton } from '_c
 import cn from 'clsx';
 import { createContext, type ReactNode, useState } from 'react';
 import { useAppSelector, useActiveAccount } from '_hooks';
-import { AppType } from '../../redux/slices/app/appType';
+import { ExtensionViewType } from '../../redux/slices/app/appType';
 import { Header } from '../header/Header';
 import { Toaster } from '../toaster';
 import { IotaLogoMark, Keystone, Ledger, Passkey } from '@iota/apps-ui-icons';
@@ -15,7 +15,6 @@ import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAcco
 import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { Badge, BadgeType } from '@iota/apps-ui-kit';
 import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
-import { isMainAccount } from '_src/background/accounts/isMainAccount';
 import { useGetDefaultIotaName } from '@iota/core';
 import { formatAccountName } from '../../helpers';
 import { isKeystoneAccountSerializedUI } from '_src/background/accounts/keystoneAccount';
@@ -35,9 +34,9 @@ export function PageMainLayout({
     bottomNavEnabled = false,
     topNavMenuEnabled = false,
 }: PageMainLayoutProps) {
-    const appType = useAppSelector((state) => state.app.appType);
+    const extensionViewType = useAppSelector((state) => state.app.extensionViewType);
     const activeAccount = useActiveAccount();
-    const isFullScreen = appType === AppType.Fullscreen;
+    const isFullScreen = extensionViewType === ExtensionViewType.FullScreen;
     const [titlePortalContainer, setTitlePortalContainer] = useState<HTMLDivElement | null>(null);
     const isHomePage = window.location.hash === '#/tokens';
 
@@ -84,19 +83,13 @@ function LeftContent({ account }: { account: SerializedUIAccount | null }) {
     const isKeystoneAccount = account && isKeystoneAccountSerializedUI(account);
     const isPasskeyAccount = account && isPasskeyAccountSerializedUI(account);
 
-    const backgroundColor = account?.isLocked ? 'bg-iota-neutral-90' : 'bg-iota-primary-30';
     return (
         <Link
             to="/accounts/manage"
             className="flex flex-row items-center gap-sm p-xs text-pink-200 no-underline"
             data-testid="accounts-manage"
         >
-            <div
-                className={cn(
-                    'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-iota-primary-30 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white',
-                    backgroundColor,
-                )}
-            >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-iota-primary-30 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white">
                 {isLedgerAccount ? (
                     <Ledger />
                 ) : isKeystoneAccount ? (
@@ -113,7 +106,6 @@ function LeftContent({ account }: { account: SerializedUIAccount | null }) {
                 </span>
             </div>
             {isLegacyAccount(account) && <Badge type={BadgeType.Neutral} label="Legacy" />}
-            {isMainAccount(account) && <Badge type={BadgeType.PrimarySoft} label="Main" />}
         </Link>
     );
 }

@@ -12,14 +12,34 @@ export type ExplorerLinkConfig =
           type: ExplorerLinkType.Address;
           address?: string;
           useActiveAddress?: false;
+          eventType?: string;
+          isEventPublic?: boolean;
       }
     | {
           type: ExplorerLinkType.Address;
           useActiveAddress: true;
+          eventType?: string;
+          isEventPublic?: boolean;
       }
-    | { type: ExplorerLinkType.Object; objectID: string; moduleName?: string }
-    | { type: ExplorerLinkType.Transaction; transactionID: string }
-    | { type: ExplorerLinkType.Validator; validator: string };
+    | {
+          type: ExplorerLinkType.Object;
+          objectID: string;
+          moduleName?: string;
+          eventType?: string;
+          isEventPublic?: boolean;
+      }
+    | {
+          type: ExplorerLinkType.Transaction;
+          transactionID: string;
+          eventType?: string;
+          isEventPublic?: boolean;
+      }
+    | {
+          type: ExplorerLinkType.Validator;
+          validator: string;
+          eventType?: string;
+          isEventPublic?: boolean;
+      };
 
 function getAddress(linkConfig: ExplorerLinkConfig, activeAddress: string | null) {
     const { type } = linkConfig;

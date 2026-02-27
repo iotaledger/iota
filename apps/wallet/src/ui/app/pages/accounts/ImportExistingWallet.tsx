@@ -8,7 +8,7 @@ import ImportAWalletDark from '_assets/images/onboarding/import-a-wallet-darkmod
 import { Card, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
 import { AccountsFormType, PageTemplate } from '_components';
 import { useAppSelector, useCreateAccountsMutation } from '_hooks';
-import { AppType } from '../../redux/slices/app/appType';
+import { ExtensionViewType } from '../../redux/slices/app/appType';
 import { ImportPass, Key, Passkey, Firefly } from '@iota/apps-ui-icons';
 import { openInNewTab } from '_src/shared/utils';
 import { type ActionCardItem, OnboardingCardIcon } from './AddAccountPage';
@@ -19,7 +19,11 @@ export function ImportExistingWallet() {
     const { theme } = useTheme();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const isPopup = useAppSelector((state) => state.app.appType === AppType.Popup);
+    const isPopupOrSidePanel = useAppSelector(
+        (state) =>
+            state.app.extensionViewType === ExtensionViewType.Popup ||
+            state.app.extensionViewType === ExtensionViewType.SidePanel,
+    );
     const createAccountsMutation = useCreateAccountsMutation();
     const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';
     const network = useAppSelector(({ app }) => app.network);
@@ -72,10 +76,10 @@ export function ImportExistingWallet() {
                 break;
             case AccountsFormType.ImportPasskey:
                 ampli.clickedCreatePasskey({ sourceFlow });
-                const flowType = 'import';
-                const url = `/accounts/passkey-account?flowType=${flowType}`;
-                if (isPopup) {
+                const url = '/accounts/import-passkey';
+                if (isPopupOrSidePanel) {
                     openInNewTab(url);
+                    window.close();
                 } else {
                     navigate(url);
                 }
@@ -97,7 +101,7 @@ export function ImportExistingWallet() {
             isTitleCentered
             onClose={() => navigate('/')}
             showBackButton
-            onBack={() => navigate(-1)}
+            onBack={() => navigate('/accounts/add-account')}
         >
             <div className="flex h-full w-full flex-col">
                 <div className="flex w-full flex-1 flex-col justify-center gap-4 py-md--rs text-center">
