@@ -14,10 +14,7 @@ import { openInNewTab } from '_src/shared/utils';
 import { type ActionCardItem, OnboardingCardIcon } from './AddAccountPage';
 import { Feature, Theme, useFeatureEnabledByNetwork, useTheme } from '@iota/core';
 import clsx from 'clsx';
-import {
-    ACCOUNT_FORM_TYPE_TO_ACCOUNT_ORIGIN,
-    ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE,
-} from '_src/shared/analytics';
+import { ACCOUNT_FORM_TYPE_TO_AMPLI } from '_src/shared/analytics';
 
 export function ImportExistingWallet() {
     const { theme } = useTheme();
@@ -71,13 +68,12 @@ export function ImportExistingWallet() {
     const handleCardAction = async (
         actionType: (typeof profileOptions | typeof legacyOptions)[number]['actionType'],
     ) => {
-        const ampliAccountType = ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE[actionType];
-        const ampliAccountOrigin = ACCOUNT_FORM_TYPE_TO_ACCOUNT_ORIGIN[actionType];
+        const ampliData = ACCOUNT_FORM_TYPE_TO_AMPLI[actionType];
 
-        if (ampliAccountType && ampliAccountOrigin) {
+        if (ampliData) {
             ampli.accountCreationStarted({
-                accountType: ampliAccountType,
-                accountOrigin: ampliAccountOrigin,
+                accountType: ampliData.accountType,
+                accountOrigin: ampliData.accountOrigin,
                 isFirstAccount,
                 sourceFlow,
             });

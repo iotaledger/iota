@@ -32,10 +32,7 @@ import { Create, Ledger, Keystone, Wallet } from '@iota/apps-ui-icons';
 import { ExtensionViewType } from '../../redux/slices/app/appType';
 import Browser from 'webextension-polyfill';
 import clsx from 'clsx';
-import {
-    ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE,
-    ACCOUNT_FORM_TYPE_TO_ACCOUNT_ORIGIN,
-} from '_src/shared/analytics';
+import { ACCOUNT_FORM_TYPE_TO_AMPLI } from '_src/shared/analytics';
 
 export interface ActionCardItem {
     title: string;
@@ -125,13 +122,12 @@ export function AddAccountPage() {
     async function handleCardAction(
         actionType: (typeof hardwareWalletOptions)[number]['actionType'],
     ) {
-        const ampliAccountType = ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE[actionType];
-        const ampliAccountOrigin = ACCOUNT_FORM_TYPE_TO_ACCOUNT_ORIGIN[actionType];
+        const ampliData = ACCOUNT_FORM_TYPE_TO_AMPLI[actionType];
 
-        if (ampliAccountType && ampliAccountOrigin) {
+        if (ampliData) {
             ampli.accountCreationStarted({
-                accountType: ampliAccountType,
-                accountOrigin: ampliAccountOrigin,
+                accountType: ampliData.accountType,
+                accountOrigin: ampliData.accountOrigin,
                 isFirstAccount,
                 sourceFlow,
             });
