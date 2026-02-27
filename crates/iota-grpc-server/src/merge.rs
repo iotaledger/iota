@@ -227,7 +227,9 @@ impl Merge<&iota_sdk_types::TransactionEvents> for Events {
         self.events = source
             .0
             .iter()
-            .map(|event| Merge::merge_from(event, mask))
+            .map(|event| {
+                Event::merge_from(event, mask).map_err(|e| e.with_context("failed to merge event"))
+            })
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(())

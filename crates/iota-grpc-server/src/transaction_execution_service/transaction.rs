@@ -113,7 +113,7 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::Transaction {
         let transaction = source
             .transaction
             .as_ref()
-            .ok_or_else(|| RpcError::new(tonic::Code::Internal, "missing transaction"))?;
+            .ok_or_else(|| RpcError::internal().with_context("missing transaction"))?;
 
         // Set digest if requested
         if mask.contains(Self::DIGEST_FIELD.name) {

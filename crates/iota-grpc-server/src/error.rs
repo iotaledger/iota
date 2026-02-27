@@ -20,22 +20,29 @@ pub struct RpcError {
 }
 
 impl RpcError {
-    pub fn new<T: Into<String>>(code: Code, message: T) -> Self {
+    pub fn new<T: std::fmt::Display>(code: Code, message: T) -> Self {
         Self {
             code,
-            message: Some(message.into()),
+            message: Some(message.to_string()),
             details: None,
         }
     }
 
     /// Add context to an existing error
-    pub fn with_context<T: Into<String>>(mut self, context: T) -> Self {
-        let context_str = context.into();
+    pub fn with_context<T: std::fmt::Display>(mut self, context: T) -> Self {
         self.message = Some(match self.message {
-            Some(existing) => format!("{}: {}", context_str, existing),
-            None => context_str,
+            Some(existing) => format!("{}: {}", context, existing),
+            None => context.to_string(),
         });
         self
+    }
+
+    pub fn internal() -> Self {
+        Self {
+            code: Code::Internal,
+            message: None,
+            details: None,
+        }
     }
 
     pub fn not_found() -> Self {
@@ -82,41 +89,25 @@ impl From<RpcError> for Status {
 
 impl From<anyhow::Error> for RpcError {
     fn from(value: anyhow::Error) -> Self {
-        Self {
-            code: Code::Internal,
-            message: Some(value.to_string()),
-            details: None,
-        }
+        Self::internal().with_context(value)
     }
 }
 
 impl From<iota_types::iota_sdk_types_conversions::SdkTypeConversionError> for RpcError {
     fn from(value: iota_types::iota_sdk_types_conversions::SdkTypeConversionError) -> Self {
-        Self {
-            code: Code::Internal,
-            message: Some(value.to_string()),
-            details: None,
-        }
+        Self::internal().with_context(value)
     }
 }
 
 impl From<bcs::Error> for RpcError {
     fn from(value: bcs::Error) -> Self {
-        Self {
-            code: Code::Internal,
-            message: Some(value.to_string()),
-            details: None,
-        }
+        Self::internal().with_context(value)
     }
 }
 
 impl From<iota_grpc_types::proto::GrpcConversionError> for RpcError {
     fn from(value: iota_grpc_types::proto::GrpcConversionError) -> Self {
-        Self {
-            code: Code::Internal,
-            message: Some(value.to_string()),
-            details: None,
-        }
+        Self::internal().with_context(value)
     }
 }
 
@@ -225,7 +216,7 @@ impl std::error::Error for ObjectNotFoundError {}
 
 impl From<ObjectNotFoundError> for RpcError {
     fn from(value: ObjectNotFoundError) -> Self {
-        Self::new(tonic::Code::NotFound, value.to_string())
+        Self::not_found().with_context(value)
     }
 }
 
@@ -242,7 +233,7 @@ impl std::error::Error for TransactionNotFoundError {}
 
 impl From<TransactionNotFoundError> for RpcError {
     fn from(value: TransactionNotFoundError) -> Self {
-        Self::new(tonic::Code::NotFound, value.to_string())
+        Self::not_found().with_context(value)
     }
 }
 

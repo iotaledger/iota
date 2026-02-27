@@ -102,13 +102,10 @@ impl Merge<&EpochReadSource> for Epoch {
             } else if let Some(ref info) = epoch_info {
                 info.system_state.clone()
             } else {
-                return Err(RpcError::new(
-                    tonic::Code::Internal,
-                    format!(
-                        "cannot get system state for historical epoch {}: epoch info not available",
-                        source.epoch
-                    ),
-                ));
+                return Err(RpcError::internal().with_context(format!(
+                    "cannot get system state for historical epoch {}: epoch info not available",
+                    source.epoch
+                )));
             };
             self.bcs_system_state = Some(BcsData::serialize(&system_state)?);
         }
@@ -221,7 +218,7 @@ impl std::error::Error for CommitteeNotFoundError {}
 
 impl From<CommitteeNotFoundError> for RpcError {
     fn from(value: CommitteeNotFoundError) -> Self {
-        RpcError::new(tonic::Code::NotFound, value.to_string())
+        RpcError::not_found().with_context(value)
     }
 }
 
@@ -246,6 +243,6 @@ impl std::error::Error for ProtocolVersionNotFoundError {}
 
 impl From<ProtocolVersionNotFoundError> for RpcError {
     fn from(value: ProtocolVersionNotFoundError) -> Self {
-        RpcError::new(tonic::Code::NotFound, value.to_string())
+        RpcError::not_found().with_context(value)
     }
 }

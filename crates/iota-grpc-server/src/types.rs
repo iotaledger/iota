@@ -591,11 +591,11 @@ impl GrpcReader {
 
             // Use Merge to populate based on mask
             Merge::merge(&mut checkpoint_proto, &sdk_summary, &checkpoint_mask)
-                .map_err(|e: RpcError| Status::from(e.with_context("failed to merge summary")))?;
+                .map_err(|e| e.with_context("failed to merge summary"))?;
             Merge::merge(&mut checkpoint_proto, sdk_contents, &checkpoint_mask)
-                .map_err(|e: RpcError| Status::from(e.with_context("failed to merge contents")))?;
+                .map_err(|e| e.with_context("failed to merge contents"))?;
             Merge::merge(&mut checkpoint_proto, sdk_signature, &checkpoint_mask)
-                .map_err(|e: RpcError| Status::from(e.with_context("failed to merge signature")))?;
+                .map_err(|e| e.with_context("failed to merge signature"))?;
 
             yield Ok(grpc_ledger_service::CheckpointData::default().with_checkpoint(checkpoint_proto));
 
@@ -637,7 +637,7 @@ impl GrpcReader {
                                             .try_into()
                                             .map_err(|e| Status::internal(format!("event conversion error: {e}")))?;
                                         let grpc_event = grpc_event::Event::merge_from(&sdk_event, &events_submask)
-                                            .map_err(|e: RpcError| Status::from(e.with_context("failed to merge event")))?;
+                                            .map_err(|e| e.with_context("failed to merge event"))?;
                                         let event_size = grpc_event.encoded_len();
 
                                         // Check if adding this event would exceed limit
@@ -675,7 +675,7 @@ impl GrpcReader {
                                     checkpoint_tx_ctx,
                                     &tx_mask,
                                 )
-                                .map_err(|e: RpcError| Status::from(e.with_context("failed to merge transaction")))?;
+                                .map_err(|e| e.with_context("failed to merge transaction"))?;
                                 let tx_size = executed_tx.encoded_len();
 
                                 // Check if adding this tx would exceed limit
