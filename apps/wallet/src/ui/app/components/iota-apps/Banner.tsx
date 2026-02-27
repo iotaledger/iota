@@ -27,8 +27,7 @@ export function AppsPageBanner() {
                 <ExternalLink
                     href={AppsBannerConfig.value?.bannerUrl}
                     onClick={() => ampli.appsBannerCtaClicked({ sourceFlow: 'Banner - Apps tab' })}
-                    type="application"
-                    isPublic
+                    trackEvent={false}
                 >
                     <img
                         className="w-full"
