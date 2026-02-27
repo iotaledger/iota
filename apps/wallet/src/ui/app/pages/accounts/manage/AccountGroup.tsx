@@ -4,7 +4,12 @@
 
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
 import { AccountsFormType, useAccountsFormContext, VerifyPasswordModal } from '_components';
-import { useAccountSources, useCreateAccountsMutation, useActiveAccount } from '_hooks';
+import {
+    useAccountSources,
+    useActiveAccount,
+    useBackgroundClient,
+    useCreateAccountsMutation,
+} from '_hooks';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
@@ -66,13 +71,14 @@ export function AccountGroup({
     const [isCollapsibleGroupOpen, setIsCollapsibleGroupOpen] = useState(true);
     const navigate = useNavigate();
     const activeAccount = useActiveAccount();
-    const createAccountMutation = useCreateAccountsMutation();
+    const createAccountsMutation = useCreateAccountsMutation();
     const isMnemonicDerivedGroup = type === AccountType.MnemonicDerived;
     const isSeedDerivedGroup = type === AccountType.SeedDerived;
     const [accountsFormValues, setAccountsFormValues] = useAccountsFormContext();
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
     const { data: accountSources } = useAccountSources();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceID);
+    const backgroundClient = useBackgroundClient();
 
     async function handleAdd(e: React.MouseEvent<HTMLButtonElement>) {
         if (!accountSource) return;
@@ -91,7 +97,7 @@ export function AccountGroup({
         if (accountSource.isLocked) {
             setPasswordModalVisible(true);
         } else {
-            createAccountMutation.mutate({
+            createAccountsMutation.mutate({
                 type: accountsFormType,
             });
         }
@@ -300,10 +306,13 @@ export function AccountGroup({
                 <VerifyPasswordModal
                     open
                     onVerify={async (password) => {
+                        await backgroundClient.unlockAllAccountsAndSources({
+                            password,
+                        });
+
                         if (accountsFormValues.current) {
-                            await createAccountMutation.mutateAsync({
+                            await createAccountsMutation.mutateAsync({
                                 type: accountsFormValues.current.type,
-                                password,
                             });
                         }
                         setPasswordModalVisible(false);

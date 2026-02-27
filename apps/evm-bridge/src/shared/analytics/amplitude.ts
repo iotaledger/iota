@@ -57,7 +57,7 @@ export async function initAmplitude() {
         },
     }).promise;
 
-    setNetworkGroup(getDefaultNetwork());
+    setAmplitudeIdentity();
 
     window.addEventListener('pagehide', () => {
         amplitude.setTransport('beacon');
@@ -76,44 +76,70 @@ export function getUrlWithDeviceId(url: URL) {
     return url;
 }
 
-function setNetworkGroup(network: string): void {
-    ampli.client.setGroup('activeNetwork', network);
-}
-
-/**
- * Set wallet information as groups for connected wallets.
- * Groups are attached to all future events for better segmentation and cohort analysis.
- */
-export function setWalletUserGroup(walletInfo: {
+type AmplitudeIdentityOptions = {
+    activeNetwork?: string;
     l1WalletType?: string;
     l2WalletType?: string;
     l2ChainId?: string;
-}) {
-    if (!ampli.client) return;
+};
 
-    if (walletInfo.l1WalletType) {
-        ampli.client.setGroup('l1_wallet_type', walletInfo.l1WalletType);
+// Track the current identity state to preserve properties across updates
+const currentIdentity: Required<AmplitudeIdentityOptions> = {
+    activeNetwork: '',
+    l1WalletType: '',
+    l2WalletType: '',
+    l2ChainId: '',
+};
+
+export function setAmplitudeIdentity(options?: AmplitudeIdentityOptions): void {
+    if (!ampli.isLoaded) {
+        return;
     }
 
-    if (walletInfo.l2WalletType) {
-        ampli.client.setGroup('l2_wallet_type', walletInfo.l2WalletType);
+    // Update current state with provided options
+    if (options?.activeNetwork !== undefined) {
+        currentIdentity.activeNetwork = options.activeNetwork;
+    } else if (!currentIdentity.activeNetwork) {
+        // Initialize activeNetwork on first call
+        currentIdentity.activeNetwork = getDefaultNetwork();
     }
 
-    if (walletInfo.l2ChainId) {
-        ampli.client.setGroup('l2_chain_id', walletInfo.l2ChainId);
+    if (options?.l1WalletType !== undefined) {
+        currentIdentity.l1WalletType = options.l1WalletType;
     }
-}
 
-/**
- * Clear wallet groups when disconnected.
- */
-export function clearWalletUserGroup(layer: 'l1' | 'l2') {
-    if (!ampli.client) return;
+    if (options?.l2WalletType !== undefined) {
+        currentIdentity.l2WalletType = options.l2WalletType;
+    }
 
-    if (layer === 'l1') {
-        ampli.client.setGroup('l1_wallet_type', []);
+    if (options?.l2ChainId !== undefined) {
+        currentIdentity.l2ChainId = options.l2ChainId;
+    }
+
+    // Build identify event with current state
+    const identifyEvent = new amplitude.Identify();
+
+    // Always set activeNetwork to maintain state
+    identifyEvent.set('activeNetwork', currentIdentity.activeNetwork);
+
+    // Set or unset wallet properties based on current state
+    if (currentIdentity.l1WalletType) {
+        identifyEvent.set('l1WalletType', currentIdentity.l1WalletType);
     } else {
-        ampli.client.setGroup('l2_wallet_type', []);
-        ampli.client.setGroup('l2_chain_id', []);
+        identifyEvent.unset('l1WalletType');
     }
+
+    if (currentIdentity.l2WalletType) {
+        identifyEvent.set('l2WalletType', currentIdentity.l2WalletType);
+    } else {
+        identifyEvent.unset('l2WalletType');
+    }
+
+    if (currentIdentity.l2ChainId) {
+        identifyEvent.set('l2ChainId', currentIdentity.l2ChainId);
+    } else {
+        identifyEvent.unset('l2ChainId');
+    }
+
+    ampli.client.identify(identifyEvent);
 }
