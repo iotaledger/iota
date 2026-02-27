@@ -59,15 +59,13 @@ mod checked {
         if transaction.is_system_tx() {
             Ok(IotaGasStatus::new_unmetered())
         } else {
-            let transaction_gas_budget = transaction.gas_budget();
-
             check_gas(
                 objects,
                 protocol_config,
                 reference_gas_price,
                 gas,
                 transaction.gas_price(),
-                transaction_gas_budget,
+                transaction.gas_budget(),
                 authentication_gas_budget,
                 is_execute_transaction_to_effects,
             )
@@ -431,22 +429,35 @@ mod checked {
         authentication_gas_budget: u64,
         is_execute_transaction_to_effects: bool,
     ) -> IotaResult<IotaGasStatus> {
-        // Cap authentication gas to protocol limit or remove it from budget (set 0).
-        let authentication_gas_budget = protocol_config.max_auth_gas_as_option().map_or(
-            0, // If the protocol max_auth_gas is None, then authentication is not enabled.
-            |protocol_max_auth_gas| authentication_gas_budget.min(protocol_max_auth_gas),
-        );
+        let (gas_budget_to_set, gas_budget_to_check) = if authentication_gas_budget > 0 {
+            // If there is an authentication gas budget, then we are checking if
+            // max_gas_budget is Some. If not, that is UserInputError.
+            let protocol_max_auth_gas =
+                protocol_config.max_auth_gas_as_option().ok_or_else(|| {
+                    UserInputError::Unsupported(
+                        "Transaction requires authentication gas but max_auth_gas is not enabled"
+                            .to_string(),
+                    )
+                })?;
+            let authentication_gas_budget = authentication_gas_budget.min(protocol_max_auth_gas);
 
-        // Execution phase: meter transaction + authentication.
-        // Signing phase: meter only authentication.
-        let gas_budget_to_set = if is_execute_transaction_to_effects {
-            transaction_gas_budget + authentication_gas_budget
+            // Execution phase: meter transaction + authentication.
+            // Signing phase: meter only authentication.
+            let gas_budget_to_set = if is_execute_transaction_to_effects {
+                transaction_gas_budget + authentication_gas_budget
+            } else {
+                authentication_gas_budget
+            };
+
+            // Budget to check must always cover the full transaction + authentication cost.
+            let gas_budget_to_check = transaction_gas_budget + authentication_gas_budget;
+
+            (gas_budget_to_set, gas_budget_to_check)
         } else {
-            authentication_gas_budget
+            // If there is no authentication gas budget, then we are only checking the
+            // transaction gas budget.
+            (transaction_gas_budget, transaction_gas_budget)
         };
-
-        // Budget to check must always cover the full transaction + authentication cost.
-        let gas_budget_to_check = transaction_gas_budget + authentication_gas_budget;
 
         let gas_status = IotaGasStatus::new(
             gas_budget_to_set,
