@@ -431,16 +431,21 @@ mod checked {
         authentication_gas_budget: u64,
         is_execute_transaction_to_effects: bool,
     ) -> IotaResult<IotaGasStatus> {
-        let authentication_gas_budget =
-            authentication_gas_budget.min(protocol_config.max_auth_gas());
+        // Cap authentication gas to protocol limit or remove it from budget (set 0).
+        let authentication_gas_budget = protocol_config.max_auth_gas_as_option().map_or(
+            0, // If the protocol max_auth_gas is None, then authentication is not enabled.
+            |protocol_max_auth_gas| authentication_gas_budget.min(protocol_max_auth_gas),
+        );
 
-        // To be sure that we can cover the Move authenticator + transaction execution
-        // gas cost.
+        // Execution phase: meter transaction + authentication.
+        // Signing phase: meter only authentication.
         let gas_budget_to_set = if is_execute_transaction_to_effects {
             transaction_gas_budget + authentication_gas_budget
         } else {
             authentication_gas_budget
         };
+
+        // Budget to check must always cover the full transaction + authentication cost.
         let gas_budget_to_check = transaction_gas_budget + authentication_gas_budget;
 
         let gas_status = IotaGasStatus::new(
