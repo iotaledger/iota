@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type IotaDocument } from '@iota/identity-wasm/web';
-import { validateDomainLinkageByEndpoint } from '../didServiceHelper';
+import { validateDomainLinkageByEndpoint } from '../identityServiceHelper';
 import { useQuery } from '@tanstack/react-query';
 
 export const getValidateDomainLinkageQuery = (

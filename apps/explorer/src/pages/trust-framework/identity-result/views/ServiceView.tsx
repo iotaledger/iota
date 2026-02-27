@@ -15,7 +15,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { type IotaDocument } from '@iota/identity-wasm/web';
 import { useValidateDomainLinkage } from '../hooks/useValidateDomainLinkage';
-import { getDidConfigurationUrl } from '../didServiceHelper';
+import { getDidConfigurationUrl } from '../identityServiceHelper';
 
 interface ServiceViewProps {
     didDocument: IotaDocument;
