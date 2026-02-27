@@ -408,14 +408,8 @@ fn get_registry() -> Result<Registry> {
 
     tracer.trace_type::<CheckpointData>(&samples).unwrap();
 
-    // `CallArg` (= `iota_sdk_types::Input`) has a custom binary Serialize that maps
-    // through a private `ObjectArg` helper enum. Every `trace_type` call for a type
-    // that (transitively) contains `CallArg` may leave `ObjectArg` in
-    // `incomplete_enums`, because serde_reflection's loop only iterates for the
-    // top-level type being traced. Calling `trace_type::<ObjectArgProxy>` last
-    // clears any residual `incomplete_enums["ObjectArg"]` entry before we call
-    // `registry()`, which would otherwise fail with
-    // `MissingVariants(["ObjectArg"])`.
+    // Trace last to clear any residual `incomplete_enums["ObjectArg"]` entry
+    // before calling `registry()` (see `ObjectArgProxy` for details).
     tracer.trace_type::<ObjectArgProxy>(&samples).unwrap();
 
     // Use registry_unchecked() because trace_type::<TransactionEffects>
