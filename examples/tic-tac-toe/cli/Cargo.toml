@@ -15,6 +15,7 @@ serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1.49.0", features = ["time"] }
 
 # internal dependencies
+iota-keys = { path = "../../../crates/iota-keys" }
 iota-sdk = { path = "../../../crates/iota-sdk" }
 iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "7c3050e3ca36e5b0560035260338812723b43c43" }
 iota-types = { path = "../../../crates/iota-types" }
