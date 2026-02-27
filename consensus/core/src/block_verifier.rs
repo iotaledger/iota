@@ -51,7 +51,7 @@ impl SignedBlockVerifier {
         context: Arc<Context>,
         transaction_verifier: Arc<dyn TransactionVerifier>,
     ) -> Self {
-        let genesis = genesis_blocks(context.clone())
+        let genesis = genesis_blocks(&context)
             .into_iter()
             .map(|b| b.reference())
             .collect();
@@ -142,8 +142,9 @@ impl BlockVerifier for SignedBlockVerifier {
         let mut parent_stakes = 0;
         for (i, ancestor) in block.ancestors().iter().enumerate() {
             if !committee.is_valid_index(ancestor.author) {
-                return Err(ConsensusError::InvalidAuthorityIndex {
-                    index: ancestor.author,
+                return Err(ConsensusError::InvalidAncestorAuthorityIndex {
+                    block_authority: block.author(),
+                    ancestor_index: ancestor.author,
                     max: committee.size() - 1,
                 });
             }

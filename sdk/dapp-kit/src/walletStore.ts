@@ -8,6 +8,7 @@ import type { StateStorage } from 'zustand/middleware';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { getWalletUniqueIdentifier } from './utils/walletUtils.js';
+import type { ChainType } from '@iota/iota-sdk/client';
 
 type WalletConnectionStatus = 'disconnected' | 'connecting' | 'connected';
 
@@ -27,6 +28,7 @@ export type WalletActions = {
         updatedWallets: WalletWithRequiredFeatures[],
         unregisteredWallet: Wallet,
     ) => void;
+    setChain: (chain: ChainType | undefined) => void;
 };
 
 export type WalletStore = ReturnType<typeof createWalletStore>;
@@ -41,6 +43,7 @@ export type StoreState = {
     lastConnectedWalletName: string | null;
     connectionStatus: WalletConnectionStatus;
     supportedIntents: string[];
+    chain: ChainType | undefined;
 } & WalletActions;
 
 type WalletConfiguration = {
@@ -48,6 +51,7 @@ type WalletConfiguration = {
     wallets: WalletWithRequiredFeatures[];
     storage: StateStorage;
     storageKey: string;
+    chain?: ChainType;
 };
 
 export function createWalletStore({
@@ -55,6 +59,7 @@ export function createWalletStore({
     storage,
     storageKey,
     autoConnectEnabled,
+    chain,
 }: WalletConfiguration) {
     return createStore<StoreState>()(
         persist(
@@ -68,6 +73,7 @@ export function createWalletStore({
                 lastConnectedWalletName: null,
                 connectionStatus: 'disconnected',
                 supportedIntents: [],
+                chain,
                 setConnectionStatus(connectionStatus) {
                     set(() => ({
                         connectionStatus,
@@ -137,6 +143,9 @@ export function createWalletStore({
                                 )) ||
                             accounts[0],
                     }));
+                },
+                setChain(chain) {
+                    set(() => ({ chain }));
                 },
             }),
             {

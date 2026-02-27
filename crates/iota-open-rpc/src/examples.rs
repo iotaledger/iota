@@ -20,8 +20,8 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQuery, IotaTypeTag, MoveCallParams, MoveFunctionArgType,
     ObjectChange,
     ObjectValueKind::{ByImmutableReference, ByMutableReference, ByValue},
-    ObjectsPage, OwnedObjectRef, ProtocolConfigResponse, RPCTransactionRequestParams, Stake,
-    StakeStatus, TransactionBlockBytes, TransactionBlocksPage, TransactionFilter,
+    ObjectsPage, OwnedObjectRef, ProtocolConfigResponse, PtbInput, RPCTransactionRequestParams,
+    Stake, StakeStatus, TransactionBlockBytes, TransactionBlocksPage, TransactionFilter,
     TransferObjectParams, ValidatorApy, ValidatorApys,
 };
 use iota_open_rpc::ExamplePairing;
@@ -152,7 +152,10 @@ impl RpcExampleProvider {
                 arguments: vec![
                     IotaJsonValue::new(json!(coin_ref.0)).unwrap(),
                     IotaJsonValue::new(json!(random_amount)).unwrap(),
-                ],
+                ]
+                .into_iter()
+                .map(PtbInput::CallArg)
+                .collect(),
             }),
             RPCTransactionRequestParams::TransferObjectRequestParams(TransferObjectParams {
                 recipient,
@@ -794,17 +797,12 @@ impl RpcExampleProvider {
             timestamp_ms: None,
         };
 
-        let page = EventPage {
-            data: vec![event],
-            next_cursor: Some((tx_dig, 5).into()),
-            has_next_page: false,
-        };
         Examples::new(
             "iota_getEvents",
             vec![ExamplePairing::new(
                 "Returns the events the transaction in the request emits.",
                 vec![("transaction_digest", json!(tx_dig))],
-                json!(page),
+                json!(vec![event]),
             )],
         )
     }

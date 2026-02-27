@@ -1,6 +1,6 @@
 {
     "name": "@iota/signers",
-    "version": "0.1.4",
+    "version": "0.3.3",
     "description": "A collection of signers for various providers",
     "license": "Apache-2.0",
     "author": "IOTA Foundation <info@iota.org>",
@@ -28,7 +28,6 @@
     "scripts": {
         "clean": "rm -rf tsconfig.tsbuildinfo ./dist",
         "build": "build-package",
-        "prepublishOnly": "pnpm turbo build",
         "prettier:check": "prettier -c --ignore-unknown .",
         "prettier:fix": "prettier -w --ignore-unknown .",
         "eslint:check": "eslint --max-warnings=0 .",
@@ -37,17 +36,14 @@
         "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
         "test": "echo 'No tests specified for sdk/signers package yet.'"
     },
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/iotaledger/iota.git"
-    },
+    "repository": "https://github.com/iotaledger/iota",
     "bugs": {
         "url": "https://github.com/iotaledger/iota/issues"
     },
     "homepage": "https://github.com/iotaledger/iota#readme",
     "devDependencies": {
         "@iota/build-scripts": "workspace:*",
-        "@types/node": "^20.14.10",
+        "@types/node": "^24.0.0",
         "dotenv": "^16.4.5",
         "typescript": "^5.5.3",
         "vitest": "^2.1.9"
@@ -60,6 +56,6 @@
         "asn1-ts": "^8.0.2"
     },
     "engines": {
-        "node": ">=20"
+        "node": ">=24"
     }
 }

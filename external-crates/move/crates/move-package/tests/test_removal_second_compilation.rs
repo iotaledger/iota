@@ -5,7 +5,7 @@
 
 use std::path::Path;
 
-use move_package::{compilation::package_layout::CompiledPackageLayout, BuildConfig};
+use move_package::{BuildConfig, compilation::package_layout::CompiledPackageLayout};
 use tempfile::tempdir;
 
 #[test]

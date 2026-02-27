@@ -8,8 +8,7 @@ use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::BoxStream;
-use object_store::{DynObjectStore, ObjectMeta, ObjectStore, path::Path};
-
+use object_store::{DynObjectStore, ObjectMeta, ObjectStore, ObjectStoreExt, path::Path};
 pub mod http;
 pub mod util;
 

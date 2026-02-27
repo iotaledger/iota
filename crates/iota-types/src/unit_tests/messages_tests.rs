@@ -305,7 +305,7 @@ fn test_auth_sig_commit_to_wrong_epoch_id_fail() {
     );
     let (_, sec): (_, AuthorityKeyPair) = get_key_pair();
 
-    // Auth signtaure commits to epoch 0 verifies ok.
+    // Auth signature commits to epoch 0 verifies ok.
     let sig = AuthoritySignature::new_secure(
         &IntentMessage::new(
             Intent::iota_app(IntentScope::SenderSignedTransaction),
@@ -318,7 +318,7 @@ fn test_auth_sig_commit_to_wrong_epoch_id_fail() {
     assert!(res.is_ok());
     assert!(obligation.verify_all().is_ok());
 
-    // Auth signtaure commits to epoch 1 fails to verify.
+    // Auth signature commits to epoch 1 fails to verify.
     let mut obligation = VerificationObligation::default();
     let idx1 = obligation.add_message(
         &message,
@@ -743,9 +743,9 @@ fn test_sponsored_transaction_message() {
     let tx_data = TransactionData::new_with_gas_data(kind, sender, gas_data.clone());
     let intent = Intent::iota_transaction();
     let sender_sig: GenericSignature =
-        signature_from_signer(tx_data.clone(), intent.clone(), &sender_kp).into();
+        signature_from_signer(tx_data.clone(), intent, &sender_kp).into();
     let sponsor_sig: GenericSignature =
-        signature_from_signer(tx_data.clone(), intent.clone(), &sponsor_kp).into();
+        signature_from_signer(tx_data.clone(), intent, &sponsor_kp).into();
     let transaction = Transaction::from_generic_sig_data(
         tx_data.clone(),
         vec![sender_sig.clone(), sponsor_sig.clone()],
@@ -788,7 +788,7 @@ fn test_sponsored_transaction_message() {
     // Test incomplete signature lists (more sigs than expected)
     let third_party_kp = IotaKeyPair::Ed25519(get_key_pair().1);
     let third_party_sig: GenericSignature =
-        signature_from_signer(tx_data.clone(), intent.clone(), &third_party_kp).into();
+        signature_from_signer(tx_data.clone(), intent, &third_party_kp).into();
     assert!(matches!(
         Transaction::from_generic_sig_data(
             tx_data.clone(),
@@ -1077,7 +1077,7 @@ fn test_consensus_commit_prologue_v1_transaction() {
     );
     assert!(tx.contains_shared_object());
     assert_eq!(
-        tx.shared_input_objects().next().unwrap(),
+        tx.shared_input_objects().into_iter().next().unwrap(),
         SharedInputObject {
             id: IOTA_CLOCK_OBJECT_ID,
             initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,

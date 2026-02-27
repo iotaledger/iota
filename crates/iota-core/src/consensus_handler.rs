@@ -208,7 +208,10 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         // TODO: Is this check necessary? For now mysticeti will not
         // return more than one leader per round so we are not in danger of
         // ignoring any commits.
-        assert!(round >= last_committed_round);
+        assert!(
+            round >= last_committed_round,
+            "Consensus output round {round} is less than last committed round {last_committed_round}"
+        );
         if last_committed_round == round {
             // we can receive the same commit twice after restart
             // It is critical that the writes done by this function are atomic - otherwise
@@ -292,14 +295,23 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             .with_label_values(&[&leader_author.to_string()])
             .inc();
 
+        self.metrics
+            .consensus_handler_leader_round
+            .set(round as i64);
+
+        for (authority_index, number_of_committed_headers) in
+            consensus_output.number_of_headers_in_commit_by_authority()
+        {
+            self.last_consensus_stats
+                .stats
+                .inc_num_messages(authority_index as usize, number_of_committed_headers);
+        }
+
         {
             let span = trace_span!("process_consensus_certs");
             let _guard = span.enter();
             for (authority_index, authority_transactions) in consensus_output.transactions() {
                 // TODO: consider only messages within 1~3 rounds of the leader?
-                self.last_consensus_stats
-                    .stats
-                    .inc_num_messages(authority_index as usize);
                 for (transaction, serialized_len) in authority_transactions {
                     let kind = classify(&transaction);
                     self.metrics
@@ -509,6 +521,7 @@ pub struct StarfishConsensusHandler {
 
 impl StarfishConsensusHandler {
     pub fn new(
+        last_processed_commit_at_startup: starfish_core::CommitIndex,
         mut consensus_handler: ConsensusHandler<CheckpointService>,
         mut receiver: UnboundedReceiver<starfish_core::CommittedSubDag>,
         commit_consumer_monitor: Arc<starfish_core::CommitConsumerMonitor>,
@@ -518,10 +531,14 @@ impl StarfishConsensusHandler {
             // backpressure.
             while let Some(consensus_output) = receiver.recv().await {
                 let commit_index = consensus_output.commit_ref.index;
-                consensus_handler
-                    .handle_consensus_output(consensus_output)
-                    .await;
-                commit_consumer_monitor.set_highest_handled_commit(commit_index);
+                if commit_index <= last_processed_commit_at_startup {
+                    consensus_handler.handle_prior_consensus_output(consensus_output);
+                } else {
+                    consensus_handler
+                        .handle_consensus_output(consensus_output)
+                        .await;
+                    commit_consumer_monitor.set_highest_handled_commit(commit_index);
+                }
             }
         });
         Self {
@@ -584,6 +601,7 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
         ConsensusTransactionKind::CheckpointSignature(_) => "checkpoint_signature",
         ConsensusTransactionKind::EndOfPublish(_) => "end_of_publish",
         ConsensusTransactionKind::CapabilityNotificationV1(_) => "capability_notification_v1",
+        ConsensusTransactionKind::MisbehaviorReport(_, _, _) => "misbehavior_report",
         ConsensusTransactionKind::SignedCapabilityNotificationV1(_) => {
             "signed_capability_notification_v1"
         }
@@ -746,7 +764,7 @@ impl SequencedConsensusTransaction {
         else {
             return false;
         };
-        certificate.transaction_data().uses_randomness()
+        certificate.uses_randomness()
     }
 
     pub fn as_shared_object_txn(&self) -> Option<&SenderSignedData> {

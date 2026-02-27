@@ -150,6 +150,7 @@ pub async fn start_test_indexer_impl(
         } => {
             let config = crate::config::JsonRpcConfig {
                 iota_names_options: IotaNamesOptions::default(),
+                historic_fallback_options: Default::default(),
                 rpc_address: reader_mode_rpc_url.parse().unwrap(),
                 rpc_client_url: rpc_url,
             };
@@ -270,7 +271,7 @@ pub fn create_pg_store(db_url: &str, reset_database: bool) -> PgIndexerStore {
 }
 
 fn replace_db_name(db_url: &str, new_db_name: &str) -> (String, String) {
-    let pos = db_url.rfind('/').expect("Unable to find / in db_url");
+    let pos = db_url.rfind('/').expect("unable to find / in db_url");
     let old_db_name = &db_url[pos + 1..];
 
     (

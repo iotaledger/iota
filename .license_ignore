@@ -1,0 +1,4 @@
+# Files with non-Apache-2.0 licenses that should be excluded from license template check
+crates/telemetry-subscribers/src/flamegraph/svg_template.rs
+# Generated protobuf files from Google
+crates/iota-grpc-types/src/proto/generated/google.*

@@ -42,10 +42,9 @@ use move_binary_format::{
     file_format::{
         AddressIdentifierIndex, Bytecode, Constant as VMConstant, ConstantPoolIndex,
         DatatypeHandleIndex, EnumDefinitionIndex, FunctionDefinition, FunctionDefinitionIndex,
-        FunctionHandleIndex, FunctionInstantiation, SignatureIndex, SignatureToken,
-        StructDefinitionIndex, StructFieldInformation, VariantJumpTable, Visibility,
+        FunctionHandleIndex, SignatureIndex, SignatureToken, StructDefinitionIndex,
+        StructFieldInformation, VariantJumpTable, Visibility,
     },
-    normalized::{FunctionRef, Type as MType},
 };
 use move_bytecode_source_map::{mapping::SourceMapping, source_map::SourceMap};
 use move_command_line_common::files::FileHash;
@@ -53,6 +52,7 @@ use move_core_types::{
     account_address::AccountAddress,
     identifier::{IdentStr, Identifier},
     language_storage,
+    language_storage::StructTag,
     parsing::address::NumericalAddress,
     runtime_value::MoveValue,
 };
@@ -77,14 +77,6 @@ pub const SCRIPT_BYTECODE_FUN_NAME: &str = "<SELF>";
 
 /// A prefix used for structs which are backing specification ("ghost") memory.
 pub const GHOST_MEMORY_PREFIX: &str = "Ghost$";
-
-const IOTA_FRAMEWORK_ADDRESS: AccountAddress = address_from_single_byte(2);
-
-const fn address_from_single_byte(b: u8) -> AccountAddress {
-    let mut addr = [0u8; AccountAddress::LENGTH];
-    addr[AccountAddress::LENGTH - 1] = b;
-    AccountAddress::new(addr)
-}
 
 // =================================================================================================
 // # Locations
@@ -160,13 +152,6 @@ impl Default for Loc {
     }
 }
 
-/// Return true if `f` is an IOTA framework function declared in `module` with a name in `names`
-fn is_framework_function(f: &FunctionRef, module: &str, names: Vec<&str>) -> bool {
-    *f.module_id.address() == IOTA_FRAMEWORK_ADDRESS
-        && f.module_id.name().to_string() == module
-        && names.contains(&f.function_ident.as_str())
-}
-
 /// Alias for the Loc variant of MoveIR. This uses a `&static str` instead of
 /// `FileId` for the file name.
 pub type MoveIrLoc = move_ir_types::location::Loc;
@@ -176,13 +161,15 @@ pub type MoveIrLoc = move_ir_types::location::Loc;
 //
 // Identifiers are opaque values used to reference entities in the environment.
 //
-// We have two kinds of ids: those based on an index, and those based on a symbol. We use
-// the symbol based ids where we do not have control of the definition index order in bytecode
-// (i.e. we do not know in which order move-compiler enters functions and structs into file format),
-// and index based ids where we do have control (for modules, SpecFun and SpecVar).
+// We have two kinds of ids: those based on an index, and those based on a
+// symbol. We use the symbol based ids where we do not have control of the
+// definition index order in bytecode (i.e. we do not know in which order
+// move-compiler enters functions and structs into file format), and index based
+// ids where we do have control (for modules, SpecFun and SpecVar).
 //
-// In any case, ids are opaque in the sense that if someone has a StructId or similar in hand,
-// it is known to be defined in the environment, as it has been obtained also from the environment.
+// In any case, ids are opaque in the sense that if someone has a StructId or
+// similar in hand, it is known to be defined in the environment, as it has been
+// obtained also from the environment.
 
 /// Raw index type used in ids. 16 bits are sufficient currently.
 pub type RawIndex = u16;
@@ -635,7 +622,7 @@ impl GlobalEnv {
     }
 
     /// Find all target modules and return in a vector
-    pub fn get_target_modules(&self) -> Vec<ModuleEnv> {
+    pub fn get_target_modules(&self) -> Vec<ModuleEnv<'_>> {
         let mut target_modules: Vec<ModuleEnv> = vec![];
         for module_env in self.get_modules() {
             if module_env.is_target() {
@@ -1244,17 +1231,7 @@ impl GlobalEnv {
 
     /// Attempt to compute a struct tag for (`mid`, `sid`, `ts`). Returns `Some`
     /// if all types in `ts` are closed, `None` otherwise
-    pub fn get_struct_tag(
-        &self,
-        mid: ModuleId,
-        sid: DatatypeId,
-        ts: &[Type],
-    ) -> Option<language_storage::StructTag> {
-        self.get_datatype(mid, sid, ts)?.into_struct_tag()
-    }
-
-    /// Attempt to compute a struct type for (`mid`, `sid`, `ts`).
-    pub fn get_datatype(&self, mid: ModuleId, sid: DatatypeId, ts: &[Type]) -> Option<MType> {
+    pub fn get_struct_tag(&self, mid: ModuleId, sid: DatatypeId, ts: &[Type]) -> Option<StructTag> {
         let menv = self.get_module(mid);
         let name = menv
             .find_struct(sid.symbol())
@@ -1263,13 +1240,13 @@ impl GlobalEnv {
                 menv.find_enum(sid.symbol())
                     .map(|eenv| eenv.get_identifier())
             })??;
-        Some(MType::Struct {
+        Some(StructTag {
             address: *menv.self_address(),
             module: menv.get_identifier(),
             name,
-            type_arguments: ts
+            type_params: ts
                 .iter()
-                .map(|t| t.clone().into_normalized_type(self).unwrap())
+                .map(|t| t.clone().into_type_tag(self).unwrap())
                 .collect(),
         })
     }
@@ -1399,7 +1376,7 @@ impl GlobalEnv {
     }
 
     /// Produce a TypeDisplayContext to print types within the scope of this env
-    pub fn get_type_display_ctx(&self) -> TypeDisplayContext {
+    pub fn get_type_display_ctx(&self) -> TypeDisplayContext<'_> {
         TypeDisplayContext::WithEnv {
             env: self,
             type_param_names: None,
@@ -1920,106 +1897,6 @@ impl<'env> ModuleEnv<'env> {
     /// Returns an iterator over structs in this module.
     pub fn get_enums(&'env self) -> impl Iterator<Item = EnumEnv<'env>> {
         self.clone().into_enums()
-    }
-
-    /// Returns an iterator over all object types declared by this module
-    pub fn get_objects(&'env self) -> impl Iterator<Item = StructEnv<'env>> {
-        self.clone()
-            .into_structs()
-            .filter(|s| s.get_abilities().has_key())
-    }
-
-    /// Returns the object types that are shared by code in this module
-    /// If `transitive` is false, only return objects directly shared by
-    /// functions declared in this module If `transitive` is true, return
-    /// objects shared by both functions declared in this module and by
-    /// transitive callees Note that this can include both types declared
-    /// inside this module (common case) and types declared outside
-    /// Note that objects with `store` can be shared by modules that depend on
-    /// this one (e.g., by returning the object and subsequently calling
-    /// `public_share_object`)
-    pub fn get_shared_objects(&'env self, transitive: bool) -> BTreeSet<Type> {
-        let mut shared = BTreeSet::new();
-        for f in self.get_functions() {
-            shared.extend(f.get_shared_objects(transitive));
-        }
-        shared
-    }
-
-    /// Returns the object types that are frozen by this module
-    /// If `transitive` is false, only return objects directly transferred by
-    /// functions declared in this module If `transitive` is true, return
-    /// objects transferred by both functions declared in this module and by
-    /// transitive callees Note that this function can return both types
-    /// declared inside this module (common case) and types declared outside
-    /// Note that objects with `store` can be transferred by modules that depend
-    /// on this one (e.g., by returning the object and subsequently calling
-    /// `public_transfer`), or transferred by a command in a programmable
-    /// transaction block
-    pub fn get_transferred_objects(&'env self, transitive: bool) -> BTreeSet<Type> {
-        let mut transferred = BTreeSet::new();
-        for f in self.get_functions() {
-            transferred.extend(f.get_transferred_objects(transitive))
-        }
-        transferred
-    }
-
-    /// Returns the object types that are frozen by this module
-    /// If `transitive` is false, only return objects directly frozen by
-    /// functions declared in this module If `transitive` is true, return
-    /// objects frozen by both functions declared in this module and by
-    /// transitive callees Note that this function can return both types
-    /// declared inside this module (common case) and types declared outside
-    /// Note that objects with `store` can be frozen by modules that depend on
-    /// this one (e.g., by returning the object and subsequently calling
-    /// `public_freeze`)
-    pub fn get_frozen_objects(&'env self, transitive: bool) -> BTreeSet<Type> {
-        let mut frozen = BTreeSet::new();
-        for f in self.get_functions() {
-            frozen.extend(f.get_frozen_objects(transitive))
-        }
-        frozen
-    }
-
-    /// Returns the event types that are emitted by this module
-    /// If `transitive` is false, only return events directly emitted by
-    /// functions declared in this module If `transitive` is true, return
-    /// events emitted by both functions declared in this module and by
-    /// transitive callees Note that this function can return both event
-    /// types declared inside this module (common case) and event types declared
-    /// outside
-    pub fn get_events(&'env self, transitive: bool) -> BTreeSet<Type> {
-        let mut frozen = BTreeSet::new();
-        for f in self.get_functions() {
-            frozen.extend(f.get_frozen_objects(transitive))
-        }
-        frozen
-    }
-
-    /// Returns the objects types that are returned by externally callable
-    /// (`public`, `entry`, and `friend`) functions in this module
-    /// Returned objects with `store` can be transferred, shared, frozen, or
-    /// wrapped by a different module Note that this function returns object
-    /// types both with and without `store`
-    pub fn get_externally_returned_objects(&'env self) -> BTreeSet<Type> {
-        let mut returned = BTreeSet::new();
-        for f in self.get_functions() {
-            if !f.is_exposed() {
-                continue;
-            }
-            // Objects returned by a public function can be transferred, shared, frozen, or
-            // wrapped by a different module or (in the case of transfer) by a
-            // command in a programmable transaction block.
-            for f in f.get_return_types() {
-                if let Type::Datatype(mid, sid, _) = f {
-                    let struct_env = self.env.get_module(mid).into_struct(sid);
-                    if struct_env.get_abilities().has_key() {
-                        returned.insert(f);
-                    }
-                }
-            }
-        }
-        returned
     }
 
     /// Returns iterator over structs in this module.
@@ -3592,7 +3469,7 @@ impl<'env> FunctionEnv<'env> {
     }
 
     /// Produce a TypeDisplayContext to print types within the scope of this env
-    pub fn get_type_display_ctx(&self) -> TypeDisplayContext {
+    pub fn get_type_display_ctx(&self) -> TypeDisplayContext<'_> {
         let type_param_names = self
             .get_type_parameters()
             .iter()
@@ -3602,146 +3479,6 @@ impl<'env> FunctionEnv<'env> {
             env: self.module_env.env,
             type_param_names: Some(type_param_names),
         }
-    }
-
-    /// Returns the object types that may be shared by this function
-    /// If `transitive` is false, only return objects directly shared by this
-    /// function If `transitive` is true, return objects shared by both this
-    /// function and its transitive callees
-    pub fn get_shared_objects(&'env self, transitive: bool) -> BTreeSet<Type> {
-        let mut shared = BTreeSet::new();
-        if transitive {
-            let callees = self.get_transitive_closure_of_called_functions();
-            for callee in callees {
-                let fenv = self.module_env.env.get_function(callee);
-                shared.extend(fenv.get_shared_objects(false));
-            }
-        } else {
-            let module = &self.module_env.data.module;
-            for b in self.get_bytecode() {
-                if let Bytecode::CallGeneric(fi_idx) = b {
-                    let FunctionInstantiation {
-                        handle,
-                        type_parameters,
-                    } = module.function_instantiation_at(*fi_idx);
-                    let f_ref = FunctionRef::from_idx(module, handle);
-                    if is_framework_function(
-                        &f_ref,
-                        "transfer",
-                        vec!["share_object", "public_share_object"],
-                    ) {
-                        let type_params = module.signature_at(*type_parameters);
-                        shared.insert(self.module_env.globalize_signature(&type_params.0[0]));
-                    }
-                }
-            }
-        }
-
-        shared
-    }
-
-    /// Returns the object types that may be transferred by this function
-    /// If `transitive` is false, only objects directly transferred by this
-    /// function If `transitive` is true, return objects transferred by both
-    /// this function and its transitive callees
-    pub fn get_transferred_objects(&'env self, transitive: bool) -> BTreeSet<Type> {
-        let mut transferred = BTreeSet::new();
-        if transitive {
-            let callees = self.get_transitive_closure_of_called_functions();
-            for callee in callees {
-                let fenv = self.module_env.env.get_function(callee);
-                transferred.extend(fenv.get_shared_objects(false));
-            }
-        } else {
-            let module = &self.module_env.data.module;
-            for b in self.get_bytecode() {
-                if let Bytecode::CallGeneric(fi_idx) = b {
-                    let FunctionInstantiation {
-                        handle,
-                        type_parameters,
-                    } = module.function_instantiation_at(*fi_idx);
-                    let f_ref = FunctionRef::from_idx(module, handle);
-                    if is_framework_function(
-                        &f_ref,
-                        "transfer",
-                        vec!["transfer", "public_transfer"],
-                    ) {
-                        let type_params = module.signature_at(*type_parameters);
-                        transferred.insert(self.module_env.globalize_signature(&type_params.0[0]));
-                    }
-                }
-            }
-        }
-
-        transferred
-    }
-
-    /// Returns the object types that may be frozen by this function
-    /// If `transitive` is false, only return objects directly frozen by this
-    /// function If `transitive` is true, return objects frozen by both this
-    /// function and its transitive callees
-    pub fn get_frozen_objects(&'env self, transitive: bool) -> BTreeSet<Type> {
-        let mut frozen = BTreeSet::new();
-        if transitive {
-            let callees = self.get_transitive_closure_of_called_functions();
-            for callee in callees {
-                let fenv = self.module_env.env.get_function(callee);
-                frozen.extend(fenv.get_shared_objects(false));
-            }
-        } else {
-            let module = &self.module_env.data.module;
-            for b in self.get_bytecode() {
-                if let Bytecode::CallGeneric(fi_idx) = b {
-                    let FunctionInstantiation {
-                        handle,
-                        type_parameters,
-                    } = module.function_instantiation_at(*fi_idx);
-                    let f_ref = FunctionRef::from_idx(module, handle);
-                    if is_framework_function(
-                        &f_ref,
-                        "transfer",
-                        vec!["freeze_object", "public_freeze_object"],
-                    ) {
-                        let type_params = module.signature_at(*type_parameters);
-                        frozen.insert(self.module_env.globalize_signature(&type_params.0[0]));
-                    }
-                }
-            }
-        }
-
-        frozen
-    }
-
-    /// Returns the event types that may be emitted by this function
-    /// If `transitive` is false, only return events directly emitted by this
-    /// function If `transitive` is true, return events emitted by both this
-    /// function and its transitive callees
-    pub fn get_events(&'env self, transitive: bool) -> BTreeSet<Type> {
-        let mut events = BTreeSet::new();
-        if transitive {
-            let callees = self.get_transitive_closure_of_called_functions();
-            for callee in callees {
-                let fenv = self.module_env.env.get_function(callee);
-                events.extend(fenv.get_events(false));
-            }
-        } else {
-            let module = &self.module_env.data.module;
-            for b in self.get_bytecode() {
-                if let Bytecode::CallGeneric(fi_idx) = b {
-                    let FunctionInstantiation {
-                        handle,
-                        type_parameters,
-                    } = module.function_instantiation_at(*fi_idx);
-                    let f_ref = FunctionRef::from_idx(module, handle);
-                    if is_framework_function(&f_ref, "event", vec!["emit"]) {
-                        let type_params = module.signature_at(*type_parameters);
-                        events.insert(self.module_env.globalize_signature(&type_params.0[0]));
-                    }
-                }
-            }
-        }
-
-        events
     }
 }
 

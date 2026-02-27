@@ -308,7 +308,7 @@ public(package) fun v1_to_v2(self: IotaSystemStateV1): IotaSystemStateV2 {
 
 // ==== public(package) functions ====
 
-/// Can be called by anyone who wishes to become a validator candidate and starts accuring delegated
+/// Can be called by anyone who wishes to become a validator candidate and starts accruing delegated
 /// stakes in their staking pool. Once they have at least `MIN_VALIDATOR_JOINING_STAKE` amount of stake they
 /// can call `request_add_validator` to officially become an active validator at the next epoch.
 /// Aborts if the caller is already a pending or active validator, or a validator candidate.
@@ -735,6 +735,8 @@ public(package) fun advance_epoch(
     epoch_start_timestamp_ms: u64, // Timestamp of the epoch start
     max_committee_members_count: u64,
     eligible_active_validators: vector<u64>,
+    scores: vector<u64>,
+    adjust_rewards_by_score: bool,
     ctx: &mut TxContext,
 ): Balance<IOTA> {
     self.epoch_start_timestamp_ms = epoch_start_timestamp_ms;
@@ -792,6 +794,8 @@ public(package) fun advance_epoch(
             self.parameters.validator_low_stake_grace_period,
             max_committee_members_count,
             eligible_active_validators,
+            scores,
+            adjust_rewards_by_score,
             ctx,
         );
 

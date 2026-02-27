@@ -16,7 +16,7 @@ fastcrypto-vdf.workspace = true
 fastcrypto-zkp.workspace = true
 indexmap.workspace = true
 rand = { workspace = true, features = ["small_rng"] }
-smallvec.workspace = true
+smallvec = "1.10.0"
 tracing.workspace = true
 
 # internal dependencies

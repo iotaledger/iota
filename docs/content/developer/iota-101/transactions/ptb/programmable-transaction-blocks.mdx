@@ -22,7 +22,7 @@ These commands execute sequentially, and you can use the results from one comman
 The effects of all commands—specifically object modifications or transfers—are applied atomically at the end of the transaction.
 **If any command fails, the entire PTB fails, and none of the effects are applied.**
 
-Using PTBs, you can perform up to 1,024 unique operations in a single execution.
+Using PTBs, you can perform up to 1,024 unique commands in a single execution.
 In contrast, traditional blockchains would require 1,024 individual executions to achieve the same result.
 This structure not only enhances efficiency but also reduces gas fees,
 as grouping transactions in a PTB is more cost-effective than processing them individually.
@@ -53,6 +53,27 @@ A PTB consists of two main components:
   - [`MoveCall`](#movecall): Invoke an `entry` or `public` Move function in a published package.
   - [`Publish`](#publish): Create a new package and call the `init` function of each module.
   - [`Upgrade`](#upgrade): Upgrade an existing package, gated by [`iota::package::UpgradeCap`](../../../references/framework/iota/package.mdx#struct-upgradecap).
+
+## Limits and Constraints
+
+While Programmable Transaction Blocks (PTBs) allow you to batch a large number of operations (up to 1,024 commands) into a single atomic transaction, they are subject to several hard limits enforced by the IOTA protocol. These limits help ensure network stability, prevent abuse, and maintain predictable performance.
+
+Exceeding any of these limits will cause the transaction to fail during validation or execution.
+
+| Limit                             | Value                   | Description
+| --------------------------------- | ----------------------- |-------------------------------------------------------
+| Maximum number of commands        | 1,024                   | Total number of commands (operations) that can be included in a single PTB. This is the "1,024 unique commands" limit mentioned earlier.
+| Maximum transaction size          | 128 KiB (131,072 bytes) | The serialized size of the entire transaction (including all inputs, commands, and signatures). Large PTBs with many inputs or complex arguments can hit this quickly.
+| Maximum input objects             | 2,048                   | Maximum number of object references (owned, shared, or receiving) that can be passed as inputs to the PTB.
+| Maximum gas payment objects       | 256                     | Maximum number of `Coin<IOTA>` objects that can be used/merged for gas payment in a single transaction.
+| Maximum arguments                 | 512                     | Total number of arguments (pure values + object references) across all commands in the PTB.
+| Maximum new Move object IDs       | 2,048                   | Maximum number of new objects that can be created by the PTB (e.g., via `SplitCoins`, `MoveCall` that returns new objects, etc.).
+| Maximum size of a created Move object| 250 KiB (256,000 bytes)| Size limit for any individual Move object created during PTB execution.
+
+
+:::info
+For the most up to date and complete list of [protocol configuration values](https://github.com/iotaledger/iota/blob/mainnet/crates/iota-protocol-config/src/lib.rs#L1581) (including any newly added limits), refer to the source in the IOTA repository.
+:::
 
 ### Inputs and Results
 

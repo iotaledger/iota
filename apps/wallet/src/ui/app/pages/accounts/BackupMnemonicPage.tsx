@@ -29,9 +29,6 @@ export function BackupMnemonicPage() {
     const passphraseMutation = useExportPassphraseMutation();
 
     const navigate = useNavigate();
-    if (!isPending && selectedSource?.type !== AccountSourceType.Mnemonic) {
-        return <Navigate to="/" replace />;
-    }
 
     useEffect(() => {
         (async () => {
@@ -41,6 +38,10 @@ export function BackupMnemonicPage() {
             passphraseMutation.mutate({ accountSourceID: accountSourceID });
         })();
     }, [accountSourceID, passphraseMutation]);
+
+    if (!isPending && selectedSource?.type !== AccountSourceType.Mnemonic) {
+        return <Navigate to="/" replace />;
+    }
 
     return (
         <PageTemplate title="Export Mnemonic" isTitleCentered>
@@ -65,6 +66,7 @@ export function BackupMnemonicPage() {
                                     <HideShowDisplayBox
                                         value={passphraseMutation.data.join(' ')}
                                         copiedMessage="Mnemonic copied"
+                                        eventType="mnemonic"
                                     />
                                 ) : (
                                     <InfoBox
@@ -90,7 +92,7 @@ export function BackupMnemonicPage() {
                         </div>
                         <div className="pt-sm--rs" />
                         <Button
-                            onClick={() => navigate('/')}
+                            onClick={() => navigate('/tokens')}
                             type={ButtonType.Primary}
                             disabled={!mnemonicBackedUp}
                             text="Open Wallet"

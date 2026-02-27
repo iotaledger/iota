@@ -8,15 +8,15 @@ pub mod utils;
 
 use std::{result::Result, str::FromStr, sync::Arc};
 
-use anyhow::{Ok, bail};
+use anyhow::bail;
 use async_trait::async_trait;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    IotaObjectDataOptions, IotaObjectResponse, IotaTypeTag, RPCTransactionRequestParams,
+    IotaObjectDataOptions, IotaObjectResponse, IotaTypeTag, PtbInput, RPCTransactionRequestParams,
 };
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectID, ObjectInfo},
+    base_types::{IotaAddress, ObjectID},
     coin,
     error::UserInputError,
     fp_ensure,
@@ -32,7 +32,10 @@ pub trait DataReader {
         &self,
         address: IotaAddress,
         object_type: StructTag,
-    ) -> Result<Vec<ObjectInfo>, anyhow::Error>;
+        cursor: Option<ObjectID>,
+        limit: Option<usize>,
+        options: IotaObjectDataOptions,
+    ) -> Result<iota_json_rpc_types::ObjectsPage, anyhow::Error>;
 
     async fn get_object_with_options(
         &self,
@@ -383,6 +386,32 @@ impl TransactionBuilder {
         Ok(TransactionKind::programmable(pt))
     }
 
+    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains a
+    /// [`Command::MoveCall`] to a Move View Function.
+    /// The method verifies that the signature of the function passed as input
+    /// complies with the Move View Function definition.
+    pub async fn move_view_call_tx_kind(
+        &self,
+        package_object_id: ObjectID,
+        module: &str,
+        function: &str,
+        type_args: Vec<IotaTypeTag>,
+        call_args: Vec<IotaJsonValue>,
+    ) -> Result<TransactionKind, anyhow::Error> {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        self.single_move_view_call(
+            &mut builder,
+            package_object_id,
+            module,
+            function,
+            type_args,
+            call_args,
+        )
+        .await?;
+        let pt = builder.finish();
+        Ok(TransactionKind::programmable(pt))
+    }
+
     /// Call a move function from a published package.
     pub async fn move_call(
         &self,
@@ -456,6 +485,72 @@ impl TransactionBuilder {
 
         let call_args = self
             .resolve_and_checks_json_args(
+                builder, package, &module, &function, &type_args, call_args,
+            )
+            .await?;
+
+        builder.command(Command::move_call(
+            package, module, function, type_args, call_args,
+        ));
+        Ok(())
+    }
+
+    /// Adds a single move call to the provided
+    /// [`ProgrammableTransactionBuilder`].
+    ///
+    /// Accepting [`PtbInput`] so one can also provide results from previous
+    /// move calls.
+    pub async fn single_move_call_with_ptb_inputs(
+        &self,
+        builder: &mut ProgrammableTransactionBuilder,
+        package: ObjectID,
+        module: &str,
+        function: &str,
+        type_args: Vec<IotaTypeTag>,
+        call_args: Vec<PtbInput>,
+    ) -> anyhow::Result<()> {
+        let module = Identifier::from_str(module)?;
+        let function = Identifier::from_str(function)?;
+
+        let type_args = type_args
+            .into_iter()
+            .map(|ty| ty.try_into())
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let call_args = self
+            .resolve_and_check_call_args(
+                builder, package, &module, &function, &type_args, call_args,
+            )
+            .await?;
+
+        builder.command(Command::move_call(
+            package, module, function, type_args, call_args,
+        ));
+        Ok(())
+    }
+
+    /// Add a single move call to the provided
+    /// [`ProgrammableTransactionBuilder`]. Check that the passed function is
+    /// compliant to the Move View Function specification.
+    pub async fn single_move_view_call(
+        &self,
+        builder: &mut ProgrammableTransactionBuilder,
+        package: ObjectID,
+        module: &str,
+        function: &str,
+        type_args: Vec<IotaTypeTag>,
+        call_args: Vec<IotaJsonValue>,
+    ) -> anyhow::Result<()> {
+        let module = Identifier::from_str(module)?;
+        let function = Identifier::from_str(function)?;
+
+        let type_args = type_args
+            .into_iter()
+            .map(|ty| ty.try_into())
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let call_args = self
+            .resolve_and_checks_json_view_args(
                 builder, package, &module, &function, &type_args, call_args,
             )
             .await?;
@@ -694,7 +789,7 @@ impl TransactionBuilder {
                         .await?
                 }
                 RPCTransactionRequestParams::MoveCallRequestParams(param) => {
-                    self.single_move_call(
+                    self.single_move_call_with_ptb_inputs(
                         &mut builder,
                         param.package_object_id,
                         &param.module,

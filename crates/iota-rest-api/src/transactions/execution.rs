@@ -5,12 +5,12 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use axum::extract::{Query, State, rejection::ExtensionRejection};
-use iota_sdk2::types::{
+use iota_sdk_types::{
     Address, BalanceChange, CheckpointSequenceNumber, Object, Owner, SignedTransaction,
     Transaction, TransactionEffects, TransactionEvents, ValidatorAggregatedSignature,
     framework::Coin,
 };
-use iota_types::transaction_executor::{SimulateTransactionResult, TransactionExecutor};
+use iota_types::transaction_executor::{SimulateTransactionResult, TransactionExecutor, VmChecks};
 use schemars::JsonSchema;
 use tap::Pipe;
 
@@ -308,14 +308,15 @@ enum BinaryEffectsFinality {
     },
 }
 
-fn coins(objects: &[Object]) -> impl Iterator<Item = (&Address, Coin<'_>)> + '_ {
+fn coins(objects: &[Object]) -> impl Iterator<Item = (&Address, Coin)> + '_ {
     objects.iter().filter_map(|object| {
         let address = match object.owner() {
             Owner::Address(address) => address,
             Owner::Object(object_id) => object_id.as_address(),
             Owner::Shared { .. } | Owner::Immutable => return None,
+            _ => unreachable!("a new enum variant was added and needs to be handled"),
         };
-        let coin = Coin::try_from_object(object)?;
+        let coin = Coin::try_from_object(object).ok()?;
         Some((address, coin))
     })
 }
@@ -413,6 +414,10 @@ pub(super) fn simulate_transaction_impl(
     parameters: &SimulateTransactionQueryParameters,
     transaction: Transaction,
 ) -> Result<TransactionSimulationResponse> {
+    let Transaction::V1(transaction) = transaction else {
+        unreachable!("a new enum variant was added and needs to be handled");
+    };
+
     if transaction.gas_payment.objects.is_empty() {
         return Err(RestError::new(
             axum::http::StatusCode::BAD_REQUEST,
@@ -420,14 +425,17 @@ pub(super) fn simulate_transaction_impl(
         ));
     }
 
+    // Hardcoded dry run simulation
+    let dry_run_checks = VmChecks::Enabled;
     let SimulateTransactionResult {
         input_objects,
         output_objects,
         events,
         effects,
+        execution_result: _,
         mock_gas_id,
     } = executor
-        .simulate_transaction(transaction.try_into()?)
+        .simulate_transaction(transaction.try_into()?, dry_run_checks)
         .map_err(anyhow::Error::from)?;
 
     if mock_gas_id.is_some() {

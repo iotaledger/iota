@@ -34,6 +34,7 @@ pub mod backfill;
 pub mod config;
 pub mod db;
 pub mod errors;
+pub mod historical_fallback;
 pub mod indexer;
 pub mod ingestion;
 pub mod metrics;
@@ -64,14 +65,14 @@ pub async fn build_json_rpc_server(
         reader.clone(),
         config.iota_names_options.clone().into(),
     ))?;
-    builder.register_module(TransactionBuilderApi::new(reader.clone()))?;
+    builder.register_module(TransactionBuilderApi::from(reader.clone()))?;
     builder.register_module(MoveUtilsApi::new(reader.clone()))?;
     builder.register_module(GovernanceReadApi::new(reader.clone()))?;
     builder.register_module(ReadApi::new(reader.clone(), fullnode_client.clone()))?;
     builder.register_module(CoinReadApi::new(reader.clone())?)?;
     builder.register_module(ExtendedApi::new(reader.clone()))?;
     builder.register_module(OptimisticWriteApi::new(
-        WriteApi::new(fullnode_client),
+        WriteApi::new(fullnode_client, reader.clone()),
         OptimisticTransactionExecutor::new(&config.rpc_client_url, reader.clone(), store, metrics),
     ))?;
 
@@ -96,9 +97,9 @@ fn get_http_client(rpc_client_url: &str) -> Result<HttpClient, IndexerError> {
         .set_headers(headers.clone())
         .build(rpc_client_url)
         .map_err(|e| {
-            warn!("Failed to get new Http client with error: {:?}", e);
+            warn!("failed to get new Http client with error: {:?}", e);
             IndexerError::HttpClientInit(format!(
-                "Failed to initialize fullnode RPC client with error: {e:?}"
+                "failed to initialize fullnode RPC client with error: {e:?}"
             ))
         })
 }

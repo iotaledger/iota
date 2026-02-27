@@ -16,9 +16,9 @@ use clap::*;
 use colored::Colorize;
 use fastcrypto::traits::KeyPair;
 use iota_config::{
-    Config, FULL_NODE_DB_PATH, IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG,
-    IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
-    NodeConfig, PersistedConfig, genesis_blob_exists, iota_config_dir,
+    Config, IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG,
+    IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, NodeConfig,
+    PersistedConfig, genesis_blob_exists, iota_config_dir,
     node::{Genesis, GrpcApiConfig},
     p2p::SeedPeer,
 };
@@ -31,10 +31,12 @@ use iota_graphql_rpc::{
 #[cfg(feature = "indexer")]
 use iota_indexer::test_utils::{IndexerTypeConfig, start_test_indexer};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
-use iota_move::{self, execute_move_command, manage_package::resolve_lock_file_path};
+use iota_move::{
+    self, Command as MoveCommand, execute_move_command, manage_package::resolve_lock_file_path,
+};
 use iota_move_build::{
-    BuildConfig as IotaBuildConfig, IotaPackageHooks, check_invalid_dependencies,
-    check_unpublished_dependencies, implicit_deps,
+    BuildConfig as IotaBuildConfig, IotaPackageHooks, check_conflicting_addresses,
+    check_invalid_dependencies, check_unpublished_dependencies, implicit_deps,
 };
 use iota_package_management::system_package_versions::latest_system_packages;
 use iota_sdk::{
@@ -53,6 +55,7 @@ use iota_types::{
     crypto::{IotaKeyPair, SignatureScheme},
 };
 use move_analyzer::analyzer;
+use move_core_types::account_address::AccountAddress;
 use move_package::BuildConfig;
 use rand::rngs::OsRng;
 use serde_json::json;
@@ -143,6 +146,19 @@ impl IndexerFeatureArgs {
             pg_password: "postgrespw".to_string(),
         }
     }
+}
+
+#[derive(Parser, Debug)]
+#[clap(rename_all = "kebab-case")]
+pub struct IotaEnvConfig {
+    /// Sets the file storing the state of our user accounts (an empty one will
+    /// be created if missing)
+    #[clap(long = "client.config")]
+    pub config: Option<PathBuf>,
+    /// The IOTA environment to use. This must be present in the current config
+    /// file.
+    #[clap(long = "client.env")]
+    pub env: Option<String>,
 }
 
 #[derive(Parser)]
@@ -265,6 +281,8 @@ pub enum IotaCommand {
         force: bool,
         #[arg(long)]
         epoch_duration_ms: Option<u64>,
+        #[arg(long, help = "Set the genesis chain start timestamp in milliseconds")]
+        chain_start_timestamp_ms: Option<u64>,
         #[arg(
             long,
             value_name = "ADDR",
@@ -285,6 +303,11 @@ pub enum IotaCommand {
             default_value_t = DEFAULT_COMMITTEE_SIZE
         )]
         committee_size: usize,
+        #[arg(
+            long,
+            help = "Number of additional gas accounts to create for benchmarks (use for dedicated clients)"
+        )]
+        num_additional_gas_accounts: Option<usize>,
         /// The path to local migration snapshot files
         #[arg(long, name = "path", num_args(0..))]
         local_migration_snapshots: Vec<PathBuf>,
@@ -293,6 +316,14 @@ pub enum IotaCommand {
         remote_migration_snapshots: Vec<SnapshotUrl>,
         #[arg(long, help = "Specify the delegator address")]
         delegator: Option<IotaAddress>,
+        /// Set `admin-interface-address` config. This flag
+        /// accepts also a port, a host, or both (e.g., 0.0.0.0:1337).
+        /// When providing a specific value, please use the = sign between the
+        /// flag and value: `--admin-interface-address=1337` or
+        /// `--admin-interface-address=0.0.0.0`, or
+        /// `--admin-interface-address=0.0.0.0:1337`
+        #[arg(long, require_equals = true, value_name = "ADMIN_INTERFACE_HOST_PORT")]
+        admin_interface_address: Option<String>,
     },
     /// Create an IOTA Genesis Ceremony with multiple remote validators.
     GenesisCeremony(Ceremony),
@@ -310,10 +341,8 @@ pub enum IotaCommand {
     },
     /// Client for interacting with the IOTA network.
     Client {
-        /// Sets the file storing the state of our user accounts (an empty one
-        /// will be created if missing)
-        #[arg(long = "client.config")]
-        config: Option<PathBuf>,
+        #[clap(flatten)]
+        config: IotaEnvConfig,
         #[command(subcommand)]
         cmd: Option<IotaClientCommands>,
         /// Return command outputs in json format.
@@ -341,26 +370,22 @@ pub enum IotaCommand {
         /// Path to a package which the command should be run with respect to.
         #[arg(long = "path", short = 'p', global = true)]
         package_path: Option<PathBuf>,
-        /// Sets the file storing the state of our user accounts (an empty one
-        /// will be created if missing) Only used when the
-        /// `--dump-bytecode-as-base64` is set.
-        #[arg(long = "client.config")]
-        config: Option<PathBuf>,
+        #[clap(flatten)]
+        config: IotaEnvConfig,
         /// Package build options
         #[command(flatten)]
         build_config: BuildConfig,
         /// Subcommands.
         #[command(subcommand)]
-        cmd: iota_move::Command,
+        cmd: MoveCommand,
     },
     #[cfg(feature = "iota-names")]
     /// Manage names registered in IOTA-Names.
     /// By using this service, you agree to the Terms & Conditions:
-    /// testnet.iotanames.com/?modal=terms_conditions."
+    /// iotanames.com/terms-of-service."
     Name {
-        /// The file storing the state of the user accounts
-        #[arg(long = "client.config")]
-        config: Option<PathBuf>,
+        #[clap(flatten)]
+        config: IotaEnvConfig,
         /// Return command outputs in json format.
         #[arg(long, global = true)]
         json: bool,
@@ -430,12 +455,15 @@ impl IotaCommand {
                 from_config,
                 write_config,
                 epoch_duration_ms,
+                chain_start_timestamp_ms,
                 benchmark_ips,
                 with_faucet,
                 committee_size,
+                num_additional_gas_accounts,
                 local_migration_snapshots: with_local_migration_snapshot,
                 remote_migration_snapshots: with_remote_migration_snapshot,
                 delegator,
+                admin_interface_address,
             } => {
                 genesis(
                     from_config,
@@ -443,12 +471,15 @@ impl IotaCommand {
                     working_dir,
                     force,
                     epoch_duration_ms,
+                    chain_start_timestamp_ms,
                     benchmark_ips,
                     with_faucet,
                     committee_size,
+                    num_additional_gas_accounts,
                     with_local_migration_snapshot,
                     with_remote_migration_snapshot,
                     delegator,
+                    admin_interface_address,
                 )
                 .await
             }
@@ -470,7 +501,9 @@ impl IotaCommand {
                 json,
                 accept_defaults,
             } => {
-                let config_path = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
+                let config_path = config
+                    .config
+                    .unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
                 prompt_if_no_config(
                     &config_path,
                     accept_defaults,
@@ -478,7 +511,10 @@ impl IotaCommand {
                     !matches!(cmd, Some(IotaClientCommands::NewAddress { .. })),
                 )?;
                 if let Some(cmd) = cmd {
-                    let mut context = WalletContext::new(&config_path, None, None)?;
+                    let mut context = WalletContext::new(&config_path)?;
+                    if let Some(env_override) = config.env {
+                        context = context.with_env_override(env_override);
+                    }
                     cmd.execute(&mut context).await?.print(!json);
                 } else {
                     // Print help
@@ -496,7 +532,7 @@ impl IotaCommand {
             } => {
                 let config_path = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
                 prompt_if_no_config(&config_path, accept_defaults, true, true)?;
-                let mut context = WalletContext::new(&config_path, None, None)?;
+                let mut context = WalletContext::new(&config_path)?;
                 if let Some(cmd) = cmd {
                     cmd.execute(&mut context, json).await?.print(!json);
                 } else {
@@ -510,7 +546,7 @@ impl IotaCommand {
             IotaCommand::Move {
                 package_path,
                 build_config,
-                cmd,
+                mut cmd,
                 config: client_config,
             } => {
                 match cmd {
@@ -522,10 +558,15 @@ impl IotaCommand {
                         // management. In addition, tree shaking also
                         // requires a network as it needs to fetch
                         // on-chain linkage table of package dependencies.
-                        let config =
-                            client_config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
+                        let config = client_config
+                            .config
+                            .unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
                         prompt_if_no_config(&config, false, true, true)?;
-                        let context = WalletContext::new(&config, None, None)?;
+                        let mut context = WalletContext::new(&config)?;
+
+                        if let Some(env_override) = client_config.env {
+                            context = context.with_env_override(env_override);
+                        }
 
                         let Ok(client) = context.get_client().await else {
                             bail!(
@@ -549,20 +590,44 @@ impl IotaCommand {
                         let rerooted_path = move_cli::base::reroot_path(package_path.as_deref())?;
                         let mut build_config =
                             resolve_lock_file_path(build_config, Some(&rerooted_path))?;
+
+                        let previous_id = if let Some(ref chain_id) = chain_id {
+                            iota_package_management::set_package_id(
+                                &rerooted_path,
+                                build_config.install_dir.clone(),
+                                chain_id,
+                                AccountAddress::ZERO,
+                            )?
+                        } else {
+                            None
+                        };
+
                         let protocol_config = read_api.get_protocol_config(None).await?;
                         build_config.implicit_dependencies =
                             implicit_deps_for_protocol_version(protocol_config.protocol_version)?;
                         let mut pkg = IotaBuildConfig {
-                            config: build_config,
+                            config: build_config.clone(),
                             run_bytecode_verifier: true,
                             print_diags_to_stderr: true,
-                            chain_id,
+                            chain_id: chain_id.clone(),
                         }
                         .build(&rerooted_path)?;
 
+                        // Restore original ID, then check result.
+                        if let (Some(chain_id), Some(previous_id)) = (chain_id, previous_id) {
+                            let _ = iota_package_management::set_package_id(
+                                &rerooted_path,
+                                build_config.install_dir.clone(),
+                                &chain_id,
+                                previous_id,
+                            )?;
+                        }
+
                         let with_unpublished_deps = build.with_unpublished_dependencies;
 
+                        check_conflicting_addresses(&pkg.dependency_ids.conflicting, true)?;
                         check_invalid_dependencies(&pkg.dependency_ids.invalid)?;
+
                         if !with_unpublished_deps {
                             check_unpublished_dependencies(&pkg.dependency_ids.unpublished)?;
                         }
@@ -580,20 +645,50 @@ impl IotaCommand {
                         return Ok(());
                     }
                     _ => (),
-                };
+                }
+
+                // If a specific environment is specified for the build command we set the chain
+                // ID to the one that is specified.
+                if client_config.env.is_some() && matches!(cmd, MoveCommand::Build(_)) {
+                    // TODO replace with get_chain_id_and_client when https://github.com/iotaledger/iota/issues/10215 is done
+                    let mut context = WalletContext::new(
+                        &client_config
+                            .config
+                            .unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG)),
+                    )?;
+                    if let Some(env_override) = &client_config.env {
+                        context = context.with_env_override(env_override.clone());
+                    }
+                    let Ok(client) = context.get_client().await else {
+                        bail!(
+                            "`iota move build` requires a connection to the network. Current active network is {} but failed to connect to it.",
+                            context.active_env().as_ref().unwrap()
+                        );
+                    };
+                    let chain_id = client.read_api().get_chain_identifier().await.ok();
+
+                    let MoveCommand::Build(build_config) = &mut cmd else {
+                        unreachable!("We checked for Build above, so this should never happen");
+                    };
+
+                    build_config.chain_id = chain_id;
+                }
+
                 execute_move_command(package_path.as_deref(), build_config, cmd)
             }
             #[cfg(feature = "iota-names")]
             IotaCommand::Name { config, json, cmd } => {
                 eprintln!(
                     "{}",
-                    "By using this service, you agree to the Terms & Conditions: testnet.iotanames.com/?modal=terms_conditions."
+                    "By using this service, you agree to the Terms & Conditions: iotanames.com/terms-of-service"
                         .bold()
                         .yellow()
                 );
-                let config_path = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
+                let config_path = config
+                    .config
+                    .unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
                 prompt_if_no_config(&config_path, false, true, true)?;
-                let mut context = WalletContext::new(&config_path, None, None)?;
+                let mut context = WalletContext::new(&config_path)?;
                 cmd.execute(&mut context).await?.print(!json);
                 Ok(())
             }
@@ -717,11 +812,14 @@ async fn start(
                 false,
                 epoch_duration_ms,
                 None,
+                None,
                 false,
                 committee_size.unwrap_or(DEFAULT_COMMITTEE_SIZE),
+                None,
                 local_migration_snapshots,
                 remote_migration_snapshots,
                 delegator,
+                None,
             )
             .await
             .map_err(|e| anyhow!("{e}: {}. \n\n\
@@ -750,17 +848,23 @@ async fn start(
                 "Cannot open IOTA network config file at {network_config_path:?}"
             ))
         })?;
-        let genesis_path = config_path.join(IOTA_GENESIS_FILENAME);
-        let genesis = iota_config::genesis::Genesis::load(genesis_path)?;
-        let network_config = NetworkConfig {
-            validator_configs,
-            account_keys,
-            genesis,
-        };
-
-        swarm_builder = swarm_builder
-            .dir(config_path.clone())
-            .with_network_config(network_config);
+        let first_validator_config = validator_configs.first().ok_or(anyhow!(
+            "IOTA network config file must contain at least one validator config"
+        ))?;
+        let genesis = first_validator_config.genesis.clone();
+        let migration_tx_data_path = first_validator_config.migration_tx_data_path.clone();
+        ensure!(
+            validator_configs
+                .iter()
+                .all(|config| genesis.eq(&config.genesis)),
+            "All validators in IOTA network config must use the same genesis blob"
+        );
+        ensure!(
+            validator_configs
+                .iter()
+                .all(|config| migration_tx_data_path.eq(&config.migration_tx_data_path)),
+            "All validators in IOTA network config must use the same migration blob"
+        );
 
         let fullnode_config_path = config_path.join(IOTA_FULLNODE_CONFIG);
         if fullnode_config_path.exists() {
@@ -772,21 +876,32 @@ async fn start(
                 iota_names_config,
                 enable_grpc_api,
                 grpc_api_config,
+                db_path,
+                genesis: fullnode_genesis,
+                migration_tx_data_path: fullnode_migration_tx_data_path,
                 ..
             } = PersistedConfig::read(&fullnode_config_path).map_err(|err| {
                 err.context(format!(
                     "Cannot open fullnode config file at {fullnode_config_path:?}"
                 ))
             })?;
+            ensure!(
+                genesis.eq(&fullnode_genesis),
+                "Fullnode must use the same genesis blob as validators in IOTA network config"
+            );
+            ensure!(
+                migration_tx_data_path.eq(&fullnode_migration_tx_data_path),
+                "Fullnode must use the same migration blob as validators in IOTA network config"
+            );
+            swarm_builder = swarm_builder.with_fullnode_db_path(db_path);
 
             if let Some(iota_names_config) = iota_names_config {
-                swarm_builder = swarm_builder
-                    .dir(config_path.clone())
-                    .with_iota_names_config(iota_names_config);
+                swarm_builder = swarm_builder.with_iota_names_config(iota_names_config);
             }
 
-            // Apply gRPC configuration if enabled
+            swarm_builder = swarm_builder.with_fullnode_enable_grpc_api(enable_grpc_api);
             if enable_grpc_api {
+                // Apply gRPC configuration if enabled
                 if let Some(grpc_config) = grpc_api_config {
                     info!("Enabling gRPC API for fullnode with config: {grpc_config:?}");
                     swarm_builder = swarm_builder.with_fullnode_grpc_api_config(grpc_config);
@@ -797,6 +912,16 @@ async fn start(
                 }
             }
         }
+
+        let network_config = NetworkConfig {
+            validator_configs,
+            account_keys,
+            genesis: genesis.genesis()?.clone(),
+        };
+
+        swarm_builder = swarm_builder
+            .dir(config_path.clone())
+            .with_network_config(network_config);
     }
 
     // the indexer requires to set the fullnode's data ingestion directory
@@ -883,18 +1008,17 @@ async fn start(
         let graphql_address = parse_host_port(input, DEFAULT_GRAPHQL_PORT)
             .map_err(|_| anyhow!("Invalid graphql host and port"))?;
         tracing::info!("Starting the GraphQL service at {graphql_address}");
-        let graphql_connection_config = ConnectionConfig::new(
-            Some(graphql_address.port()),
-            Some(graphql_address.ip().to_string()),
-            Some(pg_address),
-            None,
-            None,
-            None,
-        );
+        let graphql_connection_config = ConnectionConfig {
+            port: graphql_address.port(),
+            host: graphql_address.ip().to_string(),
+            db_url: pg_address,
+            ..Default::default()
+        };
         start_graphql_server_with_fn_rpc(
             graphql_connection_config,
             Some(fullnode_url.clone()),
             None, // it will be initialized by default
+            None, // resolves to default service config
         )
         .await;
         info!("GraphQL started");
@@ -985,12 +1109,15 @@ async fn genesis(
     working_dir: Option<PathBuf>,
     force: bool,
     epoch_duration_ms: Option<u64>,
+    chain_start_timestamp_ms: Option<u64>,
     benchmark_ips: Option<Vec<String>>,
     with_faucet: bool,
     committee_size: usize,
+    num_additional_gas_accounts: Option<usize>,
     local_migration_snapshots: Vec<PathBuf>,
     remote_migration_snapshots: Vec<SnapshotUrl>,
     delegator: Option<IotaAddress>,
+    admin_interface_address: Option<String>,
 ) -> Result<(), anyhow::Error> {
     let iota_config_dir = &match working_dir {
         // if a directory is specified, it must exist (it
@@ -1067,13 +1194,36 @@ async fn genesis(
                 // Make a keystore containing the key for the genesis gas object.
                 let path = iota_config_dir.join(IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME);
                 let mut keystore = FileBasedKeystore::new(&path)?;
-                for gas_key in GenesisConfig::benchmark_gas_keys(ips.len()) {
+                let num_validators = ips.len();
+                let num_accounts = num_validators + num_additional_gas_accounts.unwrap_or(0);
+                for gas_key in GenesisConfig::benchmark_gas_keys(num_accounts) {
                     keystore.add_key(None, gas_key)?;
                 }
                 keystore.save()?;
 
-                // Make a new genesis config from the provided ip addresses.
-                GenesisConfig::new_for_benchmarks(&ips)
+                // Calculate extra allocations (validator, faucet)
+                let validator_extra = num_validators as u64
+                    * (iota_swarm_config::genesis_config::DEFAULT_GAS_AMOUNT
+                        + iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS);
+                let mut faucet_extra = 0u64;
+                if with_faucet {
+                    faucet_extra = iota_swarm_config::genesis_config::DEFAULT_GAS_AMOUNT
+                        * iota_swarm_config::genesis_config::DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT
+                            as u64;
+                }
+                let total_available_amount = u64::MAX
+                    .saturating_sub(validator_extra)
+                    .saturating_sub(faucet_extra);
+
+                // Make a new genesis config from the provided ip addresses with given epoch
+                // duration and timestamp.
+                GenesisConfig::new_for_benchmarks(
+                    &ips,
+                    epoch_duration_ms,
+                    chain_start_timestamp_ms,
+                    num_additional_gas_accounts,
+                    total_available_amount,
+                )
             } else if keystore_path.exists() {
                 let existing_keys = FileBasedKeystore::new(&keystore_path)?.addresses();
                 GenesisConfig::for_local_testing_with_addresses(existing_keys)
@@ -1118,6 +1268,15 @@ async fn genesis(
     if let Some(epoch_duration_ms) = epoch_duration_ms {
         genesis_conf.parameters.epoch_duration_ms = epoch_duration_ms;
     }
+
+    let admin_interface_address_with_port = admin_interface_address
+        .map(|input| {
+            let default_port = iota_config::node::default_admin_interface_address().port();
+            parse_host_port(input, default_port)
+                .map_err(|_| anyhow!("Invalid admin interface host and port"))
+        })
+        .transpose()?;
+
     let mut builder = ConfigBuilder::new(iota_config_dir)
         .with_genesis_config(genesis_conf)
         .with_empty_validator_genesis();
@@ -1126,6 +1285,11 @@ async fn genesis(
     } else {
         builder.committee_size(NonZeroUsize::new(committee_size).unwrap())
     };
+
+    if let Some(address) = admin_interface_address_with_port {
+        builder = builder.with_admin_interface_address(address);
+    }
+
     let network_config = tokio::task::spawn_blocking(move || builder.build()).await?;
     let mut keystore = FileBasedKeystore::new(&keystore_path)?;
     for key in &network_config.account_keys {
@@ -1152,9 +1316,10 @@ async fn genesis(
     info!("Client keystore is stored in {:?}.", keystore_path);
 
     let fullnode_config = FullnodeConfigBuilder::new()
-        .with_config_directory(FULL_NODE_DB_PATH.into())
+        .with_config_directory(iota_config_dir.to_path_buf())
         .with_rpc_addr(iota_config::node::default_json_rpc_address())
         .with_genesis(genesis.clone())
+        .with_admin_interface_address(admin_interface_address_with_port)
         .build_from_parts(&mut OsRng, network_config.validator_configs(), genesis);
 
     fullnode_config.save(iota_config_dir.join(IOTA_FULLNODE_CONFIG))?;
@@ -1166,14 +1331,14 @@ async fn genesis(
             // join base fullnode config with each SsfnGenesisConfig entry
             let genesis = Genesis::new_from_file("/opt/iota/config/genesis.blob");
             let ssfn_config = FullnodeConfigBuilder::new()
-                .with_config_directory(FULL_NODE_DB_PATH.into())
+                .with_config_directory(iota_config_dir.to_path_buf())
                 .with_p2p_external_address(ssfn.p2p_address)
                 .with_network_key_pair(ssfn.network_key_pair)
                 .with_p2p_listen_address(([0, 0, 0, 0], 8084))
                 .with_db_path(PathBuf::from("/opt/iota/db/authorities_db/full_node_db"))
                 .with_network_address("/ip4/0.0.0.0/tcp/8080/http".parse()?)
                 .with_metrics_address(([0, 0, 0, 0], 9184))
-                .with_admin_interface_address(([127, 0, 0, 1], 1337))
+                .with_admin_interface_address(admin_interface_address_with_port)
                 .with_json_rpc_address(([0, 0, 0, 0], 9000))
                 .with_genesis(genesis.clone())
                 .build_from_parts(&mut OsRng, network_config.validator_configs(), genesis);

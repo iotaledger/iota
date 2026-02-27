@@ -17,7 +17,8 @@ use iota_core::{
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
 use iota_node::IotaNodeHandle;
-use iota_protocol_config::ProtocolConfig;
+use iota_protocol_config::{Chain, ProtocolConfig};
+use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_swarm_config::genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder};
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
 use iota_types::{
@@ -42,7 +43,6 @@ use rand::{
     SeedableRng,
     rngs::{OsRng, StdRng},
 };
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::time::sleep;
 
@@ -62,8 +62,9 @@ async fn advance_epoch_tx_test() {
                 .create_and_execute_advance_epoch_tx(
                     &state.epoch_store_for_testing(),
                     &GasCostSummary::new(0, 0, 0, 0, 0),
-                    0, // checkpoint
-                    0, // epoch_start_timestamp_ms
+                    0,      // checkpoint
+                    0,      // epoch_start_timestamp_ms
+                    vec![], // scores
                 )
                 .await
                 .unwrap();
@@ -275,22 +276,35 @@ async fn reconfig_with_revert_end_to_end_test() {
 // This test just starts up a cluster that reconfigures itself under 0 load.
 #[sim_test]
 async fn test_passive_reconfig() {
-    do_test_passive_reconfig().await;
+    do_test_passive_reconfig(None).await;
+}
+
+#[sim_test]
+async fn test_passive_reconfig_mainnet_smoke_test() {
+    do_test_passive_reconfig(Some(Chain::Mainnet)).await;
+}
+
+#[sim_test]
+async fn test_passive_reconfig_testnet_smoke_test() {
+    do_test_passive_reconfig(Some(Chain::Testnet)).await;
 }
 
 #[sim_test(check_determinism)]
 async fn test_passive_reconfig_determinism() {
-    do_test_passive_reconfig().await;
+    do_test_passive_reconfig(None).await;
 }
 
-async fn do_test_passive_reconfig() {
+async fn do_test_passive_reconfig(chain: Option<Chain>) {
     telemetry_subscribers::init_for_testing();
     ProtocolConfig::poison_get_for_min_version();
 
-    let test_cluster = TestClusterBuilder::new()
-        .with_epoch_duration_ms(1000)
-        .build()
-        .await;
+    let mut builder = TestClusterBuilder::new().with_epoch_duration_ms(1000);
+
+    if let Some(chain) = chain {
+        builder = builder.with_chain_override(chain);
+    }
+
+    let test_cluster = builder.build().await;
 
     let target_epoch: u64 = std::env::var("RECONFIG_TARGET_EPOCH")
         .ok()
@@ -1006,27 +1020,36 @@ async fn test_epoch_flag_upgrade() {
         if initial_flags_nodes.len() >= 2 || !initial_flags_nodes.insert(current_node) {
             return None;
         }
-        // By default WritebackCache is enabled, use empty flag set for the first epoch
-        // after cluster is started.
-        Some(Vec::<EpochFlag>::new())
+
+        Some(EpochFlag::mandatory_flags())
     });
 
-    // Start the cluster with 2 nodes with empty epoch flag set and the rest with
-    // non-empty.
+    // Start the cluster with 2 nodes with mandatory epoch flag set and the rest
+    // with non-empty.
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(30000)
         .build()
         .await;
-    let any_empty = test_cluster.all_node_handles().iter().any(|node| {
-        node.with(|node| {
+
+    let mut all_flags = vec![];
+    for node in test_cluster.all_node_handles() {
+        all_flags.push(node.with(|node| {
             node.state()
                 .epoch_store_for_testing()
                 .epoch_start_config()
                 .flags()
-                .is_empty()
-        })
-    });
-    assert!(any_empty);
+                .to_vec()
+        }));
+    }
+    all_flags.iter_mut().for_each(|flags| flags.sort());
+    all_flags.sort();
+    all_flags.dedup();
+    assert_eq!(
+        all_flags.len(),
+        2,
+        "expected 2 different sets of flags: {:?}",
+        all_flags
+    );
 
     // When the epoch changes, flags on some nodes should be re-initialized to be
     // non-empty.

@@ -13,7 +13,6 @@ import {
 } from './hooks';
 import { setNavVisibility } from '_redux/slices/app';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
-import { persistableStorage } from '_src/shared/analytics/amplitude';
 import { type LedgerAccountsPublicKeys } from '_src/shared/messaging/messages/payloads/methodPayload';
 import { toBase64 } from '@iota/iota-sdk/utils';
 import { useEffect, useMemo } from 'react';
@@ -26,12 +25,6 @@ import { BackupMnemonicPage } from './pages/accounts/BackupMnemonicPage';
 import { ExportAccountPage } from './pages/accounts/ExportAccountPage';
 import { ExportPassphrasePage } from './pages/accounts/ExportPassphrasePage';
 import { ExportSeedPage } from './pages/accounts/ExportSeedPage';
-import { ForgotPasswordIndexPage } from './pages/accounts/forgot-password/ForgotPasswordIndexPage';
-import { ForgotPasswordPage } from './pages/accounts/forgot-password/ForgotPasswordPage';
-import { RecoverManyPage } from './pages/accounts/forgot-password/RecoverManyPage';
-import { RecoverPage } from './pages/accounts/forgot-password/RecoverPage';
-import { ResetPasswordPage } from './pages/accounts/forgot-password/ResetPasswordPage';
-import { ResetWarningPage } from './pages/accounts/forgot-password/ResetWarningPage';
 import { ImportLedgerAccountsPage } from './pages/accounts/ImportLedgerAccountsPage';
 import { ImportPassphrasePage } from './pages/accounts/ImportPassphrasePage';
 import { ImportPrivateKeyPage } from './pages/accounts/ImportPrivateKeyPage';
@@ -55,12 +48,17 @@ import {
 import { TokenDetailsPage } from './pages/home/tokens/TokenDetailsPage';
 import { RestrictedPage } from './pages/restricted';
 import { SiteConnectPage } from './pages/site-connect';
-import { AppType } from './redux/slices/app/appType';
+import { ExtensionViewType } from './redux/slices/app/appType';
 import { StakingPage } from './staking/home';
 import { StorageMigrationPage } from './pages/StorageMigrationPage';
 import { AccountsFinderPage } from './pages/accounts/manage/accounts-finder/AccountsFinderPage';
 import { AccountsFinderIntroPage } from './pages/accounts/manage/accounts-finder/AccountsFinderIntroPage';
+import { CreateNewPasskey } from './pages/accounts/CreateNewPasskey';
+import { ImportPasskeyPage } from './pages/accounts/ImportPasskeyPage';
 import { ImportKeystone } from './pages/accounts/ImportKeystone';
+import { Feature, useFeatureEnabledByNetwork } from '@iota/core';
+import { CreateNewWallet } from './pages/accounts/CreateNewWallet';
+import { ImportExistingWallet } from './pages/accounts/ImportExistingWallet';
 
 const HIDDEN_MENU_PATHS = [
     '/nft-details',
@@ -75,7 +73,9 @@ const NOTIFY_USER_ACTIVE_INTERVAL = 5 * 1000; // 5 seconds
 
 export function App() {
     const dispatch = useAppDispatch();
-    const isPopup = useAppSelector((state) => state.app.appType === AppType.Popup);
+    const isPopup = useAppSelector(
+        (state) => state.app.extensionViewType === ExtensionViewType.Popup,
+    );
     useEffect(() => {
         document.body.classList.remove('app-initializing');
     }, [isPopup]);
@@ -95,15 +95,6 @@ export function App() {
     );
     const backgroundClient = useBackgroundClient();
     const { connectToLedger, iotaLedgerClient } = useIotaLedgerClient();
-    useEffect(() => {
-        if (accounts?.length) {
-            // The user has accepted our terms of service after their primary
-            // account has been initialized (either by creating a new wallet
-            // or importing a previous account). This means we've gained
-            // consent and can persist device data to cookie storage
-            persistableStorage.persist();
-        }
-    }, [accounts]);
     useEffect(() => {
         // update ledger accounts without the public key
         (async () => {
@@ -159,6 +150,8 @@ export function App() {
             document.removeEventListener('keydown', sendUpdateThrottled);
         };
     }, [backgroundClient, autoLockEnabled]);
+    const network = useAppSelector(({ app }) => app.network);
+    const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
 
     // Placeholder check for storage migration.
     // currently hook useStorageMigrationStatus always returns 'ready'
@@ -189,10 +182,18 @@ export function App() {
             <Route path="accounts/*" element={<AccountsPage />}>
                 <Route path="welcome" element={<WelcomePage />} />
                 <Route path="add-account" element={<AddAccountPage />} />
+                <Route path="create-new" element={<CreateNewWallet />} />
+                <Route path="import-existing" element={<ImportExistingWallet />} />
                 <Route path="import-ledger-accounts" element={<ImportLedgerAccountsPage />} />
                 <Route path="import-passphrase" element={<ImportPassphrasePage />} />
                 <Route path="import-private-key" element={<ImportPrivateKeyPage />} />
                 <Route path="import-seed" element={<ImportSeedPage />} />
+                {isPasskeysEnabled && (
+                    <>
+                        <Route path="passkey-account" element={<CreateNewPasskey />} />
+                        <Route path="import-passkey" element={<ImportPasskeyPage />} />
+                    </>
+                )}
                 <Route path="import-keystone" element={<ImportKeystone />} />
                 <Route path="manage" element={<ManageAccountsPage />} />
                 <Route path="manage/accounts-finder/intro" element={<AccountsFinderIntroPage />} />
@@ -208,13 +209,6 @@ export function App() {
                     element={<ExportPassphrasePage />}
                 />
                 <Route path="export/seed/:accountSourceID" element={<ExportSeedPage />} />
-                <Route path="forgot-password" element={<ForgotPasswordPage />}>
-                    <Route index element={<ForgotPasswordIndexPage />} />
-                    <Route path="recover" element={<RecoverPage />} />
-                    <Route path="recover-many" element={<RecoverManyPage />} />
-                    <Route path="warning" element={<ResetWarningPage />} />
-                    <Route path="reset" element={<ResetPasswordPage />} />
-                </Route>
             </Route>
             <Route path="/dapp/*" element={<HomePage disableNavigation />}>
                 <Route path="connect/:requestID" element={<SiteConnectPage />} />

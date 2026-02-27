@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 14;
+pub const MAX_PROTOCOL_VERSION: u64 = 21;
 
 // Record history of protocol version allocations here:
 //
@@ -78,7 +78,47 @@ pub const MAX_PROTOCOL_VERSION: u64 = 14;
 //             Enable processing and tracking AuthorityCapabilitiesV1 from
 //             non-committee validators in the devnet.
 // Version 14: Switches the consensus protocol to Starfish in devnet.
-
+//             Enable median-based commit timestamp calculation in consensus,
+//             and enforce checkpoint timestamp monotonicity for testnet.
+//             Enable batched block sync for mainnet.
+//             Enable selecting committee only from active validators that
+//             support the next epoch's version and issued valid
+//             AuthorityCapabilities notification in testnet.
+// Version 15: Enable shared object transaction bursts of 10 times average load
+//             on devnet.
+// Version 16: Enable selecting committee only from active validators that
+//             support the next epoch's version and issued valid
+//             AuthorityCapabilities notification.
+//             Enable committing transactions only for traversed headers in
+//             Starfish.
+// Version 17: Increase the committee size to 100 on all networks.
+// Version 18: Enable passkey authentication support in testnet.
+// Version 19: Enable congestion limit overshoot in the gas price feedback
+//             mechanism on devnet.
+//             Enable a separate gas price feedback mechanism for transactions
+//             using randomness on devnet.
+//             Allow metadata bytes indexed with a dedicated key in compiled
+//             Move modules in devnet.
+//             Enable publishing package metadata v1 along with the package in
+//             devnet.
+//             Enable Move-based account authentication in devnet.
+//             Increase the base cost for transfer receive object in devnet.
+//             Switch consensus protocol to Starfish in testnet.
+//             Enable passkey authentication support in mainnet.
+//             Change epoch transaction will contain validator scores.
+//             Enable validator scoring on testnet and enable adjustment of
+//             validator rewards based on scores on Devnet.
+// Version 20: Supports the calculation of validator scores while still passing
+//             a default score value to the advance_epoch call. Enables this
+//             decoupling on Testnet; Devnet and Mainnet behavior remain the
+//             same.
+//             Introduce Dynamic Minimum Commission (IIP-8) on all networks.
+// Version 21: Enable overshoot of 100 in congestion control on testnet.
+//             Enable congestion limit overshoot in the gas price feedback
+//             mechanism on testnet.
+//             Enable a separate gas price feedback mechanism for transactions
+//             using randomness on testnet.
+//             Enable fast commit syncer for faster recovery in devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -135,17 +175,14 @@ impl std::ops::Add<u64> for ProtocolVersion {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Copy, PartialOrd, Ord, Eq, ValueEnum)]
+#[derive(
+    Clone, Serialize, Deserialize, Debug, PartialEq, Copy, PartialOrd, Ord, Eq, ValueEnum, Default,
+)]
 pub enum Chain {
     Mainnet,
     Testnet,
+    #[default]
     Unknown,
-}
-
-impl Default for Chain {
-    fn default() -> Self {
-        Self::Unknown
-    }
 }
 
 impl Chain {
@@ -351,6 +388,62 @@ struct FeatureFlags {
     // active validators are used for selecting the committee (default behavior).
     #[serde(skip_serializing_if = "is_false")]
     select_committee_supporting_next_epoch_version: bool,
+
+    // If true, then it (1) will not enforce monotonicity checks for a block's ancestors, (2)
+    // calculates the commit's timestamp based on the weighted by stake median timestamp of the
+    // leader's ancestors, and (3) enforces checkpoint timestamps are non-decreasing.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_median_timestamp_with_checkpoint_enforcement: bool,
+
+    // If true, then transactions are committed only for traversed headers
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_commit_transactions_only_for_traversed_headers: bool,
+
+    // To enable/disable congestion limit overshoot in the gas price feedback mechanism.
+    #[serde(skip_serializing_if = "is_false")]
+    congestion_limit_overshoot_in_gas_price_feedback_mechanism: bool,
+
+    // To enable/disable a separate gas price feedback mechanism for transactions using
+    // randomness.
+    #[serde(skip_serializing_if = "is_false")]
+    separate_gas_price_feedback_mechanism_for_randomness: bool,
+
+    // If true, it allows metadata bytes indexed with a dedicated key in a compiled module.
+    // This flag is used to provide the correct MoveVM configuration for clients.
+    #[serde(skip_serializing_if = "is_false")]
+    metadata_in_module_bytes: bool,
+
+    // If true, enables publishing package metadata v1 along with the package.
+    #[serde(skip_serializing_if = "is_false")]
+    publish_package_metadata: bool,
+
+    // If true, enables the authentication of account using Move code.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_move_authentication: bool,
+
+    // If true, the change epoch transaction will contain validator scores.
+    #[serde(skip_serializing_if = "is_false")]
+    pass_validator_scores_to_advance_epoch: bool,
+
+    // If true, enables calculation of validator scores.
+    #[serde(skip_serializing_if = "is_false")]
+    calculate_validator_scores: bool,
+
+    // If true, validators will use the committee's score to adjust rewards.
+    #[serde(skip_serializing_if = "is_false")]
+    adjust_rewards_by_score: bool,
+
+    // If true, the change epoch transaction will contain the locally calculated validator scores.
+    // If false, a default score (MAX_SCORE) is passed
+    #[serde(skip_serializing_if = "is_false")]
+    pass_calculated_validator_scores_to_advance_epoch: bool,
+
+    // If true, enables the fast commit syncer in Starfish consensus for faster recovery
+    // from large commit gaps. Also controls whether TransactionRef is used in commits
+    // instead of BlockRef, and enables the associated gRPC endpoints for fetching
+    // commits and transactions.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_fast_commit_sync: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -558,6 +651,9 @@ pub struct ProtocolConfig {
 
     /// Maximum gas budget in NANOS that a transaction can use.
     max_tx_gas: Option<u64>,
+
+    /// Maximum gas budget in NANOS that a authentication transaction can use.
+    max_auth_gas: Option<u64>,
 
     /// Maximum amount of the proposed gas price in NANOS (defined in the
     /// transaction).
@@ -1129,7 +1225,9 @@ pub struct ProtocolConfig {
 
     /// The max accumulated txn execution cost per object in a mysticeti commit.
     /// Transactions in a commit will be deferred once their touch shared
-    /// objects hit this limit.
+    /// objects hit this limit. Note that if
+    /// `max_congestion_limit_overshoot_per_commit` is set, this may be overshot
+    /// within a single commit, but the limit will be enforced in the long run.
     max_accumulated_txn_cost_per_object_in_mysticeti_commit: Option<u64>,
 
     /// Maximum number of committee (validators taking part in consensus)
@@ -1147,6 +1245,20 @@ pub struct ProtocolConfig {
     /// Default value set to 400. (5 x expected committee size (80)).
     /// Applicable only to `starfish` consensus.
     consensus_max_acknowledgments_per_block: Option<u32>,
+
+    /// The maximum amount that is allowed to overshoot the congestion limit
+    /// specified by 'max_accumulated_txn_cost_per_object_in_mysticeti_commit'
+    /// for any single commit. Any overshoot is tracked as a debt that must
+    /// be accounted for in subsequent commits.
+    max_congestion_limit_overshoot_per_commit: Option<u64>,
+
+    /// Scorer version. When set to `None`, MisbehaviorReports are not sent nor
+    /// considered valid. When set to `Some(version)`, scores are included in
+    /// the MisbehaviorReports messages, where `version` determines the scoring
+    /// formulas and metrics to be used. Even if set to None, the Scorer
+    /// component is created, having access to metrics and being able to expose
+    /// validator scores.
+    scorer_version: Option<u16>,
 }
 
 // feature flags
@@ -1401,6 +1513,91 @@ impl ProtocolConfig {
         );
         res
     }
+
+    pub fn consensus_median_timestamp_with_checkpoint_enforcement(&self) -> bool {
+        let res = self
+            .feature_flags
+            .consensus_median_timestamp_with_checkpoint_enforcement;
+        assert!(
+            !res || self.gc_depth() > 0,
+            "The consensus median timestamp with checkpoint enforcement requires GC to be enabled"
+        );
+        res
+    }
+
+    pub fn consensus_commit_transactions_only_for_traversed_headers(&self) -> bool {
+        self.feature_flags
+            .consensus_commit_transactions_only_for_traversed_headers
+    }
+
+    /// Check whether congestion limit overshoot is enabled in the gas price
+    /// feedback mechanism.
+    pub fn congestion_limit_overshoot_in_gas_price_feedback_mechanism(&self) -> bool {
+        self.feature_flags
+            .congestion_limit_overshoot_in_gas_price_feedback_mechanism
+    }
+
+    /// Check whether a separate gas price feedback mechanism is used for
+    /// randomness transactions.
+    pub fn separate_gas_price_feedback_mechanism_for_randomness(&self) -> bool {
+        self.feature_flags
+            .separate_gas_price_feedback_mechanism_for_randomness
+    }
+
+    pub fn metadata_in_module_bytes(&self) -> bool {
+        self.feature_flags.metadata_in_module_bytes
+    }
+
+    pub fn publish_package_metadata(&self) -> bool {
+        self.feature_flags.publish_package_metadata
+    }
+
+    pub fn enable_move_authentication(&self) -> bool {
+        self.feature_flags.enable_move_authentication
+    }
+
+    pub fn pass_validator_scores_to_advance_epoch(&self) -> bool {
+        self.feature_flags.pass_validator_scores_to_advance_epoch
+    }
+
+    pub fn calculate_validator_scores(&self) -> bool {
+        let calculate_validator_scores = self.feature_flags.calculate_validator_scores;
+        assert!(
+            !calculate_validator_scores || self.scorer_version.is_some(),
+            "calculate_validator_scores requires scorer_version to be set"
+        );
+        calculate_validator_scores
+    }
+
+    pub fn adjust_rewards_by_score(&self) -> bool {
+        let adjust = self.feature_flags.adjust_rewards_by_score;
+        assert!(
+            !adjust || (self.scorer_version.is_some() && self.calculate_validator_scores()),
+            "adjust_rewards_by_score requires scorer_version to be set"
+        );
+        adjust
+    }
+
+    pub fn pass_calculated_validator_scores_to_advance_epoch(&self) -> bool {
+        let pass = self
+            .feature_flags
+            .pass_calculated_validator_scores_to_advance_epoch;
+        assert!(
+            !pass
+                || (self.pass_validator_scores_to_advance_epoch()
+                    && self.calculate_validator_scores()),
+            "pass_calculated_validator_scores_to_advance_epoch requires pass_validator_scores_to_advance_epoch and calculate_validator_scores to be enabled"
+        );
+        pass
+    }
+    pub fn consensus_fast_commit_sync(&self) -> bool {
+        let res = self.feature_flags.consensus_fast_commit_sync;
+        assert!(
+            !res || self.consensus_commit_transactions_only_for_traversed_headers(),
+            "consensus_fast_commit_sync requires consensus_commit_transactions_only_for_traversed_headers to be enabled"
+        );
+        res
+    }
 }
 
 #[cfg(not(msim))]
@@ -1578,6 +1775,8 @@ impl ProtocolConfig {
             max_move_object_size: Some(250 * 1024),
             max_move_package_size: Some(100 * 1024),
             max_publish_or_upgrade_per_ptb: Some(5),
+            // max gas budget for an authentication is in NANOS
+            max_auth_gas: None,
             // max gas budget is in NANOS and an absolute value 50IOTA
             max_tx_gas: Some(50_000_000_000),
             max_gas_price: Some(100_000),
@@ -1959,6 +2158,10 @@ impl ProtocolConfig {
             consensus_gc_depth: None,
 
             consensus_max_acknowledgments_per_block: None,
+
+            max_congestion_limit_overshoot_per_commit: None,
+
+            scorer_version: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -2233,11 +2436,121 @@ impl ProtocolConfig {
                     }
                 }
                 14 => {
-                    // Switch consensus protocol to Starfish in devnet
+                    // Enable batched block sync for mainnet.
+                    cfg.feature_flags.consensus_batched_block_sync = true;
+
+                    if chain != Chain::Mainnet {
+                        // Enable median-based commit timestamp calculation in consensus and
+                        // enforce checkpoint timestamp monotonicity for testnet.
+                        cfg.feature_flags
+                            .consensus_median_timestamp_with_checkpoint_enforcement = true;
+                        // Enable selecting committee only from active validators that support the
+                        // next epoch's version and issued valid AuthorityCapabilities notification
+                        // in testnet.
+                        cfg.feature_flags
+                            .select_committee_supporting_next_epoch_version = true;
+                    }
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Switch consensus protocol to Starfish in devnet
                         cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
                     }
                 }
+                15 => {
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // Enable overshoot of 100 in congestion control. This allows bursts of
+                        // shared object transactions up to 10 times the average allowable
+                        // load set by `max_accumulated_txn_cost_per_object_in_mysticeti_commit`.
+                        cfg.max_congestion_limit_overshoot_per_commit = Some(100);
+                    }
+                }
+                16 => {
+                    // Enable selecting committee only from active validators that support the
+                    // next epoch's version and issued valid AuthorityCapabilities notification.
+                    cfg.feature_flags
+                        .select_committee_supporting_next_epoch_version = true;
+                    // Enable committing transactions only for traversed headers in Starfish
+                    cfg.feature_flags
+                        .consensus_commit_transactions_only_for_traversed_headers = true;
+                }
+                17 => {
+                    // Increase the committee size to 100 on all networks.
+                    cfg.max_committee_members_count = Some(100);
+                }
+                18 => {
+                    if chain != Chain::Mainnet {
+                        // Enable passkey authentication support in testnet.
+                        cfg.feature_flags.passkey_auth = true;
+                    }
+                }
+                19 => {
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable congestion limit overshoot in the gas price feedback
+                        // mechanism on devnet.
+                        cfg.feature_flags
+                            .congestion_limit_overshoot_in_gas_price_feedback_mechanism = true;
+                        // Enable a separate gas price feedback mechanism for transactions using
+                        // randomness on devnet.
+                        cfg.feature_flags
+                            .separate_gas_price_feedback_mechanism_for_randomness = true;
+                        // Enable storing metadata in module bytes and then
+                        // publishing package metadata in devnet
+                        cfg.feature_flags.metadata_in_module_bytes = true;
+                        cfg.feature_flags.publish_package_metadata = true;
+                        // Enable Move authentication in devnet
+                        cfg.feature_flags.enable_move_authentication = true;
+                        // Max auth gas budget is in NANOS and an absolute value 0.25 IOTA
+                        cfg.max_auth_gas = Some(250_000_000);
+                        // Increase the base cost for transfer receive object in devnet, since the
+                        // implementation now does check if parent is not an account.
+                        cfg.transfer_receive_object_cost_base = Some(100);
+                        // Enable adjustment of validator rewards based on score in devnet.
+                        cfg.feature_flags.adjust_rewards_by_score = true;
+                    }
+
+                    if chain != Chain::Mainnet {
+                        // Switch consensus protocol to Starfish in testnet.
+                        cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
+
+                        // Enable validator score calculation on testnet
+                        cfg.feature_flags.calculate_validator_scores = true;
+                        cfg.scorer_version = Some(1);
+                    }
+
+                    // Change epoch transaction will contain validator scores
+                    cfg.feature_flags.pass_validator_scores_to_advance_epoch = true;
+
+                    // Enable passkey authentication support in mainnet
+                    cfg.feature_flags.passkey_auth = true;
+                }
+                20 => {
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Passes the calculated validator scores to advance epoch only on Devnet
+                        cfg.feature_flags
+                            .pass_calculated_validator_scores_to_advance_epoch = true;
+                    }
+                }
+                21 => {
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable fast commit syncer for faster recovery in devnet.
+                        cfg.feature_flags.consensus_fast_commit_sync = true;
+                    }
+                    if chain != Chain::Mainnet {
+                        // Enable overshoot of 100 in congestion control on testnet.
+                        // This allows bursts of shared-object transactions
+                        // up to 10 times the average allowable load set by
+                        // `max_accumulated_txn_cost_per_object_in_mysticeti_commit`.
+                        cfg.max_congestion_limit_overshoot_per_commit = Some(100);
+                        // Enable congestion limit overshoot in the gas price feedback
+                        // mechanism on testnet.
+                        cfg.feature_flags
+                            .congestion_limit_overshoot_in_gas_price_feedback_mechanism = true;
+                        // Enable a separate gas price feedback mechanism for transactions using
+                        // randomness on testnet.
+                        cfg.feature_flags
+                            .separate_gas_price_feedback_mechanism_for_randomness = true;
+                    }
+                }
+
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -2398,6 +2711,7 @@ impl ProtocolConfig {
         self.feature_flags
             .congestion_control_gas_price_feedback_mechanism = val;
     }
+
     pub fn set_select_committee_from_eligible_validators_for_testing(&mut self, val: bool) {
         self.feature_flags.select_committee_from_eligible_validators = val;
     }
@@ -2409,6 +2723,53 @@ impl ProtocolConfig {
     pub fn set_select_committee_supporting_next_epoch_version(&mut self, val: bool) {
         self.feature_flags
             .select_committee_supporting_next_epoch_version = val;
+    }
+
+    pub fn set_consensus_median_timestamp_with_checkpoint_enforcement_for_testing(
+        &mut self,
+        val: bool,
+    ) {
+        self.feature_flags
+            .consensus_median_timestamp_with_checkpoint_enforcement = val;
+    }
+
+    pub fn set_consensus_commit_transactions_only_for_traversed_headers_for_testing(
+        &mut self,
+        val: bool,
+    ) {
+        self.feature_flags
+            .consensus_commit_transactions_only_for_traversed_headers = val;
+    }
+
+    pub fn set_congestion_limit_overshoot_in_gas_price_feedback_mechanism_for_testing(
+        &mut self,
+        val: bool,
+    ) {
+        self.feature_flags
+            .congestion_limit_overshoot_in_gas_price_feedback_mechanism = val;
+    }
+
+    pub fn set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(
+        &mut self,
+        val: bool,
+    ) {
+        self.feature_flags
+            .separate_gas_price_feedback_mechanism_for_randomness = val;
+    }
+
+    pub fn set_metadata_in_module_bytes_for_testing(&mut self, val: bool) {
+        self.feature_flags.metadata_in_module_bytes = val;
+    }
+
+    pub fn set_publish_package_metadata_for_testing(&mut self, val: bool) {
+        self.feature_flags.publish_package_metadata = val;
+    }
+
+    pub fn set_enable_move_authentication_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_move_authentication = val;
+    }
+    pub fn set_consensus_fast_commit_sync_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_fast_commit_sync = val;
     }
 }
 

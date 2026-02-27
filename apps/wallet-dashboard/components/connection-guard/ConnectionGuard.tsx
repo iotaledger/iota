@@ -4,14 +4,20 @@
 'use client';
 
 import { PropsWithChildren, useEffect } from 'react';
-import { redirect, usePathname } from 'next/navigation';
+import { redirect, usePathname, useRouter } from 'next/navigation';
 import { useAutoConnectWallet, useCurrentWallet } from '@iota/dapp-kit';
 import { LoadingIndicator } from '@iota/apps-ui-kit';
-import { CONNECT_ROUTE, HOMEPAGE_ROUTE } from '@/lib/constants/routes.constants';
+import {
+    CONNECT_ROUTE,
+    COOKIE_POLICY_ROUTE,
+    HOMEPAGE_ROUTE,
+} from '@/lib/constants/routes.constants';
+
+const PUBLIC_ROUTES = [CONNECT_ROUTE.path, COOKIE_POLICY_ROUTE.path];
 
 export function ConnectionGuard({ children }: PropsWithChildren) {
+    const router = useRouter();
     const { isConnected, isDisconnected } = useCurrentWallet();
-
     const pathname = usePathname();
     const autoConnect = useAutoConnectWallet();
 
@@ -20,11 +26,11 @@ export function ConnectionGuard({ children }: PropsWithChildren) {
         if (isConnected && pathname === CONNECT_ROUTE.path) {
             // Redirect to home if on root ("/")
             redirect(HOMEPAGE_ROUTE.path);
-        } else if (isDisconnected && pathname !== CONNECT_ROUTE.path) {
-            // Redirect back to "/" if disconnected and trying to access another page
+        } else if (isDisconnected && !PUBLIC_ROUTES.includes(pathname)) {
+            // Redirect back to "/" if disconnected and trying to access a protected page
             redirect(CONNECT_ROUTE.path);
         }
-    }, [isConnected, isDisconnected, pathname, autoConnect]);
+    }, [isConnected, isDisconnected, pathname, autoConnect, router]);
 
     if (autoConnect === 'idle') {
         return (

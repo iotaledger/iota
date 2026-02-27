@@ -9,7 +9,7 @@ use axum::{
     extract::{Path, State},
 };
 use iota_protocol_config::{ProtocolConfig, ProtocolConfigValue, ProtocolVersion};
-use iota_sdk2::types::{Address, ObjectId};
+use iota_sdk_types::{Address, ObjectId, PublicKeyExt};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -246,9 +246,9 @@ pub struct SystemStateSummary {
 pub struct ValidatorSummary {
     // Metadata
     pub address: Address,
-    pub authority_public_key: iota_sdk2::types::Bls12381PublicKey,
-    pub network_public_key: iota_sdk2::types::Ed25519PublicKey,
-    pub protocol_public_key: iota_sdk2::types::Ed25519PublicKey,
+    pub authority_public_key: iota_sdk_types::Bls12381PublicKey,
+    pub network_public_key: iota_sdk_types::Ed25519PublicKey,
+    pub protocol_public_key: iota_sdk_types::Ed25519PublicKey,
     #[serde_as(as = "fastcrypto::encoding::Base64")]
     #[schemars(with = "String")]
     pub proof_of_possession_bytes: Vec<u8>,
@@ -259,9 +259,9 @@ pub struct ValidatorSummary {
     pub net_address: String,
     pub p2p_address: String,
     pub primary_address: String,
-    pub next_epoch_authority_public_key: Option<iota_sdk2::types::Bls12381PublicKey>,
-    pub next_epoch_network_public_key: Option<iota_sdk2::types::Ed25519PublicKey>,
-    pub next_epoch_protocol_public_key: Option<iota_sdk2::types::Ed25519PublicKey>,
+    pub next_epoch_authority_public_key: Option<iota_sdk_types::Bls12381PublicKey>,
+    pub next_epoch_network_public_key: Option<iota_sdk_types::Ed25519PublicKey>,
+    pub next_epoch_protocol_public_key: Option<iota_sdk_types::Ed25519PublicKey>,
     #[serde_as(as = "Option<fastcrypto::encoding::Base64>")]
     #[schemars(with = "Option<String>")]
     pub next_epoch_proof_of_possession: Option<Vec<u8>>,
@@ -383,15 +383,13 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaValidato
 
         Self {
             address: iota_address.into(),
-            authority_public_key: iota_sdk2::types::Bls12381PublicKey::from_bytes(
+            authority_public_key: iota_sdk_types::Bls12381PublicKey::from_bytes(
                 authority_pubkey_bytes,
             )
             .unwrap(),
-            network_public_key: iota_sdk2::types::Ed25519PublicKey::from_bytes(
-                network_pubkey_bytes,
-            )
-            .unwrap(),
-            protocol_public_key: iota_sdk2::types::Ed25519PublicKey::from_bytes(
+            network_public_key: iota_sdk_types::Ed25519PublicKey::from_bytes(network_pubkey_bytes)
+                .unwrap(),
+            protocol_public_key: iota_sdk_types::Ed25519PublicKey::from_bytes(
                 protocol_pubkey_bytes,
             )
             .unwrap(),
@@ -404,11 +402,11 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaValidato
             p2p_address,
             primary_address,
             next_epoch_authority_public_key: next_epoch_authority_pubkey_bytes
-                .map(|bytes| iota_sdk2::types::Bls12381PublicKey::from_bytes(bytes).unwrap()),
+                .map(|bytes| iota_sdk_types::Bls12381PublicKey::from_bytes(bytes).unwrap()),
             next_epoch_network_public_key: next_epoch_network_pubkey_bytes
-                .map(|bytes| iota_sdk2::types::Ed25519PublicKey::from_bytes(bytes).unwrap()),
+                .map(|bytes| iota_sdk_types::Ed25519PublicKey::from_bytes(bytes).unwrap()),
             next_epoch_protocol_public_key: next_epoch_protocol_pubkey_bytes
-                .map(|bytes| iota_sdk2::types::Ed25519PublicKey::from_bytes(bytes).unwrap()),
+                .map(|bytes| iota_sdk_types::Ed25519PublicKey::from_bytes(bytes).unwrap()),
             next_epoch_proof_of_possession,
             next_epoch_net_address,
             next_epoch_p2p_address,

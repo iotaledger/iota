@@ -60,11 +60,13 @@ export const respondToTransactionRequest = createAsyncThunk<
                         // Just a signing request, do not submit
                         txSigned = await signer.signTransaction({
                             transaction: tx,
+                            chain: txRequest.tx.chain,
                         });
                     } else {
                         txResult = await signer.signAndExecuteTransaction({
                             transactionBlock: tx,
                             options: txRequest.tx.options,
+                            chain: txRequest.tx.chain,
                         });
                     }
                 } else {
@@ -94,6 +96,9 @@ const slice = createSlice({
         initialized: false,
     }),
     reducers: {
+        clearTransactionRequests: (state) => {
+            state.initialized = false;
+        },
         setTransactionRequests: (state, { payload }: PayloadAction<ApprovalRequest[]>) => {
             // eslint-disable-next-line @typescript-eslint/ban-ts-comment
             // @ts-ignore
@@ -117,7 +122,7 @@ const slice = createSlice({
 
 export default slice.reducer;
 
-export const { setTransactionRequests } = slice.actions;
+export const { clearTransactionRequests, setTransactionRequests } = slice.actions;
 
 export const txRequestsSelectors = txRequestsAdapter.getSelectors(
     (state: RootState) => state.transactionRequests,

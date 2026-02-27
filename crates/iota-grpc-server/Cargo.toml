@@ -1,0 +1,40 @@
+[package]
+name = "iota-grpc-server"
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# external dependencies
+anyhow.workspace = true
+async-stream.workspace = true
+bcs.workspace = true
+fastcrypto.workspace = true
+futures.workspace = true
+paste = "1.0.15"
+prost.workspace = true
+prost-types.workspace = true
+serde.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+tokio-stream.workspace = true
+tokio-util.workspace = true
+tonic = { workspace = true, features = ["tls-ring"] }
+tracing.workspace = true
+
+# internal dependencies
+iota-config.workspace = true
+iota-grpc-types.workspace = true
+iota-metrics.workspace = true
+iota-protocol-config.workspace = true
+iota-sdk-types.workspace = true
+iota-types.workspace = true
+move-core-types.workspace = true
+
+[dev-dependencies]
+iota-grpc-client.workspace = true
+iota-test-transaction-builder.workspace = true

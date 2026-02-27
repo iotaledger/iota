@@ -199,7 +199,7 @@ export type Address = IOwner & {
   /**
    * Similar behavior to the `transactionBlocks` in Query but supporting the
    * additional `AddressTransactionBlockRelationship` filter, which
-   * defaults to `SIGN`.
+   * defaults to `SENT`.
    *
    * `scanLimit` restricts the number of candidate transactions scanned when
    * gathering a page of results. It is required for queries that apply
@@ -353,14 +353,21 @@ export type AddressOwner = {
   owner?: Maybe<Owner>;
 };
 
-/**
- * The possible relationship types for a transaction block: sign, sent,
- * received, or paid.
- */
+/** The possible relationship types for a transaction block: sent or received. */
 export enum AddressTransactionBlockRelationship {
   /** Transactions that sent objects to this address. */
   Recv = 'RECV',
-  /** Transactions this address has signed either as a sender or as a sponsor. */
+  /** Transactions this address has sent. */
+  Sent = 'SENT',
+  /**
+   * Transactions this address has sent. NOTE: this input filter has been
+   * deprecated in favor of `SENT` which behaves identically but is named
+   * more clearly. Both filters restrict transactions by their sender,
+   * only, not signers in general.
+   *
+   * This filter will be removed after 6 months with the 1.24.0 release.
+   * @deprecated Misleading semantics. Use `SENT` instead. This will be removed with the 1.24.0 release.
+   */
   Sign = 'SIGN'
 }
 
@@ -565,6 +572,8 @@ export type ChangeEpochTransactionV2 = {
   nonRefundableStorageFee: Scalars['BigInt']['output'];
   /** The protocol version in effect in the new epoch. */
   protocolVersion: Scalars['UInt53']['output'];
+  /** The validator scores at the end of the epoch. */
+  scores?: Maybe<Array<Scalars['BigInt']['output']>>;
   /** Time at which the next epoch will start. */
   startTimestamp: Scalars['DateTime']['output'];
   /**
@@ -1422,7 +1431,7 @@ export type Epoch = {
    */
   fundSize?: Maybe<Scalars['BigInt']['output']>;
   /** The total IOTA supply. */
-  iotaTotalSupply?: Maybe<Scalars['Int']['output']>;
+  iotaTotalSupply?: Maybe<Scalars['BigInt']['output']>;
   /** The treasury-cap id. */
   iotaTreasuryCapId?: Maybe<Scalars['IotaAddress']['output']>;
   /**
@@ -1580,6 +1589,15 @@ export type Event = {
   sendingModule?: Maybe<MoveModule>;
   /** UTC timestamp in milliseconds since epoch (1/1/1970) */
   timestamp?: Maybe<Scalars['DateTime']['output']>;
+  /**
+   * The transaction block that emitted this event. This information is only
+   * available for events from transactions included in a checkpoint.
+   *
+   * For simulated transactions (e.g. dry run), or transactions that have
+   * been just executed but not yet included in a checkpoint this returns
+   * null.
+   */
+  transactionBlock?: Maybe<TransactionBlock>;
   /** The value's Move type. */
   type: MoveType;
 };
@@ -1603,6 +1621,7 @@ export type EventEdge = {
   node: Event;
 };
 
+/** Represents optional available filters for events. */
 export type EventFilter = {
   /**
    * Events emitted by a particular module. An event is emitted by a
@@ -1626,9 +1645,24 @@ export type EventFilter = {
    * `0x2::coin::Coin<0x2::iota::IOTA>`.
    */
   eventType?: InputMaybe<Scalars['String']['input']>;
+  /** Filter down to events from transactions sent by this address. */
   sender?: InputMaybe<Scalars['IotaAddress']['input']>;
+  /**
+   * Filter down to the events from this transaction (given by its
+   * transaction digest).
+   */
   transactionDigest?: InputMaybe<Scalars['String']['input']>;
 };
+
+/**
+ * Possible responses from a subscription.
+ *
+ * It could be one of the following:
+ * - A successful payload from the subscription stream.
+ * - A notice that the subscription has been lagged behind the network with the
+ * number of lost payloads.
+ */
+export type EventSubscriptionPayload = Event | Lagged;
 
 /**
  * The result of an execution, including errors that occurred during said
@@ -2064,6 +2098,16 @@ export type Input = {
 };
 
 /**
+ * Notifies that the subscription consumer has fallen behind the live
+ * subscription stream and missed one or more payloads.
+ */
+export type Lagged = {
+  __typename?: 'Lagged';
+  /** Number of missed payloads since the previous emitted one. */
+  count: Scalars['Int']['output'];
+};
+
+/**
  * Information used by a package to link to a specific version of its
  * dependency.
  */
@@ -2445,7 +2489,7 @@ export type MoveModuleEdge = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObject = IMoveObject & IObject & IOwner & {
@@ -2590,7 +2634,7 @@ export type MoveObject = IMoveObject & IObject & IOwner & {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectBalanceArgs = {
@@ -2600,7 +2644,7 @@ export type MoveObjectBalanceArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectBalancesArgs = {
@@ -2613,7 +2657,7 @@ export type MoveObjectBalancesArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectCoinsArgs = {
@@ -2627,7 +2671,7 @@ export type MoveObjectCoinsArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectDynamicFieldArgs = {
@@ -2637,7 +2681,7 @@ export type MoveObjectDynamicFieldArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectDynamicFieldsArgs = {
@@ -2650,7 +2694,7 @@ export type MoveObjectDynamicFieldsArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectDynamicObjectFieldArgs = {
@@ -2660,7 +2704,7 @@ export type MoveObjectDynamicObjectFieldArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectIotaNamesDefaultNameArgs = {
@@ -2670,7 +2714,7 @@ export type MoveObjectIotaNamesDefaultNameArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectIotaNamesRegistrationsArgs = {
@@ -2683,7 +2727,7 @@ export type MoveObjectIotaNamesRegistrationsArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectObjectsArgs = {
@@ -2697,7 +2741,7 @@ export type MoveObjectObjectsArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectReceivedTransactionBlocksArgs = {
@@ -2712,7 +2756,7 @@ export type MoveObjectReceivedTransactionBlocksArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectStakedIotasArgs = {
@@ -2831,6 +2875,8 @@ export type MovePackage = IObject & IOwner & {
    * package's original ID, but has the specified `version`).
    */
   packageAtVersion?: Maybe<MovePackage>;
+  /** BCS representation of the package itself, as a MovePackage. */
+  packageBcs?: Maybe<Scalars['Base64']['output']>;
   /**
    * Fetch all versions of this package (packages that share this package's
    * original ID), optionally bounding the versions exclusively from
@@ -3193,6 +3239,23 @@ export type MoveValue = {
   json: Scalars['JSON']['output'];
   /** The value's Move type. */
   type: MoveType;
+};
+
+/**
+ * The result of a move-view function call.
+ *
+ * Execution errors are captured in the `error` field, in which
+ * case the `results` field will be `None`.
+ *
+ * On success, the `results` field will contain the return values of the
+ * move view function, and the `error` field will be `None`.
+ */
+export type MoveViewResult = {
+  __typename?: 'MoveViewResult';
+  /** Execution error from executing the move view call. */
+  error?: Maybe<Scalars['String']['output']>;
+  /** The return values of the move view function. */
+  results?: Maybe<Array<Scalars['JSON']['output']>>;
 };
 
 /**
@@ -3844,11 +3907,8 @@ export type ObjectFilter = {
   /** Filter for live objects by their current owners. */
   owner?: InputMaybe<Scalars['IotaAddress']['input']>;
   /**
-   * This field is used to specify the type of objects that should be
-   * included in the query results.
-   *
-   * Objects can be filtered by their type's package, package::module, or
-   * their fully qualified type name.
+   * Filter objects by their type's `package`, `package::module`, or their
+   * fully qualified type name.
    *
    * Generic types can be queried by either the generic type name, e.g.
    * `0x2::coin::Coin`, or by the full type name, such as
@@ -4361,6 +4421,7 @@ export type Query = {
    * its original ID with the package at `address`.
    */
   latestPackage?: Maybe<MovePackage>;
+  moveViewCall: MoveViewResult;
   /**
    * The object corresponding to the given address at the (optionally) given
    * version. When no version is given, the latest version is returned.
@@ -4459,12 +4520,18 @@ export type Query = {
    * direction of pagination, and so on until all transactions in the
    * scanning range have been visited.
    *
-   * By default, the scanning range includes all transactions known to
-   * GraphQL, but it can be restricted by the `after` and `before`
+   * By default, the scanning range includes all checkpointed transactions
+   * known to GraphQL, but it can be restricted by the `after` and `before`
    * cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
-   * `atCheckpoint` filters.
+   * `atCheckpoint` filters. Transactions that don't have a checkpoint yet
+   * are always omitted.
    */
   transactionBlocks: TransactionBlockConnection;
+  /**
+   * Fetch multiple transaction blocks by their digests.
+   * This includes all transactions, even if they are not checkpointed yet.
+   */
+  transactionBlocksByDigests: Array<Maybe<TransactionBlock>>;
   /**
    * Fetch a structured representation of a concrete type, including its
    * layout information. Fails if the type is malformed.
@@ -4553,6 +4620,13 @@ export type QueryLatestPackageArgs = {
 };
 
 
+export type QueryMoveViewCallArgs = {
+  arguments?: InputMaybe<Array<Scalars['JSON']['input']>>;
+  functionName: Scalars['String']['input'];
+  typeArgs?: InputMaybe<Array<Scalars['String']['input']>>;
+};
+
+
 export type QueryObjectArgs = {
   address: Scalars['IotaAddress']['input'];
   version?: InputMaybe<Scalars['UInt53']['input']>;
@@ -4621,6 +4695,11 @@ export type QueryTransactionBlocksArgs = {
   first?: InputMaybe<Scalars['Int']['input']>;
   last?: InputMaybe<Scalars['Int']['input']>;
   scanLimit?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryTransactionBlocksByDigestsArgs = {
+  digests: Array<Scalars['String']['input']>;
 };
 
 
@@ -4741,7 +4820,12 @@ export type ServiceConfig = {
    * single query.
    */
   maxQueryNodes: Scalars['Int']['output'];
-  /** Maximum length of a query payload string. */
+  /**
+   * The maximum bytes allowed for the read part of GraphQL queries.
+   *
+   * In case of mutations or `dryRunTransactionBlocks` the `txBytes` and
+   * `signatures` are not included in this limit.
+   */
   maxQueryPayloadSize: Scalars['Int']['output'];
   /** Maximum number of candidates to scan when gathering a page of results. */
   maxScanLimit: Scalars['Int']['output'];
@@ -4750,6 +4834,18 @@ export type ServiceConfig = {
    * `TransactionBlockFilter`.
    */
   maxTransactionIds: Scalars['Int']['output'];
+  /**
+   * The maximum bytes allowed for transactions in queries.
+   *
+   * This corresponds to the `txBytes` and `signatures` fields of the GraphQL
+   * mutation `executeTransactionBlock` node, or the `txBytes` of a
+   * `dryRunTransactionBlock`.
+   *
+   * By default, this is set to the value of the maximum transaction bytes
+   * (including the signatures) allowed by the protocol, plus the Base64
+   * overhead (roughly 1/3 of the original string).
+   */
+  maxTransactionPayloadSize: Scalars['Int']['output'];
   /**
    * Maximum nesting allowed in type arguments in Move Types resolved by this
    * service.
@@ -4801,7 +4897,7 @@ export type Shared = {
 export type SharedInput = {
   __typename?: 'SharedInput';
   address: Scalars['IotaAddress']['output'];
-  /** The version that this this object was shared at. */
+  /** The version at which this object was shared.​ */
   initialSharedVersion: Scalars['UInt53']['output'];
   /**
    * Controls whether the transaction block can reference the shared object
@@ -5162,13 +5258,64 @@ export type StorageFund = {
    * storage rebates.
    *
    * The system maintains an invariant that the sum of all storage fees into
-   * the storage fund is equal to the sum of of all storage rebates out,
+   * the storage fund is equal to the sum of all storage rebates out,
    * the total storage rebates remaining, and the non-refundable balance.
    */
   nonRefundableBalance?: Maybe<Scalars['BigInt']['output']>;
   /** Sum of storage rebates of live objects on chain. */
   totalObjectStorageRebates?: Maybe<Scalars['BigInt']['output']>;
 };
+
+export type Subscription = {
+  __typename?: 'Subscription';
+  /**
+   * Subscribe to incoming events from the IOTA network.
+   *
+   * If no filter is provided, all events will be returned.
+   */
+  events: EventSubscriptionPayload;
+  /**
+   * Subscribe to incoming transactions from the IOTA network.
+   *
+   * If no filter is provided, all transactions will be returned.
+   */
+  transactions: TransactionBlockSubscriptionPayload;
+};
+
+
+export type SubscriptionEventsArgs = {
+  filter?: InputMaybe<SubscriptionEventFilter>;
+};
+
+
+export type SubscriptionTransactionsArgs = {
+  filter?: InputMaybe<SubscriptionTransactionFilter>;
+};
+
+/** Filter incoming events in a subscription. */
+export type SubscriptionEventFilter =
+  /**
+   * Filter incoming events by emitting module.
+   *
+   * - Filter by package: "0x02"
+   * - Filter by module: "0x02::coin"
+   */
+  { emittingModule: Scalars['String']['input']; };
+
+/** Filter incoming transactions in a subscription. */
+export type SubscriptionTransactionFilter =
+  /**
+   * Filter incoming transactions by package, module, or function name.
+   *
+   * - Filter by package: "0x03"
+   * - Filter by module: "0x03::iota_system"
+   * - Filter by function: "0x03::iota_system::request_add_stake"
+   */
+  { function: Scalars['String']['input']; kind?: never; signingAddress?: never; }
+  |  /** Filter incoming transactions by kind. */
+  { function?: never; kind: TransactionBlockKindInput; signingAddress?: never; }
+  |  /** Filter incoming transactions by signing address. */
+  { function?: never; kind?: never; signingAddress: Scalars['IotaAddress']['input']; };
 
 /** Details of the system that are decided during genesis. */
 export type SystemParameters = {
@@ -5298,11 +5445,14 @@ export type TransactionBlockEffects = {
   balanceChanges: BalanceChangeConnection;
   /** Base64 encoded bcs serialization of the on-chain transaction effects. */
   bcs: Scalars['Base64']['output'];
-  /** The checkpoint this transaction was finalized in. */
+  /**
+   * The checkpoint this transaction was finalized in, if it is within the
+   * available range.
+   */
   checkpoint?: Maybe<Checkpoint>;
   /** Transactions whose outputs this transaction depends upon. */
   dependencies: DependencyConnection;
-  /** The epoch this transaction was finalized in. */
+  /** The epoch this transaction was executed in. */
   epoch?: Maybe<Epoch>;
   /**
    * The reason for a transaction failure, if it did fail.
@@ -5384,21 +5534,47 @@ export type TransactionBlockEffectsUnchangedSharedObjectsArgs = {
   last?: InputMaybe<Scalars['Int']['input']>;
 };
 
+/** Represents optional available filters for transaction blocks. */
 export type TransactionBlockFilter = {
+  /** Limit to transactions that occurred strictly after the given checkpoint. */
   afterCheckpoint?: InputMaybe<Scalars['UInt53']['input']>;
+  /** Limit to transactions in the given checkpoint. */
   atCheckpoint?: InputMaybe<Scalars['UInt53']['input']>;
+  /** Limit to transaction that occurred strictly before the given checkpoint. */
   beforeCheckpoint?: InputMaybe<Scalars['UInt53']['input']>;
+  /** Limit to transactions that output a version of this object. */
   changedObject?: InputMaybe<Scalars['IotaAddress']['input']>;
+  /**
+   * Filter transactions by move function called.
+   *
+   * Calls can be filtered by the `package`, `package::module`, or the
+   * `package::module::name` of their function.
+   */
   function?: InputMaybe<Scalars['String']['input']>;
+  /** Limit to transactions that accepted the given object as an input. */
   inputObject?: InputMaybe<Scalars['IotaAddress']['input']>;
   /**
    * An input filter selecting for either system or programmable
    * transactions.
    */
   kind?: InputMaybe<TransactionBlockKindInput>;
+  /** Limit to transactions that sent an object to the given address. */
   recvAddress?: InputMaybe<Scalars['IotaAddress']['input']>;
+  /** Limit to transactions that were sent by the given address. */
+  sentAddress?: InputMaybe<Scalars['IotaAddress']['input']>;
+  /**
+   * Limit to transactions that were sent by the given address. NOTE: this
+   * input filter has been deprecated in favor of `sentAddress` which has
+   * clearer semantics. Both filters restrict transactions by their sender,
+   * only, not signers in general.
+   *
+   * This filter will be removed after 6 months with the 1.24.0 release.
+   * @deprecated Misleading semantics. Use `sentAddress` instead. This will be removed with the 1.24.0 release.
+   */
   signAddress?: InputMaybe<Scalars['IotaAddress']['input']>;
+  /** Select transactions by their digest. */
   transactionIds?: InputMaybe<Array<Scalars['String']['input']>>;
+  /** Limit to transactions that wrapped or deleted the given object. */
   wrappedOrDeletedObject?: InputMaybe<Scalars['IotaAddress']['input']>;
 };
 
@@ -5428,6 +5604,16 @@ export enum TransactionBlockKindInput {
    */
   SystemTx = 'SYSTEM_TX'
 }
+
+/**
+ * Possible responses from a subscription.
+ *
+ * It could be one of the following:
+ * - A successful payload from the subscription stream.
+ * - A notice that the subscription has been lagged behind the network with the
+ * number of lost payloads.
+ */
+export type TransactionBlockSubscriptionPayload = Lagged | TransactionBlock;
 
 export type TransactionInput = OwnedOrImmutable | Pure | Receiving | SharedInput;
 
@@ -5877,7 +6063,7 @@ export type GetCommitteeInfoQuery = { __typename?: 'Query', epoch?: { __typename
 export type GetCurrentEpochQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type GetCurrentEpochQuery = { __typename?: 'Query', epoch?: { __typename?: 'Epoch', epochId: any, totalTransactions?: any | null, startTimestamp: any, endTimestamp?: any | null, referenceGasPrice?: any | null, validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRates?: { __typename?: 'MoveObject', address: any, contents?: { __typename?: 'MoveValue', json: any } | null } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, stakingPool?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> }, committeeMembers: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRates?: { __typename?: 'MoveObject', address: any, contents?: { __typename?: 'MoveValue', json: any } | null } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, stakingPool?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> } } | null, firstCheckpoint: { __typename?: 'CheckpointConnection', nodes: Array<{ __typename?: 'Checkpoint', sequenceNumber: any }> } } | null };
+export type GetCurrentEpochQuery = { __typename?: 'Query', epoch?: { __typename?: 'Epoch', epochId: any, totalTransactions?: any | null, startTimestamp: any, endTimestamp?: any | null, referenceGasPrice?: any | null, validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolId: any, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRatesTable?: { __typename?: 'Owner', address: any } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> }, committeeMembers: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolId: any, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRatesTable?: { __typename?: 'Owner', address: any } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> } } | null, firstCheckpoint: { __typename?: 'CheckpointConnection', nodes: Array<{ __typename?: 'Checkpoint', sequenceNumber: any }> } } | null };
 
 export type PaginateEpochValidatorsQueryVariables = Exact<{
   id: Scalars['UInt53']['input'];
@@ -5885,9 +6071,9 @@ export type PaginateEpochValidatorsQueryVariables = Exact<{
 }>;
 
 
-export type PaginateEpochValidatorsQuery = { __typename?: 'Query', epoch?: { __typename?: 'Epoch', validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRates?: { __typename?: 'MoveObject', address: any, contents?: { __typename?: 'MoveValue', json: any } | null } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, stakingPool?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> }, committeeMembers: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRates?: { __typename?: 'MoveObject', address: any, contents?: { __typename?: 'MoveValue', json: any } | null } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, stakingPool?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> } } | null } | null };
+export type PaginateEpochValidatorsQuery = { __typename?: 'Query', epoch?: { __typename?: 'Epoch', validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolId: any, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRatesTable?: { __typename?: 'Owner', address: any } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> }, committeeMembers: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolId: any, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRatesTable?: { __typename?: 'Owner', address: any } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> } } | null } | null };
 
-export type Rpc_Validator_FieldsFragment = { __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRates?: { __typename?: 'MoveObject', address: any, contents?: { __typename?: 'MoveValue', json: any } | null } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, stakingPool?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } };
+export type Rpc_Validator_FieldsFragment = { __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolId: any, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRatesTable?: { __typename?: 'Owner', address: any } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } };
 
 export type Rpc_Credential_FieldsFragment = { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null };
 
@@ -5930,7 +6116,7 @@ export type GetLatestCheckpointSequenceNumberQuery = { __typename?: 'Query', che
 export type GetLatestIotaSystemStateQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type GetLatestIotaSystemStateQuery = { __typename?: 'Query', epoch?: { __typename?: 'Epoch', epochId: any, startTimestamp: any, endTimestamp?: any | null, referenceGasPrice?: any | null, systemStateVersion?: any | null, iotaTotalSupply?: number | null, iotaTreasuryCapId?: any | null, safeMode?: { __typename?: 'SafeMode', enabled?: boolean | null, gasSummary?: { __typename?: 'GasCostSummary', computationCost?: any | null, computationCostBurned?: any | null, nonRefundableStorageFee?: any | null, storageCost?: any | null, storageRebate?: any | null } | null } | null, storageFund?: { __typename?: 'StorageFund', nonRefundableBalance?: any | null, totalObjectStorageRebates?: any | null } | null, systemParameters?: { __typename?: 'SystemParameters', minValidatorCount?: number | null, maxValidatorCount?: number | null, minValidatorJoiningStake?: any | null, durationMs?: any | null, validatorLowStakeThreshold?: any | null, validatorLowStakeGracePeriod?: any | null, validatorVeryLowStakeThreshold?: any | null } | null, protocolConfigs: { __typename?: 'ProtocolConfigs', protocolVersion: any }, validatorSet?: { __typename?: 'ValidatorSet', inactivePoolsSize?: number | null, pendingActiveValidatorsSize?: number | null, stakingPoolMappingsSize?: number | null, validatorCandidatesSize?: number | null, pendingRemovals?: Array<number> | null, totalStake?: any | null, stakingPoolMappingsId?: any | null, pendingActiveValidatorsId?: any | null, validatorCandidatesId?: any | null, inactivePoolsId?: any | null, activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRates?: { __typename?: 'MoveObject', address: any, contents?: { __typename?: 'MoveValue', json: any } | null } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, stakingPool?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> }, committeeMembers: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRates?: { __typename?: 'MoveObject', address: any, contents?: { __typename?: 'MoveValue', json: any } | null } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, stakingPool?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> } } | null } | null };
+export type GetLatestIotaSystemStateQuery = { __typename?: 'Query', epoch?: { __typename?: 'Epoch', epochId: any, startTimestamp: any, endTimestamp?: any | null, referenceGasPrice?: any | null, systemStateVersion?: any | null, iotaTotalSupply?: any | null, iotaTreasuryCapId?: any | null, safeMode?: { __typename?: 'SafeMode', enabled?: boolean | null, gasSummary?: { __typename?: 'GasCostSummary', computationCost?: any | null, computationCostBurned?: any | null, nonRefundableStorageFee?: any | null, storageCost?: any | null, storageRebate?: any | null } | null } | null, storageFund?: { __typename?: 'StorageFund', nonRefundableBalance?: any | null, totalObjectStorageRebates?: any | null } | null, systemParameters?: { __typename?: 'SystemParameters', minValidatorCount?: number | null, maxValidatorCount?: number | null, minValidatorJoiningStake?: any | null, durationMs?: any | null, validatorLowStakeThreshold?: any | null, validatorLowStakeGracePeriod?: any | null, validatorVeryLowStakeThreshold?: any | null } | null, protocolConfigs: { __typename?: 'ProtocolConfigs', protocolVersion: any }, validatorSet?: { __typename?: 'ValidatorSet', inactivePoolsSize?: number | null, pendingActiveValidatorsSize?: number | null, stakingPoolMappingsSize?: number | null, validatorCandidatesSize?: number | null, pendingRemovals?: Array<number> | null, totalStake?: any | null, stakingPoolMappingsId?: any | null, pendingActiveValidatorsId?: any | null, validatorCandidatesId?: any | null, inactivePoolsId?: any | null, activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolId: any, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRatesTable?: { __typename?: 'Owner', address: any } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> }, committeeMembers: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolId: any, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRatesTable?: { __typename?: 'Owner', address: any } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> } } | null } | null };
 
 export type GetMoveFunctionArgTypesQueryVariables = Exact<{
   packageId: Scalars['IotaAddress']['input'];
@@ -5958,7 +6144,7 @@ export type GetNormalizedMoveModuleQueryVariables = Exact<{
 }>;
 
 
-export type GetNormalizedMoveModuleQuery = { __typename?: 'Query', object?: { __typename?: 'Object', asMovePackage?: { __typename?: 'MovePackage', module?: { __typename?: 'MoveModule', name: string, fileFormatVersion: number, friends: { __typename?: 'MoveModuleConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveModule', name: string, package: { __typename?: 'MovePackage', address: any } }> }, structs?: { __typename?: 'MoveStructConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveStruct', name: string, abilities?: Array<MoveAbility> | null, fields?: Array<{ __typename?: 'MoveField', name: string, type?: { __typename?: 'OpenMoveType', signature: any } | null }> | null, typeParameters?: Array<{ __typename?: 'MoveStructTypeParameter', isPhantom: boolean, constraints: Array<MoveAbility> }> | null }> } | null, functions?: { __typename?: 'MoveFunctionConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveFunction', name: string, visibility?: MoveVisibility | null, isEntry?: boolean | null, parameters?: Array<{ __typename?: 'OpenMoveType', signature: any }> | null, typeParameters?: Array<{ __typename?: 'MoveFunctionTypeParameter', constraints: Array<MoveAbility> }> | null, return?: Array<{ __typename?: 'OpenMoveType', repr: string, signature: any }> | null }> } | null } | null } | null } | null };
+export type GetNormalizedMoveModuleQuery = { __typename?: 'Query', object?: { __typename?: 'Object', asMovePackage?: { __typename?: 'MovePackage', module?: { __typename?: 'MoveModule', name: string, fileFormatVersion: number, friends: { __typename?: 'MoveModuleConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveModule', name: string, package: { __typename?: 'MovePackage', address: any } }> }, structs?: { __typename?: 'MoveStructConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveStruct', name: string, abilities?: Array<MoveAbility> | null, fields?: Array<{ __typename?: 'MoveField', name: string, type?: { __typename?: 'OpenMoveType', signature: any } | null }> | null, typeParameters?: Array<{ __typename?: 'MoveStructTypeParameter', isPhantom: boolean, constraints: Array<MoveAbility> }> | null }> } | null, enums?: { __typename?: 'MoveEnumConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveEnum', name: string, abilities?: Array<MoveAbility> | null, typeParameters?: Array<{ __typename?: 'MoveStructTypeParameter', constraints: Array<MoveAbility>, isPhantom: boolean }> | null, variants?: Array<{ __typename?: 'MoveEnumVariant', name: string, fields?: Array<{ __typename?: 'MoveField', name: string, type?: { __typename?: 'OpenMoveType', repr: string, signature: any } | null }> | null }> | null }> } | null, functions?: { __typename?: 'MoveFunctionConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveFunction', name: string, visibility?: MoveVisibility | null, isEntry?: boolean | null, parameters?: Array<{ __typename?: 'OpenMoveType', signature: any }> | null, typeParameters?: Array<{ __typename?: 'MoveFunctionTypeParameter', constraints: Array<MoveAbility> }> | null, return?: Array<{ __typename?: 'OpenMoveType', repr: string, signature: any }> | null }> } | null } | null } | null } | null };
 
 export type PaginateMoveModuleListsQueryVariables = Exact<{
   packageId: Scalars['IotaAddress']['input'];
@@ -5966,15 +6152,19 @@ export type PaginateMoveModuleListsQueryVariables = Exact<{
   hasMoreFriends: Scalars['Boolean']['input'];
   hasMoreStructs: Scalars['Boolean']['input'];
   hasMoreFunctions: Scalars['Boolean']['input'];
+  hasMoreEnums: Scalars['Boolean']['input'];
   afterFriends?: InputMaybe<Scalars['String']['input']>;
   afterStructs?: InputMaybe<Scalars['String']['input']>;
   afterFunctions?: InputMaybe<Scalars['String']['input']>;
+  afterEnums?: InputMaybe<Scalars['String']['input']>;
 }>;
 
 
-export type PaginateMoveModuleListsQuery = { __typename?: 'Query', object?: { __typename?: 'Object', asMovePackage?: { __typename?: 'MovePackage', module?: { __typename?: 'MoveModule', friends?: { __typename?: 'MoveModuleConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveModule', name: string, package: { __typename?: 'MovePackage', address: any } }> }, structs?: { __typename?: 'MoveStructConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveStruct', name: string, abilities?: Array<MoveAbility> | null, fields?: Array<{ __typename?: 'MoveField', name: string, type?: { __typename?: 'OpenMoveType', signature: any } | null }> | null, typeParameters?: Array<{ __typename?: 'MoveStructTypeParameter', isPhantom: boolean, constraints: Array<MoveAbility> }> | null }> } | null, functions?: { __typename?: 'MoveFunctionConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveFunction', name: string, visibility?: MoveVisibility | null, isEntry?: boolean | null, parameters?: Array<{ __typename?: 'OpenMoveType', signature: any }> | null, typeParameters?: Array<{ __typename?: 'MoveFunctionTypeParameter', constraints: Array<MoveAbility> }> | null, return?: Array<{ __typename?: 'OpenMoveType', repr: string, signature: any }> | null }> } | null } | null } | null } | null };
+export type PaginateMoveModuleListsQuery = { __typename?: 'Query', object?: { __typename?: 'Object', asMovePackage?: { __typename?: 'MovePackage', module?: { __typename?: 'MoveModule', friends?: { __typename?: 'MoveModuleConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveModule', name: string, package: { __typename?: 'MovePackage', address: any } }> }, structs?: { __typename?: 'MoveStructConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveStruct', name: string, abilities?: Array<MoveAbility> | null, fields?: Array<{ __typename?: 'MoveField', name: string, type?: { __typename?: 'OpenMoveType', signature: any } | null }> | null, typeParameters?: Array<{ __typename?: 'MoveStructTypeParameter', isPhantom: boolean, constraints: Array<MoveAbility> }> | null }> } | null, functions?: { __typename?: 'MoveFunctionConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveFunction', name: string, visibility?: MoveVisibility | null, isEntry?: boolean | null, parameters?: Array<{ __typename?: 'OpenMoveType', signature: any }> | null, typeParameters?: Array<{ __typename?: 'MoveFunctionTypeParameter', constraints: Array<MoveAbility> }> | null, return?: Array<{ __typename?: 'OpenMoveType', repr: string, signature: any }> | null }> } | null, enums?: { __typename?: 'MoveEnumConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveEnum', name: string, abilities?: Array<MoveAbility> | null, typeParameters?: Array<{ __typename?: 'MoveStructTypeParameter', constraints: Array<MoveAbility>, isPhantom: boolean }> | null, variants?: Array<{ __typename?: 'MoveEnumVariant', name: string, fields?: Array<{ __typename?: 'MoveField', name: string, type?: { __typename?: 'OpenMoveType', repr: string, signature: any } | null }> | null }> | null }> } | null } | null } | null } | null };
 
-export type Rpc_Move_Module_FieldsFragment = { __typename?: 'MoveModule', name: string, fileFormatVersion: number, friends: { __typename?: 'MoveModuleConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveModule', name: string, package: { __typename?: 'MovePackage', address: any } }> }, structs?: { __typename?: 'MoveStructConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveStruct', name: string, abilities?: Array<MoveAbility> | null, fields?: Array<{ __typename?: 'MoveField', name: string, type?: { __typename?: 'OpenMoveType', signature: any } | null }> | null, typeParameters?: Array<{ __typename?: 'MoveStructTypeParameter', isPhantom: boolean, constraints: Array<MoveAbility> }> | null }> } | null, functions?: { __typename?: 'MoveFunctionConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveFunction', name: string, visibility?: MoveVisibility | null, isEntry?: boolean | null, parameters?: Array<{ __typename?: 'OpenMoveType', signature: any }> | null, typeParameters?: Array<{ __typename?: 'MoveFunctionTypeParameter', constraints: Array<MoveAbility> }> | null, return?: Array<{ __typename?: 'OpenMoveType', repr: string, signature: any }> | null }> } | null };
+export type Rpc_Move_Module_FieldsFragment = { __typename?: 'MoveModule', name: string, fileFormatVersion: number, friends: { __typename?: 'MoveModuleConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveModule', name: string, package: { __typename?: 'MovePackage', address: any } }> }, structs?: { __typename?: 'MoveStructConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveStruct', name: string, abilities?: Array<MoveAbility> | null, fields?: Array<{ __typename?: 'MoveField', name: string, type?: { __typename?: 'OpenMoveType', signature: any } | null }> | null, typeParameters?: Array<{ __typename?: 'MoveStructTypeParameter', isPhantom: boolean, constraints: Array<MoveAbility> }> | null }> } | null, enums?: { __typename?: 'MoveEnumConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveEnum', name: string, abilities?: Array<MoveAbility> | null, typeParameters?: Array<{ __typename?: 'MoveStructTypeParameter', constraints: Array<MoveAbility>, isPhantom: boolean }> | null, variants?: Array<{ __typename?: 'MoveEnumVariant', name: string, fields?: Array<{ __typename?: 'MoveField', name: string, type?: { __typename?: 'OpenMoveType', repr: string, signature: any } | null }> | null }> | null }> } | null, functions?: { __typename?: 'MoveFunctionConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveFunction', name: string, visibility?: MoveVisibility | null, isEntry?: boolean | null, parameters?: Array<{ __typename?: 'OpenMoveType', signature: any }> | null, typeParameters?: Array<{ __typename?: 'MoveFunctionTypeParameter', constraints: Array<MoveAbility> }> | null, return?: Array<{ __typename?: 'OpenMoveType', repr: string, signature: any }> | null }> } | null };
+
+export type Rpc_Move_Enum_FieldsFragment = { __typename?: 'MoveEnum', name: string, abilities?: Array<MoveAbility> | null, typeParameters?: Array<{ __typename?: 'MoveStructTypeParameter', constraints: Array<MoveAbility>, isPhantom: boolean }> | null, variants?: Array<{ __typename?: 'MoveEnumVariant', name: string, fields?: Array<{ __typename?: 'MoveField', name: string, type?: { __typename?: 'OpenMoveType', repr: string, signature: any } | null }> | null }> | null };
 
 export type GetNormalizedMoveModulesByPackageQueryVariables = Exact<{
   packageId: Scalars['IotaAddress']['input'];
@@ -5982,7 +6172,7 @@ export type GetNormalizedMoveModulesByPackageQueryVariables = Exact<{
 }>;
 
 
-export type GetNormalizedMoveModulesByPackageQuery = { __typename?: 'Query', object?: { __typename?: 'Object', asMovePackage?: { __typename?: 'MovePackage', address: any, modules?: { __typename?: 'MoveModuleConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveModule', name: string, fileFormatVersion: number, friends: { __typename?: 'MoveModuleConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveModule', name: string, package: { __typename?: 'MovePackage', address: any } }> }, structs?: { __typename?: 'MoveStructConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveStruct', name: string, abilities?: Array<MoveAbility> | null, fields?: Array<{ __typename?: 'MoveField', name: string, type?: { __typename?: 'OpenMoveType', signature: any } | null }> | null, typeParameters?: Array<{ __typename?: 'MoveStructTypeParameter', isPhantom: boolean, constraints: Array<MoveAbility> }> | null }> } | null, functions?: { __typename?: 'MoveFunctionConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveFunction', name: string, visibility?: MoveVisibility | null, isEntry?: boolean | null, parameters?: Array<{ __typename?: 'OpenMoveType', signature: any }> | null, typeParameters?: Array<{ __typename?: 'MoveFunctionTypeParameter', constraints: Array<MoveAbility> }> | null, return?: Array<{ __typename?: 'OpenMoveType', repr: string, signature: any }> | null }> } | null }> } | null } | null } | null };
+export type GetNormalizedMoveModulesByPackageQuery = { __typename?: 'Query', object?: { __typename?: 'Object', asMovePackage?: { __typename?: 'MovePackage', address: any, modules?: { __typename?: 'MoveModuleConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveModule', name: string, fileFormatVersion: number, friends: { __typename?: 'MoveModuleConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveModule', name: string, package: { __typename?: 'MovePackage', address: any } }> }, structs?: { __typename?: 'MoveStructConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveStruct', name: string, abilities?: Array<MoveAbility> | null, fields?: Array<{ __typename?: 'MoveField', name: string, type?: { __typename?: 'OpenMoveType', signature: any } | null }> | null, typeParameters?: Array<{ __typename?: 'MoveStructTypeParameter', isPhantom: boolean, constraints: Array<MoveAbility> }> | null }> } | null, enums?: { __typename?: 'MoveEnumConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveEnum', name: string, abilities?: Array<MoveAbility> | null, typeParameters?: Array<{ __typename?: 'MoveStructTypeParameter', constraints: Array<MoveAbility>, isPhantom: boolean }> | null, variants?: Array<{ __typename?: 'MoveEnumVariant', name: string, fields?: Array<{ __typename?: 'MoveField', name: string, type?: { __typename?: 'OpenMoveType', repr: string, signature: any } | null }> | null }> | null }> } | null, functions?: { __typename?: 'MoveFunctionConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'MoveFunction', name: string, visibility?: MoveVisibility | null, isEntry?: boolean | null, parameters?: Array<{ __typename?: 'OpenMoveType', signature: any }> | null, typeParameters?: Array<{ __typename?: 'MoveFunctionTypeParameter', constraints: Array<MoveAbility> }> | null, return?: Array<{ __typename?: 'OpenMoveType', repr: string, signature: any }> | null }> } | null }> } | null } | null } | null };
 
 export type GetNormalizedMoveStructQueryVariables = Exact<{
   packageId: Scalars['IotaAddress']['input'];
@@ -6156,6 +6346,13 @@ export type GetStakesByIdsQuery = { __typename?: 'Query', objects: { __typename?
 
 export type Rpc_Stake_FieldsFragment = { __typename?: 'StakedIota', principal?: any | null, stakeStatus: StakeStatus, address: any, estimatedReward?: any | null, activatedEpoch?: { __typename?: 'Epoch', epochId: any, referenceGasPrice?: any | null } | null, requestedEpoch?: { __typename?: 'Epoch', epochId: any } | null, contents?: { __typename?: 'MoveValue', json: any } | null };
 
+export type TransactionBlocksByDigestsQueryVariables = Exact<{
+  digests: Array<Scalars['String']['input']> | Scalars['String']['input'];
+}>;
+
+
+export type TransactionBlocksByDigestsQuery = { __typename?: 'Query', transactionBlocksByDigests: Array<{ __typename?: 'TransactionBlock', digest?: string | null } | null> };
+
 export type QueryTransactionBlocksQueryVariables = Exact<{
   first?: InputMaybe<Scalars['Int']['input']>;
   last?: InputMaybe<Scalars['Int']['input']>;
@@ -6220,6 +6417,15 @@ export type PaginateTransactionBlockListsQuery = { __typename?: 'Query', transac
 export type Paginate_Transaction_ListsFragment = { __typename?: 'TransactionBlock', effects?: { __typename?: 'TransactionBlockEffects', events?: { __typename?: 'EventConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Event', json: any, bcs: any, timestamp?: any | null, sendingModule?: { __typename?: 'MoveModule', name: string, package: { __typename?: 'MovePackage', address: any } } | null, sender?: { __typename?: 'Address', address: any } | null, type: { __typename?: 'MoveType', repr: string } }> }, balanceChanges?: { __typename?: 'BalanceChangeConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'BalanceChange', amount?: any | null, coinType?: { __typename?: 'MoveType', repr: string } | null, owner?: { __typename?: 'Owner', asObject?: { __typename?: 'Object', address: any } | null, asAddress?: { __typename?: 'Address', address: any } | null } | null }> }, objectChanges?: { __typename?: 'ObjectChangeConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'ObjectChange', address: any, inputState?: { __typename?: 'Object', version: any, asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', type: { __typename?: 'MoveType', repr: string } } | null } | null } | null, outputState?: { __typename?: 'Object', asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', type: { __typename?: 'MoveType', repr: string } } | null } | null, asMovePackage?: { __typename?: 'MovePackage', modules?: { __typename?: 'MoveModuleConnection', nodes: Array<{ __typename?: 'MoveModule', name: string }> } | null } | null } | null }> } } | null };
 
 export type Rpc_Transaction_FieldsFragment = { __typename?: 'TransactionBlock', digest?: string | null, signatures?: Array<any> | null, rawTransaction?: any | null, sender?: { __typename?: 'Address', address: any } | null, effects?: { __typename?: 'TransactionBlockEffects', bcs?: any, timestamp?: any | null, events?: { __typename?: 'EventConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Event', json: any, bcs: any, timestamp?: any | null, sendingModule?: { __typename?: 'MoveModule', name: string, package: { __typename?: 'MovePackage', address: any } } | null, sender?: { __typename?: 'Address', address: any } | null, type: { __typename?: 'MoveType', repr: string } }> }, checkpoint?: { __typename?: 'Checkpoint', sequenceNumber: any } | null, balanceChanges?: { __typename?: 'BalanceChangeConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'BalanceChange', amount?: any | null, coinType?: { __typename?: 'MoveType', repr: string } | null, owner?: { __typename?: 'Owner', asObject?: { __typename?: 'Object', address: any } | null, asAddress?: { __typename?: 'Address', address: any } | null } | null }> }, objectChanges?: { __typename?: 'ObjectChangeConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'ObjectChange', address: any, inputState?: { __typename?: 'Object', version: any, asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', type: { __typename?: 'MoveType', repr: string } } | null } | null } | null, outputState?: { __typename?: 'Object', asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', type: { __typename?: 'MoveType', repr: string } } | null } | null, asMovePackage?: { __typename?: 'MovePackage', modules?: { __typename?: 'MoveModuleConnection', nodes: Array<{ __typename?: 'MoveModule', name: string }> } | null } | null } | null }> } } | null };
+
+export type ViewQueryVariables = Exact<{
+  functionName: Scalars['String']['input'];
+  typeArgs?: InputMaybe<Array<Scalars['String']['input']> | Scalars['String']['input']>;
+  arguments?: InputMaybe<Array<Scalars['JSON']['input']> | Scalars['JSON']['input']>;
+}>;
+
+
+export type ViewQuery = { __typename?: 'Query', moveViewCall: { __typename?: 'MoveViewResult', error?: string | null, results?: Array<any> | null } };
 
 export class TypedDocumentString<TResult, TVariables>
   extends String
@@ -6328,10 +6534,7 @@ export const Rpc_Validator_FieldsFragmentDoc = new TypedDocumentString(`
   atRisk
   commissionRate
   exchangeRatesSize
-  exchangeRates {
-    contents {
-      json
-    }
+  exchangeRatesTable {
     address
   }
   description
@@ -6357,9 +6560,7 @@ export const Rpc_Validator_FieldsFragmentDoc = new TypedDocumentString(`
   poolTokenBalance
   projectUrl
   rewardsPool
-  stakingPool {
-    address
-  }
+  stakingPoolId
   stakingPoolActivationEpoch
   stakingPoolIotaBalance
   address {
@@ -6392,6 +6593,26 @@ export const Rpc_Move_Struct_FieldsFragmentDoc = new TypedDocumentString(`
   }
 }
     `, {"fragmentName":"RPC_MOVE_STRUCT_FIELDS"}) as unknown as TypedDocumentString<Rpc_Move_Struct_FieldsFragment, unknown>;
+export const Rpc_Move_Enum_FieldsFragmentDoc = new TypedDocumentString(`
+    fragment RPC_MOVE_ENUM_FIELDS on MoveEnum {
+  name
+  abilities
+  typeParameters {
+    constraints
+    isPhantom
+  }
+  variants {
+    name
+    fields {
+      name
+      type {
+        repr
+        signature
+      }
+    }
+  }
+}
+    `, {"fragmentName":"RPC_MOVE_ENUM_FIELDS"}) as unknown as TypedDocumentString<Rpc_Move_Enum_FieldsFragment, unknown>;
 export const Rpc_Move_Function_FieldsFragmentDoc = new TypedDocumentString(`
     fragment RPC_MOVE_FUNCTION_FIELDS on MoveFunction {
   name
@@ -6433,6 +6654,15 @@ export const Rpc_Move_Module_FieldsFragmentDoc = new TypedDocumentString(`
       ...RPC_MOVE_STRUCT_FIELDS
     }
   }
+  enums {
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    nodes {
+      ...RPC_MOVE_ENUM_FIELDS
+    }
+  }
   fileFormatVersion
   functions {
     pageInfo {
@@ -6457,6 +6687,24 @@ export const Rpc_Move_Module_FieldsFragmentDoc = new TypedDocumentString(`
   return {
     repr
     signature
+  }
+}
+fragment RPC_MOVE_ENUM_FIELDS on MoveEnum {
+  name
+  abilities
+  typeParameters {
+    constraints
+    isPhantom
+  }
+  variants {
+    name
+    fields {
+      name
+      type {
+        repr
+        signature
+      }
+    }
   }
 }
 fragment RPC_MOVE_STRUCT_FIELDS on MoveStruct {
@@ -7517,10 +7765,7 @@ export const GetCurrentEpochDocument = new TypedDocumentString(`
   atRisk
   commissionRate
   exchangeRatesSize
-  exchangeRates {
-    contents {
-      json
-    }
+  exchangeRatesTable {
     address
   }
   description
@@ -7546,9 +7791,7 @@ export const GetCurrentEpochDocument = new TypedDocumentString(`
   poolTokenBalance
   projectUrl
   rewardsPool
-  stakingPool {
-    address
-  }
+  stakingPoolId
   stakingPoolActivationEpoch
   stakingPoolIotaBalance
   address {
@@ -7594,10 +7837,7 @@ export const PaginateEpochValidatorsDocument = new TypedDocumentString(`
   atRisk
   commissionRate
   exchangeRatesSize
-  exchangeRates {
-    contents {
-      json
-    }
+  exchangeRatesTable {
     address
   }
   description
@@ -7623,9 +7863,7 @@ export const PaginateEpochValidatorsDocument = new TypedDocumentString(`
   poolTokenBalance
   projectUrl
   rewardsPool
-  stakingPool {
-    address
-  }
+  stakingPoolId
   stakingPoolActivationEpoch
   stakingPoolIotaBalance
   address {
@@ -7836,10 +8074,7 @@ export const GetLatestIotaSystemStateDocument = new TypedDocumentString(`
   atRisk
   commissionRate
   exchangeRatesSize
-  exchangeRates {
-    contents {
-      json
-    }
+  exchangeRatesTable {
     address
   }
   description
@@ -7865,9 +8100,7 @@ export const GetLatestIotaSystemStateDocument = new TypedDocumentString(`
   poolTokenBalance
   projectUrl
   rewardsPool
-  stakingPool {
-    address
-  }
+  stakingPoolId
   stakingPoolActivationEpoch
   stakingPoolIotaBalance
   address {
@@ -7977,6 +8210,15 @@ fragment RPC_MOVE_MODULE_FIELDS on MoveModule {
       ...RPC_MOVE_STRUCT_FIELDS
     }
   }
+  enums {
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    nodes {
+      ...RPC_MOVE_ENUM_FIELDS
+    }
+  }
   fileFormatVersion
   functions {
     pageInfo {
@@ -7985,6 +8227,24 @@ fragment RPC_MOVE_MODULE_FIELDS on MoveModule {
     }
     nodes {
       ...RPC_MOVE_FUNCTION_FIELDS
+    }
+  }
+}
+fragment RPC_MOVE_ENUM_FIELDS on MoveEnum {
+  name
+  abilities
+  typeParameters {
+    constraints
+    isPhantom
+  }
+  variants {
+    name
+    fields {
+      name
+      type {
+        repr
+        signature
+      }
     }
   }
 }
@@ -8003,7 +8263,7 @@ fragment RPC_MOVE_STRUCT_FIELDS on MoveStruct {
   }
 }`) as unknown as TypedDocumentString<GetNormalizedMoveModuleQuery, GetNormalizedMoveModuleQueryVariables>;
 export const PaginateMoveModuleListsDocument = new TypedDocumentString(`
-    query paginateMoveModuleLists($packageId: IotaAddress!, $module: String!, $hasMoreFriends: Boolean!, $hasMoreStructs: Boolean!, $hasMoreFunctions: Boolean!, $afterFriends: String, $afterStructs: String, $afterFunctions: String) {
+    query paginateMoveModuleLists($packageId: IotaAddress!, $module: String!, $hasMoreFriends: Boolean!, $hasMoreStructs: Boolean!, $hasMoreFunctions: Boolean!, $hasMoreEnums: Boolean!, $afterFriends: String, $afterStructs: String, $afterFunctions: String, $afterEnums: String) {
   object(address: $packageId) {
     asMovePackage {
       module(name: $module) {
@@ -8037,6 +8297,15 @@ export const PaginateMoveModuleListsDocument = new TypedDocumentString(`
             ...RPC_MOVE_FUNCTION_FIELDS
           }
         }
+        enums(after: $afterEnums) @include(if: $hasMoreEnums) {
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+          nodes {
+            ...RPC_MOVE_ENUM_FIELDS
+          }
+        }
       }
     }
   }
@@ -8054,6 +8323,24 @@ export const PaginateMoveModuleListsDocument = new TypedDocumentString(`
   return {
     repr
     signature
+  }
+}
+fragment RPC_MOVE_ENUM_FIELDS on MoveEnum {
+  name
+  abilities
+  typeParameters {
+    constraints
+    isPhantom
+  }
+  variants {
+    name
+    fields {
+      name
+      type {
+        repr
+        signature
+      }
+    }
   }
 }
 fragment RPC_MOVE_STRUCT_FIELDS on MoveStruct {
@@ -8125,6 +8412,15 @@ fragment RPC_MOVE_MODULE_FIELDS on MoveModule {
       ...RPC_MOVE_STRUCT_FIELDS
     }
   }
+  enums {
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    nodes {
+      ...RPC_MOVE_ENUM_FIELDS
+    }
+  }
   fileFormatVersion
   functions {
     pageInfo {
@@ -8133,6 +8429,24 @@ fragment RPC_MOVE_MODULE_FIELDS on MoveModule {
     }
     nodes {
       ...RPC_MOVE_FUNCTION_FIELDS
+    }
+  }
+}
+fragment RPC_MOVE_ENUM_FIELDS on MoveEnum {
+  name
+  abilities
+  typeParameters {
+    constraints
+    isPhantom
+  }
+  variants {
+    name
+    fields {
+      name
+      type {
+        repr
+        signature
+      }
     }
   }
 }
@@ -8660,6 +8974,13 @@ export const GetStakesByIdsDocument = new TypedDocumentString(`
   address
   estimatedReward
 }`) as unknown as TypedDocumentString<GetStakesByIdsQuery, GetStakesByIdsQueryVariables>;
+export const TransactionBlocksByDigestsDocument = new TypedDocumentString(`
+    query TransactionBlocksByDigests($digests: [String!]!) {
+  transactionBlocksByDigests(digests: $digests) {
+    digest
+  }
+}
+    `) as unknown as TypedDocumentString<TransactionBlocksByDigestsQuery, TransactionBlocksByDigestsQueryVariables>;
 export const QueryTransactionBlocksDocument = new TypedDocumentString(`
     query queryTransactionBlocks($first: Int, $last: Int, $before: String, $after: String, $showBalanceChanges: Boolean = false, $showEffects: Boolean = false, $showRawEffects: Boolean = false, $showEvents: Boolean = false, $showInput: Boolean = false, $showObjectChanges: Boolean = false, $showRawInput: Boolean = false, $filter: TransactionBlockFilter) {
   transactionBlocks(
@@ -9092,3 +9413,15 @@ fragment PAGINATE_TRANSACTION_LISTS on TransactionBlock {
     }
   }
 }`) as unknown as TypedDocumentString<PaginateTransactionBlockListsQuery, PaginateTransactionBlockListsQueryVariables>;
+export const ViewDocument = new TypedDocumentString(`
+    query View($functionName: String!, $typeArgs: [String!], $arguments: [JSON!]) {
+  moveViewCall(
+    functionName: $functionName
+    typeArgs: $typeArgs
+    arguments: $arguments
+  ) {
+    error
+    results
+  }
+}
+    `) as unknown as TypedDocumentString<ViewQuery, ViewQueryVariables>;

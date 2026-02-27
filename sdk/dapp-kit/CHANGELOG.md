@@ -1,5 +1,120 @@
 # @iota/dapp-kit
 
+## 0.9.0
+
+### Minor Changes
+
+-   e8ecc5f: Fix chain state not syncing when network changes in WalletProvider
+
+### Patch Changes
+
+-   00046c7: Update `@iota/iota-names-sdk` to `v0.5.1`
+-   c599ba2: Ensure wallet-icon is a non-empty string before rendering
+-   Updated dependencies [43cfa2b]
+-   Updated dependencies [3bcb711]
+-   Updated dependencies [0296e7d]
+-   Updated dependencies [54c7803]
+-   Updated dependencies [b903c0a]
+-   Updated dependencies [f5a4569]
+-   Updated dependencies [19c174f]
+-   Updated dependencies [8bd4574]
+-   Updated dependencies [5fc7e20]
+-   Updated dependencies [7a61cb5]
+-   Updated dependencies [f2b8160]
+-   Updated dependencies [abcdd2f]
+-   Updated dependencies [d5923e9]
+-   Updated dependencies [6fc20db]
+-   Updated dependencies [b72bfd2]
+-   Updated dependencies [38657f6]
+-   Updated dependencies [7fa1fde]
+-   Updated dependencies [2164846]
+-   Updated dependencies [4dc4b84]
+-   Updated dependencies [22f62d4]
+-   Updated dependencies [58891a9]
+-   Updated dependencies [924bf18]
+-   Updated dependencies [21a4820]
+-   Updated dependencies [ffbb296]
+-   Updated dependencies [088c577]
+-   Updated dependencies [0cc417d]
+    -   @iota/iota-sdk@1.11.0
+    -   @iota/wallet-standard@0.4.0
+
+## 0.8.3
+
+### Patch Changes
+
+-   Updated dependencies [1925bea]
+    -   @iota/iota-sdk@1.10.1
+    -   @iota/wallet-standard@0.3.2
+
+## 0.8.2
+
+### Patch Changes
+
+-   0b1784d: update names package
+
+## 0.8.1
+
+### Patch Changes
+
+-   Updated dependencies [4008cc6]
+-   Updated dependencies [8e66840]
+-   Updated dependencies [b0d8be1]
+    -   @iota/iota-sdk@1.10.0
+    -   @iota/wallet-standard@0.3.1
+
+## 0.8.0
+
+### Minor Changes
+
+-   ae1385d: Update dependencies.
+
+### Patch Changes
+
+-   Updated dependencies [ae1385d]
+    -   @iota/iota-sdk@1.9.0
+    -   @iota/wallet-standard@0.3.0
+
+## 0.7.0
+
+### Minor Changes
+
+-   147c97e: Update repository URLs.
+
+### Patch Changes
+
+-   55fab22: Add onConnected callback to connect button
+-   Updated dependencies [00f4a39]
+-   Updated dependencies [f4cc8e8]
+-   Updated dependencies [933496c]
+-   Updated dependencies [0a4525d]
+-   Updated dependencies [ec99569]
+    -   @iota/iota-sdk@1.8.0
+    -   @iota/wallet-standard@0.2.17
+
+## 0.6.0
+
+### Minor Changes
+
+-   bc97ee5: Add a new `chain` prop for the `WalletProvider` so that you can globally specify which
+    chain do you want to sign with when using the `useSignAndExecuteTransaction` hook so that the
+    wallet can properly dry run the transaction in the UI.
+-   7660167: IOTA Names resolution in the Account Switcher
+
+### Patch Changes
+
+-   Updated dependencies [b152861]
+-   Updated dependencies [c12d044]
+-   Updated dependencies [f3beb1e]
+-   Updated dependencies [a0b225d]
+-   Updated dependencies [fea81ab]
+-   Updated dependencies [4c68076]
+-   Updated dependencies [03e8b9b]
+-   Updated dependencies [92dd15e]
+-   Updated dependencies [2a5f065]
+    -   @iota/iota-sdk@1.7.0
+    -   @iota/wallet-standard@0.2.16
+
 ## 0.5.3
 
 ### Patch Changes

@@ -37,9 +37,23 @@ Generate the genesis files and validators’ configuration:
 # By default, bootstrap 4 validators:
 ./bootstrap.sh
 
-# To bootstrap 19 validators instead:
-./bootstrap.sh -n 19
+# To bootstrap 30 validators instead:
+./bootstrap.sh -n 30
+
+# To bootstrap with a custom epoch duration (e.g., 10 minutes = 600000 ms):
+./bootstrap.sh -n 10 -e 600000
 ```
+
+**Note:** The bootstrap script automatically generates:
+
+- `configs/genesis-<N>.yaml` - genesis template for your validator count
+
+**Note:** Both `docker-compose.yaml` and `prometheus.yaml` are static and configured for 30 validators. When you run with `-n 4`, only 4 validators are started from the compose file, and Prometheus will attempt to scrape all 30 (the extra ones will fail, which is normal).
+
+**Epoch Duration:**
+
+- Default: 1200000 ms (20 minutes)
+- Configurable via `-e` parameter in bootstrap.sh
 
 ### 3. Start the Network
 
@@ -71,23 +85,21 @@ To bring up 10 validators and faucet:
 ./run.sh -n 10 faucet
 ```
 
-> **Note:** Out of the box, the validator network for any number between 4 and 19 is supported by the provided code.\
-> If you wish to run a large number, <N>, of validators, you must manually update the corresponding YAML files:
+> **Note:** The network is configured for up to 30 validators using the 10.0.0.0/24 subnet. To run with more validators, you would need to:
 >
-> - `configs/genesis-<N>-template.yaml` for the genesis template
-> - `docker-compose.yaml` (validator services and network IPs)
-> - `prometheus/prometheus.yaml` (scrape targets)
+> - Modify the subnet in `docker-compose.yaml`
+> - Update IP address assignments in the docker-compose.yaml for the additional validators
 > - **(Optional)** Adjust the stake distribution in the chosen `genesis-template-<N>.yaml` if you want different validator stakes.
 
 ### Optional: Selecting a Consensus Protocol
 
 You can run the network with an optional consensus protocol flag. There are two options `starfish` and `mysticeti`.
-If the flag is not provided, the default protocol is Mysticeti.
+If the flag is not provided, the default protocol is **Starfish**.
 
-For example, to start a **Starfish** consensus protocol with 10 validators:
+For example, to start with **Mysticeti** consensus protocol (if you prefer the previous consensus protocol):
 
 ```bash
-./run.sh -n 10 -p starfish
+./run.sh -n 10 -p mysticeti
 ```
 
 ### Ports
@@ -152,5 +164,5 @@ Here are some examples of how to set the `TRACE_FILTER` variable based on your t
 - Trace the **checkpoint lifecycle** only, set `TRACE_FILTER=[checkpoint_received_from_state_sync]=trace,[checkpoint_received_from_consensus]=trace`
 - Trace the **transaction lifecycle** only, set `TRACE_FILTER=[handle_consensus_output]=trace,[tx_orchestrator_execute_transaction_block]=trace,[json_rpc_api_execute_transaction_block]=trace`.
   - Trace the transaction sequencing only, set `TRACE_FILTER=[transactions_sequencing]=trace`.
-  - Trace the transaction execution only, set `TRACE_FILTER=[transaction_manager_enqueue_transactions]=trace,[start_execute_pending_certs]=trace`.
+  - Trace the transaction execution only, set `TRACE_FILTER=[transaction_manager_enqueue_transactions]=trace,[start_execute_pending_certs]=trace, [dev_inspect_tx]=trace,[tx_execute_to_effects]=trace,[dry_exec_tx]=trace`.
 - Trace the consensus, set `TRACE_FILTER=[consensus_add_blocks]=trace,[new_consensus_round_received]=trace`.

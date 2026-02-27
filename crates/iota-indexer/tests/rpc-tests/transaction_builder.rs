@@ -10,7 +10,7 @@ use iota_json_rpc_api::{
     TransactionBuilderClient,
 };
 use iota_json_rpc_types::{
-    IotaObjectDataOptions, IotaObjectResponseQuery, MoveCallParams, ObjectsPage,
+    IotaObjectDataOptions, IotaObjectResponseQuery, MoveCallParams, ObjectsPage, PtbInput,
     RPCTransactionRequestParams, StakeStatus, TransactionBlockBytes, TransferObjectParams,
 };
 use iota_protocol_config::ProtocolConfig;
@@ -33,7 +33,7 @@ use jsonrpsee::http_client::HttpClient;
 use test_cluster::TestCluster;
 
 use crate::common::{
-    ApiTestSetup, execute_tx_and_wait_for_indexer, execute_tx_must_succeed,
+    ApiTestSetup, execute_tx_and_wait_for_indexer_checkpoint, execute_tx_must_succeed,
     indexer_wait_for_checkpoint, indexer_wait_for_latest_checkpoint, indexer_wait_for_object,
     start_test_cluster_with_read_write_indexer,
 };
@@ -415,7 +415,10 @@ fn batch_transaction() {
                             module: "pay".to_string(),
                             function: "split".to_string(),
                             type_arguments: type_args![GAS::type_tag()]?,
-                            arguments: call_args!(coin_to_split, amount_to_split)?,
+                            arguments: call_args!(coin_to_split, amount_to_split)?
+                                .into_iter()
+                                .map(PtbInput::CallArg)
+                                .collect(),
                         }),
                         RPCTransactionRequestParams::TransferObjectRequestParams(
                             TransferObjectParams {
@@ -692,7 +695,13 @@ fn request_withdraw_timelocked_stake_from_pending() {
                 )
                 .await
                 .unwrap();
-            execute_tx_and_wait_for_indexer(cluster.rpc_client(), &store, tx_bytes, &keypair).await;
+            execute_tx_and_wait_for_indexer_checkpoint(
+                cluster.rpc_client(),
+                &store,
+                tx_bytes,
+                &keypair,
+            )
+            .await;
 
             let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
             let stake = &staked_iota[0].stakes[0];
@@ -707,7 +716,7 @@ fn request_withdraw_timelocked_stake_from_pending() {
                 )
                 .await
                 .unwrap();
-            execute_tx_and_wait_for_indexer(&client, &store, tx_bytes, &keypair).await;
+            execute_tx_and_wait_for_indexer_checkpoint(&client, &store, tx_bytes, &keypair).await;
 
             let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
             assert!(staked_iota.is_empty());

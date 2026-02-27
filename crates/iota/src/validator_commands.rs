@@ -31,6 +31,7 @@ use iota_keys::{
     keystore::{AccountKeystore, StoredKey},
 };
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
+use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_types::{
     IOTA_SYSTEM_PACKAGE_ID, TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
@@ -51,7 +52,6 @@ use iota_types::{
 };
 use move_core_types::ident_str;
 use serde::Serialize;
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use tabled::{
     builder::Builder,
     settings::{
@@ -624,8 +624,8 @@ async fn call_0x5(
         construct_unsigned_0x5_txn(context, sender, function, call_args, gas_budget).await?;
     let iota_client = context.get_client().await?;
 
-    let signature = sign_transaction(context, &tx_data, &tx_data.sender()).await?;
-    let transaction = Transaction::from_data(tx_data, vec![signature]);
+    let signature = sign_transaction(context, &tx_data, &tx_data.sender(), None).await?;
+    let transaction = Transaction::from_generic_sig_data(tx_data, vec![signature]);
 
     iota_client
         .quorum_driver_api()

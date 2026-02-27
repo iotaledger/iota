@@ -5,8 +5,8 @@
 import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
 
 import {
-    Account,
     AccountType,
+    Account,
     type PasswordUnlockableAccount,
     type SerializedAccount,
     type SerializedUIAccount,
@@ -14,6 +14,7 @@ import {
 
 export interface LedgerAccountSerialized extends SerializedAccount {
     type: AccountType.LedgerDerived;
+    mainPublicKey?: string;
     derivationPath: string;
     // just used for authentication nothing is stored here at the moment
     encrypted: string;
@@ -22,6 +23,7 @@ export interface LedgerAccountSerialized extends SerializedAccount {
 export interface LedgerAccountSerializedUI extends SerializedUIAccount {
     type: AccountType.LedgerDerived;
     derivationPath: string;
+    mainPublicKey?: string;
 }
 
 export function isLedgerAccountSerializedUI(
@@ -45,11 +47,13 @@ export class LedgerAccount
         publicKey,
         password,
         derivationPath,
+        mainPublicKey,
     }: {
         address: string;
         publicKey: string | null;
         password: string;
         derivationPath: string;
+        mainPublicKey?: string;
     }): Promise<Omit<LedgerAccountSerialized, 'id'>> {
         return {
             type: AccountType.LedgerDerived,
@@ -57,6 +61,7 @@ export class LedgerAccount
             publicKey,
             encrypted: await encrypt(password, {}),
             derivationPath,
+            mainPublicKey,
             lastUnlockedOn: null,
             selected: false,
             nickname: null,
@@ -72,9 +77,12 @@ export class LedgerAccount
         super({ type: AccountType.LedgerDerived, id, cachedData });
     }
 
-    async lock(allowRead = false): Promise<void> {
-        await this.clearEphemeralValue();
-        await this.onLocked(allowRead);
+    async lock(): Promise<void> {
+        const isLocked = await this.isLocked();
+        if (!isLocked) {
+            await this.clearEphemeralValue();
+            await this.onLocked();
+        }
     }
 
     async isLocked(): Promise<boolean> {
@@ -97,7 +105,7 @@ export class LedgerAccount
     }
 
     async toUISerialized(): Promise<LedgerAccountSerializedUI> {
-        const { address, type, publicKey, derivationPath, selected, nickname } =
+        const { address, type, publicKey, derivationPath, selected, nickname, mainPublicKey } =
             await this.getStoredData();
         return {
             id: this.id,
@@ -106,6 +114,7 @@ export class LedgerAccount
             isLocked: await this.isLocked(),
             publicKey,
             derivationPath,
+            mainPublicKey,
             lastUnlockedOn: await this.lastUnlockedOn,
             selected,
             nickname,

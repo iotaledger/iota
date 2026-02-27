@@ -140,6 +140,7 @@ const ACTIVE_OR_PENDING_VALIDATOR: u8 = 2;
 const ANY_VALIDATOR: u8 = 3;
 
 const BASIS_POINT_DENOMINATOR: u128 = 10000;
+const MAX_SCORE: u128 = 65536; // Note: must be consistent with max score used in iota-core.
 const MIN_STAKING_THRESHOLD: u64 = 1_000_000_000; // 1 IOTA
 
 // Errors
@@ -161,6 +162,9 @@ const EValidatorSetEmpty: u64 = 13;
 const ENotACommitteeValidator: u64 = 14;
 const EInvalidStakeAmount: u64 = 15;
 const EInvalidEligibleValidatorIndex: u64 = 16;
+const EInvalidRewardAdjustmentData: u64 = 17;
+const EInvalidScoresData: u64 = 18;
+const EIncompatibleVotingPowerDenominator: u64 = 19;
 
 const EInvalidCap: u64 = 101;
 
@@ -457,12 +461,14 @@ public(package) fun advance_epoch(
     low_stake_grace_period: u64,
     committee_size: u64,
     eligible_active_validators: vector<u64>,
+    scores: vector<u64>,
+    adjust_rewards_by_score: bool,
     ctx: &mut TxContext,
 ) {
     let new_epoch = ctx.epoch() + 1;
     let total_voting_power = voting_power::total_voting_power();
 
-    // Compute the reward distribution without taking into account the tallying rule slashing.
+    // Compute the reward distribution without taking into account the scores or reporting.
     let unadjusted_staking_reward_amounts = compute_unadjusted_reward_distribution(
         &self.active_validators,
         &self.committee_members,
@@ -482,6 +488,8 @@ public(package) fun advance_epoch(
         unadjusted_staking_reward_amounts,
         get_validator_indices_set(&self.active_validators, &slashed_validators),
         reward_slashing_rate,
+        scores,
+        adjust_rewards_by_score,
     );
 
     // Distribute the rewards before adjusting stake so that we immediately start compounding
@@ -506,6 +514,7 @@ public(package) fun advance_epoch(
         &adjusted_staking_reward_amounts,
         validator_report_records,
         &slashed_validators,
+        scores,
     );
 
     // Collect committee validator addresses before modifying the `active_validators`.
@@ -1326,14 +1335,26 @@ fun compute_adjusted_reward_distribution(
     unadjusted_staking_reward_amounts: vector<u64>,
     slashed_validator_indices_set: VecSet<u64>,
     reward_slashing_rate: u64,
+    scores: vector<u64>,
+    adjust_rewards_by_score: bool,
 ): vector<u64> {
     let mut adjusted_staking_reward_amounts = vector[];
 
     // Loop through each validator and adjust rewards as necessary
     let length = committee_members.length();
+    assert!(length == unadjusted_staking_reward_amounts.length(), EInvalidRewardAdjustmentData);
+    assert!(unadjusted_staking_reward_amounts.length() == scores.length(), EInvalidScoresData);
+
     let mut i = 0;
     while (i < length) {
         let unadjusted_staking_reward_amount = unadjusted_staking_reward_amounts[i];
+
+        // Calculate staking reward amount adjusted for the validator's score
+        let score_adjusted_staking_reward_amount = if (adjust_rewards_by_score) {
+            scores[i] as u128 * (unadjusted_staking_reward_amount as u128) / MAX_SCORE
+        } else {
+            unadjusted_staking_reward_amount as u128
+        };
 
         // Check if the validator is slashed
         let adjusted_staking_reward_amount = if (
@@ -1342,15 +1363,14 @@ fun compute_adjusted_reward_distribution(
             // Use the slashing rate to compute the amount of staking rewards slashed from this punished validator.
             // Use u128 to avoid multiplication overflow.
             let staking_reward_adjustment_u128 =
-                ((unadjusted_staking_reward_amount as u128) * (reward_slashing_rate as u128)) / BASIS_POINT_DENOMINATOR;
-            unadjusted_staking_reward_amount - (staking_reward_adjustment_u128 as u64)
+                (score_adjusted_staking_reward_amount * (reward_slashing_rate as u128)) / BASIS_POINT_DENOMINATOR;
+            score_adjusted_staking_reward_amount - staking_reward_adjustment_u128
         } else {
             // Otherwise, unadjusted staking reward amount is assigned to the unslashed validators
-            unadjusted_staking_reward_amount
+            score_adjusted_staking_reward_amount
         };
 
-        adjusted_staking_reward_amounts.push_back(adjusted_staking_reward_amount);
-
+        adjusted_staking_reward_amounts.push_back(adjusted_staking_reward_amount as u64);
         // Move to the next validator
         i = i + 1;
     };
@@ -1370,13 +1390,24 @@ fun distribute_reward(
     // non-empty committee_members implies non-empty validators, but not vice versa
     assert!(!committee_members.is_empty(), EValidatorSetEmpty);
 
+    // For IIP-8 we will be calculating an effective commission rate for each validator.
+    // This assumes that both the commission rate and voting power are represented in basis points
+    // with a common denominator.
+    assert!(
+        BASIS_POINT_DENOMINATOR == voting_power::total_voting_power() as u128,
+        EIncompatibleVotingPowerDenominator,
+    );
+
     validators.take_do_with_ix_mut!(committee_members, |i, _, validator| {
         let staking_reward_amount = adjusted_staking_reward_amounts[i];
         let mut staker_reward = staking_rewards.split(staking_reward_amount);
 
+        // Enforce the effective minimum commission for the epoch according to IIP-8.
+        let effective_commission_rate = validator.commission_rate().max(validator.voting_power());
+
         // Validator takes a cut of the rewards as commission.
         let validator_commission_amount =
-            (staking_reward_amount as u128) * (validator.commission_rate() as u128) / BASIS_POINT_DENOMINATOR;
+            (staking_reward_amount as u128) * (effective_commission_rate as u128) / BASIS_POINT_DENOMINATOR;
 
         // The validator reward = commission.
         let validator_reward = staker_reward.split(validator_commission_amount as u64);
@@ -1408,6 +1439,7 @@ fun emit_validator_epoch_events(
     pool_staking_reward_amounts: &vector<u64>,
     report_records: &VecMap<address, VecSet<address>>,
     slashed_validators: &vector<address>,
+    scores: vector<u64>,
 ) {
     assert!(committee_members.length() == pool_staking_reward_amounts.length());
     let mut i = 0;
@@ -1418,12 +1450,13 @@ fun emit_validator_epoch_events(
         } else {
             vector[]
         };
-        let tallying_rule_global_score = if (slashed_validators.contains(&validator_address)) 0
-        else 1;
-        let mut committee_member_index = committee_members.find_index!(|c| c == i);
+        let committee_member_index = committee_members.find_index!(|c| c == i);
+        let tallying_rule_global_score = if (
+            slashed_validators.contains(&validator_address) || committee_member_index.is_none()
+        ) 0 else scores[*committee_member_index.borrow()];
         let pool_staking_reward = if (committee_member_index.is_some()) {
             // prepare event for a committee validator
-            pool_staking_reward_amounts[committee_member_index.extract()]
+            pool_staking_reward_amounts[*committee_member_index.borrow()]
         } else {
             // prepare event for an active non-committee validator
             0

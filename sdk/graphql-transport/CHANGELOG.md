@@ -1,5 +1,135 @@
 # @iota/graphql-transport
 
+## 0.14.0
+
+### Minor Changes
+
+-   19c174f: Add enum pagination support to getNormalizedMoveModule and fix type generator for
+    arrays without items
+-   8bd4574: Sync types with the new score integration.
+-   d5923e9: Add the `MoveAuthenticator` variant to the `GenericSignature` to allow the
+    authentication of Abstract Accounts.
+-   ffbb296: Update the GraphQL queries to support new fields
+-   f22df28: Change the thrown error of `getObject` when using the GraphQL transport for it to
+    behave like the JSON-RPC transport.
+
+### Patch Changes
+
+-   54c7803: Update @types/node to v24.
+-   f2b8160: fix graphql transport error
+-   abcdd2f: add transactionBlocksByDigests tests
+-   6f06e01: Bring back unsupportedFilters for `getOwnedObjects`
+-   Updated dependencies [43cfa2b]
+-   Updated dependencies [94b38e1]
+-   Updated dependencies [3bcb711]
+-   Updated dependencies [0296e7d]
+-   Updated dependencies [54c7803]
+-   Updated dependencies [b903c0a]
+-   Updated dependencies [f5a4569]
+-   Updated dependencies [19c174f]
+-   Updated dependencies [8bd4574]
+-   Updated dependencies [5fc7e20]
+-   Updated dependencies [7a61cb5]
+-   Updated dependencies [f2b8160]
+-   Updated dependencies [abcdd2f]
+-   Updated dependencies [d5923e9]
+-   Updated dependencies [6fc20db]
+-   Updated dependencies [b72bfd2]
+-   Updated dependencies [38657f6]
+-   Updated dependencies [7fa1fde]
+-   Updated dependencies [2164846]
+-   Updated dependencies [4dc4b84]
+-   Updated dependencies [58891a9]
+-   Updated dependencies [f445f37]
+-   Updated dependencies [924bf18]
+-   Updated dependencies [21a4820]
+-   Updated dependencies [ffbb296]
+-   Updated dependencies [088c577]
+-   Updated dependencies [0cc417d]
+    -   @iota/iota-sdk@1.11.0
+    -   @iota/bcs@1.5.0
+
+## 0.13.1
+
+### Patch Changes
+
+-   Updated dependencies [1925bea]
+    -   @iota/iota-sdk@1.10.1
+
+## 0.13.0
+
+### Minor Changes
+
+-   8e66840: Deprecate `AddressTransactionBlockRelationship.Sign`
+-   b0d8be1: Support new `TransactionBlocksByDigests` GraphQL query.
+
+### Patch Changes
+
+-   Updated dependencies [4008cc6]
+-   Updated dependencies [8e66840]
+-   Updated dependencies [b0d8be1]
+    -   @iota/iota-sdk@1.10.0
+
+## 0.12.0
+
+### Minor Changes
+
+-   ae1385d: Update dependencies.
+
+### Patch Changes
+
+-   Updated dependencies [ae1385d]
+    -   @iota/bcs@1.4.0
+    -   @iota/iota-sdk@1.9.0
+
+## 0.11.0
+
+### Minor Changes
+
+-   f4cc8e8: Add a `maxTransactionPayloadSize` service-configuration parameter for GraphQL schema
+    introspection.
+-   933496c: Changed type of "iotaTotalSupply" to BigInt in the GraphQL queries
+-   147c97e: Update repository URLs.
+-   ec99569: New subscription API types.
+
+### Patch Changes
+
+-   Updated dependencies [00f4a39]
+-   Updated dependencies [f4cc8e8]
+-   Updated dependencies [933496c]
+-   Updated dependencies [147c97e]
+-   Updated dependencies [0a4525d]
+-   Updated dependencies [ec99569]
+    -   @iota/iota-sdk@1.8.0
+    -   @iota/bcs@1.3.0
+
+## 0.10.0
+
+### Minor Changes
+
+-   b152861: Fix the TS SDK bundling with Bun
+-   a0b225d: Support the new node method `isTransactionIndexedOnNode`
+-   fea81ab: Typo fixes.
+-   4c68076: Sync with Node changes.
+-   03e8b9b: Update move types
+-   92dd15e: Add a new `waitMode` in `waitForTransaction`
+-   2a5f065: Add support for the new `view` method in both JSON RPC and GraphQL transports.
+
+### Patch Changes
+
+-   c12d044: Internal simplification of the codegen
+-   58997cb: map Option correctly in moveDataToRpcContent
+-   Updated dependencies [b152861]
+-   Updated dependencies [c12d044]
+-   Updated dependencies [f3beb1e]
+-   Updated dependencies [a0b225d]
+-   Updated dependencies [fea81ab]
+-   Updated dependencies [4c68076]
+-   Updated dependencies [03e8b9b]
+-   Updated dependencies [92dd15e]
+-   Updated dependencies [2a5f065]
+    -   @iota/iota-sdk@1.7.0
+
 ## 0.9.2
 
 ### Patch Changes

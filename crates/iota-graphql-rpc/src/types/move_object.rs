@@ -10,6 +10,7 @@ use iota_types::{
 };
 
 use crate::{
+    config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
     data::Db,
     error::Error,
@@ -116,7 +117,7 @@ pub(crate) enum IMoveObject {
 }
 
 /// The representation of an object as a Move Object, which exposes additional
-/// information (content, module that governs it, version, is transferrable,
+/// information (content, module that governs it, version, is transferable,
 /// etc.) about this object.
 #[Object]
 impl MoveObject {
@@ -291,6 +292,9 @@ impl MoveObject {
     /// GraphQL, but it can be restricted by the `after` and `before`
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
     /// `atCheckpoint` filters.
+    #[graphql(
+        complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
+    )]
     pub(crate) async fn received_transaction_blocks(
         &self,
         ctx: &Context<'_>,

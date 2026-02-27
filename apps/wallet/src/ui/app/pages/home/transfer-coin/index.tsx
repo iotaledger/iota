@@ -35,7 +35,7 @@ import { SendTokenForm } from './SendTokenForm';
 import { Button, ButtonType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { Loader } from '@iota/apps-ui-icons';
 import { FormikProvider, useFormik } from 'formik';
-import { shouldResolveInputAsName } from '@iota/core/src/utils/validation/names';
+import { shouldResolveInputAsName } from '@iota/core/utils/validation/names';
 
 const INITIAL_VALUES: SendTokenFormValues = {
     to: '',
@@ -137,8 +137,9 @@ export function TransferCoinPage() {
             queryClient.invalidateQueries({ queryKey: ['get-coins'] });
             queryClient.invalidateQueries({ queryKey: ['coin-balance'] });
 
-            ampli.sentCoins({
+            ampli.coinsSent({
                 coinType: selectedCoinType!,
+                amount: Number(formik.values.amount),
             });
 
             const receiptUrl = `/receipt?txdigest=${encodeURIComponent(
@@ -180,9 +181,11 @@ export function TransferCoinPage() {
         <Overlay
             showModal={true}
             title={showTransactionPreview ? 'Review & Send' : 'Send'}
-            closeOverlay={() => navigate('/')}
+            closeOverlay={() => navigate('/tokens')}
             showBackButton
-            onBack={showTransactionPreview ? () => setShowTransactionPreview(false) : undefined}
+            onBack={() =>
+                showTransactionPreview ? setShowTransactionPreview(false) : navigate('/')
+            }
         >
             <div className="flex h-full w-full flex-col gap-md">
                 {showTransactionPreview && formik.values ? (

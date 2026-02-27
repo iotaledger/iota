@@ -4,7 +4,12 @@
 import { Controller, Get } from '@nestjs/common';
 import { Feature } from '@iota/core/enums/features.enums';
 import { Network } from '@iota/iota-sdk/client';
-import { NAME_ADDRESS_RESOLUTION_FEATURE, KNOWN_ADDRESSES_ALIASES } from './features.constants';
+import {
+    NAME_ADDRESS_RESOLUTION_FEATURE,
+    KNOWN_ADDRESSES_ALIASES,
+    RECOGNIZED_PACKAGES,
+} from './features.constants';
+import { RECOGNIZED_DAPPS } from './dapps.constants';
 
 @Controller('/api/features')
 export class FeaturesController {
@@ -14,41 +19,16 @@ export class FeaturesController {
             status: 200,
             features: {
                 [Feature.RecognizedPackages]: {
-                    defaultValue: [
-                        '0x2',
-                        '0x3',
-                        '0x1',
-                        '0x107a',
-                        '0x0000000000000000000000000000000000000000000000000000000000000002',
-                        '0x0000000000000000000000000000000000000000000000000000000000000003',
-                        '0x0000000000000000000000000000000000000000000000000000000000000001',
-                        '0x000000000000000000000000000000000000000000000000000000000000107a',
-                    ],
+                    defaultValue: RECOGNIZED_PACKAGES,
                 },
                 [Feature.WalletSentryTracing]: {
                     defaultValue: 0.0025,
                 },
                 [Feature.WalletDapps]: {
-                    defaultValue: [
-                        {
-                            name: 'Wallet Dashboard',
-                            link: 'https://wallet-dashboard.iota.org/',
-                            icon: 'https://iota.org/logo.png',
-                            tags: ['Wallet', 'Dashboard'],
-                        },
-                        {
-                            name: 'EVM Bridge',
-                            link: 'https://evm-bridge.iota.org/',
-                            icon: 'https://iota.org/logo.png',
-                            tags: ['EVM', 'Bridge'],
-                        },
-                    ],
+                    defaultValue: RECOGNIZED_DAPPS,
                 },
                 [Feature.WalletBalanceRefetchInterval]: {
                     defaultValue: 1000,
-                },
-                [Feature.KioskOriginbytePackageId]: {
-                    defaultValue: '',
                 },
                 [Feature.WalletAppsBannerConfig]: {
                     defaultValue: {
@@ -63,6 +43,15 @@ export class FeaturesController {
                         dismissKey: '',
                         imageUrl: '',
                         bannerUrl: '',
+                    },
+                },
+                [Feature.WalletPasskeys]: {
+                    defaultValue: {
+                        [Network.Mainnet]: true,
+                        [Network.Devnet]: true,
+                        [Network.Testnet]: true,
+                        [Network.Localnet]: true,
+                        [Network.Custom]: true,
                     },
                 },
                 [Feature.PollingTxnTable]: {
@@ -86,10 +75,10 @@ export class FeaturesController {
                 [Feature.FiatConversion]: {
                     defaultValue: {
                         [Network.Mainnet]: true,
-                        [Network.Devnet]: false,
-                        [Network.Testnet]: false,
-                        [Network.Localnet]: false,
-                        [Network.Custom]: false,
+                        [Network.Devnet]: true,
+                        [Network.Testnet]: true,
+                        [Network.Localnet]: true,
+                        [Network.Custom]: true,
                     },
                 },
                 [Feature.KnownAddressAlias]: {
@@ -104,6 +93,9 @@ export class FeaturesController {
                 [Feature.IotaNames]: {
                     defaultValue: NAME_ADDRESS_RESOLUTION_FEATURE,
                 },
+                [Feature.ExplorerTFIdentity]: {
+                    defaultValue: false,
+                },
             },
             dateUpdated: new Date().toISOString(),
         };
@@ -115,42 +107,16 @@ export class FeaturesController {
             status: 200,
             features: {
                 [Feature.RecognizedPackages]: {
-                    defaultValue: [
-                        '0x2',
-                        '0x3',
-                        '0x1',
-                        '0x107a',
-                        '0x0000000000000000000000000000000000000000000000000000000000000002',
-                        '0x0000000000000000000000000000000000000000000000000000000000000003',
-                        '0x0000000000000000000000000000000000000000000000000000000000000001',
-                        '0x000000000000000000000000000000000000000000000000000000000000107a',
-                    ],
+                    defaultValue: RECOGNIZED_PACKAGES,
                 },
                 [Feature.WalletSentryTracing]: {
                     defaultValue: 0.0025,
                 },
-                // Note: we'll add wallet dapps when evm will be ready
                 [Feature.WalletDapps]: {
-                    defaultValue: [
-                        {
-                            name: 'Wallet Dashboard',
-                            link: 'https://wallet-dashboard.iota.org/',
-                            icon: 'https://iota.org/logo.png',
-                            tags: ['Wallet', 'Dashboard'],
-                        },
-                        {
-                            name: 'EVM Bridge',
-                            link: 'https://evm-bridge.iota.org/',
-                            icon: 'https://iota.org/logo.png',
-                            tags: ['EVM', 'Bridge'],
-                        },
-                    ],
+                    defaultValue: RECOGNIZED_DAPPS,
                 },
                 [Feature.WalletBalanceRefetchInterval]: {
                     defaultValue: 1000,
-                },
-                [Feature.KioskOriginbytePackageId]: {
-                    defaultValue: '',
                 },
                 [Feature.WalletAppsBannerConfig]: {
                     defaultValue: {
@@ -165,6 +131,15 @@ export class FeaturesController {
                         dismissKey: '',
                         imageUrl: '',
                         bannerUrl: '',
+                    },
+                },
+                [Feature.WalletPasskeys]: {
+                    defaultValue: {
+                        [Network.Mainnet]: true,
+                        [Network.Devnet]: true,
+                        [Network.Testnet]: true,
+                        [Network.Localnet]: true,
+                        [Network.Custom]: true,
                     },
                 },
                 [Feature.PollingTxnTable]: {
@@ -204,6 +179,9 @@ export class FeaturesController {
                 },
                 [Feature.IotaNames]: {
                     defaultValue: NAME_ADDRESS_RESOLUTION_FEATURE,
+                },
+                [Feature.ExplorerTFIdentity]: {
+                    defaultValue: false,
                 },
             },
             dateUpdated: new Date().toISOString(),

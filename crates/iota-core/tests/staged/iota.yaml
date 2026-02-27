@@ -118,6 +118,30 @@ ChangeEpochV3:
                 TYPENAME: ObjectID
     - eligible_active_validators:
         SEQ: U64
+ChangeEpochV4:
+  STRUCT:
+    - epoch: U64
+    - protocol_version:
+        TYPENAME: ProtocolVersion
+    - storage_charge: U64
+    - computation_charge: U64
+    - computation_charge_burned: U64
+    - storage_rebate: U64
+    - non_refundable_storage_fee: U64
+    - epoch_start_timestamp_ms: U64
+    - system_packages:
+        SEQ:
+          TUPLE:
+            - TYPENAME: SequenceNumber
+            - SEQ:
+                SEQ: U8
+            - SEQ:
+                TYPENAME: ObjectID
+    - eligible_active_validators:
+        SEQ: U64
+    - scores:
+        SEQ: U64
+    - adjust_rewards_by_score: BOOL
 CheckpointCommitment:
   ENUM:
     0:
@@ -391,8 +415,12 @@ EndOfEpochTransactionKind:
         NEWTYPE:
           TYPENAME: ChangeEpochV3
     3:
-      AuthenticatorStateCreate: UNIT
+      ChangeEpochV4:
+        NEWTYPE:
+          TYPENAME: ChangeEpochV4
     4:
+      AuthenticatorStateCreate: UNIT
+    5:
       AuthenticatorStateExpire:
         NEWTYPE:
           TYPENAME: AuthenticatorStateExpire
@@ -1039,29 +1067,29 @@ TypeInput:
     0:
       bool: UNIT
     1:
-      u8: UNIT
+      U8: UNIT
     2:
-      u64: UNIT
+      U64: UNIT
     3:
-      u128: UNIT
+      U128: UNIT
     4:
-      address: UNIT
+      Address: UNIT
     5:
-      signer: UNIT
+      Signer: UNIT
     6:
-      vector:
+      Vector:
         NEWTYPE:
           TYPENAME: TypeInput
     7:
-      struct:
+      Struct:
         NEWTYPE:
           TYPENAME: StructInput
     8:
-      u16: UNIT
+      U16: UNIT
     9:
-      u32: UNIT
+      U32: UNIT
     10:
-      u256: UNIT
+      U256: UNIT
 TypeOrigin:
   STRUCT:
     - module_name: STR
@@ -1071,19 +1099,19 @@ TypeOrigin:
 TypeTag:
   ENUM:
     0:
-      bool: UNIT
+      Bool: UNIT
     1:
-      u8: UNIT
+      U8: UNIT
     2:
-      u64: UNIT
+      U64: UNIT
     3:
-      u128: UNIT
+      U128: UNIT
     4:
-      address: UNIT
+      Address: UNIT
     5:
-      signer: UNIT
+      Signer: UNIT
     6:
-      vector:
+      Vector:
         NEWTYPE:
           TYPENAME: TypeTag
     7:
@@ -1091,11 +1119,11 @@ TypeTag:
         NEWTYPE:
           TYPENAME: StructTag
     8:
-      u16: UNIT
+      U16: UNIT
     9:
-      u32: UNIT
+      U32: UNIT
     10:
-      u256: UNIT
+      U256: UNIT
 TypedStoreError:
   ENUM:
     0:

@@ -4,31 +4,28 @@
 import { useNavigate } from 'react-router-dom';
 import { Overlay } from '_components';
 import { useActiveAccount, useAppSelector } from '_hooks';
-import { getKey } from '_helpers';
+import { getSourceId } from '_helpers';
 import { Theme, useTheme } from '@iota/core';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
 import BalanceFinderIntroImage from '_assets/images/balance_finder_intro.png';
 import BalanceFinderIntroDarkImage from '_assets/images/balance_finder_intro_darkmode.png';
-import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
-import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
 import { useEffect, useState } from 'react';
+import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 
 export function AccountsFinderIntroPage() {
     const { theme } = useTheme();
     const navigate = useNavigate();
     const activeAccount = useActiveAccount();
     const [skipSeconds, setSkipSeconds] = useState(5);
-    const isAppPopup = useAppSelector((state) => state.app.isAppViewPopup);
+    const isAppPopup = useAppSelector(
+        (state) => state.app.extensionViewType === ExtensionViewType.Popup,
+    );
 
     const skipActionAllowed = skipSeconds > 0;
-    const isLedgerAccount = activeAccount && isLedgerAccountSerializedUI(activeAccount);
-    const accountSourceId = activeAccount && getKey(activeAccount);
+    const accountSourceId = activeAccount && getSourceId(activeAccount);
     const imgSrc = theme === Theme.Dark ? BalanceFinderIntroDarkImage : BalanceFinderIntroImage;
 
-    const ledgerPath = `/accounts/manage/accounts-finder/${AllowedAccountSourceTypes.LedgerDerived}`;
-    const accountPath = isLedgerAccount
-        ? ledgerPath
-        : `/accounts/manage/accounts-finder/${accountSourceId}`;
+    const accountPath = `/accounts/manage/accounts-finder/${accountSourceId}`;
 
     useEffect(() => {
         if (!skipActionAllowed) return;
@@ -81,7 +78,7 @@ export function AccountsFinderIntroPage() {
                         <Button
                             type={ButtonType.Secondary}
                             text={skipActionAllowed ? `Skip (${skipSeconds}s)` : 'Skip'}
-                            onClick={() => navigate('/')}
+                            onClick={() => navigate('/tokens')}
                             fullWidth
                             disabled={skipActionAllowed}
                         />

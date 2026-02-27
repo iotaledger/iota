@@ -11,9 +11,9 @@ export enum Feature {
     WalletBalanceRefetchInterval = 'wallet-balance-refetch-interval',
     WalletAppsBannerConfig = 'wallet-apps-banner-config',
     WalletInterstitialConfig = 'wallet-interstitial-config',
+    WalletPasskeys = 'wallet-passkey-accounts',
     RecognizedPackages = 'recognized-packages',
     WalletSentryTracing = 'wallet-sentry-tracing',
-    KioskOriginbytePackageId = 'kiosk-originbyte-package-id',
     PollingTxnTable = 'polling-txn-table',
     NetworkOutageOverride = 'network-outage-override',
     ModuleSourceVerification = 'module-source-verification',
@@ -25,4 +25,5 @@ export enum Feature {
     KnownIotaEVMCoinTypes = 'known-iota-evm-coin-types',
     IotaNames = 'iota-names',
     ValidatorAddressAlias = 'validator-address-alias',
+    ExplorerTFIdentity = 'explorer-trust-framework-identity',
 }

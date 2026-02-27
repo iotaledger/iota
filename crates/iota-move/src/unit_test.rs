@@ -50,7 +50,7 @@ impl Test {
             );
         }
         // save disassembly if trace execution is enabled
-        let save_disassembly = self.test.trace_execution.is_some();
+        let save_disassembly = self.test.trace_execution;
         // find manifest file directory from a given path or (if missing) from current
         // dir
         let rerooted_path = base::reroot_path(path)?;
@@ -125,6 +125,9 @@ fn new_testing_object_and_natives_cost_runtime(ext: &mut NativeContextExtensions
     let metrics = Arc::new(LimitsMetrics::new(&registry));
     let store = Lazy::force(&TEST_STORE);
 
+    // If this list needs to be updated you likely need to update
+    // iota-execution/latest/iota-adapter/src/adapter.rs where it is constructed for
+    // regular execution as well.
     ext.add(ObjectRuntime::new(
         store,
         BTreeMap::new(),

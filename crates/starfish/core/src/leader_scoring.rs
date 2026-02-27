@@ -69,6 +69,25 @@ impl ReputationScores {
             }
         }
     }
+
+    /// Creates ReputationScores from reputation_scores_desc (as stored in
+    /// commits). The reputation_scores_desc is Vec<(AuthorityIndex, u64)>
+    /// sorted by score descending. This converts it to scores_per_authority
+    /// indexed by authority.
+    pub(crate) fn from_scores_desc(
+        num_authorities: usize,
+        commit_range: CommitRange,
+        reputation_scores_desc: &[(AuthorityIndex, u64)],
+    ) -> Self {
+        let mut scores_per_authority = vec![0u64; num_authorities];
+        for (authority_index, score) in reputation_scores_desc {
+            scores_per_authority[*authority_index] = *score;
+        }
+        Self {
+            scores_per_authority,
+            commit_range,
+        }
+    }
 }
 
 /// ScoringSubdag represents the scoring votes in a collection of subdags across
@@ -125,11 +144,11 @@ impl ScoringSubdag {
             self.leaders.insert(subdag.leader);
             // Check each block in subdag. Blocks are in order so we should traverse the
             // oldest blocks first
-            for block in subdag.blocks {
-                for ancestor in block.ancestors() {
+            for header in subdag.headers {
+                for ancestor in header.ancestors() {
                     // Weak links may point to blocks with lower round numbers
                     // than strong links.
-                    if ancestor.round != block.round().saturating_sub(1) {
+                    if ancestor.round != header.round().saturating_sub(1) {
                         continue;
                     }
                     // If a blocks strong linked ancestor is in leaders, then
@@ -139,14 +158,14 @@ impl ScoringSubdag {
                         // with strong linked ancestors to leader.
                         tracing::trace!(
                             "Found a vote {} for leader {ancestor} from authority {}",
-                            block.reference(),
-                            block.author()
+                            header.reference(),
+                            header.author()
                         );
                         assert!(
                             self.votes
-                                .insert(block.reference(), StakeAggregator::new())
+                                .insert(header.reference(), StakeAggregator::new())
                                 .is_none(),
-                            "Vote {block} already exists. Duplicate vote found for leader {ancestor}"
+                            "Vote {header} already exists. Duplicate vote found for leader {ancestor}"
                         );
                     }
                     if let Some(stake) = self.votes.get_mut(ancestor) {
@@ -156,7 +175,7 @@ impl ScoringSubdag {
                             "Found a distributed vote {ancestor} from authority {}",
                             ancestor.author
                         );
-                        stake.add(block.author(), &self.context.committee);
+                        stake.add(header.author(), &self.context.committee);
                     }
                 }
             }

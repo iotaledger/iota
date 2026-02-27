@@ -6,6 +6,7 @@ import { wrapCreateBrowserRouter } from '@sentry/react';
 import { createBrowserRouter, Navigate, useLocation, useParams } from 'react-router-dom';
 import { AddressResultPage } from './address-result/AddressResult';
 import { CheckpointDetail } from './checkpoints/CheckpointDetail';
+import { CookiePolicyPage } from './cookie-policy/CookiePolicyPage';
 import { EpochDetail } from './epochs/EpochDetail';
 import { Home } from './home/Home';
 import { ObjectResult } from './object-result/ObjectResult';
@@ -14,6 +15,7 @@ import { TransactionResult } from './transaction-result/TransactionResult';
 import { ValidatorDetails } from './validator/ValidatorDetails';
 import { ValidatorPageResult } from './validators/Validators';
 import { Layout } from '~/components';
+import { DidResult } from './trust-framework/didResult';
 
 interface RedirectWithIdProps {
     base: string;
@@ -33,6 +35,7 @@ export const router = sentryCreateBrowserRouter([
         element: <Layout />,
         children: [
             { path: '/', element: <Home /> },
+            { path: 'cookie-policy', element: <CookiePolicyPage /> },
             { path: 'recent', element: <Recent /> },
             { path: 'object/:id', element: <ObjectResult /> },
             { path: 'checkpoint/:id', element: <CheckpointDetail /> },
@@ -42,6 +45,7 @@ export const router = sentryCreateBrowserRouter([
             { path: 'address/:id', element: <AddressResultPage /> },
             { path: 'validators', element: <ValidatorPageResult /> },
             { path: 'validator/:id', element: <ValidatorDetails /> },
+            { path: 'did/:id', element: <DidResult /> },
         ],
     },
     {

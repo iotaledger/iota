@@ -5,20 +5,22 @@
 use std::str::FromStr;
 use std::{collections::BTreeMap, path::Path};
 
-use iota_json::{call_args, type_args};
+use iota_json::{call_arg, call_args, type_args};
 use iota_json_rpc_api::{
     CoinReadApiClient, IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
 };
 use iota_json_rpc_types::{
-    IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockEffectsAPI,
+    IotaArgument, IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockEffectsAPI,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, MoveCallParams,
-    ObjectChange, RPCTransactionRequestParams, TransactionBlockBytes, TransferObjectParams,
+    ObjectChange, PtbInput, RPCTransactionRequestParams, TransactionBlockBytes,
+    TransferObjectParams,
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS,
     base_types::{ObjectID, SequenceNumber},
+    coin::Coin,
     digests::ObjectDigest,
     gas_coin::GAS,
     object::Owner,
@@ -567,7 +569,10 @@ async fn test_batch_transaction() -> Result<(), anyhow::Error> {
                     module: "pay".to_string(),
                     function: "split".to_string(),
                     type_arguments: type_args![GAS::type_tag()]?,
-                    arguments: call_args!(coin_to_split.coin_object_id, amount_to_split)?,
+                    arguments: call_args!(coin_to_split.coin_object_id, amount_to_split)?
+                        .into_iter()
+                        .map(PtbInput::CallArg)
+                        .collect(),
                 }),
                 RPCTransactionRequestParams::TransferObjectRequestParams(TransferObjectParams {
                     recipient: other_address,
@@ -627,6 +632,95 @@ async fn test_batch_transaction() -> Result<(), anyhow::Error> {
             transferred_object.owner(),
             Some(Owner::AddressOwner(other_address))
         );
+    }
+
+    Ok(())
+}
+
+#[sim_test]
+async fn test_batch_transaction_with_result() -> Result<(), anyhow::Error> {
+    let cluster = TestClusterBuilder::new().build().await;
+    let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
+    let other_address = cluster.get_address_1();
+
+    let coins = http_client
+        .get_coins(address, None, None, Some(2))
+        .await
+        .unwrap()
+        .data;
+    let coin_to_split = &coins[0];
+    let gas = &coins[1];
+    let amount_to_split = 10;
+
+    let transaction_bytes: TransactionBlockBytes = http_client
+        .batch_transaction(
+            address,
+            vec![
+                RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
+                    package_object_id: ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                    module: "coin".to_string(),
+                    function: "split".to_string(),
+                    type_arguments: type_args![GAS::type_tag()]?,
+                    arguments: call_args!(coin_to_split.coin_object_id, amount_to_split)?
+                        .into_iter()
+                        .map(PtbInput::CallArg)
+                        .collect(),
+                }),
+                RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
+                    package_object_id: ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                    module: "transfer".to_string(),
+                    function: "public_transfer".to_string(),
+                    type_arguments: type_args![Coin::type_(GAS::type_tag())]?,
+                    arguments: vec![
+                        PtbInput::PtbRef(IotaArgument::Result(0)),
+                        PtbInput::CallArg(call_arg!(other_address)?),
+                    ],
+                }),
+            ],
+            Some(gas.coin_object_id),
+            10_000_000.into(),
+            None,
+        )
+        .await?;
+
+    let tx_response = execute_tx(&cluster, http_client, transaction_bytes)
+        .await
+        .unwrap();
+
+    // Assert results of the move call
+    {
+        let created_coin_ids: Vec<ObjectID> = tx_response
+            .effects
+            .unwrap()
+            .created()
+            .iter()
+            .map(|coin| coin.object_id())
+            .collect();
+        let coins = http_client
+            .get_coins(address, None, None, Some(100))
+            .await
+            .unwrap()
+            .data;
+        let split_coin_balance = coins
+            .iter()
+            .find(|coin| coin.coin_object_id == coin_to_split.coin_object_id)
+            .unwrap()
+            .balance;
+        let other_coins = http_client
+            .get_coins(other_address, None, None, Some(100))
+            .await
+            .unwrap()
+            .data;
+        let new_coin_balances: Vec<u64> = other_coins
+            .iter()
+            .filter(|coin| created_coin_ids.contains(&coin.coin_object_id))
+            .map(|coin| coin.balance)
+            .collect();
+        let expected_split_coin_balance = coin_to_split.balance - amount_to_split;
+
+        assert_eq!(split_coin_balance, expected_split_coin_balance);
+        assert_eq!(new_coin_balances, vec![amount_to_split]);
     }
 
     Ok(())

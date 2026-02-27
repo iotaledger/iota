@@ -275,12 +275,15 @@ impl Cluster for LocalNewCluster {
                 None,
                 None,
                 None,
+                None,
             );
 
             start_graphql_server_with_fn_rpc(
                 graphql_connection_config.clone(),
                 Some(fullnode_url.clone()),
-                // cancellation_token
+                // resolves to default cancellation_token
+                None,
+                // resolves to default service config
                 None,
             )
             .await;
@@ -383,7 +386,7 @@ pub fn new_wallet_context_from_cluster(
         wallet_config_path
     );
 
-    WalletContext::new(&wallet_config_path, None, None).unwrap_or_else(|e| {
+    WalletContext::new(&wallet_config_path).unwrap_or_else(|e| {
         panic!("failed to init wallet context from path {wallet_config_path:?}, error: {e}")
     })
 }

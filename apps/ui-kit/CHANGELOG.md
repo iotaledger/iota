@@ -1,5 +1,68 @@
 # @iota/apps-ui-kit
 
+## 0.9.3
+
+### Patch Changes
+
+-   67cba64: improve Address component to allow onOpen prop
+-   54c7803: Update @types/node to v24.
+-   0528d86: add data testId to Account component
+-   10ee721: Increase Dialog height
+-   fc9eba3: Add "isDisabled" to TableRowCheckbox
+-   205e35d: improve button segment for mobile devices
+-   10ee721: remove lock action from account component
+-   5613ae1: Correct Toggle's right spacing when enabled
+-   b294bf5: add proper readme
+-   Updated dependencies [bb33d49]
+    -   @iota/apps-ui-icons@0.7.3
+
+## 0.9.2
+
+### Patch Changes
+
+-   1925bea: Bump with no changes to fix NPM versions
+-   Updated dependencies [1925bea]
+    -   @iota/apps-ui-icons@0.7.2
+
+## 0.9.1
+
+### Patch Changes
+
+-   Updated dependencies [c395af9]
+    -   @iota/apps-ui-icons@0.7.1
+
+## 0.9.0
+
+### Minor Changes
+
+-   ae1385d: Update dependencies.
+
+### Patch Changes
+
+-   Updated dependencies [ae1385d]
+    -   @iota/apps-ui-icons@0.7.0
+
+## 0.8.0
+
+### Minor Changes
+
+-   147c97e: Update repository URLs.
+
+### Patch Changes
+
+-   Updated dependencies [147c97e]
+    -   @iota/apps-ui-icons@0.6.0
+
+## 0.7.4
+
+### Patch Changes
+
+-   f1c52c0: Add description and supporting label for RadioButton
+-   ffc8261: add ref to Button component
+-   abfff2a: remove format from ui-kit
+-   Updated dependencies [83fd8ac]
+    -   @iota/apps-ui-icons@0.5.0
+
 ## 0.7.3
 
 ### Patch Changes

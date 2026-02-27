@@ -8,6 +8,7 @@ import { type CoinBalance } from '@iota/iota-sdk/client';
 import { NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { useShouldOpenInNewTab } from '_src/ui/app/hooks';
 
 type TokenLinkProps = {
     coinBalance: CoinBalance;
@@ -16,17 +17,21 @@ type TokenLinkProps = {
 };
 
 export function TokenLink({ coinBalance, clickableAction, icon }: TokenLinkProps) {
+    const shouldOpenNewTab = useShouldOpenInNewTab();
+    const url = `/send?type=${encodeURIComponent(coinBalance.coinType)}`;
+    const linkProps = shouldOpenNewTab ? { target: '_blank', rel: 'noreferrer' } : {};
     return (
         <Link
-            to={`/send?type=${encodeURIComponent(coinBalance.coinType)}`}
+            to={url}
             onClick={() =>
-                ampli.selectedCoin({
+                ampli.coinSelected({
                     coinType: coinBalance.coinType,
                     totalBalance: Number(BigInt(coinBalance.totalBalance) / NANOS_PER_IOTA),
                 })
             }
             key={coinBalance.coinType}
             className="group/coin w-full no-underline"
+            {...linkProps}
         >
             <CoinItem
                 coinType={coinBalance.coinType}

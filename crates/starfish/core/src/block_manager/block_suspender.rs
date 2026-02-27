@@ -64,6 +64,15 @@ impl BlockSuspender {
             headers_to_fetch: BTreeMap::new(),
         }
     }
+
+    /// Reinitialize BlockSuspender after fast sync completes.
+    /// Clears all suspended blocks, missing ancestors, and fetch queues.
+    pub(crate) fn reinitialize(&mut self) {
+        self.suspended_headers.clear();
+        self.missing_ancestors.clear();
+        self.headers_to_fetch.clear();
+    }
+
     /// Accept or suspend a batch of received block headers based on their
     /// missing ancestors.
     ///
@@ -316,7 +325,7 @@ impl BlockSuspender {
         self.context
             .metrics
             .node_metrics
-            .block_suspensions
+            .block_headers_suspensions
             .with_label_values(&[self.context.authority_hostname(block_ref.author)])
             .inc();
     }
@@ -349,7 +358,7 @@ impl BlockSuspender {
         self.context
             .metrics
             .node_metrics
-            .block_manager_missing_blocks_by_authority
+            .block_manager_missing_block_headers_by_authority
             .with_label_values(&[self.context.authority_hostname(block_to_fetch_author)])
             .inc();
     }
@@ -358,7 +367,7 @@ impl BlockSuspender {
         self.context
             .metrics
             .node_metrics
-            .block_unsuspensions
+            .block_header_unsuspensions
             .with_label_values(&[self
                 .context
                 .authority_hostname(unsuspended_block.block_header.author())])
@@ -366,7 +375,7 @@ impl BlockSuspender {
         self.context
             .metrics
             .node_metrics
-            .suspended_block_time
+            .suspended_block_header_time
             .with_label_values(&[self
                 .context
                 .authority_hostname(unsuspended_block.block_header.author())])
@@ -383,15 +392,15 @@ impl BlockSuspender {
     }
     fn update_stats(&mut self, blocks_to_fetch: u64) {
         let metrics = &self.context.metrics.node_metrics;
-        metrics.missing_blocks_total.inc_by(blocks_to_fetch);
+        metrics.missing_block_headers_total.inc_by(blocks_to_fetch);
         metrics
-            .block_manager_suspended_blocks
+            .block_manager_suspended_block_headers
             .set(self.suspended_headers.len() as i64);
         metrics
             .block_manager_missing_ancestors
             .set(self.missing_ancestors.len() as i64);
         metrics
-            .block_manager_missing_blocks
+            .block_manager_missing_block_headers
             .set(self.headers_to_fetch.len() as i64);
     }
     #[cfg(test)]

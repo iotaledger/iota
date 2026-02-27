@@ -2,7 +2,8 @@
     "name": "@iota/kiosk",
     "author": "IOTA Foundation <info@iota.org>",
     "description": "IOTA Kiosk library",
-    "version": "0.4.8",
+    "repository": "https://github.com/iotaledger/iota",
+    "version": "0.7.0",
     "license": "Apache-2.0",
     "type": "commonjs",
     "main": "./dist/cjs/index.js",
@@ -21,13 +22,12 @@
         "src"
     ],
     "engines": {
-        "node": ">=20"
+        "node": ">=24"
     },
     "scripts": {
         "build": "build-package",
         "test": "echo 'No unit tests for kiosk SDK'",
         "pre-commit": "pnpm prettier:fix && pnpm lint && pnpm build",
-        "prepublishOnly": "pnpm build",
         "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "prettier:fix": "prettier -w --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "eslint:check": "eslint --max-warnings=0 .",

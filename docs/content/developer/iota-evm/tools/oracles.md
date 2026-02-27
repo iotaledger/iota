@@ -7,8 +7,6 @@ teams:
   - iotaledger/l2-smart-contract
 ---
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
 import OraclesContractData from '../_partials/_oracles_contract_data.mdx'
 
 # Introduction to Oracles in Blockchain
@@ -61,7 +59,7 @@ prices, forex, equities, and even Web3 data from other blockchains. Its feed get
 
 :::tip
 
-You can learn more about Supra Oracles in their [official documentation](https://supraoracles.com/docs/overview).
+You can learn more about Supra Oracles in their [official documentation](https://docs.supra.com/oracles).
 
 :::
 

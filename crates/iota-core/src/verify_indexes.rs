@@ -17,7 +17,7 @@ use crate::{
 
 /// This is a very expensive function that verifies some of the secondary
 /// indexes. This is done by iterating through the live object set and
-/// recalculating these secodary indexes.
+/// recalculating these secondary indexes.
 pub fn verify_indexes(store: &dyn AccumulatorStore, indexes: Arc<IndexStore>) -> Result<()> {
     info!("Begin running index verification checks");
 
@@ -52,7 +52,8 @@ pub fn verify_indexes(store: &dyn AccumulatorStore, indexes: Arc<IndexStore>) ->
     tracing::info!("Live objects set is prepared, about to verify indexes");
 
     // Verify Owner Index
-    for (key, info) in indexes.tables().owner_index().unbounded_iter() {
+    for item in indexes.tables().owner_index().safe_iter() {
+        let (key, info) = item?;
         let calculated_info = owner_index.remove(&key).ok_or_else(|| {
             anyhow!(
                 "owner_index: found extra, unexpected entry {:?}",
@@ -73,7 +74,8 @@ pub fn verify_indexes(store: &dyn AccumulatorStore, indexes: Arc<IndexStore>) ->
     tracing::info!("Owner index is good");
 
     // Verify Coin Index
-    for (key, info) in indexes.tables().coin_index().unbounded_iter() {
+    for item in indexes.tables().coin_index().safe_iter() {
+        let (key, info) = item?;
         let calculated_info = coin_index.remove(&key).ok_or_else(|| {
             anyhow!(
                 "coin_index: found extra, unexpected entry {:?}",

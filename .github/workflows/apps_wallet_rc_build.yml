@@ -26,7 +26,7 @@ jobs:
       - name: Install Nodejs
         uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "pnpm"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -40,11 +40,19 @@ jobs:
         run: |
           export artifact_name="iota-wallet-${{ steps.package-version.outputs.current-version }}-rc.${{ env.RC_VERSION }}"
           echo "artifact_name=${artifact_name}" >> $GITHUB_ENV
-      - name: Build Wallet
+      - name: Build Chrome Wallet
         run: pnpm wallet build:rc
-      - name: Upload artifacts
+      - name: Upload  Chrome artifacts
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
-          name: ${{ env.artifact_name }}
+          name: chrome-${{ env.artifact_name }}
+          path: |
+            ./apps/wallet/dist
+      - name: Build Firefox Wallet
+        run: pnpm wallet build:firefox:rc
+      - name: Upload Firefox artifacts
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: firefox-${{ env.artifact_name }}
           path: |
             ./apps/wallet/dist

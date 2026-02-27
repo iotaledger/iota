@@ -21,7 +21,7 @@ use iota_config::{
 use iota_macros::nondeterministic;
 use iota_names::config::IotaNamesConfig;
 use iota_node::IotaNodeHandle;
-use iota_protocol_config::ProtocolVersion;
+use iota_protocol_config::{Chain, ProtocolVersion};
 use iota_swarm_config::{
     genesis_config::{AccountConfig, GenesisConfig, ValidatorGenesisConfig},
     network_config::NetworkConfig,
@@ -50,8 +50,10 @@ pub struct SwarmBuilder<R = OsRng> {
     committee: CommitteeConfig,
     genesis_config: Option<GenesisConfig>,
     network_config: Option<NetworkConfig>,
+    chain_override: Option<Chain>,
     additional_objects: Vec<Object>,
     fullnode_count: usize,
+    fullnode_db_path: Option<PathBuf>,
     fullnode_rpc_port: Option<u16>,
     fullnode_rpc_addr: Option<SocketAddr>,
     supported_protocol_versions_config: ProtocolVersionsConfig,
@@ -72,6 +74,7 @@ pub struct SwarmBuilder<R = OsRng> {
     state_accumulator_config: StateAccumulatorV1EnabledConfig,
     disable_fullnode_pruning: bool,
     iota_names_config: Option<IotaNamesConfig>,
+    fullnode_enable_grpc_api: bool,
     fullnode_grpc_api_config: Option<GrpcApiConfig>,
     disable_address_verification_cooldown: bool,
 }
@@ -85,8 +88,10 @@ impl SwarmBuilder {
             committee: CommitteeConfig::Size(NonZeroUsize::new(1).unwrap()),
             genesis_config: None,
             network_config: None,
+            chain_override: None,
             additional_objects: vec![],
             fullnode_count: 0,
+            fullnode_db_path: None,
             fullnode_rpc_port: None,
             fullnode_rpc_addr: None,
             supported_protocol_versions_config: ProtocolVersionsConfig::Default,
@@ -106,6 +111,7 @@ impl SwarmBuilder {
             state_accumulator_config: StateAccumulatorV1EnabledConfig::Global(true),
             disable_fullnode_pruning: false,
             iota_names_config: None,
+            fullnode_enable_grpc_api: false,
             fullnode_grpc_api_config: None,
             disable_address_verification_cooldown: false,
         }
@@ -120,8 +126,10 @@ impl<R> SwarmBuilder<R> {
             committee: self.committee,
             genesis_config: self.genesis_config,
             network_config: self.network_config,
+            chain_override: self.chain_override,
             additional_objects: self.additional_objects,
             fullnode_count: self.fullnode_count,
+            fullnode_db_path: self.fullnode_db_path,
             fullnode_rpc_port: self.fullnode_rpc_port,
             fullnode_rpc_addr: self.fullnode_rpc_addr,
             supported_protocol_versions_config: self.supported_protocol_versions_config,
@@ -142,6 +150,7 @@ impl<R> SwarmBuilder<R> {
             state_accumulator_config: self.state_accumulator_config,
             disable_fullnode_pruning: self.disable_fullnode_pruning,
             iota_names_config: self.iota_names_config,
+            fullnode_enable_grpc_api: self.fullnode_enable_grpc_api,
             fullnode_grpc_api_config: self.fullnode_grpc_api_config,
             disable_address_verification_cooldown: self.disable_address_verification_cooldown,
         }
@@ -178,6 +187,12 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
+    pub fn with_chain_override(mut self, chain: Chain) -> Self {
+        assert!(self.chain_override.is_none());
+        self.chain_override = Some(chain);
+        self
+    }
+
     pub fn with_num_unpruned_validators(mut self, n: usize) -> Self {
         assert!(self.network_config.is_none());
         self.num_unpruned_validators = Some(n);
@@ -207,6 +222,11 @@ impl<R> SwarmBuilder<R> {
 
     pub fn with_fullnode_count(mut self, fullnode_count: usize) -> Self {
         self.fullnode_count = fullnode_count;
+        self
+    }
+
+    pub fn with_fullnode_db_path(mut self, fullnode_db_path: PathBuf) -> Self {
+        self.fullnode_db_path = Some(fullnode_db_path);
         self
     }
 
@@ -317,6 +337,11 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
+    pub fn with_fullnode_enable_grpc_api(mut self, enable: bool) -> Self {
+        self.fullnode_enable_grpc_api = enable;
+        self
+    }
+
     pub fn with_fullnode_grpc_api_config(mut self, config: GrpcApiConfig) -> Self {
         self.fullnode_grpc_api_config = Some(config);
         self
@@ -378,6 +403,10 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
 
             if let Some(genesis_config) = self.genesis_config {
                 config_builder = config_builder.with_genesis_config(genesis_config);
+            }
+
+            if let Some(chain_override) = self.chain_override {
+                config_builder = config_builder.with_chain_override(chain_override);
             }
 
             if let Some(num_unpruned_validators) = self.num_unpruned_validators {
@@ -472,6 +501,9 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
             .with_fw_config(self.fullnode_fw_config)
             .with_disable_pruning(self.disable_fullnode_pruning)
             .with_iota_names_config(self.iota_names_config);
+        if let Some(fullnode_db_path) = self.fullnode_db_path {
+            fullnode_config_builder = fullnode_config_builder.with_db_path(fullnode_db_path);
+        }
 
         if self.disable_address_verification_cooldown {
             let discovery_config = DiscoveryConfig {
@@ -481,6 +513,10 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
 
             fullnode_config_builder =
                 fullnode_config_builder.with_discovery_config(discovery_config);
+        }
+
+        if let Some(chain) = self.chain_override {
+            fullnode_config_builder = fullnode_config_builder.with_chain_override(chain);
         }
 
         if let Some(spvc) = &self.fullnode_supported_protocol_versions_config {
@@ -494,6 +530,8 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
         }
 
         // Add gRPC config wiring
+        fullnode_config_builder =
+            fullnode_config_builder.with_enable_grpc_api(self.fullnode_enable_grpc_api);
         if let Some(grpc_config) = &self.fullnode_grpc_api_config {
             fullnode_config_builder =
                 fullnode_config_builder.with_grpc_api_config(grpc_config.clone());

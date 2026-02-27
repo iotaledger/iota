@@ -4,7 +4,7 @@
 
 pub mod sdk;
 
-use iota_sdk2::types::EpochId;
+use iota_sdk_types::EpochId;
 use iota_types::{
     TypeTag,
     base_types::{IotaAddress, ObjectID, SequenceNumber},
@@ -74,7 +74,7 @@ impl Client {
             .await
             .map(Response::into_inner)
             .and_then(|checkpoint| {
-                iota_sdk2::types::SignedCheckpointSummary {
+                iota_sdk_types::SignedCheckpointSummary {
                     checkpoint: checkpoint.checkpoint,
                     signature: checkpoint.signature,
                 }

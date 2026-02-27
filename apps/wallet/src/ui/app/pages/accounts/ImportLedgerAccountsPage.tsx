@@ -13,31 +13,28 @@ import {
     type DerivedLedgerAccount,
     Overlay,
 } from '_components';
-import { getIotaApplicationErrorMessage } from '../../helpers/errorMessages';
 import { useAccounts } from '_hooks';
-import { Button, LoadingIndicator } from '@iota/apps-ui-kit';
-import { CheckmarkFilled } from '@iota/apps-ui-icons';
+import { getIotaApplicationErrorMessage } from '../../helpers/errorMessages';
+import { Button, ButtonType, LoadingIndicator } from '@iota/apps-ui-kit';
 
-const NUM_LEDGER_ACCOUNTS_TO_DERIVE_BY_DEFAULT = 10;
+const LEDGER_ACCOUNTS_DERIVE_CHUNKS_SIZE = 10;
 
 export function ImportLedgerAccountsPage() {
     const [searchParams] = useSearchParams();
     const successRedirect = searchParams.get('successRedirect') || '/tokens';
     const navigate = useNavigate();
-    const { data: existingAccounts } = useAccounts();
     const [selectedLedgerAccounts, setSelectedLedgerAccounts] = useState<Set<string>>(new Set());
     const {
-        data: ledgerAccounts,
-        error: ledgerError,
-        isPending: areLedgerAccountsLoading,
-        isError: encounteredDerviceAccountsError,
-    } = useDeriveLedgerAccounts({
-        numAccountsToDerive: NUM_LEDGER_ACCOUNTS_TO_DERIVE_BY_DEFAULT,
-        select: (ledgerAccounts) => {
-            return ledgerAccounts.filter(
-                ({ address }) => !existingAccounts?.some((account) => account.address === address),
-            );
+        mainPublicKey: { data: mainPublicKey, isFetching: isLoadingMainPublicKey },
+        accounts,
+        advance: {
+            error: ledgerError,
+            isPending: areLedgerAccountsLoading,
+            isError: encounteredDerviceAccountsError,
+            mutateAsync: loadMore,
         },
+    } = useDeriveLedgerAccounts({
+        chunkSize: LEDGER_ACCOUNTS_DERIVE_CHUNKS_SIZE,
     });
 
     useEffect(() => {
@@ -61,22 +58,26 @@ export function ImportLedgerAccountsPage() {
         },
         [setSelectedLedgerAccounts],
     );
-    const numImportableAccounts = ledgerAccounts?.length;
+
+    const { data: existingAccounts } = useAccounts();
+    const existingAddresses = new Set((existingAccounts ?? []).map((acc) => acc.address));
+
+    const importableAccounts = accounts?.filter((acc) => !existingAddresses.has(acc.address));
+    const numImportableAccounts = importableAccounts?.length ?? 0;
     const numSelectedAccounts = selectedLedgerAccounts.size;
-    const areAllAccountsImported = numImportableAccounts === 0;
     const isUnlockButtonDisabled = numSelectedAccounts === 0;
     const [, setAccountsFormValues] = useAccountsFormContext();
 
+    const isLoading = areLedgerAccountsLoading || isLoadingMainPublicKey;
+
     let importLedgerAccountsBody: JSX.Element | null = null;
-    if (areLedgerAccountsLoading) {
+    if (isLoading) {
         importLedgerAccountsBody = <LedgerViewLoading />;
-    } else if (areAllAccountsImported) {
-        importLedgerAccountsBody = <LedgerViewAllAccountsImported />;
     } else if (!encounteredDerviceAccountsError) {
         importLedgerAccountsBody = (
             <div className="max-h-[530px] w-full overflow-auto">
                 <AccountList
-                    accounts={ledgerAccounts}
+                    accounts={accounts}
                     selectedAccounts={selectedLedgerAccounts}
                     onAccountClick={onAccountClick}
                     selectAll={selectAllAccounts}
@@ -86,19 +87,23 @@ export function ImportLedgerAccountsPage() {
     }
 
     function selectAllAccounts() {
-        const areAllAccountsSelected = numSelectedAccounts === numImportableAccounts;
-        if (ledgerAccounts && !areAllAccountsSelected) {
-            setSelectedLedgerAccounts(new Set(ledgerAccounts.map((acc) => acc.address)));
-        } else if (areAllAccountsSelected) {
+        const areAllImportableAccountsSelected = numSelectedAccounts === numImportableAccounts;
+        if (importableAccounts && !areAllImportableAccountsSelected) {
+            setSelectedLedgerAccounts(new Set(importableAccounts.map((acc) => acc.address)));
+        } else if (areAllImportableAccountsSelected) {
             setSelectedLedgerAccounts(new Set());
         }
     }
 
     function handleNextClick() {
+        if (!accounts || !mainPublicKey) {
+            return;
+        }
         setAccountsFormValues({
             type: AccountsFormType.ImportLedger,
+            mainPublicKey: mainPublicKey,
             accounts:
-                ledgerAccounts
+                accounts
                     ?.filter((acc) => selectedLedgerAccounts.has(acc.address))
                     .map(({ address, derivationPath, publicKey }) => ({
                         address,
@@ -125,8 +130,16 @@ export function ImportLedgerAccountsPage() {
         >
             <div className="flex h-full w-full flex-col">
                 {importLedgerAccountsBody}
-                <div className="flex flex-1 items-end">
+                <div className="flex flex-1 items-end gap-xs">
                     <Button
+                        type={ButtonType.Secondary}
+                        disabled={isLoading}
+                        text="Load More"
+                        onClick={() => loadMore()}
+                        fullWidth
+                    />
+                    <Button
+                        type={ButtonType.Primary}
                         text="Next"
                         disabled={isUnlockButtonDisabled}
                         onClick={handleNextClick}
@@ -144,17 +157,6 @@ function LedgerViewLoading() {
             <LoadingIndicator />
             <span className="text-title-lg text-iota-neutral-10 dark:text-iota-neutral-92">
                 Looking for Accounts...
-            </span>
-        </div>
-    );
-}
-
-function LedgerViewAllAccountsImported() {
-    return (
-        <div className="flex h-full w-full flex-row items-center justify-center gap-x-sm [&_svg]:h-6 [&_svg]:w-6">
-            <CheckmarkFilled className="text-iota-primary-30 dark:text-iota-primary-80" />
-            <span className="text-title-lg text-iota-neutral-10 dark:text-iota-neutral-92">
-                Imported all Ledger Accounts
             </span>
         </div>
     );

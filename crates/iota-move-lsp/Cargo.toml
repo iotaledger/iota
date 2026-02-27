@@ -8,7 +8,7 @@ publish = false
 
 [dependencies]
 # external dependencies
-clap = { version = "4.1.4", features = ["derive"] }
+clap.workspace = true
 
 # internal dependencies
 bin-version.workspace = true

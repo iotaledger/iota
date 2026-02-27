@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { useBuildDepositTransactionL1 } from './useBuildDepositTransactionL1';
 import { L1_BASE_GAS_BUDGET, L2_FROM_L1_GAS_BUDGET } from '@iota/isc-sdk';

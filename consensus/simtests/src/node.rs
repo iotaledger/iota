@@ -11,9 +11,11 @@ use anyhow::Result;
 use arc_swap::ArcSwapOption;
 use consensus_config::{AuthorityIndex, Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use consensus_core::{
-    CommitConsumer, CommitConsumerMonitor, CommittedSubDag, ConsensusAuthority, TransactionClient,
-    network::tonic_network::to_socket_addr, transaction::NoopTransactionVerifier,
+    BlockTimestampMs, Clock, CommitConsumer, CommitConsumerMonitor, CommittedSubDag,
+    ConsensusAuthority, TransactionClient, network::tonic_network::to_socket_addr,
+    transaction::NoopTransactionVerifier,
 };
+use iota_common::scoring_metrics::VersionedScoringMetrics;
 use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
 use iota_protocol_config::{ConsensusNetwork, ProtocolConfig};
 use parking_lot::Mutex;
@@ -30,6 +32,7 @@ pub(crate) struct Config {
     pub keypairs: Vec<(NetworkKeyPair, ProtocolKeyPair)>,
     pub network_type: ConsensusNetwork,
     pub boot_counter: u64,
+    pub clock_drift: BlockTimestampMs,
     pub protocol_config: ProtocolConfig,
 }
 
@@ -251,6 +254,7 @@ pub(crate) async fn make_authority(
         network_type,
         boot_counter,
         protocol_config,
+        clock_drift,
     } = config;
 
     let registry = Registry::new();
@@ -271,20 +275,27 @@ pub(crate) async fn make_authority(
 
     let (commit_sender, commit_receiver) = unbounded_channel("consensus_output");
 
+    let current_local_metrics_count = Arc::new(VersionedScoringMetrics::new(
+        committee.size(),
+        &protocol_config,
+    ));
     let commit_consumer = CommitConsumer::new(commit_sender, 0);
     let commit_consumer_monitor = commit_consumer.monitor();
 
     let authority = ConsensusAuthority::start(
         network_type,
+        0,
         authority_index,
         committee,
         parameters,
         protocol_config,
         protocol_keypair,
         network_keypair,
+        Arc::new(Clock::new_for_test(clock_drift)),
         Arc::new(txn_verifier),
         commit_consumer,
         registry,
+        current_local_metrics_count,
         boot_counter,
     )
     .await;

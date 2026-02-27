@@ -24,6 +24,7 @@ jobs:
             refactor
             chore
             upstream
+            backport
           requireScope: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

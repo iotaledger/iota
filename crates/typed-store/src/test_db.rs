@@ -222,7 +222,6 @@ where
     V: Serialize + DeserializeOwned,
 {
     type Error = TypedStoreError;
-    type Iterator = std::iter::Empty<(K, V)>;
     type SafeIterator = TestDBIter<'a, K, V>;
 
     fn contains_key(&self, key: &K) -> Result<bool, Self::Error> {
@@ -268,22 +267,6 @@ where
     fn is_empty(&self) -> bool {
         let locked = self.rows.read().unwrap();
         locked.is_empty()
-    }
-
-    fn unbounded_iter(&'a self) -> Self::Iterator {
-        unimplemented!("unimplemented API");
-    }
-
-    fn iter_with_bounds(
-        &'a self,
-        _lower_bound: Option<K>,
-        _upper_bound: Option<K>,
-    ) -> Self::Iterator {
-        unimplemented!("unimplemented API");
-    }
-
-    fn range_iter(&'a self, _range: impl RangeBounds<K>) -> Self::Iterator {
-        unimplemented!("unimplemented API");
     }
 
     fn safe_iter(&'a self) -> Self::SafeIterator {

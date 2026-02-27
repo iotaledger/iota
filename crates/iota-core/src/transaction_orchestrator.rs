@@ -28,7 +28,7 @@ use iota_types::{
         QuorumDriverError, QuorumDriverResponse, QuorumDriverResult,
     },
     transaction::{TransactionData, VerifiedTransaction},
-    transaction_executor::SimulateTransactionResult,
+    transaction_executor::{SimulateTransactionResult, VmChecks},
 };
 use prometheus::{
     Histogram, Registry,
@@ -498,7 +498,9 @@ where
                 info!("Skipping loading pending transactions from pending_tx_log.");
                 return;
             }
-            let pending_txes = pending_tx_log.load_all_pending_transactions();
+            let pending_txes = pending_tx_log
+                .load_all_pending_transactions()
+                .expect("failed to load all pending transactions");
             info!(
                 "Recovering {} pending transactions from pending_tx_log.",
                 pending_txes.len()
@@ -540,7 +542,7 @@ where
         });
     }
 
-    pub fn load_all_pending_transactions(&self) -> Vec<VerifiedTransaction> {
+    pub fn load_all_pending_transactions(&self) -> IotaResult<Vec<VerifiedTransaction>> {
         self.pending_tx_log.load_all_pending_transactions()
     }
 }
@@ -726,7 +728,9 @@ where
     fn simulate_transaction(
         &self,
         transaction: TransactionData,
+        checks: VmChecks,
     ) -> Result<SimulateTransactionResult, IotaError> {
-        self.validator_state.simulate_transaction(transaction)
+        self.validator_state
+            .simulate_transaction(transaction, checks)
     }
 }

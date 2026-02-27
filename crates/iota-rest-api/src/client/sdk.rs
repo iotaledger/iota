@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk2::types::{
-    Address, CheckpointData, CheckpointDigest, CheckpointSequenceNumber, EpochId, Object, ObjectId,
-    SignedCheckpointSummary, SignedTransaction, StructTag, Transaction, TransactionDigest,
-    UnresolvedTransaction, ValidatorCommittee, Version,
+use iota_sdk_types::{
+    Address, CheckpointData, CheckpointSequenceNumber, Digest, EpochId, Object, ObjectId,
+    SignedCheckpointSummary, SignedTransaction, StructTag, Transaction, ValidatorCommittee,
+    Version,
 };
 use reqwest::{StatusCode, Url, header::HeaderValue};
 use tap::Pipe;
@@ -25,7 +25,7 @@ use crate::{
     transactions::{
         ListTransactionsQueryParameters, ResolveTransactionQueryParameters,
         ResolveTransactionResponse, TransactionExecutionResponse, TransactionResponse,
-        TransactionSimulationResponse,
+        TransactionSimulationResponse, unresolved::UnresolvedTransaction,
     },
     types::{
         X_IOTA_CHAIN, X_IOTA_CHAIN_ID, X_IOTA_CHECKPOINT_HEIGHT, X_IOTA_CURSOR, X_IOTA_EPOCH,
@@ -340,7 +340,7 @@ impl Client {
 
     pub async fn get_transaction(
         &self,
-        transaction: &TransactionDigest,
+        transaction: &Digest,
     ) -> Result<Response<TransactionResponse>> {
         let url = self.url().join(&format!("transactions/{transaction}"))?;
 
@@ -518,7 +518,7 @@ impl Client {
 #[derive(Debug)]
 pub struct ResponseParts {
     pub status: StatusCode,
-    pub chain_id: Option<CheckpointDigest>,
+    pub chain_id: Option<Digest>,
     pub chain: Option<String>,
     pub epoch: Option<EpochId>,
     pub checkpoint_height: Option<CheckpointSequenceNumber>,
@@ -537,7 +537,7 @@ impl ResponseParts {
         let chain_id = headers
             .get(X_IOTA_CHAIN_ID)
             .map(HeaderValue::as_bytes)
-            .and_then(|s| CheckpointDigest::from_base58(s).ok());
+            .and_then(|s| Digest::from_base58(s).ok());
         let chain = headers
             .get(X_IOTA_CHAIN)
             .and_then(|h| h.to_str().ok())

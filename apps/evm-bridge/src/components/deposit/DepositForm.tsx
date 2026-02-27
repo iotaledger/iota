@@ -24,6 +24,7 @@ import { CoinSelector } from '../CoinSelector';
 import { IOTA_DECIMALS, IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
 import { useCoinMetadata } from '@iota/core';
 import { useAvailableBalance } from '../../hooks/useAvailableBalance';
+import { ampli, BridgeDirection } from '../../shared/analytics';
 
 interface DepositFormProps {
     deposit: () => void;
@@ -103,6 +104,18 @@ export function DepositForm({
         setValue(BridgeFormInputName.DepositAmount, formattedAvailableBalance, {
             shouldValidate: true,
         });
+        ampli.clickedMaxAmount({
+            bridgeDirection: isFromLayer1 ? BridgeDirection.L1ToL2 : BridgeDirection.L2ToL1,
+            coinType: selectedCoinType,
+        });
+    }
+
+    function handleToggleBridgeDirection() {
+        const updatedDirection = !isFromLayer1;
+        setValue(BridgeFormInputName.IsFromLayer1, updatedDirection);
+        ampli.toggledBridgeDirection({
+            bridgeDirection: updatedDirection ? BridgeDirection.L1ToL2 : BridgeDirection.L2ToL1,
+        });
     }
 
     const isMaxButtonDisabled =
@@ -126,6 +139,7 @@ export function DepositForm({
         onChange: _onChange,
         ...registerDepositAmount
     } = register(BridgeFormInputName.DepositAmount);
+
     return (
         <form className="flex flex-col gap-y-md--rs" onSubmit={handleSubmit(onSubmit)}>
             <div data-testid="coin-selector">
@@ -172,9 +186,7 @@ export function DepositForm({
                     <Button
                         type={ButtonType.Primary}
                         icon={<SwapAccount className="rotate-90 -scale-x-100" />}
-                        onClick={() => {
-                            setValue(BridgeFormInputName.IsFromLayer1, !isFromLayer1);
-                        }}
+                        onClick={handleToggleBridgeDirection}
                         testId="toggle-bridge-direction"
                     />
                 </div>
@@ -239,10 +251,15 @@ const DestinationInput = forwardRef<HTMLInputElement, InputProps>(function Desti
     const layer2Account = useAccount();
 
     const toggleIsDepositAddressManualInput = useCallback(() => {
-        setValue(BridgeFormInputName.IsDepositAddressManualInput, !isManualInput, {
+        const updatedManualInputMode = !isManualInput;
+        setValue(BridgeFormInputName.IsDepositAddressManualInput, updatedManualInputMode, {
             shouldValidate: true,
         });
-    }, [isManualInput, setValue]);
+        ampli.toggledAddressInput({
+            bridgeDirection: isFromLayer1 ? BridgeDirection.L1ToL2 : BridgeDirection.L2ToL1,
+            inputMode: updatedManualInputMode ? 'manual' : 'auto',
+        });
+    }, [isManualInput, isFromLayer1, setValue]);
 
     const isLayer1WalletConnected = !!layer1Account?.address;
     const isLayer2WalletConnected = layer2Account.isConnected;

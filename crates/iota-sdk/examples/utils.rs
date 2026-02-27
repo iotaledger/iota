@@ -29,9 +29,9 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
+use iota_sdk_types::crypto::Intent;
 use reqwest::Client;
 use serde_json::json;
-use shared_crypto::intent::Intent;
 use tracing::info;
 
 #[derive(serde::Deserialize)]
@@ -288,7 +288,8 @@ pub fn retrieve_wallet() -> Result<WalletContext, anyhow::Error> {
     client_config.set_active_address(default_active_address);
     client_config.save(&wallet_conf)?;
 
-    let wallet = WalletContext::new(&wallet_conf, std::time::Duration::from_secs(60), None)?;
+    let wallet =
+        WalletContext::new(&wallet_conf)?.with_request_timeout(std::time::Duration::from_secs(60));
 
     Ok(wallet)
 }

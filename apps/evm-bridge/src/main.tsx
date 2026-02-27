@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import '@rainbow-me/rainbowkit/styles.css';
 import '@iota/dapp-kit/dist/index.css';
 import './globals.css';
@@ -26,16 +29,23 @@ import {
 } from './config/index.ts';
 import { EvmRpcClientProvider } from './providers/EvmRpcClientProvider.tsx';
 import { Toaster } from './components/index.ts';
-import { IotaGraphQLClientProvider } from '@iota/core';
+import { IotaGraphQLClientProvider, Disclaimer, handleConsentAccepted } from '@iota/core';
 import { growthbook, interceptProviderAnnouncements } from './lib/utils/index.ts';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
+import { getNetwork } from '@iota/iota-sdk/client';
 import { metaMaskWallet, walletConnectWallet } from '@rainbow-me/rainbowkit/wallets';
+import { LEGAL_LINKS } from './lib/constants/routes.constants.ts';
+import { Link } from './components/link/Link.tsx';
+import { initAmplitude } from './shared/analytics';
 
 // We intercept EIP-6963 announcements
 // to only allow certain wallets (metamask) to be discovered
 interceptProviderAnnouncements();
 
 growthbook.init();
+
+// Load Amplitude as early as we can (respects opt-out based on consent status):
+initAmplitude();
 
 const queryClient = new QueryClient();
 
@@ -72,11 +82,31 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                                             variables: darkTheme,
                                         },
                                     ]}
+                                    chain={getNetwork(getDefaultNetwork()).chain}
                                 >
                                     <ThemeProvider appId="IOTA-evm-bridge">
                                         <RainbowKit>
                                             <App />
                                             <Toaster />
+                                            <Disclaimer
+                                                onClose={() => {
+                                                    handleConsentAccepted();
+                                                }}
+                                            >
+                                                <div className="text-body-md text-iota-neutral-10 dark:text-iota-neutral-92">
+                                                    By using this website, you agree with our{' '}
+                                                    {LEGAL_LINKS.map(({ text, url }, index) => (
+                                                        <React.Fragment key={text}>
+                                                            <Link isExternal href={url}>
+                                                                {text}
+                                                            </Link>
+                                                            {index < LEGAL_LINKS.length - 1
+                                                                ? ', '
+                                                                : ''}
+                                                        </React.Fragment>
+                                                    ))}
+                                                </div>
+                                            </Disclaimer>
                                         </RainbowKit>
                                     </ThemeProvider>
                                 </WalletProvider>

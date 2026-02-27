@@ -6,6 +6,8 @@ use std::net::SocketAddr;
 
 use reqwest::Url;
 
+use crate::client::Instance;
+
 #[macro_export(local_inner_macros)]
 macro_rules! ensure {
     ($cond:expr, $e:expr) => {
@@ -47,6 +49,9 @@ pub enum CloudProviderError {
 
     #[error("SSH key \"{0}\" not found")]
     SshKeyNotFound(String),
+
+    #[error("Spot Instances cannot be stopped: Instance Id: {0}")]
+    FailedToStopSpotInstance(String),
 }
 
 pub type SshResult<T> = Result<T, SshError>;
@@ -56,7 +61,7 @@ pub enum SshError {
     #[error("Failed to load private key for {address}: {error}")]
     PrivateKeyError {
         address: SocketAddr,
-        error: russh_keys::Error,
+        error: russh::keys::Error,
     },
 
     #[error("Failed to create ssh session with {address}: {error}")]
@@ -71,11 +76,12 @@ pub enum SshError {
         error: russh::Error,
     },
 
-    #[error("Remote execution on {address} returned exit code ({code}): {message}")]
+    #[error("Remote execution cmd '{command}' on {address} returned exit code ({code}): {message}")]
     NonZeroExitCode {
         address: SocketAddr,
         code: u32,
         message: String,
+        command: String,
     },
 }
 
@@ -103,9 +109,21 @@ pub enum TestbedError {
     #[error(transparent)]
     Ssh(#[from] SshError),
 
+    #[error("Failed to execute command '{1}' over ssh on instance {0}: {2}")]
+    SshCommandFailed(Instance, String, String),
+
     #[error("Not enough instances: missing {0} instances")]
     InsufficientCapacity(usize),
 
+    #[error("Metrics instance is missing")]
+    MetricsServerMissing(),
+
+    #[error("Not enough dedicated client instances: missing {0} instances")]
+    InsufficientDedicatedClientCapacity(usize),
+
     #[error(transparent)]
     Monitor(#[from] MonitorError),
+
+    #[error(transparent)]
+    BuildCacheError(#[from] iota_build_cache_server::client::BuildCacheError),
 }

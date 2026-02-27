@@ -108,7 +108,8 @@ pub struct SourceMap {
     /// A path to source file used to generate this source map.
     pub from_file_path: Option<PathBuf>,
 
-    /// The source location for the definition of the module or script that this source map is for.
+    /// The source location for the definition of the module or script that this
+    /// source map is for.
     pub definition_location: Loc,
 
     /// The name <address.module_name> of the module that this source map is

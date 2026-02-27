@@ -109,11 +109,64 @@ pub struct JsonRpcConfig {
     #[command(flatten)]
     pub iota_names_options: IotaNamesOptions,
 
+    #[command(flatten)]
+    pub historic_fallback_options: HistoricFallbackOptions,
+
     #[clap(long, default_value = "0.0.0.0:9000")]
     pub rpc_address: SocketAddr,
 
     #[clap(long)]
     pub rpc_client_url: String,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct HistoricFallbackOptions {
+    #[arg(
+        long,
+        help = "Experimental: REST KV store URL for historic fallback. Depends on the iota-rest-kv API which is still being finalized."
+    )]
+    pub fallback_kv_url: Option<Url>,
+
+    #[arg(
+        long,
+        default_value_t = Self::DEFAULT_MULTI_FETCH_BATCH_SIZE,
+        env = "FALLBACK_KV_MULTI_FETCH_BATCH_SIZE",
+        help = "Experimental: Maximum number of keys per batch request to fallback KV store."
+    )]
+    pub fallback_kv_multi_fetch_batch_size: usize,
+
+    #[arg(
+        long,
+        default_value_t = Self::DEFAULT_CONCURRENT_FETCHES,
+        env = "FALLBACK_KV_CONCURRENT_FETCHES",
+        help = "Experimental: Maximum number of concurrent batch requests to fallback KV store."
+    )]
+    pub fallback_kv_concurrent_fetches: usize,
+
+    #[arg(
+        long,
+        default_value_t = Self::DEFAULT_CACHE_SIZE,
+        env = "FALLBACK_KV_CACHE_SIZE",
+        help = "Experimental: Cache size for historic fallback."
+    )]
+    pub fallback_kv_cache_size: u64,
+}
+
+impl HistoricFallbackOptions {
+    pub const DEFAULT_MULTI_FETCH_BATCH_SIZE: usize = 100;
+    pub const DEFAULT_CONCURRENT_FETCHES: usize = 10;
+    pub const DEFAULT_CACHE_SIZE: u64 = 100_000;
+}
+
+impl Default for HistoricFallbackOptions {
+    fn default() -> Self {
+        Self {
+            fallback_kv_url: None,
+            fallback_kv_multi_fetch_batch_size: Self::DEFAULT_MULTI_FETCH_BATCH_SIZE,
+            fallback_kv_concurrent_fetches: Self::DEFAULT_CONCURRENT_FETCHES,
+            fallback_kv_cache_size: Self::DEFAULT_CACHE_SIZE,
+        }
+    }
 }
 
 #[derive(Args, Debug, Default, Clone)]
@@ -267,7 +320,7 @@ impl PruningOptions {
                 return Ok(None);
             };
             warn!(
-                "Using the deprecated --epochs-to-keep argument for pruning configuration. \
+                "using the deprecated --epochs-to-keep argument for pruning configuration. \
                  Please use --pruning-config-path to specify a TOML configuration file instead."
             );
             return Ok(Some(RetentionConfig::new(
@@ -278,27 +331,27 @@ impl PruningOptions {
 
         if self.epochs_to_keep.is_some() {
             warn!(
-                "The --epochs-to-keep argument will be ignored since --pruning-config-path is also provided."
+                "the --epochs-to-keep argument will be ignored since --pruning-config-path is also provided."
             );
         };
 
         let contents = std::fs::read_to_string(config_path)
-            .context("Failed to read default retention policy and overrides from file")?;
+            .context("failed to read default retention policy and overrides from file")?;
         let retention_with_overrides = toml::de::from_str::<RetentionConfig>(&contents)
-            .context("Failed to parse into RetentionConfig struct")?;
+            .context("failed to parse into RetentionConfig struct")?;
 
         let default_retention = retention_with_overrides.epochs_to_keep;
 
         assert!(
             default_retention > 0,
-            "Default retention must be greater than 0"
+            "default retention must be greater than 0"
         );
         assert!(
             retention_with_overrides
                 .overrides
                 .values()
                 .all(|&policy| policy > 0),
-            "All retention overrides must be greater than 0"
+            "all retention overrides must be greater than 0"
         );
 
         Ok(Some(retention_with_overrides))
@@ -451,7 +504,7 @@ pub mod deprecated {
         pub fn base_connection_url(&self) -> anyhow::Result<String, anyhow::Error> {
             let url_secret = self.get_db_url()?;
             let url_str = url_secret.expose_secret();
-            let url = Url::parse(url_str).expect("Failed to parse URL");
+            let url = Url::parse(url_str).expect("failed to parse URL");
             Ok(format!(
                 "{}://{}:{}@{}:{}/",
                 url.scheme(),
@@ -488,7 +541,7 @@ pub mod deprecated {
                     db_name
                 ))),
                 _ => bail!(
-                    "Invalid db connection config, either db_url or (db_user_name, db_password, db_host, db_port, db_name) must be provided"
+                    "invalid db connection config, either db_url or (db_user_name, db_password, db_host, db_port, db_name) must be provided"
                 ),
             }
         }
@@ -563,13 +616,13 @@ pub mod deprecated {
                     IngestionConfig::DEFAULT_CHECKPOINT_DOWNLOAD_QUEUE_SIZE.to_string()
                 })
                 .parse::<usize>()
-                .expect("Invalid DOWNLOAD_QUEUE_SIZE");
+                .expect("invalid DOWNLOAD_QUEUE_SIZE");
             let ingestion_reader_timeout_secs = std::env::var("INGESTION_READER_TIMEOUT_SECS")
                 .unwrap_or_else(|_| {
                     IngestionConfig::DEFAULT_CHECKPOINT_DOWNLOAD_TIMEOUT.to_string()
                 })
                 .parse::<u64>()
-                .expect("Invalid INGESTION_READER_TIMEOUT_SECS");
+                .expect("invalid INGESTION_READER_TIMEOUT_SECS");
             let data_limit = std::env::var("CHECKPOINT_PROCESSING_BATCH_DATA_LIMIT")
                 .unwrap_or(
                     IngestionConfig::DEFAULT_CHECKPOINT_DOWNLOAD_QUEUE_SIZE_BYTES.to_string(),
@@ -585,7 +638,7 @@ pub mod deprecated {
             let rpc_client_url_parsed = old_conf
                 .rpc_client_url
                 .parse()
-                .expect("RPC Client url should be valid");
+                .expect("rpc client url should be valid");
 
             let command = if old_conf.analytical_worker {
                 Command::AnalyticalWorker
@@ -597,10 +650,11 @@ pub mod deprecated {
                             .rpc_server_url
                             .as_str()
                             .parse()
-                            .expect("RPC Server url should be valid"),
+                            .expect("rpc server url should be valid"),
                         old_conf.rpc_server_port,
                     ),
                     rpc_client_url: old_conf.rpc_client_url,
+                    historic_fallback_options: Default::default(),
                 })
             } else if old_conf.fullnode_sync_worker {
                 Command::Indexer {
@@ -608,7 +662,7 @@ pub mod deprecated {
                         sources: IngestionSources {
                             data_ingestion_path: old_conf.data_ingestion_path,
                             remote_store_url: old_conf.remote_store_url.map(|url| {
-                                url.parse().expect("Remote Store URL should be correct")
+                                url.parse().expect("remote store url should be correct")
                             }),
                             rpc_client_url: Some(rpc_client_url_parsed),
                         },
@@ -633,7 +687,7 @@ pub mod deprecated {
                 }
             } else {
                 return Err(IndexerError::InvalidArgument(
-                    "Worker type argument not specified".into(),
+                    "worker type argument not specified".into(),
                 ));
             };
 
@@ -642,12 +696,12 @@ pub mod deprecated {
                     db_url
                         .map_err(|e| {
                             IndexerError::PgPoolConnection(format!(
-                                "Failed parsing database url with error {e:?}"
+                                "failed parsing database url with error {e:?}"
                             ))
                         })?
                         .expose_secret()
                         .parse()
-                        .expect("Database URL should be correct"),
+                        .expect("database url should be correct"),
                 ),
                 connection_pool_config: pool_config_from_env(),
                 metrics_address,
@@ -722,6 +776,7 @@ mod test {
         parse_args::<JsonRpcConfig>([
             "--rpc-address=127.0.0.1:8080",
             "--rpc-client-url=http://example.com",
+            "--fallback-kv-url=http://example.com/restkv/",
         ])
         .unwrap();
 
@@ -769,7 +824,7 @@ mod test {
 
         for table in PrunableTable::iter() {
             let Some(retention) = retention_policies.get(&table).copied() else {
-                panic!("Expected a retention policy for table {table:?}");
+                panic!("expected a retention policy for table {table:?}");
             };
 
             match table {
@@ -820,7 +875,7 @@ mod test {
 
         for table in PrunableTable::iter() {
             let Some(retention) = retention_policies.get(&table).copied() else {
-                panic!("Expected a retention policy for table {table:?}");
+                panic!("expected a retention policy for table {table:?}");
             };
 
             match table {
@@ -845,12 +900,12 @@ mod test {
         "#;
 
         let result = toml::from_str::<RetentionConfig>(toml_str);
-        assert!(result.is_err(), "Expected an error, but parsing succeeded");
+        assert!(result.is_err(), "expected an error, but parsing succeeded");
 
         if let Err(e) = result {
             assert!(
                 e.to_string().contains("unknown variant `invalid_table`"),
-                "Error message doesn't mention the invalid table"
+                "error message doesn't mention the invalid table"
             );
         }
     }

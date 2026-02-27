@@ -10,7 +10,7 @@ import {
 import { type WalletStatusChange } from '_src/shared/messaging/messages/payloads/wallet-status-change';
 import { fromBase64 } from '@iota/iota-sdk/utils';
 import Dexie from 'dexie';
-import { getAccountSourceByID } from '../account-sources';
+import { getAccountSourceByID, getAccountSources } from '../account-sources';
 import { accountSourcesEvents } from '../account-sources/events';
 import { MnemonicAccountSource } from '../account-sources/mnemonicAccountSource';
 import { SeedAccountSource } from '../account-sources/seedAccountSource';
@@ -29,6 +29,7 @@ import { ImportedAccount } from './importedAccount';
 import { LedgerAccount } from './ledgerAccount';
 import { MnemonicAccount } from './mnemonicAccount';
 import { SeedAccount } from './seedAccount';
+import { PasskeyAccount } from './passkeyAccount';
 import {
     MILLISECONDS_PER_SECOND,
     SECONDS_PER_MINUTE,
@@ -37,6 +38,7 @@ import {
 import { AccountTooManyAttemptsError } from '_src/shared/accounts';
 import { KeystoneAccount } from './keystoneAccount';
 import { KeystoneAccountSource } from '../account-sources/keystoneAccountSource';
+import { ACCOUNT_TYPES_WITH_SOURCE } from '_src/shared/accountTypes';
 
 function toAccount(account: SerializedAccount) {
     if (MnemonicAccount.isOfType(account)) {
@@ -48,6 +50,9 @@ function toAccount(account: SerializedAccount) {
     if (ImportedAccount.isOfType(account)) {
         return new ImportedAccount({ id: account.id, cachedData: account });
     }
+    if (PasskeyAccount.isOfType(account)) {
+        return new PasskeyAccount({ id: account.id, cachedData: account });
+    }
     if (LedgerAccount.isOfType(account)) {
         return new LedgerAccount({ id: account.id, cachedData: account });
     }
@@ -57,7 +62,7 @@ function toAccount(account: SerializedAccount) {
     throw new Error(`Unknown account of type ${account.type}`);
 }
 
-export async function getAllAccounts(filter?: { sourceID: string }) {
+export async function getAllAccounts(filter?: { sourceID?: string }) {
     const db = await getDB();
     let accounts;
     if (filter?.sourceID) {
@@ -108,7 +113,7 @@ export async function changeActiveAccount(accountID: string) {
         }
         await db.accounts.where('id').notEqual(accountID).modify({ selected: false });
         await db.accounts.update(accountID, { selected: true });
-        accountsEvents.emit('activeAccountChanged', { accountID });
+        accountsEvents.emit('accountsChanged');
     });
 }
 
@@ -150,11 +155,51 @@ export async function addNewAccounts<T extends SerializedAccount>(accounts: Omit
     return accountsCreated;
 }
 
-export async function lockAllAccounts() {
-    const allAccounts = await getAllAccounts();
-    for (const anAccount of allAccounts) {
-        await anAccount.lock();
+export async function lockAllAccountsAndSources() {
+    const sources = await getAccountSources();
+
+    for (const source of sources) {
+        const isLocked = await source.isLocked();
+        if (!isLocked) {
+            await source.lock();
+        }
     }
+
+    const allAccounts = await getAllAccounts();
+    const accounts = allAccounts.filter(
+        (account) => !ACCOUNT_TYPES_WITH_SOURCE.includes(account.type),
+    );
+
+    for (const account of accounts) {
+        await account.lock();
+    }
+    accountSourcesEvents.emit('accountSourcesChanged');
+    accountsEvents.emit('accountsChanged');
+}
+
+export async function unlockAllAccountsAndSources(password: string) {
+    if (!password) {
+        throw new Error('Password is required and cannot be empty');
+    }
+    const sources = await getAccountSources();
+    for (const source of sources) {
+        await source.unlock(password);
+    }
+
+    const allAccounts = await getAllAccounts();
+    const accounts = allAccounts.filter(
+        (account) => !ACCOUNT_TYPES_WITH_SOURCE.includes(account.type),
+    );
+
+    for (const account of accounts) {
+        const isPasswordUnlockable = isPasswordUnLockable(account);
+        const isLocked = await account.isLocked();
+        if (isPasswordUnlockable && isLocked) {
+            await account.passwordUnlock(password);
+        }
+    }
+    accountSourcesEvents.emit('accountSourcesChanged');
+    accountsEvents.emit('accountsChanged');
 }
 
 interface LockedState {
@@ -200,30 +245,23 @@ async function clearStateAfterManyFailedAttempts() {
 
 export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConnection) {
     const { payload } = msg;
-    if (isMethodPayload(payload, 'lockAccountSourceOrAccount')) {
-        const account = await getAccountByID(payload.args.id);
-        if (account) {
-            await account.lock();
-            await uiConnection.send(createMessage({ type: 'done' }, msg.id));
-            return true;
-        }
+    if (isMethodPayload(payload, 'lockAllAccountsAndSources')) {
+        await lockAllAccountsAndSources();
+        uiConnection.send(createMessage({ type: 'done' }, msg.id));
+        return true;
+    }
+    if (isMethodPayload(payload, 'unlockAllAccountsAndSources')) {
+        const { password } = payload.args;
+        await unlockAllAccountsAndSources(password);
+        uiConnection.send(createMessage({ type: 'done' }, msg.id));
+        return true;
     }
     if (isMethodPayload(payload, 'setAccountNickname')) {
         const { id, nickname } = payload.args;
         const account = await getAccountByID(id);
         if (account) {
             await account.setNickname(nickname);
-            await uiConnection.send(createMessage({ type: 'done' }, msg.id));
-            return true;
-        }
-    }
-    if (isMethodPayload(payload, 'unlockAccountSourceOrAccount')) {
-        const { id, password } = payload.args;
-        const account = await getAccountByID(id);
-        if (account) {
-            if (isPasswordUnLockable(account)) {
-                await account.passwordUnlock(password);
-            }
+            accountsEvents.emit('accountsChanged');
             await uiConnection.send(createMessage({ type: 'done' }, msg.id));
             return true;
         }
@@ -274,23 +312,29 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
             newSerializedAccounts.push(await accountSource.deriveAccount());
         } else if (type === AccountType.PrivateKeyDerived) {
             newSerializedAccounts.push(await ImportedAccount.createNew(payload.args));
+        } else if (type === AccountType.PasskeyDerived) {
+            newSerializedAccounts.push(await PasskeyAccount.createNew(payload.args));
         } else if (type === AccountType.LedgerDerived) {
             const { password, accounts } = payload.args;
             for (const aLedgerAccount of accounts) {
                 newSerializedAccounts.push(
-                    await LedgerAccount.createNew({ ...aLedgerAccount, password }),
+                    await LedgerAccount.createNew({
+                        ...aLedgerAccount,
+                        password,
+                        mainPublicKey: payload.args.mainPublicKey,
+                    }),
                 );
             }
         } else if (type === AccountType.KeystoneDerived) {
-            const { sourceID } = payload.args;
-            const accountSource = await getAccountSourceByID(payload.args.sourceID);
+            const { sourceID, accounts } = payload.args;
+            const accountSource = await getAccountSourceByID(sourceID);
             if (!accountSource) {
                 throw new Error(`Account source ${sourceID} not found`);
             }
             if (!(accountSource instanceof KeystoneAccountSource)) {
                 throw new Error(`Invalid account source type`);
             }
-            for (const account of payload.args.accounts) {
+            for (const account of accounts) {
                 newSerializedAccounts.push(
                     await KeystoneAccount.createNew({ ...account, sourceID }),
                 );

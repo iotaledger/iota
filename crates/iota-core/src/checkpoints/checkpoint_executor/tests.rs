@@ -11,7 +11,9 @@ use iota_types::{
     committee::ProtocolVersion,
     gas::GasCostSummary,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
-    messages_checkpoint::{ECMHLiveObjectSetDigest, EndOfEpochData, VerifiedCheckpoint},
+    messages_checkpoint::{
+        ECMHLiveObjectSetDigest, EndOfEpochData, VerifiedCheckpoint, VerifiedCheckpointContents,
+    },
     supported_protocol_versions::SupportedProtocolVersions,
 };
 use tempfile::tempdir;
@@ -119,7 +121,7 @@ pub async fn test_checkpoint_executor_crash_recovery() {
 }
 
 /// Test that checkpoint execution correctly signals end of epoch after
-/// receiving last checkpoint of epoch, then resumes executing cehckpoints
+/// receiving last checkpoint of epoch, then resumes executing checkpoints
 /// from the next epoch if called after reconfig
 ///
 /// TODO(william) disabling reconfig unit tests here for now until we can work
@@ -363,7 +365,7 @@ pub async fn test_reconfig_crash_recovery() {
         *end_of_epoch_checkpoint.sequence_number(),
     );
 
-    // Drop and re-istantiate checkpoint executor without performing reconfig. This
+    // Drop and re-instantiate checkpoint executor without performing reconfig. This
     // is logically equivalent to reconfig crashing and the node restarting, in
     // which case executor should be able to infer that, rather than beginning
     // execution of the next epoch, we should immediately exit so that reconfig
@@ -432,11 +434,11 @@ fn sync_new_checkpoints(
     previous_checkpoint: Option<VerifiedCheckpoint>,
     committee: &CommitteeFixture,
 ) -> Vec<VerifiedCheckpoint> {
-    let (ordered_checkpoints, _, _sequence_number_to_digest, _checkpoints) =
+    let (ordered_checkpoints, contents, _sequence_number_to_digest, _checkpoints) =
         committee.make_empty_checkpoints(number_of_checkpoints, previous_checkpoint);
 
-    for checkpoint in ordered_checkpoints.iter() {
-        sync_checkpoint(checkpoint, checkpoint_store);
+    for (checkpoint, content) in ordered_checkpoints.iter().zip(contents.iter()) {
+        sync_checkpoint(checkpoint_store, checkpoint, content);
     }
 
     ordered_checkpoints
@@ -467,20 +469,25 @@ async fn sync_end_of_epoch_checkpoint(
             &authority_state.epoch_store_for_testing().clone(),
             &GasCostSummary::new(0, 0, 0, 0, 0),
             *checkpoint.sequence_number(),
-            0, // epoch_start_timestamp_ms
+            0,      // epoch_start_timestamp_ms
+            vec![], // scores
         )
         .await
         .expect("Failed to create and execute advance epoch tx");
-    sync_checkpoint(&checkpoint, checkpoint_store);
+    sync_checkpoint(checkpoint_store, &checkpoint, &empty_contents());
     (checkpoint, new_committee)
 }
 
-fn sync_checkpoint(checkpoint: &VerifiedCheckpoint, checkpoint_store: &CheckpointStore) {
+fn sync_checkpoint(
+    checkpoint_store: &CheckpointStore,
+    checkpoint: &VerifiedCheckpoint,
+    contents: &VerifiedCheckpointContents,
+) {
     checkpoint_store
         .insert_verified_checkpoint(checkpoint)
         .unwrap();
     checkpoint_store
-        .insert_checkpoint_contents(empty_contents().into_inner().into_checkpoint_contents())
+        .insert_checkpoint_contents(contents.clone().into_checkpoint_contents())
         .unwrap();
     checkpoint_store
         .update_highest_synced_checkpoint(checkpoint)

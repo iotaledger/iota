@@ -16,7 +16,7 @@ use iota_types::{
     committee::EpochId, full_checkpoint_content::CheckpointData,
     messages_checkpoint::CheckpointSequenceNumber,
 };
-use object_store::{DynObjectStore, MultipartUpload, ObjectStore, path::Path};
+use object_store::{DynObjectStore, MultipartUpload, ObjectStore, ObjectStoreExt, path::Path};
 use serde::{Deserialize, Deserializer, Serialize};
 use tokio::sync::Mutex;
 

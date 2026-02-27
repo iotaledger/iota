@@ -17,13 +17,18 @@ use iota_types::{
     messages_consensus::{TimestampMs, VersionedDkgConfirmation},
     signature::GenericSignature,
 };
+use moka::{policy::EvictionPolicy, sync::SegmentedCache as MokaCache};
 use parking_lot::Mutex;
+use rand::seq::SliceRandom;
 use tracing::{debug, info};
 use typed_store::{Map, rocks::DBBatch};
 
 use super::*;
 use crate::{
-    authority::shared_object_version_manager::AssignedTxAndVersions,
+    authority::{
+        shared_object_congestion_tracker::CongestionPerObjectDebt,
+        shared_object_version_manager::AssignedTxAndVersions,
+    },
     checkpoints::PendingCheckpoint,
     consensus_handler::SequencedConsensusTransactionKey,
     epoch::{
@@ -38,6 +43,7 @@ use crate::{
 #[derive(Default)]
 pub(crate) struct ConsensusCommitOutput {
     // Consensus and reconfig state
+    consensus_round: CommitRound,
     consensus_messages_processed: BTreeSet<SequencedConsensusTransactionKey>,
     end_of_publish: BTreeSet<AuthorityName>,
     reconfig_state: Option<ReconfigState>,
@@ -46,6 +52,11 @@ pub(crate) struct ConsensusCommitOutput {
     // transaction scheduling state
     next_shared_object_versions: Option<HashMap<ObjectID, SequenceNumber>>,
 
+    // congestion control state
+    // debts for shared objects with no randomness
+    congestion_control_object_debts: Vec<(ObjectID, u64)>,
+    // debts for shared objects with randomness
+    congestion_control_randomness_object_debts: Vec<(ObjectID, u64)>,
     // TODO: If we delay committing consensus output until after all deferrals have been loaded,
     // we can move deferred_txns to the ConsensusOutputCache and save disk bandwidth.
     deferred_txns: Vec<(DeferralKey, Vec<DeferredTransaction>)>,
@@ -69,8 +80,15 @@ pub(crate) struct ConsensusCommitOutput {
 }
 
 impl ConsensusCommitOutput {
-    pub fn new() -> Self {
-        Default::default()
+    pub fn new(consensus_round: CommitRound) -> Self {
+        Self {
+            consensus_round,
+            ..Default::default()
+        }
+    }
+
+    pub fn get_deleted_deferred_txn_keys(&self) -> impl Iterator<Item = DeferralKey> + use<'_> {
+        self.deleted_deferred_txns.iter().cloned()
     }
 
     fn get_randomness_last_round_timestamp(&self) -> Option<TimestampMs> {
@@ -183,6 +201,17 @@ impl ConsensusCommitOutput {
         self.active_jwks.insert((round, key));
     }
 
+    pub fn set_congestion_control_object_debts(&mut self, object_debts: Vec<(ObjectID, u64)>) {
+        self.congestion_control_object_debts = object_debts;
+    }
+
+    pub fn set_congestion_control_randomness_object_debts(
+        &mut self,
+        object_debts: Vec<(ObjectID, u64)>,
+    ) {
+        self.congestion_control_randomness_object_debts = object_debts;
+    }
+
     pub fn write_to_batch(
         self,
         epoch_store: &AuthorityPerEpochStore,
@@ -284,6 +313,28 @@ impl ConsensusCommitOutput {
                 (j, ())
             }),
         )?;
+        batch.insert_batch(
+            &tables.congestion_control_object_debts,
+            self.congestion_control_object_debts
+                .into_iter()
+                .map(|(object_id, debt)| {
+                    (
+                        object_id,
+                        CongestionPerObjectDebt::new(self.consensus_round, debt),
+                    )
+                }),
+        )?;
+        batch.insert_batch(
+            &tables.congestion_control_randomness_object_debts,
+            self.congestion_control_randomness_object_debts
+                .into_iter()
+                .map(|(object_id, debt)| {
+                    (
+                        object_id,
+                        CongestionPerObjectDebt::new(self.consensus_round, debt),
+                    )
+                }),
+        )?;
 
         Ok(())
     }
@@ -316,15 +367,14 @@ pub(crate) struct ConsensusOutputCache {
     pub(super) user_signatures_for_checkpoints:
         Mutex<HashMap<TransactionDigest, Vec<GenericSignature>>>,
 
+    executed_in_epoch: RwLock<DashMap<TransactionDigest, ()>>,
+    executed_in_epoch_cache: MokaCache<TransactionDigest, ()>,
+
     metrics: Arc<EpochMetrics>,
 }
 
 impl ConsensusOutputCache {
-    pub(crate) fn new(
-        epoch_start_configuration: &EpochStartConfiguration,
-        tables: &AuthorityEpochTables,
-        metrics: Arc<EpochMetrics>,
-    ) -> Self {
+    pub(crate) fn new(tables: &AuthorityEpochTables, metrics: Arc<EpochMetrics>) -> Self {
         let deferred_transactions = tables
             .get_all_deferred_transactions()
             .expect("load deferred transactions cannot fail");
@@ -333,28 +383,26 @@ impl ConsensusOutputCache {
             .get_all_deferred_transactions_v2()
             .expect("load deferred transactions v2 cannot fail");
 
-        if !epoch_start_configuration.is_data_quarantine_active_from_beginning_of_epoch() {
-            let shared_version_assignments = Self::get_all_shared_version_assignments(tables);
-
-            let user_signatures_for_checkpoints = tables
-                .get_all_user_signatures_for_checkpoints()
-                .expect("load user signatures for checkpoints cannot fail");
-
-            Self {
-                shared_version_assignments: shared_version_assignments.into_iter().collect(),
-                deferred_transactions: Mutex::new(deferred_transactions),
-                deferred_transactions_v2: Mutex::new(deferred_transactions_v2),
-                user_signatures_for_checkpoints: Mutex::new(user_signatures_for_checkpoints),
-                metrics,
-            }
+        let executed_in_epoch_cache_capacity = if cfg!(msim) {
+            // Ensure that we test under conditions of constant, frequent,
+            // and rare cache evictions.
+            *[2, 100, 50000].choose(&mut rand::thread_rng()).unwrap()
         } else {
-            Self {
-                shared_version_assignments: Default::default(),
-                deferred_transactions: Mutex::new(deferred_transactions),
-                deferred_transactions_v2: Mutex::new(deferred_transactions_v2),
-                user_signatures_for_checkpoints: Default::default(),
-                metrics,
-            }
+            50_000
+        };
+
+        Self {
+            shared_version_assignments: Default::default(),
+            deferred_transactions: Mutex::new(deferred_transactions),
+            deferred_transactions_v2: Mutex::new(deferred_transactions_v2),
+            user_signatures_for_checkpoints: Default::default(),
+            executed_in_epoch: RwLock::new(DashMap::with_shard_amount(2048)),
+            executed_in_epoch_cache: MokaCache::builder(8)
+                // most queries should be for recent transactions
+                .max_capacity(executed_in_epoch_cache_capacity)
+                .eviction_policy(EvictionPolicy::lru())
+                .build(),
+            metrics,
         }
     }
 
@@ -414,17 +462,50 @@ impl ConsensusOutputCache {
             .sub(removed_count as i64);
     }
 
-    // Used to read pre-existing shared object versions from the database after a
-    // crash. TODO: remove this once all nodes have upgraded to
-    // data-quarantining.
-    fn get_all_shared_version_assignments(
-        tables: &AuthorityEpochTables,
-    ) -> Vec<(TransactionKey, Vec<(ObjectID, SequenceNumber)>)> {
-        tables
-            .assigned_shared_object_versions
-            .safe_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .expect("db error")
+    pub fn executed_in_current_epoch(&self, digest: &TransactionDigest) -> bool {
+        self.executed_in_epoch
+            .read()
+            .contains_key(digest) ||
+            // we use get instead of contains key to mark the entry as read
+            self.executed_in_epoch_cache.get(digest).is_some()
+    }
+
+    // Called by execution
+    pub fn insert_executed_in_epoch(&self, tx_digest: TransactionDigest) {
+        assert!(
+            self.executed_in_epoch
+                .read()
+                .insert(tx_digest, ())
+                .is_none(),
+            "transaction already executed"
+        );
+        self.executed_in_epoch_cache.insert(tx_digest, ());
+    }
+
+    // CheckpointExecutor calls this (indirectly) in order to prune the in-memory
+    // cache of executed transactions. By the time this is called, the
+    // transaction digests will have been committed to
+    // the `executed_transactions_to_checkpoint` table.
+    pub fn remove_executed_in_epoch(&self, tx_digests: &[TransactionDigest]) {
+        let executed_in_epoch = self.executed_in_epoch.read();
+        for tx_digest in tx_digests {
+            executed_in_epoch.remove(tx_digest);
+        }
+    }
+
+    pub fn remove_reverted_transaction(&self, tx_digest: &TransactionDigest) {
+        // reverted transactions are not guaranteed to have been executed
+        self.executed_in_epoch.read().remove(tx_digest);
+    }
+
+    /// At reconfig time, all checkpointed transactions must have been removed
+    /// from self.executed_in_epoch
+    pub fn get_uncheckpointed_transactions(&self) -> Vec<TransactionDigest> {
+        self.executed_in_epoch
+            .write() // exclusive lock to ensure consistent view
+            .iter()
+            .map(|e| *e.key())
+            .collect()
     }
 }
 
@@ -446,6 +527,14 @@ pub(crate) struct ConsensusOutputQuarantine {
     // Any un-committed next versions are stored here.
     shared_object_next_versions: RefCountedHashMap<ObjectID, SequenceNumber>,
 
+    // The most recent congestion control debts for objects. Uses a ref-count to track
+    // which objects still exist in some element of output_queue.
+    // These debts will be moved to the epoch store when the corresponding consensus commit
+    // is included in a checkpoint.
+    congestion_control_object_debts: RefCountedHashMap<ObjectID, CongestionPerObjectDebt>,
+    congestion_control_randomness_object_debts:
+        RefCountedHashMap<ObjectID, CongestionPerObjectDebt>,
+
     processed_consensus_messages: RefCountedHashMap<SequencedConsensusTransactionKey, ()>,
 
     metrics: Arc<EpochMetrics>,
@@ -463,6 +552,8 @@ impl ConsensusOutputQuarantine {
             builder_checkpoint_summary: BTreeMap::new(),
             builder_digest_to_checkpoint: HashMap::new(),
             shared_object_next_versions: RefCountedHashMap::new(),
+            congestion_control_object_debts: RefCountedHashMap::new(),
+            congestion_control_randomness_object_debts: RefCountedHashMap::new(),
             processed_consensus_messages: RefCountedHashMap::new(),
             metrics: authority_metrics,
         }
@@ -479,6 +570,7 @@ impl ConsensusOutputQuarantine {
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaResult {
         self.insert_shared_object_next_versions(&output);
+        self.insert_congestion_control_debts(&output);
         self.insert_processed_consensus_messages(&output);
         self.output_queue.push_back(output);
 
@@ -613,9 +705,12 @@ impl ConsensusOutputQuarantine {
                     "committing output with highest pending checkpoint height {:?}",
                     highest_in_commit
                 );
+                // Remove the quarantined data for this consensus commit and write it to
+                // the epoch store.
                 let output = self.output_queue.pop_front().unwrap();
                 self.remove_shared_object_next_versions(&output);
                 self.remove_processed_consensus_messages(&output);
+                self.remove_congestion_control_debts(&output);
                 epoch_store.remove_shared_version_assignments(
                     output
                         .pending_checkpoints
@@ -641,6 +736,40 @@ impl ConsensusOutputQuarantine {
                 self.shared_object_next_versions
                     .insert(*object_id, *next_version);
             }
+        }
+    }
+
+    // Insert congestion control debts into the in-memory quarantine. This should be
+    // called when a new consensus commit output is created following sequencing, so
+    // this includes the debts accrued during sequencing of this round.
+    fn insert_congestion_control_debts(&mut self, output: &ConsensusCommitOutput) {
+        let current_round = output.consensus_round;
+
+        for (object_id, debt) in output.congestion_control_object_debts.iter() {
+            self.congestion_control_object_debts.insert(
+                *object_id,
+                CongestionPerObjectDebt::new(current_round, *debt),
+            );
+        }
+
+        for (object_id, debt) in output.congestion_control_randomness_object_debts.iter() {
+            self.congestion_control_randomness_object_debts.insert(
+                *object_id,
+                CongestionPerObjectDebt::new(current_round, *debt),
+            );
+        }
+    }
+
+    // Remove congestion control debts from the in-memory quarantine. This should be
+    // called when the corresponding consensus commit output is included in a
+    // checkpoint and moved to the epoch store.
+    fn remove_congestion_control_debts(&mut self, output: &ConsensusCommitOutput) {
+        for (object_id, _) in output.congestion_control_object_debts.iter() {
+            self.congestion_control_object_debts.remove(object_id);
+        }
+        for (object_id, _) in output.congestion_control_randomness_object_debts.iter() {
+            self.congestion_control_randomness_object_debts
+                .remove(object_id);
         }
     }
 
@@ -816,6 +945,105 @@ impl ConsensusOutputQuarantine {
             .rev()
             .filter_map(|output| output.get_randomness_last_round_timestamp())
             .next()
+    }
+
+    pub(crate) fn load_initial_object_debts(
+        &self,
+        epoch_store: &AuthorityPerEpochStore,
+        current_round: CommitRound,
+        for_randomness: bool,
+        transactions: &[VerifiedSequencedConsensusTransaction],
+    ) -> IotaResult<impl IntoIterator<Item = (ObjectID, u64)>> {
+        let protocol_config = epoch_store.protocol_config();
+        let tables = epoch_store.tables()?;
+        let default_per_commit_limit = protocol_config
+            .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option()
+            .unwrap_or_default();
+        let (hash_table, db_table, per_commit_limit) = if for_randomness {
+            (
+                &self.congestion_control_randomness_object_debts,
+                &tables.congestion_control_randomness_object_debts,
+                default_per_commit_limit,
+            )
+        } else {
+            (
+                &self.congestion_control_object_debts,
+                &tables.congestion_control_object_debts,
+                default_per_commit_limit,
+            )
+        };
+        let mut shared_input_object_ids: Vec<_> = transactions
+            .iter()
+            .filter_map(|tx| {
+                if let SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                    kind: ConsensusTransactionKind::CertifiedTransaction(tx),
+                    ..
+                }) = &tx.0.transaction
+                {
+                    Some(tx.shared_input_objects().into_iter().map(|obj| obj.id))
+                } else {
+                    None
+                }
+            })
+            .flatten()
+            .collect();
+        shared_input_object_ids.sort();
+        shared_input_object_ids.dedup();
+
+        // First, try to load any debts from the in-memory quarantine.
+        // For any misses, fall back to the database stored in the epoch store. We
+        // expect misses if the object debt was last modified in a consensus commit that
+        // has now been included in a checkpoint.
+        let results = do_fallback_lookup(
+            &shared_input_object_ids,
+            |object_id| {
+                if let Some(debt) = hash_table.get(object_id) {
+                    CacheResult::Hit(Some(debt.into_v1()))
+                } else {
+                    CacheResult::Miss
+                }
+            },
+            |object_ids| {
+                db_table
+                    .multi_get(object_ids)
+                    .expect("db error")
+                    .into_iter()
+                    .map(|debt| debt.map(|debt| debt.into_v1()))
+                    .collect()
+            },
+        );
+
+        Ok(results
+            .into_iter()
+            .zip(shared_input_object_ids)
+            .filter_map(|(debt, object_id)| debt.map(|debt| (debt, object_id)))
+            .map(move |((round, debt), object_id)| {
+                // Stored debts already account for the budget of the round in which
+                // they were accumulated. Application of budget from future rounds to
+                // the debt is handled here.
+                assert!(current_round > round);
+                let num_rounds = current_round - round - 1;
+                let debt = debt.saturating_sub(per_commit_limit * num_rounds);
+                (object_id, debt)
+            }))
+    }
+
+    /// Used in testing to load debts. Only looks in the in-memory quarantine.
+    #[cfg(test)]
+    pub(super) fn load_stored_object_debts_for_testing(
+        &self,
+        for_randomness: bool,
+        object_ids: &[ObjectID],
+    ) -> IotaResult<Vec<Option<CongestionPerObjectDebt>>> {
+        let hash_table = if for_randomness {
+            &self.congestion_control_randomness_object_debts
+        } else {
+            &self.congestion_control_object_debts
+        };
+        Ok(object_ids
+            .iter()
+            .map(|object_id| hash_table.get(object_id).copied())
+            .collect())
     }
 }
 

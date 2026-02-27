@@ -2,20 +2,21 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    context::Context,
-    symbols::{
-        on_hover_markup, type_to_ide_string, DefInfo, ModuleDefs, SymbolicatorRunner, Symbols,
-    },
-};
-use lsp_server::Request;
+use std::path::PathBuf;
+
+use lsp_server::{Message, Request, Response};
 use lsp_types::{
     InlayHint, InlayHintKind, InlayHintLabel, InlayHintLabelPart, InlayHintParams,
     InlayHintTooltip, Position,
 };
-
 use move_compiler::{naming::ast as N, shared::Identifier};
-use std::path::PathBuf;
+
+use crate::{
+    context::Context,
+    symbols::{
+        DefInfo, ModuleDefs, SymbolicatorRunner, Symbols, on_hover_markup, type_to_ide_string,
+    },
+};
 
 /// Handles inlay hints request of the language server
 pub fn on_inlay_hint_request(context: &Context, request: &Request) {
@@ -33,13 +34,9 @@ pub fn on_inlay_hint_request(context: &Context, request: &Request) {
         vec![]
     };
 
-    let response = lsp_server::Response::new_ok(request.id.clone(), hints);
-    if let Err(err) = context
-        .connection
-        .sender
-        .send(lsp_server::Message::Response(response))
-    {
-        eprintln!("could not send inlay thing response: {:?}", err);
+    let response = Response::new_ok(request.id.clone(), hints);
+    if let Err(err) = context.connection.sender.send(Message::Response(response)) {
+        eprintln!("could not send inlay hint response: {:?}", err);
     }
 }
 

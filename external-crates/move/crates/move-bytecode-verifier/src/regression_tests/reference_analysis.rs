@@ -5,8 +5,9 @@
 use std::str::FromStr;
 
 use move_binary_format::{
+    CompiledModule,
     file_format::{
-        empty_module, AbilitySet, AddressIdentifierIndex,
+        AbilitySet, AddressIdentifierIndex,
         Bytecode::{self, *},
         CodeUnit, Constant, DatatypeHandle, DatatypeHandleIndex, FieldDefinition,
         FunctionDefinition, FunctionHandle, FunctionHandleIndex, IdentifierIndex, ModuleHandle,
@@ -14,8 +15,8 @@ use move_binary_format::{
         SignatureToken::{self, *},
         StructDefinition, StructDefinitionIndex, StructFieldInformation, TypeSignature, Visibility,
         Visibility::*,
+        empty_module,
     },
-    CompiledModule,
 };
 use move_core_types::{
     account_address::AccountAddress, identifier::Identifier, vm_status::StatusCode,

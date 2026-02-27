@@ -99,6 +99,8 @@ import type {
     IotaNamesReverseLookupParams,
     IotaNamesFindAllRegistrationNFTsParams,
     IsTransactionIndexedOnNodeParams,
+    IotaMoveViewCallResults,
+    ViewParams,
 } from './types/index.js';
 
 export interface PaginationArguments<Cursor> {
@@ -152,10 +154,11 @@ export class IotaClient {
         this.transport = options.transport ?? new IotaHTTPTransport({ url: options.url });
     }
 
-    async getRpcApiVersion(): Promise<string | undefined> {
+    async getRpcApiVersion({ signal }: { signal?: AbortSignal } = {}): Promise<string | undefined> {
         const resp = await this.transport.request<{ info: { version: string } }>({
             method: 'rpc.discover',
             params: [],
+            signal,
         });
 
         return resp.info.version;
@@ -172,6 +175,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_getCoins',
             params: [input.owner, input.coinType, input.cursor, input.limit],
+            signal: input.signal,
         });
     }
 
@@ -186,6 +190,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_getAllCoins',
             params: [input.owner, input.cursor, input.limit],
+            signal: input.signal,
         });
     }
 
@@ -199,6 +204,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_getBalance',
             params: [input.owner, input.coinType],
+            signal: input.signal,
         });
     }
 
@@ -212,6 +218,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_getAllBalances',
             params: [input.owner],
+            signal: input.signal,
         });
     }
 
@@ -222,6 +229,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_getCoinMetadata',
             params: [input.coinType],
+            signal: input.signal,
         });
     }
 
@@ -232,16 +240,20 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_getTotalSupply',
             params: [input.coinType],
+            signal: input.signal,
         });
     }
 
     /**
      *  Fetch circulating supply for a coin
      */
-    async getCirculatingSupply(): Promise<IotaCirculatingSupply> {
+    async getCirculatingSupply({
+        signal,
+    }: { signal?: AbortSignal } = {}): Promise<IotaCirculatingSupply> {
         return await this.transport.request({
             method: 'iotax_getCirculatingSupply',
             params: [],
+            signal,
         });
     }
 
@@ -250,8 +262,12 @@ export class IotaClient {
      * @param method the method to be invoked
      * @param args the arguments to be passed to the RPC request
      */
-    async call<T = unknown>(method: string, params: unknown[]): Promise<T> {
-        return await this.transport.request({ method, params });
+    async call<T = unknown>(
+        method: string,
+        params: unknown[],
+        { signal }: { signal?: AbortSignal } = {},
+    ): Promise<T> {
+        return await this.transport.request({ method, params, signal });
     }
 
     /**
@@ -263,6 +279,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iota_getMoveFunctionArgTypes',
             params: [input.package, input.module, input.function],
+            signal: input.signal,
         });
     }
 
@@ -276,6 +293,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iota_getNormalizedMoveModulesByPackage',
             params: [input.package],
+            signal: input.signal,
         });
     }
 
@@ -288,6 +306,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iota_getNormalizedMoveModule',
             params: [input.package, input.module],
+            signal: input.signal,
         });
     }
 
@@ -300,6 +319,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iota_getNormalizedMoveFunction',
             params: [input.package, input.module, input.function],
+            signal: input.signal,
         });
     }
 
@@ -312,6 +332,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iota_getNormalizedMoveStruct',
             params: [input.package, input.module, input.struct],
+            signal: input.signal,
         });
     }
 
@@ -334,6 +355,7 @@ export class IotaClient {
                 input.cursor,
                 input.limit,
             ],
+            signal: input.signal,
         });
     }
 
@@ -347,6 +369,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iota_getObject',
             params: [input.id, input.options],
+            signal: input.signal,
         });
     }
 
@@ -354,6 +377,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iota_tryGetPastObject',
             params: [input.id, input.version, input.options],
+            signal: input.signal,
         });
     }
 
@@ -374,6 +398,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iota_multiGetObjects',
             params: [input.ids, input.options],
+            signal: input.signal,
         });
     }
 
@@ -394,6 +419,7 @@ export class IotaClient {
                 input.limit,
                 (input.order || 'descending') === 'descending',
             ],
+            signal: input.signal,
         });
     }
 
@@ -406,6 +432,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iota_getTransactionBlock',
             params: [input.digest, input.options],
+            signal: input.signal,
         });
     }
 
@@ -426,6 +453,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iota_multiGetTransactionBlocks',
             params: [input.digests, input.options],
+            signal: input.signal,
         });
     }
 
@@ -433,6 +461,7 @@ export class IotaClient {
         transactionBlock,
         signature,
         options,
+        signal,
     }: ExecuteTransactionBlockParams): Promise<IotaTransactionBlockResponse> {
         const result: IotaTransactionBlockResponse = await this.transport.request({
             method: 'iota_executeTransactionBlock',
@@ -443,6 +472,7 @@ export class IotaClient {
                 Array.isArray(signature) ? signature : [signature],
                 options,
             ],
+            signal,
         });
 
         return result;
@@ -481,10 +511,11 @@ export class IotaClient {
      * Get total number of transactions
      */
 
-    async getTotalTransactionBlocks(): Promise<bigint> {
+    async getTotalTransactionBlocks({ signal }: { signal?: AbortSignal } = {}): Promise<bigint> {
         const resp = await this.transport.request<string>({
             method: 'iota_getTotalTransactionBlocks',
             params: [],
+            signal,
         });
         return BigInt(resp);
     }
@@ -492,10 +523,11 @@ export class IotaClient {
     /**
      * Getting the reference gas price for the network
      */
-    async getReferenceGasPrice(): Promise<bigint> {
+    async getReferenceGasPrice({ signal }: { signal?: AbortSignal } = {}): Promise<bigint> {
         const resp = await this.transport.request<string>({
             method: 'iotax_getReferenceGasPrice',
             params: [],
+            signal,
         });
         return BigInt(resp);
     }
@@ -507,7 +539,11 @@ export class IotaClient {
         if (!input.owner || !isValidIotaAddress(normalizeIotaAddress(input.owner))) {
             throw new Error('Invalid IOTA address');
         }
-        return await this.transport.request({ method: 'iotax_getStakes', params: [input.owner] });
+        return await this.transport.request({
+            method: 'iotax_getStakes',
+            params: [input.owner],
+            signal: input.signal,
+        });
     }
 
     /**
@@ -522,6 +558,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_getTimelockedStakes',
             params: [input.owner],
+            signal: input.signal,
         });
     }
 
@@ -537,6 +574,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_getStakesByIds',
             params: [input.stakedIotaIds],
+            signal: input.signal,
         });
     }
 
@@ -554,6 +592,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_getTimelockedStakesByIds',
             params: [input.timelockedStakedIotaIds],
+            signal: input.signal,
         });
     }
 
@@ -562,10 +601,13 @@ export class IotaClient {
      * These are networks with node software release version `< 0.11`.
      * @deprecated Use `getLatestIotaSystemState` instead.
      */
-    async getLatestIotaSystemStateV1(): Promise<IotaSystemStateSummaryV1> {
+    async getLatestIotaSystemStateV1({
+        signal,
+    }: { signal?: AbortSignal } = {}): Promise<IotaSystemStateSummaryV1> {
         return await this.transport.request({
             method: 'iotax_getLatestIotaSystemState',
             params: [],
+            signal,
         });
     }
 
@@ -576,10 +618,13 @@ export class IotaClient {
      * You probably want to use `getLatestIotaSystemState` instead to prevent issues with future deprecations
      * or in case the node does not support protocol version `>= 5`.
      */
-    async getLatestIotaSystemStateV2(): Promise<IotaSystemStateSummary> {
+    async getLatestIotaSystemStateV2({
+        signal,
+    }: { signal?: AbortSignal } = {}): Promise<IotaSystemStateSummary> {
         return await this.transport.request<IotaSystemStateSummary>({
             method: 'iotax_getLatestIotaSystemStateV2',
             params: [],
+            signal,
         });
     }
 
@@ -594,14 +639,16 @@ export class IotaClient {
      * this way you as developer dont need to handle each possible system state variant,
      * this is already handled by this method.
      */
-    async getLatestIotaSystemState(): Promise<LatestIotaSystemStateSummary> {
-        const protocolConfig = await this.getProtocolConfig();
+    async getLatestIotaSystemState({
+        signal,
+    }: { signal?: AbortSignal } = {}): Promise<LatestIotaSystemStateSummary> {
+        const protocolConfig = await this.getProtocolConfig({ signal });
         const isV2Supported = Number(protocolConfig.maxSupportedProtocolVersion) >= 5;
 
         const iotaSystemStateSummary: IotaSystemStateSummary = isV2Supported
-            ? await this.getLatestIotaSystemStateV2()
+            ? await this.getLatestIotaSystemStateV2({ signal })
             : {
-                  V1: await this.getLatestIotaSystemStateV1(),
+                  V1: await this.getLatestIotaSystemStateV1({ signal }),
               };
 
         return 'V2' in iotaSystemStateSummary
@@ -633,6 +680,7 @@ export class IotaClient {
                 input.limit,
                 (input.order || 'descending') === 'descending',
             ],
+            signal: input.signal,
         });
     }
 
@@ -652,6 +700,7 @@ export class IotaClient {
             unsubscribe: 'iotax_unsubscribeEvent',
             params: [input.filter],
             onMessage: input.onMessage,
+            signal: input.signal,
         });
     }
 
@@ -669,6 +718,7 @@ export class IotaClient {
             unsubscribe: 'iotax_unsubscribeTransaction',
             params: [input.filter],
             onMessage: input.onMessage,
+            signal: input.signal,
         });
     }
 
@@ -700,6 +750,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iota_devInspectTransactionBlock',
             params: [input.sender, devInspectTxBytes, input.gasPrice?.toString(), input.epoch],
+            signal: input.signal,
         });
     }
 
@@ -716,6 +767,7 @@ export class IotaClient {
                     ? input.transactionBlock
                     : toBase64(input.transactionBlock),
             ],
+            signal: input.signal,
         });
     }
 
@@ -729,6 +781,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_getDynamicFields',
             params: [input.parentId, input.cursor, input.limit],
+            signal: input.signal,
         });
     }
 
@@ -740,6 +793,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_getDynamicFieldObjectV2',
             params: [input.parentObjectId, input.name, input.options],
+            signal: input.signal,
         });
     }
 
@@ -751,6 +805,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_getDynamicFieldObject',
             params: [input.parentId, input.name],
+            signal: input.signal,
         });
     }
 
@@ -763,16 +818,20 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_getDynamicFieldObjectV2',
             params: [input.parentObjectId, input.name, input.options],
+            signal: input.signal,
         });
     }
 
     /**
      * Get the sequence number of the latest checkpoint that has been executed
      */
-    async getLatestCheckpointSequenceNumber(): Promise<string> {
+    async getLatestCheckpointSequenceNumber({
+        signal,
+    }: { signal?: AbortSignal } = {}): Promise<string> {
         const resp = await this.transport.request({
             method: 'iota_getLatestCheckpointSequenceNumber',
             params: [],
+            signal,
         });
         return String(resp);
     }
@@ -781,7 +840,11 @@ export class IotaClient {
      * Returns information about a given checkpoint
      */
     async getCheckpoint(input: GetCheckpointParams): Promise<Checkpoint> {
-        return await this.transport.request({ method: 'iota_getCheckpoint', params: [input.id] });
+        return await this.transport.request({
+            method: 'iota_getCheckpoint',
+            params: [input.id],
+            signal: input.signal,
+        });
     }
 
     /**
@@ -793,6 +856,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iota_getCheckpoints',
             params: [input.cursor, input?.limit, input.descendingOrder],
+            signal: input.signal,
         });
     }
 
@@ -803,42 +867,57 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_getCommitteeInfo',
             params: [input?.epoch],
+            signal: input?.signal,
         });
     }
 
-    async getNetworkMetrics(): Promise<NetworkMetrics> {
-        return await this.transport.request({ method: 'iotax_getNetworkMetrics', params: [] });
+    async getNetworkMetrics({ signal }: { signal?: AbortSignal } = {}): Promise<NetworkMetrics> {
+        return await this.transport.request({
+            method: 'iotax_getNetworkMetrics',
+            params: [],
+            signal,
+        });
     }
 
-    async getAddressMetrics(): Promise<AddressMetrics> {
+    async getAddressMetrics({ signal }: { signal?: AbortSignal } = {}): Promise<AddressMetrics> {
         return await this.transport.request({
             method: 'iotax_getLatestAddressMetrics',
             params: [],
+            signal,
         });
     }
 
     async getEpochMetrics(
-        input?: { descendingOrder?: boolean } & PaginationArguments<EpochMetricsPage['nextCursor']>,
+        input?: { descendingOrder?: boolean; signal?: AbortSignal } & PaginationArguments<
+            EpochMetricsPage['nextCursor']
+        >,
     ): Promise<EpochMetricsPage> {
         return await this.transport.request({
             method: 'iotax_getEpochMetrics',
             params: [input?.cursor, input?.limit, input?.descendingOrder],
+            signal: input?.signal,
         });
     }
 
     async getAllEpochAddressMetrics(input?: {
         descendingOrder?: boolean;
+        signal?: AbortSignal;
     }): Promise<AllEpochsAddressMetrics> {
         return await this.transport.request({
             method: 'iotax_getAllEpochAddressMetrics',
             params: [input?.descendingOrder],
+            signal: input?.signal,
         });
     }
 
-    async getCheckpointAddressMetrics(input?: { checkpoint: string }): Promise<AddressMetrics> {
+    async getCheckpointAddressMetrics(input?: {
+        checkpoint: string;
+        signal?: AbortSignal;
+    }): Promise<AddressMetrics> {
         return await this.transport.request({
             method: 'iotax_getCheckpointAddressMetrics',
             params: [input?.checkpoint],
+            signal: input?.signal,
         });
     }
 
@@ -848,32 +927,43 @@ export class IotaClient {
     async getEpochs(
         input?: {
             descendingOrder?: boolean;
+            signal?: AbortSignal;
         } & PaginationArguments<EpochPage['nextCursor']>,
     ): Promise<EpochPage> {
         return await this.transport.request({
             method: 'iotax_getEpochs',
             params: [input?.cursor, input?.limit, input?.descendingOrder],
+            signal: input?.signal,
         });
     }
 
     /**
      * Returns list of top move calls by usage
      */
-    async getMoveCallMetrics(): Promise<MoveCallMetrics> {
-        return await this.transport.request({ method: 'iotax_getMoveCallMetrics', params: [] });
+    async getMoveCallMetrics({ signal }: { signal?: AbortSignal } = {}): Promise<MoveCallMetrics> {
+        return await this.transport.request({
+            method: 'iotax_getMoveCallMetrics',
+            params: [],
+            signal,
+        });
     }
 
     /**
      * Return the committee information for the asked epoch
      */
-    async getCurrentEpoch(): Promise<EpochInfo> {
-        return await this.transport.request({ method: 'iotax_getCurrentEpoch', params: [] });
+    async getCurrentEpoch({ signal }: { signal?: AbortSignal } = {}): Promise<EpochInfo> {
+        return await this.transport.request({
+            method: 'iotax_getCurrentEpoch',
+            params: [],
+            signal,
+        });
     }
 
-    async getTotalTransactions(): Promise<string> {
+    async getTotalTransactions({ signal }: { signal?: AbortSignal } = {}): Promise<string> {
         const resp = await this.transport.request({
             method: 'iotax_getTotalTransactions',
             params: [],
+            signal,
         });
         return String(resp);
     }
@@ -881,14 +971,19 @@ export class IotaClient {
     /**
      * Return the Validators APYs
      */
-    async getValidatorsApy(): Promise<ValidatorsApy> {
-        return await this.transport.request({ method: 'iotax_getValidatorsApy', params: [] });
+    async getValidatorsApy({ signal }: { signal?: AbortSignal } = {}): Promise<ValidatorsApy> {
+        return await this.transport.request({
+            method: 'iotax_getValidatorsApy',
+            params: [],
+            signal,
+        });
     }
 
-    async getChainIdentifier(): Promise<string> {
+    async getChainIdentifier({ signal }: { signal?: AbortSignal } = {}): Promise<string> {
         return await this.transport.request({
             method: 'iota_getChainIdentifier',
             params: [],
+            signal,
         });
     }
 
@@ -896,16 +991,20 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iota_getProtocolConfig',
             params: [input?.version],
+            signal: input?.signal,
         });
     }
 
     /**
      * Returns the participation metrics (total unique addresses with delegated stake in the current epoch).
      */
-    async getParticipationMetrics(): Promise<ParticipationMetrics> {
+    async getParticipationMetrics({
+        signal,
+    }: { signal?: AbortSignal } = {}): Promise<ParticipationMetrics> {
         return await this.transport.request({
             method: 'iotax_getParticipationMetrics',
             params: [],
+            signal,
         });
     }
 
@@ -919,7 +1018,7 @@ export class IotaClient {
         signal,
         timeout = 60 * 1000,
         pollInterval = 2 * 1000,
-        waitMode,
+        waitMode = 'checkpoint',
         ...input
     }: {
         /** An optional abort signal that can be used to cancel */
@@ -930,6 +1029,7 @@ export class IotaClient {
         pollInterval?: number;
         /** Whether to wait the transaction to have been checkpointed or indexed on the node.
          * A transaction might be indexed but not checkpointed yet, but a checkpointed transaction is guaranteed to be indexed.
+         * The default is 'checkpoint'.
          */
         waitMode?: 'checkpoint' | 'indexed-on-node';
     } & Parameters<IotaClient['getTransactionBlock']>[0]): Promise<IotaTransactionBlockResponse> {
@@ -955,17 +1055,18 @@ export class IotaClient {
                 if (waitMode === 'indexed-on-node') {
                     const isIndexedOnNode = await this.isTransactionIndexedOnNode({
                         digest: input.digest,
+                        signal,
                     });
                     if (isIndexedOnNode) {
-                        return await this.getTransactionBlock(input);
+                        return await this.getTransactionBlock({ ...input, signal });
                     }
                 } else if (waitMode === 'checkpoint') {
-                    const transaction = await this.getTransactionBlock(input);
+                    const transaction = await this.getTransactionBlock({ ...input, signal });
                     if (transaction.checkpoint) {
                         return transaction;
                     }
                 } else {
-                    return await this.getTransactionBlock(input);
+                    return await this.getTransactionBlock({ ...input, signal });
                 }
                 await wait();
             } catch (e) {
@@ -986,6 +1087,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_iotaNamesLookup',
             params: [input.name],
+            signal: input.signal,
         });
     }
 
@@ -996,6 +1098,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_iotaNamesReverseLookup',
             params: [input.address],
+            signal: input.signal,
         });
     }
 
@@ -1008,6 +1111,7 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_iotaNamesFindAllRegistrationNFTs',
             params: [input.address, input.cursor, input.limit, input.options],
+            signal: input.signal,
         });
     }
 
@@ -1018,6 +1122,18 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iota_isTransactionIndexedOnNode',
             params: [input.digest],
+            signal: input.signal,
+        });
+    }
+
+    /**
+     * Calls a move view function.
+     */
+    async view(input: ViewParams): Promise<IotaMoveViewCallResults> {
+        return await this.transport.request({
+            method: 'iota_view',
+            params: [input.functionName, input.typeArgs, input.arguments],
+            signal: input.signal,
         });
     }
 }

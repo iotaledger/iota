@@ -78,6 +78,7 @@ async function buildCJS(
         entryPoints,
         outdir: 'dist/cjs',
         sourcemap: true,
+        outbase: 'src',
         define: await embedIotaEnvVars(),
         ...buildOptions,
     });
@@ -110,6 +111,7 @@ async function buildESM(
         entryPoints,
         outdir: 'dist/esm',
         sourcemap: true,
+        outbase: 'src',
         define: await embedIotaEnvVars(),
         ...buildOptions,
     });
@@ -190,7 +192,7 @@ async function buildImportDirectories({ exports, sideEffects }: PackageJSON) {
 
 async function createEmptyDir(path: string) {
     if (existsSync(path)) {
-        await fs.rm(path, { recursive: true });
+        await fs.rm(path, { recursive: true, maxRetries: 5 });
     }
 
     await fs.mkdir(path, { recursive: true });

@@ -32,7 +32,7 @@ use crate::{
     db::ConnectionPool,
     errors::IndexerError,
     ingestion::{
-        common::prepare::{CheckpointObjectChanges, try_extract_df_kind},
+        common::prepare::{CheckpointObjectChanges, extract_df_kind},
         primary::persist::{
             CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit,
         },
@@ -107,7 +107,7 @@ impl Worker for PrimaryWorker {
             .await
             .map_err(|_| {
                 IndexerError::MpscChannel(
-                    "Failed to send checkpoint data, receiver half closed".into(),
+                    "failed to send checkpoint data, receiver half closed".into(),
                 )
             })?;
         Ok(())
@@ -179,12 +179,12 @@ impl PrimaryWorker {
         let system_state = get_iota_system_state(&checkpoint_object_store)?;
         if event.is_none() {
             warn!(
-                "No SystemEpochInfoEvent found at end of epoch {}, some epoch data will be set to default.",
+                "no SystemEpochInfoEvent found at end of epoch {}, some epoch data will be set to default.",
                 checkpoint_summary.epoch,
             );
             assert!(
                 system_state.safe_mode(),
-                "IOTA is not in safe mode but no SystemEpochInfoEvent found at end of epoch {}",
+                "iota is not in safe mode but no SystemEpochInfoEvent found at end of epoch {}",
                 checkpoint_summary.epoch
             );
         }
@@ -315,10 +315,9 @@ impl PrimaryWorker {
 
         if checkpoint_contents.size() != transactions.len() {
             return Err(IndexerError::FullNodeReading(format!(
-                "CheckpointContents has different size {} compared to Transactions {} for checkpoint {}",
+                "checkpointContents has different size {} compared to Transactions {} for checkpoint {checkpoint_seq}",
                 checkpoint_contents.size(),
-                transactions.len(),
-                checkpoint_seq
+                transactions.len()
             )));
         }
 
@@ -334,12 +333,12 @@ impl PrimaryWorker {
             let actual_tx_digest = tx.transaction.digest();
             if tx_digest != *actual_tx_digest {
                 return Err(IndexerError::FullNodeReading(format!(
-                    "Transactions has different ordering from CheckpointContents, for checkpoint {checkpoint_seq}, Mismatch found at {tx_digest} v.s. {actual_tx_digest}",
+                    "transactions has different ordering from CheckpointContents, for checkpoint {checkpoint_seq}, Mismatch found at {tx_digest} v.s. {actual_tx_digest}",
                 )));
             }
 
             let (indexed_tx, tx_indices, indexed_events, events_indices, stored_displays) =
-                Self::index_transaction(
+                Self::index_transaction_components(
                     tx,
                     tx_sequence_number,
                     *checkpoint_seq,
@@ -362,19 +361,27 @@ impl PrimaryWorker {
         ))
     }
 
-    pub(crate) async fn index_transaction(
+    pub(crate) async fn index_transaction_components(
         tx: &CheckpointTransaction,
         tx_sequence_number: u64,
         checkpoint_seq: CheckpointSequenceNumber,
         checkpoint_timestamp_ms: u64,
         metrics: &IndexerMetrics,
     ) -> IndexerResult<IndexedTransactionComponents> {
+        let db_txn = Self::index_transaction(
+            tx,
+            tx_sequence_number,
+            checkpoint_seq,
+            checkpoint_timestamp_ms,
+            metrics,
+        )
+        .await?;
+
         let CheckpointTransaction {
             transaction: sender_signed_data,
             effects: fx,
             events,
-            input_objects,
-            output_objects,
+            ..
         } = tx;
 
         let tx_digest = sender_signed_data.digest();
@@ -412,33 +419,6 @@ impl PrimaryWorker {
             .flat_map(StoredDisplay::try_from_event)
             .map(|display| (display.object_type.clone(), display))
             .collect();
-
-        let objects = input_objects
-            .iter()
-            .chain(output_objects.iter())
-            .collect::<Vec<_>>();
-
-        let (balance_change, object_changes) = InMemTxChanges::new(&objects, metrics.clone())
-            .get_changes(tx, fx, tx_digest)
-            .await?;
-
-        let db_txn = IndexedTransaction {
-            tx_sequence_number,
-            tx_digest: *tx_digest,
-            checkpoint_sequence_number: checkpoint_seq,
-            timestamp_ms: checkpoint_timestamp_ms,
-            sender_signed_data: sender_signed_data.data().clone(),
-            effects: fx.clone(),
-            object_changes,
-            balance_change,
-            events,
-            transaction_kind,
-            successful_tx_num: if fx.status().is_ok() {
-                tx.kind().tx_count() as u64
-            } else {
-                0
-            },
-        };
 
         // Input Objects
         let input_objects = tx
@@ -510,6 +490,54 @@ impl PrimaryWorker {
         ))
     }
 
+    /// Creates a new [`IndexedTransaction`]
+    pub(crate) async fn index_transaction(
+        tx: &CheckpointTransaction,
+        tx_sequence_number: u64,
+        checkpoint_seq: CheckpointSequenceNumber,
+        checkpoint_timestamp_ms: u64,
+        metrics: &IndexerMetrics,
+    ) -> IndexerResult<IndexedTransaction> {
+        let tx_digest = tx.transaction.digest();
+        let tx_data = tx.transaction.transaction_data();
+
+        let events = tx
+            .events
+            .as_ref()
+            .map(|events| events.data.clone())
+            .unwrap_or_default();
+
+        let transaction_kind = IotaTransactionKind::from(tx_data.kind());
+
+        let objects = tx
+            .input_objects
+            .iter()
+            .chain(tx.output_objects.iter())
+            .collect::<Vec<_>>();
+
+        let (balance_change, object_changes) = InMemTxChanges::new(&objects, metrics.clone())
+            .get_changes(tx_data, &tx.effects, tx_digest)
+            .await?;
+
+        Ok(IndexedTransaction {
+            tx_sequence_number,
+            tx_digest: *tx_digest,
+            checkpoint_sequence_number: checkpoint_seq,
+            timestamp_ms: checkpoint_timestamp_ms,
+            sender_signed_data: tx.transaction.data().clone(),
+            successful_tx_num: if tx.effects.status().is_ok() {
+                tx_data.kind().tx_count() as u64
+            } else {
+                0
+            },
+            effects: tx.effects.clone(),
+            object_changes,
+            balance_change,
+            events,
+            transaction_kind,
+        })
+    }
+
     pub(crate) async fn index_checkpoint_objects(
         data: &CheckpointData,
         metrics: &IndexerMetrics,
@@ -540,10 +568,10 @@ impl PrimaryWorker {
         let changed_objects = latest_live_output_objects
             .into_iter()
             .map(|o| {
-                try_extract_df_kind(o)
-                    .map(|df_kind| IndexedObject::from_object(checkpoint_seq, o.clone(), df_kind))
+                let df_kind = extract_df_kind(o);
+                IndexedObject::from_object(checkpoint_seq, o.clone(), df_kind)
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Vec<_>>();
         Ok(TransactionObjectChangesToCommit {
             changed_objects,
             deleted_objects: indexed_eventually_removed_objects,
@@ -579,10 +607,10 @@ impl PrimaryWorker {
         let changed_objects = output_objects
             .into_iter()
             .map(|o| {
-                try_extract_df_kind(o)
-                    .map(|df_kind| IndexedObject::from_object(checkpoint_seq, o.clone(), df_kind))
+                let df_kind = extract_df_kind(o);
+                IndexedObject::from_object(checkpoint_seq, o.clone(), df_kind)
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Vec<_>>();
 
         Ok(TransactionObjectChangesToCommit {
             changed_objects,
@@ -624,7 +652,7 @@ impl PrimaryWorker {
             return Ok(pg_state.blocking_cp());
         }
         Err(IndexerError::Uncategorized(anyhow::anyhow!(
-            "Failed to downcast state to PgIndexerStore"
+            "failed to downcast state to PgIndexerStore"
         )))
     }
 }
@@ -710,7 +738,7 @@ impl InMemTxChanges {
             self,
             effects,
             tx.input_objects().unwrap_or_else(|e| {
-                panic!("Checkpointed tx {tx_digest:?} has invalid input objects: {e}",)
+                panic!("checkpointed tx {tx_digest:?} has invalid input objects: {e}")
             }),
             None,
         )
@@ -739,8 +767,7 @@ impl ObjectProvider for InMemTxChanges {
         }
 
         panic!(
-            "Object {} is not found in TxChangesProcessor as an ObjectProvider (fn get_object)",
-            id
+            "object {id} is not found in TxChangesProcessor as an ObjectProvider (fn get_object)"
         );
     }
 
@@ -771,10 +798,8 @@ impl ObjectProvider for InMemTxChanges {
         if let Some(o) = object {
             if o.version() > *version {
                 panic!(
-                    "Found a higher version {} for object {}, expected lt_or_eq {}",
+                    "found a higher version {} for object {id}, expected lt_or_eq {version}",
                     o.version(),
-                    id,
-                    *version
                 );
             }
             if o.version() <= *version {
@@ -784,8 +809,7 @@ impl ObjectProvider for InMemTxChanges {
         }
 
         panic!(
-            "Object {} is not found in TxChangesProcessor as an ObjectProvider (fn find_object_lt_or_eq_version)",
-            id
+            "object {id} is not found in TxChangesProcessor as an ObjectProvider (fn find_object_lt_or_eq_version)"
         );
     }
 }

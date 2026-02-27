@@ -9,6 +9,7 @@ import { VerifyPasswordModal, HideShowDisplayBox, Loading, Overlay } from '_comp
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import { Warning } from '@iota/apps-ui-icons';
 import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
+import { PasskeyPublicKey } from '@iota/iota-sdk/keypairs/passkey';
 import { AccountType } from '_src/background/accounts/account';
 
 export function ExportAccountPage() {
@@ -17,12 +18,16 @@ export function ExportAccountPage() {
     const account = allAccounts?.find(({ id }) => accountID === id) || null;
     const isLedgerAccount = account?.type === AccountType.LedgerDerived;
     const isKeystoneAccount = account?.type === AccountType.KeystoneDerived;
+    const isPasskeyAccount = account?.type === AccountType.PasskeyDerived;
     const backgroundClient = useBackgroundClient();
     const exportMutation = useMutation({
         mutationKey: ['export-account', accountID],
         mutationFn: async (password: string) => {
-            if (!account || isLedgerAccount) {
+            if (!account || isLedgerAccount || isPasskeyAccount) {
                 return null;
+            }
+            if (password) {
+                await backgroundClient.unlockAllAccountsAndSources({ password });
             }
             return (
                 await backgroundClient.exportAccountKeyPair({
@@ -38,7 +43,12 @@ export function ExportAccountPage() {
         return <Navigate to="/accounts/manage" replace />;
     }
 
-    const publicKey = account?.publicKey ? new Ed25519PublicKey(account.publicKey) : null;
+    const publicKey = account?.publicKey
+        ? isPasskeyAccount
+            ? new PasskeyPublicKey(account.publicKey)
+            : new Ed25519PublicKey(account.publicKey)
+        : null;
+
     return (
         <Overlay title="Export Account Keys" closeOverlay={() => navigate(-1)} showModal>
             <Loading loading={isPending}>
@@ -49,13 +59,14 @@ export function ExportAccountPage() {
                                 Public Key With Flag
                             </div>
                             <HideShowDisplayBox
-                                value={publicKey ? publicKey?.toIotaPublicKey() : ''}
+                                value={publicKey ? publicKey.toIotaPublicKey() : ''}
                                 copiedMessage="Public Key copied"
                                 isContentVisible={true}
+                                eventType="public key"
                             />
                         </div>
 
-                        {!isLedgerAccount && !isKeystoneAccount && (
+                        {!isLedgerAccount && !isKeystoneAccount && !isPasskeyAccount && (
                             <>
                                 {exportMutation.data ? (
                                     <div className="flex flex-col gap-xs">
@@ -72,6 +83,7 @@ export function ExportAccountPage() {
                                         <HideShowDisplayBox
                                             value={exportMutation.data}
                                             copiedMessage="Private Key copied"
+                                            eventType="private key"
                                         />
                                     </div>
                                 ) : (

@@ -85,16 +85,7 @@ export class KioskClient {
         id: string;
         options?: FetchKioskOptions;
     }): Promise<KioskData> {
-        return (
-            await fetchKiosk(
-                this.client,
-                id,
-                {
-                    limit: 1000,
-                },
-                options || {},
-            )
-        ).data;
+        return (await fetchKiosk(this.client, id, {}, options || {})).data;
     }
 
     /**
@@ -116,7 +107,7 @@ export class KioskClient {
 
     /**
      * Query all the owned transfer policies for an address.
-     * Returns `TransferPolicyCap` which uncludes `policyId, policyCapId, type`.
+     * Returns `TransferPolicyCap` which includes `policyId, policyCapId, type`.
      * @param address The address we're searching the owned transfer policies for.
      */
     async getOwnedTransferPolicies({ address }: { address: string }) {

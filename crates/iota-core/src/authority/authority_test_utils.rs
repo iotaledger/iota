@@ -98,7 +98,7 @@ pub async fn execute_certificate_with_execution_error(
                 .epoch_store_for_testing()
                 .assign_shared_object_versions_for_tests(
                     authority.get_object_cache_reader().as_ref(),
-                    &vec![VerifiedExecutableTransaction::new_from_certificate(
+                    &[VerifiedExecutableTransaction::new_from_certificate(
                         certificate.clone(),
                     )],
                 )?;
@@ -108,7 +108,7 @@ pub async fn execute_certificate_with_execution_error(
                 .epoch_store_for_testing()
                 .assign_shared_object_versions_for_tests(
                     fullnode.get_object_cache_reader().as_ref(),
-                    &vec![VerifiedExecutableTransaction::new_from_certificate(
+                    &[VerifiedExecutableTransaction::new_from_certificate(
                         certificate.clone(),
                     )],
                 )?;

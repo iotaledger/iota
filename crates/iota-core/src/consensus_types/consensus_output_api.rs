@@ -2,13 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fmt::Display;
+use std::{collections::BTreeMap, fmt::Display};
 
 use consensus_core::BlockAPI;
 use iota_types::{digests::ConsensusCommitDigest, messages_consensus::ConsensusTransaction};
 
 use crate::consensus_types::AuthorityIndex;
-
 /// A list of tuples of:
 /// (block origin authority index, all transactions contained in the block).
 /// For each transaction, returns deserialized transaction and its serialized
@@ -31,6 +30,8 @@ pub(crate) trait ConsensusOutputAPI: Display {
 
     /// Returns the digest of consensus output.
     fn consensus_digest(&self) -> ConsensusCommitDigest;
+
+    fn number_of_headers_in_commit_by_authority(&self) -> Vec<(AuthorityIndex, u64)>;
 }
 macro_rules! impl_consensus_output_api {
     (
@@ -45,7 +46,9 @@ macro_rules! impl_consensus_output_api {
         // How to read the author index value (u32/usize; we cast to AuthorityIndex)
         author = |$auth_item:ident| $author_expr:expr,
         // How to get the `&[u8]` txs iterator source (something with `.iter()` over tx buffers)
-        txs = |$txs_item:ident| $txs_expr:expr
+        txs = |$txs_item:ident| $txs_expr:expr,
+        // How to get the number of committed headers in the commit
+        committed_header_refs = |$committed_header_refs_item:ident| $committed_header_refs_expr:expr
     ) => {
         impl ConsensusOutputAPI for $ty {
             fn reputation_score_sorted_desc(&self) -> Option<Vec<(AuthorityIndex, u64)>> {
@@ -114,6 +117,18 @@ macro_rules! impl_consensus_output_api {
                 static_assertions::assert_eq_size!(ConsensusCommitDigest, $commit_digest);
                 ConsensusCommitDigest::new(self.commit_ref.digest.into_inner())
             }
+
+            fn number_of_headers_in_commit_by_authority(&self) -> Vec<(AuthorityIndex, u64)> {
+                let $self_ident = self;
+                let mut num_of_committed_headers = BTreeMap::new();
+                    $committed_header_refs_expr
+                .iter()
+                .for_each(|block_ref| {
+                    let author_index = block_ref.author.value() as AuthorityIndex;
+                    *num_of_committed_headers.entry(author_index).or_insert(0) += 1;
+                });
+                num_of_committed_headers.into_iter().collect()
+            }
         }
     };
 }
@@ -123,24 +138,27 @@ macro_rules! impl_consensus_output_api {
 // consensus_core::CommittedSubDag:
 // - iterate over `self.blocks`
 // - per-item accessors: round()/author().value()/transactions()
+// - committed_header_refs: map blocks to BlockRef
 impl_consensus_output_api! {
     type = consensus_core::CommittedSubDag,
     commit_digest = consensus_core::CommitDigest,
     iterate = |self_, block| self_.blocks.iter(),
     round   = |block| block.round(),
     author  = |block| block.author().value(),
-    txs     = |block| block.transactions()
+    txs     = |block| block.transactions(),
+    committed_header_refs = |self_| self_.blocks.iter().map(|b| b.reference()).collect::<Vec<_>>()
 }
 
 // starfish_core::CommittedSubDag:
 // - iterate over `self.transactions` (VerifiedTransactions)
-// - per-item accessors via block_ref(): .round / .author.value()
-// - txs via vt.transactions()
+// - per-item accessors: round()/author().value()/transactions()
+// - committed_header_refs: use committed_header_refs from SubDagBase
 impl_consensus_output_api! {
     type = starfish_core::CommittedSubDag,
     commit_digest = starfish_core::CommitDigest,
     iterate = |self_, vt| self_.transactions.iter(),
-    round   = |vt| vt.block_ref().round,
-    author  = |vt| vt.block_ref().author.value(),
-    txs     = |vt| vt.transactions()
+    round   = |vt| vt.round(),
+    author  = |vt| vt.author().value(),
+    txs     = |vt| vt.transactions(),
+    committed_header_refs = |self_| &self_.base.committed_header_refs
 }

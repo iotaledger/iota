@@ -5,25 +5,31 @@
 use std::{str::FromStr, time::Duration};
 
 use benchmark::{BenchmarkParametersGenerator, LoadType};
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use client::{ServerProviderClient, aws::AwsClient};
 use eyre::{Context, Result};
 use faults::FaultsType;
 use measurement::MeasurementsCollection;
 use orchestrator::Orchestrator;
 use protocol::iota::{IotaBenchmarkType, IotaProtocol};
+use serde::{Deserialize, Serialize};
 use settings::{CloudProvider, Settings};
 use ssh::SshConnectionManager;
 use testbed::Testbed;
 
+use crate::net_latency::TopologyLayout;
+
 pub mod benchmark;
+pub mod build_cache;
 pub mod client;
 pub mod display;
 pub mod error;
 pub mod faults;
+pub mod logger;
 pub mod logs;
 pub mod measurement;
 mod monitor;
+pub mod net_latency;
 pub mod orchestrator;
 pub mod protocol;
 pub mod settings;
@@ -125,6 +131,71 @@ pub enum Operation {
         /// The load to submit to the system.
         #[command(subcommand)]
         load_type: Load,
+
+        /// Flag indicating whether nodes should advertise their internal or
+        /// public IP address for inter-node communication. When running
+        /// the simulation in multiple regions, nodes need to use their public
+        /// IPs to correctly communicate, however when a simulation is
+        /// running in a single VPC, they should use their internal IPs to avoid
+        /// paying for data sent between the nodes.
+        #[clap(long, action, default_value_t = false, global = true)]
+        use_internal_ip_addresses: bool,
+
+        /// Optional Latency Topology. if omitted => None -> skips latency
+        /// matrix generation
+        #[arg(long, global = true)]
+        latency_topology: Option<LatencyTopology>,
+        /// Optional perturbation spec. If omitted => None
+        #[arg(long = "latency-perturbation-spec", global = true)]
+        latency_perturbation_spec: Option<PerturbationSpec>,
+
+        /// How many clusters to use in the latency topology
+        #[arg(long, value_name = "INT", default_value = "10", global = true)]
+        number_of_clusters: usize,
+
+        /// Number-of-triangles parameter for broken-topologies
+        #[arg(long, value_name = "INT", default_value = "5", global = true)]
+        number_of_triangles: u16,
+
+        /// Extra artificial latency when perturbing topo
+        #[arg(long, value_name = "INT", default_value = "20", global = true)]
+        added_latency: u16,
+
+        /// Maximum latency between two nodes/clusters in a private network
+        #[arg(long, value_name = "INT", default_value = "400", global = true)]
+        maximum_latency: u16,
+
+        /// Switch protocols between mysticeti and starfish every epoch,
+        /// default: false, aka use starfish in every epoch.
+        #[arg(long, default_value = "starfish", global = true)]
+        consensus_protocol: ConsensusProtocol,
+
+        /// Optional: Epoch duration in milliseconds, default is 1h
+        #[arg(long, value_name = "INT", global = true)]
+        epoch_duration_ms: Option<u64>,
+
+        /// Maximum pipeline delay
+        #[arg(long, value_name = "INT", default_value = "400", global = true)]
+        max_pipeline_delay: u32,
+
+        /// Number of blocking connections in the blocking
+        /// latency_perturbation_spec
+        #[arg(long, value_name = "INT", default_value = "1", global = true)]
+        blocking_connections: usize,
+
+        /// Use current system time as genesis chain start timestamp instead of
+        /// 0
+        #[arg(long, action, default_value_t = false)]
+        use_current_timestamp_for_genesis: bool,
+
+        /// Shared counter hotness factor (0-100). Higher values concentrate
+        /// load on fewer counters.
+        #[arg(long, value_name = "INT", global = true)]
+        shared_counter_hotness_factor: Option<u8>,
+
+        /// Number of shared counters to use in the benchmark
+        #[arg(long, value_name = "INT", global = true)]
+        num_shared_counters: Option<usize>,
     },
 
     /// Print a summary of the specified measurements collection.
@@ -147,11 +218,23 @@ pub enum TestbedAction {
         #[arg(long)]
         instances: usize,
 
-        /// The region where to deploy the instances. If this parameter is not
-        /// specified, the command deploys the specified number of
-        /// instances in all regions listed in the setting file.
+        /// Skips deployment of a Metrics instance
+        #[arg(long, action, default_value = "false", global = true)]
+        skip_monitoring: bool,
+
+        /// The number of instances running exclusively load generators.
+        #[arg(long, value_name = "INT", default_value = "0", global = true)]
+        dedicated_clients: usize,
+
+        /// Attempts to prioritise cheaper spot instances
+        /// Note: stop and start commands are not available for spot instances
+        #[arg(long, action, default_value = "false", global = true)]
+        use_spot_instances: bool,
+
+        /// Id tag added to each deployment, used for cost tracking, should be
+        /// unique for each test run deployment.
         #[arg(long)]
-        region: Option<String>,
+        id: String,
     },
 
     /// Start at most the specified number of instances per region on an
@@ -160,13 +243,33 @@ pub enum TestbedAction {
         /// Number of instances to deploy.
         #[arg(long, default_value = "200")]
         instances: usize,
+
+        // Skips deployment of a Metrics instance
+        #[arg(long, action, default_value = "false", global = true)]
+        skip_monitoring: bool,
+
+        /// The number of instances running exclusively load generators.
+        #[arg(long, value_name = "INT", default_value = "0", global = true)]
+        dedicated_clients: usize,
     },
 
     /// Stop an existing testbed (without destroying the instances).
-    Stop,
+    Stop {
+        /// Keeps the monitoring instance running
+        #[arg(long, action, default_value = "false", global = true)]
+        keep_monitoring: bool,
+    },
 
     /// Destroy the testbed and terminate all instances.
-    Destroy,
+    Destroy {
+        /// Keeps the monitoring instance running
+        #[arg(long, action, default_value = "false", global = true)]
+        keep_monitoring: bool,
+
+        /// Force destroy without confirmation prompt
+        #[arg(short = 'f', long, action, default_value = "false", global = true)]
+        force: bool,
+    },
 }
 
 #[derive(Parser)]
@@ -193,6 +296,33 @@ pub enum Load {
         #[arg(long, value_name = "INT", default_value = "5")]
         max_iterations: usize,
     },
+}
+#[derive(ValueEnum, Clone, Debug)]
+pub enum PerturbationSpec {
+    BrokenTriangle,
+    Blocking,
+    // potentially other options later
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum LatencyTopology {
+    /// Generates a latency matrix for each node, randomly positioned on a
+    /// cylinder.
+    RandomGeographical,
+    /// Generates a latency matrix by randomly clustering nodes into clusters
+    /// and randomly positioning clusters on a cylinder.
+    RandomClustered,
+    /// Uses a hardcoded 10x10 matrix with 10 equal-sized regions.
+    HardCodedClustered,
+    /// Uses mainnet validator region distribution for latencies.
+    Mainnet,
+}
+
+#[derive(ValueEnum, Clone, Debug, Deserialize, Serialize)]
+pub enum ConsensusProtocol {
+    Starfish,
+    Mysticeti,
+    SwapEachEpoch,
 }
 
 fn parse_duration(arg: &str) -> Result<Duration, std::num::ParseIntError> {
@@ -231,23 +361,45 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             TestbedAction::Status => testbed.status(),
 
             // Deploy the specified number of instances on the testbed.
-            TestbedAction::Deploy { instances, region } => testbed
-                .deploy(instances, region)
+            TestbedAction::Deploy {
+                instances,
+                dedicated_clients,
+                skip_monitoring,
+                use_spot_instances,
+                id,
+            } => testbed
+                .deploy(
+                    instances,
+                    skip_monitoring,
+                    dedicated_clients,
+                    use_spot_instances,
+                    id,
+                )
                 .await
                 .wrap_err("Failed to deploy testbed")?,
 
             // Start the specified number of instances on an existing testbed.
-            TestbedAction::Start { instances } => testbed
-                .start(instances)
+            TestbedAction::Start {
+                instances,
+                skip_monitoring,
+                dedicated_clients,
+            } => testbed
+                .start(instances, dedicated_clients, skip_monitoring)
                 .await
                 .wrap_err("Failed to start testbed")?,
 
             // Stop an existing testbed.
-            TestbedAction::Stop => testbed.stop().await.wrap_err("Failed to stop testbed")?,
+            TestbedAction::Stop { keep_monitoring } => testbed
+                .stop(keep_monitoring)
+                .await
+                .wrap_err("Failed to stop testbed")?,
 
             // Destroy the testbed and terminal all instances.
-            TestbedAction::Destroy => testbed
-                .destroy()
+            TestbedAction::Destroy {
+                keep_monitoring,
+                force,
+            } => testbed
+                .destroy(keep_monitoring, force)
                 .await
                 .wrap_err("Failed to destroy testbed")?,
         },
@@ -269,6 +421,20 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             timeout,
             retries,
             load_type,
+            use_internal_ip_addresses,
+            latency_perturbation_spec,
+            latency_topology,
+            added_latency,
+            number_of_triangles,
+            number_of_clusters,
+            consensus_protocol,
+            maximum_latency,
+            epoch_duration_ms,
+            blocking_connections,
+            use_current_timestamp_for_genesis,
+            max_pipeline_delay,
+            shared_counter_hotness_factor,
+            num_shared_counters,
         } => {
             // Create a new orchestrator to instruct the testbed.
             let username = testbed.username();
@@ -277,7 +443,9 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                 .with_timeout(timeout)
                 .with_retries(retries);
 
-            let instances = testbed.instances();
+            let node_instances = testbed.node_instances();
+            let client_instances = testbed.client_instances();
+            let metrics_instance = testbed.metrics_instance();
 
             let setup_commands = testbed
                 .setup_commands()
@@ -310,14 +478,62 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                 }
             };
 
-            let generator = BenchmarkParametersGenerator::new(committee, load)
-                .with_benchmark_type(benchmark_type)
-                .with_custom_duration(duration)
-                .with_faults(fault_type);
+            let perturbation_spec = match latency_perturbation_spec {
+                Some(PerturbationSpec::BrokenTriangle) => {
+                    net_latency::PerturbationSpec::BrokenTriangle {
+                        added_latency,
+                        number_of_triangles,
+                    }
+                }
+                Some(PerturbationSpec::Blocking) => net_latency::PerturbationSpec::Blocking {
+                    number_of_blocked_connections: blocking_connections,
+                },
+                None => net_latency::PerturbationSpec::None,
+            };
+
+            let latency_topology = match latency_topology {
+                Some(LatencyTopology::RandomGeographical) => {
+                    Some(TopologyLayout::RandomGeographical)
+                }
+                Some(LatencyTopology::RandomClustered) => {
+                    Some(TopologyLayout::RandomClustered { number_of_clusters })
+                }
+                Some(LatencyTopology::HardCodedClustered) => {
+                    Some(TopologyLayout::HardCodedClustered)
+                }
+                Some(LatencyTopology::Mainnet) => Some(TopologyLayout::Mainnet),
+                None => None,
+            };
+
+            let mut generator = BenchmarkParametersGenerator::new(
+                committee,
+                dedicated_clients,
+                load,
+                use_internal_ip_addresses,
+            )
+            .with_benchmark_type(benchmark_type)
+            .with_custom_duration(duration)
+            .with_perturbation_spec(perturbation_spec)
+            .with_latency_topology(latency_topology)
+            .with_consensus_protocol(consensus_protocol)
+            .with_max_latency(maximum_latency)
+            .with_epoch_duration(epoch_duration_ms)
+            .with_max_pipeline_delay(max_pipeline_delay)
+            .with_current_timestamp_for_genesis(use_current_timestamp_for_genesis)
+            .with_faults(fault_type);
+
+            if let Some(factor) = shared_counter_hotness_factor {
+                generator = generator.with_shared_counter_hotness_factor(factor);
+            }
+            if let Some(counters) = num_shared_counters {
+                generator = generator.with_num_shared_counters(counters);
+            }
 
             Orchestrator::new(
                 settings,
-                instances,
+                node_instances,
+                client_instances,
+                metrics_instance,
                 setup_commands,
                 protocol_commands,
                 ssh_manager,

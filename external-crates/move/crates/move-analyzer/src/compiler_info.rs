@@ -14,8 +14,8 @@ pub struct CompilerInfo {
     pub expanded_lambdas: BTreeSet<Loc>,
     pub dot_autocomplete_info: BTreeMap<FileHash, BTreeMap<Loc, CI::DotAutocompleteInfo>>,
     pub path_autocomplete_info: BTreeMap<Loc, CI::AliasAutocompleteInfo>,
-    /// Locations of binders in enum variants that are expanded from an ellipsis (and should
-    /// not be displayed in any way by the IDE)
+    /// Locations of binders in enum variants that are expanded from an ellipsis
+    /// (and should not be displayed in any way by the IDE)
     pub ellipsis_binders: BTreeSet<Loc>,
     /// Locations of guard expressions
     pub guards: BTreeMap<FileHash, BTreeSet<Loc>>,

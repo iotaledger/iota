@@ -6,25 +6,18 @@ use async_graphql::{
     connection::{Connection, ConnectionNameType, CursorType, Edge, EdgeNameType, EmptyFields},
     *,
 };
-use fastcrypto::encoding::{Base64 as FBase64, Encoding};
 use iota_indexer::models::transactions::{OptimisticTransaction, StoredTransaction};
-use iota_package_resolver::{CleverError, ErrorConstants};
+use iota_json_rpc_types::IotaExecutionStatus;
 use iota_types::{
     effects::{TransactionEffects as NativeTransactionEffects, TransactionEffectsAPI},
     event::Event as NativeEvent,
-    execution_status::{
-        ExecutionFailureStatus, ExecutionStatus as NativeExecutionStatus, MoveLocation,
-        MoveLocationOpt,
-    },
-    transaction::{
-        Command, ProgrammableTransaction, SenderSignedData as NativeSenderSignedData,
-        TransactionData as NativeTransactionData, TransactionDataAPI,
-        TransactionKind as NativeTransactionKind,
-    },
+    execution_status::ExecutionStatus as NativeExecutionStatus,
+    transaction::TransactionData as NativeTransactionData,
 };
 
 use crate::{
-    consistency::ConsistentIndexCursor,
+    config::DEFAULT_PAGE_SIZE,
+    consistency::{ConsistentIndexCursor, UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER},
     data::package_resolver::PackageResolver,
     error::Error,
     types::{
@@ -103,11 +96,13 @@ type CEvent = JsonCursor<ConsistentIndexCursor>;
 #[Object]
 impl TransactionBlockEffects {
     /// The transaction that ran to produce these effects.
+    #[graphql(complexity = "child_complexity")]
     async fn transaction_block(&self) -> Result<Option<TransactionBlock>> {
         Ok(Some(self.clone().try_into().extend()?))
     }
 
     /// Whether the transaction executed successfully or not.
+    #[graphql(complexity = 0)]
     async fn status(&self) -> Option<ExecutionStatus> {
         Some(match self.native().status() {
             NativeExecutionStatus::Success => ExecutionStatus::Success,
@@ -118,6 +113,7 @@ impl TransactionBlockEffects {
     /// The latest version of all objects (apart from packages) that have been
     /// created or modified by this transaction, immediately following this
     /// transaction.
+    #[graphql(complexity = 0)]
     async fn lamport_version(&self) -> UInt53 {
         self.native().lamport_version().value().into()
     }
@@ -126,86 +122,23 @@ impl TransactionBlockEffects {
     /// If the error is a Move abort, the error message will be resolved to a
     /// human-readable form if possible, otherwise it will fall back to
     /// displaying the abort code and location.
+    #[graphql(complexity = 0)]
     async fn errors(&self, ctx: &Context<'_>) -> Result<Option<String>> {
         let resolver: &PackageResolver = ctx.data_unchecked();
-        let status = self.resolve_native_status_impl(resolver).await?;
 
+        let status = IotaExecutionStatus::from_native_with_clever_error(
+            self.native().status().clone(),
+            resolver,
+        )
+        .await;
         match status {
-            NativeExecutionStatus::Success => Ok(None),
-
-            NativeExecutionStatus::Failure {
-                error,
-                command: None,
-            } => Ok(Some(error.to_string())),
-
-            NativeExecutionStatus::Failure {
-                error,
-                command: Some(command),
-            } => {
-                let error = 'error: {
-                    let ExecutionFailureStatus::MoveAbort(loc, code) = &error else {
-                        break 'error error.to_string();
-                    };
-                    let fname_string = if let Some(fname) = &loc.function_name {
-                        format!("::{fname}'")
-                    } else {
-                        "'".to_string()
-                    };
-
-                    let Some(CleverError {
-                        module_id,
-                        source_line_number,
-                        error_info,
-                    }) = resolver
-                        .resolve_clever_error(loc.module.clone(), *code)
-                        .await
-                    else {
-                        break 'error format!(
-                            "from '{}{fname_string} (instruction {}), abort code: {code}",
-                            loc.module.to_canonical_display(true),
-                            loc.instruction,
-                        );
-                    };
-
-                    match error_info {
-                        ErrorConstants::Rendered {
-                            identifier,
-                            constant,
-                        } => {
-                            format!(
-                                "from '{}{fname_string} (line {source_line_number}), abort '{identifier}': {constant}",
-                                module_id.to_canonical_display(true)
-                            )
-                        }
-                        ErrorConstants::Raw { identifier, bytes } => {
-                            let const_str = FBase64::encode(bytes);
-                            format!(
-                                "from '{}{fname_string} (line {source_line_number}), abort '{identifier}': {const_str}",
-                                module_id.to_canonical_display(true)
-                            )
-                        }
-                        ErrorConstants::None => {
-                            format!(
-                                "from '{}{fname_string} (line {source_line_number})",
-                                module_id.to_canonical_display(true)
-                            )
-                        }
-                    }
-                };
-                // Convert the command index into an ordinal.
-                let command = command + 1;
-                let suffix = match command % 10 {
-                    1 => "st",
-                    2 => "nd",
-                    3 => "rd",
-                    _ => "th",
-                };
-                Ok(Some(format!("Error in {command}{suffix} command, {error}")))
-            }
+            IotaExecutionStatus::Success => Ok(None),
+            IotaExecutionStatus::Failure { error } => Ok(Some(error)),
         }
     }
 
     /// Transactions whose outputs this transaction depends upon.
+    #[graphql(complexity = "child_complexity")]
     async fn dependencies(
         &self,
         ctx: &Context<'_>,
@@ -270,12 +203,14 @@ impl TransactionBlockEffects {
     }
 
     /// Effects to the gas object.
+    #[graphql(complexity = "child_complexity")]
     async fn gas_effects(&self) -> Option<GasEffects> {
         Some(GasEffects::from(self.native(), self.checkpoint_viewed_at))
     }
 
     /// Shared objects that are referenced by but not changed by this
     /// transaction.
+    #[graphql(complexity = "child_complexity")]
     async fn unchanged_shared_objects(
         &self,
         ctx: &Context<'_>,
@@ -315,6 +250,7 @@ impl TransactionBlockEffects {
     }
 
     /// The effect this transaction had on objects on-chain.
+    #[graphql(complexity = "child_complexity")]
     async fn object_changes(
         &self,
         ctx: &Context<'_>,
@@ -361,6 +297,7 @@ impl TransactionBlockEffects {
 
     /// The effect this transaction had on the balances (sum of coin values per
     /// coin type) of addresses and objects.
+    #[graphql(complexity = "child_complexity")]
     async fn balance_changes(
         &self,
         ctx: &Context<'_>,
@@ -417,6 +354,9 @@ impl TransactionBlockEffects {
     }
 
     /// Events emitted by this transaction block.
+    #[graphql(
+        complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
+    )]
     async fn events(
         &self,
         ctx: &Context<'_>,
@@ -454,7 +394,7 @@ impl TransactionBlockEffects {
                     Event::try_from_optimistic_transaction(optimistic_tx, c.ix, c.c).extend()?
                 }
                 TransactionBlockEffectsKind::DryRun { events, .. } => Event {
-                    stored: None,
+                    checkpointed_info: None,
                     native: events[c.ix].clone(),
                     checkpoint_viewed_at: c.c,
                 },
@@ -467,6 +407,7 @@ impl TransactionBlockEffects {
 
     /// Timestamp corresponding to the checkpoint this transaction was finalized
     /// in.
+    #[graphql(complexity = 0)]
     async fn timestamp(&self) -> Result<Option<DateTime>, Error> {
         let TransactionBlockEffectsKind::Checkpointed { stored_tx, .. } = &self.kind else {
             return Ok(None);
@@ -474,7 +415,8 @@ impl TransactionBlockEffects {
         Ok(Some(DateTime::from_ms(stored_tx.timestamp_ms)?))
     }
 
-    /// The epoch this transaction was finalized in.
+    /// The epoch this transaction was executed in.
+    #[graphql(complexity = "child_complexity")]
     async fn epoch(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
         Epoch::query(
             ctx,
@@ -485,13 +427,18 @@ impl TransactionBlockEffects {
         .extend()
     }
 
-    /// The checkpoint this transaction was finalized in.
+    /// The checkpoint this transaction was finalized in, if it is within the
+    /// available range.
+    #[graphql(complexity = "child_complexity")]
     async fn checkpoint(&self, ctx: &Context<'_>) -> Result<Option<Checkpoint>> {
         // If the transaction data is not a checkpointed transaction, it's not in the
         // checkpoint yet so we return None.
         let TransactionBlockEffectsKind::Checkpointed { stored_tx, .. } = &self.kind else {
             return Ok(None);
         };
+        if !self.is_available() {
+            return Ok(None);
+        }
 
         Checkpoint::query(
             ctx,
@@ -503,6 +450,7 @@ impl TransactionBlockEffects {
     }
 
     /// Base64 encoded bcs serialization of the on-chain transaction effects.
+    #[graphql(complexity = 0)]
     async fn bcs(&self) -> Result<Base64> {
         let bytes = match &self.kind {
             TransactionBlockEffectsKind::Checkpointed { stored_tx, .. } => {
@@ -529,82 +477,9 @@ impl TransactionBlockEffects {
         }
     }
 
-    /// Get the transaction data from the transaction block effects.
-    /// Will error if the transaction data is not available/invalid, but this
-    /// should not occur.
-    fn transaction_data(&self) -> Result<NativeTransactionData> {
-        Ok(match &self.kind {
-            TransactionBlockEffectsKind::Checkpointed { stored_tx, .. } => {
-                let s: NativeSenderSignedData = bcs::from_bytes(&stored_tx.raw_transaction)
-                    .map_err(|e| {
-                        Error::Internal(format!("Error deserializing transaction data: {e}"))
-                    })?;
-                s.transaction_data().clone()
-            }
-            TransactionBlockEffectsKind::DryRun { tx_data, .. } => tx_data.clone(),
-            TransactionBlockEffectsKind::Executed { optimistic_tx, .. } => {
-                let data: NativeSenderSignedData = bcs::from_bytes(&optimistic_tx.raw_transaction)
-                    .map_err(|e| {
-                        Error::Internal(format!("Error deserializing transaction data: {e}"))
-                    })?;
-                data.transaction_data().clone()
-            }
-        })
-    }
-
-    /// Get the programmable transaction from the transaction block effects.
-    /// * If the transaction was unable to be retrieved, this will return an
-    ///   Err.
-    /// * If the transaction was able to be retrieved but was not a programmable
-    ///   transaction, this will return Ok(None).
-    /// * If the transaction was a programmable transaction, this will return
-    ///   Ok(Some(tx)).
-    fn programmable_transaction(&self) -> Result<Option<ProgrammableTransaction>> {
-        let tx_data = self.transaction_data()?;
-        match tx_data.into_kind() {
-            NativeTransactionKind::ProgrammableTransaction(tx) => Ok(Some(tx)),
-            _ => Ok(None),
-        }
-    }
-
-    /// Resolves the module ID within a Move abort to the storage ID of the
-    /// package that the abort occurred in.
-    /// * If the error is not a Move abort, or the Move call in the programmable
-    ///   transaction cannot be found, this function will do nothing.
-    /// * If the error is a Move abort and the storage ID is unable to be
-    ///   resolved an error is returned.
-    async fn resolve_native_status_impl(
-        &self,
-        resolver: &PackageResolver,
-    ) -> Result<NativeExecutionStatus> {
-        let mut status = self.native().status().clone();
-        if let NativeExecutionStatus::Failure {
-            error:
-                ExecutionFailureStatus::MoveAbort(MoveLocation { module, .. }, _)
-                | ExecutionFailureStatus::MovePrimitiveRuntimeError(MoveLocationOpt(Some(MoveLocation {
-                    module,
-                    ..
-                }))),
-            command: Some(command_idx),
-        } = &mut status
-        {
-            // Get the Move call that this error is associated with.
-            if let Some(Command::MoveCall(ptb_call)) = self
-                .programmable_transaction()?
-                .and_then(|ptb| ptb.commands.into_iter().nth(*command_idx))
-            {
-                let module_new = module.clone();
-                // Resolve the runtime module ID in the Move abort to the storage ID of the
-                // package that the abort occurred in. This is important to make
-                // sure that we look at the correct version of the module when
-                // resolving the error.
-                *module = resolver
-                    .resolve_module_id(module_new, ptb_call.package.into())
-                    .await
-                    .map_err(|e| Error::Internal(format!("Error resolving Move location: {e}")))?;
-            }
-        }
-        Ok(status)
+    /// Returns whether the parent transaction is within the available range.
+    pub(crate) fn is_available(&self) -> bool {
+        self.checkpoint_viewed_at < UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER
     }
 }
 
@@ -637,24 +512,33 @@ impl TryFrom<OptimisticTransaction> for TransactionBlockEffectsKind {
     }
 }
 
-impl TryFrom<TransactionBlock> for TransactionBlockEffects {
+impl TryFrom<OptimisticTransaction> for TransactionBlockEffects {
+    type Error = Error;
+
+    fn try_from(tx: OptimisticTransaction) -> Result<Self, Error> {
+        // set to u64::MAX, as the executed transaction has not been indexed yet
+        let checkpoint_viewed_at = u64::MAX;
+        Ok(Self {
+            kind: tx.try_into()?,
+            checkpoint_viewed_at,
+        })
+    }
+}
+
+impl TryFrom<TransactionBlock> for TransactionBlockEffectsKind {
     type Error = Error;
 
     fn try_from(block: TransactionBlock) -> Result<Self, Error> {
-        let checkpoint_viewed_at = block.checkpoint_viewed_at;
-        let kind = match block.inner {
+        match block.inner {
             TransactionBlockInner::Checkpointed { stored_tx, .. } => {
                 bcs::from_bytes(&stored_tx.raw_effects)
-                    .map(|native| TransactionBlockEffectsKind::Checkpointed {
-                        stored_tx: stored_tx.clone(),
-                        native,
-                    })
+                    .map(|native| TransactionBlockEffectsKind::Checkpointed { stored_tx, native })
                     .map_err(|e| {
                         Error::Internal(format!("Error deserializing transaction effects: {e}"))
                     })
             }
             TransactionBlockInner::Executed { optimistic_tx, .. } => {
-                TransactionBlockEffectsKind::try_from(optimistic_tx.clone())
+                TransactionBlockEffectsKind::try_from(optimistic_tx)
             }
 
             TransactionBlockInner::DryRun {
@@ -666,10 +550,17 @@ impl TryFrom<TransactionBlock> for TransactionBlockEffects {
                 native: effects,
                 events,
             }),
-        }?;
+        }
+    }
+}
 
+impl TryFrom<TransactionBlock> for TransactionBlockEffects {
+    type Error = Error;
+
+    fn try_from(block: TransactionBlock) -> Result<Self, Error> {
+        let checkpoint_viewed_at = block.checkpoint_viewed_at;
         Ok(Self {
-            kind,
+            kind: block.try_into()?,
             checkpoint_viewed_at,
         })
     }

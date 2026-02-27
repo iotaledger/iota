@@ -1077,14 +1077,27 @@ pub enum SignatureToken {
     Signer,
     /// Vector
     Vector(Box<SignatureToken>),
-    /// User defined type
+    /// User defined type with no template parameters.
+    /// ```
+    /// public struct Data {}
+    /// ```
     Datatype(DatatypeHandleIndex),
+    /// User defined type with template parameters.
+    /// ```
+    /// public struct Data<T: drop> has drop {
+    ///     v: T
+    /// }
+    /// ```
     DatatypeInstantiation(Box<(DatatypeHandleIndex, Vec<SignatureToken>)>),
     /// Reference to a type.
     Reference(Box<SignatureToken>),
     /// Mutable reference to a type.
     MutableReference(Box<SignatureToken>),
-    /// Type parameter.
+    /// Parameter representing an unresolved template type.
+    /// ```
+    /// fun temp<T: drop>(val: T) {}
+    /// ```
+    /// `T` will be `TypeParameter`
     TypeParameter(TypeParameterIndex),
     /// Unsigned integers, 16 bits length.
     U16,

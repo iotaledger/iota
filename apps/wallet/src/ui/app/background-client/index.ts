@@ -45,6 +45,8 @@ import {
 } from '_src/shared/messaging/messages/payloads/accounts-finder';
 import { type MakeDerivationOptions } from '_src/background/account-sources/bip44Path';
 import type { KeystoneAccountSerialized } from '_src/background/accounts/keystoneAccount';
+import type { SidepanelSetState } from '_src/shared/messaging/messages/payloads/tabs/sidepanelState';
+import { getAppViewType, ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 
 const ENTITIES_TO_CLIENT_QUERY_KEYS: Record<UIAccessibleEntityType, QueryKey> = {
     accounts: ACCOUNTS_QUERY_KEY,
@@ -56,6 +58,10 @@ export class BackgroundClient {
     private _dispatch: AppDispatch | null = null;
     private _initialized = false;
 
+    private isSidePanelMode(): boolean {
+        return getAppViewType() === ExtensionViewType.SidePanel;
+    }
+
     public init(dispatch: AppDispatch) {
         if (this._initialized) {
             throw new Error('[BackgroundClient] already initialized');
@@ -63,12 +69,38 @@ export class BackgroundClient {
         this._initialized = true;
         this._dispatch = dispatch;
         this.createPortStream();
+
+        // Notify background that sidepanel is open
+        if (this.isSidePanelMode()) {
+            this.sendMessage(
+                createMessage<SidepanelSetState>({
+                    type: 'sidepanel-set-state',
+                    open: true,
+                }),
+            );
+        }
+
         return Promise.all([
             this.sendGetPermissionRequests(),
             this.sendGetTransactionRequests(),
             this.loadFeatures(),
             this.getNetwork(),
         ]).then(() => undefined);
+    }
+
+    public cleanup() {
+        if (this.isSidePanelMode()) {
+            try {
+                this.sendMessage(
+                    createMessage<SidepanelSetState>({
+                        type: 'sidepanel-set-state',
+                        open: false,
+                    }),
+                );
+            } catch (e) {
+                // Silently fail - connection may already be closed
+            }
+        }
     }
 
     public sendPermissionResponse(
@@ -374,28 +406,39 @@ export class BackgroundClient {
             ),
         );
     }
-
-    public unlockAccountSourceOrAccount(
-        inputs: MethodPayload<'unlockAccountSourceOrAccount'>['args'],
-    ) {
+    public unlockAccountSource(inputs: MethodPayload<'unlockAccountSource'>['args']) {
         return lastValueFrom(
             this.sendMessage(
-                createMessage<MethodPayload<'unlockAccountSourceOrAccount'>>({
+                createMessage<MethodPayload<'unlockAccountSource'>>({
                     type: 'method-payload',
-                    method: 'unlockAccountSourceOrAccount',
+                    method: 'unlockAccountSource',
                     args: inputs,
                 }),
             ).pipe(take(1)),
         );
     }
 
-    public lockAccountSourceOrAccount({ id }: MethodPayload<'lockAccountSourceOrAccount'>['args']) {
+    public unlockAllAccountsAndSources(
+        inputs: MethodPayload<'unlockAllAccountsAndSources'>['args'],
+    ) {
         return lastValueFrom(
             this.sendMessage(
-                createMessage<MethodPayload<'lockAccountSourceOrAccount'>>({
+                createMessage<MethodPayload<'unlockAllAccountsAndSources'>>({
                     type: 'method-payload',
-                    method: 'lockAccountSourceOrAccount',
-                    args: { id },
+                    method: 'unlockAllAccountsAndSources',
+                    args: inputs,
+                }),
+            ).pipe(take(1)),
+        );
+    }
+
+    public lockAllAccountsAndSources(args: MethodPayload<'lockAllAccountsAndSources'>['args']) {
+        return lastValueFrom(
+            this.sendMessage(
+                createMessage<MethodPayload<'lockAllAccountsAndSources'>>({
+                    type: 'method-payload',
+                    method: 'lockAllAccountsAndSources',
+                    args,
                 }),
             ).pipe(take(1)),
         );
@@ -634,7 +677,7 @@ export class BackgroundClient {
         );
     }
 
-    private handleIncomingMessage(msg: Message) {
+    private async handleIncomingMessage(msg: Message) {
         if (!this._initialized || !this._dispatch) {
             throw new Error('BackgroundClient is not initialized to handle incoming messages');
         }
@@ -648,7 +691,7 @@ export class BackgroundClient {
             action = setActiveOrigin(payload);
         } else if (isLoadedFeaturesPayload(payload)) {
             growthbook.setAttributes(payload.attributes);
-            growthbook.setFeatures(payload.features);
+            await growthbook.setPayload({ features: payload.features });
         } else if (isSetNetworkPayload(payload)) {
             action = changeActiveNetwork({
                 network: payload.network,
@@ -668,6 +711,16 @@ export class BackgroundClient {
         this._portStream = PortStream.connectToBackgroundService('iota_ui<->background');
         this._portStream.onDisconnect.subscribe(() => {
             this.createPortStream();
+
+            // Re-notify background after reconnection
+            if (this._initialized && this.isSidePanelMode()) {
+                this.sendMessage(
+                    createMessage<SidepanelSetState>({
+                        type: 'sidepanel-set-state',
+                        open: true,
+                    }),
+                );
+            }
         });
         this._portStream.onMessage.subscribe((msg) => this.handleIncomingMessage(msg));
     }

@@ -22,7 +22,7 @@ use anemo_tower::{
 use anyhow::{Result, anyhow};
 use arc_swap::ArcSwap;
 use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId, OIDCProvider};
-use futures::{TryFutureExt, future::BoxFuture};
+use futures::future::BoxFuture;
 pub use handle::IotaNodeHandle;
 use iota_archival::{reader::ArchiveReaderBalancer, writer::ArchiveWriter};
 use iota_common::debug_fatal;
@@ -80,7 +80,7 @@ use iota_core::{
     transaction_orchestrator::TransactionOrchestrator,
     validator_tx_finalizer::ValidatorTxFinalizer,
 };
-use iota_grpc_api::{GrpcReader, GrpcServerHandle, start_grpc_server};
+use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_json_rpc::{
     JsonRpcServerBuilder, coin_api::CoinReadApi, governance_api::GovernanceReadApi,
     indexer_api::IndexerApi, move_utils::MoveUtils, read_api::ReadApi,
@@ -95,12 +95,14 @@ use iota_metrics::{
     metrics_network::{MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics},
     server_timing_middleware, spawn_monitored_task,
 };
+use iota_names::config::IotaNamesConfig;
 use iota_network::{
     api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
 };
 use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
 use iota_protocol_config::ProtocolConfig;
 use iota_rest_api::RestMetrics;
+use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
     FileCompression, StorageFormat,
@@ -121,7 +123,6 @@ use iota_types::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
-    messages_checkpoint::CertifiedCheckpointSummary,
     messages_consensus::{
         AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
         SignedAuthorityCapabilitiesV1, check_total_jwk_size,
@@ -132,7 +133,6 @@ use iota_types::{
     transaction::{Transaction, VerifiedCertificate},
 };
 use prometheus::Registry;
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 #[cfg(msim)]
 pub use simulator::set_jwk_injector;
 #[cfg(msim)]
@@ -158,8 +158,7 @@ mod handle;
 pub mod metrics;
 
 pub struct ValidatorComponents {
-    validator_server_spawn_handle: SpawnOnce,
-    validator_server_handle: iota_http::ServerHandle,
+    validator_server_handle: SpawnOnce,
     validator_overload_monitor_handle: Option<JoinHandle<()>>,
     consensus_manager: ConsensusManager,
     consensus_store_pruner: ConsensusStorePruner,
@@ -581,6 +580,12 @@ impl IotaNode {
             )))
         };
 
+        let chain_id = ChainIdentifier::from(*genesis.checkpoint().digest());
+        let chain = match config.chain_override_for_testing {
+            Some(chain) => chain,
+            None => ChainIdentifier::from(*genesis.checkpoint().digest()).chain(),
+        };
+
         let epoch_options = default_db_options().optimize_db_for_write_throughput(4);
         let epoch_store = AuthorityPerEpochStore::new(
             config.authority_public_key(),
@@ -594,12 +599,12 @@ impl IotaNode {
             cache_metrics,
             signature_verifier_metrics,
             &config.expensive_safety_check_config,
-            ChainIdentifier::from(*genesis.checkpoint().digest()),
+            (chain_id, chain),
             checkpoint_store
                 .get_highest_executed_checkpoint_seq_number()
                 .expect("checkpoint store read cannot fail")
                 .unwrap_or(0),
-        );
+        )?;
 
         info!("created epoch store");
 
@@ -666,13 +671,16 @@ impl IotaNode {
 
         let rest_index = if is_full_node && config.enable_rest_api && config.enable_index_processing
         {
-            Some(Arc::new(RestIndexStore::new(
-                config.db_path().join("rest_index"),
-                &store,
-                &checkpoint_store,
-                &epoch_store,
-                &cache_traits.backing_package_store,
-            )))
+            Some(Arc::new(
+                RestIndexStore::new(
+                    config.db_path().join("rest_index"),
+                    &store,
+                    &checkpoint_store,
+                    &epoch_store,
+                    &cache_traits.backing_package_store,
+                )
+                .await,
+            ))
         } else {
             None
         };
@@ -870,8 +878,16 @@ impl IotaNode {
         let iota_node_metrics =
             Arc::new(IotaNodeMetrics::new(&registry_service.default_registry()));
 
+        // Convert transaction orchestrator to executor trait object for gRPC server
+        // Note that the transaction_orchestrator (so as executor) will be None if it is
+        // a validator node or run_with_range is set
+        let executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>> =
+            transaction_orchestrator
+                .clone()
+                .map(|o| o as Arc<dyn iota_types::transaction_executor::TransactionExecutor>);
+
         let grpc_server_handle =
-            build_grpc_server(&config, state.clone(), state_sync_store.clone()).await?;
+            build_grpc_server(&config, state.clone(), state_sync_store.clone(), executor).await?;
 
         let validator_components = if state.is_committee_validator(&epoch_store) {
             let (components, _) = futures::join!(
@@ -896,8 +912,7 @@ impl IotaNode {
             components.consensus_adapter.submit_recovered(&epoch_store);
 
             // Start the gRPC server
-            components.validator_server_spawn_handle =
-                components.validator_server_spawn_handle.start();
+            components.validator_server_handle = components.validator_server_handle.start().await;
 
             Some(components)
         } else {
@@ -1305,14 +1320,13 @@ impl IotaNode {
         let checkpoint_metrics = CheckpointMetrics::new(&validator_registry);
         let iota_tx_validator_metrics = IotaTxValidatorMetrics::new(&validator_registry);
 
-        let (validator_server_spawn_handle, validator_server_handle) =
-            Self::start_grpc_validator_service(
-                &config,
-                state.clone(),
-                consensus_adapter.clone(),
-                &validator_registry,
-            )
-            .await?;
+        let validator_server_handle = Self::start_grpc_validator_service(
+            &config,
+            state.clone(),
+            consensus_adapter.clone(),
+            &validator_registry,
+        )
+        .await?;
 
         // Starts an overload monitor that monitors the execution of the authority.
         // Don't start the overload monitor when max_load_shedding_percentage is 0.
@@ -1344,7 +1358,6 @@ impl IotaNode {
             consensus_store_pruner,
             accumulator,
             backpressure_manager,
-            validator_server_spawn_handle,
             validator_server_handle,
             validator_overload_monitor_handle,
             checkpoint_metrics,
@@ -1369,8 +1382,7 @@ impl IotaNode {
         consensus_store_pruner: ConsensusStorePruner,
         accumulator: Weak<StateAccumulator>,
         backpressure_manager: Arc<BackpressureManager>,
-        validator_server_spawn_handle: SpawnOnce,
-        validator_server_handle: iota_http::ServerHandle,
+        validator_server_handle: SpawnOnce,
         validator_overload_monitor_handle: Option<JoinHandle<()>>,
         checkpoint_metrics: Arc<CheckpointMetrics>,
         iota_node_metrics: Arc<IotaNodeMetrics>,
@@ -1433,15 +1445,6 @@ impl IotaNode {
             )
             .await;
 
-        if !epoch_store
-            .epoch_start_config()
-            .is_data_quarantine_active_from_beginning_of_epoch()
-        {
-            checkpoint_store
-                .reexecute_local_checkpoints(&state, &epoch_store)
-                .await;
-        }
-
         info!("Spawning checkpoint service");
         let checkpoint_service_tasks = checkpoint_service.spawn().await;
 
@@ -1456,7 +1459,6 @@ impl IotaNode {
         }
 
         Ok(ValidatorComponents {
-            validator_server_spawn_handle,
             validator_server_handle,
             validator_overload_monitor_handle,
             consensus_manager,
@@ -1554,7 +1556,7 @@ impl IotaNode {
         state: Arc<AuthorityState>,
         consensus_adapter: Arc<ConsensusAdapter>,
         prometheus_registry: &Registry,
-    ) -> Result<(SpawnOnce, iota_http::ServerHandle)> {
+    ) -> Result<SpawnOnce> {
         let validator_service = ValidatorService::new(
             state.clone(),
             consensus_adapter,
@@ -1567,31 +1569,30 @@ impl IotaNode {
         let mut server_conf = iota_network_stack::config::Config::new();
         server_conf.global_concurrency_limit = config.grpc_concurrency_limit;
         server_conf.load_shed = config.grpc_load_shed;
-        let mut server_builder =
-            ServerBuilder::from_config(&server_conf, GrpcMetrics::new(prometheus_registry));
-
-        server_builder = server_builder.add_service(ValidatorServer::new(validator_service));
+        let server_builder =
+            ServerBuilder::from_config(&server_conf, GrpcMetrics::new(prometheus_registry))
+                .add_service(ValidatorServer::new(validator_service));
 
         let tls_config = iota_tls::create_rustls_server_config(
             config.network_key_pair().copy().private(),
             IOTA_TLS_SERVER_NAME.to_string(),
         );
 
-        let server = server_builder
-            .bind(config.network_address(), Some(tls_config))
-            .await
-            .map_err(|err| anyhow!(err.to_string()))?;
+        let network_address = config.network_address().clone();
 
-        let local_addr = server.local_addr();
-        info!("Listening to traffic on {local_addr}");
+        let bind_future = async move {
+            let server = server_builder
+                .bind(&network_address, Some(tls_config))
+                .await
+                .map_err(|err| anyhow!("Failed to bind to {network_address}: {err}"))?;
 
-        // Clone the server handle for shutdown functionality
-        let server_handle = server.handle().clone();
+            let local_addr = server.local_addr();
+            info!("Listening to traffic on {local_addr}");
 
-        Ok((
-            SpawnOnce::new(server.serve().map_err(Into::into)),
-            server_handle,
-        ))
+            Ok(server)
+        };
+
+        Ok(SpawnOnce::new(bind_future))
     }
 
     /// Re-executes pending consensus certificates, which may not have been
@@ -1769,16 +1770,6 @@ impl IotaNode {
             );
 
             // Create closures that handle gRPC type conversion
-            let summary_sender = if let Ok(guard) = self.grpc_server_handle.try_lock() {
-                guard.as_ref().map(|handle| {
-                    let tx = handle.checkpoint_summary_broadcaster().clone();
-                    Box::new(move |summary: &CertifiedCheckpointSummary| {
-                        tx.send_traced(summary);
-                    }) as Box<dyn Fn(&CertifiedCheckpointSummary) + Send + Sync>
-                })
-            } else {
-                None
-            };
             let data_sender = if let Ok(guard) = self.grpc_server_handle.try_lock() {
                 guard.as_ref().map(|handle| {
                     let tx = handle.checkpoint_data_broadcaster().clone();
@@ -1798,7 +1789,6 @@ impl IotaNode {
                 self.backpressure_manager.clone(),
                 self.config.checkpoint_executor_config.clone(),
                 checkpoint_executor_metrics.clone(),
-                summary_sender,
                 data_sender,
             );
 
@@ -1939,7 +1929,6 @@ impl IotaNode {
                 .await?;
 
             let new_validator_components = if let Some(ValidatorComponents {
-                validator_server_spawn_handle,
                 validator_server_handle,
                 validator_overload_monitor_handle,
                 consensus_manager,
@@ -2001,7 +1990,6 @@ impl IotaNode {
                             consensus_store_pruner,
                             weak_accumulator,
                             self.backpressure_manager.clone(),
-                            validator_server_spawn_handle,
                             validator_server_handle,
                             validator_overload_monitor_handle,
                             checkpoint_metrics,
@@ -2018,7 +2006,7 @@ impl IotaNode {
                     } else {
                         warn!("Failed to remove validator metrics registry");
                     }
-                    validator_server_handle.trigger_shutdown();
+                    validator_server_handle.shutdown();
                     debug!("Validator grpc server shutdown triggered");
 
                     None
@@ -2055,8 +2043,8 @@ impl IotaNode {
                     )
                     .await?;
 
-                    components.validator_server_spawn_handle =
-                        components.validator_server_spawn_handle.start();
+                    components.validator_server_handle =
+                        components.validator_server_handle.start().await;
 
                     Some(components)
                 } else {
@@ -2324,25 +2312,42 @@ impl IotaNode {
 }
 
 enum SpawnOnce {
-    // Mutex is only needed to make SpawnOnce Send
-    Unstarted(Mutex<BoxFuture<'static, Result<()>>>),
+    // Mutex is only needed to make SpawnOnce Sync
+    Unstarted(Mutex<BoxFuture<'static, Result<iota_network_stack::server::Server>>>),
     #[allow(unused)]
-    Started(JoinHandle<Result<()>>),
+    Started(iota_http::ServerHandle),
 }
 
 impl SpawnOnce {
-    pub fn new(future: impl Future<Output = Result<()>> + Send + 'static) -> Self {
+    pub fn new(
+        future: impl Future<Output = Result<iota_network_stack::server::Server>> + Send + 'static,
+    ) -> Self {
         Self::Unstarted(Mutex::new(Box::pin(future)))
     }
 
-    pub fn start(self) -> Self {
+    pub async fn start(self) -> Self {
         match self {
             Self::Unstarted(future) => {
-                let future = future.into_inner();
-                let handle = tokio::spawn(future);
+                let server = future
+                    .into_inner()
+                    .await
+                    .unwrap_or_else(|err| panic!("Failed to start validator gRPC server: {err}"));
+                let handle = server.handle().clone();
+                tokio::spawn(async move {
+                    if let Err(err) = server.serve().await {
+                        info!("Server stopped: {err}");
+                    }
+                    info!("Server stopped");
+                });
                 Self::Started(handle)
             }
             Self::Started(_) => self,
+        }
+    }
+
+    pub fn shutdown(self) {
+        if let SpawnOnce::Started(handle) = self {
+            handle.trigger_shutdown();
         }
     }
 }
@@ -2417,6 +2422,7 @@ async fn build_grpc_server(
     config: &NodeConfig,
     state: Arc<AuthorityState>,
     state_sync_store: RocksDbStore,
+    executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
 ) -> Result<Option<GrpcServerHandle>> {
     // Validators do not expose gRPC APIs
     if config.consensus_config().is_some() || !config.enable_grpc_api {
@@ -2427,25 +2433,28 @@ async fn build_grpc_server(
         return Err(anyhow!("gRPC API is enabled but no configuration provided"));
     };
 
+    // Get chain identifier from state directly
+    let chain_id = state.get_chain_identifier();
+
     let rest_read_store = Arc::new(RestReadStore::new(state.clone(), state_sync_store));
 
     // Create cancellation token for proper shutdown hierarchy
     let shutdown_token = CancellationToken::new();
 
     // Create GrpcReader
-    let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(rest_read_store));
-
-    // Get the subscription handler from the state for event streaming
-    let event_subscriber =
-        state.subscription_handler.clone() as Arc<dyn iota_grpc_api::EventSubscriber>;
+    let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(
+        rest_read_store,
+        Some(env!("CARGO_PKG_VERSION").to_string()),
+    ));
 
     // Pass the same token to both GrpcReader (already done above) and
     // start_grpc_server
     let handle = start_grpc_server(
         grpc_reader,
-        event_subscriber,
+        executor,
         grpc_config.clone(),
         shutdown_token,
+        chain_id,
     )
     .await?;
 
@@ -2521,9 +2530,10 @@ pub async fn build_http_server(
             ))?;
         }
 
-        // TODO: Init from chain if config is not set once `IotaNamesConfig::from_chain`
-        // is implemented
-        let iota_names_config = config.iota_names_config.clone().unwrap_or_default();
+        let iota_names_config = config
+            .iota_names_config
+            .clone()
+            .unwrap_or_else(|| IotaNamesConfig::from_chain(&state.get_chain_identifier().chain()));
 
         server.register_module(IndexerApi::new(
             state.clone(),
