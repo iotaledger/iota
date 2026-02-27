@@ -812,7 +812,10 @@ mod tests {
         let hotness1 = tracker.get_hotness_for_object(&obj1).unwrap_or(0.0);
         let hotness2 = tracker.get_hotness_for_object(&obj2).unwrap_or(0.0);
         println!("Hotness for obj1: {hotness1}");
-        assert!(hotness1.round() == 1000.0, "hotness for obj1 should be 1000");
+        assert!(
+            hotness1.round() == 1000.0,
+            "hotness for obj1 should be 1000"
+        );
         assert!(hotness2 == 0.0, "hotness for obj2 should be 0.0");
 
         // Additional checkpoints
@@ -854,8 +857,14 @@ mod tests {
 
         let hotness1 = tracker.get_hotness_for_object(&obj1).unwrap_or(0.0);
         let hotness2 = tracker.get_hotness_for_object(&obj2).unwrap_or(0.0);
-        assert!(hotness1.round() == 749.0, "hotness for obj1 should be approx 749");
-        assert!(hotness2.round() == 41.0, "hotness for obj2 should be approx 41");
+        assert!(
+            hotness1.round() == 749.0,
+            "hotness for obj1 should be approx 749"
+        );
+        assert!(
+            hotness2.round() == 41.0,
+            "hotness for obj2 should be approx 41"
+        );
     }
 
     #[test]
@@ -876,8 +885,8 @@ mod tests {
             &[],
         );
 
-        // obj1 is not congested anymore. Its hotness is decreased by MAX_DECAY_FACTOR for every checkpoint
-        // where it is not in the congested object set.
+        // obj1 is not congested anymore. Its hotness is decreased by MAX_DECAY_FACTOR
+        // for every checkpoint where it is not in the congested object set.
         tracker.process_congestion_and_clearing_txs_data(
             1100,
             &[TxData {
