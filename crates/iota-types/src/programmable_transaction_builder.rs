@@ -69,7 +69,7 @@ impl ProgrammableTransactionBuilder {
     pub fn obj(&mut self, obj_arg: impl Into<CallArg>) -> anyhow::Result<Argument> {
         let obj_arg: CallArg = obj_arg.into();
         let id = *obj_arg
-            .object_id()
+            .object_id_opt()
             .ok_or_else(|| anyhow::anyhow!("expected object CallArg, found pure argument"))?;
         let obj_arg = if let Some(old_value) = self.inputs.get(&BuilderArg::Object(id)) {
             match (old_value.as_shared_opt(), obj_arg.as_shared_opt()) {

@@ -499,16 +499,16 @@ impl EndOfEpochTransactionKind {
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_ {
         match self {
             Self::ChangeEpoch(_) => {
-                Either::Left(vec![SharedObjectRef::IOTA_SYSTEM_OBJ].into_iter())
+                Either::Left(vec![SharedObjectRef::IOTA_SYSTEM_STATE_OBJ_MUTABLE].into_iter())
             }
             Self::ChangeEpochV2(_) => {
-                Either::Left(vec![SharedObjectRef::IOTA_SYSTEM_OBJ].into_iter())
+                Either::Left(vec![SharedObjectRef::IOTA_SYSTEM_STATE_OBJ_MUTABLE].into_iter())
             }
             Self::ChangeEpochV3(_) => {
-                Either::Left(vec![SharedObjectRef::IOTA_SYSTEM_OBJ].into_iter())
+                Either::Left(vec![SharedObjectRef::IOTA_SYSTEM_STATE_OBJ_MUTABLE].into_iter())
             }
             Self::ChangeEpochV4(_) => {
-                Either::Left(vec![SharedObjectRef::IOTA_SYSTEM_OBJ].into_iter())
+                Either::Left(vec![SharedObjectRef::IOTA_SYSTEM_STATE_OBJ_MUTABLE].into_iter())
             }
             Self::AuthenticatorStateExpire(expire) => Either::Left(
                 vec![SharedObjectRef {

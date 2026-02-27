@@ -2950,7 +2950,7 @@ async fn test_invalid_authenticator_state_parameter() {
         // type_args
         vec![],
         gas_ref,
-        vec![CallArg::AUTHENTICATOR_MUTABLE],
+        vec![CallArg::AUTHENTICATOR_STATE_MUTABLE],
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
         rgp,
     )
