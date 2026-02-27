@@ -908,37 +908,45 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             // For commit sync, optimize by fetching from store for headers below GC round
             let gc_round = self.dag_state.read().gc_round_for_last_solid_commit();
 
-            // Partition block_refs into those below and at-or-above GC round
-            let (below_gc, above_gc): (Vec<_>, Vec<_>) = block_refs
-                .iter()
-                .partition(|block_ref| block_ref.round < gc_round);
+            // Separate indices for below/above GC while preserving original order
+            let mut below_gc_indices = Vec::new();
+            let mut above_gc_indices = Vec::new();
+            let mut below_gc_refs = Vec::new();
+            let mut above_gc_refs = Vec::new();
+            for (i, block_ref) in block_refs.iter().enumerate() {
+                if block_ref.round < gc_round {
+                    below_gc_indices.push(i);
+                    below_gc_refs.push(*block_ref);
+                } else {
+                    above_gc_indices.push(i);
+                    above_gc_refs.push(*block_ref);
+                }
+            }
 
-            let mut headers = Vec::new();
+            let mut headers: Vec<Option<Bytes>> = vec![None; block_refs.len()];
 
             // Read headers below GC from store
-            if !below_gc.is_empty() {
-                let store_headers = self
-                    .store
-                    .read_serialized_block_headers(&below_gc)?
-                    .into_iter()
-                    .flatten()
-                    .collect::<Vec<_>>();
-                headers.extend(store_headers);
+            if !below_gc_refs.is_empty() {
+                for (idx, header) in below_gc_indices
+                    .iter()
+                    .zip(self.store.read_serialized_block_headers(&below_gc_refs)?)
+                {
+                    headers[*idx] = header;
+                }
             }
 
             // Read headers at-or-above GC from dag_state
-            if !above_gc.is_empty() {
-                let dag_headers = self
-                    .dag_state
-                    .read()
-                    .get_serialized_block_headers(&above_gc)
-                    .into_iter()
-                    .flatten()
-                    .collect::<Vec<_>>();
-                headers.extend(dag_headers);
+            if !above_gc_refs.is_empty() {
+                for (idx, header) in above_gc_indices.iter().zip(
+                    self.dag_state
+                        .read()
+                        .get_serialized_block_headers(&above_gc_refs),
+                ) {
+                    headers[*idx] = header;
+                }
             }
 
-            headers
+            headers.into_iter().flatten().collect()
         } else {
             // For periodic or live synchronizer, we respond with requested blocks from the
             // store and with additional blocks from the cache
