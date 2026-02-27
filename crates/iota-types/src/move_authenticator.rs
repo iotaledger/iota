@@ -128,8 +128,8 @@ impl MoveAuthenticator {
     pub fn input_objects(&self) -> Vec<InputObjectKind> {
         self.call_args
             .iter()
-            .filter_map(|arg| arg.input_object())
-            .chain(self.object_to_authenticate().input_object())
+            .filter_map(|arg| arg.input_object_kind())
+            .chain(self.object_to_authenticate().input_object_kind())
             .collect::<Vec<_>>()
     }
 

@@ -623,14 +623,14 @@ impl EndOfEpochTransactionKind {
 pub trait CallArgExt {
     /// Returns the input object kind for this argument, excluding receiving
     /// objects.
-    fn input_object(&self) -> Option<InputObjectKind>;
+    fn input_object_kind(&self) -> Option<InputObjectKind>;
 
     /// Validity check for this argument against the given protocol config.
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
 }
 
 impl CallArgExt for CallArg {
-    fn input_object(&self) -> Option<InputObjectKind> {
+    fn input_object_kind(&self) -> Option<InputObjectKind> {
         match self {
             CallArg::ImmutableOrOwned(object_ref) => {
                 Some(InputObjectKind::ImmOrOwnedMoveObject(*object_ref))
@@ -970,7 +970,7 @@ impl ProgrammableTransaction {
         let ProgrammableTransaction { inputs, commands } = self;
         let input_arg_objects = inputs
             .iter()
-            .filter_map(|arg| arg.input_object())
+            .filter_map(|arg| arg.input_object_kind())
             .collect::<Vec<_>>();
         // all objects, not just mutable, must be unique
         let mut used = HashSet::new();
@@ -2470,7 +2470,7 @@ impl SenderSignedData {
 
                 let account_objects = move_authenticator
                     .object_to_authenticate()
-                    .input_object()
+                    .input_object_kind()
                     .iter()
                     .map(|k| {
                         input_objects_map
