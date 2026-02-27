@@ -89,7 +89,7 @@ impl<T> MisbehaviorsV1<T> {
 
     // Constructs a MisbehaviorsV1 by consuming exactly 4 elements from an
     // iterator, mapping them to the struct fields in order.
-    fn collect_from(mut iter: impl Iterator<Item = T>) -> Self {
+    pub fn collect_from(mut iter: impl Iterator<Item = T>) -> Self {
         Self {
             faulty_blocks_provable: iter
                 .next()

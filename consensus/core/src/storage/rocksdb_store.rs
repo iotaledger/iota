@@ -165,9 +165,7 @@ impl Store for RocksDBStore {
                 .map_err(ConsensusError::RocksDBFailure)?;
         }
         if let Some(metrics) = &write_batch.scoring_metrics {
-            batch
-                .insert_batch(&self.scoring_metrics_v2, [(&(), metrics)])
-                .map_err(ConsensusError::RocksDBFailure)?;
+            batch.insert_batch(&self.scoring_metrics_v2, [(&(), metrics)])?;
         }
 
         batch.write()?;

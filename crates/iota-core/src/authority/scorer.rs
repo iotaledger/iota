@@ -246,19 +246,10 @@ fn calculate_median_report(
     }
 
     // Calculate the weighted median for each metric and construct the result
-    let mut medians = reports_and_voting_power_per_metric
+    let medians = reports_and_voting_power_per_metric
         .iter_mut()
         .map(|vec| calculate_weighted_median(vec.as_mut_slice()));
-    MisbehaviorsV1::new(
-        medians
-            .next()
-            .expect("expected faulty_blocks_provable metric"),
-        medians
-            .next()
-            .expect("expected faulty_blocks_unprovable metric"),
-        medians.next().expect("expected missing_proposals metric"),
-        medians.next().expect("expected equivocations metric"),
-    )
+    MisbehaviorsV1::collect_from(medians)
 }
 
 // Given a vector of pairs (MetricVec, VotingPower), calculate the weighted
