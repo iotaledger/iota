@@ -222,11 +222,22 @@ impl CommitObserver {
         reputation_scores: Vec<(AuthorityIndex, u64)>,
     ) -> Option<CommittedSubDag> {
         let tx_refs = commit.committed_transactions();
-        let transactions = self
+        let transactions = match self
             .dag_state
             .read()
             .try_get_all_verified_transactions(&tx_refs)
-            .ok()?;
+        {
+            Ok(transactions) => transactions,
+            Err(missing_refs) => {
+                warn!(
+                    "Missing {} transactions for commit {}: {:?}",
+                    missing_refs.len(),
+                    commit.index(),
+                    missing_refs,
+                );
+                return None;
+            }
+        };
 
         Some(CommittedSubDag::new(
             commit.leader(),
