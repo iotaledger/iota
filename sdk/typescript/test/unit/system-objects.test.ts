@@ -81,7 +81,6 @@ describe('System objects with mutable parameter', () => {
             $kind: 'UnresolvedObject',
             UnresolvedObject: {
                 objectId: '0x0000000000000000000000000000000000000000000000000000000000000403',
-                initialSharedVersion: 1,
             },
         });
     });
@@ -96,14 +95,10 @@ describe('System objects with mutable parameter', () => {
         const data = tx.getData();
         const denyListInput = data.inputs[0];
         expect(denyListInput).toEqual({
-            $kind: 'Object',
-            Object: {
-                $kind: 'SharedObject',
-                SharedObject: {
-                    objectId: '0x0000000000000000000000000000000000000000000000000000000000000403',
-                    initialSharedVersion: 1,
-                    mutable: true,
-                },
+            $kind: 'UnresolvedObject',
+            UnresolvedObject: {
+                objectId: '0x0000000000000000000000000000000000000000000000000000000000000403',
+                mutable: true,
             },
         });
     });
@@ -118,14 +113,10 @@ describe('System objects with mutable parameter', () => {
         const data = tx.getData();
         const denyListInput = data.inputs[0];
         expect(denyListInput).toEqual({
-            $kind: 'Object',
-            Object: {
-                $kind: 'SharedObject',
-                SharedObject: {
-                    objectId: '0x0000000000000000000000000000000000000000000000000000000000000403',
-                    initialSharedVersion: 1,
-                    mutable: false,
-                },
+            $kind: 'UnresolvedObject',
+            UnresolvedObject: {
+                objectId: '0x0000000000000000000000000000000000000000000000000000000000000403',
+                mutable: false,
             },
         });
     });
@@ -154,14 +145,10 @@ describe('System objects with mutable parameter', () => {
         });
 
         expect(randomInput).toEqual({
-            $kind: 'Object',
-            Object: {
-                $kind: 'SharedObject',
-                SharedObject: {
-                    objectId: '0x0000000000000000000000000000000000000000000000000000000000000008',
-                    initialSharedVersion: 1,
-                    mutable: false,
-                },
+            $kind: 'UnresolvedObject',
+            UnresolvedObject: {
+                objectId: '0x0000000000000000000000000000000000000000000000000000000000000008',
+                mutable: false,
             },
         });
     });

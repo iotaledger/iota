@@ -235,18 +235,20 @@ describe('Transaction inputs', () => {
               "objectId": "0x0000000000000000000000000000000000000000000000000000000000000006",
             },
           },
-          {
-            "$kind": "UnresolvedObject",
-            "UnresolvedObject": {
-              "objectId": "0x0000000000000000000000000000000000000000000000000000000000000008",
-            },
-          },
-          {
-            "$kind": "UnresolvedObject",
-            "UnresolvedObject": {
-              "objectId": "0x0000000000000000000000000000000000000000000000000000000000000403",
-            },
-          },
+			    {
+			      "$kind": "UnresolvedObject",
+			      "UnresolvedObject": {
+			        "mutable": false,
+			        "objectId": "0x0000000000000000000000000000000000000000000000000000000000000008",
+			      },
+			    },
+			    {
+			      "$kind": "UnresolvedObject",
+			      "UnresolvedObject": {
+			        "mutable": undefined,
+			        "objectId": "0x0000000000000000000000000000000000000000000000000000000000000403",
+			      },
+			    },
           {
             "$kind": "UnresolvedObject",
             "UnresolvedObject": {

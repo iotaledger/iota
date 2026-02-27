@@ -40,31 +40,20 @@ export function createObjectMethods<T>(makeObject: (value: TransactionObjectInpu
             }),
         );
     object.random = () =>
-        object(
-            Inputs.SharedObjectRef({
+        object({
+            $kind: 'UnresolvedObject',
+            UnresolvedObject: {
                 objectId: '0x8',
-                initialSharedVersion: 1,
+
                 mutable: false,
-            }),
-        );
+            },
+        });
     object.denyList = (options?: { mutable?: boolean }) => {
-        const mutable = options?.mutable;
-
-        if (mutable !== undefined) {
-            return object(
-                Inputs.SharedObjectRef({
-                    objectId: '0x403',
-                    initialSharedVersion: 1,
-                    mutable,
-                }),
-            );
-        }
-
         return object({
             $kind: 'UnresolvedObject',
             UnresolvedObject: {
                 objectId: '0x403',
-                initialSharedVersion: 1,
+                mutable: options?.mutable,
             },
         });
     };
