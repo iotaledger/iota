@@ -65,8 +65,6 @@ export function useConnectedApps() {
         [allPermissions, ecosystemApps],
     );
 
-    console.log('Connected apps:', connectedApps);
-
     return {
         connectedApps,
         loading,

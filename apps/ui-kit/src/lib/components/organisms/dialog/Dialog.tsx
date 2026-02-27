@@ -104,7 +104,7 @@ const DialogContent = React.forwardRef<
                 : 'overflow-y-auto overflow-x-hidden left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-xl';
         const widthClass =
             position === DialogPosition.Right ? 'md:w-96 max-w-[500px]' : customWidth;
-        const heightClass = position === DialogPosition.Right ? 'h-screen' : 'max-h-[80vh] h-full';
+        const heightClass = position === DialogPosition.Right ? 'h-screen' : 'max-h-[90vh] h-full';
         return (
             <RadixDialog.Portal container={containerElement}>
                 <DialogContainer isFixedPosition={isFixedPosition}>

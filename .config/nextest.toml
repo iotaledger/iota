@@ -30,7 +30,6 @@ or (package(iota-cost) and test(test_good_snapshot))
 or (package(iota-faucet) and test(test_insufficient_balance_will_retry_success))
 or (package(iota-network) and test(test_byzantine_peer_handling))
 or (package(iota-open-rpc) and test(test_json_rpc_spec))
-or (package(iota-replay) and test(verify_latest_tx_replay_testnet_mainnet))
 '''
 
 [[profile.default.overrides]]

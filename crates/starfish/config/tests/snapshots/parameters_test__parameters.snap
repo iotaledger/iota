@@ -31,3 +31,6 @@ tonic:
   connection_buffer_size: 33554432
   excessive_message_size: 16777216
   message_size_limit: 67108864
+fast_commit_sync_batch_size: 1000
+commit_sync_gap_threshold: 1000
+enable_fast_commit_syncer: false

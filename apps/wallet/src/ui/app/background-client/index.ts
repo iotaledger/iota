@@ -41,6 +41,7 @@ import {
     type DeriveBipPathAccountsFinder,
     isDeriveBipPathAccountsFinderResponse,
     type PersistAccountsFinder,
+    isPersistAccountsFinderResponse,
     type SourceStrategyToPersist,
 } from '_src/shared/messaging/messages/payloads/accounts-finder';
 import { type MakeDerivationOptions } from '_src/background/account-sources/bip44Path';
@@ -406,28 +407,39 @@ export class BackgroundClient {
             ),
         );
     }
-
-    public unlockAccountSourceOrAccount(
-        inputs: MethodPayload<'unlockAccountSourceOrAccount'>['args'],
-    ) {
+    public unlockAccountSource(inputs: MethodPayload<'unlockAccountSource'>['args']) {
         return lastValueFrom(
             this.sendMessage(
-                createMessage<MethodPayload<'unlockAccountSourceOrAccount'>>({
+                createMessage<MethodPayload<'unlockAccountSource'>>({
                     type: 'method-payload',
-                    method: 'unlockAccountSourceOrAccount',
+                    method: 'unlockAccountSource',
                     args: inputs,
                 }),
             ).pipe(take(1)),
         );
     }
 
-    public lockAccountSourceOrAccount({ id }: MethodPayload<'lockAccountSourceOrAccount'>['args']) {
+    public unlockAllAccountsAndSources(
+        inputs: MethodPayload<'unlockAllAccountsAndSources'>['args'],
+    ) {
         return lastValueFrom(
             this.sendMessage(
-                createMessage<MethodPayload<'lockAccountSourceOrAccount'>>({
+                createMessage<MethodPayload<'unlockAllAccountsAndSources'>>({
                     type: 'method-payload',
-                    method: 'lockAccountSourceOrAccount',
-                    args: { id },
+                    method: 'unlockAllAccountsAndSources',
+                    args: inputs,
+                }),
+            ).pipe(take(1)),
+        );
+    }
+
+    public lockAllAccountsAndSources(args: MethodPayload<'lockAllAccountsAndSources'>['args']) {
+        return lastValueFrom(
+            this.sendMessage(
+                createMessage<MethodPayload<'lockAllAccountsAndSources'>>({
+                    type: 'method-payload',
+                    method: 'lockAllAccountsAndSources',
+                    args,
                 }),
             ).pipe(take(1)),
         );
@@ -635,15 +647,24 @@ export class BackgroundClient {
         );
     }
 
-    public async persistAccountsFinder(sourceStrategy: SourceStrategyToPersist) {
-        await lastValueFrom(
+    public async persistAccountsFinder(sourceStrategy: SourceStrategyToPersist): Promise<number> {
+        const response = await lastValueFrom(
             this.sendMessage(
                 createMessage<PersistAccountsFinder>({
                     type: 'persist-accounts-finder',
                     sourceStrategy,
                 }),
-            ).pipe(take(1)),
+            ).pipe(
+                map((msg) => msg.payload),
+                take(1),
+            ),
         );
+
+        if (isPersistAccountsFinderResponse(response)) {
+            return response.numberOfAccountsCreated;
+        }
+
+        return 0;
     }
 
     private loadFeatures() {
