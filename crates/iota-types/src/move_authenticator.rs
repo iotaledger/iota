@@ -93,7 +93,7 @@ impl MoveAuthenticator {
         &self,
     ) -> UserInputResult<(ObjectID, Option<SequenceNumber>, Option<ObjectDigest>)> {
         Ok(match self.object_to_authenticate() {
-            CallArg::Pure { .. } => {
+            CallArg::Pure(_) => {
                 return Err(UserInputError::Unsupported(
                     "MoveAuthenticator cannot authenticate pure inputs".to_string(),
                 ));

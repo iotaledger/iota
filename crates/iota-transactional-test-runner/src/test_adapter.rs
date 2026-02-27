@@ -1432,11 +1432,12 @@ impl IotaTestAdapter {
         let aa_id = match &aa_call_arg {
             CallArg::ImmutableOrOwned(obj_ref) => obj_ref.object_id,
             CallArg::Shared(shared) => shared.object_id,
-            _ => {
+            CallArg::Pure(_) | CallArg::Receiving(_) => {
                 return Err(anyhow::anyhow!(
                     "abstract: account must be an object representing the abstract account"
                 ));
             }
+            _ => unreachable!("a new CallArg variant was added and needs to be handled"),
         };
 
         Ok((

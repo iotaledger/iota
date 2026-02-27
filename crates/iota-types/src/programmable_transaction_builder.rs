@@ -114,7 +114,10 @@ impl ProgrammableTransactionBuilder {
     pub fn input(&mut self, call_arg: CallArg) -> anyhow::Result<Argument> {
         match call_arg {
             CallArg::Pure(value) => Ok(self.pure_bytes(value, /* force separate */ false)),
-            other => self.obj(other),
+            CallArg::ImmutableOrOwned(_) | CallArg::Shared(_) | CallArg::Receiving(_) => {
+                self.obj(call_arg)
+            }
+            _ => unreachable!("a new CallArg variant was added and needs to be handled"),
         }
     }
 

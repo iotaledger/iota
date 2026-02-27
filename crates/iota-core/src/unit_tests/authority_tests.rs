@@ -78,7 +78,7 @@ impl TestCallArg {
         state: &AuthorityState,
     ) -> Argument {
         match self {
-            Self::Pure(value) => builder.pure(value).unwrap(),
+            Self::Pure(value) => builder.pure_bytes(value, false),
             Self::Object(object_id) => builder
                 .input(Self::call_arg_from_id(object_id, state).await)
                 .unwrap(),

@@ -631,21 +631,21 @@ pub trait CallArgExt {
 
 impl CallArgExt for CallArg {
     fn input_object(&self) -> Option<InputObjectKind> {
-        if let Some(object_ref) = self.as_immutable_or_owned_opt() {
-            Some(InputObjectKind::ImmOrOwnedMoveObject(*object_ref))
-        } else if let Some(&SharedObjectRef {
-            object_id,
-            initial_shared_version,
-            mutable,
-        }) = self.as_shared_opt()
-        {
-            Some(InputObjectKind::SharedMoveObject {
-                id: object_id,
+        match self {
+            CallArg::ImmutableOrOwned(object_ref) => {
+                Some(InputObjectKind::ImmOrOwnedMoveObject(*object_ref))
+            }
+            CallArg::Shared(SharedObjectRef {
+                object_id,
                 initial_shared_version,
                 mutable,
-            })
-        } else {
-            None
+            }) => Some(InputObjectKind::SharedMoveObject {
+                id: *object_id,
+                initial_shared_version: *initial_shared_version,
+                mutable: *mutable,
+            }),
+            CallArg::Pure(_) | CallArg::Receiving(_) => None,
+            _ => unreachable!("a new CallArg variant was added and needs to be handled"),
         }
     }
 
@@ -1064,8 +1064,8 @@ impl ProgrammableTransaction {
             .iter()
             .filter_map(|arg| match arg {
                 CallArg::Pure(_) | CallArg::Receiving(_) | CallArg::ImmutableOrOwned(_) => None,
-                CallArg::Shared(shared) => Some(vec![shared.clone()]),
-                _ => None,
+                CallArg::Shared(shared) => Some(vec![*shared]),
+                _ => unreachable!("a new CallArg variant was added and needs to be handled"),
             })
             .flatten()
     }
