@@ -792,7 +792,7 @@ fn basic_test_setup() -> (
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
-        Arc::new(MemStore::new()),
+        Arc::new(MemStore::new(context.clone())),
     )));
     let leader_schedule = Arc::new(LeaderSchedule::new(
         context.clone(),

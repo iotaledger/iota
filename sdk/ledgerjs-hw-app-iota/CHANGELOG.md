@@ -1,5 +1,12 @@
 # @iota/ledgerjs-hw-app-iota
 
+## 0.6.1
+
+### Patch Changes
+
+-   54c7803: Update @types/node to v24.
+-   c040746: Update axios to 1.13.5
+
 ## 0.6.0
 
 ### Minor Changes

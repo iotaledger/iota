@@ -8,9 +8,8 @@ import { attachEnvironmentPlugin, getCustomNetwork } from '@iota/core';
 import { getNetwork, type Network } from '@iota/iota-sdk/client';
 import { ampli } from './ampli';
 import store from '_src/ui/app/redux/store';
-import { AppType } from '_src/ui/app/redux/slices/app/appType';
+import { type ExtensionViewType, getAppViewType } from '_src/ui/app/redux/slices/app/appType';
 import Browser from 'webextension-polyfill';
-import { elementCopiedPrivacyPlugin, externalLinkOpenedPrivacyPlugin } from './plugins';
 import { dialogContextPlugin } from './plugins/dialogContextPlugin';
 
 const IS_ENABLED = process.env.BUILD_ENV === 'production';
@@ -66,9 +65,6 @@ export async function initAmplitude() {
 
     // Add environment plugin to set prefix dev events
     ampli.client.add(attachEnvironmentPlugin(IS_DEV));
-
-    ampli.client.add(elementCopiedPrivacyPlugin());
-    ampli.client.add(externalLinkOpenedPrivacyPlugin());
 }
 
 export function getUrlWithDeviceId(url: URL) {
@@ -93,7 +89,7 @@ export function getNetworkName(network: Network, customRpc?: string | null): str
 type AmplitudeIdentityOptions = {
     network?: Network;
     customRpc?: string | null;
-    appType?: AppType;
+    extensionViewType?: ExtensionViewType;
 };
 
 /**
@@ -108,7 +104,7 @@ export function setAmplitudeIdentity(options?: AmplitudeIdentityOptions): void {
     const {
         network: stateNetwork,
         customRpc: stateCustomRpc,
-        appType: stateAppType,
+        extensionViewType: stateExtensionViewType,
     } = store.getState().app;
 
     const networkName = getNetworkName(
@@ -116,8 +112,7 @@ export function setAmplitudeIdentity(options?: AmplitudeIdentityOptions): void {
         options?.customRpc ?? stateCustomRpc,
     );
 
-    const appType = options?.appType ?? stateAppType;
-    const walletAppMode = appType === AppType.Fullscreen ? 'Fullscreen' : 'Pop-up';
+    const walletAppMode = options?.extensionViewType ?? stateExtensionViewType ?? getAppViewType();
     const walletVersion = Browser.runtime.getManifest().version;
 
     const identifyEvent = new amplitude.Identify();

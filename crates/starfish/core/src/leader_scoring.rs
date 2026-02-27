@@ -69,6 +69,25 @@ impl ReputationScores {
             }
         }
     }
+
+    /// Creates ReputationScores from reputation_scores_desc (as stored in
+    /// commits). The reputation_scores_desc is Vec<(AuthorityIndex, u64)>
+    /// sorted by score descending. This converts it to scores_per_authority
+    /// indexed by authority.
+    pub(crate) fn from_scores_desc(
+        num_authorities: usize,
+        commit_range: CommitRange,
+        reputation_scores_desc: &[(AuthorityIndex, u64)],
+    ) -> Self {
+        let mut scores_per_authority = vec![0u64; num_authorities];
+        for (authority_index, score) in reputation_scores_desc {
+            scores_per_authority[*authority_index] = *score;
+        }
+        Self {
+            scores_per_authority,
+            commit_range,
+        }
+    }
 }
 
 /// ScoringSubdag represents the scoring votes in a collection of subdags across

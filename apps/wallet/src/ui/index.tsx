@@ -4,12 +4,8 @@
 
 import '@fontsource-variable/inter';
 import { ErrorBoundary } from '_components';
-import { initAppType, setAppViewType } from '_redux/slices/app';
-import {
-    getFromLocationSearch,
-    getAppViewType,
-    ExtensionViewType,
-} from '_src/ui/app/redux/slices/app/appType';
+import { setAppViewType } from '_redux/slices/app';
+import { getAppViewType, ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 import { initAmplitude } from '_src/shared/analytics/amplitude';
 import { setAttributes } from '_src/shared/experimentation/features';
 import { initSentry } from '_src/ui/app/helpers';
@@ -34,7 +30,7 @@ import { HashRouter } from 'react-router-dom';
 import { App } from './app';
 import { walletApiProvider } from './app/apiProvider';
 import { AccountsFormProvider } from './app/components/accounts/AccountsFormContext';
-import { UnlockAccountProvider } from './app/components/accounts/UnlockAccountContext';
+import { UnlockAccountsProvider } from './app/components/accounts/UnlockAccountsContext';
 import { IotaLedgerClientProvider } from './app/components/ledger/IotaLedgerClientProvider';
 import { growthbook } from './app/experimentation/featureGating';
 import { persister, queryClient } from './app/helpers/queryClient';
@@ -47,7 +43,6 @@ async function init() {
     if (process.env.NODE_ENV === 'development') {
         Object.defineProperty(window, 'store', { value: store });
     }
-    store.dispatch(initAppType(getFromLocationSearch()));
     store.dispatch(setAppViewType(getAppViewType()));
     await thunkExtras.background.init(store.dispatch);
     const { network, customRpc } = store.getState().app;
@@ -108,7 +103,7 @@ function AppWrapper() {
                                             <KioskClientProvider>
                                                 <AccountsFormProvider>
                                                     <ThemeProvider appId="iota-wallet">
-                                                        <UnlockAccountProvider>
+                                                        <UnlockAccountsProvider>
                                                             <ClipboardPasteSafetyWrapper>
                                                                 <KeystoneProvider>
                                                                     <div
@@ -131,7 +126,7 @@ function AppWrapper() {
                                                                     </div>
                                                                 </KeystoneProvider>
                                                             </ClipboardPasteSafetyWrapper>
-                                                        </UnlockAccountProvider>
+                                                        </UnlockAccountsProvider>
                                                     </ThemeProvider>
                                                 </AccountsFormProvider>
                                             </KioskClientProvider>

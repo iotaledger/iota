@@ -77,19 +77,13 @@ export interface AccountCreationStartedProperties {
     sourceFlow?: string;
 }
 
-export interface AccountsAddedProperties {
+export interface AccountDeletedProperties {
     /**
      * | Rule | Value |
      * |---|---|
      * | Regex |  |
      */
     accountType?: string;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Type | number |
-     */
-    numberOfAccounts?: number;
 }
 
 export interface AccountKeysExportedProperties {
@@ -100,6 +94,30 @@ export interface AccountKeysExportedProperties {
      */
     accountType?: string;
 }
+
+export interface AccountsAddedProperties {
+    accountOrigin?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    accountType?: string;
+    isFirstAccount?: boolean;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    numberOfAccounts?: number;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    sourceFlow?: string;
+}
+
 export interface AddedAccountsProperties {
     /**
      * | Rule | Value |
@@ -142,6 +160,7 @@ export interface ApplicationOpenedProperties {
 }
 
 export interface AppsBannerCtaClickedProperties {
+    bannerUrl?: string;
     /**
      * | Rule | Value |
      * |---|---|
@@ -395,24 +414,10 @@ export interface DisconnectedApplicationProperties {
 
 export interface ElementCopiedProperties {
     type: string;
-    value?: string;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Enum Values | private, public |
-     */
-    visibility?: 'private' | 'public';
 }
 
 export interface ExternalLinkOpenedProperties {
     type: string;
-    value?: string;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Enum Values | private, public |
-     */
-    visibility?: 'private' | 'public';
 }
 export interface IotaStakedProperties {
     /**
