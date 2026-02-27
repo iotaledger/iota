@@ -429,7 +429,7 @@ mod checked {
         authentication_gas_budget: u64,
         is_execute_transaction_to_effects: bool,
     ) -> IotaResult<IotaGasStatus> {
-        let (gas_budget_to_set, gas_budget_to_check) = if authentication_gas_budget > 0 {
+        let gas_budget_to_set = if authentication_gas_budget > 0 {
             // If there is an authentication gas budget, then we are checking if
             // max_gas_budget is Some. If not, that is UserInputError.
             let protocol_max_auth_gas =
@@ -439,25 +439,27 @@ mod checked {
                             .to_string(),
                     )
                 })?;
-            let authentication_gas_budget = authentication_gas_budget.min(protocol_max_auth_gas);
 
-            // Execution phase: meter transaction + authentication.
-            // Signing phase: meter only authentication.
-            let gas_budget_to_set = if is_execute_transaction_to_effects {
-                transaction_gas_budget + authentication_gas_budget
+            // Execution phase:
+            //  - meter transaction + authentication;
+            //  - it needs the full budget.
+            // Signing phase:
+            //  - meter only authentication;
+            //  - it only needs authentication budget.
+            if is_execute_transaction_to_effects {
+                transaction_gas_budget
             } else {
-                authentication_gas_budget
-            };
-
-            // Budget to check must always cover the full transaction + authentication cost.
-            let gas_budget_to_check = transaction_gas_budget + authentication_gas_budget;
-
-            (gas_budget_to_set, gas_budget_to_check)
+                authentication_gas_budget.min(protocol_max_auth_gas)
+            }
         } else {
             // If there is no authentication gas budget, then we are only checking the
             // transaction gas budget.
-            (transaction_gas_budget, transaction_gas_budget)
+            transaction_gas_budget
         };
+
+        // Budget to check is always the one set by the user (which should cover full
+        // transaction + authentication costs).
+        let gas_budget_to_check = transaction_gas_budget;
 
         let gas_status = IotaGasStatus::new(
             gas_budget_to_set,
