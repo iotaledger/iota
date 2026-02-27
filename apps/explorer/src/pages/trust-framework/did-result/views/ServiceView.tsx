@@ -11,6 +11,7 @@ import {
     ChipSize,
     ChipType,
     LoadingIndicator,
+    TooltipPosition,
 } from '@iota/apps-ui-kit';
 import { type IotaDocument } from '@iota/identity-wasm/web';
 import { useValidateDomainLinkage } from '../hooks/useValidateDomainLinkage';
@@ -39,7 +40,11 @@ export function ServiceView({ didDocument }: ServiceViewProps) {
 
     return (
         <div className="flex w-full flex-col gap-sm">
-            <Title title="Domain Linkage" />
+            <Title
+                title="Domain Linkage"
+                tooltipPosition={TooltipPosition.Left}
+                tooltipText="A verified, bidirectional connection between this Identity and a web domain. Proves that the Identity controller owns the linked domain."
+            />
             <div className="flex flex-wrap gap-2">
                 {!infoDomainLinkage.length && (
                     <InfoBox

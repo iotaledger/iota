@@ -11,6 +11,7 @@ import {
     LoadingIndicator,
     Title,
     TitleSize,
+    TooltipPosition,
 } from '@iota/apps-ui-kit';
 import { AddressLink, CollapsibleCard, ObjectLink } from '~/components';
 import { type IotaObjectData } from '@iota/iota-sdk/src/client';
@@ -32,7 +33,11 @@ export function ControllerView({ objectData }: ControllerViewProps) {
 
     return (
         <div className="flex w-full flex-col gap-sm">
-            <Title title="Controller" />
+            <Title
+                title="Controller"
+                tooltipPosition={TooltipPosition.Left}
+                tooltipText="The entity or entities authorized to modify this Identity. An Identity can have multiple controllers with shared authority. Each controller has a Weight, meaning a voting power in a multi-controller setup. Behind a controller there are always an Owner, that holds control of this Identity, authorized to update or delete the document and to transfer control."
+            />
             <div className="flex flex-col">
                 {isPending && (
                     <div className="flex justify-center">
