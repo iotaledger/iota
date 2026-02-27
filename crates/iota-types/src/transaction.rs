@@ -992,7 +992,7 @@ impl ProgrammableTransaction {
         let ProgrammableTransaction { inputs, .. } = self;
         inputs
             .iter()
-            .filter_map(|arg| arg.receiving_object().copied())
+            .filter_map(|arg| arg.as_receiving_opt().copied())
             .collect()
     }
 

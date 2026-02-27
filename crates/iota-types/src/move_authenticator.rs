@@ -136,7 +136,7 @@ impl MoveAuthenticator {
     pub fn receiving_objects(&self) -> Vec<ObjectRef> {
         self.call_args
             .iter()
-            .filter_map(|arg| arg.receiving_object().copied())
+            .filter_map(|arg| arg.as_receiving_opt().copied())
             .collect()
     }
 
