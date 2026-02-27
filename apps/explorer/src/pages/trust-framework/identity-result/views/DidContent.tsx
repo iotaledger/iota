@@ -106,7 +106,7 @@ export function DidContent({ did }: DidContentProps) {
             content={
                 <div className="flex flex-col gap-y-2xl">
                     <PageHeader
-                        type="DID"
+                        type="Identity"
                         title={
                             <AddressAlias
                                 address={did.toString() || ''}
