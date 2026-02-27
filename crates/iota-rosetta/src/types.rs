@@ -904,13 +904,13 @@ impl InternalOperation {
                 // none, validator input will be created after the system object input
                 let (validator, system_state, amount) = if let Some(amount) = amount {
                     let amount = builder.pure(amount)?;
-                    let validator = builder.input(CallArg::pure(&validator))?;
+                    let validator = builder.pure(validator)?;
                     let state = builder.input(CallArg::IOTA_SYSTEM_MUTABLE)?;
                     (validator, state, amount)
                 } else {
                     let amount = builder.pure(metadata.total_coin_value - metadata.budget)?;
                     let state = builder.input(CallArg::IOTA_SYSTEM_MUTABLE)?;
-                    let validator = builder.input(CallArg::pure(&validator))?;
+                    let validator = builder.pure(validator)?;
                     (validator, state, amount)
                 };
                 let coin = builder.command(Command::SplitCoins(Argument::Gas, vec![amount]));

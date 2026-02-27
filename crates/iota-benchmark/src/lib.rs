@@ -637,9 +637,7 @@ pub fn convert_move_call_args(
 ) -> Vec<Argument> {
     args.iter()
         .map(|arg| match arg {
-            BenchMoveCallArg::Pure(bytes) => {
-                pt_builder.input(CallArg::Pure(bytes.clone())).unwrap()
-            }
+            BenchMoveCallArg::Pure(bytes) => pt_builder.pure(bytes.clone()).unwrap(),
             BenchMoveCallArg::Shared((id, initial_shared_version, mutable)) => pt_builder
                 .input(CallArg::Shared(SharedObjectRef {
                     object_id: *id,

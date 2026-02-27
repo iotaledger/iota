@@ -317,7 +317,7 @@ impl TransactionBuilder {
         for (arg, expected_type) in json_args_and_tokens {
             args.push(match arg {
                 // Move View Functions can accept pure arguments.
-                ResolvedCallArg::Pure(p) => builder.input(CallArg::Pure(p)),
+                ResolvedCallArg::Pure(p) => builder.pure(p),
                 // Move View Functions can accept only immutable object references.
                 ResolvedCallArg::Object(id) => {
                     fp_ensure!(

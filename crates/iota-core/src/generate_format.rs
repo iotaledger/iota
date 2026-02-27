@@ -339,8 +339,6 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_type::<TypeInput>(&samples).unwrap();
     tracer.trace_type::<Owner>(&samples).unwrap();
     tracer.trace_type::<CallArg>(&samples).unwrap();
-    tracer.trace_type::<ObjectArg>(&samples).unwrap();
-    tracer.trace_type::<Data>(&samples).unwrap();
     tracer.trace_type::<TypedStoreError>(&samples).unwrap();
     tracer
         .trace_type::<ObjectInfoRequestKind>(&samples)

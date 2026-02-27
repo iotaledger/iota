@@ -148,7 +148,7 @@ async fn main() -> Result<(), anyhow::Error> {
             );
 
             // Create an NFT collection
-            let nft_collection_name = builder.input(CallArg::pure(&"Collection name")).unwrap();
+            let nft_collection_name = builder.pure(&"Collection name").unwrap();
 
             let nft_collection = builder.programmable_move_call(
                 custom_nft_package_id,
@@ -159,9 +159,9 @@ async fn main() -> Result<(), anyhow::Error> {
             );
 
             // Mint a collection-related NFT
-            let nft_name = builder.input(CallArg::pure(&"NFT name")).unwrap();
-            let nft_description = builder.input(CallArg::pure(&"NFT description")).unwrap();
-            let nft_url_value = builder.input(CallArg::pure(&"NFT URL")).unwrap();
+            let nft_name = builder.pure(&"NFT name").unwrap();
+            let nft_description = builder.pure(&"NFT description").unwrap();
+            let nft_url_value = builder.pure(&"NFT URL").unwrap();
             let nft_url = builder.programmable_move_call(
                 ObjectID::FRAMEWORK,
                 Identifier::URL_MODULE,

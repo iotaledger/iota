@@ -60,8 +60,8 @@ impl TransactionBuilder {
             let arguments = vec![
                 builder.input(CallArg::IOTA_SYSTEM_MUTABLE).unwrap(),
                 builder.make_obj_vec(obj_vec)?,
-                builder.input(CallArg::pure(&amount.into())).unwrap(),
-                builder.input(CallArg::pure(&validator)).unwrap(),
+                builder.pure(amount.into()).unwrap(),
+                builder.pure(validator).unwrap(),
             ];
             builder.command(Command::move_call(
                 ObjectID::SYSTEM,
@@ -139,7 +139,7 @@ impl TransactionBuilder {
             let arguments = vec![
                 builder.input(CallArg::IOTA_SYSTEM_MUTABLE)?,
                 builder.input(CallArg::ImmutableOrOwned(oref))?,
-                builder.input(CallArg::pure(&validator))?,
+                builder.pure(validator)?,
             ];
             builder.command(Command::move_call(
                 ObjectID::SYSTEM,

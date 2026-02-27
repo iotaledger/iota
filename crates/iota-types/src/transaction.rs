@@ -970,7 +970,7 @@ impl ProgrammableTransaction {
         let ProgrammableTransaction { inputs, commands } = self;
         let input_arg_objects = inputs
             .iter()
-            .filter_map(|a| a.input_object())
+            .filter_map(|arg| arg.input_object())
             .collect::<Vec<_>>();
         // all objects, not just mutable, must be unique
         let mut used = HashSet::new();
@@ -992,7 +992,7 @@ impl ProgrammableTransaction {
         let ProgrammableTransaction { inputs, .. } = self;
         inputs
             .iter()
-            .filter_map(|arg| arg.receiving_objects().copied())
+            .filter_map(|arg| arg.receiving_object().copied())
             .collect()
     }
 

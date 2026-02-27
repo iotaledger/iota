@@ -119,11 +119,7 @@ impl MoveAuthenticator {
                     "MoveAuthenticator cannot authenticate receiving objects".to_string(),
                 ));
             }
-            _ => {
-                return Err(UserInputError::Unsupported(
-                    "Unknown CallArg variant in MoveAuthenticator".to_string(),
-                ));
-            }
+            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         })
     }
 
@@ -132,7 +128,7 @@ impl MoveAuthenticator {
     pub fn input_objects(&self) -> Vec<InputObjectKind> {
         self.call_args
             .iter()
-            .filter_map(|a| a.input_object())
+            .filter_map(|arg| arg.input_object())
             .chain(self.object_to_authenticate().input_object())
             .collect::<Vec<_>>()
     }
@@ -140,7 +136,7 @@ impl MoveAuthenticator {
     pub fn receiving_objects(&self) -> Vec<ObjectRef> {
         self.call_args
             .iter()
-            .filter_map(|arg| arg.receiving_objects().copied())
+            .filter_map(|arg| arg.receiving_object().copied())
             .collect()
     }
 
@@ -149,7 +145,7 @@ impl MoveAuthenticator {
     pub fn shared_objects(&self) -> Vec<SharedObjectRef> {
         self.call_args
             .iter()
-            .filter_map(|e| e.as_shared_opt())
+            .filter_map(|arg| arg.as_shared_opt())
             .chain(self.object_to_authenticate().as_shared_opt())
             .cloned()
             .collect()
