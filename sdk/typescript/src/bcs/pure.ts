@@ -49,9 +49,10 @@ export type ShapeFromPureTypeName<T extends PureTypeName> = T extends BasePureTy
         ? ShapeFromPureTypeName<U> | null
         : never;
 
-type PureTypeValidationError<T extends string> = T & {
+type PureTypeValidationError<T extends string> = {
     error: `Invalid Pure type name: ${T}`;
-};
+    // eslint-disable-next-line @typescript-eslint/ban-types
+} & {};
 
 export function pureBcsSchemaFromTypeName<T extends PureTypeName>(
     name: T extends PureTypeName ? ValidPureTypeName<T> : T,
@@ -78,7 +79,7 @@ export function pureBcsSchemaFromTypeName<T extends PureTypeName>(
             return Address as never;
     }
 
-    const generic = name.match(/^(vector|option)<(.+)>$/);
+    const generic = (name as string).match(/^(vector|option)<(.+)>$/);
     if (generic) {
         const [kind, inner] = generic.slice(1);
         if (kind === 'vector') {
