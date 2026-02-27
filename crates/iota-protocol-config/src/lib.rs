@@ -119,6 +119,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 21;
 //             Enable a separate gas price feedback mechanism for transactions
 //             using randomness on testnet.
 //             Enable fast commit syncer for faster recovery in devnet.
+//             Add auth_context_tx native functions costs.
+//             Reduce max_auth_gas in Devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
