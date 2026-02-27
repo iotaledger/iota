@@ -8,7 +8,7 @@ import { useDecodeDidFromUrl } from '~/hooks/useDecodeDidFromUrl';
 import { Warning } from '@iota/apps-ui-icons';
 import { DidContent } from './views/DidContent';
 
-export function DidResult() {
+export function IdentityResult() {
     const { id: encodedDid } = useParams();
     const { data: decodedDid, isPending } = useDecodeDidFromUrl(encodedDid);
 
