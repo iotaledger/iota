@@ -44,7 +44,7 @@ pub(crate) struct BlockManager {
     /// Keeps full blocks for suspended block headers
     /// TODO: this set can grow to become too big, need to add some eviction
     /// mechanism
-    suspended_blocks: BTreeMap<BlockRef, VerifiedBlock>,
+    suspended_transactions: BTreeMap<BlockRef, VerifiedTransactions>,
     block_suspender: BlockSuspender,
     /// A vector that holds a tuple of (lowest_round, highest_round) of received
     /// blocks per authority. This is used for metrics reporting purposes
@@ -57,7 +57,7 @@ impl BlockManager {
         Self {
             context: context.clone(),
             dag_state,
-            suspended_blocks: BTreeMap::new(),
+            suspended_transactions: BTreeMap::new(),
             block_suspender: BlockSuspender::new(context.clone()),
             received_block_rounds: vec![None; context.committee.size()],
         }
@@ -66,7 +66,7 @@ impl BlockManager {
     /// Reinitialize BlockManager after fast sync completes.
     /// Clears suspended blocks and resets the block suspender.
     pub(crate) fn reinitialize(&mut self) {
-        self.suspended_blocks.clear();
+        self.suspended_transactions.clear();
         self.block_suspender.reinitialize();
         self.received_block_rounds = vec![None; self.context.committee.size()];
     }
@@ -194,10 +194,10 @@ impl BlockManager {
             .collect::<BTreeSet<_>>();
         let mut all_accepted_transactions = vec![];
         for block_ref in block_refs_to_be_accepted.iter() {
-            if let Some(block) = self.suspended_blocks.remove(block_ref) {
+            if let Some(transactions) = self.suspended_transactions.remove(block_ref) {
                 // for this accepted header we already have a block, so we add it to
                 // accepted transactions
-                all_accepted_transactions.push(block.verified_transactions);
+                all_accepted_transactions.push(transactions);
             }
         }
 
@@ -209,7 +209,9 @@ impl BlockManager {
                 {
                     accepted_transactions_from_blocks.push(block.verified_transactions);
                 } else if block.verified_transactions.has_transactions() {
-                    self.suspended_blocks.insert(block.reference(), block);
+                    // optimization to avoid suspending 0 set verified transactions.
+                    self.suspended_transactions
+                        .insert(block.reference(), block.verified_transactions);
                 }
             }
             all_accepted_transactions.extend(accepted_transactions_from_blocks);
@@ -218,7 +220,7 @@ impl BlockManager {
             .metrics
             .node_metrics
             .block_manager_suspended_blocks
-            .set(self.suspended_blocks.len() as i64);
+            .set(self.suspended_transactions.len() as i64);
         all_accepted_transactions
     }
 
@@ -337,7 +339,7 @@ impl BlockManager {
     /// Returns the number of full blocks currently in suspended_blocks
     #[cfg(test)]
     pub(crate) fn suspended_full_blocks_count(&self) -> usize {
-        self.suspended_blocks.len()
+        self.suspended_transactions.len()
     }
 
     fn find_missing_ancestors(
