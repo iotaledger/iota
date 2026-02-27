@@ -158,7 +158,7 @@ impl AuthenticationContext {
     /// back to their original rust types and updates the `AuthContext` with
     /// the new values.
     pub fn replace(
-        &self,
+        &mut self,
         auth_digest_value: Vec<u8>,
         tx_inputs_value: Vec<Value>,
         input_move_layout: MoveTypeLayout,
@@ -191,6 +191,12 @@ impl AuthenticationContext {
         self.auth_context
             .borrow_mut()
             .replace(auth_digest, tx_inputs, tx_commands);
+
+        // Drop cached values to ensure they are recreated with the updated AuthContext
+        // data
+        self.cached_digest = None;
+        self.cached_tx_inputs = None;
+        self.cached_tx_commands = None;
 
         Ok(())
     }

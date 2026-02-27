@@ -606,6 +606,52 @@ fun test_empty_inputs_and_commands() {
 }
 
 // ---------------------------------------------------------------------------
+// Several AuthContext instances in a test scenario
+// ---------------------------------------------------------------------------
+
+#[test]
+fun test_several_auth_context_instances_in_test_scenario() {
+    let digest1 = DIGEST;
+    let pure_arg1 = new_call_arg_pure_for_testing(b"hello");
+    let cmd1 = make_noop_move_call_command();
+
+    let ctx1 = new_with_tx_inputs(digest1, vector[pure_arg1], vector[cmd1]);
+
+    let ctx1_digest_ref = ctx1.digest();
+    let ctx1_tx_inputs_ref = ctx1.tx_inputs();
+    let ctx1_tx_commands_ref = ctx1.tx_commands();
+
+    assert!(ctx1_digest_ref == digest1);
+    assert!(ctx1_tx_inputs_ref == vector[pure_arg1]);
+    assert!(ctx1_tx_commands_ref == vector[cmd1]);
+
+    let digest2 = b"11111111111111111111111111111111";
+    let pure_arg2 = new_call_arg_pure_for_testing(b"world");
+    let cmd2 = new_transfer_objects_command_for_testing(
+        new_transfer_objects_for_testing(
+            vector[new_result_argument_for_testing(0)],
+            new_input_argument_for_testing(1),
+        ),
+    );
+
+    let ctx2 = new_with_tx_inputs(digest2, vector[pure_arg2], vector[cmd2]);
+
+    // The data returned by the `ctx1` instance should be updated
+    assert!(ctx1.digest() == digest2);
+    assert!(ctx1.tx_inputs() == vector[pure_arg2]);
+    assert!(ctx1.tx_commands() == vector[cmd2]);
+
+    assert!(ctx2.digest() == digest2);
+    assert!(ctx2.tx_inputs() == vector[pure_arg2]);
+    assert!(ctx2.tx_commands() == vector[cmd2]);
+
+    // Old links are still valid and point to the old data
+    assert!(ctx1_digest_ref == digest1);
+    assert!(ctx1_tx_inputs_ref == vector[pure_arg1]);
+    assert!(ctx1_tx_commands_ref == vector[cmd1]);
+}
+
+// ---------------------------------------------------------------------------
 // Error case: bad digest length
 // ---------------------------------------------------------------------------
 
