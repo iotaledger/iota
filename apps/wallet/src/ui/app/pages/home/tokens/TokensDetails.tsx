@@ -240,7 +240,6 @@ export function TokenDetails() {
                                 onCopySuccess={() => {
                                     ampli.elementCopied({
                                         type: 'address',
-                                        value: activeAccountAddress,
                                     });
                                     toast('Address copied');
                                 }}

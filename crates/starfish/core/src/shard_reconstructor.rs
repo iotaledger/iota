@@ -20,10 +20,10 @@ use tokio::{
 use tracing::{debug, warn};
 
 use crate::{
-    BlockRef, Round, Transaction,
+    Round, Transaction,
     block_header::{
-        BlockHeaderDigest, GENESIS_ROUND, Shard, ShardWithProof, TransactionsCommitment,
-        VerifiedBlock, VerifiedTransactions,
+        BlockHeaderDigest, GENESIS_ROUND, Shard, ShardWithProof, ShardWithProofAPI,
+        TransactionsCommitment, VerifiedBlock, VerifiedTransactions,
     },
     context::Context,
     core_thread::CoreThreadDispatcher,
@@ -31,6 +31,7 @@ use crate::{
     decoder::{ShardsDecoder, create_decoder},
     encoder::{ShardEncoder, create_encoder},
     error::{ConsensusError, ConsensusResult},
+    transaction_ref::TransactionRef,
 };
 
 const EVICTION_TIMEOUT: Duration = Duration::from_secs(1);
@@ -42,40 +43,26 @@ const NUMBER_OF_RECONSTRUCTION_WORKERS: usize = 5;
 /// Two types of messages are supported: full transaction and shard
 #[derive(Clone, Debug)]
 pub(crate) enum TransactionMessage {
-    FullTransaction(FullTransactionMessage),
+    FullTransaction(TransactionRef),
     Shard(ShardMessage),
 }
 
-/// Shard message contains shard with index and the reference to a block
-/// corresponding to the shard and the commitment in the respected block header
+/// Shard message contains shard with index and the reference to the
+/// transactions the shard was erasure-coded from, plus an optional block digest
+/// (present for V1 shards, absent for V2 shards that use TransactionRef).
 #[derive(Clone, Debug)]
 pub(crate) struct ShardMessage {
-    block_ref: BlockRef,
-    transactions_commitment: TransactionsCommitment,
+    transaction_ref: TransactionRef,
+    block_digest: Option<BlockHeaderDigest>,
     shard: Shard,
     shard_index: usize,
 }
 
-/// Full transaction message acknowledge that the respected transactions from a
-/// given block were verified and locally available
-#[derive(Clone, Debug)]
-pub(crate) struct FullTransactionMessage {
-    block_ref: BlockRef,
-    transactions_commitment: TransactionsCommitment,
-}
-
 impl TransactionMessage {
-    pub fn block_ref(&self) -> BlockRef {
+    pub fn transaction_ref(&self) -> TransactionRef {
         match self {
-            TransactionMessage::FullTransaction(msg) => msg.block_ref,
-            TransactionMessage::Shard(msg) => msg.block_ref,
-        }
-    }
-
-    pub fn transactions_commitment(&self) -> TransactionsCommitment {
-        match self {
-            TransactionMessage::FullTransaction(msg) => msg.transactions_commitment,
-            TransactionMessage::Shard(msg) => msg.transactions_commitment,
+            TransactionMessage::FullTransaction(tx_ref) => *tx_ref,
+            TransactionMessage::Shard(msg) => msg.transaction_ref,
         }
     }
 
@@ -86,39 +73,34 @@ impl TransactionMessage {
         shards: &[ShardWithProof],
         shard_index: usize,
     ) -> Vec<TransactionMessage> {
-        let mut messages = Vec::new();
+        let full = TransactionMessage::FullTransaction(block.transaction_ref());
 
-        // Full transaction message
-        let full_msg = FullTransactionMessage {
-            block_ref: block.reference(),
-            transactions_commitment: block.transactions_commitment(),
-        };
-        messages.push(TransactionMessage::FullTransaction(full_msg));
-
-        // Shard messages
-        for shard_with_proof in shards {
-            let shard_msg = ShardMessage {
-                block_ref: shard_with_proof.block_ref,
-                transactions_commitment: shard_with_proof.transaction_commitment,
-                shard: shard_with_proof.shard.clone(),
+        let shard_msgs = shards.iter().map(|swp| {
+            TransactionMessage::Shard(ShardMessage {
+                transaction_ref: TransactionRef {
+                    round: swp.round(),
+                    author: swp.author(),
+                    transactions_commitment: swp.transaction_commitment(),
+                },
+                block_digest: swp.block_digest(),
+                shard: swp.shard().clone(),
                 shard_index,
-            };
-            messages.push(TransactionMessage::Shard(shard_msg));
-        }
+            })
+        });
 
-        messages
+        std::iter::once(full).chain(shard_msgs).collect()
     }
 }
 
-/// A basic structure that represents the collection of shards for a given block
-/// reference and transaction commitment. We track the number of shards and the
-/// shard themselves
+/// A basic structure that represents the collection of shards for a given
+/// transaction reference. We track the number of shards and the shards
+/// themselves.
 #[derive(Clone)]
 pub struct ShardAccumulator {
-    /// Reference to the block these shards correspond to
-    block_ref: BlockRef,
-    /// Commitment to the transactions in the block
-    transactions_commitment: TransactionsCommitment,
+    /// Reference to the transactions these shards were erasure-coded from
+    transaction_ref: TransactionRef,
+    /// Block digest of the source block (present for V1, absent for V2)
+    block_digest: Option<BlockHeaderDigest>,
     /// Collected shards, indexed by their shard index
     collected_shards: Vec<Option<Shard>>,
     /// Number of collected data shards
@@ -129,16 +111,16 @@ impl ShardAccumulator {
     /// Create a new accumulator initialized with the first shard
     fn new_with_shard(msg: ShardMessage, total_length: usize) -> Self {
         let ShardMessage {
-            block_ref,
-            transactions_commitment,
+            transaction_ref,
+            block_digest,
             shard,
             shard_index,
         } = msg;
         let mut collected_shards = vec![None; total_length];
         collected_shards[shard_index] = Some(shard);
         Self {
-            block_ref,
-            transactions_commitment,
+            transaction_ref,
+            block_digest,
             collected_shards,
             number_shards: 1,
         }
@@ -180,16 +162,16 @@ impl ShardAccumulator {
             &codec.context.clone(),
             &mut codec.encoder,
         )?;
-        if computed_commitment != self.transactions_commitment {
+        if computed_commitment != self.transaction_ref.transactions_commitment {
             return Err(ConsensusError::TransactionCommitmentMismatch {
-                block_ref: self.block_ref,
+                transaction_ref: self.transaction_ref,
             });
         }
 
         Ok(VerifiedTransactions::new(
             transactions,
-            self.block_ref,
-            self.transactions_commitment,
+            self.transaction_ref,
+            self.block_digest,
             serialized,
         ))
     }
@@ -285,15 +267,14 @@ pub struct ShardReconstructor<C: CoreThreadDispatcher> {
     context: Arc<Context>,
     /// Already processed transaction either by authority service or by shard
     /// reconstructor
-    processed_transactions: BTreeSet<BlockRef>,
+    processed_transactions: BTreeSet<TransactionRef>,
     /// A cache of reconstructed transactions that will be periodically sent in
     /// the core
-    reconstructed_transactions: BTreeMap<BlockRef, VerifiedTransactions>,
-    /// A map of all shard accumulators. Periodically evicted. Keyed by a pair
-    /// (BlockRef, TransactionsCommitment) since transaction commitment is not
-    /// supposed to be verified against the block ref when receiving by
-    /// ShardReconstructor
-    shard_accumulators: BTreeMap<(BlockRef, TransactionsCommitment), ShardAccumulator>,
+    reconstructed_transactions: BTreeMap<TransactionRef, VerifiedTransactions>,
+    /// A map of all shard accumulators. Periodically evicted. Keyed by
+    /// TransactionRef which uniquely identifies transactions via
+    /// transactions_commitment
+    shard_accumulators: BTreeMap<TransactionRef, ShardAccumulator>,
     /// Use only read access to the dag state to read the transaction GC round
     /// and check whether the respected headers are available
     dag_state: Arc<RwLock<DagState>>,
@@ -302,7 +283,7 @@ pub struct ShardReconstructor<C: CoreThreadDispatcher> {
     /// After full reconstruction and verification, send data to the core
     core_dispatcher: Arc<C>,
     /// Queue is used to not reconstruct the same data twice
-    reconstruction_queue: BTreeSet<BlockRef>,
+    reconstruction_queue: BTreeSet<TransactionRef>,
     /// Once enough shards are collected, they are sent to reconstructor workers
     ready_to_reconstruct_sender: Sender<ShardAccumulator>,
     /// Channel to receive accumulated shard for reconstruction by workers
@@ -368,8 +349,8 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                             match shard_accumulator.decode_by_codec(&mut codec) {
                                 Ok(verified_transactions) => {
                                     debug!(
-                                        "Successfully reconstructed transactions for block {:?}",
-                                        shard_accumulator.block_ref
+                                        "Successfully reconstructed transactions for {:?}",
+                                        shard_accumulator.transaction_ref
                                     );
                                     if let Err(err) = result_tx.send(verified_transactions).await {
                                         warn!(
@@ -379,8 +360,8 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                                 }
                                 Err(err) => {
                                     warn!(
-                                        "Failed to reconstruct transactions for block {:?}: {:?}",
-                                        shard_accumulator.block_ref, err
+                                        "Failed to reconstruct transactions for {:?}: {:?}",
+                                        shard_accumulator.transaction_ref, err
                                     );
                                 }
                             }
@@ -428,9 +409,10 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                     }
                     // A transaction is reconstructed in one of the reconstruction workers
                     Some(verified_transactions) = self.reconstructed_transactions_receiver.recv() => {
-                        self.processed_transactions.insert(verified_transactions.block_ref());
-                        self.reconstruction_queue.remove(&verified_transactions.block_ref());
-                        self.reconstructed_transactions.insert(verified_transactions.block_ref(), verified_transactions);
+                        let tx_ref = verified_transactions.transaction_ref();
+                        self.processed_transactions.insert(tx_ref);
+                        self.reconstruction_queue.remove(&tx_ref);
+                        self.reconstructed_transactions.insert(tx_ref, verified_transactions);
                     }
 
                  () = &mut send_to_core_timeout => {
@@ -485,16 +467,15 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         // Update the internal transaction_gc_round
         self.transaction_gc_round = transaction_gc_round;
 
-        let lower_bound = BlockRef::new(
-            transaction_gc_round,
-            AuthorityIndex::ZERO,
-            BlockHeaderDigest::MIN,
-        );
+        let lower_bound = TransactionRef {
+            round: transaction_gc_round,
+            author: AuthorityIndex::ZERO,
+            transactions_commitment: TransactionsCommitment::MIN,
+        };
 
         self.processed_transactions = self.processed_transactions.split_off(&lower_bound);
         self.reconstructed_transactions = self.reconstructed_transactions.split_off(&lower_bound);
-        let lower_bound_key = (lower_bound, TransactionsCommitment::MIN);
-        self.shard_accumulators = self.shard_accumulators.split_off(&lower_bound_key);
+        self.shard_accumulators = self.shard_accumulators.split_off(&lower_bound);
     }
 
     async fn get_transactions_with_headers_in_dag_state(&mut self) -> Vec<VerifiedTransactions> {
@@ -508,26 +489,20 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             #[cfg(not(test))]
             {
                 let mut to_stay_transactions = BTreeMap::new();
-                let block_headers_opt = {
-                    let block_refs: Vec<BlockRef> = transactions_map.keys().copied().collect();
+                let block_headers_exist = {
+                    let tx_refs: Vec<TransactionRef> = transactions_map.keys().copied().collect();
                     self.dag_state
                         .read()
-                        .get_verified_block_headers(&block_refs)
+                        .contains_verified_block_headers_for_transaction_refs(&tx_refs)
                 };
-                for (block_header_opt, (block_ref, transactions)) in block_headers_opt
+                for (exists, (tx_ref, transactions)) in block_headers_exist
                     .into_iter()
                     .zip(transactions_map.into_iter())
                 {
-                    if let Some(block_header) = block_header_opt {
-                        // Check the correctness of the transactions commitment
-                        assert_eq!(
-                            block_header.transactions_commitment(),
-                            transactions.transactions_commitment(),
-                            "The network has at least f+1 Byzantine validators"
-                        );
+                    if exists {
                         ready_to_be_sent_transactions.push(transactions);
                     } else {
-                        to_stay_transactions.insert(block_ref, transactions);
+                        to_stay_transactions.insert(tx_ref, transactions);
                     }
                 }
                 to_stay_transactions
@@ -555,8 +530,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         if !transactions.is_empty() {
             let highest_accepted_round = self.dag_state.read().highest_accepted_round();
             for transaction in &transactions {
-                let difference =
-                    highest_accepted_round.saturating_sub(transaction.block_ref().round);
+                let difference = highest_accepted_round.saturating_sub(transaction.round());
                 self.context
                     .metrics
                     .node_metrics
@@ -575,18 +549,19 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
 
     /// Handle a message and update internal state
     async fn handle_transaction_message(&mut self, msg: TransactionMessage) -> ConsensusResult<()> {
-        if self.processed_transactions.contains(&msg.block_ref())
-            || self.reconstruction_queue.contains(&msg.block_ref())
-            || msg.block_ref().round < self.transaction_gc_round
+        let tx_ref = msg.transaction_ref();
+
+        if self.processed_transactions.contains(&tx_ref)
+            || self.reconstruction_queue.contains(&tx_ref)
+            || tx_ref.round < self.transaction_gc_round
         {
             return Ok(());
         }
 
-        let key = (msg.block_ref(), msg.transactions_commitment());
         let total_length = self.total_length;
 
         match msg {
-            TransactionMessage::Shard(shard_msg) => match self.shard_accumulators.entry(key) {
+            TransactionMessage::Shard(shard_msg) => match self.shard_accumulators.entry(tx_ref) {
                 Entry::Vacant(v) => {
                     v.insert(ShardAccumulator::new_with_shard(shard_msg, total_length));
                 }
@@ -595,8 +570,8 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                 }
             },
 
-            TransactionMessage::FullTransaction(full_msg) => {
-                self.processed_transactions.insert(full_msg.block_ref);
+            TransactionMessage::FullTransaction(tx_ref) => {
+                self.processed_transactions.insert(tx_ref);
                 return Ok(());
             }
         }
@@ -607,7 +582,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             &mut self.reconstruction_queue,
             &self.ready_to_reconstruct_sender,
             self.info_length,
-            &key,
+            &tx_ref,
         )
         .await?;
 
@@ -617,23 +592,23 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
     /// If the accumulator for the given key is ready to reconstruct, remove it
     /// from the map and enqueue it for reconstruction
     async fn enqueue_if_ready(
-        accumulators: &mut BTreeMap<(BlockRef, TransactionsCommitment), ShardAccumulator>,
-        reconstruction_queue: &mut BTreeSet<BlockRef>,
+        accumulators: &mut BTreeMap<TransactionRef, ShardAccumulator>,
+        reconstruction_queue: &mut BTreeSet<TransactionRef>,
         sender: &Sender<ShardAccumulator>,
         info_length: usize,
-        key: &(BlockRef, TransactionsCommitment),
+        tx_ref: &TransactionRef,
     ) -> ConsensusResult<()> {
-        if let Some(acc) = accumulators.get(key) {
+        if let Some(acc) = accumulators.get(tx_ref) {
             if acc.is_ready_to_reconstruct(info_length) {
                 // take ownership out of map
                 let acc = accumulators
-                    .remove(key)
+                    .remove(tx_ref)
                     .expect("We should expect the shard accumulator to be present");
                 sender
                     .send(acc)
                     .await
                     .map_err(|_| ConsensusError::AccumulatorSenderClosed)?;
-                reconstruction_queue.insert(key.0);
+                reconstruction_queue.insert(*tx_ref);
             }
         }
         Ok(())
@@ -651,12 +626,13 @@ mod tests {
     use parking_lot::RwLock;
     use rand::{seq::SliceRandom, thread_rng};
     use starfish_config::AuthorityIndex;
-    use tokio::sync::Mutex;
+    use tokio::sync::{Mutex, mpsc::Sender};
 
     use crate::{
         BlockRef, Round, TestBlockHeader, Transaction, VerifiedBlockHeader,
         block_header::{
-            Shard, TransactionsCommitment, VerifiedBlock, VerifiedOwnShard, VerifiedTransactions,
+            Shard, ShardWithProof, TransactionsCommitment, VerifiedBlock, VerifiedOwnShard,
+            VerifiedTransactions,
         },
         commit::CertifiedCommits,
         context::Context,
@@ -665,10 +641,40 @@ mod tests {
         dag_state::{DagState, DataSource},
         encoder::create_encoder,
         shard_reconstructor::{
-            FullTransactionMessage, ShardMessage, ShardReconstructor, TransactionMessage,
+            ShardMessage, ShardReconstructor, ShardReconstructorHandle, TransactionMessage,
         },
         storage::mem_store::MemStore,
+        transaction_ref::{GenericTransactionRef, TransactionRef},
     };
+
+    struct TestHarness {
+        context: Arc<Context>,
+        core_dispatcher: Arc<MockCoreThreadDispatcher>,
+        handle: Arc<ShardReconstructorHandle>,
+        tx: Sender<Vec<TransactionMessage>>,
+    }
+
+    impl TestHarness {
+        fn new(committee_size: usize) -> Self {
+            let (context, _) = Context::new_for_test(committee_size);
+            let context = Arc::new(context);
+            let store = Arc::new(MemStore::new(context.clone()));
+            let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+            let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
+            let handle = ShardReconstructor::start(
+                context.clone(),
+                dag_state.clone(),
+                core_dispatcher.clone(),
+            );
+            let tx = handle.transaction_message_sender();
+            Self {
+                context,
+                core_dispatcher,
+                handle,
+                tx,
+            }
+        }
+    }
 
     #[derive(Default)]
     struct MockCoreThreadDispatcher {
@@ -704,7 +710,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -718,7 +724,7 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
@@ -731,7 +737,7 @@ mod tests {
 
         async fn get_missing_transaction_data(
             &self,
-        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!()
         }
 
@@ -741,10 +747,24 @@ mod tests {
         ) -> Result<
             (
                 BTreeSet<BlockRef>,
-                BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+                BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
             ),
             CoreError,
         > {
+            unimplemented!()
+        }
+
+        async fn add_subdags_from_fast_sync(
+            &self,
+            _output: crate::commit_syncer::fast::FastSyncOutput,
+        ) -> Result<(), CoreError> {
+            unimplemented!()
+        }
+
+        async fn reinitialize_components(
+            &self,
+            _block_headers: Vec<crate::block_header::VerifiedBlockHeader>,
+        ) -> Result<(), CoreError> {
             unimplemented!()
         }
 
@@ -752,7 +772,7 @@ mod tests {
             &self,
             _round: Round,
             _reason: ReasonToCreateBlock,
-        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
+        ) -> Result<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!()
         }
 
@@ -767,10 +787,6 @@ mod tests {
         }
 
         fn set_last_known_proposed_round(&self, _round: Round) -> Result<(), CoreError> {
-            unimplemented!()
-        }
-
-        fn highest_received_rounds(&self) -> Vec<Round> {
             unimplemented!()
         }
     }
@@ -790,10 +806,7 @@ mod tests {
 
         // 1. FullTransaction for round i (authority j)
         msgs.push(TransactionMessage::FullTransaction(
-            FullTransactionMessage {
-                block_ref: header_cur.reference(),
-                transactions_commitment: header_cur.transactions_commitment(),
-            },
+            header_cur.transaction_ref(),
         ));
 
         // 2. The j-th shard of every authority’s transaction data from round i-1
@@ -801,8 +814,8 @@ mod tests {
         for (auth_index, shards) in shards_prev.iter().enumerate() {
             if let Some(shard) = shards.get(j_index) {
                 msgs.push(TransactionMessage::Shard(ShardMessage {
-                    block_ref: headers_prev[auth_index].reference(),
-                    transactions_commitment: headers_prev[auth_index].transactions_commitment(),
+                    transaction_ref: headers_prev[auth_index].transaction_ref(),
+                    block_digest: Some(headers_prev[auth_index].digest()),
                     shard: shard.clone(),
                     shard_index: j_index,
                 }));
@@ -819,18 +832,9 @@ mod tests {
         telemetry_subscribers::init_for_testing();
 
         // GIVEN
-        let committee_size = 10;
-        let (context, _) = Context::new_for_test(committee_size);
-        let context = Arc::new(context);
-
-        let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-
-        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
-
-        let handle =
-            ShardReconstructor::start(context.clone(), dag_state.clone(), core_dispatcher.clone());
-        let transaction_message_sender = handle.transaction_message_sender();
+        let h = TestHarness::new(10);
+        let context = &h.context;
+        let transaction_message_sender = h.tx.clone();
 
         // Create block header & transactions
         let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 1).build());
@@ -839,10 +843,10 @@ mod tests {
         let txs = Transaction::random_transactions(4, 48);
         let serialized = Transaction::serialize(&txs).unwrap();
 
-        let mut encoder = create_encoder(&context);
+        let mut encoder = create_encoder(context);
         let commitment = TransactionsCommitment::compute_transactions_commitment(
             &serialized,
-            &context,
+            context,
             &mut encoder,
         )
         .unwrap();
@@ -865,8 +869,8 @@ mod tests {
         let mut batch = Vec::new();
         for &i in first_subset {
             batch.push(TransactionMessage::Shard(ShardMessage {
-                block_ref,
-                transactions_commitment: commitment,
+                transaction_ref: TransactionRef::new(block_ref, commitment),
+                block_digest: Some(block_ref.digest),
                 shard: all_shards[i].clone(),
                 shard_index: i,
             }));
@@ -876,7 +880,7 @@ mod tests {
 
         // Wait — should not reconstruct yet
         tokio::time::sleep(Duration::from_millis(400)).await;
-        let fetched = core_dispatcher.get_and_drain_transactions().await;
+        let fetched = h.core_dispatcher.get_and_drain_transactions().await;
         assert!(
             fetched.is_empty(),
             "With header + (info_length - 1) shards, no reconstruction should happen"
@@ -886,8 +890,8 @@ mod tests {
         let extra_shard_index = indices[info_length - 1];
         transaction_message_sender
             .send(vec![TransactionMessage::Shard(ShardMessage {
-                block_ref,
-                transactions_commitment: commitment,
+                transaction_ref: TransactionRef::new(block_ref, commitment),
+                block_digest: Some(block_ref.digest),
                 shard: all_shards[extra_shard_index].clone(),
                 shard_index: extra_shard_index,
             })])
@@ -896,7 +900,7 @@ mod tests {
 
         // THEN: reconstruction should happen
         tokio::time::sleep(Duration::from_millis(600)).await;
-        let fetched = core_dispatcher.get_and_drain_transactions().await;
+        let fetched = h.core_dispatcher.get_and_drain_transactions().await;
 
         assert_eq!(
             fetched.len(),
@@ -904,10 +908,13 @@ mod tests {
             "Reconstruction should happen after reaching info_length shards"
         );
         let vt = &fetched[0];
-        assert_eq!(vt.block_ref(), block_ref);
+        assert_eq!(
+            vt.block_ref().expect("block_ref should be set in test"),
+            block_ref
+        );
         assert_eq!(vt.transactions(), txs);
 
-        handle
+        h.handle
             .stop()
             .await
             .expect("We should expect graceful shutdown");
@@ -921,18 +928,9 @@ mod tests {
         telemetry_subscribers::init_for_testing();
 
         // GIVEN
-        let committee_size = 15;
-        let (context, _) = Context::new_for_test(committee_size);
-        let context = Arc::new(context);
-
-        let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-
-        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
-
-        let handle =
-            ShardReconstructor::start(context.clone(), dag_state.clone(), core_dispatcher.clone());
-        let transaction_message_sender = handle.transaction_message_sender();
+        let h = TestHarness::new(15);
+        let context = &h.context;
+        let transaction_message_sender = h.tx.clone();
 
         // Create block header & transactions
         let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(7, 1).build());
@@ -941,10 +939,10 @@ mod tests {
         let txs = Transaction::random_transactions(5, 64);
         let serialized = Transaction::serialize(&txs).unwrap();
 
-        let mut encoder = create_encoder(&context);
+        let mut encoder = create_encoder(context);
         let transactions_commitment = TransactionsCommitment::compute_transactions_commitment(
             &serialized,
-            &context,
+            context,
             &mut encoder,
         )
         .unwrap();
@@ -969,8 +967,8 @@ mod tests {
         // Add all shards except the missing one
         for &i in almost_all {
             batch.push(TransactionMessage::Shard(ShardMessage {
-                block_ref,
-                transactions_commitment,
+                transaction_ref: TransactionRef::new(block_ref, transactions_commitment),
+                block_digest: Some(block_ref.digest),
                 shard: all_shards[i].clone(),
                 shard_index: i,
             }));
@@ -980,7 +978,7 @@ mod tests {
 
         // Wait — should not reconstruct yet
         tokio::time::sleep(Duration::from_millis(600)).await;
-        let fetched = core_dispatcher.get_and_drain_transactions().await;
+        let fetched = h.core_dispatcher.get_and_drain_transactions().await;
         assert!(
             fetched.is_empty(),
             "With header + (info_length - 1) shards, no reconstruction should happen"
@@ -990,10 +988,7 @@ mod tests {
         // collecting shards
         transaction_message_sender
             .send(vec![TransactionMessage::FullTransaction(
-                FullTransactionMessage {
-                    block_ref,
-                    transactions_commitment,
-                },
+                TransactionRef::new(block_ref, transactions_commitment),
             )])
             .await
             .unwrap();
@@ -1002,8 +997,8 @@ mod tests {
         let extra_shard_index = indices[missing_index];
         transaction_message_sender
             .send(vec![TransactionMessage::Shard(ShardMessage {
-                block_ref,
-                transactions_commitment,
+                transaction_ref: TransactionRef::new(block_ref, transactions_commitment),
+                block_digest: Some(block_ref.digest),
                 shard: all_shards[extra_shard_index].clone(),
                 shard_index: extra_shard_index,
             })])
@@ -1012,14 +1007,14 @@ mod tests {
 
         // Wait and check that no reconstruction happens
         tokio::time::sleep(Duration::from_millis(600)).await;
-        let fetched = core_dispatcher.get_and_drain_transactions().await;
+        let fetched = h.core_dispatcher.get_and_drain_transactions().await;
         assert!(
             fetched.is_empty(),
             "Once FullTransaction is received, reconstructor should ignore shards and not reconstruct"
         );
 
         // Clean up
-        handle
+        h.handle
             .stop()
             .await
             .expect("We should expect graceful shutdown");
@@ -1033,19 +1028,11 @@ mod tests {
 
         // GIVEN
         let committee_size = 4;
-        let (context, _) = Context::new_for_test(committee_size);
-        let context = Arc::new(context);
+        let h = TestHarness::new(committee_size);
+        let context = &h.context;
+        let tx = h.tx.clone();
 
-        let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-
-        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
-
-        let handle =
-            ShardReconstructor::start(context.clone(), dag_state.clone(), core_dispatcher.clone());
-        let tx = handle.transaction_message_sender();
-
-        let mut encoder = create_encoder(&context);
+        let mut encoder = create_encoder(context);
         let info_len = context.committee.info_length();
         let parity_len = context.committee.parity_length();
 
@@ -1060,7 +1047,7 @@ mod tests {
             let serialized = Transaction::serialize(&txs).unwrap();
             let commitment = TransactionsCommitment::compute_transactions_commitment(
                 &serialized,
-                &context,
+                context,
                 &mut encoder,
             )
             .unwrap();
@@ -1090,7 +1077,7 @@ mod tests {
                 let serialized = Transaction::serialize(&txs).unwrap();
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized,
-                    &context,
+                    context,
                     &mut encoder,
                 )
                 .unwrap();
@@ -1140,7 +1127,7 @@ mod tests {
 
         // THEN: we should have reconstructed exactly 9 missing sets (from round 1 to 9)
         // for the blocked authority
-        let fetched = core_dispatcher.get_and_drain_transactions().await;
+        let fetched = h.core_dispatcher.get_and_drain_transactions().await;
         assert_eq!(
             fetched.len(),
             9,
@@ -1150,12 +1137,73 @@ mod tests {
         // Check all reconstructed transactions correspond to the missing authority
         for vt in &fetched {
             assert_eq!(
-                vt.block_ref().author.value(),
+                vt.author().value(),
                 blocked_authority as usize,
                 "Reconstructed block must belong to the blocked authority"
             );
         }
 
-        handle.stop().await.unwrap();
+        h.handle.stop().await.unwrap();
+    }
+
+    /// In a `BlockBundle` the shards belong to blocks from *previous* rounds,
+    /// not to the bundle's own (`carrier`) block. The correct `block_ref` for
+    /// each `ShardMessage` must therefore come from the shard itself, not from
+    /// the carrier block passed to `create_transaction_messages`.
+    #[test]
+    fn test_create_transaction_messages_shard_uses_shard_block_ref_not_carrier_block_ref() {
+        // GIVEN: a carrier block (round 2, authority 0) — the block in the current
+        // bundle.
+        let carrier_block = VerifiedBlock::new_for_test(TestBlockHeader::new(2, 0).build());
+
+        // GIVEN: a shard-source block (round 1, authority 1) — the block the shard
+        // was erasure-coded from. It is from a *different* round and author than the
+        // carrier block, which is the normal situation inside a BlockBundle.
+        let shard_source = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 1).build());
+        let shard_source_ref = shard_source.reference();
+
+        // Sanity: the two blocks must have distinct references for the test to be
+        // meaningful.
+        assert_ne!(
+            carrier_block.reference(),
+            shard_source_ref,
+            "Test pre-condition: carrier and shard-source blocks must differ"
+        );
+
+        // GIVEN: a ShardWithProof whose block_ref points to shard_source (V1 variant,
+        // transaction_ref_enabled = false).
+        let shard_with_proof = ShardWithProof::new(
+            vec![0u8; 32],
+            vec![],
+            shard_source_ref,
+            shard_source.transactions_commitment(),
+            false,
+        );
+
+        // WHEN: build transaction messages using the carrier block together with a
+        // shard that belongs to shard_source.
+        let messages =
+            TransactionMessage::create_transaction_messages(&carrier_block, &[shard_with_proof], 1);
+
+        // THEN: the shard message must carry the shard's own transaction reference
+        // (round=1, authority=1), not the carrier block's reference (round=2,
+        // authority=0).
+        let shard_msgs: Vec<_> = messages
+            .iter()
+            .filter(|m| matches!(m, TransactionMessage::Shard(_)))
+            .collect();
+
+        assert_eq!(shard_msgs.len(), 1, "Expected exactly one shard message");
+
+        let shard_tx_ref = shard_msgs[0].transaction_ref();
+        assert_eq!(
+            shard_tx_ref.round, shard_source_ref.round,
+            "ShardMessage.transaction_ref.round must match the shard-source block's round"
+        );
+        assert_eq!(
+            shard_tx_ref.author, shard_source_ref.author,
+            "ShardMessage.transaction_ref.author must point to the shard-source block's author \
+             (authority=1), not the carrier block's author (authority=0)"
+        );
     }
 }
