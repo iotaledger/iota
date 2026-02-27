@@ -210,7 +210,10 @@ impl CongestionTracker {
     /// get the highest minimum clearing price, if any exists. The 'clearing'
     /// gas price means the underlying transaction was not cancelled due
     /// congestion.
-    pub fn get_prediction_suggested_gas_price(&self, transaction: &TransactionData) -> Option<u64> {
+    pub fn get_prediction_suggested_gas_price_legacy(
+        &self,
+        transaction: &TransactionData,
+    ) -> Option<u64> {
         self.get_suggested_gas_price_for_objects(
             transaction
                 .shared_input_objects()
@@ -222,7 +225,7 @@ impl CongestionTracker {
 
     /// Get the largest hotness value among all mutable input shared objects
     /// accessed by `transaction`.
-    pub fn get_suggested_gas_price_with_ogd(&self, transaction: &TransactionData) -> u64 {
+    pub fn get_prediction_suggested_gas_price(&self, transaction: &TransactionData) -> Option<u64> {
         let (_, hotness) = self
             .get_max_hotness_per_tx(
                 transaction
@@ -233,7 +236,7 @@ impl CongestionTracker {
             )
             .unwrap_or((ObjectID::random(), 0.0));
 
-        self.reference_gas_price + hotness as u64
+        Some(self.reference_gas_price + hotness as u64)
     }
 
     /// Returns a map of all objects and their hotness values.
