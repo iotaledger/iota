@@ -281,14 +281,16 @@ fn build_move_auth_args(
             let digest = tx_data.digest().into_inner();
             let sig: Ed25519Signature = owner.1.sign(&digest);
 
-            let hex_encoded = if !should_fail {
-                Hex::encode(sig.as_ref())
-                    .chars()
-                    .take(Ed25519Signature::LENGTH * 2)
-                    .collect()
-            } else {
-                Hex::encode("")
-            };
+            let mut sig_bytes = sig.as_ref().to_vec();
+            if should_fail {
+                // Corrupt the signature by flipping a bit, ensuring it remains the same length.
+                sig_bytes[0] ^= 0x01;
+            }
+
+            let hex_encoded = Hex::encode(sig_bytes)
+                .chars()
+                .take(Ed25519Signature::LENGTH * 2)
+                .collect::<String>();
 
             auth_args.push(CallArg::Pure(bcs::to_bytes(&hex_encoded)?));
         }
