@@ -333,12 +333,6 @@ export interface CollectibleCardClickedProperties {
      * | Regex |  |
      */
     collectibleType?: string;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    objectId?: string;
 }
 
 export interface CollectibleHiddenProperties {
@@ -401,24 +395,10 @@ export interface DisconnectedApplicationProperties {
 
 export interface ElementCopiedProperties {
     type: string;
-    value?: string;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Enum Values | private, public |
-     */
-    visibility?: 'private' | 'public';
 }
 
 export interface ExternalLinkOpenedProperties {
     type: string;
-    value?: string;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Enum Values | private, public |
-     */
-    visibility?: 'private' | 'public';
 }
 export interface IotaStakedProperties {
     /**

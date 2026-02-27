@@ -10,7 +10,7 @@ import {
 import { type WalletStatusChange } from '_src/shared/messaging/messages/payloads/wallet-status-change';
 import { fromBase64 } from '@iota/iota-sdk/utils';
 import Dexie from 'dexie';
-import { getAccountSourceByID } from '../account-sources';
+import { getAccountSourceByID, getAccountSources } from '../account-sources';
 import { accountSourcesEvents } from '../account-sources/events';
 import { MnemonicAccountSource } from '../account-sources/mnemonicAccountSource';
 import { SeedAccountSource } from '../account-sources/seedAccountSource';
@@ -38,6 +38,7 @@ import {
 import { AccountTooManyAttemptsError } from '_src/shared/accounts';
 import { KeystoneAccount } from './keystoneAccount';
 import { KeystoneAccountSource } from '../account-sources/keystoneAccountSource';
+import { ACCOUNT_TYPES_WITH_SOURCE } from '_src/shared/accountTypes';
 
 function toAccount(account: SerializedAccount) {
     if (MnemonicAccount.isOfType(account)) {
@@ -61,7 +62,7 @@ function toAccount(account: SerializedAccount) {
     throw new Error(`Unknown account of type ${account.type}`);
 }
 
-export async function getAllAccounts(filter?: { sourceID: string }) {
+export async function getAllAccounts(filter?: { sourceID?: string }) {
     const db = await getDB();
     let accounts;
     if (filter?.sourceID) {
@@ -112,7 +113,7 @@ export async function changeActiveAccount(accountID: string) {
         }
         await db.accounts.where('id').notEqual(accountID).modify({ selected: false });
         await db.accounts.update(accountID, { selected: true });
-        accountsEvents.emit('activeAccountChanged', { accountID });
+        accountsEvents.emit('accountsChanged');
     });
 }
 
@@ -154,11 +155,51 @@ export async function addNewAccounts<T extends SerializedAccount>(accounts: Omit
     return accountsCreated;
 }
 
-export async function lockAllAccounts() {
-    const allAccounts = await getAllAccounts();
-    for (const anAccount of allAccounts) {
-        await anAccount.lock();
+export async function lockAllAccountsAndSources() {
+    const sources = await getAccountSources();
+
+    for (const source of sources) {
+        const isLocked = await source.isLocked();
+        if (!isLocked) {
+            await source.lock();
+        }
     }
+
+    const allAccounts = await getAllAccounts();
+    const accounts = allAccounts.filter(
+        (account) => !ACCOUNT_TYPES_WITH_SOURCE.includes(account.type),
+    );
+
+    for (const account of accounts) {
+        await account.lock();
+    }
+    accountSourcesEvents.emit('accountSourcesChanged');
+    accountsEvents.emit('accountsChanged');
+}
+
+export async function unlockAllAccountsAndSources(password: string) {
+    if (!password) {
+        throw new Error('Password is required and cannot be empty');
+    }
+    const sources = await getAccountSources();
+    for (const source of sources) {
+        await source.unlock(password);
+    }
+
+    const allAccounts = await getAllAccounts();
+    const accounts = allAccounts.filter(
+        (account) => !ACCOUNT_TYPES_WITH_SOURCE.includes(account.type),
+    );
+
+    for (const account of accounts) {
+        const isPasswordUnlockable = isPasswordUnLockable(account);
+        const isLocked = await account.isLocked();
+        if (isPasswordUnlockable && isLocked) {
+            await account.passwordUnlock(password);
+        }
+    }
+    accountSourcesEvents.emit('accountSourcesChanged');
+    accountsEvents.emit('accountsChanged');
 }
 
 interface LockedState {
@@ -204,30 +245,23 @@ async function clearStateAfterManyFailedAttempts() {
 
 export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConnection) {
     const { payload } = msg;
-    if (isMethodPayload(payload, 'lockAccountSourceOrAccount')) {
-        const account = await getAccountByID(payload.args.id);
-        if (account) {
-            await account.lock();
-            await uiConnection.send(createMessage({ type: 'done' }, msg.id));
-            return true;
-        }
+    if (isMethodPayload(payload, 'lockAllAccountsAndSources')) {
+        await lockAllAccountsAndSources();
+        uiConnection.send(createMessage({ type: 'done' }, msg.id));
+        return true;
+    }
+    if (isMethodPayload(payload, 'unlockAllAccountsAndSources')) {
+        const { password } = payload.args;
+        await unlockAllAccountsAndSources(password);
+        uiConnection.send(createMessage({ type: 'done' }, msg.id));
+        return true;
     }
     if (isMethodPayload(payload, 'setAccountNickname')) {
         const { id, nickname } = payload.args;
         const account = await getAccountByID(id);
         if (account) {
             await account.setNickname(nickname);
-            await uiConnection.send(createMessage({ type: 'done' }, msg.id));
-            return true;
-        }
-    }
-    if (isMethodPayload(payload, 'unlockAccountSourceOrAccount')) {
-        const { id, password } = payload.args;
-        const account = await getAccountByID(id);
-        if (account) {
-            if (isPasswordUnLockable(account)) {
-                await account.passwordUnlock(password);
-            }
+            accountsEvents.emit('accountsChanged');
             await uiConnection.send(createMessage({ type: 'done' }, msg.id));
             return true;
         }
