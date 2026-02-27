@@ -36,7 +36,7 @@ export function ControllerView({ objectData }: ControllerViewProps) {
             <Title
                 title="Controller"
                 tooltipPosition={TooltipPosition.Left}
-                tooltipText="The entity or entities authorized to modify this Identity. An Identity can have multiple controllers with shared authority. Each controller has a Weight, meaning a voting power in a multi-controller setup. Behind a controller there are always an Owner, that holds control of this Identity, authorized to update or delete the document and to transfer control."
+                tooltipText="The entity or entities authorized to modify this Identity. An Identity can have multiple controllers with shared authority"
             />
             <div className="flex flex-col">
                 {isPending && (
@@ -117,32 +117,39 @@ export function ControllerCardFooter({
                     keyText="Weight"
                     value={[`${weight}`, threshold && ` of ${threshold}`]}
                     fullwidth
+                    tooltipPosition={TooltipPosition.Left}
+                    tooltipText="This controller's voting power in a multi-controller setup."
                 />
             </div>
             <div className="flex flex-wrap justify-between px-md--rs py-sm--rs">
-                <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
-                    Owner
-                </span>
-                <div className="flex flex-row items-center gap-xs">
-                    {ownerType === 'AddressOwner' && (
-                        <AddressLink
-                            address={ownerAddress}
-                            copyText={ownerAddress}
-                            className="[&>div]:max-w-[200px] [&>div]:truncate"
-                            display="block"
-                        />
-                    )}
-                    {ownerType === 'ObjectOwner' && (
-                        <ObjectLink objectId={ownerAddress} copyText={ownerAddress} />
-                    )}
-                    {ownerType === 'Shared' && (
-                        <ObjectLink
-                            objectId={ownerAddress}
-                            label="Shared"
-                            showAddressAlias={false}
-                        />
-                    )}
-                </div>
+                <KeyValueInfo
+                    keyText="Owner"
+                    value={
+                        <>
+                            {ownerType === 'AddressOwner' && (
+                                <AddressLink
+                                    address={ownerAddress}
+                                    copyText={ownerAddress}
+                                    className="[&>div]:max-w-[200px] [&>div]:truncate"
+                                    display="block"
+                                />
+                            )}
+                            {ownerType === 'ObjectOwner' && (
+                                <ObjectLink objectId={ownerAddress} copyText={ownerAddress} />
+                            )}
+                            {ownerType === 'Shared' && (
+                                <ObjectLink
+                                    objectId={ownerAddress}
+                                    label="Shared"
+                                    showAddressAlias={false}
+                                />
+                            )}
+                        </>
+                    }
+                    fullwidth
+                    tooltipPosition={TooltipPosition.Left}
+                    tooltipText="The IOTA address that holds control of this Identity, authorized to update or delete the document and to transfer control."
+                />
             </div>
         </>
     );
