@@ -36,7 +36,7 @@ function CardView({ name, link, icon }: CardViewProps) {
                     label={name}
                     fallback={name}
                     rounded={false}
-                    size={ImageIconSize.Small}
+                    size={ImageIconSize.Medium}
                 />
             </CardImage>
             <CardBody isTextTruncated title={name} subtitle={originLabel} />

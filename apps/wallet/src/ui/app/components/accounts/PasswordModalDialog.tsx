@@ -18,6 +18,7 @@ import {
     Header,
     Input,
     InputType,
+    LoadingIndicator,
 } from '@iota/apps-ui-kit';
 import { AccountTooManyAttemptsError } from '_src/shared/accounts';
 import UnlockWallet from '_assets/images/unlock_wallet.png';
@@ -38,6 +39,7 @@ export interface PasswordModalDialogProps {
     onSubmit: (password: string) => Promise<void> | void;
     verify?: boolean;
     onForgotPassword?: () => void;
+    isLoading?: boolean;
 }
 
 export function PasswordModalDialog({
@@ -50,6 +52,7 @@ export function PasswordModalDialog({
     confirmText,
     cancelText,
     onForgotPassword,
+    isLoading,
 }: PasswordModalDialogProps) {
     const form = useZodForm({
         mode: 'onChange',
@@ -128,7 +131,11 @@ export function PasswordModalDialog({
     }
 
     const isConfirmDisabled =
-        !!countdownError || isSubmitting || !isValid || !!form.formState.errors.password?.message;
+        !!countdownError ||
+        isSubmitting ||
+        isLoading ||
+        !isValid ||
+        !!form.formState.errors.password?.message;
 
     const heightClasses = showForgotPassword
         ? 'min-h-[min(600px,90dvh)] max-h-[calc(100dvh-2rem)]'
@@ -208,6 +215,8 @@ export function PasswordModalDialog({
                                     type={ButtonType.Primary}
                                     disabled={isConfirmDisabled}
                                     text={confirmText}
+                                    icon={isLoading ? <LoadingIndicator /> : null}
+                                    iconAfterText
                                     fullWidth
                                 />
                             </div>
