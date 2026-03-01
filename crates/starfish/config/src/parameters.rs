@@ -101,6 +101,31 @@ pub struct Parameters {
     /// Tonic network settings.
     #[serde(default = "TonicParameters::default")]
     pub tonic: TonicParameters,
+
+    // Number of commits to fetch in a batch for fast commit syncer, also the maximum number of
+    // commits returned per fetch. If this value is set too small, fetching becomes
+    // inefficient. If this value is set too large, it can result in load imbalance and
+    // stragglers.
+    #[serde(default = "Parameters::default_fast_commit_sync_batch_size")]
+    pub fast_commit_sync_batch_size: u32,
+
+    // Gap threshold for switching between commit syncers. When the gap between quorum and local
+    // commit index is larger than this threshold, FastCommitSyncer fetches. Otherwise,
+    // CommitSyncer fetches.
+    #[serde(default = "Parameters::default_commit_sync_gap_threshold")]
+    pub commit_sync_gap_threshold: u32,
+
+    /// Enable FastCommitSyncer for faster recovery from large commit gaps.
+    /// This is a local node configuration that works in conjunction with the
+    /// protocol-level consensus_fast_commit_sync feature flag. Both must be
+    /// enabled for FastCommitSyncer to run. The protocol flag controls
+    /// whether gRPC endpoints are available, while this local flag controls
+    /// whether this specific node creates and runs the FastCommitSyncer.
+    /// Disabled by default; operators can enable it locally once the protocol
+    /// flag is active, or disable it again if bugs are discovered, without
+    /// affecting protocol-level endpoint availability.
+    #[serde(default = "Parameters::default_enable_fast_commit_syncer")]
+    pub enable_fast_commit_syncer: bool,
 }
 
 impl Parameters {
@@ -212,6 +237,35 @@ impl Parameters {
     pub(crate) fn default_max_shards_per_bundle() -> usize {
         150
     }
+
+    pub(crate) fn default_fast_commit_sync_batch_size() -> u32 {
+        if cfg!(msim) {
+            // Exercise fast commit sync.
+            5
+        } else {
+            // With ~10KB per commit and 4MB max message size, 1000 commits (~10MB) requires
+            // chunking. The server will chunk commits across multiple response messages.
+            1000
+        }
+    }
+
+    pub(crate) fn default_commit_sync_gap_threshold() -> u32 {
+        if cfg!(msim) {
+            // Use smaller threshold for testing.
+            10
+        } else {
+            // When gap > 1000, FastCommitSyncer is more efficient.
+            // When gap <= 1000, CommitSyncer handles incremental sync.
+            1000
+        }
+    }
+
+    pub(crate) fn default_enable_fast_commit_syncer() -> bool {
+        // Disabled by default. Operators can enable it locally once the protocol-level
+        // consensus_fast_commit_sync flag is active, or disable it again if bugs are
+        // discovered, without waiting for a protocol upgrade.
+        false
+    }
 }
 
 impl Default for Parameters {
@@ -238,6 +292,9 @@ impl Default for Parameters {
             max_headers_per_bundle: Parameters::default_max_headers_per_bundle(),
             max_shards_per_bundle: Parameters::default_max_shards_per_bundle(),
             tonic: TonicParameters::default(),
+            fast_commit_sync_batch_size: Parameters::default_fast_commit_sync_batch_size(),
+            commit_sync_gap_threshold: Parameters::default_commit_sync_gap_threshold(),
+            enable_fast_commit_syncer: Parameters::default_enable_fast_commit_syncer(),
         }
     }
 }

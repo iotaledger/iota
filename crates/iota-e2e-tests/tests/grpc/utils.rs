@@ -117,6 +117,47 @@ macro_rules! impl_field_presence_checker {
         }
     };
 
+    // Transparent type rule:
+    //
+    // Use this when the proto message has `field_mask_transparent = true`.  In
+    // that case the read-mask paths address the *inner* message's fields
+    // directly (no wrapper prefix), so the checker must expose those inner
+    // fields at the top level and delegate all lookups to the inner instance.
+    //
+    // Syntax:
+    //   impl_field_presence_checker!(OuterType, transparent(inner_field) {
+    //       inner_field1,
+    //       inner_field2,
+    //       ...
+    //   });
+    //
+    // `inner_field` is the name of the `Option<InnerType>` field on `OuterType`.
+    // The body lists the *field names* (no type annotations needed) of
+    // `InnerType` so the macro can build the static field list and produce the
+    // correct absent-field answers when the inner field is `None`.
+    ($type:ty, transparent($inner_field:ident) { $( $field:ident ),* $(,)? }) => {
+        impl $crate::utils::FieldPresenceChecker for $type {
+            fn top_level_fields(&self) -> &[&'static str] {
+                // Static list — independent of whether the inner field is present.
+                &[ $( stringify!($field) ),* ]
+            }
+
+            fn check_field_presence(&self, field: &str) -> Option<(bool, Option<&dyn $crate::utils::FieldPresenceChecker>)> {
+                match &self.$inner_field {
+                    // Inner present: delegate fully to its checker.
+                    Some(inner) => inner.check_field_presence(field),
+                    // Inner absent: all its fields are also absent.
+                    // Return Some((false, None)) for valid field names, None for
+                    // unknown ones (mirrors the inner type's own behaviour).
+                    None => match field {
+                        $( stringify!($field) => Some((false, None)), )*
+                        _ => None,
+                    },
+                }
+            }
+        }
+    };
+
     // Helper rule for repeated fields (when `: [Type]` is specified)
     (@field_check $self:ident, $field:ident, [ $nested_type:ty ]) => {{
         // Repeated fields are always present, check if non-empty
@@ -144,6 +185,18 @@ macro_rules! impl_field_presence_checker {
         // Just check if the field is present; no nested checker needed
         Some(($self.$field.is_some(), None))
     };
+}
+
+/// Utility function to convert a comma-separated field mask string into a
+/// vector of field paths For example,
+/// "transaction.digest,transaction.bcs,signatures" becomes ["transaction.
+/// digest", "transaction.bcs", "signatures"]
+pub fn comma_separated_field_mask_to_paths(mask_str: &str) -> Vec<&str> {
+    mask_str
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect()
 }
 
 /// Assert field presence/absence for any type implementing

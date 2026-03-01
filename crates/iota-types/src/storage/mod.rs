@@ -9,8 +9,10 @@ mod shared_in_memory_store;
 mod write_store;
 
 use std::{
+    cell::RefCell,
     collections::BTreeMap,
     fmt::{Display, Formatter},
+    rc::Rc,
     sync::Arc,
 };
 
@@ -224,7 +226,7 @@ pub trait Storage {
     /// and the number of non-gas-coin owners.
     fn check_coin_deny_list(&self, written_objects: &BTreeMap<ObjectID, Object>) -> DenyListResult;
 
-    fn read_auth_context(&self) -> Option<&AuthContext>;
+    fn read_auth_context(&self) -> Option<Rc<RefCell<AuthContext>>>;
 }
 
 pub type PackageFetchResults<Package> = Result<Vec<Package>, Vec<ObjectID>>;

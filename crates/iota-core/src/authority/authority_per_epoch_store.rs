@@ -2870,6 +2870,7 @@ impl AuthorityPerEpochStore {
                     );
                     self.scorer
                         .update_invalid_reports_count(transaction.certificate_author_index);
+                    return None;
                 }
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {

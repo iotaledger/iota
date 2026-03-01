@@ -54,23 +54,20 @@ mod checked {
         reference_gas_price: u64,
         transaction: &TransactionData,
         authentication_gas_budget: u64,
+        is_execute_transaction_to_effects: bool,
     ) -> IotaResult<IotaGasStatus> {
         if transaction.is_system_tx() {
             Ok(IotaGasStatus::new_unmetered())
         } else {
-            let transaction_gas_budget = transaction.gas_budget();
-
-            // To be sure that we can cover the Move authenticator + transaction execution
-            // gas cost.
-            let gas_budget = transaction_gas_budget + authentication_gas_budget;
-
             check_gas(
                 objects,
                 protocol_config,
                 reference_gas_price,
                 gas,
-                gas_budget,
                 transaction.gas_price(),
+                transaction.gas_budget(),
+                authentication_gas_budget,
+                is_execute_transaction_to_effects,
             )
         }
     }
@@ -93,6 +90,7 @@ mod checked {
             &input_objects,
             &[],
             authentication_gas_budget,
+            false,
         )?;
         check_receiving_objects(&input_objects, receiving_objects)?;
         // Runs verifier, which could be expensive.
@@ -127,6 +125,7 @@ mod checked {
             &input_objects,
             &[gas_object_ref],
             0,
+            true,
         )?;
         check_receiving_objects(&input_objects, &receiving_objects)?;
         // Runs verifier, which could be expensive.
@@ -160,6 +159,7 @@ mod checked {
             &input_objects,
             &[],
             0,
+            true,
         )?;
         // NB: We do not check receiving objects when executing. Only at signing
         // time do we check. NB: move verifier is only checked at
@@ -252,6 +252,7 @@ mod checked {
             &tx_input_objects,
             &[],
             authenticator_gas_budget,
+            true,
         )?;
 
         // Create checked a union of input objects
@@ -273,6 +274,7 @@ mod checked {
         // Overrides the gas objects in the transaction.
         gas_override: &[ObjectRef],
         authentication_gas_budget: u64,
+        is_execute_transaction_to_effects: bool,
     ) -> IotaResult<IotaGasStatus> {
         // Cheap validity checks that is ok to run multiple times during processing.
         let gas = if gas_override.is_empty() {
@@ -288,6 +290,7 @@ mod checked {
             reference_gas_price,
             transaction,
             authentication_gas_budget,
+            is_execute_transaction_to_effects,
         )?;
         check_objects(transaction, input_objects)?;
 
@@ -421,11 +424,49 @@ mod checked {
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
         gas: &[ObjectRef],
-        gas_budget: u64,
         gas_price: u64,
+        transaction_gas_budget: u64,
+        authentication_gas_budget: u64,
+        is_execute_transaction_to_effects: bool,
     ) -> IotaResult<IotaGasStatus> {
-        let gas_status =
-            IotaGasStatus::new(gas_budget, gas_price, reference_gas_price, protocol_config)?;
+        let gas_budget_to_set = if authentication_gas_budget > 0 {
+            // If there is an authentication gas budget, then we are checking if
+            // max_gas_budget is Some. If not, that is UserInputError.
+            let protocol_max_auth_gas =
+                protocol_config.max_auth_gas_as_option().ok_or_else(|| {
+                    UserInputError::Unsupported(
+                        "Transaction requires authentication gas but max_auth_gas is not enabled"
+                            .to_string(),
+                    )
+                })?;
+
+            // Execution phase:
+            //  - meter transaction + authentication;
+            //  - it needs the full budget.
+            // Signing phase:
+            //  - meter only authentication;
+            //  - it only needs authentication budget.
+            if is_execute_transaction_to_effects {
+                transaction_gas_budget
+            } else {
+                authentication_gas_budget.min(protocol_max_auth_gas)
+            }
+        } else {
+            // If there is no authentication gas budget, then we are only checking the
+            // transaction gas budget.
+            transaction_gas_budget
+        };
+
+        // Budget to check is always the one set by the user (which should cover full
+        // transaction + authentication costs).
+        let gas_budget_to_check = transaction_gas_budget;
+
+        let gas_status = IotaGasStatus::new(
+            gas_budget_to_set,
+            gas_price,
+            reference_gas_price,
+            protocol_config,
+        )?;
 
         // Check balance and coins consistency
         // Load all gas coins
@@ -439,7 +480,7 @@ mod checked {
             })?;
             gas_objects.push(obj);
         }
-        gas_status.check_gas_balance(&gas_objects, gas_budget)?;
+        gas_status.check_gas_balance(&gas_objects, gas_budget_to_check)?;
         Ok(gas_status)
     }
 

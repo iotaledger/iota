@@ -54,7 +54,23 @@ pub(crate) mod tonic_network;
 pub mod tonic_network;
 mod tonic_tls;
 
-use crate::encoder::ShardEncoder;
+use crate::{
+    commit_syncer::CommitSyncType,
+    encoder::ShardEncoder,
+    transaction_ref::{GenericTransactionRef, TransactionRef},
+};
+
+/// Controls transaction fetching truncation behavior for different sync modes
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TransactionFetchMode {
+    /// No truncation - used by fast commit sync which fetches all transactions
+    /// referenced by commits in a batch
+    FastCommitSync,
+    /// Truncate to the maximum of max_transactions_per_commit_sync_fetch and
+    /// max_transactions_per_regular_sync_fetch- used by regular commit sync
+    /// and transactions synchronizer
+    TransactionSync,
+}
 
 /// A stream of serialized blocks with additional information such as headers or
 /// shards.
@@ -81,7 +97,7 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     async fn fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        block_refs: Vec<BlockRef>,
+        transactions_refs: Vec<GenericTransactionRef>,
         timeout: Duration,
     ) -> ConsensusResult<Vec<Bytes>>;
 
@@ -101,7 +117,7 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     ) -> ConsensusResult<Vec<Bytes>>;
 
     /// Fetches serialized commits in the commit range from a peer.
-    /// Returns a tuple of both the serialized commits, and serialized blocks
+    /// Returns a tuple of both the serialized commits and serialized headers
     /// that contain votes certifying the last commit.
     async fn fetch_commits(
         &self,
@@ -109,6 +125,18 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
         commit_range: CommitRange,
         timeout: Duration,
     ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)>;
+
+    /// Fetches serialized commits in the commit range from a peer, headers
+    /// voting for the last commit, and all transactions from these commits.
+    /// Returns serialized commits, serialized headers voting for the last
+    /// commit, and serialized transactions (as SerializedTransactionsV2 which
+    /// includes TransactionRef). Used in the fast commit syncer.
+    async fn fetch_commits_and_transactions(
+        &self,
+        peer: AuthorityIndex,
+        commit_range: CommitRange,
+        timeout: Duration,
+    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>;
 
     /// Fetches the latest block from `peer` for the requested `authorities`.
     /// The latest blocks are returned in the serialised format of
@@ -154,11 +182,24 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     ) -> ConsensusResult<Vec<Bytes>>;
 
     /// Handles the request to fetch commits by index range from the peer.
+    /// Batch size limit depends on the sync type.
     async fn handle_fetch_commits(
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
+        commit_sync_type: CommitSyncType,
     ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)>;
+
+    /// Handles the request to fetch commits and transactions by index range
+    /// from the peer. Used in fast commit sync.
+    /// Returns (commits, certifier_block_headers, transactions) as serialized
+    /// bytes. Each transaction is serialized as SerializedTransactionsV2
+    /// which includes the TransactionRef.
+    async fn handle_fetch_commits_and_transactions(
+        &self,
+        peer: AuthorityIndex,
+        commit_range: CommitRange,
+    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>;
 
     /// Handles the request to fetch the latest block headers for the provided
     /// `authorities`.
@@ -168,18 +209,14 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
         authorities: Vec<AuthorityIndex>,
     ) -> ConsensusResult<Vec<Bytes>>;
 
-    /// Handles the request to get the latest received & accepted rounds of all
-    /// authorities.
-    async fn handle_get_latest_rounds(
-        &self,
-        peer: AuthorityIndex,
-    ) -> ConsensusResult<(Vec<Round>, Vec<Round>)>;
-
     /// Handles the request to fetch transactions by references from the peer.
+    /// The `fetch_mode` parameter controls whether results should be truncated
+    /// to respect maximum transaction limits.
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        block_refs: Vec<BlockRef>,
+        block_refs: Vec<GenericTransactionRef>,
+        fetch_mode: TransactionFetchMode,
     ) -> ConsensusResult<Vec<Bytes>>;
 }
 
@@ -382,8 +419,14 @@ impl TryFrom<BlockBundle> for SerializedBlockBundle {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub(crate) struct SerializedTransactions {
+pub(crate) struct SerializedTransactionsV1 {
     pub(crate) block_ref: BlockRef,
+    pub(crate) serialized_transactions: Bytes,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub(crate) struct SerializedTransactionsV2 {
+    pub(crate) transaction_ref: TransactionRef,
     pub(crate) serialized_transactions: Bytes,
 }
 
