@@ -74,7 +74,7 @@ jobs:
     # we always start the postgres container, even if not all tests need it
     services:
       postgres:
-        image: postgres:15
+        image: postgres:16
         env:
           POSTGRES_PASSWORD: postgrespw
         options: >-
@@ -135,7 +135,7 @@ jobs:
     # we always start the postgres container, even if not all tests need it
     services:
       postgres:
-        image: postgres:15
+        image: postgres:16
         env:
           POSTGRES_PASSWORD: postgrespw
         options: >-

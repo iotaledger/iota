@@ -138,7 +138,7 @@ jobs:
           PKG_CONFIG_PATH: "/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH"
           PATH: "/opt/homebrew/bin:$PATH"
         run: |
-          brew install postgresql
+          brew install postgresql@16
 
       - name: Install protoc (Windows)
         if: ${{ matrix.os_type == 'windows-x86_64' }}

@@ -406,7 +406,7 @@ services:
       - fullnode-1
 
   postgres_primary:
-    image: postgres:15
+    image: postgres:16
     user: postgres
     restart: always
     container_name: postgres_primary
@@ -443,7 +443,7 @@ services:
       start_period: 10s
 
   postgres_replica:
-    image: postgres:15
+    image: postgres:16
     user: postgres
     restart: always
     container_name: postgres_replica
