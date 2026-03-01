@@ -32,7 +32,9 @@ During this evaluation, every transaction is subject to a binary decision: **Sch
 -   **Scheduled** transactions are forwarded to the execution phase in the order determined by the placement algorithm.
 
 :::info Best-effort sequencing
+
 In the IOTA sequencing algorithm, a transaction is deferred only if there is no way to schedule it without exceeding the load threshold on any individual execution worker.
+
 :::
 
 ## Placement algorithm: Causal ordering of transactions
@@ -49,7 +51,9 @@ Once all transactions have been evaluated, the allocation map implicitly defines
 The sequencing algorithm guarantees that the longest sequential execution trace remains within a predefined load threshold.
 
 :::info Fairness in sequencing
+
 In IOTA, transactions included in the same consensus commit that write to an identical set of shared objects are guaranteed to be executed in descending order of their gas prices.
+
 :::
 
 ### Example
