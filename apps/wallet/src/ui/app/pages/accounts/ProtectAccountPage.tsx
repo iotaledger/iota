@@ -26,6 +26,7 @@ import { useFeature } from '@growthbook/growthbook-react';
 import { Feature, toast } from '@iota/core';
 import { isPasskeyAccountSerializedUI } from '_src/background/accounts/passkeyAccount';
 import { trackAutoLockUpdated } from '_src/shared/analytics/helpers';
+import { AmpliSourceFlow } from '_src/shared/analytics';
 
 const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
     AccountsFormType.NewMnemonic,
@@ -56,6 +57,7 @@ export function ProtectAccountPage() {
     const [searchParams] = useSearchParams();
     const accountsFormType = (searchParams.get('accountsFormType') as AccountsFormType) || '';
     const successRedirect = searchParams.get('successRedirect') || '/tokens';
+    const sourceFlow = searchParams.get('sourceFlow') || AmpliSourceFlow.Unknown;
     const navigate = useNavigate();
     const backgroundClient = useBackgroundClient();
     const { data: accounts } = useAccounts();
@@ -82,7 +84,7 @@ export function ProtectAccountPage() {
                 const createdAccounts = await createMutation.mutateAsync({
                     type: accountsFormType,
                     password,
-                    sourceFlow: accountsFormType,
+                    sourceFlow,
                 });
                 if (autoLockToTrack) {
                     trackAutoLockUpdated(autoLockToTrack);
@@ -128,7 +130,7 @@ export function ProtectAccountPage() {
                     accountsFormType === AccountsFormType.ImportPasskey &&
                     isPasskeyAccountSerializedUI(createdAccounts[0])
                 ) {
-                    const url = `/accounts/import-passkey?accountID=${createdAccounts[0].id}`;
+                    const url = `/accounts/import-passkey?accountID=${createdAccounts[0].id}&sourceFlow=${sourceFlow}`;
                     navigate(url, {
                         replace: true,
                         state: {
@@ -142,7 +144,7 @@ export function ProtectAccountPage() {
                 toast.error((e as Error).message ?? 'Failed to create account');
             }
         },
-        [featureAccountFinderEnabled, createMutation, navigate, successRedirect],
+        [featureAccountFinderEnabled, createMutation, navigate, successRedirect, sourceFlow],
     );
     const autoLockMutation = useAutoLockMinutesMutation();
     if (!isAllowedAccountType(accountsFormType)) {

@@ -1,7 +1,8 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { AmpliSourceFlow } from '_src/shared/analytics';
 
 import { AccountsFormType, PageTemplate, useAccountsFormContext } from '_components';
 import {
@@ -24,6 +25,8 @@ type ImportPasskeyFormValues = z.infer<typeof formSchema>;
 
 export function CreateNewPasskey() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const sourceFlow = searchParams.get('sourceFlow') || AmpliSourceFlow.Unknown;
     const [authenticatorAttachment, setAuthenticatorAttachment] =
         useState<AuthenticatorAttachment>('cross-platform');
     const [, setAccountsFormValues] = useAccountsFormContext();
@@ -50,6 +53,7 @@ export function CreateNewPasskey() {
         navigate(
             `/accounts/protect-account?${new URLSearchParams({
                 accountsFormType: AccountsFormType.Passkey,
+                sourceFlow,
             }).toString()}`,
         );
     };
@@ -77,7 +81,7 @@ export function CreateNewPasskey() {
             title="Create Passkey Account"
             isTitleCentered
             showBackButton
-            onBack={() => navigate('/accounts/import-existing')}
+            onBack={() => navigate(`/accounts/import-existing?sourceFlow=${sourceFlow}`)}
         >
             <Form
                 className="flex h-full flex-col justify-between"

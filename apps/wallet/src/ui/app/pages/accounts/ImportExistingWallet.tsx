@@ -80,13 +80,13 @@ export function ImportExistingWallet() {
 
         switch (actionType) {
             case AccountsFormType.ImportMnemonic:
-                navigate('/accounts/import-passphrase');
+                navigate(`/accounts/import-passphrase?sourceFlow=${sourceFlow}`);
                 break;
             case AccountsFormType.ImportPrivateKey:
-                navigate('/accounts/import-private-key');
+                navigate(`/accounts/import-private-key?sourceFlow=${sourceFlow}`);
                 break;
             case AccountsFormType.ImportPasskey:
-                const url = '/accounts/import-passkey';
+                const url = `/accounts/import-passkey?sourceFlow=${sourceFlow}`;
                 if (isPopupOrSidePanel) {
                     openInNewTab(url);
                     window.close();
@@ -95,7 +95,7 @@ export function ImportExistingWallet() {
                 }
                 break;
             case AccountsFormType.ImportSeed:
-                navigate('/accounts/import-seed');
+                navigate(`/accounts/import-seed?sourceFlow=${sourceFlow}`);
                 break;
             default:
                 throw new Error('Unsupported action type');
@@ -110,7 +110,7 @@ export function ImportExistingWallet() {
             isTitleCentered
             onClose={() => navigate('/')}
             showBackButton
-            onBack={() => navigate('/accounts/add-account')}
+            onBack={() => navigate(`/accounts/add-account?sourceFlow=${sourceFlow}`)}
         >
             <div className="flex h-full w-full flex-col">
                 <div className="flex w-full flex-1 flex-col justify-center gap-4 py-md--rs text-center">

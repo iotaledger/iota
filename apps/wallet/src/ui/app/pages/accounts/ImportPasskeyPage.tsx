@@ -3,6 +3,7 @@
 
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Form } from '../../shared/forms/Form';
+import { AmpliSourceFlow } from '_src/shared/analytics';
 
 import { AccountsFormType, PageTemplate, useAccountsFormContext } from '_components';
 import { Input, Button, ButtonHtmlType, ButtonType, InputType } from '@iota/apps-ui-kit';
@@ -16,13 +17,14 @@ export function ImportPasskeyPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const accountID = searchParams.get('accountID') || '';
+    const sourceFlow = searchParams.get('sourceFlow') || AmpliSourceFlow.Unknown;
 
     return (
         <PageTemplate
             title="Import Passkey Account"
             isTitleCentered
             showBackButton
-            onBack={() => navigate('/accounts/import-existing')}
+            onBack={() => navigate(`/accounts/import-existing?sourceFlow=${sourceFlow}`)}
         >
             {accountID ? (
                 <NicknameSetContent accountID={accountID} />
@@ -37,6 +39,8 @@ function AuthenticationRequiredContent() {
     const { theme } = useTheme();
     const [, setAccountsFormValues] = useAccountsFormContext();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const sourceFlow = searchParams.get('sourceFlow') || AmpliSourceFlow.Unknown;
 
     function handleOnClick() {
         setAccountsFormValues({
@@ -46,6 +50,7 @@ function AuthenticationRequiredContent() {
         navigate(
             `/accounts/protect-account?${new URLSearchParams({
                 accountsFormType: AccountsFormType.ImportPasskey,
+                sourceFlow,
             }).toString()}`,
         );
     }

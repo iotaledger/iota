@@ -66,11 +66,11 @@ export function CreateNewWallet() {
             case AccountsFormType.NewMnemonic:
                 setAccountsFormValues({ type: AccountsFormType.NewMnemonic });
                 navigate(
-                    `/accounts/protect-account?accountsFormType=${AccountsFormType.NewMnemonic}`,
+                    `/accounts/protect-account?accountsFormType=${AccountsFormType.NewMnemonic}&sourceFlow=${sourceFlow}`,
                 );
                 break;
             case AccountsFormType.Passkey:
-                const url = '/accounts/passkey-account';
+                const url = `/accounts/passkey-account?sourceFlow=${sourceFlow}`;
                 if (isPopupOrSidePanel) {
                     openInNewTab(url);
                     window.close();
@@ -89,7 +89,7 @@ export function CreateNewWallet() {
             isTitleCentered
             onClose={() => navigate('/')}
             showBackButton
-            onBack={() => navigate('/accounts/add-account')}
+            onBack={() => navigate(`/accounts/add-account?sourceFlow=${sourceFlow}`)}
         >
             <div className="flex h-full w-full flex-col">
                 <div className="flex w-full flex-1 flex-col justify-center py-md--rs text-center">

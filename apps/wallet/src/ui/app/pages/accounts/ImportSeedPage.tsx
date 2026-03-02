@@ -1,7 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { AmpliSourceFlow } from '_src/shared/analytics';
 import {
     AccountsFormType,
     useAccountsFormContext,
@@ -11,6 +12,8 @@ import {
 
 export function ImportSeedPage() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const sourceFlow = searchParams.get('sourceFlow') || AmpliSourceFlow.Unknown;
     const [, setAccountsFormValues] = useAccountsFormContext();
 
     function handleOnSubmit({ seed }: { seed: string }) {
@@ -21,6 +24,7 @@ export function ImportSeedPage() {
         navigate(
             `/accounts/protect-account?${new URLSearchParams({
                 accountsFormType: AccountsFormType.ImportSeed,
+                sourceFlow,
             }).toString()}`,
         );
     }

@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { AmpliSourceFlow } from '_src/shared/analytics';
 
 import {
     AccountsFormType,
@@ -13,6 +14,8 @@ import {
 
 export function ImportPrivateKeyPage() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const sourceFlow = searchParams.get('sourceFlow') || AmpliSourceFlow.Unknown;
     const [, setAccountsFormValues] = useAccountsFormContext();
 
     function handleOnSubmit({ privateKey }: { privateKey: string }) {
@@ -23,6 +26,7 @@ export function ImportPrivateKeyPage() {
         navigate(
             `/accounts/protect-account?${new URLSearchParams({
                 accountsFormType: AccountsFormType.ImportPrivateKey,
+                sourceFlow,
             }).toString()}`,
         );
     }
