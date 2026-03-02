@@ -159,11 +159,9 @@ impl Payload for AbstractAccountPayload {
         )
         .expect("build_move_auth_args failed");
 
-        let signatures = vec![GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
-            auth_args,
-            vec![],
-            self_call_arg,
-        ))];
+        let signatures = vec![GenericSignature::MoveAuthenticator(
+            MoveAuthenticator::new_v1(auth_args, vec![], self_call_arg),
+        )];
 
         Transaction::from_generic_sig_data(tx_data, signatures)
     }
