@@ -56,8 +56,9 @@ impl TryFrom<u32> for ExpectedFailureType {
         match value {
             0 => {
                 let mut rng = rand::thread_rng();
-                let n = rng.gen_range(1..ExpectedFailureType::COUNT - 1);
-                Ok(ExpectedFailureType::iter().nth(n).unwrap())
+                let c = Self::random_candidates();
+                let idx = rng.gen_range(0..c.len());
+                Ok(c[idx])
             }
             _ => ExpectedFailureType::iter()
                 .nth(value as usize)
@@ -69,6 +70,12 @@ impl TryFrom<u32> for ExpectedFailureType {
                     )
                 }),
         }
+    }
+}
+
+impl ExpectedFailureType {
+    fn random_candidates() -> &'static [ExpectedFailureType] {
+        &[ExpectedFailureType::InvalidSignature]
     }
 }
 
