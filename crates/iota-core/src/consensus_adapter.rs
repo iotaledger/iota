@@ -861,26 +861,33 @@ impl ConsensusAdapter {
                 )
             };
         let send_end_of_publish = if is_user_tx {
-            // If we are in RejectUserCerts state and we just drained the list we need to
-            // send EndOfPublish to signal other validators that we are not submitting more
-            // certificates to the epoch. Note that there could be a race
-            // condition here where we enter this check in RejectAllCerts state.
-            // In that case we don't need to send EndOfPublish because condition to enter
-            // RejectAllCerts is when 2f+1 other validators already sequenced their
-            // EndOfPublish message. Also note that we could sent multiple
-            // EndOfPublish due to that multiple tasks can enter here with
-            // pending_count == 0. This doesn't affect correctness.
+            // If we are in `RejectUserCerts` state, we need to send `EndOfPublish` to
+            // signal other validators that we are not submitting more user
+            // transactions in the epoch. Note that there could be a race condition
+            // here where we enter this check in `RejectAllCerts` state. In that case
+            // we don't need to send `EndOfPublish` because the condition to enter
+            // `RejectAllCerts` is when 2f+1 other validators already sequenced their
+            // `EndOfPublish` message. Also note that we could send multiple
+            // `EndOfPublish` messages because multiple tasks can enter here
+            // concurrently. This doesn't affect correctness.
             if epoch_store
                 .get_reconfig_state_read_lock_guard()
                 .is_reject_user_certs()
             {
-                // NOTE: In the certificate-less case, `pending_consensus_certificates_count`
-                // is always zero because we do not insert anything into the set of pending
-                // consensus certificates, so there might be room for minor optimization: avoid
-                // reading `pending_consensus_certificates` in the certificate-less scenario.
-                let pending_count = epoch_store.pending_consensus_certificates_count();
-                debug!(epoch=?epoch_store.epoch(), ?pending_count, "Deciding whether to send EndOfPublish");
-                pending_count == 0 // send end of epoch if empty
+                if epoch_store.protocol_config().enable_white_flag_flow() {
+                    // In the certificate-less mode, there are no pending consensus
+                    // certificates, so `EndOfPublish` is always sent immediately.
+                    debug!(epoch=?epoch_store.epoch(), "Sending EndOfPublish in certificate-less mode");
+
+                    true
+                } else {
+                    // In the certificate mode, we have to check if the list of pending
+                    // consensus certificates is drained; only then issue `EndOfPublish`.
+                    let pending_count = epoch_store.pending_consensus_certificates_count();
+                    debug!(epoch=?epoch_store.epoch(), ?pending_count, "Deciding whether to send EndOfPublish");
+
+                    pending_count == 0 // send end of epoch if empty
+                }
             } else {
                 false
             }
