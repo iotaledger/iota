@@ -7,7 +7,7 @@ import SecureYourWallet from '_assets/images/onboarding/secure-your-wallet.png';
 import SecureYourWalletDark from '_assets/images/onboarding/secure-your-wallet-darkmode.png';
 import { Card, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
 import { AccountsFormType, useAccountsFormContext, PageTemplate } from '_components';
-import { useAppSelector, useCreateAccountsMutation, useAccounts } from '_hooks';
+import { useAppSelector, useAccounts } from '_hooks';
 import { ExtensionViewType } from '../../redux/slices/app/appType';
 import { ImportPass, Passkey } from '@iota/apps-ui-icons';
 import { openInNewTab } from '_src/shared/utils';
@@ -26,7 +26,6 @@ export function CreateNewWallet() {
             state.app.extensionViewType === ExtensionViewType.Popup ||
             state.app.extensionViewType === ExtensionViewType.SidePanel,
     );
-    const createAccountsMutation = useCreateAccountsMutation();
     const [searchParams] = useSearchParams();
     const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';
     const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
@@ -114,7 +113,6 @@ export function CreateNewWallet() {
                         <Card
                             key={card.title}
                             type={CardType.Filled}
-                            isDisabled={createAccountsMutation.isPending}
                             isHoverable
                             onClick={() => handleCardAction(card.actionType)}
                             testId={card.actionType}

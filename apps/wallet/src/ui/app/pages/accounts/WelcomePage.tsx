@@ -4,7 +4,7 @@
 
 import { Loading } from '_components';
 import { useNavigate } from 'react-router-dom';
-import { useFullscreenGuard, useInitializedGuard, useCreateAccountsMutation } from '_hooks';
+import { useFullscreenGuard, useInitializedGuard } from '_hooks';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
 import { IotaLogoWeb } from '@iota/apps-ui-icons';
 import GetStartedImage from '_assets/images/onboarding/get-started.png';
@@ -12,13 +12,9 @@ import GetStartedImageDark from '_assets/images/onboarding/get-started-darkmode.
 import { useTheme, Theme } from '@iota/core';
 
 export function WelcomePage() {
-    const createAccountsMutation = useCreateAccountsMutation();
     const { theme } = useTheme();
     const isFullscreenGuardLoading = useFullscreenGuard(true);
-    const isInitializedLoading = useInitializedGuard(
-        false,
-        !(createAccountsMutation.isPending || createAccountsMutation.isSuccess),
-    );
+    const isInitializedLoading = useInitializedGuard(false);
     const navigate = useNavigate();
     const CURRENT_YEAR = new Date().getFullYear();
 
@@ -47,9 +43,6 @@ export function WelcomePage() {
                         onClick={() => {
                             navigate('/accounts/add-account?sourceFlow=Onboarding');
                         }}
-                        disabled={
-                            createAccountsMutation.isPending || createAccountsMutation.isSuccess
-                        }
                     />
                 </div>
                 <div className="text-label-lg text-iota-neutral-60 dark:text-iota-neutral-40">

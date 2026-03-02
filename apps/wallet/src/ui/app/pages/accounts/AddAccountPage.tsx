@@ -22,12 +22,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { AccountsFormType, ConnectLedgerModal, PageTemplate } from '_components';
 import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
-import {
-    useAppSelector,
-    useCheckCameraPermissionStatus,
-    useCreateAccountsMutation,
-    useAccounts,
-} from '_hooks';
+import { useAppSelector, useCheckCameraPermissionStatus, useAccounts } from '_hooks';
 import { Create, Ledger, Keystone, Wallet } from '@iota/apps-ui-icons';
 import { ExtensionViewType } from '../../redux/slices/app/appType';
 import Browser from 'webextension-polyfill';
@@ -79,7 +74,6 @@ export function AddAccountPage() {
     const forceShowLedger =
         searchParams.has('showLedger') && searchParams.get('showLedger') !== 'false';
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(forceShowLedger);
-    const createAccountsMutation = useCreateAccountsMutation();
     const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';
     const isPopupOrSidePanel = useAppSelector(
         (state) =>
@@ -191,12 +185,7 @@ export function AddAccountPage() {
                                 key={card.title}
                                 className="no-underline"
                             >
-                                <Card
-                                    key={card.title}
-                                    type={CardType.Filled}
-                                    isDisabled={createAccountsMutation.isPending}
-                                    isHoverable
-                                >
+                                <Card key={card.title} type={CardType.Filled} isHoverable>
                                     <OnboardingCardIcon Icon={card.icon} />
                                     <CardBody title={card.title} subtitle={card.subtitle} />
                                     <CardAction type={CardActionType.Link} />

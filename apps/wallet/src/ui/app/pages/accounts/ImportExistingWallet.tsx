@@ -7,7 +7,7 @@ import ImportAWallet from '_assets/images/onboarding/import-a-wallet.png';
 import ImportAWalletDark from '_assets/images/onboarding/import-a-wallet-darkmode.png';
 import { Card, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
 import { AccountsFormType, PageTemplate } from '_components';
-import { useAppSelector, useCreateAccountsMutation, useAccounts } from '_hooks';
+import { useAppSelector, useAccounts } from '_hooks';
 import { ExtensionViewType } from '../../redux/slices/app/appType';
 import { ImportPass, Key, Passkey, Firefly } from '@iota/apps-ui-icons';
 import { openInNewTab } from '_src/shared/utils';
@@ -26,7 +26,6 @@ export function ImportExistingWallet() {
             state.app.extensionViewType === ExtensionViewType.Popup ||
             state.app.extensionViewType === ExtensionViewType.SidePanel,
     );
-    const createAccountsMutation = useCreateAccountsMutation();
     const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';
     const network = useAppSelector(({ app }) => app.network);
     const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
@@ -143,7 +142,6 @@ export function ImportExistingWallet() {
                         <Card
                             key={card.title}
                             type={CardType.Filled}
-                            isDisabled={createAccountsMutation.isPending}
                             isHoverable
                             onClick={() => handleCardAction(card.actionType)}
                             testId={card.actionType}
