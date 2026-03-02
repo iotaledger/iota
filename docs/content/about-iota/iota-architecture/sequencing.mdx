@@ -68,13 +68,7 @@ In the example below, we consider three transactions:
 Additionally, `Tx2` is _estimated_ to have the longest execution time, while `Tx3` has the shortest.
 In the figure below, the length of the transactions depict their execution time.
 
-<ThemedImage
-    alt="Sequencing example"
-    sources={{
-        light: '/img/about-iota/iota-architecture/sequencing1.svg',
-        dark: '/img/about-iota/iota-architecture/dark/sequencing1.svg',
-    }}
-/>
+![Sequencing example, final sequencing](/img/about-iota/iota-architecture/sequencing1.svg)
 
 A naive sequencing of these transactions based solely on gas price would result in a serial execution, since `Tx2` would have to wait for `Tx1` to complete (due to their shared access to object `a`), and `Tx3` would need to wait for `Tx2` (due to shared access to `b`).
 As a result, all transactions would be executed one after another.
@@ -82,10 +76,4 @@ As a result, all transactions would be executed one after another.
 Instead, IOTA's sequencing algorithm carefully places `Tx3` before `Tx2` in the causal order. This enables simultaneous execution of `Tx1` and `Tx3` (which access disjoint objects), provided that there are sufficient parallel resources.
 The case is illustrated in the following image.
 
-<ThemedImage
-    alt="Sequencing example, final sequencing"
-    sources={{
-        light: '/img/about-iota/iota-architecture/sequencing2.svg',
-        dark: '/img/about-iota/iota-architecture/dark/sequencing2.svg',
-    }}
-/>
+![Sequencing example, final sequencing](/img/about-iota/iota-architecture/sequencing2.svg)
