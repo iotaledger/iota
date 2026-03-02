@@ -353,7 +353,15 @@ export class UiConnection extends Connection {
                 // Actually persist the accounts
                 await addNewAccounts(derivedAccountsNonExistent);
 
-                this.send(createMessage({ type: 'done' }, msg.id));
+                this.send(
+                    createMessage(
+                        {
+                            type: 'persist-accounts-finder-response',
+                            numberOfAccountsCreated: derivedAccountsNonExistent.length,
+                        },
+                        msg.id,
+                    ),
+                );
             } else if (isSidepanelSetState(payload)) {
                 this.isSidePanel = true;
                 SidePanel._setOpen(payload.open);

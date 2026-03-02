@@ -25,6 +25,7 @@ mod _field_impls {
             json_name: "digest",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(Digest::FIELDS),
         };
         pub const BCS_FIELD: &'static MessageField = &MessageField {
@@ -32,6 +33,7 @@ mod _field_impls {
             json_name: "bcs",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(BcsData::FIELDS),
         };
     }
@@ -76,6 +78,7 @@ mod _field_impls {
             json_name: "digest",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(Digest::FIELDS),
         };
         pub const BCS_FIELD: &'static MessageField = &MessageField {
@@ -83,6 +86,7 @@ mod _field_impls {
             json_name: "bcs",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(BcsData::FIELDS),
         };
     }
@@ -127,6 +131,7 @@ mod _field_impls {
             json_name: "sequenceNumber",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const SUMMARY_FIELD: &'static MessageField = &MessageField {
@@ -134,6 +139,7 @@ mod _field_impls {
             json_name: "summary",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(CheckpointSummary::FIELDS),
         };
         pub const CONTENTS_FIELD: &'static MessageField = &MessageField {
@@ -141,6 +147,7 @@ mod _field_impls {
             json_name: "contents",
             number: 3i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(CheckpointContents::FIELDS),
         };
         pub const SIGNATURE_FIELD: &'static MessageField = &MessageField {
@@ -148,6 +155,7 @@ mod _field_impls {
             json_name: "signature",
             number: 4i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(ValidatorAggregatedSignature::FIELDS),
         };
     }

@@ -8,7 +8,6 @@ use super::{
     super::utils::setup_grpc_test,
     common::{
         assert_proto_conversion_error, assert_server_not_found, execute_transaction_and_get_digest,
-        is_success,
     },
 };
 
@@ -93,7 +92,8 @@ async fn get_transactions_scenarios() {
         "Mixed valid/invalid should return an error when encountering invalid digest"
     );
 
-    // Test: response fields are complete
+    // Test: response fields match the default mask (transaction, signatures,
+    // checkpoint, timestamp).
     let transactions = client
         .get_transactions(&[digest1], None)
         .await
@@ -113,16 +113,6 @@ async fn get_transactions_scenarios() {
             .signatures
             .is_empty(),
         "Signatures should be present"
-    );
-    assert!(
-        is_success(
-            tx.effects()
-                .expect("Failed to get effects from transaction")
-                .effects()
-                .expect("Failed to get inner effects from effects")
-                .status()
-        ),
-        "Transaction should have succeeded"
     );
     assert!(
         tx.checkpoint.is_some(),

@@ -1308,6 +1308,7 @@
                 "consensus_batched_block_sync": false,
                 "consensus_commit_transactions_only_for_traversed_headers": false,
                 "consensus_distributed_vote_scoring_strategy": false,
+                "consensus_fast_commit_sync": false,
                 "consensus_linearize_subdag_v2": false,
                 "consensus_median_timestamp_with_checkpoint_enforcement": false,
                 "consensus_round_prober": false,
@@ -1355,6 +1356,13 @@
                 "address_to_u256_cost_base": {
                   "u64": "52"
                 },
+                "auth_context_digest_cost_base": null,
+                "auth_context_replace_cost_base": null,
+                "auth_context_replace_cost_per_byte": null,
+                "auth_context_tx_commands_cost_base": null,
+                "auth_context_tx_commands_cost_per_byte": null,
+                "auth_context_tx_inputs_cost_base": null,
+                "auth_context_tx_inputs_cost_per_byte": null,
                 "base_gas_price": {
                   "u64": "1000"
                 },
@@ -10134,6 +10142,27 @@
       "MoveAuthenticator": {
         "description": "MoveAuthenticator is a GenericSignature variant that enables a new method of authentication through Move code. This function represents the data received by the Move authenticate function during the Account Abstraction authentication flow.",
         "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "V1"
+            ],
+            "properties": {
+              "V1": {
+                "$ref": "#/components/schemas/MoveAuthenticatorV1"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
+      "MoveAuthenticatorAsBytes": {
+        "$ref": "#/components/schemas/Base64"
+      },
+      "MoveAuthenticatorV1": {
+        "description": "MoveAuthenticatorV1 is the first version of MoveAuthenticator.",
+        "type": "object",
         "required": [
           "call_args",
           "object_to_authenticate",
@@ -10163,9 +10192,6 @@
             }
           }
         }
-      },
-      "MoveAuthenticatorAsBytes": {
-        "$ref": "#/components/schemas/Base64"
       },
       "MoveCallMetrics": {
         "type": "object",

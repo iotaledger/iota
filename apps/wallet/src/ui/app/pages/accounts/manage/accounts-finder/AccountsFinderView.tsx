@@ -17,7 +17,7 @@ import {
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
 import { type SourceStrategyToFind } from '_src/shared/messaging/messages/payloads/accounts-finder';
 import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
-import { getSourceId, getLedgerConnectionErrorMessage } from '_src/ui/app/helpers';
+import { getSourceId, getLedgerConnectionErrorMessage, isFirstAccount } from '_src/ui/app/helpers';
 import {
     useAccountSources,
     useAccounts,
@@ -42,7 +42,8 @@ import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAcco
 import { MigrationDialog } from '../../../home/tokens/MigrationDialog';
 import { SupplyIncreaseVestingStakingDialog } from '../../../home/tokens/SupplyIncreaseVestingStakingDialog';
 import { ampli } from '_src/shared/analytics/ampli';
-import { ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE } from '_src/shared/analytics';
+import { ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE, AmpliAccountOrigin } from '_src/shared/analytics';
+import type { AccountsAddedProperties } from '_src/shared/analytics/ampli';
 
 function getAccountSourceType(
     accountSource?: AccountSourceSerializedUI,
@@ -95,6 +96,8 @@ enum SearchPhase {
     Ongoing, // search ongoing
     Idle, // search has finished and is idle, ready to start again
 }
+
+const SOURCE_FLOW = 'Balance Finder';
 
 export function AccountsFinderView(): JSX.Element {
     const navigate = useNavigate();
@@ -150,7 +153,21 @@ export function AccountsFinderView(): JSX.Element {
             ampli.balanceFinderUsed({
                 accountType: getAmplitudeAccountType(accountSource),
             });
-            await find();
+            const numberOfAccountsCreated = await find();
+
+            // Fire accountsAdded event if accounts were created
+            if (numberOfAccountsCreated > 0) {
+                const accountType: AccountsAddedProperties['accountType'] =
+                    getAmplitudeAccountType(accountSource);
+
+                ampli.accountsAdded({
+                    accountType,
+                    accountOrigin: AmpliAccountOrigin.Import,
+                    numberOfAccounts: numberOfAccountsCreated,
+                    isFirstAccount: isFirstAccount(accounts),
+                    sourceFlow: SOURCE_FLOW,
+                });
+            }
         } finally {
             setSearchPhase(SearchPhase.Idle);
         }

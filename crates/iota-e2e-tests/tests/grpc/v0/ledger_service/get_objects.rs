@@ -105,21 +105,24 @@ async fn get_objects_readmask_scenarios() {
     let object_id = ObjectID::from_hex_literal("0x5").unwrap().to_string();
 
     // Tests for single-object readmask scenarios
-    type TestCase<'a> = (&'a str, Option<FieldMask>, &'a [&'a str]);
+    type TestCase<'a> = (&'a str, Option<FieldMask>, Vec<&'a str>);
     let test_cases: Vec<TestCase> = vec![
         (
             "default readmask",
             None,
-            &[
+            // GET_OBJECTS_READ_MASK = "reference,bcs"
+            // "reference" is a wildcard that expands to all its sub-fields.
+            vec![
                 "reference.object_id",
                 "reference.version",
                 "reference.digest",
+                "bcs",
             ],
         ),
         (
             "empty readmask",
             Some(FieldMask::from_paths(&[] as &[&str])),
-            &[],
+            vec![],
         ),
         (
             "full readmask",
@@ -129,7 +132,7 @@ async fn get_objects_readmask_scenarios() {
                 "reference.digest",
                 "bcs",
             ])),
-            &[
+            vec![
                 "reference.object_id",
                 "reference.version", // comment out to check absence of nested field
                 "reference.digest",
@@ -144,12 +147,12 @@ async fn get_objects_readmask_scenarios() {
                 "reference.object_id",
                 "reference.version",
             ])),
-            &["reference.object_id", "reference.version"],
+            vec!["reference.object_id", "reference.version"],
         ),
         (
             "partial readmask (bcs only)",
             Some(FieldMask::from_paths(["bcs"])),
-            &["bcs"],
+            vec!["bcs"],
         ),
     ];
 
@@ -162,7 +165,7 @@ async fn get_objects_readmask_scenarios() {
             ],
             mask,
             None,
-            expected_paths,
+            &expected_paths,
             scenario,
         )
         .await;
