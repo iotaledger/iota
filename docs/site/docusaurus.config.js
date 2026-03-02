@@ -42,6 +42,17 @@ const config = {
   },
   plugins: [
     [
+      'docusaurus-plugin-llms',
+      {
+        docsDir: '../content',
+        pathTransformation: {
+          ignorePaths: ['docs', '..', 'content']
+        },
+        // Ignore everything with an unserscore which is docusaurus default behaviour
+        ignoreFiles: [ '**/_**' ],
+      }
+    ],
+    [
       "@graphql-markdown/docusaurus",
       /** @type {import('@graphql-markdown/types').ConfigOptions} */
       {
