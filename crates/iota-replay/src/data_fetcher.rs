@@ -591,6 +591,7 @@ impl DataFetcher for RemoteFetcher {
                     ),
                     EndOfEpochTransactionKind::AuthenticatorStateCreate
                     | EndOfEpochTransactionKind::AuthenticatorStateExpire(_) => continue,
+                    _ => unimplemented!("a new EndOfEpochTransactionKind variant was added"),
                 };
 
                 // Backfill cache

@@ -1256,6 +1256,7 @@ mod checked {
                             // safe mode.
                             builder = setup_authenticator_state_expire(builder, expire);
                         }
+                        _ => unimplemented!("a new EndOfEpochTransactionKind variant was added"),
                     }
                 }
                 unreachable!(
@@ -1563,7 +1564,7 @@ mod checked {
     ) -> Result<(), ExecutionError> {
         let params = AdvanceEpochParams {
             epoch: change_epoch.epoch,
-            next_protocol_version: change_epoch.protocol_version,
+            next_protocol_version: change_epoch.protocol_version.into(),
             validator_subsidy: protocol_config.validator_target_reward(),
             storage_charge: change_epoch.storage_charge,
             computation_charge: change_epoch.computation_charge,
@@ -1584,7 +1585,11 @@ mod checked {
         advance_epoch_impl(
             advance_epoch_pt,
             params,
-            change_epoch.system_packages,
+            change_epoch
+                .system_packages
+                .into_iter()
+                .map(|sp| (sp.version, sp.modules, sp.dependencies))
+                .collect(),
             temporary_store,
             tx_ctx,
             move_vm,
@@ -1611,7 +1616,7 @@ mod checked {
     ) -> Result<(), ExecutionError> {
         let params = AdvanceEpochParams {
             epoch: change_epoch_v2.epoch,
-            next_protocol_version: change_epoch_v2.protocol_version,
+            next_protocol_version: change_epoch_v2.protocol_version.into(),
             validator_subsidy: protocol_config.validator_target_reward(),
             storage_charge: change_epoch_v2.storage_charge,
             computation_charge: change_epoch_v2.computation_charge,
@@ -1631,7 +1636,11 @@ mod checked {
         advance_epoch_impl(
             advance_epoch_pt,
             params,
-            change_epoch_v2.system_packages,
+            change_epoch_v2
+                .system_packages
+                .into_iter()
+                .map(|sp| (sp.version, sp.modules, sp.dependencies))
+                .collect(),
             temporary_store,
             tx_ctx,
             move_vm,
@@ -1658,7 +1667,7 @@ mod checked {
     ) -> Result<(), ExecutionError> {
         let params = AdvanceEpochParams {
             epoch: change_epoch_v3.epoch,
-            next_protocol_version: change_epoch_v3.protocol_version,
+            next_protocol_version: change_epoch_v3.protocol_version.into(),
             validator_subsidy: protocol_config.validator_target_reward(),
             storage_charge: change_epoch_v3.storage_charge,
             computation_charge: change_epoch_v3.computation_charge,
@@ -1678,7 +1687,11 @@ mod checked {
         advance_epoch_impl(
             advance_epoch_pt,
             params,
-            change_epoch_v3.system_packages,
+            change_epoch_v3
+                .system_packages
+                .into_iter()
+                .map(|sp| (sp.version, sp.modules, sp.dependencies))
+                .collect(),
             temporary_store,
             tx_ctx,
             move_vm,
@@ -1705,7 +1718,7 @@ mod checked {
     ) -> Result<(), ExecutionError> {
         let params = AdvanceEpochParams {
             epoch: change_epoch_v4.epoch,
-            next_protocol_version: change_epoch_v4.protocol_version,
+            next_protocol_version: change_epoch_v4.protocol_version.into(),
             validator_subsidy: protocol_config.validator_target_reward(),
             storage_charge: change_epoch_v4.storage_charge,
             computation_charge: change_epoch_v4.computation_charge,
@@ -1723,7 +1736,11 @@ mod checked {
         advance_epoch_impl(
             advance_epoch_pt,
             params,
-            change_epoch_v4.system_packages,
+            change_epoch_v4
+                .system_packages
+                .into_iter()
+                .map(|sp| (sp.version, sp.modules, sp.dependencies))
+                .collect(),
             temporary_store,
             tx_ctx,
             move_vm,

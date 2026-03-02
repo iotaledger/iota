@@ -562,6 +562,9 @@ impl IotaTransactionBlockKind {
                                     },
                                 )
                             }
+                            _ => {
+                                unimplemented!("a new EndOfEpochTransactionKind variant was added")
+                            }
                         })
                         .collect(),
                 })
@@ -647,6 +650,7 @@ impl IotaTransactionBlockKind {
                                     },
                                 )
                             }
+                            _ => unreachable!("unknown EndOfEpochTransactionKind variant"),
                         })
                         .collect(),
                 })

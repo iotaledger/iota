@@ -7,7 +7,6 @@ use async_graphql::{
     *,
 };
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
     committee::{EpochId, ProtocolVersion},
     digests::TransactionDigest,
     object::Object as NativeObject,
@@ -17,7 +16,7 @@ use iota_types::{
         ChangeEpochV2 as NativeChangeEpochTransactionV2,
         ChangeEpochV3 as NativeChangeEpochTransactionV3,
         ChangeEpochV4 as NativeChangeEpochTransactionV4,
-        EndOfEpochTransactionKind as NativeEndOfEpochTransactionKind,
+        EndOfEpochTransactionKind as NativeEndOfEpochTransactionKind, SystemPackage,
     },
 };
 use move_binary_format::{CompiledModule, errors::PartialVMResult};
@@ -90,7 +89,7 @@ pub(crate) struct ChangeEpochTransactionV2 {
     /// out the modules below.  Modules are provided with the version they
     /// will be upgraded to, their modules in serialized form (which include
     /// their package ID), and a list of their transitive dependencies.
-    pub system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
+    pub system_packages: Vec<SystemPackage>,
     /// Vector of active validator indices eligible to take part in committee
     /// selection because they support the new, target protocol version.
     pub eligible_active_validators: Option<Vec<u64>>,
@@ -108,7 +107,7 @@ impl ChangeEpochTransactionV2 {
     ) -> Self {
         Self {
             epoch: native.epoch,
-            protocol_version: native.protocol_version,
+            protocol_version: native.protocol_version.into(),
             storage_charge: native.storage_charge,
             computation_charge: native.computation_charge,
             computation_charge_burned: native.computation_charge_burned,
@@ -128,7 +127,7 @@ impl ChangeEpochTransactionV2 {
     ) -> Self {
         Self {
             epoch: native.epoch,
-            protocol_version: native.protocol_version,
+            protocol_version: native.protocol_version.into(),
             storage_charge: native.storage_charge,
             computation_charge: native.computation_charge,
             computation_charge_burned: native.computation_charge_burned,
@@ -148,7 +147,7 @@ impl ChangeEpochTransactionV2 {
     ) -> Self {
         Self {
             epoch: native.epoch,
-            protocol_version: native.protocol_version,
+            protocol_version: native.protocol_version.into(),
             storage_charge: native.storage_charge,
             computation_charge: native.computation_charge,
             computation_charge_burned: native.computation_charge_burned,
@@ -233,7 +232,7 @@ impl ChangeEpochTransaction {
 
     /// The protocol version in effect in the new epoch.
     async fn protocol_version(&self) -> UInt53 {
-        self.native.protocol_version.as_u64().into()
+        self.native.protocol_version.into()
     }
 
     /// The total amount of gas charged for storage during the previous epoch
@@ -291,8 +290,9 @@ impl ChangeEpochTransaction {
         connection.has_next_page = consistent_page.has_next_page;
 
         for c in consistent_page.cursors {
-            let (version, modules, deps) = &self.native.system_packages[c.ix];
-            let compiled_modules = modules
+            let sp = &self.native.system_packages[c.ix];
+            let compiled_modules = sp
+                .modules
                 .iter()
                 .map(|bytes| CompiledModule::deserialize_with_defaults(bytes))
                 .collect::<PartialVMResult<Vec<_>>>()
@@ -301,8 +301,8 @@ impl ChangeEpochTransaction {
 
             let native = NativeObject::new_system_package(
                 &compiled_modules,
-                *version,
-                deps.clone(),
+                sp.version,
+                sp.dependencies.clone(),
                 TransactionDigest::ZERO,
             );
 
@@ -396,8 +396,9 @@ impl ChangeEpochTransactionV2 {
         connection.has_next_page = consistent_page.has_next_page;
 
         for c in consistent_page.cursors {
-            let (version, modules, deps) = &self.system_packages[c.ix];
-            let compiled_modules = modules
+            let sp = &self.system_packages[c.ix];
+            let compiled_modules = sp
+                .modules
                 .iter()
                 .map(|bytes| CompiledModule::deserialize_with_defaults(bytes))
                 .collect::<PartialVMResult<Vec<_>>>()
@@ -406,8 +407,8 @@ impl ChangeEpochTransactionV2 {
 
             let native = NativeObject::new_system_package(
                 &compiled_modules,
-                *version,
-                deps.clone(),
+                sp.version,
+                sp.dependencies.clone(),
                 TransactionDigest::ZERO,
             );
 
@@ -488,6 +489,7 @@ impl EndOfEpochTransactionKind {
                     checkpoint_viewed_at,
                 })
             }
+            _ => unreachable!("unknown NativeEndOfEpochTransactionKind variant"),
         }
     }
 }
