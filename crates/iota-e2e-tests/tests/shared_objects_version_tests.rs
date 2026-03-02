@@ -11,7 +11,7 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::{OBJECT_START_VERSION, Owner},
-    transaction::{CallArg, ObjectArg},
+    transaction::{CallArg, SharedObjectRef},
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
 
@@ -170,10 +170,7 @@ impl TestEnvironment {
         counter: ObjectRef,
     ) -> Result<(ObjectRef, Owner), ExecutionFailureStatus> {
         let (fx, _) = self
-            .move_call(
-                "share_counter",
-                vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(counter))],
-            )
+            .move_call("share_counter", vec![CallArg::ImmutableOrOwned(counter)])
             .await
             .unwrap();
 
@@ -192,7 +189,7 @@ impl TestEnvironment {
         let (fx, _) = self
             .move_call(
                 "increment_counter",
-                vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(counter))],
+                vec![CallArg::ImmutableOrOwned(counter)],
             )
             .await
             .unwrap();
@@ -211,8 +208,8 @@ impl TestEnvironment {
         let (fx, _) = self
             .move_call(
                 "increment_counter",
-                vec![CallArg::Object(ObjectArg::SharedObject {
-                    id: counter,
+                vec![CallArg::Shared(SharedObjectRef {
+                    object_id: counter,
                     initial_shared_version,
                     mutable: true,
                 })],

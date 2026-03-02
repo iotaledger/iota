@@ -29,7 +29,7 @@ use iota_types::{
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{CallArg, TransactionKind},
+    transaction::TransactionKind,
     utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;
@@ -1271,7 +1271,7 @@ async fn create_new_bear(
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        let name_arg = builder.input(CallArg::Pure(bcs::to_bytes(name).unwrap()))?;
+        let name_arg = builder.pure(name)?;
         let bear = builder.programmable_move_call(
             *package_id,
             Identifier::from_str(&module)?,

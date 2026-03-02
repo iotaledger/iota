@@ -20,7 +20,7 @@ use iota_types::{
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     resolve_address,
-    transaction::{self as Tx, ObjectArg},
+    transaction::{self as Tx, CallArg, SharedObjectRef},
 };
 use miette::Severity;
 use move_binary_format::{
@@ -132,13 +132,13 @@ impl<'a> Resolver<'a> for ToObject {
         // Depending on the ownership of the object, we resolve it to different types of
         // object arguments for the transaction.
         let obj_arg = match owner {
-            Owner::Address(_) if self.is_receiving => ObjectArg::Receiving(object_ref),
-            Owner::Immutable | Owner::Address(_) => ObjectArg::ImmOrOwnedObject(object_ref),
-            Owner::Shared(initial_shared_version) => ObjectArg::SharedObject {
-                id: object_ref.object_id,
+            Owner::Address(_) if self.is_receiving => CallArg::Receiving(object_ref),
+            Owner::Immutable | Owner::Address(_) => CallArg::ImmutableOrOwned(object_ref),
+            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef {
+                object_id: object_ref.object_id,
                 initial_shared_version,
                 mutable: self.is_mut,
-            },
+            }),
             Owner::Object(_) => {
                 error!(loc => help: {
                     "{obj_id} is an object-owned object, you can only use immutable, shared, or owned objects here."

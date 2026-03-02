@@ -172,7 +172,7 @@ mod move_authenticator {
         base_types::IotaAddress,
         object::OBJECT_START_VERSION,
         signature::GenericSignature,
-        transaction::{CallArg, ObjectArg, SenderSignedData, Transaction},
+        transaction::{CallArg, SenderSignedData, SharedObjectRef, Transaction},
         utils::make_transaction_data,
     };
 
@@ -184,8 +184,8 @@ mod move_authenticator {
         //
         // TODO: if it is necessary, AA accounts need to be supported properly in the
         // `AuthorityState` used for testing.
-        let self_call_arg = CallArg::Object(ObjectArg::SharedObject {
-            id: address.into(),
+        let self_call_arg = CallArg::Shared(SharedObjectRef {
+            object_id: address.into(),
             initial_shared_version: OBJECT_START_VERSION,
             mutable: false,
         });

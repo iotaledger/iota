@@ -38,8 +38,7 @@ CallArg:
   ENUM:
     0:
       Pure:
-        NEWTYPE:
-          SEQ: U8
+        NEWTYPE: BYTES
     1:
       Object:
         NEWTYPE:
@@ -696,13 +695,13 @@ Object:
 ObjectArg:
   ENUM:
     0:
-      ImmOrOwnedObject:
+      ImmutableOrOwned:
         NEWTYPE:
           TYPENAME: TupleObjectReference
     1:
-      SharedObject:
+      Shared:
         STRUCT:
-          - id:
+          - object_id:
               TYPENAME: ObjectId
           - initial_shared_version: U64
           - mutable: BOOL

@@ -21,7 +21,7 @@ use iota_sdk::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         stardust::output::AliasOutput,
-        transaction::{Argument, CallArg, ObjectArg, Transaction, TransactionData},
+        transaction::{Argument, CallArg, Transaction, TransactionData},
     },
 };
 use iota_sdk_types::crypto::Intent;
@@ -121,7 +121,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let arguments = vec![builder.obj(ObjectArg::ImmOrOwnedObject(alias_output_object_ref))?];
+        let arguments = vec![builder.obj(CallArg::ImmutableOrOwned(alias_output_object_ref))?];
         // Call the nft_output::extract_assets function
         if let Argument::Result(extracted_assets) = builder.programmable_move_call(
             ObjectID::STARDUST,
@@ -148,9 +148,7 @@ async fn main() -> Result<(), anyhow::Error> {
             );
 
             // Create an NFT collection
-            let nft_collection_name = builder
-                .input(CallArg::Pure(bcs::to_bytes("Collection name").unwrap()))
-                .unwrap();
+            let nft_collection_name = builder.pure(&"Collection name").unwrap();
 
             let nft_collection = builder.programmable_move_call(
                 custom_nft_package_id,
@@ -161,15 +159,9 @@ async fn main() -> Result<(), anyhow::Error> {
             );
 
             // Mint a collection-related NFT
-            let nft_name = builder
-                .input(CallArg::Pure(bcs::to_bytes("NFT name").unwrap()))
-                .unwrap();
-            let nft_description = builder
-                .input(CallArg::Pure(bcs::to_bytes("NFT description").unwrap()))
-                .unwrap();
-            let nft_url_value = builder
-                .input(CallArg::Pure(bcs::to_bytes("NFT URL").unwrap()))
-                .unwrap();
+            let nft_name = builder.pure(&"NFT name").unwrap();
+            let nft_description = builder.pure(&"NFT description").unwrap();
+            let nft_url_value = builder.pure(&"NFT URL").unwrap();
             let nft_url = builder.programmable_move_call(
                 ObjectID::FRAMEWORK,
                 Identifier::URL_MODULE,

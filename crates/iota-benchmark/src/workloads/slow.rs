@@ -11,7 +11,7 @@ use iota_types::{
     base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, random_object_ref},
     crypto::get_key_pair,
     object::Owner,
-    transaction::{ObjectArg, Transaction},
+    transaction::{CallArg, SharedObjectRef, Transaction},
 };
 
 use super::{
@@ -77,11 +77,11 @@ impl SlowTestPayload {
         let mut builder = ProgrammableTransactionBuilder::new();
         let args = vec![
             builder
-                .obj(ObjectArg::SharedObject {
-                    id: IOTA_CLOCK_OBJECT_ID,
+                .obj(CallArg::Shared(SharedObjectRef {
+                    object_id: IOTA_CLOCK_OBJECT_ID,
                     initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
                     mutable: false,
-                })
+                }))
                 .unwrap(),
         ];
         builder.programmable_move_call(
@@ -94,11 +94,11 @@ impl SlowTestPayload {
 
         // Add unused mutable shared object input to activate congestion control.
         builder
-            .obj(ObjectArg::SharedObject {
-                id: self.shared_object_ref.object_id,
+            .obj(CallArg::Shared(SharedObjectRef {
+                object_id: self.shared_object_ref.object_id,
                 initial_shared_version: self.shared_object_ref.version,
                 mutable: true,
-            })
+            }))
             .unwrap();
 
         TestTransactionBuilder::new(self.sender, account.gas, gas_price)

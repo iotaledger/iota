@@ -12,7 +12,7 @@ use serde::Serialize;
 
 use crate::{
     base_types::{IotaAddress, ObjectID, ObjectRef},
-    transaction::{Argument, CallArg, Command, ObjectArg, ProgrammableTransaction},
+    transaction::{Argument, CallArg, Command, ProgrammableTransaction, SharedObjectRef},
 };
 
 #[derive(PartialEq, Eq, Hash)]
@@ -66,39 +66,38 @@ impl ProgrammableTransactionBuilder {
         ))
     }
 
-    pub fn obj(&mut self, obj_arg: ObjectArg) -> anyhow::Result<Argument> {
-        let id = obj_arg.id();
+    pub fn obj(&mut self, obj_arg: impl Into<CallArg>) -> anyhow::Result<Argument> {
+        let obj_arg: CallArg = obj_arg.into();
+        let id = *obj_arg
+            .object_id_opt()
+            .ok_or_else(|| anyhow::anyhow!("expected object CallArg, found pure argument"))?;
         let obj_arg = if let Some(old_value) = self.inputs.get(&BuilderArg::Object(id)) {
-            let old_obj_arg = match old_value {
-                CallArg::Pure(_) => anyhow::bail!("invariant violation! object has pure argument"),
-                CallArg::Object(arg) => arg,
-            };
-            match (old_obj_arg, obj_arg) {
+            match (old_value.as_shared_opt(), obj_arg.as_shared_opt()) {
                 (
-                    ObjectArg::SharedObject {
-                        id: id1,
+                    Some(&SharedObjectRef {
+                        object_id: id1,
                         initial_shared_version: v1,
                         mutable: mut1,
-                    },
-                    ObjectArg::SharedObject {
-                        id: id2,
+                    }),
+                    Some(&SharedObjectRef {
+                        object_id: id2,
                         initial_shared_version: v2,
                         mutable: mut2,
-                    },
-                ) if v1 == &v2 => {
+                    }),
+                ) if v1 == v2 => {
                     anyhow::ensure!(
-                        id1 == &id2 && id == id2,
+                        id1 == id2 && id == id2,
                         "invariant violation! object has id does not match call arg"
                     );
-                    ObjectArg::SharedObject {
-                        id,
+                    CallArg::Shared(SharedObjectRef {
+                        object_id: id,
                         initial_shared_version: v2,
-                        mutable: *mut1 || mut2,
-                    }
+                        mutable: mut1 || mut2,
+                    })
                 }
-                (old_obj_arg, obj_arg) => {
+                _ => {
                     anyhow::ensure!(
-                        old_obj_arg == &obj_arg,
+                        *old_value == obj_arg,
                         "Mismatched Object argument kind for object {id}. \
                         {old_value:?} is not compatible with {obj_arg:?}"
                     );
@@ -108,26 +107,27 @@ impl ProgrammableTransactionBuilder {
         } else {
             obj_arg
         };
-        let (i, _) = self
-            .inputs
-            .insert_full(BuilderArg::Object(id), CallArg::Object(obj_arg));
+        let (i, _) = self.inputs.insert_full(BuilderArg::Object(id), obj_arg);
         Ok(Argument::Input(i as u16))
     }
 
     pub fn input(&mut self, call_arg: CallArg) -> anyhow::Result<Argument> {
         match call_arg {
-            CallArg::Pure(bytes) => Ok(self.pure_bytes(bytes, /* force separate */ false)),
-            CallArg::Object(obj) => self.obj(obj),
+            CallArg::Pure(value) => Ok(self.pure_bytes(value, /* force separate */ false)),
+            CallArg::ImmutableOrOwned(_) | CallArg::Shared(_) | CallArg::Receiving(_) => {
+                self.obj(call_arg)
+            }
+            _ => unreachable!("a new CallArg variant was added and needs to be handled"),
         }
     }
 
-    pub fn make_obj_vec(
+    pub fn make_obj_vec<T: Into<CallArg>>(
         &mut self,
-        objs: impl IntoIterator<Item = ObjectArg>,
+        objs: impl IntoIterator<Item = T>,
     ) -> anyhow::Result<Argument> {
         let make_vec_args = objs
             .into_iter()
-            .map(|obj| self.obj(obj))
+            .map(|obj| self.obj(obj.into()))
             .collect::<Result<_, _>>()?;
         Ok(self.command(Command::MakeMoveVec(None, make_vec_args)))
     }
@@ -227,7 +227,7 @@ impl ProgrammableTransactionBuilder {
         object_ref: ObjectRef,
     ) -> anyhow::Result<()> {
         let rec_arg = self.pure(recipient).unwrap();
-        let obj_arg = self.obj(ObjectArg::ImmOrOwnedObject(object_ref));
+        let obj_arg = self.obj(CallArg::ImmutableOrOwned(object_ref));
         self.commands
             .push(Command::TransferObjects(vec![obj_arg?], rec_arg));
         Ok(())
@@ -260,7 +260,7 @@ impl ProgrammableTransactionBuilder {
     }
 
     pub fn split_coin(&mut self, recipient: IotaAddress, coin: ObjectRef, amounts: Vec<u64>) {
-        let coin_arg = self.obj(ObjectArg::ImmOrOwnedObject(coin)).unwrap();
+        let coin_arg = self.obj(CallArg::ImmutableOrOwned(coin)).unwrap();
         let amounts_len = amounts.len();
         let amt_args = amounts.into_iter().map(|a| self.pure(a).unwrap()).collect();
         let result = self.command(Command::SplitCoins(coin_arg, amt_args));
@@ -289,9 +289,9 @@ impl ProgrammableTransactionBuilder {
         let Some(coin) = coins.next() else {
             anyhow::bail!("coins vector is empty");
         };
-        let coin_arg = self.obj(ObjectArg::ImmOrOwnedObject(coin))?;
+        let coin_arg = self.obj(CallArg::ImmutableOrOwned(coin))?;
         let merge_args: Vec<_> = coins
-            .map(|c| self.obj(ObjectArg::ImmOrOwnedObject(c)))
+            .map(|c| self.obj(CallArg::ImmutableOrOwned(c)))
             .collect::<Result<_, _>>()?;
         if !merge_args.is_empty() {
             self.command(Command::MergeCoins(coin_arg, merge_args));

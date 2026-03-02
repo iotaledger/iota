@@ -9,7 +9,7 @@ use iota_macros::sim_test;
 use iota_types::{
     base_types::{EpochId, Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, ObjectArg, TransactionData},
+    transaction::{CallArg, SharedObjectRef, TransactionData},
 };
 use rand::random;
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -140,15 +140,15 @@ async fn create_deny_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionDa
                 "deny_list_v1_remove"
             },
             vec![
-                CallArg::Object(ObjectArg::SharedObject {
-                    id: ObjectID::DENY_LIST,
+                CallArg::Shared(SharedObjectRef {
+                    object_id: ObjectID::DENY_LIST,
                     initial_shared_version: test_env.deny_list_object_init_version,
                     mutable: true,
                 }),
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(
+                CallArg::ImmutableOrOwned(
                     test_env.get_latest_object_ref(&test_env.deny_cap_id).await,
-                )),
-                CallArg::Pure(bcs::to_bytes(&DENY_ADDRESS).unwrap()),
+                ),
+                CallArg::pure(&DENY_ADDRESS),
             ],
         )
         .with_type_args(vec![test_env.regulated_coin_type.clone()])
@@ -174,13 +174,13 @@ async fn create_move_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> Tran
             "pay",
             "split_and_transfer",
             vec![
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(
+                CallArg::ImmutableOrOwned(
                     test_env
                         .get_latest_object_ref(&test_env.regulated_coin_id)
                         .await,
-                )),
-                CallArg::Pure(bcs::to_bytes(&1u64).unwrap()),
-                CallArg::Pure(bcs::to_bytes(&DENY_ADDRESS).unwrap()),
+                ),
+                CallArg::pure(&1u64),
+                CallArg::pure(&DENY_ADDRESS),
             ],
         )
         .with_type_args(vec![test_env.regulated_coin_type.clone()])
@@ -190,7 +190,7 @@ async fn create_move_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> Tran
 async fn create_native_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionData {
     let mut pt_builder = ProgrammableTransactionBuilder::new();
     let coin_input = pt_builder
-        .obj(ObjectArg::ImmOrOwnedObject(
+        .obj(CallArg::ImmutableOrOwned(
             test_env
                 .get_latest_object_ref(&test_env.regulated_coin_id)
                 .await,

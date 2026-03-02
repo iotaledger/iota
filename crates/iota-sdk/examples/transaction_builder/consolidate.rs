@@ -15,7 +15,7 @@ use iota_sdk::{
     types::{
         base_types::ObjectRef,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{Argument, Command, ObjectArg, TransactionData, TransactionKind},
+        transaction::{Argument, CallArg, Command, TransactionData, TransactionKind},
     },
 };
 use utils::{setup_for_write, sign_and_execute_transaction};
@@ -58,7 +58,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     .iter()
                     .map(|c| {
                         builder
-                            .obj(ObjectArg::ImmOrOwnedObject(c.object_ref()))
+                            .obj(CallArg::ImmutableOrOwned(c.object_ref()))
                             .unwrap()
                     })
                     .collect::<Vec<_>>();

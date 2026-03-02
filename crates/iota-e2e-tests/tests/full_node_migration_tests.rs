@@ -37,7 +37,7 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     stardust::{coin_type::CoinType, output::NftOutput},
     timelock::timelock::TimeLock,
-    transaction::{Argument, ObjectArg, Transaction, TransactionData},
+    transaction::{Argument, CallArg, Transaction, TransactionData},
 };
 use test_cluster::TestClusterBuilder;
 
@@ -262,7 +262,7 @@ async fn address_unlock_condition(
 
         // Extract alias output assets
         let type_arguments = vec![GAS::type_tag()];
-        let arguments = vec![builder.obj(ObjectArg::ImmOrOwnedObject(alias_output_object_ref))?];
+        let arguments = vec![builder.obj(CallArg::ImmutableOrOwned(alias_output_object_ref))?];
         if let Argument::Result(extracted_alias_output_assets) = builder.programmable_move_call(
             ObjectID::STARDUST,
             Identifier::from_static("alias_output"),
@@ -304,7 +304,7 @@ async fn address_unlock_condition(
             let type_arguments = vec![GAS::type_tag()];
             let arguments = vec![
                 alias,
-                builder.obj(ObjectArg::Receiving(nft_output_object_ref))?,
+                builder.obj(CallArg::Receiving(nft_output_object_ref))?,
             ];
 
             let nft_output = builder.programmable_move_call(

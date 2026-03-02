@@ -68,8 +68,7 @@ use iota_types::{
         timelocked_staked_iota::TimelockedStakedIota,
     },
     transaction::{
-        CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectArg, ObjectReadResult,
-        Transaction,
+        CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectReadResult, Transaction,
     },
 };
 use move_binary_format::CompiledModule;
@@ -1563,10 +1562,10 @@ pub fn generate_genesis_system_object(
         // one is the IOTA `TreasuryCap` we got from step 4.
         let mut arguments = vec![iota_system_state_uid, iota_treasury_cap];
         let mut call_arg_arguments = vec![
-            CallArg::Pure(bcs::to_bytes(&genesis_chain_parameters).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&genesis_validators).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&token_distribution_schedule).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&Some(STARDUST_UPGRADE_LABEL_VALUE)).unwrap()),
+            CallArg::pure(&genesis_chain_parameters),
+            CallArg::pure(&genesis_validators),
+            CallArg::pure(&token_distribution_schedule),
+            CallArg::pure(&Some(STARDUST_UPGRADE_LABEL_VALUE)),
         ]
         .into_iter()
         .map(|a| builder.input(a))
@@ -1700,7 +1699,7 @@ pub fn split_timelocks(
                     .into(),
             ));
             let arguments = vec![
-                builder.obj(ObjectArg::ImmOrOwnedObject(*timelock))?,
+                builder.obj(CallArg::ImmutableOrOwned(*timelock))?,
                 builder.pure(surplus_amount)?,
             ];
             let surplus_timelock = builder.programmable_move_call(

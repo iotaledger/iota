@@ -17,9 +17,11 @@ use anyhow::bail;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
-pub use iota_sdk_types::{Argument, RandomnessStateUpdate};
+pub use iota_sdk_types::{
+    Argument, RandomnessStateUpdate, SharedObjectReference as SharedObjectRef,
+};
 use iota_sdk_types::{
-    Identifier, ObjectId, TypeTag,
+    Identifier, Input, ObjectId, TypeTag,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use itertools::Either;
@@ -74,43 +76,8 @@ const BLOCKED_MOVE_FUNCTIONS: [(ObjectID, &str, &str); 0] = [];
 #[path = "unit_tests/messages_tests.rs"]
 mod messages_tests;
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub enum CallArg {
-    // contains no structs or objects
-    Pure(Vec<u8>),
-    // an object
-    Object(ObjectArg),
-}
-
-impl CallArg {
-    pub const IOTA_SYSTEM_MUT: Self = Self::Object(ObjectArg::IOTA_SYSTEM_MUT);
-    pub const CLOCK_IMM: Self = Self::Object(ObjectArg::SharedObject {
-        id: ObjectID::CLOCK,
-        initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
-        mutable: false,
-    });
-    pub const CLOCK_MUT: Self = Self::Object(ObjectArg::SharedObject {
-        id: ObjectID::CLOCK,
-        initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
-        mutable: true,
-    });
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize)]
-pub enum ObjectArg {
-    // A Move object, either immutable, or owned mutable.
-    ImmOrOwnedObject(ObjectRef),
-    // A Move object that's shared.
-    // SharedObject::mutable controls whether caller asks for a mutable reference to shared
-    // object.
-    SharedObject {
-        id: ObjectID,
-        initial_shared_version: SequenceNumber,
-        mutable: bool,
-    },
-    // A Move object that can be received in this transaction.
-    Receiving(ObjectRef),
-}
+/// Type alias for the SDK's `Input` type, used as transaction call arguments.
+pub type CallArg = Input;
 
 pub fn type_input_validity_check(
     tag: &TypeInput,
@@ -489,12 +456,14 @@ impl EndOfEpochTransactionKind {
         }
     }
 
-    fn shared_input_objects(&self) -> impl Iterator<Item = SharedInputObject> + '_ {
+    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_ {
         match self {
             Self::ChangeEpoch(_)
             | Self::ChangeEpochV2(_)
             | Self::ChangeEpochV3(_)
-            | Self::ChangeEpochV4(_) => vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter(),
+            | Self::ChangeEpochV4(_) => {
+                vec![SharedObjectRef::IOTA_SYSTEM_STATE_OBJ_MUTABLE].into_iter()
+            }
         }
     }
 
@@ -588,151 +557,53 @@ impl EndOfEpochTransactionKind {
     }
 }
 
-impl CallArg {
-    pub fn input_objects(&self) -> Vec<InputObjectKind> {
+/// Extension trait for [`CallArg`] providing helper methods.
+pub trait CallArgExt {
+    /// Returns the input object kind for this argument, excluding receiving
+    /// objects.
+    fn input_object_kind(&self) -> Option<InputObjectKind>;
+
+    /// Validity check for this argument against the given protocol config.
+    fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
+}
+
+impl CallArgExt for CallArg {
+    fn input_object_kind(&self) -> Option<InputObjectKind> {
         match self {
-            CallArg::Pure(_) => vec![],
-            CallArg::Object(ObjectArg::ImmOrOwnedObject(object_ref)) => {
-                vec![InputObjectKind::ImmOrOwnedMoveObject(*object_ref)]
+            CallArg::ImmutableOrOwned(object_ref) => {
+                Some(InputObjectKind::ImmOrOwnedMoveObject(*object_ref))
             }
-            CallArg::Object(ObjectArg::SharedObject {
-                id,
+            CallArg::Shared(SharedObjectRef {
+                object_id,
                 initial_shared_version,
                 mutable,
-            }) => {
-                let id = *id;
-                let initial_shared_version = *initial_shared_version;
-                let mutable = *mutable;
-                vec![InputObjectKind::SharedMoveObject {
-                    id,
-                    initial_shared_version,
-                    mutable,
-                }]
-            }
-            // Receiving objects are not part of the input objects.
-            CallArg::Object(ObjectArg::Receiving(_)) => vec![],
+            }) => Some(InputObjectKind::SharedMoveObject {
+                id: *object_id,
+                initial_shared_version: *initial_shared_version,
+                mutable: *mutable,
+            }),
+            CallArg::Pure(_) | CallArg::Receiving(_) => None,
+            _ => unreachable!("a new CallArg variant was added and needs to be handled"),
         }
     }
 
-    pub fn receiving_objects(&self) -> Vec<ObjectRef> {
+    fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
         match self {
-            CallArg::Pure(_) => vec![],
-            CallArg::Object(o) => match o {
-                ObjectArg::ImmOrOwnedObject(_) => vec![],
-                ObjectArg::SharedObject { .. } => vec![],
-                ObjectArg::Receiving(obj_ref) => vec![*obj_ref],
-            },
-        }
-    }
-
-    pub fn shared_objects(&self) -> Vec<SharedInputObject> {
-        match self {
-            CallArg::Pure(_) => vec![],
-            CallArg::Object(o) => match o {
-                ObjectArg::ImmOrOwnedObject(_) | ObjectArg::Receiving(_) => vec![],
-                ObjectArg::SharedObject {
-                    id,
-                    initial_shared_version,
-                    mutable,
-                } => vec![SharedInputObject {
-                    id: *id,
-                    initial_shared_version: *initial_shared_version,
-                    mutable: *mutable,
-                }],
-            },
-        }
-    }
-
-    pub fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
-        match self {
-            CallArg::Pure(p) => {
+            CallArg::Pure(bytes) => {
                 fp_ensure!(
-                    p.len() < config.max_pure_argument_size() as usize,
+                    bytes.len() < config.max_pure_argument_size() as usize,
                     UserInputError::SizeLimitExceeded {
                         limit: "maximum pure argument size".to_string(),
                         value: config.max_pure_argument_size().to_string()
                     }
                 );
             }
-            CallArg::Object(o) => match o {
-                ObjectArg::Receiving(_)
-                | ObjectArg::ImmOrOwnedObject(_)
-                | ObjectArg::SharedObject { .. } => (),
-            },
+            CallArg::ImmutableOrOwned(_) | CallArg::Shared(_) | CallArg::Receiving(_) => {
+                // No validation needed for these variants
+            }
+            _ => unreachable!("a new CallArg variant was added and needs to be handled"),
         }
         Ok(())
-    }
-}
-
-impl From<bool> for CallArg {
-    fn from(b: bool) -> Self {
-        // unwrap safe because every u8 value is BCS-serializable
-        CallArg::Pure(bcs::to_bytes(&b).unwrap())
-    }
-}
-
-impl From<u8> for CallArg {
-    fn from(n: u8) -> Self {
-        // unwrap safe because every u8 value is BCS-serializable
-        CallArg::Pure(bcs::to_bytes(&n).unwrap())
-    }
-}
-
-impl From<u16> for CallArg {
-    fn from(n: u16) -> Self {
-        // unwrap safe because every u16 value is BCS-serializable
-        CallArg::Pure(bcs::to_bytes(&n).unwrap())
-    }
-}
-
-impl From<u32> for CallArg {
-    fn from(n: u32) -> Self {
-        // unwrap safe because every u32 value is BCS-serializable
-        CallArg::Pure(bcs::to_bytes(&n).unwrap())
-    }
-}
-
-impl From<u64> for CallArg {
-    fn from(n: u64) -> Self {
-        // unwrap safe because every u64 value is BCS-serializable
-        CallArg::Pure(bcs::to_bytes(&n).unwrap())
-    }
-}
-
-impl From<u128> for CallArg {
-    fn from(n: u128) -> Self {
-        // unwrap safe because every u128 value is BCS-serializable
-        CallArg::Pure(bcs::to_bytes(&n).unwrap())
-    }
-}
-
-impl From<&Vec<u8>> for CallArg {
-    fn from(v: &Vec<u8>) -> Self {
-        // unwrap safe because every vec<u8> value is BCS-serializable
-        CallArg::Pure(bcs::to_bytes(v).unwrap())
-    }
-}
-
-impl From<ObjectRef> for CallArg {
-    fn from(obj: ObjectRef) -> Self {
-        CallArg::Object(ObjectArg::ImmOrOwnedObject(obj))
-    }
-}
-
-impl ObjectArg {
-    pub const IOTA_SYSTEM_MUT: Self = Self::SharedObject {
-        id: ObjectID::SYSTEM_STATE,
-        initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
-        mutable: true,
-    };
-
-    pub fn id(&self) -> ObjectID {
-        match self {
-            ObjectArg::Receiving(object_ref) | ObjectArg::ImmOrOwnedObject(object_ref) => {
-                object_ref.object_id
-            }
-            ObjectArg::SharedObject { id, .. } => *id,
-        }
     }
 }
 
@@ -1043,7 +914,7 @@ impl ProgrammableTransaction {
         let ProgrammableTransaction { inputs, commands } = self;
         let input_arg_objects = inputs
             .iter()
-            .flat_map(|arg| arg.input_objects())
+            .filter_map(|arg| arg.input_object_kind())
             .collect::<Vec<_>>();
         // all objects, not just mutable, must be unique
         let mut used = HashSet::new();
@@ -1065,7 +936,7 @@ impl ProgrammableTransaction {
         let ProgrammableTransaction { inputs, .. } = self;
         inputs
             .iter()
-            .flat_map(|arg| arg.receiving_objects())
+            .filter_map(|arg| arg.as_receiving_opt().copied())
             .collect()
     }
 
@@ -1110,7 +981,7 @@ impl ProgrammableTransaction {
         // A command that uses Random can only be followed by TransferObjects or
         // MergeCoins.
         if let Some(random_index) = inputs.iter().position(|obj| {
-            matches!(obj, CallArg::Object(ObjectArg::SharedObject { id, .. }) if *id == ObjectID::RANDOMNESS_STATE)
+            matches!(obj, CallArg::Shared(SharedObjectRef { object_id, .. }) if *object_id == ObjectID::RANDOMNESS_STATE)
         }) {
             let mut used_random_object = false;
             let random_index = random_index.try_into().unwrap();
@@ -1132,22 +1003,13 @@ impl ProgrammableTransaction {
         Ok(())
     }
 
-    fn shared_input_objects(&self) -> impl Iterator<Item = SharedInputObject> + '_ {
+    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_ {
         self.inputs
             .iter()
             .filter_map(|arg| match arg {
-                CallArg::Pure(_)
-                | CallArg::Object(ObjectArg::Receiving(_))
-                | CallArg::Object(ObjectArg::ImmOrOwnedObject(_)) => None,
-                CallArg::Object(ObjectArg::SharedObject {
-                    id,
-                    initial_shared_version,
-                    mutable,
-                }) => Some(vec![SharedInputObject {
-                    id: *id,
-                    initial_shared_version: *initial_shared_version,
-                    mutable: *mutable,
-                }]),
+                CallArg::Pure(_) | CallArg::Receiving(_) | CallArg::ImmutableOrOwned(_) => None,
+                CallArg::Shared(shared) => Some(vec![*shared]),
+                _ => unreachable!("a new CallArg variant was added and needs to be handled"),
             })
             .flatten()
     }
@@ -1250,44 +1112,27 @@ impl Display for ProgrammableTransaction {
     }
 }
 
-#[derive(Clone, Hash, Debug, PartialEq, Eq)]
-pub struct SharedInputObject {
-    pub id: ObjectID,
-    pub initial_shared_version: SequenceNumber,
-    pub mutable: bool,
-}
+/// Merges `other` into `this` shared input object.
+/// If there is a conflict in mutability, the resulting object will be
+/// mutable. Errors if the id or initial_shared_version do not match.
+fn left_union_shared_input_objects(
+    this: &mut SharedObjectRef,
+    other: &SharedObjectRef,
+) -> UserInputResult<()> {
+    fp_ensure!(
+        this.object_id == other.object_id,
+        UserInputError::SharedObjectIdMismatch
+    );
+    fp_ensure!(
+        this.initial_shared_version == other.initial_shared_version,
+        UserInputError::SharedObjectStartingVersionMismatch
+    );
 
-impl SharedInputObject {
-    pub const IOTA_SYSTEM_OBJ: Self = Self {
-        id: ObjectID::SYSTEM_STATE,
-        initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
-        mutable: true,
-    };
-
-    pub fn id(&self) -> ObjectID {
-        self.id
+    if !this.mutable && other.mutable {
+        this.mutable = other.mutable;
     }
 
-    pub fn into_id_and_version(self) -> (ObjectID, SequenceNumber) {
-        (self.id, self.initial_shared_version)
-    }
-
-    /// Merges another SharedInputObject into self.
-    /// If there is a conflict in mutability, the resulting object will be
-    /// mutable. Errors if the id or initial_shared_version do not match.
-    pub fn left_union(&mut self, other: &SharedInputObject) -> UserInputResult<()> {
-        fp_ensure!(self.id == other.id, UserInputError::SharedObjectIdMismatch);
-        fp_ensure!(
-            self.initial_shared_version == other.initial_shared_version,
-            UserInputError::SharedObjectStartingVersionMismatch
-        );
-
-        if !self.mutable && other.mutable {
-            self.mutable = other.mutable;
-        }
-
-        Ok(())
-    }
+    Ok(())
 }
 
 impl TransactionKind {
@@ -1349,11 +1194,11 @@ impl TransactionKind {
 
     /// Returns an iterator of all shared input objects used by this
     /// transaction.
-    pub fn shared_input_objects(&self) -> impl Iterator<Item = SharedInputObject> + '_ {
+    pub fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_ {
         match &self {
             Self::ConsensusCommitPrologueV1(_) => {
-                Either::Left(Either::Left(iter::once(SharedInputObject {
-                    id: ObjectID::CLOCK,
+                Either::Left(Either::Left(iter::once(SharedObjectRef {
+                    object_id: ObjectID::CLOCK,
                     initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
                     mutable: true,
                 })))
@@ -1366,8 +1211,8 @@ impl TransactionKind {
                 Either::Right(Either::Right(iter::empty()))
             }
             Self::RandomnessStateUpdate(update) => {
-                Either::Left(Either::Left(iter::once(SharedInputObject {
-                    id: ObjectID::RANDOMNESS_STATE,
+                Either::Left(Either::Left(iter::once(SharedObjectRef {
+                    object_id: ObjectID::RANDOMNESS_STATE,
                     initial_shared_version: update.randomness_obj_initial_shared_version,
                     mutable: true,
                 })))
@@ -1906,12 +1751,12 @@ impl TransactionData {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let capability_arg = match capability_owner {
-                Owner::Address(_) => ObjectArg::ImmOrOwnedObject(upgrade_capability),
-                Owner::Shared(initial_shared_version) => ObjectArg::SharedObject {
-                    id: upgrade_capability.object_id,
+                Owner::Address(_) => CallArg::ImmutableOrOwned(upgrade_capability),
+                Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef {
+                    object_id: upgrade_capability.object_id,
                     initial_shared_version,
                     mutable: true,
-                },
+                }),
                 Owner::Immutable => {
                     bail!("Upgrade capability is stored immutably and cannot be used for upgrades");
                 }
@@ -2001,7 +1846,7 @@ impl TransactionData {
     pub fn uses_randomness(&self) -> bool {
         self.shared_input_objects()
             .iter()
-            .any(|obj| obj.id() == ObjectID::RANDOMNESS_STATE)
+            .any(|obj| obj.object_id == ObjectID::RANDOMNESS_STATE)
     }
 
     pub fn digest(&self) -> TransactionDigest {
@@ -2051,7 +1896,7 @@ pub trait TransactionDataAPI {
     /// IMPORTANT: This function does not return shared objects associated with
     /// `MoveAuthenticator` signatures. To check those objects as well, use the
     /// corresponding function from `SenderSignedData`.
-    fn shared_input_objects(&self) -> Vec<SharedInputObject>;
+    fn shared_input_objects(&self) -> Vec<SharedObjectRef>;
 
     fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)>;
 
@@ -2138,7 +1983,7 @@ impl TransactionDataAPI for TransactionDataV1 {
         self.kind.shared_input_objects().next().is_some()
     }
 
-    fn shared_input_objects(&self) -> Vec<SharedInputObject> {
+    fn shared_input_objects(&self) -> Vec<SharedObjectRef> {
         self.kind.shared_input_objects().collect()
     }
 
@@ -2569,7 +2414,7 @@ impl SenderSignedData {
 
                     let account_objects = move_authenticator
                         .object_to_authenticate()
-                        .input_objects()
+                        .input_object_kind()
                         .iter()
                         .map(|k| {
                             input_objects_map
@@ -2612,7 +2457,7 @@ impl SenderSignedData {
     ///
     /// Panics if there are shared objects with the same ID but different
     /// initial versions.
-    pub fn shared_input_objects(&self) -> Vec<SharedInputObject> {
+    pub fn shared_input_objects(&self) -> Vec<SharedObjectRef> {
         // Vector is used to preserve the order of input objects.
         let mut input_objects = self.transaction_data().shared_input_objects();
 
@@ -2623,13 +2468,14 @@ impl SenderSignedData {
                 for auth_shared_object in move_authenticator.shared_objects() {
                     let entry = input_objects
                         .iter_mut()
-                        .find(|o| o.id == auth_shared_object.id);
+                        .find(|o| o.object_id == auth_shared_object.object_id);
 
                     match entry {
                         None => input_objects.push(auth_shared_object),
-                        Some(existing) => existing
-                            .left_union(&auth_shared_object)
-                            .expect("union of shared objects should not fail"),
+                        Some(existing) => {
+                            left_union_shared_input_objects(existing, &auth_shared_object)
+                                .expect("union of shared objects should not fail")
+                        }
                     }
                 }
             });
@@ -2680,7 +2526,7 @@ impl SenderSignedData {
     pub fn uses_randomness(&self) -> bool {
         self.shared_input_objects()
             .iter()
-            .any(|obj| obj.id() == ObjectId::RANDOMNESS_STATE)
+            .any(|obj| obj.object_id == ObjectId::RANDOMNESS_STATE)
     }
 
     fn move_authenticators_validity_check(&self, config: &ProtocolConfig) -> IotaResult {

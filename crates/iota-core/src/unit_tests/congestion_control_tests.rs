@@ -18,7 +18,7 @@ use iota_types::{
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{ObjectArg, Transaction},
+    transaction::{CallArg, SharedObjectRef, Transaction},
 };
 
 use crate::{
@@ -224,17 +224,17 @@ async fn commit_and_execute_transaction(
     for shared_object in shared_objects {
         args.push(
             txn_builder
-                .obj(ObjectArg::SharedObject {
-                    id: shared_object.0,
+                .obj(CallArg::Shared(SharedObjectRef {
+                    object_id: shared_object.0,
                     initial_shared_version: shared_object.1,
                     mutable: true,
-                })
+                }))
                 .unwrap(),
         )
     }
     args.push(
         txn_builder
-            .obj(ObjectArg::ImmOrOwnedObject(*owned_object))
+            .obj(CallArg::ImmutableOrOwned(*owned_object))
             .unwrap(),
     );
     match args.len() {

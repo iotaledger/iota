@@ -867,7 +867,7 @@ impl TransactionManager {
             tx_data
                 .shared_input_objects()
                 .into_iter()
-                .filter_map(|r| r.mutable.then_some(r.id))
+                .filter_map(|r| r.mutable.then_some(r.object_id))
                 .collect(),
         ) {
             // When this occurs, most likely transactions piled up on a shared object.

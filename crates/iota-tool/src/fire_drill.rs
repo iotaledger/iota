@@ -220,10 +220,8 @@ async fn update_next_epoch_metadata(
         account_key,
         "update_validator_next_epoch_authority_pubkey",
         vec![
-            CallArg::Pure(
-                bcs::to_bytes(&new_authority_key_pair_copy.public().as_bytes().to_vec()).unwrap(),
-            ),
-            CallArg::Pure(bcs::to_bytes(&pop.as_bytes().to_vec()).unwrap()),
+            CallArg::pure(&new_authority_key_pair_copy.public().as_bytes().to_vec()),
+            CallArg::pure(&pop.as_bytes().to_vec()),
         ],
         iota_client,
     )
@@ -233,8 +231,8 @@ async fn update_next_epoch_metadata(
     update_metadata_on_chain(
         account_key,
         "update_validator_next_epoch_network_pubkey",
-        vec![CallArg::Pure(
-            bcs::to_bytes(&new_network_key_pair_copy.public().as_bytes().to_vec()).unwrap(),
+        vec![CallArg::pure(
+            &new_network_key_pair_copy.public().as_bytes().to_vec(),
         )],
         iota_client,
     )
@@ -244,8 +242,8 @@ async fn update_next_epoch_metadata(
     update_metadata_on_chain(
         account_key,
         "update_validator_next_epoch_protocol_pubkey",
-        vec![CallArg::Pure(
-            bcs::to_bytes(&new_protocol_key_pair_copy.public().as_bytes().to_vec()).unwrap(),
+        vec![CallArg::pure(
+            &new_protocol_key_pair_copy.public().as_bytes().to_vec(),
         )],
         iota_client,
     )
@@ -255,7 +253,7 @@ async fn update_next_epoch_metadata(
     update_metadata_on_chain(
         account_key,
         "update_validator_next_epoch_network_address",
-        vec![CallArg::Pure(bcs::to_bytes(&new_network_address).unwrap())],
+        vec![CallArg::pure(&new_network_address)],
         iota_client,
     )
     .await?;
@@ -264,7 +262,7 @@ async fn update_next_epoch_metadata(
     update_metadata_on_chain(
         account_key,
         "update_validator_next_epoch_p2p_address",
-        vec![CallArg::Pure(bcs::to_bytes(&new_external_address).unwrap())],
+        vec![CallArg::pure(&new_external_address)],
         iota_client,
     )
     .await?;
@@ -273,9 +271,7 @@ async fn update_next_epoch_metadata(
     update_metadata_on_chain(
         account_key,
         "update_validator_next_epoch_primary_address",
-        vec![CallArg::Pure(
-            bcs::to_bytes(&new_primary_addresses).unwrap(),
-        )],
+        vec![CallArg::pure(&new_primary_addresses)],
         iota_client,
     )
     .await?;
@@ -295,7 +291,7 @@ async fn update_metadata_on_chain(
         .governance_api()
         .get_reference_gas_price()
         .await?;
-    let mut args = vec![CallArg::IOTA_SYSTEM_MUT];
+    let mut args = vec![CallArg::IOTA_SYSTEM_MUTABLE];
     args.extend(call_args);
     let tx_data = TransactionData::new_move_call(
         iota_address,

@@ -889,7 +889,11 @@ impl ConsensusOutputQuarantine {
                     ..
                 }) = &tx.0.transaction
                 {
-                    Some(tx.shared_input_objects().into_iter().map(|obj| obj.id))
+                    Some(
+                        tx.shared_input_objects()
+                            .into_iter()
+                            .map(|obj| obj.object_id),
+                    )
                 } else {
                     None
                 }
