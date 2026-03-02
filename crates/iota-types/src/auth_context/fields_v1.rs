@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
     base_types::ObjectID,
-    transaction::{Argument, CallArg, Command, ObjectArg},
+    transaction::{Argument, CallArg, Command},
     type_input::TypeName,
 };
 
@@ -122,18 +122,32 @@ impl AuthContextCommand {
 
 /// Mirrors [`crate::transaction::CallArg`], matching the BCS layout expected
 /// by the Move-side `ptb_call_arg::CallArg`.
+// #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+// pub enum AuthContextCallArg {
+//     Pure(Vec<u8>),
+//     Object(ObjectArg),
+// }
+// pub enum AuthContextCallArg {
+//     Pure(Vec<u8>),
+//     ImmutableOrOwned(ObjectRef),
+//     Shared(SharedObjectRef),
+//     Receiving(ObjectRef),
+// }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AuthContextCallArg {
-    Pure(Vec<u8>),
-    Object(ObjectArg),
-}
+pub struct AuthContextCallArg(pub CallArg);
 
 impl From<&CallArg> for AuthContextCallArg {
     fn from(arg: &CallArg) -> Self {
-        match arg {
-            CallArg::Pure(bytes) => AuthContextCallArg::Pure(bytes.clone()),
-            CallArg::Object(obj_arg) => AuthContextCallArg::Object(*obj_arg),
-        }
+        AuthContextCallArg(arg.clone())
+        // match arg {
+        //     CallArg::Pure(bytes) => AuthContextCallArg::Pure(bytes.clone()),
+        //     CallArg::ImmutableOrOwned(obj_arg) =>
+        // AuthContextCallArg::ImmutableOrOwned(*obj_arg),
+        //     CallArg::Shared(obj_arg) => AuthContextCallArg::Shared(*obj_arg),
+        //     CallArg::Receiving(obj_arg) =>
+        // AuthContextCallArg::Receiving(*obj_arg),
+        //     _ => unimplemented!("a new CallArg enum variant was added and
+        // needs to be handled"), }
     }
 }
 
@@ -155,7 +169,7 @@ mod tests {
     use super::*;
     use crate::{
         base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
-        transaction::{Argument, CallArg, Command, ObjectArg, ProgrammableMoveCall},
+        transaction::{Argument, CallArg, Command, ProgrammableMoveCall, SharedObjectRef},
         type_input::{StructInput, TypeInput},
     };
 
@@ -186,29 +200,29 @@ mod tests {
 
     #[test]
     fn call_arg_pure_round_trip() {
-        let arg = AuthContextCallArg::Pure(vec![1, 2, 3]);
+        let arg = AuthContextCallArg(CallArg::Pure(vec![1, 2, 3]));
         assert_eq!(round_trip(&arg), arg);
     }
 
     #[test]
     fn call_arg_imm_or_owned_round_trip() {
-        let arg = AuthContextCallArg::Object(ObjectArg::ImmOrOwnedObject(obj_ref()));
+        let arg = AuthContextCallArg(CallArg::ImmutableOrOwned(obj_ref()));
         assert_eq!(round_trip(&arg), arg);
     }
 
     #[test]
     fn call_arg_shared_object_round_trip() {
-        let arg = AuthContextCallArg::Object(ObjectArg::SharedObject {
-            id: obj_id(),
+        let arg = AuthContextCallArg(CallArg::Shared(SharedObjectRef {
+            object_id: obj_id(),
             initial_shared_version: SequenceNumber::from(5),
             mutable: true,
-        });
+        }));
         assert_eq!(round_trip(&arg), arg);
     }
 
     #[test]
     fn call_arg_receiving_round_trip() {
-        let arg = AuthContextCallArg::Object(ObjectArg::Receiving(obj_ref()));
+        let arg = AuthContextCallArg(CallArg::Receiving(obj_ref()));
         assert_eq!(round_trip(&arg), arg);
     }
 
@@ -218,21 +232,21 @@ mod tests {
     fn call_arg_from_pure() {
         let data = vec![10, 20, 30];
         let converted = AuthContextCallArg::from(&CallArg::Pure(data.clone()));
-        assert_eq!(converted, AuthContextCallArg::Pure(data));
+        assert_eq!(converted, AuthContextCallArg(CallArg::Pure(data)));
     }
 
     #[test]
     fn call_arg_from_object() {
-        let obj_arg = ObjectArg::ImmOrOwnedObject(obj_ref());
-        let converted = AuthContextCallArg::from(&CallArg::Object(obj_arg));
-        assert_eq!(converted, AuthContextCallArg::Object(obj_arg));
+        let call_arg = CallArg::ImmutableOrOwned(obj_ref());
+        let converted = AuthContextCallArg::from(&call_arg);
+        assert_eq!(converted, AuthContextCallArg(call_arg));
     }
 
     #[test]
     fn call_arg_from_call_arg() {
         let call_arg = CallArg::Pure(vec![99]);
         let converted = AuthContextCallArg::from(&call_arg);
-        assert!(matches!(converted, AuthContextCallArg::Pure(_)));
+        assert!(matches!(converted, AuthContextCallArg(CallArg::Pure(_))));
     }
 
     // ── AuthContextCommand round-trips ────────────────────────────────────────

@@ -21,7 +21,7 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     stardust::coin_type::CoinType,
-    transaction::{Argument, CheckedInputObjects, ObjectArg},
+    transaction::{Argument, CallArg, CheckedInputObjects},
 };
 use move_binary_format::errors::VMError;
 use move_core_types::vm_status::StatusCode;
@@ -132,7 +132,7 @@ fn object_migration_with_object_owner(
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        let owner_arg = builder.obj(ObjectArg::ImmOrOwnedObject(owner_output_object_ref))?;
+        let owner_arg = builder.obj(CallArg::ImmutableOrOwned(owner_output_object_ref))?;
 
         let extracted_assets = builder.programmable_move_call(
             ObjectID::STARDUST,
@@ -149,7 +149,7 @@ fn object_migration_with_object_owner(
         let bag_arg = Argument::NestedResult(result_idx, 1);
         let owned_arg = Argument::NestedResult(result_idx, 2);
 
-        let receiving_owned_arg = builder.obj(ObjectArg::Receiving(owned_output_object_ref))?;
+        let receiving_owned_arg = builder.obj(CallArg::Receiving(owned_output_object_ref))?;
         let received_owned_output = builder.programmable_move_call(
             ObjectID::STARDUST,
             Identifier::from_static("address_unlock_condition"),
@@ -281,7 +281,7 @@ fn extract_native_tokens_from_bag(
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        let inner_object_arg = builder.obj(ObjectArg::ImmOrOwnedObject(output_object_ref))?;
+        let inner_object_arg = builder.obj(CallArg::ImmutableOrOwned(output_object_ref))?;
 
         let extracted_assets = builder.programmable_move_call(
             ObjectID::STARDUST,
@@ -457,7 +457,7 @@ fn unlock_object(
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         let inner_object_arg = builder
-            .obj(ObjectArg::ImmOrOwnedObject(output_object_ref))
+            .obj(CallArg::ImmutableOrOwned(output_object_ref))
             .unwrap();
 
         let extracted_assets = builder.programmable_move_call(

@@ -16,7 +16,7 @@ use iota_types::{
     governance::{ADD_STAKE_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
     messages_checkpoint::CheckpointDigest,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, CallArg, Command, ObjectArg, TransactionData},
+    transaction::{Argument, CallArg, Command, TransactionData},
 };
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as DeError};
 use serde_json::Value;
@@ -904,13 +904,13 @@ impl InternalOperation {
                 // none, validator input will be created after the system object input
                 let (validator, system_state, amount) = if let Some(amount) = amount {
                     let amount = builder.pure(amount)?;
-                    let validator = builder.input(CallArg::Pure(bcs::to_bytes(&validator)?))?;
-                    let state = builder.input(CallArg::IOTA_SYSTEM_MUT)?;
+                    let validator = builder.pure(validator)?;
+                    let state = builder.input(CallArg::IOTA_SYSTEM_MUTABLE)?;
                     (validator, state, amount)
                 } else {
                     let amount = builder.pure(metadata.total_coin_value - metadata.budget)?;
-                    let state = builder.input(CallArg::IOTA_SYSTEM_MUT)?;
-                    let validator = builder.input(CallArg::Pure(bcs::to_bytes(&validator)?))?;
+                    let state = builder.input(CallArg::IOTA_SYSTEM_MUTABLE)?;
+                    let validator = builder.pure(validator)?;
                     (validator, state, amount)
                 };
                 let coin = builder.command(Command::SplitCoins(Argument::Gas, vec![amount]));
@@ -935,12 +935,12 @@ impl InternalOperation {
                     // if stake_ids is not empty, id input will be created after the system object
                     // input
                     let (system_state, id) = if !stake_ids.is_empty() {
-                        let system_state = builder.input(CallArg::IOTA_SYSTEM_MUT)?;
-                        let id = builder.obj(ObjectArg::ImmOrOwnedObject(stake_id))?;
+                        let system_state = builder.input(CallArg::IOTA_SYSTEM_MUTABLE)?;
+                        let id = builder.obj(CallArg::ImmutableOrOwned(stake_id))?;
                         (system_state, id)
                     } else {
-                        let id = builder.obj(ObjectArg::ImmOrOwnedObject(stake_id))?;
-                        let system_state = builder.input(CallArg::IOTA_SYSTEM_MUT)?;
+                        let id = builder.obj(CallArg::ImmutableOrOwned(stake_id))?;
+                        let system_state = builder.input(CallArg::IOTA_SYSTEM_MUTABLE)?;
                         (system_state, id)
                     };
 

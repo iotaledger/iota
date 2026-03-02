@@ -7,7 +7,7 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::Owner,
-    transaction::{CallArg, ObjectArg, ProgrammableTransaction},
+    transaction::{CallArg, ProgrammableTransaction},
 };
 use proptest::{prelude::*, strategy::ValueTree};
 use transaction_fuzzer::{
@@ -79,9 +79,9 @@ pub fn run_pt_success(
     cap: ObjectRef,
 ) -> ObjectRef {
     for i in 0..pt.inputs.len() {
-        if let CallArg::Object(ObjectArg::ImmOrOwnedObject(obj_ref)) = pt.inputs[i] {
+        if let CallArg::ImmutableOrOwned(obj_ref) = &pt.inputs[i] {
             if obj_ref.object_id == cap.object_id {
-                pt.inputs[i] = CallArg::Object(ObjectArg::ImmOrOwnedObject(cap));
+                pt.inputs[i] = CallArg::ImmutableOrOwned(cap);
             }
         }
     }

@@ -241,7 +241,7 @@ pub async fn execute_replay_command(
             )
             .await?;
 
-            let out = serde_json::to_string(&sandbox_state).unwrap();
+            let out = serde_json::to_string_pretty(&sandbox_state).unwrap();
             let path = base_path.join(format!("{tx_digest}.json"));
             std::fs::write(path, out)?;
             None

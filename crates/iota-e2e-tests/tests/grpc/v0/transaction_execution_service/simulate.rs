@@ -18,7 +18,7 @@ use iota_grpc_types::{
 use iota_macros::sim_test;
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{ObjectArg, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionData, TransactionDataAPI},
 };
 use prost_types::FieldMask;
 

@@ -17,7 +17,8 @@ use iota_types::{
     gas_coin::GasCoin,
     move_package::{MovePackage, normalize_move_package},
     transaction::{
-        CallArg, GasData, ObjectArg, ProgrammableTransaction, TransactionData, TransactionDataAPI,
+        CallArg, GasData, ProgrammableTransaction, SharedObjectRef, TransactionData,
+        TransactionDataAPI,
     },
     transaction_executor::VmChecks,
 };
@@ -401,9 +402,9 @@ fn resolve_arg(
 ) -> Result<CallArg> {
     match arg {
         UnresolvedInputArgument::Pure { value } => CallArg::Pure(value),
-        UnresolvedInputArgument::ImmutableOrOwned(obj_ref) => CallArg::Object(
-            ObjectArg::ImmOrOwnedObject(resolve_object_reference(reader, obj_ref)?),
-        ),
+        UnresolvedInputArgument::ImmutableOrOwned(obj_ref) => {
+            CallArg::ImmutableOrOwned(resolve_object_reference(reader, obj_ref)?)
+        }
         UnresolvedInputArgument::Shared {
             object_id,
             initial_shared_version: _,
@@ -484,15 +485,15 @@ fn resolve_arg(
                 }
             }
 
-            CallArg::Object(ObjectArg::SharedObject {
-                id,
+            CallArg::Shared(SharedObjectRef {
+                object_id: id,
                 initial_shared_version,
                 mutable,
             })
         }
-        UnresolvedInputArgument::Receiving(obj_ref) => CallArg::Object(ObjectArg::Receiving(
-            resolve_object_reference(reader, obj_ref)?,
-        )),
+        UnresolvedInputArgument::Receiving(obj_ref) => {
+            CallArg::Receiving(resolve_object_reference(reader, obj_ref)?)
+        }
     }
     .pipe(Ok)
 }

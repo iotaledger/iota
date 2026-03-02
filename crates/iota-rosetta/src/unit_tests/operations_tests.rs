@@ -54,8 +54,8 @@ async fn test_operation_data_parsing() -> Result<(), anyhow::Error> {
 }
 #[tokio::test]
 async fn test_iota_json() {
-    let arg1 = CallArg::Pure(bcs::to_bytes(&1000000u64).unwrap());
-    let arg2 = CallArg::Pure(bcs::to_bytes(&30215u64).unwrap());
+    let arg1 = CallArg::pure(&1000000u64);
+    let arg2 = CallArg::pure(&30215u64);
     let json1 = IotaCallArg::try_from(arg1, Some(&MoveTypeLayout::U64)).unwrap();
     let json2 = IotaCallArg::try_from(arg2, Some(&MoveTypeLayout::U64)).unwrap();
     println!("{json1:?}, {json2:?}");

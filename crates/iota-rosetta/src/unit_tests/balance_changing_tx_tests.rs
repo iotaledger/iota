@@ -28,11 +28,10 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{
-        CallArg, InputObjectKind, ObjectArg, ProgrammableTransaction,
-        TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
-        TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN, TEST_ONLY_GAS_UNIT_FOR_STAKING,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
-        TransactionKind,
+        CallArg, InputObjectKind, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_GENERIC,
+        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
+        TEST_ONLY_GAS_UNIT_FOR_STAKING, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction,
+        TransactionData, TransactionDataAPI, TransactionKind,
     },
 };
 use rand::seq::{IteratorRandom, SliceRandom};
@@ -207,9 +206,9 @@ async fn test_publish_and_move_call() {
                 Identifier::from_static("mint"),
                 vec![],
                 vec![
-                    CallArg::Object(ObjectArg::ImmOrOwnedObject(treasury)),
-                    CallArg::Pure(bcs::to_bytes(&10000u64).unwrap()),
-                    CallArg::Pure(bcs::to_bytes(&recipient).unwrap()),
+                    CallArg::ImmutableOrOwned(treasury),
+                    CallArg::pure(&10000u64),
+                    CallArg::pure(&recipient),
                 ],
             )
             .unwrap();

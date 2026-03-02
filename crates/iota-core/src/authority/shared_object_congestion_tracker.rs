@@ -7,7 +7,7 @@ use std::{cmp::Ordering, collections::HashMap};
 use iota_types::{
     base_types::{CommitRound, ObjectID},
     executable_transaction::VerifiedExecutableTransaction,
-    transaction::{SharedInputObject, TransactionDataAPI},
+    transaction::{SharedObjectRef, TransactionDataAPI},
 };
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
@@ -252,11 +252,11 @@ impl SharedObjectCongestionTracker {
     /// tracker.
     pub(super) fn initialize_object_execution_slots(
         &mut self,
-        shared_input_objects: &[SharedInputObject],
+        shared_input_objects: &[SharedObjectRef],
     ) {
         for obj in shared_input_objects {
             self.object_execution_slots
-                .entry(obj.id)
+                .entry(obj.object_id)
                 .or_insert(ObjectExecutionSlots::new());
         }
     }
@@ -274,7 +274,7 @@ impl SharedObjectCongestionTracker {
     #[instrument(level = "trace", skip_all)]
     fn compute_tx_start_time(
         &self,
-        shared_input_objects: &[SharedInputObject],
+        shared_input_objects: &[SharedObjectRef],
         tx_duration: ExecutionTime,
     ) -> Option<ExecutionTime> {
         if self
@@ -302,7 +302,7 @@ impl SharedObjectCongestionTracker {
                 .map(|obj| {
                     // `start_time`
                     self.object_execution_slots
-                        .get(&obj.id)
+                        .get(&obj.object_id)
                         .expect("object should have been inserted at the start of this function.")
                         .max_object_free_slot_start_time(tx_duration)
                 })
@@ -320,7 +320,7 @@ impl SharedObjectCongestionTracker {
     /// given the objects that have been checked so far.
     fn compute_min_free_execution_slot(
         &self,
-        shared_input_objects: &[SharedInputObject],
+        shared_input_objects: &[SharedObjectRef],
         tx_duration: ExecutionTime,
         lookup_interval: ExecutionSlot,
     ) -> Option<ExecutionTime> {
@@ -332,7 +332,7 @@ impl SharedObjectCongestionTracker {
 
         for intersection_slot in self
             .object_execution_slots
-            .get(&obj.id)
+            .get(&obj.object_id)
             .expect("object should have been inserted before.")
             .0
             .iter()
@@ -423,7 +423,10 @@ impl SharedObjectCongestionTracker {
             // If `congestion_control_min_free_execution_slot` is true, we return all the
             // shared input objects as no individual object can be identified as
             // the cause of congestion.
-            shared_input_objects.iter().map(|obj| obj.id).collect()
+            shared_input_objects
+                .iter()
+                .map(|obj| obj.object_id)
+                .collect()
         } else {
             // If `congestion_control_min_free_execution_slot` is false, we return
             // only shared objects that can be identified as the cause of congestion.
@@ -432,13 +435,13 @@ impl SharedObjectCongestionTracker {
                 .filter(|obj| {
                     let (end_time, overflow) = self
                         .object_execution_slots
-                        .get(&obj.id)
+                        .get(&obj.object_id)
                         .expect("object should have been inserted before.")
                         .max_object_occupied_slot_end_time()
                         .overflowing_add(tx_duration);
                     overflow || end_time > congestion_limit
                 })
-                .map(|obj| obj.id)
+                .map(|obj| obj.object_id)
                 .collect()
         };
 
@@ -492,7 +495,7 @@ impl SharedObjectCongestionTracker {
         let object_ids = cert
             .shared_input_objects()
             .into_iter()
-            .filter_map(|obj| obj.mutable.then_some(obj.id))
+            .filter_map(|obj| obj.mutable.then_some(obj.object_id))
             .collect::<Vec<_>>();
 
         object_ids.iter().for_each(|obj_id| {
@@ -764,7 +767,7 @@ pub mod shared_object_test_utils {
         base_types::{ObjectID, SequenceNumber, random_object_ref},
         crypto::{AccountKeyPair, get_key_pair},
         executable_transaction::VerifiedExecutableTransaction,
-        transaction::{CallArg, ObjectArg, VerifiedTransaction},
+        transaction::{CallArg, VerifiedTransaction},
     };
 
     use super::*;
@@ -794,8 +797,8 @@ pub mod shared_object_test_utils {
                         objects
                             .iter()
                             .map(|(id, mutable)| {
-                                CallArg::Object(ObjectArg::SharedObject {
-                                    id: *id,
+                                CallArg::Shared(SharedObjectRef {
+                                    object_id: *id,
                                     initial_shared_version: SequenceNumber::default(),
                                     mutable: *mutable,
                                 })
@@ -810,7 +813,7 @@ pub mod shared_object_test_utils {
 
     pub(crate) fn initialize_tracker_and_compute_tx_start_time(
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
-        shared_input_objects: &[SharedInputObject],
+        shared_input_objects: &[SharedObjectRef],
         tx_duration: ExecutionTime,
     ) -> Option<ExecutionTime> {
         shared_object_congestion_tracker.initialize_object_execution_slots(shared_input_objects);
@@ -842,11 +845,11 @@ pub mod shared_object_test_utils {
         )
     }
 
-    pub fn construct_shared_input_objects(objects: &[(ObjectID, bool)]) -> Vec<SharedInputObject> {
+    pub fn construct_shared_input_objects(objects: &[(ObjectID, bool)]) -> Vec<SharedObjectRef> {
         objects
             .iter()
-            .map(|(id, mutable)| SharedInputObject {
-                id: *id,
+            .map(|(id, mutable)| SharedObjectRef {
+                object_id: *id,
                 initial_shared_version: SequenceNumber::default(),
                 mutable: *mutable,
             })

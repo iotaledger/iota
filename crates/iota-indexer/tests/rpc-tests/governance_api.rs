@@ -13,7 +13,7 @@ use iota_types::{
     gas_coin::GAS,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, ObjectArg},
+    transaction::CallArg,
     utils::to_sender_signed_transaction,
 };
 
@@ -244,7 +244,7 @@ fn test_timelocked_staking() {
             let mut builder = ProgrammableTransactionBuilder::new();
 
             let iota_coin_argument = builder
-                .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(iota_coin_ref)))
+                .input(CallArg::ImmutableOrOwned(iota_coin_ref))
                 .expect("valid obj");
 
             // Step 1: Get the IOTA balance from the coin object.
@@ -257,7 +257,7 @@ fn test_timelocked_staking() {
             );
 
             // Step 2: Timelock the IOTA balance.
-            let timelock_timestamp = builder.input(CallArg::from(u64::MAX)).unwrap();
+            let timelock_timestamp = builder.pure(u64::MAX).unwrap();
             let timelocked_iota_balance = builder.programmable_move_call(
                 ObjectID::FRAMEWORK,
                 Identifier::from_static("timelock"),
@@ -276,10 +276,8 @@ fn test_timelocked_staking() {
                 _ => panic!("unsupported IotaSystemStateSummary"),
             };
 
-            let validator = builder
-                .input(CallArg::Pure(bcs::to_bytes(&validator).unwrap()))
-                .unwrap();
-            let state = builder.input(CallArg::IOTA_SYSTEM_MUT).unwrap();
+            let validator = builder.pure(validator).unwrap();
+            let state = builder.input(CallArg::IOTA_SYSTEM_MUTABLE).unwrap();
 
             let _ = builder.programmable_move_call(
                 ObjectID::SYSTEM,
@@ -358,7 +356,7 @@ fn test_timelocked_unstaking() {
             let mut builder = ProgrammableTransactionBuilder::new();
 
             let iota_coin_argument = builder
-                .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(iota_coin_ref)))
+                .input(CallArg::ImmutableOrOwned(iota_coin_ref))
                 .expect("valid obj");
 
             // Step 1: Get the IOTA balance from the coin object.
@@ -371,7 +369,7 @@ fn test_timelocked_unstaking() {
             );
 
             // Step 2: Timelock the IOTA balance.
-            let timelock_timestamp = builder.input(CallArg::from(u64::MAX)).unwrap();
+            let timelock_timestamp = builder.pure(u64::MAX).unwrap();
             let timelocked_iota_balance = builder.programmable_move_call(
                 ObjectID::FRAMEWORK,
                 Identifier::from_static("timelock"),
@@ -390,10 +388,8 @@ fn test_timelocked_unstaking() {
                 _ => panic!("unsupported IotaSystemStateSummary"),
             };
 
-            let validator = builder
-                .input(CallArg::Pure(bcs::to_bytes(&validator).unwrap()))
-                .unwrap();
-            let state = builder.input(CallArg::IOTA_SYSTEM_MUT).unwrap();
+            let validator = builder.pure(validator).unwrap();
+            let state = builder.input(CallArg::IOTA_SYSTEM_MUTABLE).unwrap();
 
             let _ = builder.programmable_move_call(
                 ObjectID::SYSTEM,
@@ -440,12 +436,10 @@ fn test_timelocked_unstaking() {
             let mut builder = ProgrammableTransactionBuilder::new();
 
             let timelocked_stake_id_argument = builder
-                .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(
-                    timelocked_stake_id_ref,
-                )))
+                .input(CallArg::ImmutableOrOwned(timelocked_stake_id_ref))
                 .expect("valid obj");
 
-            let state = builder.input(CallArg::IOTA_SYSTEM_MUT).unwrap();
+            let state = builder.input(CallArg::IOTA_SYSTEM_MUTABLE).unwrap();
 
             let _ = builder.programmable_move_call(
                 ObjectID::SYSTEM,

@@ -200,7 +200,10 @@ mod tests {
         assert_eq!(ctx.tx_inputs().len(), 1);
         assert_eq!(ctx.tx_commands().len(), 1);
 
-        assert!(matches!(ctx.tx_inputs()[0], AuthContextCallArg::Pure(_)));
+        assert!(matches!(
+            ctx.tx_inputs()[0],
+            AuthContextCallArg(CallArg::Pure(_))
+        ));
 
         // Commands must have TypeName substituted for TypeInput.
         let AuthContextCommand::MoveCall(call) = &ctx.tx_commands()[0] else {
@@ -227,7 +230,7 @@ mod tests {
 
         ctx.replace(
             MoveAuthenticatorDigest::default(),
-            vec![AuthContextCallArg::Pure(vec![1])],
+            vec![AuthContextCallArg(CallArg::Pure(vec![1]))],
             vec![],
         );
         let non_empty_bytes = ctx.to_bcs_bytes();

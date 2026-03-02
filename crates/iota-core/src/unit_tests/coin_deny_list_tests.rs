@@ -14,7 +14,7 @@ use iota_types::{
     },
     effects::{TransactionEffects, TransactionEffectsAPI},
     object::Object,
-    transaction::{CallArg, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
+    transaction::{CallArg, SharedObjectRef, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
 };
 
 use crate::authority::{
@@ -100,15 +100,13 @@ async fn test_regulated_coin_v1_types() {
         "coin",
         "deny_list_v1_add",
         vec![
-            CallArg::Object(ObjectArg::SharedObject {
-                id: ObjectID::DENY_LIST,
+            CallArg::Shared(SharedObjectRef {
+                object_id: ObjectID::DENY_LIST,
                 initial_shared_version: deny_list_object_init_version,
                 mutable: true,
             }),
-            CallArg::Object(ObjectArg::ImmOrOwnedObject(
-                deny_cap_object.compute_object_reference(),
-            )),
-            CallArg::Pure(bcs::to_bytes(&deny_address).unwrap()),
+            CallArg::ImmutableOrOwned(deny_cap_object.compute_object_reference()),
+            CallArg::pure(&deny_address),
         ],
     )
     .with_type_args(vec![regulated_coin_type.clone()])
@@ -176,14 +174,12 @@ async fn test_regulated_coin_v1_types() {
         "coin",
         "deny_list_v1_enable_global_pause",
         vec![
-            CallArg::Object(ObjectArg::SharedObject {
-                id: ObjectID::DENY_LIST,
+            CallArg::Shared(SharedObjectRef {
+                object_id: ObjectID::DENY_LIST,
                 initial_shared_version: deny_list_object_init_version,
                 mutable: true,
             }),
-            CallArg::Object(ObjectArg::ImmOrOwnedObject(
-                env.get_latest_object_ref(&deny_cap_object.id()).await,
-            )),
+            CallArg::ImmutableOrOwned(env.get_latest_object_ref(&deny_cap_object.id()).await),
         ],
     )
     .with_type_args(vec![regulated_coin_type.clone()])
