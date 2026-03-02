@@ -23,11 +23,15 @@ use iota_protocol_config::Chain;
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     base_types::IotaAddress,
-    effects::{TransactionEffects, TransactionEvents},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    error::ExecutionError,
     iota_serde::BigInt,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
-    transaction::{SenderSignedData, TransactionData},
+    transaction::{
+        GasData, SenderSignedData, TransactionData, TransactionDataV1, TransactionExpiration,
+        TransactionKind,
+    },
 };
 use jsonrpsee::{RpcModule, core::RpcResult, http_client::HttpClient};
 
@@ -52,6 +56,22 @@ const DRY_RUN_TRANSACTION_READ_MASK: &[&str] = &[
     "executed_transaction.output_objects.bcs",
     "suggested_gas_price",
     "execution_result.execution_error.source",
+];
+const DEV_INSPECT_TRANSACTION_READ_MASK: &[&str] = &[
+    "executed_transaction.effects.bcs",
+    "executed_transaction.events.events.bcs",
+    "execution_result.execution_error.bcs_kind",
+    "execution_result.execution_error.source",
+    "execution_result.execution_error.command_index",
+    "execution_result.command_results.mutated_by_ref.argument",
+    "execution_result.command_results.mutated_by_ref.type_tag",
+    "execution_result.command_results.mutated_by_ref.bcs",
+    "execution_result.command_results.return_values.type_tag",
+    "execution_result.command_results.return_values.bcs",
+];
+const EPOCH_READ_MASK: &[&str] = &[
+    "reference_gas_price",
+    "protocol_config.attributes.max_tx_gas",
 ];
 
 #[derive(Clone)]
@@ -174,6 +194,146 @@ impl WriteApi {
             execution_error_source,
         })
     }
+
+    async fn dev_inspect_transaction_block_impl(
+        &self,
+        sender_address: IotaAddress,
+        tx_bytes: Base64,
+        gas_price: Option<BigInt<u64>>,
+        additional_args: Option<DevInspectArgs>,
+        package_resolver: &Arc<Resolver<impl PackageStore>>,
+    ) -> IndexerResult<DevInspectResults> {
+        let DevInspectArgs {
+            gas_sponsor,
+            gas_budget,
+            gas_objects,
+            show_raw_txn_data_and_effects,
+            skip_checks: _,
+        } = additional_args.unwrap_or_default();
+
+        let show_raw_txn_data_and_effects = show_raw_txn_data_and_effects.unwrap_or(false);
+
+        let (price, budget) = match (gas_price, gas_budget) {
+            (Some(price), Some(budget)) => (price.into_inner(), budget.into_inner()),
+            (price, budget) => {
+                let (ref_price, max_gas) = self.reference_gas_price_and_max_tx_gas().await?;
+                (
+                    price.map(BigInt::into_inner).unwrap_or(ref_price),
+                    budget.map(BigInt::into_inner).unwrap_or(max_gas),
+                )
+            }
+        };
+
+        let owner = gas_sponsor.unwrap_or(sender_address);
+        let payment = gas_objects.unwrap_or_default();
+
+        let kind = bcs::from_bytes::<TransactionKind>(&tx_bytes.to_vec()?)?;
+
+        let transaction_data = TransactionData::V1(TransactionDataV1 {
+            kind,
+            sender: sender_address,
+            gas_data: GasData {
+                payment,
+                owner,
+                price,
+                budget,
+            },
+            expiration: TransactionExpiration::None,
+        });
+
+        let raw_txn_data = show_raw_txn_data_and_effects
+            .then(|| bcs::to_bytes(&transaction_data))
+            .transpose()?
+            .unwrap_or_default();
+
+        let readmask = FieldMask::from_paths(DEV_INSPECT_TRANSACTION_READ_MASK)
+            .display()
+            .to_string();
+
+        let simulate_tx_response = self
+            .fullnode_grpc_client
+            .simulate_transaction(
+                transaction_data.try_into()?,
+                true,
+                false,
+                Some(readmask.as_str()),
+            )
+            .await?;
+
+        let executed_transaction = simulate_tx_response.executed_transaction()?;
+
+        let tx_effects: TransactionEffects =
+            executed_transaction.effects()?.effects()?.try_into()?;
+
+        let raw_effects = show_raw_txn_data_and_effects
+            .then(|| bcs::to_bytes(&tx_effects))
+            .transpose()?
+            .unwrap_or_default();
+
+        let tx_events = TransactionEvents::try_from(executed_transaction.events()?.events()?)?;
+
+        let tx_digest = *tx_effects.transaction_digest();
+        // timestamp is None because it represent a checkpoint one, on a dev inspect
+        // operation we don't have this information.
+        let events =
+            tx_events_to_iota_tx_events(tx_events, package_resolver, tx_digest, None).await?;
+
+        let execution_error = simulate_tx_response
+            .execution_error()
+            .map(|execution_error| -> IndexerResult<_> {
+                let exec_err = execution_error.error_kind()?;
+                let source = execution_error
+                    .source
+                    .clone()
+                    .map(|s| -> Box<dyn std::error::Error + Send + Sync> { s.into() });
+
+                let mut error = ExecutionError::new(exec_err.into(), source);
+                if let Some(command_index) = execution_error.command_index {
+                    error = error.with_command_index(command_index as usize);
+                }
+                Ok(error.to_string())
+            })
+            .transpose()?;
+
+        let results = simulate_tx_response
+            .command_results()
+            .map(|command_results| grpc_conversion::command_results(command_results.clone()))
+            .transpose()?;
+
+        Ok(DevInspectResults {
+            effects: tx_effects.try_into()?,
+            events,
+            results,
+            error: execution_error,
+            raw_txn_data,
+            raw_effects,
+        })
+    }
+
+    /// Gets the reference gas price and max transaction gas from the gRPC API.
+    async fn reference_gas_price_and_max_tx_gas(&self) -> IndexerResult<(u64, u64)> {
+        let readmask = FieldMask::from_paths(EPOCH_READ_MASK).display().to_string();
+
+        let epoch = self
+            .fullnode_grpc_client
+            .get_epoch(
+                None, // we're requesting the information for the current epoch.
+                Some(readmask.as_str()),
+            )
+            .await?;
+
+        let max_tx_gas = epoch
+            .protocol_config()?
+            .attributes()?
+            .get("max_tx_gas")
+            .ok_or_else(|| {
+                IndexerError::Grpc("protocol_config's `max_tx_gas` should be available".into())
+            })?
+            .parse::<u64>()
+            .map_err(|e| IndexerError::Grpc(e.to_string()))?;
+
+        Ok((epoch.reference_gas_price(), max_tx_gas))
+    }
 }
 
 impl OptimisticWriteApi {
@@ -219,13 +379,21 @@ impl WriteApiServer for WriteApi {
 
     async fn dev_inspect_transaction_block(
         &self,
-        _sender_address: IotaAddress,
-        _tx_bytes: Base64,
-        _gas_price: Option<BigInt<u64>>,
+        sender_address: IotaAddress,
+        tx_bytes: Base64,
+        gas_price: Option<BigInt<u64>>,
         _epoch: Option<BigInt<u64>>,
-        _additional_args: Option<DevInspectArgs>,
+        additional_args: Option<DevInspectArgs>,
     ) -> RpcResult<DevInspectResults> {
-        todo!("waiting issue: #10390 and #10391 to be resolved");
+        self.dev_inspect_transaction_block_impl(
+            sender_address,
+            tx_bytes,
+            gas_price,
+            additional_args,
+            &self.package_resolver,
+        )
+        .await
+        .map_err(Into::into)
     }
 
     async fn dry_run_transaction_block(
