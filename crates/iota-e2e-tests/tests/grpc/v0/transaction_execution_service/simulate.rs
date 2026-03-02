@@ -88,7 +88,7 @@ async fn simulate_transaction_with_gas_estimation() {
 
     // Verify gas budget estimation worked correctly
     let bcs_data = response
-        .transaction
+        .executed_transaction
         .unwrap()
         .transaction
         .unwrap()
@@ -138,77 +138,105 @@ async fn simulate_transaction_readmask_scenarios() {
     };
 
     // Tests for readmask scenarios
-    type TestCase<'a> = (&'a str, Option<FieldMask>, &'a [&'a str]);
+    type TestCase<'a> = (&'a str, Option<FieldMask>, Vec<&'a str>);
     let test_cases: Vec<TestCase> = vec![
         (
             "default readmask",
             None,
-            &[
-                "transaction.transaction.digest",
-                "transaction.transaction.bcs",
-                "transaction.effects.digest",
-                "transaction.effects.bcs",
-                "command_results",
+            // SIMULATE_TRANSACTION_READ_MASK = "executed_transaction.transaction,
+            // executed_transaction.effects,executed_transaction.events,
+            // executed_transaction.input_objects,executed_transaction.output_objects,
+            // suggested_gas_price,execution_result"
+            // Wildcard paths expand to all their sub-fields.
+            vec![
+                "executed_transaction.transaction.digest",
+                "executed_transaction.transaction.bcs",
+                "executed_transaction.effects.digest",
+                "executed_transaction.effects.bcs",
+                "executed_transaction.events.digest",
+                "executed_transaction.events.events",
+                "executed_transaction.input_objects",
+                "executed_transaction.output_objects",
+                "suggested_gas_price",
+                "execution_result",
             ],
         ),
         (
             "empty readmask",
             Some(FieldMask::from_paths(&[] as &[&str])),
-            &[],
+            vec![],
         ),
-        // Full readmask: requesting parent "transaction" returns ALL nested fields
+        // Full readmask: requesting parent "executed_transaction" returns ALL nested fields
         // All fields are present even if empty (simple transfers have no events but events field
         // is present)
         (
             "full readmask",
-            Some(FieldMask::from_paths(["transaction", "command_results"])),
-            &[
-                "transaction.transaction.digest",
-                "transaction.transaction.bcs",
-                "transaction.signatures.bcs",
-                "transaction.effects.digest",
-                "transaction.effects.bcs",
-                "transaction.events",
-                "transaction.input_objects",
-                "transaction.output_objects",
-                "command_results",
+            Some(FieldMask::from_paths([
+                "executed_transaction",
+                "suggested_gas_price",
+                "execution_result",
+            ])),
+            // "executed_transaction" is a wildcard → all sub-fields returned.
+            // checkpoint and timestamp are absent: simulate/execute transactions
+            // are not yet included in a checkpoint.
+            vec![
+                "executed_transaction.transaction.digest",
+                "executed_transaction.transaction.bcs",
+                "executed_transaction.signatures",
+                "executed_transaction.effects.digest",
+                "executed_transaction.effects.bcs",
+                "executed_transaction.events.digest",
+                "executed_transaction.events.events",
+                "executed_transaction.input_objects",
+                "executed_transaction.output_objects",
+                "suggested_gas_price",
+                "execution_result",
             ],
         ),
         (
-            "partial readmask (transaction only)",
-            Some(FieldMask::from_paths(["transaction"])),
-            &[
-                "transaction.transaction.digest",
-                "transaction.transaction.bcs",
-                "transaction.signatures.bcs",
-                "transaction.effects.digest",
-                "transaction.effects.bcs",
-                "transaction.events",
-                "transaction.input_objects",
-                "transaction.output_objects",
+            "partial readmask (executed_transaction only)",
+            Some(FieldMask::from_paths(["executed_transaction"])),
+            // checkpoint and timestamp absent: not yet in a checkpoint.
+            vec![
+                "executed_transaction.transaction.digest",
+                "executed_transaction.transaction.bcs",
+                "executed_transaction.signatures",
+                "executed_transaction.effects.digest",
+                "executed_transaction.effects.bcs",
+                "executed_transaction.events.digest",
+                "executed_transaction.events.events",
+                "executed_transaction.input_objects",
+                "executed_transaction.output_objects",
             ],
         ),
         (
-            "partial readmask (command_results only)",
-            Some(FieldMask::from_paths(["command_results"])),
-            &["command_results"],
+            "partial readmask (execution_result only)",
+            Some(FieldMask::from_paths(["execution_result"])),
+            vec![
+                "execution_result.command_results",
+                "execution_result.execution_error",
+            ],
         ),
         // Specific nested field masks - only the specified nested fields are returned
         (
-            "nested readmask (transaction.effects only)",
-            Some(FieldMask::from_paths(["transaction.effects"])),
-            &["transaction.effects.digest", "transaction.effects.bcs"],
+            "nested readmask (executed_transaction.effects only)",
+            Some(FieldMask::from_paths(["executed_transaction.effects"])),
+            vec![
+                "executed_transaction.effects.digest",
+                "executed_transaction.effects.bcs",
+            ],
         ),
         (
             "nested readmask (multiple specific fields)",
             Some(FieldMask::from_paths([
-                "transaction.effects",
-                "command_results",
+                "executed_transaction.effects",
+                "execution_result",
             ])),
-            &[
-                "transaction.effects.digest",
-                "transaction.effects.bcs",
-                "command_results",
+            vec![
+                "executed_transaction.effects.digest",
+                "executed_transaction.effects.bcs",
+                "execution_result.command_results",
+                "execution_result.execution_error",
             ],
         ),
     ];
@@ -218,7 +246,7 @@ async fn simulate_transaction_readmask_scenarios() {
             &mut exec_client,
             create_transaction(),
             mask,
-            expected_paths,
+            &expected_paths,
             scenario,
         )
         .await;
@@ -269,7 +297,7 @@ async fn simulate_transaction_empty_request() {
 }
 
 #[sim_test]
-async fn simulate_programmable_transaction_command_results() {
+async fn simulate_transaction_command_results() {
     let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
     let mut exec_client = client.execution_service_client();
@@ -315,93 +343,98 @@ async fn simulate_programmable_transaction_command_results() {
     };
 
     // Test cases for command_results field presence
-    type TestCase<'a> = (&'a str, Option<FieldMask>, &'a [&'a str]);
+    type TestCase<'a> = (&'a str, Option<FieldMask>, Vec<&'a str>);
     let test_cases: Vec<TestCase> = vec![
         (
             "default readmask",
             None,
-            &[
-                "transaction.transaction.digest",
-                "transaction.transaction.bcs",
-                "transaction.effects.digest",
-                "transaction.effects.bcs",
+            vec![
+                "executed_transaction.transaction.digest",
+                "executed_transaction.transaction.bcs",
+                "executed_transaction.effects.digest",
+                "executed_transaction.effects.bcs",
+                "executed_transaction.events.digest",
+                "executed_transaction.events.events",
+                "executed_transaction.input_objects",
+                "executed_transaction.output_objects",
+                "suggested_gas_price",
                 // mutated_by_ref has argument since they reference input arguments
-                "command_results.results.mutated_by_ref.outputs.argument.kind",
-                "command_results.results.mutated_by_ref.outputs.type_tag",
-                "command_results.results.mutated_by_ref.outputs.bcs",
-                "command_results.results.mutated_by_ref.outputs.json",
+                "execution_result.command_results.results.mutated_by_ref.outputs.argument.kind",
+                "execution_result.command_results.results.mutated_by_ref.outputs.type_tag",
+                "execution_result.command_results.results.mutated_by_ref.outputs.bcs",
+                "execution_result.command_results.results.mutated_by_ref.outputs.json",
                 // return_values don't have argument (they're results, not arguments)
-                "command_results.results.return_values.outputs.type_tag",
-                "command_results.results.return_values.outputs.bcs",
-                "command_results.results.return_values.outputs.json",
+                "execution_result.command_results.results.return_values.outputs.type_tag",
+                "execution_result.command_results.results.return_values.outputs.bcs",
+                "execution_result.command_results.results.return_values.outputs.json",
             ],
         ),
         (
             "full command_results readmask",
-            Some(FieldMask::from_paths(["command_results"])),
-            &[
+            Some(FieldMask::from_paths(["execution_result.command_results"])),
+            vec![
                 // Full mask returns all nested fields
                 // mutated_by_ref has argument since they reference input arguments
-                "command_results.results.mutated_by_ref.outputs.argument.kind",
-                "command_results.results.mutated_by_ref.outputs.type_tag",
-                "command_results.results.mutated_by_ref.outputs.bcs",
-                "command_results.results.mutated_by_ref.outputs.json",
+                "execution_result.command_results.results.mutated_by_ref.outputs.argument.kind",
+                "execution_result.command_results.results.mutated_by_ref.outputs.type_tag",
+                "execution_result.command_results.results.mutated_by_ref.outputs.bcs",
+                "execution_result.command_results.results.mutated_by_ref.outputs.json",
                 // return_values don't have argument (they're results, not arguments)
-                "command_results.results.return_values.outputs.type_tag",
-                "command_results.results.return_values.outputs.bcs",
-                "command_results.results.return_values.outputs.json",
+                "execution_result.command_results.results.return_values.outputs.type_tag",
+                "execution_result.command_results.results.return_values.outputs.bcs",
+                "execution_result.command_results.results.return_values.outputs.json",
             ],
         ),
         (
             "command_results with nested return_values field",
             Some(FieldMask::from_paths([
-                "command_results.results.return_values",
+                "execution_result.command_results.results.return_values",
             ])),
-            &[
+            vec![
                 // return_values don't have argument (they're results, not arguments)
-                "command_results.results.return_values.outputs.type_tag",
-                "command_results.results.return_values.outputs.bcs",
-                "command_results.results.return_values.outputs.json",
+                "execution_result.command_results.results.return_values.outputs.type_tag",
+                "execution_result.command_results.results.return_values.outputs.bcs",
+                "execution_result.command_results.results.return_values.outputs.json",
             ],
         ),
         (
             "command_results with nested mutated_by_ref field",
             Some(FieldMask::from_paths([
-                "command_results.results.mutated_by_ref",
+                "execution_result.command_results.results.mutated_by_ref",
             ])),
-            &[
+            vec![
                 // mutated_by_ref has argument since they reference input arguments
-                "command_results.results.mutated_by_ref.outputs.argument.kind",
-                "command_results.results.mutated_by_ref.outputs.type_tag",
-                "command_results.results.mutated_by_ref.outputs.bcs",
-                "command_results.results.mutated_by_ref.outputs.json",
+                "execution_result.command_results.results.mutated_by_ref.outputs.argument.kind",
+                "execution_result.command_results.results.mutated_by_ref.outputs.type_tag",
+                "execution_result.command_results.results.mutated_by_ref.outputs.bcs",
+                "execution_result.command_results.results.mutated_by_ref.outputs.json",
             ],
         ),
         (
             "command_results return_values outputs with type_tag field",
             Some(FieldMask::from_paths([
-                "command_results.results.return_values.outputs.type_tag",
+                "execution_result.command_results.results.return_values.outputs.type_tag",
             ])),
-            &["command_results.results.return_values.outputs.type_tag"],
+            vec!["execution_result.command_results.results.return_values.outputs.type_tag"],
         ),
         (
             "command_results mutated_by_ref outputs with argument field",
             Some(FieldMask::from_paths([
-                "command_results.results.mutated_by_ref.outputs.argument",
+                "execution_result.command_results.results.mutated_by_ref.outputs.argument",
             ])),
-            &["command_results.results.mutated_by_ref.outputs.argument.kind"],
+            vec!["execution_result.command_results.results.mutated_by_ref.outputs.argument.kind"],
         ),
         (
             "command_results mutated_by_ref outputs",
             Some(FieldMask::from_paths([
-                "command_results.results.mutated_by_ref.outputs",
+                "execution_result.command_results.results.mutated_by_ref.outputs",
             ])),
-            &[
+            vec![
                 // mutated_by_ref has argument since they reference input arguments
-                "command_results.results.mutated_by_ref.outputs.argument.kind",
-                "command_results.results.mutated_by_ref.outputs.type_tag",
-                "command_results.results.mutated_by_ref.outputs.bcs",
-                "command_results.results.mutated_by_ref.outputs.json",
+                "execution_result.command_results.results.mutated_by_ref.outputs.argument.kind",
+                "execution_result.command_results.results.mutated_by_ref.outputs.type_tag",
+                "execution_result.command_results.results.mutated_by_ref.outputs.bcs",
+                "execution_result.command_results.results.mutated_by_ref.outputs.json",
             ],
         ),
     ];
@@ -411,7 +444,7 @@ async fn simulate_programmable_transaction_command_results() {
             &mut exec_client,
             create_transaction(),
             mask,
-            expected_paths,
+            &expected_paths,
             scenario,
         )
         .await;

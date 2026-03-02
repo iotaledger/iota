@@ -16,9 +16,9 @@ mod _field_impls {
     #[allow(unused_imports)]
     use crate::v0::epoch::EpochFieldPathBuilder;
     #[allow(unused_imports)]
-    use crate::v0::event::Events;
+    use crate::v0::event::Event;
     #[allow(unused_imports)]
-    use crate::v0::event::EventsFieldPathBuilder;
+    use crate::v0::event::EventFieldPathBuilder;
     #[allow(unused_imports)]
     use crate::v0::filter::EventFilter;
     #[allow(unused_imports)]
@@ -57,6 +57,7 @@ mod _field_impls {
                 json_name: "sequenceNumber",
                 number: 1i32,
                 is_optional: true,
+                is_map: false,
                 message_fields: None,
             };
         }
@@ -97,6 +98,7 @@ mod _field_impls {
             json_name: "readMask",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -134,6 +136,7 @@ mod _field_impls {
             json_name: "chainId",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(Digest::FIELDS),
         };
         pub const CHAIN_FIELD: &'static MessageField = &MessageField {
@@ -141,6 +144,7 @@ mod _field_impls {
             json_name: "chain",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const EPOCH_FIELD: &'static MessageField = &MessageField {
@@ -148,6 +152,7 @@ mod _field_impls {
             json_name: "epoch",
             number: 3i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const EXECUTED_CHECKPOINT_HEIGHT_FIELD: &'static MessageField = &MessageField {
@@ -155,6 +160,7 @@ mod _field_impls {
             json_name: "executedCheckpointHeight",
             number: 4i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const EXECUTED_CHECKPOINT_TIMESTAMP_FIELD: &'static MessageField = &MessageField {
@@ -162,6 +168,7 @@ mod _field_impls {
             json_name: "executedCheckpointTimestamp",
             number: 5i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const LOWEST_AVAILABLE_CHECKPOINT_FIELD: &'static MessageField = &MessageField {
@@ -169,6 +176,7 @@ mod _field_impls {
             json_name: "lowestAvailableCheckpoint",
             number: 6i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const LOWEST_AVAILABLE_CHECKPOINT_OBJECTS_FIELD: &'static MessageField = &MessageField {
@@ -176,6 +184,7 @@ mod _field_impls {
             json_name: "lowestAvailableCheckpointObjects",
             number: 7i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const SERVER_FIELD: &'static MessageField = &MessageField {
@@ -183,6 +192,7 @@ mod _field_impls {
             json_name: "server",
             number: 8i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -264,6 +274,7 @@ mod _field_impls {
             json_name: "objectRef",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(ObjectReference::FIELDS),
         };
     }
@@ -301,6 +312,7 @@ mod _field_impls {
             json_name: "requests",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(ObjectRequest::FIELDS),
         };
     }
@@ -338,6 +350,7 @@ mod _field_impls {
             json_name: "requests",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(ObjectRequests::FIELDS),
         };
         pub const READ_MASK_FIELD: &'static MessageField = &MessageField {
@@ -345,6 +358,7 @@ mod _field_impls {
             json_name: "readMask",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const MAX_MESSAGE_SIZE_BYTES_FIELD: &'static MessageField = &MessageField {
@@ -352,6 +366,7 @@ mod _field_impls {
             json_name: "maxMessageSizeBytes",
             number: 3i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -401,6 +416,7 @@ mod _field_impls {
             json_name: "object",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(Object::FIELDS),
         };
         pub const ERROR_FIELD: &'static MessageField = &MessageField {
@@ -408,8 +424,12 @@ mod _field_impls {
             json_name: "error",
             number: 2i32,
             is_optional: false,
+            is_map: false,
             message_fields: None,
         };
+    }
+    impl ObjectResult {
+        pub const RESULT_ONEOF: &'static str = "result";
     }
     impl MessageFields for ObjectResult {
         const FIELDS: &'static [&'static MessageField] = &[
@@ -452,6 +472,7 @@ mod _field_impls {
             json_name: "objects",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(ObjectResult::FIELDS),
         };
         pub const HAS_NEXT_FIELD: &'static MessageField = &MessageField {
@@ -459,6 +480,7 @@ mod _field_impls {
             json_name: "hasNext",
             number: 2i32,
             is_optional: false,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -503,6 +525,7 @@ mod _field_impls {
             json_name: "digest",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(Digest::FIELDS),
         };
     }
@@ -540,6 +563,7 @@ mod _field_impls {
             json_name: "requests",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(TransactionRequest::FIELDS),
         };
     }
@@ -577,6 +601,7 @@ mod _field_impls {
             json_name: "requests",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(TransactionRequests::FIELDS),
         };
         pub const READ_MASK_FIELD: &'static MessageField = &MessageField {
@@ -584,6 +609,7 @@ mod _field_impls {
             json_name: "readMask",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const MAX_MESSAGE_SIZE_BYTES_FIELD: &'static MessageField = &MessageField {
@@ -591,6 +617,7 @@ mod _field_impls {
             json_name: "maxMessageSizeBytes",
             number: 3i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -635,11 +662,12 @@ mod _field_impls {
         }
     }
     impl TransactionResult {
-        pub const TRANSACTION_FIELD: &'static MessageField = &MessageField {
-            name: "transaction",
-            json_name: "transaction",
+        pub const EXECUTED_TRANSACTION_FIELD: &'static MessageField = &MessageField {
+            name: "executed_transaction",
+            json_name: "executedTransaction",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(ExecutedTransaction::FIELDS),
         };
         pub const ERROR_FIELD: &'static MessageField = &MessageField {
@@ -647,12 +675,16 @@ mod _field_impls {
             json_name: "error",
             number: 2i32,
             is_optional: false,
+            is_map: false,
             message_fields: None,
         };
     }
+    impl TransactionResult {
+        pub const RESULT_ONEOF: &'static str = "result";
+    }
     impl MessageFields for TransactionResult {
         const FIELDS: &'static [&'static MessageField] = &[
-            Self::TRANSACTION_FIELD,
+            Self::EXECUTED_TRANSACTION_FIELD,
             Self::ERROR_FIELD,
         ];
     }
@@ -676,8 +708,8 @@ mod _field_impls {
         pub fn finish(self) -> String {
             self.path.join(".")
         }
-        pub fn transaction(mut self) -> ExecutedTransactionFieldPathBuilder {
-            self.path.push(TransactionResult::TRANSACTION_FIELD.name);
+        pub fn executed_transaction(mut self) -> ExecutedTransactionFieldPathBuilder {
+            self.path.push(TransactionResult::EXECUTED_TRANSACTION_FIELD.name);
             ExecutedTransactionFieldPathBuilder::new_with_base(self.path)
         }
         pub fn error(mut self) -> String {
@@ -686,11 +718,12 @@ mod _field_impls {
         }
     }
     impl GetTransactionsResponse {
-        pub const TRANSACTIONS_FIELD: &'static MessageField = &MessageField {
-            name: "transactions",
-            json_name: "transactions",
+        pub const TRANSACTION_RESULTS_FIELD: &'static MessageField = &MessageField {
+            name: "transaction_results",
+            json_name: "transactionResults",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(TransactionResult::FIELDS),
         };
         pub const HAS_NEXT_FIELD: &'static MessageField = &MessageField {
@@ -698,12 +731,13 @@ mod _field_impls {
             json_name: "hasNext",
             number: 2i32,
             is_optional: false,
+            is_map: false,
             message_fields: None,
         };
     }
     impl MessageFields for GetTransactionsResponse {
         const FIELDS: &'static [&'static MessageField] = &[
-            Self::TRANSACTIONS_FIELD,
+            Self::TRANSACTION_RESULTS_FIELD,
             Self::HAS_NEXT_FIELD,
         ];
     }
@@ -727,8 +761,8 @@ mod _field_impls {
         pub fn finish(self) -> String {
             self.path.join(".")
         }
-        pub fn transactions(mut self) -> TransactionResultFieldPathBuilder {
-            self.path.push(GetTransactionsResponse::TRANSACTIONS_FIELD.name);
+        pub fn transaction_results(mut self) -> TransactionResultFieldPathBuilder {
+            self.path.push(GetTransactionsResponse::TRANSACTION_RESULTS_FIELD.name);
             TransactionResultFieldPathBuilder::new_with_base(self.path)
         }
         pub fn has_next(mut self) -> String {
@@ -742,6 +776,7 @@ mod _field_impls {
             json_name: "latest",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: None,
         };
         pub const SEQUENCE_NUMBER_FIELD: &'static MessageField = &MessageField {
@@ -749,6 +784,7 @@ mod _field_impls {
             json_name: "sequenceNumber",
             number: 2i32,
             is_optional: false,
+            is_map: false,
             message_fields: None,
         };
         pub const DIGEST_FIELD: &'static MessageField = &MessageField {
@@ -756,6 +792,7 @@ mod _field_impls {
             json_name: "digest",
             number: 3i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(Digest::FIELDS),
         };
         pub const READ_MASK_FIELD: &'static MessageField = &MessageField {
@@ -763,6 +800,7 @@ mod _field_impls {
             json_name: "readMask",
             number: 4i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const TRANSACTIONS_FILTER_FIELD: &'static MessageField = &MessageField {
@@ -770,6 +808,7 @@ mod _field_impls {
             json_name: "transactionsFilter",
             number: 5i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(TransactionFilter::FIELDS),
         };
         pub const EVENTS_FILTER_FIELD: &'static MessageField = &MessageField {
@@ -777,6 +816,7 @@ mod _field_impls {
             json_name: "eventsFilter",
             number: 6i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(EventFilter::FIELDS),
         };
         pub const MAX_MESSAGE_SIZE_BYTES_FIELD: &'static MessageField = &MessageField {
@@ -784,8 +824,12 @@ mod _field_impls {
             json_name: "maxMessageSizeBytes",
             number: 7i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
+    }
+    impl GetCheckpointDataRequest {
+        pub const CHECKPOINT_ID_ONEOF: &'static str = "checkpoint_id";
     }
     impl MessageFields for GetCheckpointDataRequest {
         const FIELDS: &'static [&'static MessageField] = &[
@@ -853,6 +897,7 @@ mod _field_impls {
             json_name: "startSequenceNumber",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const END_SEQUENCE_NUMBER_FIELD: &'static MessageField = &MessageField {
@@ -860,6 +905,7 @@ mod _field_impls {
             json_name: "endSequenceNumber",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const READ_MASK_FIELD: &'static MessageField = &MessageField {
@@ -867,6 +913,7 @@ mod _field_impls {
             json_name: "readMask",
             number: 3i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const TRANSACTIONS_FILTER_FIELD: &'static MessageField = &MessageField {
@@ -874,6 +921,7 @@ mod _field_impls {
             json_name: "transactionsFilter",
             number: 4i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(TransactionFilter::FIELDS),
         };
         pub const EVENTS_FILTER_FIELD: &'static MessageField = &MessageField {
@@ -881,6 +929,7 @@ mod _field_impls {
             json_name: "eventsFilter",
             number: 5i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(EventFilter::FIELDS),
         };
         pub const MAX_MESSAGE_SIZE_BYTES_FIELD: &'static MessageField = &MessageField {
@@ -888,6 +937,7 @@ mod _field_impls {
             json_name: "maxMessageSizeBytes",
             number: 6i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -954,13 +1004,15 @@ mod _field_impls {
             json_name: "checkpoint",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(Checkpoint::FIELDS),
         };
-        pub const TRANSACTIONS_FIELD: &'static MessageField = &MessageField {
-            name: "transactions",
-            json_name: "transactions",
+        pub const EXECUTED_TRANSACTIONS_FIELD: &'static MessageField = &MessageField {
+            name: "executed_transactions",
+            json_name: "executedTransactions",
             number: 2i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(ExecutedTransactions::FIELDS),
         };
         pub const EVENTS_FIELD: &'static MessageField = &MessageField {
@@ -968,20 +1020,25 @@ mod _field_impls {
             json_name: "events",
             number: 3i32,
             is_optional: false,
-            message_fields: Some(Events::FIELDS),
+            is_map: false,
+            message_fields: Some(Event::FIELDS),
         };
         pub const END_MARKER_FIELD: &'static MessageField = &MessageField {
             name: "end_marker",
             json_name: "endMarker",
             number: 4i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(EndMarker::FIELDS),
         };
+    }
+    impl CheckpointData {
+        pub const PAYLOAD_ONEOF: &'static str = "payload";
     }
     impl MessageFields for CheckpointData {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::CHECKPOINT_FIELD,
-            Self::TRANSACTIONS_FIELD,
+            Self::EXECUTED_TRANSACTIONS_FIELD,
             Self::EVENTS_FIELD,
             Self::END_MARKER_FIELD,
         ];
@@ -1010,13 +1067,13 @@ mod _field_impls {
             self.path.push(CheckpointData::CHECKPOINT_FIELD.name);
             CheckpointFieldPathBuilder::new_with_base(self.path)
         }
-        pub fn transactions(mut self) -> ExecutedTransactionsFieldPathBuilder {
-            self.path.push(CheckpointData::TRANSACTIONS_FIELD.name);
+        pub fn executed_transactions(mut self) -> ExecutedTransactionsFieldPathBuilder {
+            self.path.push(CheckpointData::EXECUTED_TRANSACTIONS_FIELD.name);
             ExecutedTransactionsFieldPathBuilder::new_with_base(self.path)
         }
-        pub fn events(mut self) -> EventsFieldPathBuilder {
+        pub fn events(mut self) -> EventFieldPathBuilder {
             self.path.push(CheckpointData::EVENTS_FIELD.name);
-            EventsFieldPathBuilder::new_with_base(self.path)
+            EventFieldPathBuilder::new_with_base(self.path)
         }
         pub fn end_marker(mut self) -> checkpoint_data::EndMarkerFieldPathBuilder {
             self.path.push(CheckpointData::END_MARKER_FIELD.name);
@@ -1029,6 +1086,7 @@ mod _field_impls {
             json_name: "epoch",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const READ_MASK_FIELD: &'static MessageField = &MessageField {
@@ -1036,6 +1094,7 @@ mod _field_impls {
             json_name: "readMask",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -1080,6 +1139,7 @@ mod _field_impls {
             json_name: "epoch",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(Epoch::FIELDS),
         };
     }

@@ -70,13 +70,21 @@ use self::{
     types::TypesIsOneTimeWitnessCostParams,
     validator::ValidatorValidateMetadataBcsCostParams,
 };
-use crate::crypto::{
-    group_ops::{self, GroupOpsCostParams},
-    poseidon::PoseidonBN254CostParams,
-    zklogin::{self, CheckZkloginIdCostParams, CheckZkloginIssuerCostParams},
+use crate::{
+    auth_context::{
+        AuthContextDigestCostParams, AuthContextReplaceCostParams, AuthContextTxCommandsCostParams,
+        AuthContextTxInputsCostParams,
+    },
+    crypto::{
+        group_ops::{self, GroupOpsCostParams},
+        poseidon::PoseidonBN254CostParams,
+        zklogin::{self, CheckZkloginIdCostParams, CheckZkloginIssuerCostParams},
+    },
 };
 
 mod address;
+mod auth_context;
+pub mod authentication_context;
 mod config;
 mod crypto;
 mod dynamic_field;
@@ -127,6 +135,12 @@ pub struct NativesCostTable {
 
     // TxContext
     pub tx_context_derive_id_cost_params: TxContextDeriveIdCostParams,
+
+    // AuthContext
+    pub auth_context_digest_cost_params: AuthContextDigestCostParams,
+    pub auth_context_tx_commands_cost_params: AuthContextTxCommandsCostParams,
+    pub auth_context_tx_inputs_cost_params: AuthContextTxInputsCostParams,
+    pub auth_context_replace_cost_params: AuthContextReplaceCostParams,
 
     // Type
     pub type_is_one_time_witness_cost_params: TypesIsOneTimeWitnessCostParams,
@@ -354,6 +368,35 @@ impl NativesCostTable {
                 tx_context_derive_id_cost_base: protocol_config
                     .tx_context_derive_id_cost_base()
                     .into(),
+            },
+            auth_context_digest_cost_params: AuthContextDigestCostParams {
+                auth_context_digest_cost_base: protocol_config
+                    .auth_context_digest_cost_base_as_option()
+                    .map(Into::into),
+            },
+            auth_context_tx_commands_cost_params: AuthContextTxCommandsCostParams {
+                auth_context_tx_commands_cost_base: protocol_config
+                    .auth_context_tx_commands_cost_base_as_option()
+                    .map(Into::into),
+                auth_context_tx_commands_cost_per_byte: protocol_config
+                    .auth_context_tx_commands_cost_per_byte_as_option()
+                    .map(Into::into),
+            },
+            auth_context_tx_inputs_cost_params: AuthContextTxInputsCostParams {
+                auth_context_tx_inputs_cost_base: protocol_config
+                    .auth_context_tx_inputs_cost_base_as_option()
+                    .map(Into::into),
+                auth_context_tx_inputs_cost_per_byte: protocol_config
+                    .auth_context_tx_inputs_cost_per_byte_as_option()
+                    .map(Into::into),
+            },
+            auth_context_replace_cost_params: AuthContextReplaceCostParams {
+                auth_context_replace_cost_base: protocol_config
+                    .auth_context_replace_cost_base_as_option()
+                    .map(Into::into),
+                auth_context_replace_cost_per_byte: protocol_config
+                    .auth_context_replace_cost_per_byte_as_option()
+                    .map(Into::into),
             },
             type_is_one_time_witness_cost_params: TypesIsOneTimeWitnessCostParams {
                 types_is_one_time_witness_cost_base: protocol_config
@@ -792,6 +835,26 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "create_immutable_account_v1_impl",
             make_native!(transfer::freeze_object),
         ),
+        (
+            "auth_context",
+            "native_digest",
+            make_native!(auth_context::native_digest),
+        ),
+        (
+            "auth_context",
+            "native_tx_commands",
+            make_native!(auth_context::native_tx_commands),
+        ),
+        (
+            "auth_context",
+            "native_tx_inputs",
+            make_native!(auth_context::native_tx_inputs),
+        ),
+        (
+            "auth_context",
+            "native_replace",
+            make_native!(auth_context::native_replace),
+        ),
         ("hash", "blake2b256", make_native!(hash::blake2b256)),
         (
             "bls12381",
@@ -1187,6 +1250,26 @@ macro_rules! make_native {
                 $native(context, ty_args, args)
             },
         )
+    };
+}
+
+#[macro_export]
+macro_rules! get_extension {
+    ($context: expr, $ext: ty) => {
+        $context.extensions().get::<$ext>()
+    };
+    ($context: expr) => {
+        $context.extensions().get()
+    };
+}
+
+#[macro_export]
+macro_rules! get_extension_mut {
+    ($context: expr, $ext: ty) => {
+        $context.extensions_mut().get_mut::<$ext>()
+    };
+    ($context: expr) => {
+        $context.extensions_mut().get_mut()
     };
 }
 

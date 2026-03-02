@@ -214,6 +214,7 @@ mod checked {
                 protocol_config,
                 metrics.clone(),
                 tx_context.epoch(),
+                state_view.read_auth_context(),
             );
 
             // Set the profiler if in CLI
