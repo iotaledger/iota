@@ -122,10 +122,10 @@ jobs:
         if: ${{ matrix.os_type == 'windows-x86_64' }}
         shell: bash
         run: |
-          choco install postgresql16 --force --params '/Password:root'
-          echo "C:\Program Files\PostgreSQL\16\bin" >> $GITHUB_PATH
-          echo "C:\Program Files\PostgreSQL\16\lib" >> $GITHUB_PATH
-          echo "PQ_LIB_DIR=C:\Program Files\PostgreSQL\16\lib" >> $GITHUB_ENV
+          choco install postgresql15 --force --params '/Password:root'
+          echo "C:\Program Files\PostgreSQL\15\bin" >> $GITHUB_PATH
+          echo "C:\Program Files\PostgreSQL\15\lib" >> $GITHUB_PATH
+          echo "PQ_LIB_DIR=C:\Program Files\PostgreSQL\15\lib" >> $GITHUB_ENV
           echo "PG_DATABASE_URL=postgres://postgres:root@localhost/" >> $GITHUB_ENV
           echo "PG_EXAMPLE_DATABASE_URL=postgres://postgres:root@localhost/diesel_example" >> $GITHUB_ENV
 
@@ -138,7 +138,7 @@ jobs:
           PKG_CONFIG_PATH: "/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH"
           PATH: "/opt/homebrew/bin:$PATH"
         run: |
-          brew install postgresql@16
+          brew install postgresql@15
 
       - name: Install protoc (Windows)
         if: ${{ matrix.os_type == 'windows-x86_64' }}

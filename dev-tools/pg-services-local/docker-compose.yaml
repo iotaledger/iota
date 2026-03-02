@@ -166,7 +166,7 @@ services:
         condition: service_started
 
   postgres:
-    image: postgres:16
+    image: postgres:15
     user: postgres
     restart: always
     container_name: postgres

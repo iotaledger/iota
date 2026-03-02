@@ -29,7 +29,7 @@ docker run -d --name postgres \
  -e POSTGRES_PASSWORD=postgrespw \
  -e POSTGRES_INITDB_ARGS="-U postgres" \
  -p 5432:5432 \
- postgres:16 \
+ postgres:15 \
  -c max_connections=1000
 ```
 

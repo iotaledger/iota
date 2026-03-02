@@ -59,7 +59,7 @@ jobs:
     runs-on: self-hosted-x64
     services:
       postgres:
-        image: postgres:16
+        image: postgres:15
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgrespw
