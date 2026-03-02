@@ -42,6 +42,11 @@ export async function initAmplitude() {
                         formInteractions: IS_ENABLED,
                         pageViews: IS_ENABLED,
                         sessions: IS_ENABLED,
+                        elementInteractions: IS_ENABLED,
+                        frustrationInteractions: false,
+                        networkTracking: false,
+                        webVitals: IS_ENABLED,
+                        pageUrlEnrichment: IS_ENABLED,
                     },
                     // set LogLevel to Debug for more verbose logging during development
                     logLevel: LogLevel.None,
@@ -59,4 +64,17 @@ export async function initAmplitude() {
 
     // Add environment plugin to set prefix dev events
     ampli.client.add(attachEnvironmentPlugin(IS_DEV));
+}
+
+export function setAmplitudeIdentity(network?: string): void {
+    if (!ampli.isLoaded) {
+        return;
+    }
+
+    const identifyEvent = new amplitude.Identify();
+    if (network) {
+        identifyEvent.set('network', network);
+    }
+
+    ampli.client.identify(identifyEvent);
 }

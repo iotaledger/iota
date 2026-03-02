@@ -7,6 +7,7 @@ import { useLayoutEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { growthbook } from '~/lib/utils/growthbook';
 import { queryClient } from '~/lib/utils/queryClient';
+import { setAmplitudeIdentity } from '~/lib/utils/analytics/amplitude';
 import * as Sentry from '@sentry/react';
 
 export function useNetwork(): [string, (network: Network | string) => void] {
@@ -42,6 +43,8 @@ export function useNetwork(): [string, (network: Network | string) => void] {
         Sentry.setContext('network', {
             network,
         });
+
+        setAmplitudeIdentity(network);
     }, [network]);
 
     return [network, setNetwork];

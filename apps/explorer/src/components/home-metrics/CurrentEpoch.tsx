@@ -9,7 +9,6 @@ import { useMemo } from 'react';
 
 import { LinkWithQuery, ProgressBar } from '~/components/ui';
 import { useGetNetworkMetrics } from '~/hooks';
-import { ampli } from '~/lib/utils';
 import { useEpochProgress } from '~/pages/epochs/utils';
 
 export function CurrentEpoch(): JSX.Element {
@@ -42,11 +41,7 @@ export function CurrentEpoch(): JSX.Element {
               : '--';
 
     return (
-        <LinkWithQuery
-            className="flex w-full"
-            to={`/epoch/${epoch}`}
-            onClick={() => ampli.clickedCurrentEpochCard({ epoch: Number(epoch) })}
-        >
+        <LinkWithQuery className="flex w-full" to={`/epoch/${epoch}`}>
             <Panel>
                 <Title title={`Epoch ${epoch ?? '--'}`} subtitle={epochSubtitle} />
                 <div className="flex flex-col gap-md p-md--rs">

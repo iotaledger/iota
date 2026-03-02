@@ -5,7 +5,6 @@ import { Badge, BadgeType, TableCellBase, TableCellText } from '@iota/apps-ui-ki
 import type { ColumnDef, Row } from '@tanstack/react-table';
 import { type ApyByValidator, formatPercentageDisplay, ImageIcon, ImageIconSize } from '@iota/core';
 import {
-    ampli,
     getValidatorMoveEvent,
     type IotaValidatorSummaryExtended,
     VALIDATOR_LOW_STAKE_GRACE_PERIOD,
@@ -58,13 +57,6 @@ function ValidatorWithImage({
         <ValidatorLink
             address={validator.iotaAddress}
             showAddressAlias={false}
-            onClick={() =>
-                ampli.clickedValidatorRow({
-                    sourceFlow: 'Epoch details',
-                    validatorAddress: validator.iotaAddress,
-                    validatorName: validator.name,
-                })
-            }
             label={
                 <div className="flex items-center gap-x-2.5 text-iota-neutral-40 dark:text-iota-neutral-60">
                     <div className="h-8 w-8 shrink-0">
