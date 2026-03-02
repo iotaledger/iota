@@ -1,6 +1,6 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { type AddedAccountsProperties } from '_src/shared/analytics/ampli';
+import { type AccountsAddedProperties } from '_src/shared/analytics/ampli';
 import { AccountType } from '_src/background/accounts/account';
 import { AccountsFormType } from '_components/accounts';
 
@@ -13,25 +13,64 @@ enum AmpliAccountType {
     Seed = 'Seed',
 }
 
-export const ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE: Record<
+export enum AmpliAccountOrigin {
+    New = 'new',
+    Import = 'import',
+    Derived = 'derived',
+}
+
+export const ACCOUNT_FORM_TYPE_TO_AMPLI: Record<
     AccountsFormType,
-    AddedAccountsProperties['accountType']
+    {
+        accountType: AccountsAddedProperties['accountType'];
+        accountOrigin: AmpliAccountOrigin;
+    }
 > = {
-    [AccountsFormType.NewMnemonic]: AmpliAccountType.Mnemonic,
-    [AccountsFormType.ImportMnemonic]: AmpliAccountType.Mnemonic,
-    [AccountsFormType.ImportSeed]: AmpliAccountType.Seed,
-    [AccountsFormType.MnemonicSource]: AmpliAccountType.Mnemonic,
-    [AccountsFormType.SeedSource]: AmpliAccountType.Seed,
-    [AccountsFormType.ImportPrivateKey]: AmpliAccountType.PrivateKey,
-    [AccountsFormType.Passkey]: AmpliAccountType.Passkey,
-    [AccountsFormType.ImportPasskey]: AmpliAccountType.Passkey,
-    [AccountsFormType.ImportLedger]: AmpliAccountType.Ledger,
-    [AccountsFormType.ImportKeystone]: AmpliAccountType.Keystone,
+    [AccountsFormType.NewMnemonic]: {
+        accountType: AmpliAccountType.Mnemonic,
+        accountOrigin: AmpliAccountOrigin.New,
+    },
+    [AccountsFormType.ImportMnemonic]: {
+        accountType: AmpliAccountType.Mnemonic,
+        accountOrigin: AmpliAccountOrigin.Import,
+    },
+    [AccountsFormType.ImportSeed]: {
+        accountType: AmpliAccountType.Seed,
+        accountOrigin: AmpliAccountOrigin.Import,
+    },
+    [AccountsFormType.MnemonicSource]: {
+        accountType: AmpliAccountType.Mnemonic,
+        accountOrigin: AmpliAccountOrigin.Derived,
+    },
+    [AccountsFormType.SeedSource]: {
+        accountType: AmpliAccountType.Seed,
+        accountOrigin: AmpliAccountOrigin.Derived,
+    },
+    [AccountsFormType.ImportPrivateKey]: {
+        accountType: AmpliAccountType.PrivateKey,
+        accountOrigin: AmpliAccountOrigin.Import,
+    },
+    [AccountsFormType.Passkey]: {
+        accountType: AmpliAccountType.Passkey,
+        accountOrigin: AmpliAccountOrigin.New,
+    },
+    [AccountsFormType.ImportPasskey]: {
+        accountType: AmpliAccountType.Passkey,
+        accountOrigin: AmpliAccountOrigin.Import,
+    },
+    [AccountsFormType.ImportLedger]: {
+        accountType: AmpliAccountType.Ledger,
+        accountOrigin: AmpliAccountOrigin.Import,
+    },
+    [AccountsFormType.ImportKeystone]: {
+        accountType: AmpliAccountType.Keystone,
+        accountOrigin: AmpliAccountOrigin.Import,
+    },
 };
 
 export const ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE: Record<
     AccountType,
-    AddedAccountsProperties['accountType']
+    AccountsAddedProperties['accountType']
 > = {
     [AccountType.MnemonicDerived]: AmpliAccountType.Mnemonic,
     [AccountType.SeedDerived]: AmpliAccountType.Seed,

@@ -1,5 +1,11 @@
 # @iota/apps-ui-icons
 
+## 0.7.3
+
+### Patch Changes
+
+-   bb33d49: Add `Sidepanel` icon.
+
 ## 0.7.2
 
 ### Patch Changes

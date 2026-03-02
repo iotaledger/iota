@@ -20,10 +20,27 @@ pub struct RpcError {
 }
 
 impl RpcError {
-    pub fn new<T: Into<String>>(code: Code, message: T) -> Self {
+    pub fn new<T: std::fmt::Display>(code: Code, message: T) -> Self {
         Self {
             code,
-            message: Some(message.into()),
+            message: Some(message.to_string()),
+            details: None,
+        }
+    }
+
+    /// Add context to an existing error
+    pub fn with_context<T: std::fmt::Display>(mut self, context: T) -> Self {
+        self.message = Some(match self.message {
+            Some(existing) => format!("{}: {}", context, existing),
+            None => context.to_string(),
+        });
+        self
+    }
+
+    pub fn internal() -> Self {
+        Self {
+            code: Code::Internal,
+            message: None,
             details: None,
         }
     }
@@ -48,6 +65,15 @@ impl RpcError {
     }
 }
 
+impl std::fmt::Display for RpcError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.message {
+            Some(msg) => write!(f, "{:?}: {}", self.code, msg),
+            None => write!(f, "{:?}", self.code),
+        }
+    }
+}
+
 impl From<RpcError> for Status {
     fn from(value: RpcError) -> Self {
         use prost::Message;
@@ -63,31 +89,25 @@ impl From<RpcError> for Status {
 
 impl From<anyhow::Error> for RpcError {
     fn from(value: anyhow::Error) -> Self {
-        Self {
-            code: Code::Internal,
-            message: Some(value.to_string()),
-            details: None,
-        }
+        Self::internal().with_context(value)
     }
 }
 
 impl From<iota_types::iota_sdk_types_conversions::SdkTypeConversionError> for RpcError {
     fn from(value: iota_types::iota_sdk_types_conversions::SdkTypeConversionError) -> Self {
-        Self {
-            code: Code::Internal,
-            message: Some(value.to_string()),
-            details: None,
-        }
+        Self::internal().with_context(value)
     }
 }
 
 impl From<bcs::Error> for RpcError {
     fn from(value: bcs::Error) -> Self {
-        Self {
-            code: Code::Internal,
-            message: Some(value.to_string()),
-            details: None,
-        }
+        Self::internal().with_context(value)
+    }
+}
+
+impl From<iota_grpc_types::proto::GrpcConversionError> for RpcError {
+    fn from(value: iota_grpc_types::proto::GrpcConversionError) -> Self {
+        Self::internal().with_context(value)
     }
 }
 
@@ -155,11 +175,6 @@ impl ErrorDetails {
     }
 }
 
-// NOTE: Similar errors exist in iota-rest-api, but are intentionally duplicated
-// here. The REST API will be deprecated soon, so we avoid creating a shared
-// dependency. This keeps the gRPC server independent and allows the REST API to
-// be removed cleanly without impacting gRPC error handling.
-// TODO: Remove the above comments when the REST API is removed.
 #[derive(Debug, Clone)]
 pub struct ObjectNotFoundError {
     object_id: ObjectID,
@@ -201,7 +216,7 @@ impl std::error::Error for ObjectNotFoundError {}
 
 impl From<ObjectNotFoundError> for RpcError {
     fn from(value: ObjectNotFoundError) -> Self {
-        Self::new(tonic::Code::NotFound, value.to_string())
+        Self::not_found().with_context(value)
     }
 }
 
@@ -218,7 +233,7 @@ impl std::error::Error for TransactionNotFoundError {}
 
 impl From<TransactionNotFoundError> for RpcError {
     fn from(value: TransactionNotFoundError) -> Self {
-        Self::new(tonic::Code::NotFound, value.to_string())
+        Self::not_found().with_context(value)
     }
 }
 

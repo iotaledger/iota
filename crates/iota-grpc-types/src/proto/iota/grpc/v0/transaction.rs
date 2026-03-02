@@ -40,11 +40,15 @@ impl TryFrom<&TransactionEffects> for iota_sdk_types::Digest {
 // Convenience methods for TransactionEffects (delegate to TryFrom)
 impl TransactionEffects {
     /// Get the effects digest.
+    ///
+    /// Requires `digest` in the read_mask.
     pub fn digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
         self.try_into()
     }
 
     /// Deserialize effects from BCS.
+    ///
+    /// Requires `bcs` in the read_mask.
     pub fn effects(&self) -> Result<iota_sdk_types::TransactionEffects, TryFromProtoError> {
         self.try_into()
     }
@@ -103,11 +107,15 @@ impl TryFrom<&TransactionEvents> for iota_sdk_types::Digest {
 // Convenience methods for TransactionEvents (delegate to TryFrom)
 impl TransactionEvents {
     /// Get the events digest.
+    ///
+    /// Requires `digest` in the read_mask.
     pub fn digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
         self.try_into()
     }
 
     /// Deserialize all events from BCS.
+    ///
+    /// Requires `events.bcs` in the read_mask.
     pub fn events(&self) -> Result<iota_sdk_types::TransactionEvents, TryFromProtoError> {
         self.try_into()
     }
@@ -118,24 +126,36 @@ impl TransactionEvents {
 
 // Lazy conversion methods for ExecutedTransaction
 impl ExecutedTransaction {
+    /// Get the transaction.
+    ///
+    /// Requires `transaction` in the read_mask.
     pub fn transaction(&self) -> Result<&super::transaction::Transaction, TryFromProtoError> {
         self.transaction
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(Self::TRANSACTION_FIELD.name))
     }
 
+    /// Get the user signatures.
+    ///
+    /// Requires `signatures` in the read_mask.
     pub fn signatures(&self) -> Result<&super::signatures::UserSignatures, TryFromProtoError> {
         self.signatures
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(Self::SIGNATURES_FIELD.name))
     }
 
+    /// Get the transaction effects.
+    ///
+    /// Requires `effects` in the read_mask.
     pub fn effects(&self) -> Result<&super::transaction::TransactionEffects, TryFromProtoError> {
         self.effects
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(Self::EFFECTS_FIELD.name))
     }
 
+    /// Get the transaction events.
+    ///
+    /// Requires `events` in the read_mask.
     pub fn events(&self) -> Result<&super::transaction::TransactionEvents, TryFromProtoError> {
         self.events
             .as_ref()
@@ -150,6 +170,8 @@ impl ExecutedTransaction {
     }
 
     /// Get checkpoint sequence number.
+    ///
+    /// Requires `checkpoint` in the read_mask.
     pub fn checkpoint_sequence_number(
         &self,
     ) -> Result<iota_sdk_types::CheckpointSequenceNumber, TryFromProtoError> {
@@ -158,6 +180,8 @@ impl ExecutedTransaction {
     }
 
     /// Get timestamp in milliseconds.
+    ///
+    /// Requires `timestamp` in the read_mask.
     pub fn timestamp_ms(&self) -> Result<iota_sdk_types::CheckpointTimestamp, TryFromProtoError> {
         let ts = self
             .timestamp
@@ -166,6 +190,8 @@ impl ExecutedTransaction {
     }
 
     /// Get input objects.
+    ///
+    /// Requires `input_objects` in the read_mask.
     pub fn input_objects(&self) -> Result<&super::object::Objects, TryFromProtoError> {
         self.input_objects
             .as_ref()
@@ -173,6 +199,8 @@ impl ExecutedTransaction {
     }
 
     /// Get output objects.
+    ///
+    /// Requires `output_objects` in the read_mask.
     pub fn output_objects(&self) -> Result<&super::object::Objects, TryFromProtoError> {
         self.output_objects
             .as_ref()
@@ -249,11 +277,15 @@ impl TryFrom<&Transaction> for iota_sdk_types::Digest {
 // Convenience methods for Transaction (delegate to TryFrom)
 impl Transaction {
     /// Get the transaction digest.
+    ///
+    /// Requires `digest` in the read_mask.
     pub fn digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
         self.try_into()
     }
 
     /// Deserialize the transaction from BCS.
+    ///
+    /// Requires `bcs` in the read_mask.
     pub fn transaction(&self) -> Result<iota_sdk_types::Transaction, TryFromProtoError> {
         self.try_into()
     }

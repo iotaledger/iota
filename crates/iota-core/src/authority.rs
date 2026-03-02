@@ -2172,6 +2172,9 @@ impl AuthorityState {
             events: effects.events_digest().map(|_| inner_temp_store.events),
             effects,
             execution_result,
+            suggested_gas_price: self
+                .congestion_tracker
+                .get_prediction_suggested_gas_price(&transaction),
             mock_gas_id,
         })
     }

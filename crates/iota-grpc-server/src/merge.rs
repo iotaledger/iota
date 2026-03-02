@@ -2,14 +2,12 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::error::Error;
-
 use iota_grpc_types::{
     field::FieldMaskTree,
     v0::{
         bcs::BcsData,
         checkpoint::{Checkpoint, CheckpointContents, CheckpointSummary},
-        epoch::{Epoch, ProtocolConfig},
+        epoch::{ProtocolAttributes, ProtocolConfig, ProtocolFeatureFlags},
         event::{Event, Events},
         object::{Object, Objects},
         signatures::{UserSignature, UserSignatures},
@@ -18,12 +16,17 @@ use iota_grpc_types::{
         versioned::{VersionedCheckpointSummary, VersionedEvent, VersionedObject},
     },
 };
+use iota_protocol_config::{ProtocolConfig as IotaProtocolConfig, ProtocolConfigValue};
 use iota_types::iota_sdk_types_conversions::SdkTypeConversionError;
 
-pub trait Merge<T> {
-    fn merge(&mut self, source: T, mask: &FieldMaskTree) -> Result<(), Box<dyn Error>>;
+use crate::error::RpcError;
 
-    fn merge_from(source: T, mask: &FieldMaskTree) -> Result<Self, Box<dyn Error>>
+pub trait Merge<T> {
+    type Error;
+
+    fn merge(&mut self, source: T, mask: &FieldMaskTree) -> Result<(), Self::Error>;
+
+    fn merge_from(source: T, mask: &FieldMaskTree) -> Result<Self, Self::Error>
     where
         Self: std::default::Default,
     {
@@ -33,153 +36,99 @@ pub trait Merge<T> {
     }
 }
 
-// Epoch implementations
-impl Merge<&Epoch> for Epoch {
+impl Merge<&IotaProtocolConfig> for ProtocolConfig {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
-        source: &Epoch,
+        source: &IotaProtocolConfig,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let Epoch {
-            epoch,
-            committee,
-            bcs_system_state,
-            first_checkpoint,
-            last_checkpoint,
-            start,
-            end,
-            reference_gas_price,
-            protocol_config,
-            ..
-        } = source;
-
-        if mask.contains(Self::EPOCH_FIELD.name) {
-            self.epoch = *epoch;
+    ) -> Result<(), Self::Error> {
+        if mask.contains(Self::PROTOCOL_VERSION_FIELD.name) {
+            self.protocol_version = Some(source.version.as_u64());
         }
 
-        if mask.contains(Self::COMMITTEE_FIELD.name) {
-            self.committee = committee.to_owned();
+        // `map_field_filter` handles the wildcard-vs-explicit distinction:
+        // - None: field not explicitly requested (skip)
+        // - Some(None): field requested without specific keys (include all entries)
+        // - Some(Some(keys)): only these keys were requested
+        if let Some(filter) = mask.map_field_filter(Self::FEATURE_FLAGS_FIELD.name) {
+            let flags = match filter {
+                None => source.feature_map().into_iter().collect(),
+                Some(keys) => source
+                    .feature_map()
+                    .into_iter()
+                    .filter(|(k, _)| keys.contains(k))
+                    .collect(),
+            };
+            self.feature_flags = Some(ProtocolFeatureFlags::default().with_flags(flags));
         }
 
-        if mask.contains(Self::BCS_SYSTEM_STATE_FIELD.name) {
-            self.bcs_system_state = bcs_system_state.to_owned();
-        }
-
-        if mask.contains(Self::FIRST_CHECKPOINT_FIELD.name) {
-            self.first_checkpoint = first_checkpoint.to_owned();
-        }
-
-        if mask.contains(Self::LAST_CHECKPOINT_FIELD.name) {
-            self.last_checkpoint = last_checkpoint.to_owned();
-        }
-
-        if mask.contains(Self::START_FIELD.name) {
-            self.start = start.to_owned();
-        }
-
-        if mask.contains(Self::END_FIELD.name) {
-            self.end = end.to_owned();
-        }
-
-        if mask.contains(Self::REFERENCE_GAS_PRICE_FIELD.name) {
-            self.reference_gas_price = reference_gas_price.to_owned();
-        }
-
-        if let Some(submask) = mask.subtree(Self::PROTOCOL_CONFIG_FIELD.name) {
-            self.protocol_config = protocol_config
-                .as_ref()
-                .map(|config| ProtocolConfig::merge_from(config, &submask))
-                .transpose()?;
+        // `map_field_filter` handles the wildcard-vs-explicit distinction:
+        // - None: field not explicitly requested (skip)
+        // - Some(None): field requested without specific keys (include all entries)
+        // - Some(Some(keys)): only these keys were requested
+        if let Some(filter) = mask.map_field_filter(Self::ATTRIBUTES_FIELD.name) {
+            let attrs = match filter {
+                None => source
+                    .attr_map()
+                    .into_iter()
+                    .filter_map(|(k, v)| v.map(|v| (k, protocol_config_value_to_string(v))))
+                    .collect(),
+                Some(keys) => source
+                    .attr_map()
+                    .into_iter()
+                    .filter(|(k, _)| keys.contains(k))
+                    .filter_map(|(k, v)| v.map(|v| (k, protocol_config_value_to_string(v))))
+                    .collect(),
+            };
+            self.attributes = Some(ProtocolAttributes::default().with_attributes(attrs));
         }
 
         Ok(())
     }
 }
 
-impl Merge<&ProtocolConfig> for ProtocolConfig {
-    fn merge(
-        &mut self,
-        source: &ProtocolConfig,
-        mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let ProtocolConfig {
-            protocol_version,
-            feature_flags,
-            attributes,
-            ..
-        } = source;
-
-        if mask.contains(Self::PROTOCOL_VERSION_FIELD.name) {
-            self.protocol_version = *protocol_version;
-        }
-
-        if mask.contains(Self::FEATURE_FLAGS_FIELD.name) {
-            self.feature_flags = feature_flags.to_owned();
-        }
-
-        if mask.contains(Self::ATTRIBUTES_FIELD.name) {
-            self.attributes = attributes.to_owned();
-        }
-
-        Ok(())
-    }
-}
-
-impl Merge<ProtocolConfig> for ProtocolConfig {
-    fn merge(
-        &mut self,
-        source: ProtocolConfig,
-        mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let ProtocolConfig {
-            protocol_version,
-            feature_flags,
-            attributes,
-            ..
-        } = source;
-
-        if mask.contains(Self::PROTOCOL_VERSION_FIELD.name) {
-            self.protocol_version = protocol_version;
-        }
-
-        if mask.contains(Self::FEATURE_FLAGS_FIELD.name) {
-            self.feature_flags = feature_flags;
-        }
-
-        if mask.contains(Self::ATTRIBUTES_FIELD.name) {
-            self.attributes = attributes;
-        }
-
-        Ok(())
+fn protocol_config_value_to_string(v: ProtocolConfigValue) -> String {
+    match v {
+        ProtocolConfigValue::u16(x) => x.to_string(),
+        ProtocolConfigValue::u32(x) => x.to_string(),
+        ProtocolConfigValue::u64(x) => x.to_string(),
+        ProtocolConfigValue::bool(x) => x.to_string(),
     }
 }
 
 // Signature implementations
 impl Merge<iota_types::signature::GenericSignature> for UserSignature {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: iota_types::signature::GenericSignature,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         if !mask.contains(Self::BCS_FIELD.name) {
             // No need to convert if no field is requested
             return Ok(());
         }
 
-        let sdk_signature: iota_sdk_types::UserSignature = source
-            .try_into()
-            .map_err(|e| format!("Failed to convert signature: {}", e))?;
+        let sdk_signature: iota_sdk_types::UserSignature =
+            source.try_into().map_err(|e: bcs::Error| {
+                RpcError::from(e).with_context("failed to convert signature")
+            })?;
 
         Merge::merge(self, sdk_signature, mask)
     }
 }
 
 impl Merge<iota_sdk_types::UserSignature> for UserSignature {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: iota_sdk_types::UserSignature,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         if mask.contains(Self::BCS_FIELD.name) {
             self.bcs = Some(BcsData::serialize(&source)?);
         }
@@ -189,11 +138,9 @@ impl Merge<iota_sdk_types::UserSignature> for UserSignature {
 }
 
 impl Merge<&UserSignature> for UserSignature {
-    fn merge(
-        &mut self,
-        source: &UserSignature,
-        mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    type Error = RpcError;
+
+    fn merge(&mut self, source: &UserSignature, mask: &FieldMaskTree) -> Result<(), Self::Error> {
         let UserSignature { bcs, .. } = source;
 
         if mask.contains(Self::BCS_FIELD.name) {
@@ -205,11 +152,13 @@ impl Merge<&UserSignature> for UserSignature {
 }
 
 impl Merge<iota_types::transaction::Transaction> for UserSignatures {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: iota_types::transaction::Transaction,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         // Get signatures directly from transaction without converting the whole
         // transaction
         let tx_signatures = source.tx_signatures();
@@ -218,10 +167,10 @@ impl Merge<iota_types::transaction::Transaction> for UserSignatures {
             .iter()
             .map(|sig| {
                 // Convert iota_types signature to SDK signature, then merge
-                let sdk_sig: iota_sdk_types::UserSignature = sig
-                    .clone()
-                    .try_into()
-                    .map_err(|e| format!("Failed to convert signature: {e}"))?;
+                let sdk_sig: iota_sdk_types::UserSignature =
+                    sig.clone().try_into().map_err(|e: bcs::Error| {
+                        RpcError::from(e).with_context("failed to convert signature")
+                    })?;
                 UserSignature::merge_from(sdk_sig, mask)
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -231,36 +180,34 @@ impl Merge<iota_types::transaction::Transaction> for UserSignatures {
 }
 
 impl Merge<&iota_sdk_types::SignedTransaction> for UserSignatures {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: &iota_sdk_types::SignedTransaction,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(signatures_mask) = mask.subtree(Self::SIGNATURES_FIELD.name) {
-            self.signatures = source
-                .signatures
-                .iter()
-                .map(|sig| UserSignature::merge_from(sig.clone(), &signatures_mask))
-                .collect::<Result<Vec<_>, _>>()?;
-        }
+    ) -> Result<(), Self::Error> {
+        // Use mask directly — UserSignatures is a transparent wrapper
+        self.signatures = source
+            .signatures
+            .iter()
+            .map(|sig| UserSignature::merge_from(sig.clone(), mask))
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(())
     }
 }
 
 impl Merge<&UserSignatures> for UserSignatures {
-    fn merge(
-        &mut self,
-        source: &UserSignatures,
-        mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(signatures_mask) = mask.subtree(Self::SIGNATURES_FIELD.name) {
-            self.signatures = source
-                .signatures
-                .iter()
-                .map(|sig| UserSignature::merge_from(sig, &signatures_mask))
-                .collect::<Result<Vec<_>, _>>()?;
-        }
+    type Error = RpcError;
+
+    fn merge(&mut self, source: &UserSignatures, mask: &FieldMaskTree) -> Result<(), Self::Error> {
+        // Use mask directly — UserSignatures is a transparent wrapper
+        self.signatures = source
+            .signatures
+            .iter()
+            .map(|sig| UserSignature::merge_from(sig, mask))
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(())
     }
@@ -268,32 +215,35 @@ impl Merge<&UserSignatures> for UserSignatures {
 
 // Event implementations
 impl Merge<&iota_sdk_types::TransactionEvents> for Events {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: &iota_sdk_types::TransactionEvents,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(events_mask) = mask.subtree(Self::EVENTS_FIELD.name) {
-            // TransactionEvents is a tuple struct with Vec<Event> at index 0
-            self.events = source
-                .0
-                .iter()
-                .map(|event| -> Result<_, Box<dyn std::error::Error>> {
-                    Merge::merge_from(event, &events_mask)
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-        }
+    ) -> Result<(), Self::Error> {
+        // Use mask directly — Events is a transparent wrapper
+        // TransactionEvents is a tuple struct with Vec<Event> at index 0
+        self.events = source
+            .0
+            .iter()
+            .map(|event| {
+                Event::merge_from(event, mask).map_err(|e| e.with_context("failed to merge event"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(())
     }
 }
 
 impl Merge<&iota_sdk_types::Event> for Event {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: &iota_sdk_types::Event,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         if mask.contains(Self::BCS_FIELD.name) {
             self.bcs = Some(BcsData::serialize(&VersionedEvent::V1(source.clone()))?);
         }
@@ -330,30 +280,35 @@ impl Merge<&iota_sdk_types::Event> for Event {
 
 // Object implementations
 impl Merge<iota_types::object::Object> for Object {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: iota_types::object::Object,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         if !mask.contains(Self::REFERENCE_FIELD.name) && !mask.contains(Self::BCS_FIELD.name) {
             // No need to convert if no field is requested
             return Ok(());
         }
 
-        let sdk_object: iota_sdk_types::object::Object = source
-            .try_into()
-            .map_err(|e: SdkTypeConversionError| format!("Failed to convert SDK object: {}", e))?;
+        let sdk_object: iota_sdk_types::object::Object =
+            source.try_into().map_err(|e: SdkTypeConversionError| {
+                RpcError::from(e).with_context("failed to convert object")
+            })?;
 
         Merge::merge(self, &sdk_object, mask)
     }
 }
 
 impl Merge<&iota_sdk_types::object::Object> for Object {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: &iota_sdk_types::object::Object,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         if mask.contains(Self::BCS_FIELD.name) {
             self.bcs = Some(BcsData::serialize(&VersionedObject::V1(source.clone()))?);
         }
@@ -392,11 +347,9 @@ impl Merge<&iota_sdk_types::object::Object> for Object {
 }
 
 impl Merge<&Object> for Object {
-    fn merge(
-        &mut self,
-        source: &Object,
-        mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    type Error = RpcError;
+
+    fn merge(&mut self, source: &Object, mask: &FieldMaskTree) -> Result<(), Self::Error> {
         if mask.contains(Self::REFERENCE_FIELD.name) {
             self.reference = source.reference.clone();
         }
@@ -410,42 +363,18 @@ impl Merge<&Object> for Object {
 }
 
 impl Merge<Option<Vec<iota_types::object::Object>>> for Objects {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: Option<Vec<iota_types::object::Object>>,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        // Objects is a wrapper message containing a repeated field `objects`.
-        // When a user requests the wrapper (e.g., "input_objects"), the mask becomes
-        // a wildcard since it's a leaf node. Calling subtree("objects") on a wildcard
-        // returns Some(wildcard), which populates the objects array.
-        // When a user requests specific fields (e.g., "input_objects.objects.bcs"),
-        // subtree("objects") returns the sub-mask with the requested fields.
-        if let Some(objects_mask) = mask.subtree(Self::OBJECTS_FIELD.name) {
-            if let Some(objects) = source {
-                // Merge each object in the source list with the appropriate field mask
-                self.objects = objects
-                    .into_iter()
-                    .map(|obj| Object::merge_from(obj, &objects_mask))
-                    .collect::<Result<Vec<_>, _>>()?;
-            }
-        }
-
-        Ok(())
-    }
-}
-
-impl Merge<&Objects> for Objects {
-    fn merge(
-        &mut self,
-        source: &Objects,
-        mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(objects_mask) = mask.subtree(Self::OBJECTS_FIELD.name) {
-            self.objects = source
-                .objects
-                .iter()
-                .map(|obj| Object::merge_from(obj, &objects_mask))
+    ) -> Result<(), Self::Error> {
+        // Use mask directly — Objects is a transparent wrapper
+        if let Some(objects) = source {
+            self.objects = objects
+                .into_iter()
+                .map(|obj| Object::merge_from(obj, mask))
                 .collect::<Result<Vec<_>, _>>()?;
         }
 
@@ -453,13 +382,30 @@ impl Merge<&Objects> for Objects {
     }
 }
 
+impl Merge<&Objects> for Objects {
+    type Error = RpcError;
+
+    fn merge(&mut self, source: &Objects, mask: &FieldMaskTree) -> Result<(), Self::Error> {
+        // Use mask directly — Objects is a transparent wrapper
+        self.objects = source
+            .objects
+            .iter()
+            .map(|obj| Object::merge_from(obj, mask))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(())
+    }
+}
+
 // Checkpoint implementations
 impl Merge<iota_sdk_types::CheckpointSummary> for CheckpointSummary {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: iota_sdk_types::CheckpointSummary,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         if mask.contains(Self::BCS_FIELD.name) {
             self.bcs = Some(BcsData::serialize(&VersionedCheckpointSummary::V1(
                 source.clone(),
@@ -475,11 +421,13 @@ impl Merge<iota_sdk_types::CheckpointSummary> for CheckpointSummary {
 }
 
 impl Merge<&CheckpointSummary> for CheckpointSummary {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: &CheckpointSummary,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         let CheckpointSummary { bcs, digest, .. } = source;
 
         if mask.contains(Self::DIGEST_FIELD.name) {
@@ -495,11 +443,13 @@ impl Merge<&CheckpointSummary> for CheckpointSummary {
 }
 
 impl Merge<iota_sdk_types::CheckpointContents> for CheckpointContents {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: iota_sdk_types::CheckpointContents,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         if mask.contains(Self::BCS_FIELD.name) {
             // CheckpointContents has a custom Serialize impl that embeds
             // a BCS enum discriminant byte, so no versioned wrapper needed.
@@ -515,11 +465,13 @@ impl Merge<iota_sdk_types::CheckpointContents> for CheckpointContents {
 }
 
 impl Merge<&CheckpointContents> for CheckpointContents {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: &CheckpointContents,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         let CheckpointContents { bcs, digest, .. } = source;
 
         if mask.contains(Self::BCS_FIELD.name) {
@@ -535,11 +487,13 @@ impl Merge<&CheckpointContents> for CheckpointContents {
 }
 
 impl Merge<&iota_sdk_types::CheckpointSummary> for Checkpoint {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: &iota_sdk_types::CheckpointSummary,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         if let Some(submask) = mask.subtree(Self::SUMMARY_FIELD.name) {
             self.summary = Some(CheckpointSummary::merge_from(source.clone(), &submask)?);
         }
@@ -549,11 +503,13 @@ impl Merge<&iota_sdk_types::CheckpointSummary> for Checkpoint {
 }
 
 impl Merge<iota_sdk_types::ValidatorAggregatedSignature> for Checkpoint {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: iota_sdk_types::ValidatorAggregatedSignature,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         if mask.contains(Self::SIGNATURE_FIELD.name) {
             self.signature = Some(source.into());
         }
@@ -563,11 +519,13 @@ impl Merge<iota_sdk_types::ValidatorAggregatedSignature> for Checkpoint {
 }
 
 impl Merge<iota_sdk_types::CheckpointContents> for Checkpoint {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: iota_sdk_types::CheckpointContents,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         if let Some(submask) = mask.subtree(Self::CONTENTS_FIELD.name) {
             self.contents = Some(CheckpointContents::merge_from(source, &submask)?);
         }
@@ -577,11 +535,9 @@ impl Merge<iota_sdk_types::CheckpointContents> for Checkpoint {
 }
 
 impl Merge<&Checkpoint> for Checkpoint {
-    fn merge(
-        &mut self,
-        source: &Checkpoint,
-        mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    type Error = RpcError;
+
+    fn merge(&mut self, source: &Checkpoint, mask: &FieldMaskTree) -> Result<(), Self::Error> {
         let Checkpoint {
             sequence_number,
             summary,
@@ -618,31 +574,36 @@ impl Merge<&Checkpoint> for Checkpoint {
 
 // Transaction implementations
 impl Merge<iota_types::effects::TransactionEffects> for TransactionEffects {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: iota_types::effects::TransactionEffects,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         if !mask.contains(Self::DIGEST_FIELD.name) && !mask.contains(Self::BCS_FIELD.name) {
             // No need to convert if no field is requested
             return Ok(());
         }
 
         // Convert iota_types to iota_sdk_types types for external compatibility
-        let sdk_effects: iota_sdk_types::TransactionEffects = source
-            .try_into()
-            .map_err(|e| format!("failed to convert effects to SDK type: {e}"))?;
+        let sdk_effects: iota_sdk_types::TransactionEffects =
+            source.try_into().map_err(|e: SdkTypeConversionError| {
+                RpcError::from(e).with_context("failed to convert effects")
+            })?;
 
         Merge::merge(self, &sdk_effects, mask)
     }
 }
 
 impl Merge<&iota_sdk_types::TransactionEffects> for TransactionEffects {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: &iota_sdk_types::TransactionEffects,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         // Set digest if requested
         if mask.contains(Self::DIGEST_FIELD.name) {
             self.digest = Some(source.digest().into());
@@ -658,11 +619,13 @@ impl Merge<&iota_sdk_types::TransactionEffects> for TransactionEffects {
 }
 
 impl Merge<&TransactionEffects> for TransactionEffects {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: &TransactionEffects,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         if mask.contains(Self::DIGEST_FIELD.name) {
             self.digest = source.digest.clone();
         }
@@ -676,30 +639,35 @@ impl Merge<&TransactionEffects> for TransactionEffects {
 }
 
 impl Merge<iota_types::effects::TransactionEvents> for TransactionEvents {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: iota_types::effects::TransactionEvents,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         if !mask.contains(Self::DIGEST_FIELD.name) && !mask.contains(Self::EVENTS_FIELD.name) {
             // No need to convert if no field is requested
             return Ok(());
         }
 
-        let sdk_events: iota_sdk_types::TransactionEvents = source
-            .try_into()
-            .map_err(|e| format!("failed to convert events to SDK type: {e}"))?;
+        let sdk_events: iota_sdk_types::TransactionEvents =
+            source.try_into().map_err(|e: SdkTypeConversionError| {
+                RpcError::from(e).with_context("failed to convert events")
+            })?;
 
         Merge::merge(self, &sdk_events, mask)
     }
 }
 
 impl Merge<&iota_sdk_types::TransactionEvents> for TransactionEvents {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: &iota_sdk_types::TransactionEvents,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         // Set digest if requested
         if mask.contains(Self::DIGEST_FIELD.name) {
             self.digest = Some(source.digest().into());
@@ -714,11 +682,13 @@ impl Merge<&iota_sdk_types::TransactionEvents> for TransactionEvents {
 }
 
 impl Merge<&TransactionEvents> for TransactionEvents {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: &TransactionEvents,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         if mask.contains(Self::DIGEST_FIELD.name) {
             self.digest = source.digest.clone();
         }
@@ -732,11 +702,13 @@ impl Merge<&TransactionEvents> for TransactionEvents {
 }
 
 impl Merge<&ExecutedTransaction> for ExecutedTransaction {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: &ExecutedTransaction,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         let ExecutedTransaction {
             transaction,
             signatures,
@@ -798,11 +770,13 @@ impl Merge<&ExecutedTransaction> for ExecutedTransaction {
 }
 
 impl Merge<iota_types::transaction::Transaction> for Transaction {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: iota_types::transaction::Transaction,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         if !mask.contains(Self::DIGEST_FIELD.name) && !mask.contains(Self::BCS_FIELD.name) {
             // No need to convert if no field is requested
             return Ok(());
@@ -812,18 +786,22 @@ impl Merge<iota_types::transaction::Transaction> for Transaction {
             .transaction_data()
             .clone()
             .try_into()
-            .map_err(|e| format!("failed to convert transaction to SDK type: {e}"))?;
+            .map_err(|e: SdkTypeConversionError| {
+                RpcError::from(e).with_context("failed to convert transaction")
+            })?;
 
         Merge::merge(self, &sdk_transaction, mask)
     }
 }
 
 impl Merge<&iota_sdk_types::Transaction> for Transaction {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: &iota_sdk_types::Transaction,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         if mask.contains(Self::DIGEST_FIELD.name) {
             self.digest = Some((source.digest()).into());
         }
@@ -837,11 +815,9 @@ impl Merge<&iota_sdk_types::Transaction> for Transaction {
 }
 
 impl Merge<&Transaction> for Transaction {
-    fn merge(
-        &mut self,
-        source: &Transaction,
-        mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    type Error = RpcError;
+
+    fn merge(&mut self, source: &Transaction, mask: &FieldMaskTree) -> Result<(), Self::Error> {
         let Transaction { bcs, digest, .. } = source;
 
         if mask.contains(Self::DIGEST_FIELD.name) {
@@ -853,5 +829,142 @@ impl Merge<&Transaction> for Transaction {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_grpc_types::{field::FieldMaskUtil, v0::epoch::ProtocolConfig};
+    use iota_protocol_config::{Chain, ProtocolConfig as IotaProtocolConfig};
+    use prost_types::FieldMask;
+
+    use super::*;
+
+    fn make_iota_protocol_config() -> IotaProtocolConfig {
+        IotaProtocolConfig::get_for_version(1.into(), Chain::Testnet)
+    }
+
+    // ── attributes ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_protocol_config_merge_attributes_returns_all() {
+        // "attributes" → all non-None entries from attr_map()
+        let source = make_iota_protocol_config();
+        let expected_count = source
+            .attr_map()
+            .into_values()
+            .filter(Option::is_some)
+            .count();
+        let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths(["attributes"]));
+        let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
+        assert_eq!(result.attributes.unwrap().attributes.len(), expected_count);
+    }
+
+    #[test]
+    fn test_protocol_config_merge_explicit_attribute_key() {
+        // "attributes.<key>" → only that one attribute
+        let source = make_iota_protocol_config();
+        let key = source
+            .attr_map()
+            .into_iter()
+            .find(|(_, v)| v.is_some())
+            .map(|(k, _)| k)
+            .unwrap();
+        let path = format!("attributes.{key}");
+        let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths([&path]));
+        let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
+        let attrs = result.attributes.unwrap().attributes;
+        assert_eq!(attrs.len(), 1);
+        assert!(attrs.contains_key(&key));
+    }
+
+    #[test]
+    fn test_protocol_config_merge_multiple_attribute_keys() {
+        // Multiple "attributes.<key>" → only those keys
+        let source = make_iota_protocol_config();
+        let keys: Vec<String> = source
+            .attr_map()
+            .into_iter()
+            .filter(|(_, v)| v.is_some())
+            .map(|(k, _)| k)
+            .take(2)
+            .collect();
+        assert_eq!(keys.len(), 2, "expected at least 2 non-None attributes");
+        let paths: Vec<String> = keys.iter().map(|k| format!("attributes.{k}")).collect();
+        let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths(
+            paths.iter().map(String::as_str),
+        ));
+        let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
+        let attrs = result.attributes.unwrap().attributes;
+        assert_eq!(attrs.len(), 2);
+        assert!(attrs.contains_key(&keys[0]));
+        assert!(attrs.contains_key(&keys[1]));
+    }
+
+    // ── feature_flags ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_protocol_config_merge_flags_returns_all() {
+        // "feature_flags" → all entries from feature_map()
+        let source = make_iota_protocol_config();
+        let expected_count = source.feature_map().len();
+        let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths(["feature_flags"]));
+        let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
+        assert_eq!(result.feature_flags.unwrap().flags.len(), expected_count);
+    }
+
+    #[test]
+    fn test_protocol_config_merge_explicit_flag_key() {
+        // "feature_flags.<key>" → only that one flag
+        let source = make_iota_protocol_config();
+        let key = source.feature_map().into_keys().next().unwrap();
+        let path = format!("feature_flags.{key}");
+        let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths([&path]));
+        let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
+        let flags = result.feature_flags.unwrap().flags;
+        assert_eq!(flags.len(), 1);
+        assert!(flags.contains_key(&key));
+    }
+
+    #[test]
+    fn test_protocol_config_merge_multiple_flag_keys() {
+        // Multiple "feature_flags.<key>" → only those keys
+        let source = make_iota_protocol_config();
+        let keys: Vec<String> = source.feature_map().into_keys().take(2).collect();
+        assert_eq!(keys.len(), 2, "expected at least 2 feature flags");
+        let paths: Vec<String> = keys.iter().map(|k| format!("feature_flags.{k}")).collect();
+        let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths(
+            paths.iter().map(String::as_str),
+        ));
+        let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
+        let flags = result.feature_flags.unwrap().flags;
+        assert_eq!(flags.len(), 2);
+        assert!(flags.contains_key(&keys[0]));
+        assert!(flags.contains_key(&keys[1]));
+    }
+
+    #[test]
+    fn test_protocol_config_merge_wildcard_does_not_populate_maps() {
+        // Bare "protocol_config" wildcard must NOT populate map fields —
+        // they are only populated when explicitly named in the mask.
+        let source = make_iota_protocol_config();
+        let mask = FieldMaskTree::new_wildcard();
+        let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
+        assert!(result.feature_flags.is_none());
+        assert!(result.attributes.is_none());
+    }
+
+    // ── misc ─────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_protocol_config_merge_version_only() {
+        // "protocol_version" → version set, no map fields populated
+        let source = make_iota_protocol_config();
+        let expected_version = source.version.as_u64();
+        let mask = FieldMaskTree::from_field_mask(&FieldMask::from_paths(["protocol_version"]));
+        let result = ProtocolConfig::merge_from(&source, &mask).unwrap();
+        assert_eq!(result.protocol_version, Some(expected_version));
+        assert!(result.feature_flags.is_none());
+        assert!(result.attributes.is_none());
     }
 }

@@ -55,49 +55,61 @@ async fn execute_transaction_readmask_scenarios() {
     let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
     let amount = 9;
 
-    // Tests for readmask scenarios
-    type TestCase<'a> = (&'a str, Option<FieldMask>, &'a [&'a str]);
+    // ExecuteTransactionResponse is field_mask_transparent, so paths are relative
+    // to the inner ExecutedTransaction (e.g. "effects", not
+    // "executed_transaction.effects").
+    type TestCase<'a> = (&'a str, Option<FieldMask>, Vec<&'a str>);
     let test_cases: Vec<TestCase> = vec![
-        // Default mask is "transaction.effects", so only transaction.effects with all subfields is
-        // returned
         (
             "default readmask",
             None,
-            &["transaction.effects.digest", "transaction.effects.bcs"],
+            // EXECUTE_TRANSACTION_READ_MASK =
+            // "transaction.digest,effects,events,input_objects,output_objects"
+            // "effects" and "events" are wildcards that expand to all their sub-fields.
+            vec![
+                "transaction.digest",
+                "effects.digest",
+                "effects.bcs",
+                "events.digest",
+                "events.events",
+                "input_objects",
+                "output_objects",
+            ],
         ),
         (
             "empty readmask",
             Some(FieldMask::from_paths(&[] as &[&str])),
-            &[],
+            vec![],
         ),
-        // Full readmask "transaction" returns all nested fields that are available
-        // All requested fields are present even if empty (e.g., events for simple transfers)
+        // Request all ExecutedTransaction fields explicitly.
+        // All fields are present even if empty (e.g., events for simple transfers).
         (
             "full readmask",
-            Some(FieldMask::from_paths(["transaction"])),
-            &[
-                "transaction.transaction.digest",
-                "transaction.transaction.bcs",
-                "transaction.signatures",
-                "transaction.effects.digest",
-                "transaction.effects.bcs",
-                "transaction.events",
-                "transaction.input_objects",
-                "transaction.output_objects",
+            Some(FieldMask::from_paths([
+                "transaction",
+                "signatures",
+                "effects",
+                "events",
+                "input_objects",
+                "output_objects",
+            ])),
+            vec![
+                "transaction.digest",
+                "transaction.bcs",
+                "signatures",
+                "effects.digest",
+                "effects.bcs",
+                "events.digest",
+                "events.events",
+                "input_objects",
+                "output_objects",
             ],
         ),
-        // Specific nested field masks - only the specified nested fields are returned
+        // Specific nested field masks — only the specified nested fields are returned.
         (
             "nested readmask (multiple specific fields)",
-            Some(FieldMask::from_paths([
-                "transaction.transaction.digest",
-                "transaction.effects",
-            ])),
-            &[
-                "transaction.transaction.digest",
-                "transaction.effects.digest",
-                "transaction.effects.bcs",
-            ],
+            Some(FieldMask::from_paths(["transaction.digest", "effects"])),
+            vec!["transaction.digest", "effects.digest", "effects.bcs"],
         ),
     ];
 
@@ -126,7 +138,7 @@ async fn execute_transaction_readmask_scenarios() {
             transaction,
             signatures,
             mask,
-            expected_paths,
+            &expected_paths,
             scenario,
         )
         .await;

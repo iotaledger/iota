@@ -42,7 +42,7 @@ async fn test_get_checkpoint() {
         .summary()
         .expect("should deserialize summary");
     assert_eq!(summary.epoch, 0);
-    assert!(!response.transactions.is_empty());
+    assert!(!response.executed_transactions.is_empty());
     assert!(response.contents.is_some());
     let digest_0 = summary.content_digest;
 
