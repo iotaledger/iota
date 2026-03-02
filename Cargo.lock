@@ -15895,7 +15895,6 @@ dependencies = [
 name = "typed-store-derive"
 version = "1.19.0-alpha"
 dependencies = [
- "itertools 0.13.0",
  "proc-macro2",
  "quote",
  "syn 1.0.109",
