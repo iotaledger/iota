@@ -309,14 +309,13 @@ fn resolve_unresolved_transaction(
             budget: max_gas_budget,
         }
     };
-    let expiration = unresolved_transaction.expiration.into();
     let ptb = resolve_ptb(reader, called_packages, unresolved_transaction.ptb)?;
     Ok(TransactionData::V1(
         iota_types::transaction::TransactionDataV1 {
             kind: iota_types::transaction::TransactionKind::ProgrammableTransaction(ptb),
             sender,
             gas_data,
-            expiration,
+            expiration: unresolved_transaction.expiration,
         },
     ))
 }
