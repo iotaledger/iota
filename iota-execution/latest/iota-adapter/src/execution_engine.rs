@@ -1256,7 +1256,9 @@ mod checked {
                             // safe mode.
                             builder = setup_authenticator_state_expire(builder, expire);
                         }
-                        _ => unimplemented!("a new EndOfEpochTransactionKind variant was added"),
+                        _ => unimplemented!(
+                            "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
+                        ),
                     }
                 }
                 unreachable!(

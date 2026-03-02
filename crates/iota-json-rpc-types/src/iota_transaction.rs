@@ -562,9 +562,9 @@ impl IotaTransactionBlockKind {
                                     },
                                 )
                             }
-                            _ => {
-                                unimplemented!("a new EndOfEpochTransactionKind variant was added")
-                            }
+                          _ => unimplemented!(
+                            "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
+                        ),
                         })
                         .collect(),
                 })
@@ -650,7 +650,9 @@ impl IotaTransactionBlockKind {
                                     },
                                 )
                             }
-                            _ => unreachable!("unknown EndOfEpochTransactionKind variant"),
+                            _ => unimplemented!(
+                            "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
+                        ),
                         })
                         .collect(),
                 })
