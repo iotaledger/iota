@@ -6392,6 +6392,7 @@ dependencies = [
  "iota-types",
  "object_store 0.13.1",
  "prometheus",
+ "rustls 0.23.35",
  "serde",
  "serde_yaml",
  "telemetry-subscribers",

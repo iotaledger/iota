@@ -19,6 +19,7 @@ byteorder.workspace = true
 bytes.workspace = true
 futures.workspace = true
 object_store.workspace = true
+rustls.workspace = true
 prometheus.workspace = true
 serde.workspace = true
 serde_yaml.workspace = true
