@@ -595,20 +595,7 @@ impl ConsensusAdapter {
             }
         }
 
-        // Regardless of `enable_white_flag_flow`, we need to insert transactions that
-        // will be submitted to consensus into the corresponding persistent table.
-        epoch_store.insert_pending_consensus_transactions(transactions)?;
-
-        // If the white flag flow is enabled, there are no certificates, so there is
-        // nothing to insert into `pending_consensus_certificates`. We do not insert
-        // `UserTransactionV1` in the pending set because, in the certificate-less
-        // scenario, there is no pre-consensus "promise" (a certificate) that
-        // `UserTransactionV1` will be executed before the end of epoch. So, the
-        // below insertion is only for certificates, i.e., when the white flag
-        // flow is disabled.
-        if !epoch_store.protocol_config().enable_white_flag_flow() {
-            epoch_store.insert_pending_consensus_certificates(transactions, lock);
-        }
+        epoch_store.insert_pending_consensus_transactions(transactions, lock)?;
 
         Ok(self.submit_unchecked(transactions, epoch_store))
     }
@@ -858,18 +845,9 @@ impl ConsensusAdapter {
 
         let consensus_keys: Vec<_> = transactions.iter().map(|t| t.key()).collect();
 
-        // Regardless of `enable_white_flag_flow`, we need to remove transactions that
-        // were processed by consensus from the corresponding persistent table.
         epoch_store
             .remove_pending_consensus_transactions(&consensus_keys)
             .expect("Storage error when removing consensus transaction");
-
-        // If the white flag flow is enabled, there are no certificates, so there is
-        // nothing to remove from `pending_consensus_certificates`. So, the below
-        // removal is only for certificates, i.e., when the white flag flow is disabled.
-        if !epoch_store.protocol_config().enable_white_flag_flow() {
-            epoch_store.remove_pending_consensus_certificates(&consensus_keys);
-        }
 
         let is_user_tx = is_soft_bundle
             || matches!(

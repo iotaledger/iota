@@ -2226,47 +2226,55 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
-    /// Insert transactions that will be submitted to consensus
-    /// into the persistent `pending_consensus_transactions` table.
+    /// Insert transactions that will be submitted to consensus into
+    /// the persistent `pending_consensus_transactions` table.
+    ///
+    /// Additionally, in the certificate mode, insert certified transactions
+    /// into the in-memory `pending_consensus_certificates` set. When
+    /// submitting a certificate caller **must** provide a `ReconfigState`
+    /// lock guard and verify that it allows new user certificates.
     pub fn insert_pending_consensus_transactions(
         &self,
         transactions: &[ConsensusTransaction],
+        lock: Option<&RwLockReadGuard<ReconfigState>>,
     ) -> IotaResult {
         let key_value_pairs = transactions.iter().map(|tx| (tx.key(), tx));
         self.tables()?
             .pending_consensus_transactions
             .multi_insert(key_value_pairs)?;
 
-        Ok(())
-    }
-
-    /// Insert certified transactions that will be submitted to consensus
-    /// into the in-memory `pending_consensus_certificates` set. When
-    /// submitting a certificate caller **must** provide a `ReconfigState`
-    /// lock guard and verify that it allows new user certificates.
-    pub fn insert_pending_consensus_certificates(
-        &self,
-        transactions: &[ConsensusTransaction],
-        lock: Option<&RwLockReadGuard<ReconfigState>>,
-    ) {
-        // TODO: lock once for all insert() calls.
-        for transaction in transactions {
-            if let ConsensusTransactionKind::CertifiedTransaction(cert) = &transaction.kind {
-                let state = lock.expect("Must pass reconfiguration lock when storing certificate");
-                // Caller is responsible for performing graceful check
-                assert!(
-                    state.should_accept_user_certs(),
-                    "Reconfiguration state should allow accepting user transactions"
-                );
-                self.pending_consensus_certificates
-                    .write()
-                    .insert(*cert.digest());
+        // NOTE: If the white flag flow is enabled (certificate-less mode), we do not
+        // insert `UserTransactionV1` into the pending set because there is no
+        // pre-consensus "promise" (a certificate) that `UserTransactionV1` will be
+        // executed before the end of epoch. Thus, the below insertion is only for
+        // certificates, i.e., when the white flag flow is disabled.
+        if !self.protocol_config.enable_white_flag_flow() {
+            // TODO: lock once for all insert() calls.
+            for transaction in transactions {
+                if let ConsensusTransactionKind::CertifiedTransaction(cert) = &transaction.kind {
+                    let state =
+                        lock.expect("Must pass reconfiguration lock when storing certificate");
+                    // Caller is responsible for performing graceful check
+                    assert!(
+                        state.should_accept_user_certs(),
+                        "Reconfiguration state should allow accepting user transactions"
+                    );
+                    self.pending_consensus_certificates
+                        .write()
+                        .insert(*cert.digest());
+                }
             }
         }
+
+        Ok(())
     }
 
     /// Remove processed by consensus transactions from the persistent
     /// `pending_consensus_transactions` table.
+    ///
+    /// Additionally, in the certificate mode, remove certified transactions
+    /// that were processed by consensus from the in-memory
+    /// `pending_consensus_certificates` set.
     pub fn remove_pending_consensus_transactions(
         &self,
         keys: &[ConsensusTransactionKey],
@@ -2275,18 +2283,20 @@ impl AuthorityPerEpochStore {
             .pending_consensus_transactions
             .multi_remove(keys)?;
 
-        Ok(())
-    }
-
-    /// Remove processed by consensus certified transactions from the in-memory
-    /// `pending_consensus_certificates` set.
-    pub fn remove_pending_consensus_certificates(&self, keys: &[ConsensusTransactionKey]) {
-        // TODO: lock once for all remove() calls.
-        for key in keys {
-            if let ConsensusTransactionKey::Certificate(cert) = key {
-                self.pending_consensus_certificates.write().remove(cert);
+        // NOTE: If the white flag flow is enabled, there are no certificates,
+        // so there is nothing to remove from `pending_consensus_certificates`.
+        // Thus, the below removal is only for certificates, i.e., when the white
+        // flag flow is disabled.
+        if !self.protocol_config.enable_white_flag_flow() {
+            // TODO: lock once for all remove() calls.
+            for key in keys {
+                if let ConsensusTransactionKey::Certificate(cert) = key {
+                    self.pending_consensus_certificates.write().remove(cert);
+                }
             }
         }
+
+        Ok(())
     }
 
     pub fn pending_consensus_certificates_count(&self) -> usize {
