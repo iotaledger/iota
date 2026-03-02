@@ -647,7 +647,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 
     fn try_get_events(
         &self,
-        event_digest: &iota_types::digests::TransactionEventsDigest,
+        event_digest: &iota_types::digests::TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
         Ok(self.with_store(|store| store.get_events(event_digest)))
     }

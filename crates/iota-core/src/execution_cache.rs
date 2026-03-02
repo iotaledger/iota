@@ -9,7 +9,7 @@ use iota_common::fatal;
 use iota_config::{ExecutionCacheConfig, ExecutionCacheType};
 use iota_types::{
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
-    digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
+    digests::{TransactionDigest, TransactionEffectsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
@@ -840,22 +840,19 @@ pub trait TransactionCacheRead: Send + Sync {
 
     fn try_multi_get_events(
         &self,
-        event_digests: &[TransactionEventsDigest],
+        event_digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>>;
 
     /// Non-fallible version of `try_multi_get_events`.
     fn multi_get_events(
         &self,
-        event_digests: &[TransactionEventsDigest],
+        event_digests: &[TransactionDigest],
     ) -> Vec<Option<TransactionEvents>> {
         self.try_multi_get_events(event_digests)
             .expect("storage access failed")
     }
 
-    fn try_get_events(
-        &self,
-        digest: &TransactionEventsDigest,
-    ) -> IotaResult<Option<TransactionEvents>> {
+    fn try_get_events(&self, digest: &TransactionDigest) -> IotaResult<Option<TransactionEvents>> {
         self.try_multi_get_events(&[*digest]).map(|mut events| {
             events
                 .pop()
@@ -864,7 +861,7 @@ pub trait TransactionCacheRead: Send + Sync {
     }
 
     /// Non-fallible version of `try_get_events`.
-    fn get_events(&self, digest: &TransactionEventsDigest) -> Option<TransactionEvents> {
+    fn get_events(&self, digest: &TransactionDigest) -> Option<TransactionEvents> {
         self.try_get_events(digest).expect("storage access failed")
     }
 

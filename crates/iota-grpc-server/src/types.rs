@@ -16,7 +16,7 @@ use iota_grpc_types::{
 };
 use iota_types::{
     base_types::{ObjectID, VersionNumber},
-    digests::{TransactionDigest, TransactionEventsDigest},
+    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     full_checkpoint_content::{
         CheckpointData as IotaTypesCheckpointData,
@@ -251,7 +251,7 @@ pub trait GrpcStateReader: Send + Sync + 'static {
     /// Returns `Ok(None)` if the events don't exist.
     fn get_transaction_events(
         &self,
-        digest: &TransactionEventsDigest,
+        digest: &TransactionDigest,
     ) -> anyhow::Result<Option<TransactionEvents>>;
 
     /// Get checkpoint sequence number for a transaction.
@@ -418,7 +418,7 @@ impl GrpcStateReader for RestStateReaderAdapter {
 
     fn get_transaction_events(
         &self,
-        digest: &TransactionEventsDigest,
+        digest: &TransactionDigest,
     ) -> anyhow::Result<Option<TransactionEvents>> {
         Ok(self.inner.get_events(digest))
     }
@@ -1110,7 +1110,7 @@ impl GrpcReader {
             // Get events only if requested
             let events = if fields.include_events {
                 match effects.events_digest() {
-                    Some(event_digest) => self.state_reader.get_transaction_events(event_digest)?,
+                    Some(_) => self.state_reader.get_transaction_events(digest)?,
                     None => None,
                 }
             } else {

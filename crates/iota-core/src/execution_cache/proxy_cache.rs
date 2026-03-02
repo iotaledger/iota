@@ -9,7 +9,7 @@ use iota_config::node::ExecutionCacheTypeAtomicU8;
 use iota_types::{
     accumulator::Accumulator,
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
-    digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
+    digests::{TransactionDigest, TransactionEffectsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
@@ -251,7 +251,7 @@ impl TransactionCacheRead for ProxyCache {
     #[instrument(level = "trace", skip_all)]
     fn try_multi_get_events(
         &self,
-        event_digests: &[TransactionEventsDigest],
+        event_digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>> {
         delegate_method!(self.try_multi_get_events(event_digests))
     }

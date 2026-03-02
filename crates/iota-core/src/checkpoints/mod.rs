@@ -2668,7 +2668,6 @@ mod tests {
     use iota_types::{
         base_types::{ObjectID, SequenceNumber, TransactionEffectsDigest},
         crypto::Signature,
-        digests::TransactionEventsDigest,
         effects::{TransactionEffects, TransactionEvents},
         messages_checkpoint::SignedCheckpointSummary,
         move_package::MovePackage,
@@ -2972,7 +2971,7 @@ mod tests {
 
         fn try_multi_get_events(
             &self,
-            _: &[TransactionEventsDigest],
+            _: &[TransactionDigest],
         ) -> IotaResult<Vec<Option<TransactionEvents>>> {
             unimplemented!()
         }

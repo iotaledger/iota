@@ -70,7 +70,7 @@ use iota_types::{
         default_hash,
     },
     deny_list_v1::check_coin_deny_list_v1_during_signing,
-    digests::{ChainIdentifier, Digest, TransactionEventsDigest},
+    digests::{ChainIdentifier, Digest},
     dynamic_field::{self, DynamicFieldInfo, DynamicFieldName, Field, visitor as DFV},
     effects::{
         InputSharedObject, SignedTransactionEffects, TransactionEffects, TransactionEffectsAPI,
@@ -3940,7 +3940,7 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     pub fn get_transaction_events(
         &self,
-        digest: &TransactionEventsDigest,
+        digest: &TransactionDigest,
     ) -> IotaResult<TransactionEvents> {
         self.get_transaction_cache_reader()
             .try_get_events(digest)?
@@ -4285,11 +4285,13 @@ impl AuthorityState {
                         .and_then(|e| e.data.get(k.2).cloned()),
                 )
             })
-            .map(|((digest, tx_digest, event_seq, timestamp), event)| {
-                event
-                    .map(|e| (e, tx_digest, event_seq, timestamp))
-                    .ok_or(IotaError::TransactionEventsNotFound { digest })
-            })
+            .map(
+                |((_event_digest, tx_digest, event_seq, timestamp), event)| {
+                    event
+                        .map(|e| (e, tx_digest, event_seq, timestamp))
+                        .ok_or(IotaError::TransactionEventsNotFound { digest: tx_digest })
+                },
+            )
             .collect::<Result<Vec<_>, _>>()?;
 
         let epoch_store = self.load_epoch_store_one_call_per_task();
@@ -4341,8 +4343,8 @@ impl AuthorityState {
                 .try_get_transaction_block(transaction_digest)?
             {
                 let cert_sig = epoch_store.get_transaction_cert_sig(transaction_digest)?;
-                let events = if let Some(digest) = effects.events_digest() {
-                    self.get_transaction_events(digest)?
+                let events = if effects.events_digest().is_some() {
+                    self.get_transaction_events(effects.transaction_digest())?
                 } else {
                     TransactionEvents::default()
                 };
@@ -5787,21 +5789,10 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         if digests.is_empty() {
             return Ok(vec![]);
         }
-        let events_digests: Vec<_> = self
+
+        Ok(self
             .get_transaction_cache_reader()
-            .try_multi_get_executed_effects(digests)?
-            .into_iter()
-            .map(|t| t.and_then(|t| t.events_digest().cloned()))
-            .collect();
-        let non_empty_events: Vec<_> = events_digests.iter().filter_map(|e| *e).collect();
-        let mut events = self
-            .get_transaction_cache_reader()
-            .try_multi_get_events(&non_empty_events)?
-            .into_iter();
-        Ok(events_digests
-            .into_iter()
-            .map(|ev| ev.and_then(|_| events.next()?))
-            .collect())
+            .multi_get_events(digests))
     }
 }
 
