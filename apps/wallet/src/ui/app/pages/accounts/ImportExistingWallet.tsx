@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli } from '_src/shared/analytics/ampli';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import ImportAWallet from '_assets/images/onboarding/import-a-wallet.png';
 import ImportAWalletDark from '_assets/images/onboarding/import-a-wallet-darkmode.png';
 import { Card, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
-import { AccountsFormType, PageTemplate } from '_components';
+import { AccountsFormType, PageTemplate, useSourceFlow } from '_components';
 import { useAppSelector, useAccounts } from '_hooks';
 import { ExtensionViewType } from '../../redux/slices/app/appType';
 import { ImportPass, Key, Passkey, Firefly } from '@iota/apps-ui-icons';
@@ -15,18 +15,18 @@ import { type ActionCardItem, OnboardingCardIcon } from './AddAccountPage';
 import { Feature, Theme, useFeatureEnabledByNetwork, useTheme } from '@iota/core';
 import clsx from 'clsx';
 import { isFirstAccount } from '../../helpers';
-import { ACCOUNT_FORM_TYPE_TO_AMPLI, AmpliSourceFlow } from '_src/shared/analytics';
+import { ACCOUNT_FORM_TYPE_TO_AMPLI } from '_src/shared/analytics';
 
 export function ImportExistingWallet() {
     const { theme } = useTheme();
-    const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const isPopupOrSidePanel = useAppSelector(
         (state) =>
             state.app.extensionViewType === ExtensionViewType.Popup ||
             state.app.extensionViewType === ExtensionViewType.SidePanel,
     );
-    const sourceFlow = searchParams.get('sourceFlow') || AmpliSourceFlow.Unknown;
+    const { sourceFlowRef } = useSourceFlow();
+    const sourceFlow = sourceFlowRef.current;
     const network = useAppSelector(({ app }) => app.network);
     const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
     const { data: accounts } = useAccounts();
@@ -80,22 +80,22 @@ export function ImportExistingWallet() {
 
         switch (actionType) {
             case AccountsFormType.ImportMnemonic:
-                navigate(`/accounts/import-passphrase?sourceFlow=${sourceFlow}`);
+                navigate('/accounts/import-passphrase');
                 break;
             case AccountsFormType.ImportPrivateKey:
-                navigate(`/accounts/import-private-key?sourceFlow=${sourceFlow}`);
+                navigate('/accounts/import-private-key');
                 break;
             case AccountsFormType.ImportPasskey:
-                const url = `/accounts/import-passkey?sourceFlow=${sourceFlow}`;
+                const url = '/accounts/import-passkey';
                 if (isPopupOrSidePanel) {
-                    openInNewTab(url);
+                    openInNewTab(`${url}?sourceFlow=${sourceFlow}`);
                     window.close();
                 } else {
                     navigate(url);
                 }
                 break;
             case AccountsFormType.ImportSeed:
-                navigate(`/accounts/import-seed?sourceFlow=${sourceFlow}`);
+                navigate('/accounts/import-seed');
                 break;
             default:
                 throw new Error('Unsupported action type');
@@ -110,7 +110,7 @@ export function ImportExistingWallet() {
             isTitleCentered
             onClose={() => navigate('/')}
             showBackButton
-            onBack={() => navigate(`/accounts/add-account?sourceFlow=${sourceFlow}`)}
+            onBack={() => navigate('/accounts/add-account')}
         >
             <div className="flex h-full w-full flex-col">
                 <div className="flex w-full flex-1 flex-col justify-center gap-4 py-md--rs text-center">

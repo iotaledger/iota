@@ -3,7 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
-import { AccountsFormType, useAccountsFormContext, VerifyPasswordModal } from '_components';
+import {
+    AccountsFormType,
+    useAccountsFormContext,
+    useSourceFlow,
+    VerifyPasswordModal,
+} from '_components';
 import {
     useAccountSources,
     useActiveAccount,
@@ -51,8 +56,6 @@ const ACCOUNTS_WITH_ENABLED_BALANCE_FINDER: AccountType[] = [
     AccountType.LedgerDerived,
 ];
 
-const SOURCE_FLOW = AmpliSourceFlow.ManageAccounts;
-
 export function getGroupTitle(aGroupAccount: SerializedUIAccount) {
     return ACCOUNT_TYPE_TO_LABEL[aGroupAccount?.type] || '';
 }
@@ -78,6 +81,7 @@ export function AccountGroup({
     const isMnemonicDerivedGroup = type === AccountType.MnemonicDerived;
     const isSeedDerivedGroup = type === AccountType.SeedDerived;
     const [accountsFormValues, setAccountsFormValues] = useAccountsFormContext();
+    const { setSourceFlow } = useSourceFlow();
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
     const { data: accountSources } = useAccountSources();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceID);
@@ -98,12 +102,12 @@ export function AccountGroup({
             type: accountsFormType,
             sourceID: accountSource.id,
         });
+        setSourceFlow(AmpliSourceFlow.ManageAccounts);
         if (accountSource.isLocked) {
             setPasswordModalVisible(true);
         } else {
             createAccountsMutation.mutate({
                 type: accountsFormType,
-                sourceFlow: SOURCE_FLOW,
             });
         }
     }
@@ -318,7 +322,6 @@ export function AccountGroup({
                         if (accountsFormValues.current) {
                             await createAccountsMutation.mutateAsync({
                                 type: accountsFormValues.current.type,
-                                sourceFlow: SOURCE_FLOW,
                             });
                         }
                         setPasswordModalVisible(false);

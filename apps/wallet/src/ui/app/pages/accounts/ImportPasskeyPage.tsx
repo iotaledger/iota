@@ -3,9 +3,8 @@
 
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Form } from '../../shared/forms/Form';
-import { AmpliSourceFlow } from '_src/shared/analytics';
 
-import { AccountsFormType, PageTemplate, useAccountsFormContext } from '_components';
+import { AccountsFormType, PageTemplate, useAccountsFormContext, useSourceFlow } from '_components';
 import { Input, Button, ButtonHtmlType, ButtonType, InputType } from '@iota/apps-ui-kit';
 import { Theme, useTheme, useZodForm } from '@iota/core';
 import PasskeyAuthenticationRequired from '_assets/images/passkey_authentication_required.png';
@@ -16,15 +15,21 @@ import { useBackgroundClient } from '../../hooks';
 export function ImportPasskeyPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
+    const { setSourceFlow } = useSourceFlow();
     const accountID = searchParams.get('accountID') || '';
-    const sourceFlow = searchParams.get('sourceFlow') || AmpliSourceFlow.Unknown;
+
+    // Bootstrap sourceFlow from URL when opened in a new tab (passkey popup flow)
+    const urlSourceFlow = searchParams.get('sourceFlow');
+    if (urlSourceFlow) {
+        setSourceFlow(urlSourceFlow);
+    }
 
     return (
         <PageTemplate
             title="Import Passkey Account"
             isTitleCentered
             showBackButton
-            onBack={() => navigate(`/accounts/import-existing?sourceFlow=${sourceFlow}`)}
+            onBack={() => navigate('/accounts/import-existing')}
         >
             {accountID ? (
                 <NicknameSetContent accountID={accountID} />
@@ -39,8 +44,6 @@ function AuthenticationRequiredContent() {
     const { theme } = useTheme();
     const [, setAccountsFormValues] = useAccountsFormContext();
     const navigate = useNavigate();
-    const [searchParams] = useSearchParams();
-    const sourceFlow = searchParams.get('sourceFlow') || AmpliSourceFlow.Unknown;
 
     function handleOnClick() {
         setAccountsFormValues({
@@ -50,7 +53,6 @@ function AuthenticationRequiredContent() {
         navigate(
             `/accounts/protect-account?${new URLSearchParams({
                 accountsFormType: AccountsFormType.ImportPasskey,
-                sourceFlow,
             }).toString()}`,
         );
     }

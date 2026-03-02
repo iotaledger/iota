@@ -1,8 +1,14 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Link, useNavigate } from 'react-router-dom';
-import { AccountsFormType, useAccountsFormContext, PageTemplate, AccountList } from '_components';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import {
+    AccountsFormType,
+    useAccountsFormContext,
+    PageTemplate,
+    AccountList,
+    useSourceFlow,
+} from '_components';
 import { AnimatedQRScanner } from '@keystonehq/animated-qr';
 import { Button, ButtonType, InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import { UR, URType } from '@keystonehq/keystone-sdk';
@@ -37,6 +43,14 @@ export function ImportKeystone() {
     const navigate = useNavigate();
     const [, setAccountsFormValues] = useAccountsFormContext();
     const [cameraPermissionStatus] = useCheckCameraPermissionStatus();
+    const { setSourceFlow } = useSourceFlow();
+    const [searchParams] = useSearchParams();
+
+    // Bootstrap sourceFlow from URL when opened in a new tab
+    const urlSourceFlow = searchParams.get('sourceFlow');
+    if (urlSourceFlow) {
+        setSourceFlow(urlSourceFlow);
+    }
 
     function onSucceed({ type, cbor }: { type: string; cbor: string }) {
         const multiAccounts = parseMultiAccounts(new UR(Buffer.from(cbor, 'hex'), type));

@@ -101,8 +101,6 @@ enum SearchPhase {
     Idle, // search has finished and is idle, ready to start again
 }
 
-const SOURCE_FLOW = AmpliSourceFlow.BalanceFinder;
-
 export function AccountsFinderView(): JSX.Element {
     const navigate = useNavigate();
     const { accountSourceId } = useParams();
@@ -169,7 +167,7 @@ export function AccountsFinderView(): JSX.Element {
                     accountOrigin: AmpliAccountOrigin.Import,
                     numberOfAccounts: numberOfAccountsCreated,
                     isFirstAccount: isFirstAccount(accounts),
-                    sourceFlow: SOURCE_FLOW,
+                    sourceFlow: AmpliSourceFlow.BalanceFinder,
                 });
             }
         } finally {

@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { entropyToSerialized, mnemonicToEntropy } from '_src/shared/utils';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { AmpliSourceFlow } from '_src/shared/analytics';
+import { useNavigate } from 'react-router-dom';
 
 import {
     AccountsFormType,
@@ -18,8 +17,6 @@ import { VisibilityOff, VisibilityOn } from '@iota/apps-ui-icons';
 
 export function ImportPassphrasePage() {
     const navigate = useNavigate();
-    const [searchParams] = useSearchParams();
-    const sourceFlow = searchParams.get('sourceFlow') || AmpliSourceFlow.Unknown;
     const [, setFormValues] = useAccountsFormContext();
     const [isTextVisible, setIsTextVisible] = useState(false);
 
@@ -35,7 +32,6 @@ export function ImportPassphrasePage() {
         navigate(
             `/accounts/protect-account?${new URLSearchParams({
                 accountsFormType: AccountsFormType.ImportMnemonic,
-                sourceFlow,
             }).toString()}`,
         );
     }

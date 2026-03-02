@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { AmpliSourceFlow } from '_src/shared/analytics';
 
-import { AccountsFormType, PageTemplate, useAccountsFormContext } from '_components';
+import { AccountsFormType, PageTemplate, useAccountsFormContext, useSourceFlow } from '_components';
 import {
     Button,
     ButtonHtmlType,
@@ -26,7 +25,14 @@ type ImportPasskeyFormValues = z.infer<typeof formSchema>;
 export function CreateNewPasskey() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const sourceFlow = searchParams.get('sourceFlow') || AmpliSourceFlow.Unknown;
+    const { setSourceFlow } = useSourceFlow();
+
+    // Bootstrap sourceFlow from URL when opened in a new tab (passkey popup flow)
+    const urlSourceFlow = searchParams.get('sourceFlow');
+    if (urlSourceFlow) {
+        setSourceFlow(urlSourceFlow);
+    }
+
     const [authenticatorAttachment, setAuthenticatorAttachment] =
         useState<AuthenticatorAttachment>('cross-platform');
     const [, setAccountsFormValues] = useAccountsFormContext();
@@ -53,7 +59,6 @@ export function CreateNewPasskey() {
         navigate(
             `/accounts/protect-account?${new URLSearchParams({
                 accountsFormType: AccountsFormType.Passkey,
-                sourceFlow,
             }).toString()}`,
         );
     };
@@ -81,7 +86,7 @@ export function CreateNewPasskey() {
             title="Create Passkey Account"
             isTitleCentered
             showBackButton
-            onBack={() => navigate(`/accounts/import-existing?sourceFlow=${sourceFlow}`)}
+            onBack={() => navigate('/accounts/import-existing')}
         >
             <Form
                 className="flex h-full flex-col justify-between"
