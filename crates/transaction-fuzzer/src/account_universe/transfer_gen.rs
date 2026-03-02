@@ -418,7 +418,7 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
             kind,
             sender_address,
             GasData {
-                payment: gas_coin_refs,
+                objects: gas_coin_refs,
                 owner: gas_payer,
                 price: self.gas_price,
                 budget: self.gas,

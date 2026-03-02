@@ -1161,14 +1161,6 @@ impl Display for TransactionKind {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct GasData {
-    pub payment: Vec<ObjectRef>,
-    pub owner: IotaAddress,
-    pub price: u64,
-    pub budget: u64,
-}
-
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize)]
 pub enum TransactionExpiration {
     /// The transaction has no expiration
@@ -1205,7 +1197,7 @@ impl TransactionData {
             gas_data: GasData {
                 price: GAS_PRICE_FOR_SYSTEM_TX,
                 owner: sender,
-                payment: vec![ObjectRef::new(
+                objects: vec![ObjectRef::new(
                     ObjectID::ZERO,
                     SequenceNumber::default(),
                     ObjectDigest::MIN,
@@ -1229,7 +1221,7 @@ impl TransactionData {
             gas_data: GasData {
                 price: gas_price,
                 owner: sender,
-                payment: vec![gas_payment],
+                objects: vec![gas_payment],
                 budget: gas_budget,
             },
             expiration: TransactionExpiration::None,
@@ -1267,7 +1259,7 @@ impl TransactionData {
             gas_data: GasData {
                 price: gas_price,
                 owner: gas_sponsor,
-                payment: gas_payment,
+                objects: gas_payment,
                 budget: gas_budget,
             },
             expiration: TransactionExpiration::None,
@@ -1589,7 +1581,7 @@ impl TransactionData {
         (
             self.kind().clone(),
             self.sender(),
-            self.gas_data().payment.clone(),
+            self.gas_data().objects.clone(),
         )
     }
 
@@ -1720,7 +1712,7 @@ impl TransactionDataAPI for TransactionDataV1 {
     }
 
     fn gas(&self) -> &[ObjectRef] {
-        &self.gas_data.payment
+        &self.gas_data.objects
     }
 
     fn gas_price(&self) -> u64 {

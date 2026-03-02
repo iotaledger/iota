@@ -239,7 +239,7 @@ pub async fn simulate_transaction(
         })?;
 
         let mut estimation_transaction = transaction_data.clone();
-        estimation_transaction.gas_data_mut().payment = Vec::new();
+        estimation_transaction.gas_data_mut().objects = Vec::new();
         estimation_transaction.gas_data_mut().budget = protocol_config.max_tx_gas();
 
         let simulation_result = executor
