@@ -18,12 +18,14 @@ import {
     autoLockDataToMinutes,
     useAutoLockMinutesMutation,
     useCreateAccountsMutation,
+    useBackgroundClient,
 } from '_hooks';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 import { useFeature } from '@growthbook/growthbook-react';
 import { Feature, toast } from '@iota/core';
 import { isPasskeyAccountSerializedUI } from '_src/background/accounts/passkeyAccount';
+import { trackAutoLockUpdated } from '_src/shared/analytics/helpers';
 
 const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
     AccountsFormType.NewMnemonic,
@@ -55,6 +57,7 @@ export function ProtectAccountPage() {
     const accountsFormType = searchParams.get('accountsFormType') || '';
     const successRedirect = searchParams.get('successRedirect') || '/tokens';
     const navigate = useNavigate();
+    const backgroundClient = useBackgroundClient();
     const { data: accounts } = useAccounts();
     const createMutation = useCreateAccountsMutation();
     const hasPasswordAccounts = useMemo(
@@ -74,12 +77,23 @@ export function ProtectAccountPage() {
     const featureAccountFinderEnabled = useFeature<boolean>(Feature.AccountFinder).value;
 
     const createAccountCallback = useCallback(
-        async (password: string, type: AccountsFormType) => {
+        async (
+            password: string,
+            type: AccountsFormType,
+            autoLockToTrack?: ProtectAccountFormValues['autoLock'],
+        ) => {
             try {
                 const createdAccounts = await createMutation.mutateAsync({
                     type,
                     password,
+                    sourceFlow: accountsFormType,
                 });
+                if (autoLockToTrack) {
+                    trackAutoLockUpdated(autoLockToTrack);
+                }
+
+                await backgroundClient.unlockAllAccountsAndSources({ password });
+
                 if (
                     type === AccountsFormType.NewMnemonic &&
                     isMnemonicSerializedUiAccount(createdAccounts[0])
@@ -138,12 +152,21 @@ export function ProtectAccountPage() {
     if (!isAllowedAccountType(accountsFormType)) {
         return <Navigate to="/" replace />;
     }
+
     async function handleOnSubmit({ password, autoLock }: ProtectAccountFormValues) {
         try {
-            await autoLockMutation.mutateAsync({
-                minutes: autoLockDataToMinutes(autoLock),
-            });
-            await createAccountCallback(password.input, accountsFormType as AccountsFormType);
+            const minutes = autoLockDataToMinutes(autoLock);
+            const hasAutoLock = typeof minutes === 'number' && minutes > 0;
+
+            if (hasAutoLock) {
+                await autoLockMutation.mutateAsync({ minutes });
+            }
+
+            await createAccountCallback(
+                password.input,
+                accountsFormType as AccountsFormType,
+                hasAutoLock ? autoLock : undefined,
+            );
         } catch (e) {
             toast.error((e as Error)?.message || 'Something went wrong');
         }
@@ -161,7 +184,16 @@ export function ProtectAccountPage() {
                     <VerifyPasswordModal
                         open
                         onClose={() => navigate(-1)}
-                        onVerify={(password) => createAccountCallback(password, accountsFormType)}
+                        onVerify={async (password) => {
+                            const unlockAllPromise = backgroundClient.unlockAllAccountsAndSources({
+                                password,
+                            });
+                            await createAccountCallback(
+                                password,
+                                accountsFormType as AccountsFormType,
+                            );
+                            await unlockAllPromise;
+                        }}
                     />
                 ) : (
                     <ProtectAccountForm

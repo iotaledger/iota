@@ -15,3 +15,4 @@ pub mod signatures;
 pub mod transaction;
 pub mod transaction_execution_service;
 pub mod types;
+pub mod versioned;

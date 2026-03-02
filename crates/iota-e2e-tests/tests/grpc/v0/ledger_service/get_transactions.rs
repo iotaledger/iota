@@ -4,6 +4,7 @@
 use futures::StreamExt;
 use iota_grpc_types::{
     field::FieldMaskUtil,
+    read_masks::GET_TRANSACTIONS_READ_MASK,
     v0::ledger_service::{
         GetTransactionsRequest, GetTransactionsResponse, TransactionRequest, TransactionRequests,
         ledger_service_client::LedgerServiceClient, transaction_result,
@@ -15,7 +16,7 @@ use iota_types::digests::TransactionDigest;
 use prost_types::FieldMask;
 use test_cluster::TestCluster;
 
-use crate::utils::{assert_field_presence, setup_grpc_test};
+use crate::utils::{assert_field_presence, comma_separated_field_mask_to_paths, setup_grpc_test};
 
 /// Helper to create a test transaction and return its digest
 async fn create_test_transaction(test_cluster: &TestCluster) -> TransactionDigest {
@@ -48,19 +49,24 @@ async fn assert_get_transactions_request(
     expected_field_mask_paths: &[&str],
     scenario: &str,
 ) -> Vec<GetTransactionsResponse> {
-    let request = GetTransactionsRequest {
-        requests: Some(TransactionRequests {
-            requests: digests
+    let mut request = GetTransactionsRequest::default().with_requests(
+        TransactionRequests::default().with_requests(
+            digests
                 .iter()
-                .map(|d| TransactionRequest {
-                    digest: Some(iota_grpc_types::v0::types::Digest {
-                        digest: d.inner().to_vec().into(),
-                    }),
+                .map(|d| {
+                    TransactionRequest::default().with_digest({
+                        iota_grpc_types::v0::types::Digest::default()
+                            .with_digest(d.inner().to_vec())
+                    })
                 })
                 .collect(),
-        }),
-        read_mask,
-        max_message_size_bytes,
+        ),
+    );
+    if let Some(mask) = read_mask {
+        request = request.with_read_mask(mask);
+    }
+    if let Some(size) = max_message_size_bytes {
+        request = request.with_max_message_size_bytes(size);
     };
 
     let mut stream = ledger_client
@@ -78,11 +84,14 @@ async fn assert_get_transactions_request(
         response_count += 1;
 
         // Assert all returned transactions have the expected fields
-        for (idx, tx_result) in response.transactions.iter().enumerate() {
-            if let Some(transaction_result::Result::Transaction(transaction)) = &tx_result.result {
+        for (idx, tx_result) in response.transaction_results.iter().enumerate() {
+            if let Some(transaction_result::Result::ExecutedTransaction(transaction)) =
+                &tx_result.result
+            {
                 assert_field_presence(
                     transaction,
                     expected_field_mask_paths,
+                    &[],
                     &format!("{scenario} (response {response_count}, transaction {idx})"),
                 );
             }
@@ -133,38 +142,33 @@ async fn get_transactions_readmask_scenarios() {
     // Note: When a parent field is specified without nested paths (e.g.,
     // "effects"), FieldMaskTree treats it as a wildcard and includes all nested
     // fields. So "effects" means "effects.digest" AND "effects.bcs".
-    type TestCase<'a> = (&'a str, Option<FieldMask>, &'a [&'a str]);
+    type TestCase<'a> = (&'a str, Option<FieldMask>, Vec<&'a str>);
     let test_cases: Vec<TestCase> = vec![
-        // Default readmask (None) - returns only digest
-        ("default readmask", None, &["transaction.digest"]),
+        (
+            "default readmask",
+            None,
+            comma_separated_field_mask_to_paths(GET_TRANSACTIONS_READ_MASK),
+        ),
         // Empty readmask - returns no fields
         (
             "empty readmask",
             Some(FieldMask::from_paths(&[] as &[&str])),
-            &[],
+            vec![],
         ),
-        // Full readmask - returns all implemented fields with explicit nested paths
-        // Note: events may be None if transaction doesn't emit events
-        // Note: signatures, input_objects, output_objects are leaf fields (not
-        // nested) because their inner fields are Vec, not Option
         (
             "full readmask",
             Some(FieldMask::from_paths([
-                "transaction.digest",
-                "transaction.bcs",
+                "transaction",
                 "signatures",
-                "effects.digest",
-                "effects.bcs",
+                "effects",
                 "events",
                 "checkpoint",
                 "timestamp",
             ])),
-            &[
-                "transaction.digest",
-                "transaction.bcs",
+            vec![
+                "transaction",
                 "signatures",
-                "effects.digest",
-                "effects.bcs",
+                "effects",
                 "events",
                 "checkpoint",
                 "timestamp",
@@ -174,32 +178,31 @@ async fn get_transactions_readmask_scenarios() {
         (
             "partial readmask (digest only)",
             Some(FieldMask::from_paths(["transaction.digest"])),
-            &["transaction.digest"],
+            vec!["transaction.digest"],
         ),
         // Partial readmask: effects.digest only (specific nested field)
         (
             "partial readmask (effects.digest only)",
             Some(FieldMask::from_paths(["effects.digest"])),
-            &["effects.digest"],
+            vec!["effects.digest"],
         ),
         // Partial readmask: effects wildcard (all nested fields)
         (
             "partial readmask (effects wildcard)",
             Some(FieldMask::from_paths(["effects"])),
-            &["effects.digest", "effects.bcs"],
+            vec!["effects"],
         ),
         // Partial readmask: transaction + signatures
-        // Note: signatures is a leaf field, transaction has nested paths
         (
             "partial readmask (transaction + signatures)",
             Some(FieldMask::from_paths(["transaction.digest", "signatures"])),
-            &["transaction.digest", "signatures"],
+            vec!["transaction.digest", "signatures"],
         ),
         // Partial readmask: checkpoint + timestamp (metadata only)
         (
             "partial readmask (checkpoint + timestamp)",
             Some(FieldMask::from_paths(["checkpoint", "timestamp"])),
-            &["checkpoint", "timestamp"],
+            vec!["checkpoint", "timestamp"],
         ),
     ];
 
@@ -209,12 +212,12 @@ async fn get_transactions_readmask_scenarios() {
             vec![transaction_digest],
             mask,
             None,
-            expected_paths,
+            &expected_paths,
             scenario,
         )
         .await;
 
-        let total_transactions: usize = responses.iter().map(|r| r.transactions.len()).sum();
+        let total_transactions: usize = responses.iter().map(|r| r.transaction_results.len()).sum();
         assert_eq!(total_transactions, 1, "{scenario}: expected 1 transaction");
     }
 }
@@ -232,19 +235,18 @@ async fn get_transactions_batch() {
         digests.push(digest);
     }
 
-    // Test batch request with partial readmask
-    // Note: "effects" without nested paths means all nested fields are included
+    // Test batch request with partial readmask.
     let responses = assert_get_transactions_request(
         &mut ledger_client,
         digests.clone(),
         Some(FieldMask::from_paths(["transaction.digest", "effects"])),
         None,
-        &["transaction.digest", "effects.digest", "effects.bcs"],
+        &["transaction.digest", "effects"],
         "batch with 3 transactions",
     )
     .await;
 
-    let total_transactions: usize = responses.iter().map(|r| r.transactions.len()).sum();
+    let total_transactions: usize = responses.iter().map(|r| r.transaction_results.len()).sum();
     assert_eq!(
         total_transactions, 3,
         "Should have received 3 transactions in batch"
@@ -270,11 +272,8 @@ async fn get_transactions_streaming() {
         all_digests.extend(digests.iter().cloned());
     }
 
-    // Test streaming by requesting many transactions with full readmask
-    // Use minimum allowed message size to maximize chance of multi-message
-    // streaming
-    // Note: Parent fields without nested paths are wildcards that include all
-    // nested fields
+    // Test streaming by requesting many transactions with full readmask.
+    // Use minimum allowed message size to maximize multi-message streaming.
     let responses = assert_get_transactions_request(
         &mut ledger_client,
         all_digests,
@@ -289,11 +288,9 @@ async fn get_transactions_streaming() {
         ])),
         Some(1024 * 1024_u32), // 1MB (minimum allowed)
         &[
-            "transaction.digest",
-            "transaction.bcs",
+            "transaction",
             "signatures",
-            "effects.digest",
-            "effects.bcs",
+            "effects",
             "checkpoint",
             "timestamp",
             "input_objects",
@@ -304,7 +301,7 @@ async fn get_transactions_streaming() {
     .await;
 
     // Verify we got all 1000 results
-    let total_transactions: usize = responses.iter().map(|r| r.transactions.len()).sum();
+    let total_transactions: usize = responses.iter().map(|r| r.transaction_results.len()).sum();
     assert_eq!(
         total_transactions, 1000,
         "Should have received 1000 transactions"
@@ -338,7 +335,7 @@ async fn get_transactions_empty_request() {
     // Should return single response with 0 transactions
     assert_eq!(responses.len(), 1, "Should have 1 response");
     assert_eq!(
-        responses[0].transactions.len(),
+        responses[0].transaction_results.len(),
         0,
         "Should have 0 transactions"
     );
@@ -358,24 +355,18 @@ async fn get_transactions_nonexistent() {
     let fake_digest1 = TransactionDigest::new([0u8; 32]);
     let fake_digest2 = TransactionDigest::new([1u8; 32]);
 
-    let request = GetTransactionsRequest {
-        requests: Some(TransactionRequests {
-            requests: vec![
-                TransactionRequest {
-                    digest: Some(iota_grpc_types::v0::types::Digest {
-                        digest: fake_digest1.inner().to_vec().into(),
-                    }),
-                },
-                TransactionRequest {
-                    digest: Some(iota_grpc_types::v0::types::Digest {
-                        digest: fake_digest2.inner().to_vec().into(),
-                    }),
-                },
-            ],
-        }),
-        read_mask: None,
-        max_message_size_bytes: None,
-    };
+    let request = GetTransactionsRequest::default().with_requests(
+        TransactionRequests::default().with_requests(vec![
+            TransactionRequest::default().with_digest({
+                iota_grpc_types::v0::types::Digest::default()
+                    .with_digest(fake_digest1.inner().to_vec())
+            }),
+            TransactionRequest::default().with_digest({
+                iota_grpc_types::v0::types::Digest::default()
+                    .with_digest(fake_digest2.inner().to_vec())
+            }),
+        ]),
+    );
 
     let mut stream = ledger_client
         .get_transactions(request)
@@ -396,7 +387,7 @@ async fn get_transactions_nonexistent() {
     // Verify all results contain errors (not transactions)
     let mut error_count = 0;
     for response in &responses {
-        for tx_result in &response.transactions {
+        for tx_result in &response.transaction_results {
             assert!(
                 matches!(tx_result.result, Some(transaction_result::Result::Error(_))),
                 "Expected error for non-existent transaction"
@@ -404,7 +395,7 @@ async fn get_transactions_nonexistent() {
             assert!(
                 !matches!(
                     tx_result.result,
-                    Some(transaction_result::Result::Transaction(_))
+                    Some(transaction_result::Result::ExecutedTransaction(_))
                 ),
                 "Expected no transaction for non-existent digest"
             );
@@ -436,26 +427,20 @@ async fn get_transactions_mixed_valid_invalid() {
     // Request mix of valid and invalid digests
     let fake_digest = TransactionDigest::new([0u8; 32]);
 
-    let request = GetTransactionsRequest {
-        requests: Some(TransactionRequests {
-            requests: vec![
-                // Valid digest first
-                TransactionRequest {
-                    digest: Some(iota_grpc_types::v0::types::Digest {
-                        digest: real_digest.inner().to_vec().into(),
-                    }),
-                },
-                // Invalid digest
-                TransactionRequest {
-                    digest: Some(iota_grpc_types::v0::types::Digest {
-                        digest: fake_digest.inner().to_vec().into(),
-                    }),
-                },
-            ],
-        }),
-        read_mask: Some(FieldMask::from_paths(["transaction.digest"])),
-        max_message_size_bytes: None,
-    };
+    let request = GetTransactionsRequest::default()
+        .with_requests(TransactionRequests::default().with_requests(vec![
+            // Valid digest first
+            TransactionRequest::default().with_digest({
+                iota_grpc_types::v0::types::Digest::default()
+                    .with_digest(real_digest.inner().to_vec())
+            }),
+            // Invalid digest
+            TransactionRequest::default().with_digest({
+                iota_grpc_types::v0::types::Digest::default()
+                    .with_digest(fake_digest.inner().to_vec())
+            }),
+        ]))
+        .with_read_mask(FieldMask::from_paths(["transaction.digest"]));
 
     let mut stream = ledger_client
         .get_transactions(request)
@@ -467,7 +452,7 @@ async fn get_transactions_mixed_valid_invalid() {
     while let Some(response) = stream.next().await {
         let response = response.unwrap();
         let has_next = response.has_next;
-        for tx_result in response.transactions {
+        for tx_result in response.transaction_results {
             all_results.push(tx_result);
         }
         if !has_next {
@@ -482,7 +467,7 @@ async fn get_transactions_mixed_valid_invalid() {
     assert!(
         matches!(
             all_results[0].result,
-            Some(transaction_result::Result::Transaction(_))
+            Some(transaction_result::Result::ExecutedTransaction(_))
         ),
         "First result should be a valid transaction"
     );
@@ -505,7 +490,7 @@ async fn get_transactions_mixed_valid_invalid() {
     assert!(
         !matches!(
             all_results[1].result,
-            Some(transaction_result::Result::Transaction(_))
+            Some(transaction_result::Result::ExecutedTransaction(_))
         ),
         "Second result should not have a transaction"
     );

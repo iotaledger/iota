@@ -3,27 +3,34 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, type MouseEventHandler } from 'react';
-import { toast } from '@iota/core';
+import { toast, useCopyToClipboard as useCopyToClipboardCore } from '@iota/core';
+import { ampli } from '_src/shared/analytics/ampli';
 
 export type CopyOptions = {
     copySuccessMessage?: string;
+    textType?: string;
+    trackEvent?: boolean;
 };
 
 export function useCopyToClipboard(
     textToCopy: string,
-    { copySuccessMessage = 'Copied' }: CopyOptions = {},
+    { copySuccessMessage = 'Copied', textType, trackEvent = true }: CopyOptions,
 ) {
+    const copyToClipboardCore = useCopyToClipboardCore(() => {
+        toast(copySuccessMessage);
+        if (textType && trackEvent) {
+            ampli.elementCopied({
+                type: textType,
+            });
+        }
+    });
+
     return useCallback<MouseEventHandler>(
         async (e) => {
             e.stopPropagation();
             e.preventDefault();
-            try {
-                await navigator.clipboard.writeText(textToCopy);
-                toast(copySuccessMessage);
-            } catch (e) {
-                // silence clipboard errors
-            }
+            await copyToClipboardCore(textToCopy);
         },
-        [textToCopy, copySuccessMessage],
+        [textToCopy, copyToClipboardCore],
     );
 }

@@ -17,7 +17,7 @@ use iota_system::governance_test_utils::{
     advance_epoch_with_balanced_reward_amounts,
     assert_validator_total_stake_amounts,
     assert_validator_candidate_total_stake_amounts,
-    create_validator_for_testing,
+    create_validators_with_stakes_and_commission_rates,
     create_iota_system_state_for_testing,
     stake_with,
     remove_validator,
@@ -361,7 +361,10 @@ fun test_remove_stake_post_active_flow(should_distribute_rewards: bool) {
 
     advance_epoch(scenario);
 
-    let reward_amt = if (should_distribute_rewards) 20 * NANOS_PER_IOTA else 0;
+    // With IIP-8 dynamic commission, effective commission = max(rate, voting_power_bp).
+    // 2 validators with 50/50 voting power → 50% effective commission.
+    // Staker gets half the pool reward, validator gets its half plus commission.
+    let staker_reward_amt = if (should_distribute_rewards) 10 * NANOS_PER_IOTA else 0;
 
     // Make sure stake withdrawal happens
     scenario.next_tx(STAKER_ADDR_1);
@@ -384,7 +387,10 @@ fun test_remove_stake_post_active_flow(should_distribute_rewards: bool) {
         system_state_mut_ref.request_withdraw_stake(staked_iota, ctx);
 
         // Make sure they have all of their stake.
-        assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 100 * NANOS_PER_IOTA + reward_amt);
+        assert_eq(
+            total_iota_balance(STAKER_ADDR_1, scenario),
+            100 * NANOS_PER_IOTA + staker_reward_amt,
+        );
 
         test_scenario::return_shared(system_state);
     };
@@ -392,9 +398,16 @@ fun test_remove_stake_post_active_flow(should_distribute_rewards: bool) {
     // Validator unstakes now.
     assert_eq(total_iota_balance(VALIDATOR_ADDR_1, scenario), 0);
     unstake(VALIDATOR_ADDR_1, 0, scenario);
+    if (should_distribute_rewards) {
+        // Unstake commission StakedIota created by IIP-8 dynamic commission.
+        unstake(VALIDATOR_ADDR_1, 0, scenario);
+    };
 
     // Make sure have all of their stake. NB there is no epoch change. This is immediate.
-    assert_eq(total_iota_balance(VALIDATOR_ADDR_1, scenario), 100 * NANOS_PER_IOTA + reward_amt);
+    assert_eq(
+        total_iota_balance(VALIDATOR_ADDR_1, scenario),
+        if (should_distribute_rewards) 130 * NANOS_PER_IOTA else 100 * NANOS_PER_IOTA,
+    );
 
     scenario_val.end();
 }
@@ -415,8 +428,9 @@ fun test_earns_rewards_at_last_epoch() {
     // this epoch, they should get the rewards from this epoch.
     advance_epoch_with_balanced_reward_amounts(0, 80, scenario);
 
-    // Each validator pool gets 40 IOTA.
-    let reward_amt = 20 * NANOS_PER_IOTA;
+    // Each validator pool gets 40 IOTA. With IIP-8 dynamic commission (50% for 2 validators),
+    // staker gets half the pool reward, validator gets its half plus commission.
+    let staker_reward_amt = 10 * NANOS_PER_IOTA;
 
     // Make sure stake withdrawal happens
     scenario.next_tx(STAKER_ADDR_1);
@@ -433,7 +447,10 @@ fun test_earns_rewards_at_last_epoch() {
         system_state_mut_ref.request_withdraw_stake(staked_iota, ctx);
 
         // Make sure they have all of their stake.
-        assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 100 * NANOS_PER_IOTA + reward_amt);
+        assert_eq(
+            total_iota_balance(STAKER_ADDR_1, scenario),
+            100 * NANOS_PER_IOTA + staker_reward_amt,
+        );
 
         test_scenario::return_shared(system_state);
     };
@@ -441,9 +458,11 @@ fun test_earns_rewards_at_last_epoch() {
     // Validator unstakes now.
     assert_eq(total_iota_balance(VALIDATOR_ADDR_1, scenario), 0);
     unstake(VALIDATOR_ADDR_1, 0, scenario);
+    // Unstake commission StakedIota created by IIP-8 dynamic commission.
+    unstake(VALIDATOR_ADDR_1, 0, scenario);
 
     // Make sure have all of their stake. NB there is no epoch change. This is immediate.
-    assert_eq(total_iota_balance(VALIDATOR_ADDR_1, scenario), 100 * NANOS_PER_IOTA + reward_amt);
+    assert_eq(total_iota_balance(VALIDATOR_ADDR_1, scenario), 130 * NANOS_PER_IOTA);
 
     scenario_val.end();
 }
@@ -757,21 +776,23 @@ fun test_add_preactive_remove_active() {
     // At this point we got the following distribution of stake:
     // V1: 278_330_500_000, V2: 278_330_500_000, V3: 278_339_000_000, storage fund: 100
 
-    // staker 1 and 3 unstake from the validator and earns about 2/5 * 85 * 1/3 = 11.33 IOTA each.
+    // staker 1 and 3 unstake from the validator and earn about
+    // 2/5 * (1 - 0.3334) * 85/3 = 7.56 IOTA each (with IIP-8 ~33.34% commission on V3).
     // Although they stake in different epochs, they earn the same rewards as long as they unstake
     // in the same epoch because the validator was preactive when they staked.
-    // So they will both get slightly more than 111 IOTA in total balance.
+    // So they will both get slightly more than 107.56 IOTA in total balance.
     unstake(STAKER_ADDR_1, 0, scenario);
-    assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 111_335_600_000);
+    assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 107_556_310_960);
     unstake(STAKER_ADDR_3, 0, scenario);
-    assert_eq(total_iota_balance(STAKER_ADDR_3, scenario), 111_335_600_000);
+    assert_eq(total_iota_balance(STAKER_ADDR_3, scenario), 107_556_310_960);
 
     advance_epoch_with_balanced_reward_amounts(0, 85, scenario);
     unstake(STAKER_ADDR_2, 0, scenario);
-    // staker 2 earns about 1/5 * 85 * 1/3 = 5.66 IOTA from the previous epoch
-    // and 85 * 1/3 = 28.33 from this one
-    // so in total she has about 50 + 5.66 + 28.33 = 83.99 IOTA.
-    assert_eq(total_iota_balance(STAKER_ADDR_2, scenario), 84_006_800_000);
+    // With IIP-8 (~33.34% commission on V3), staker 2 earns about
+    // 1/5 * (1 - 0.3334) * 85/3 = 3.78 IOTA from the previous epoch
+    // and about 16.07 IOTA from this one,
+    // so in total she has about 50 + 3.78 + 16.07 = 69.85 IOTA.
+    assert_eq(total_iota_balance(STAKER_ADDR_2, scenario), 69_845_992_909);
 
     scenario_val.end();
 }
@@ -803,8 +824,9 @@ fun test_add_preactive_remove_post_active() {
     // Now it becomes eligible to be selected to the committee.
     advance_epoch(scenario);
 
-    // staker 1 earns a bit greater than 30 IOTA here. A bit greater because the new validator's voting power
-    // is slightly greater than 1/3 of the total voting power.
+    // The new validator's voting power is around 1/3.
+    // With IIP-8, effective commission ≈ 33.33%, so staker 1 earns about 20 IOTA
+    // (pool reward ~30 IOTA minus ~10 IOTA commission).
     advance_epoch_with_balanced_reward_amounts(0, 90, scenario);
 
     // And now the validator leaves the validator set.
@@ -813,7 +835,7 @@ fun test_add_preactive_remove_post_active() {
     advance_epoch(scenario);
 
     unstake(STAKER_ADDR_1, 0, scenario);
-    assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 130006000000);
+    assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 120_001_999_600);
 
     scenario_val.end();
 }
@@ -899,8 +921,13 @@ fun test_staking_pool_exchange_rate_getter() {
     let rates = system_state.pool_exchange_rates(&pool_id);
     assert_eq(rates.length(), 3);
     assert_exchange_rate_eq(rates, 0, 0, 0); // no tokens at epoch 0
-    assert_exchange_rate_eq(rates, 1, 200, 200); // 200 IOTA of self + delegate stake at epoch 1
-    assert_exchange_rate_eq(rates, 2, 210, 200); // 10 IOTA of rewards at epoch 2
+    assert_exchange_rate_eq(rates, 1, 200 * NANOS_PER_IOTA, 200 * NANOS_PER_IOTA); // 200 IOTA of self + delegate stake at epoch 1
+    // With IIP-8 dynamic commission (50% for 2 equal validators with 5000 bp voting power
+    // each), 5 out of 10 IOTA rewards are taken as commission. The commission is staked back
+    // into the pool via `request_add_stake`, minting new pool tokens at the current exchange
+    // rate: 5 * NANOS_PER_IOTA * 200 / 210 = 4_878_048_780 new tokens. So the pool_token_amount
+    // becomes 200 * NANOS_PER_IOTA + 4_878_048_780 = 204_878_048_780, while iota_amount stays at 210.
+    assert_exchange_rate_eq(rates, 2, 210 * NANOS_PER_IOTA, 204_878_048_780);
     test_scenario::return_shared(system_state);
     scenario_val.end();
 }
@@ -912,8 +939,8 @@ fun assert_exchange_rate_eq(
     pool_token_amount: u64,
 ) {
     let rate = &rates[epoch];
-    assert_eq(rate.iota_amount(), iota_amount * NANOS_PER_IOTA);
-    assert_eq(rate.pool_token_amount(), pool_token_amount * NANOS_PER_IOTA);
+    assert_eq(rate.iota_amount(), iota_amount);
+    assert_eq(rate.pool_token_amount(), pool_token_amount);
 }
 
 fun set_up_iota_system_state() {
@@ -921,10 +948,11 @@ fun set_up_iota_system_state() {
     let scenario = &mut scenario_val;
     let ctx = scenario.ctx();
 
-    let validators = vector[
-        create_validator_for_testing(VALIDATOR_ADDR_1, 100, ctx),
-        create_validator_for_testing(VALIDATOR_ADDR_2, 100, ctx),
-    ];
+    let (_, validators) = create_validators_with_stakes_and_commission_rates(
+        vector[100, 100],
+        vector[0, 0],
+        ctx,
+    );
     create_iota_system_state_for_testing(validators, 0, 0, ctx);
     scenario_val.end();
 }
@@ -934,10 +962,11 @@ fun set_up_iota_system_state_with_storage_fund() {
     let scenario = &mut scenario_val;
     let ctx = scenario.ctx();
 
-    let validators = vector[
-        create_validator_for_testing(VALIDATOR_ADDR_1, 100, ctx),
-        create_validator_for_testing(VALIDATOR_ADDR_2, 100, ctx),
-    ];
+    let (_, validators) = create_validators_with_stakes_and_commission_rates(
+        vector[100, 100],
+        vector[0, 0],
+        ctx,
+    );
     create_iota_system_state_for_testing(validators, 300, 100, ctx);
     scenario_val.end();
 }

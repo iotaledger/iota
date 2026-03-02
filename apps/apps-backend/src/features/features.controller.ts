@@ -9,6 +9,7 @@ import {
     KNOWN_ADDRESSES_ALIASES,
     RECOGNIZED_PACKAGES,
 } from './features.constants';
+import { RECOGNIZED_DAPPS } from './dapps.constants';
 
 @Controller('/api/features')
 export class FeaturesController {
@@ -24,20 +25,7 @@ export class FeaturesController {
                     defaultValue: 0.0025,
                 },
                 [Feature.WalletDapps]: {
-                    defaultValue: [
-                        {
-                            name: 'Wallet Dashboard',
-                            link: 'https://wallet-dashboard.iota.org/',
-                            icon: 'https://iota.org/logo.png',
-                            tags: ['Wallet', 'Dashboard'],
-                        },
-                        {
-                            name: 'EVM Bridge',
-                            link: 'https://evm-bridge.iota.org/',
-                            icon: 'https://iota.org/logo.png',
-                            tags: ['EVM', 'Bridge'],
-                        },
-                    ],
+                    defaultValue: RECOGNIZED_DAPPS,
                 },
                 [Feature.WalletBalanceRefetchInterval]: {
                     defaultValue: 1000,
@@ -106,7 +94,7 @@ export class FeaturesController {
                     defaultValue: NAME_ADDRESS_RESOLUTION_FEATURE,
                 },
                 [Feature.ExplorerTFIdentity]: {
-                    defaultValue: false,
+                    defaultValue: true,
                 },
             },
             dateUpdated: new Date().toISOString(),
@@ -124,22 +112,8 @@ export class FeaturesController {
                 [Feature.WalletSentryTracing]: {
                     defaultValue: 0.0025,
                 },
-                // Note: we'll add wallet dapps when evm will be ready
                 [Feature.WalletDapps]: {
-                    defaultValue: [
-                        {
-                            name: 'Wallet Dashboard',
-                            link: 'https://wallet-dashboard.iota.org/',
-                            icon: 'https://iota.org/logo.png',
-                            tags: ['Wallet', 'Dashboard'],
-                        },
-                        {
-                            name: 'EVM Bridge',
-                            link: 'https://evm-bridge.iota.org/',
-                            icon: 'https://iota.org/logo.png',
-                            tags: ['EVM', 'Bridge'],
-                        },
-                    ],
+                    defaultValue: RECOGNIZED_DAPPS,
                 },
                 [Feature.WalletBalanceRefetchInterval]: {
                     defaultValue: 1000,
@@ -161,11 +135,11 @@ export class FeaturesController {
                 },
                 [Feature.WalletPasskeys]: {
                     defaultValue: {
-                        [Network.Mainnet]: false,
-                        [Network.Devnet]: false,
-                        [Network.Testnet]: false,
-                        [Network.Localnet]: false,
-                        [Network.Custom]: false,
+                        [Network.Mainnet]: true,
+                        [Network.Devnet]: true,
+                        [Network.Testnet]: true,
+                        [Network.Localnet]: true,
+                        [Network.Custom]: true,
                     },
                 },
                 [Feature.PollingTxnTable]: {

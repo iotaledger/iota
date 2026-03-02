@@ -1,29 +1,6 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// Joins field names with commas for field mask constants.
-///
-/// # Example
-/// ```ignore
-/// const MASK: &str = field_mask!(
-///     "transaction.digest",
-///     "transaction.effects",
-///     "command_results"
-/// );
-/// // Expands to: "transaction.digest,transaction.effects,command_results"
-/// ```
-#[macro_export]
-macro_rules! field_mask {
-    // Base case: single field
-    ($field:literal) => {
-        $field
-    };
-    // Recursive case: multiple fields
-    ($first:literal, $($rest:literal),+ $(,)?) => {
-        concat!($first, ",", $crate::field_mask!($($rest),+))
-    };
-}
-
 /// Creates a lazy batching stream that fetches and batches items on-demand
 /// based on message size limits.
 ///
@@ -80,9 +57,10 @@ macro_rules! create_batching_stream {
                         if current_size + item_size > $max_message_size && !current_batch.is_empty() {
                             // Current batch is full, yield it
                             has_yielded = true;
-                            yield $response_type {
-                                $items_field: current_batch,
-                                $has_next_field: true,
+                            yield paste::paste! {
+                                $response_type::default()
+                                    .[<with_ $items_field>](current_batch)
+                                    .[<with_ $has_next_field>](true)
                             };
                             // Start new batch with current item
                             current_batch = vec![result_item];
@@ -96,15 +74,17 @@ macro_rules! create_batching_stream {
                     None => {
                         // No more items
                         if !current_batch.is_empty() {
-                            yield $response_type {
-                                $items_field: current_batch,
-                                $has_next_field: false,
+                            yield paste::paste! {
+                                $response_type::default()
+                                    .[<with_ $items_field>](current_batch)
+                                    .[<with_ $has_next_field>](false)
                             };
                         } else if !has_yielded {
                             // Return empty response if we haven't yielded anything yet
-                            yield $response_type {
-                                $items_field: vec![],
-                                $has_next_field: false,
+                            yield paste::paste! {
+                                $response_type::default()
+                                    .[<with_ $items_field>](vec![])
+                                    .[<with_ $has_next_field>](false)
                             };
                         }
                         break;
