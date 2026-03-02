@@ -18,9 +18,9 @@ overrides:
   qs@<6.14.1: 6.14.1
   preact@>=10.28.0 <10.28.2: 10.28.2
   h3@<=1.15.4: 1.15.5
-  minimatch@>=3.0.0: ^3.1.5
-  minimatch@>=5.0.0: ^5.1.9
-  minimatch@>=9.0.0: ^9.0.9
+  minimatch@>=3.0.0: ^3.1.3
+  minimatch@>=5.0.0: ^5.1.7
+  minimatch@>=9.0.0: ^9.0.6
 
 importers:
 
@@ -663,7 +663,7 @@ importers:
         version: 5.0.10
       tsup:
         specifier: ^8.3.5
-        version: 8.3.5(@microsoft/api-extractor@7.52.8)(@swc/core@1.15.11)(jiti@1.21.6)(postcss@8.5.6)(tsx@3.14.0)(typescript@5.6.2)(yaml@2.5.1)
+        version: 8.3.5(@microsoft/api-extractor@7.52.8)(@swc/core@1.15.11)(jiti@1.21.6)(postcss@8.5.6)(tsx@3.14.0)(typescript@5.6.2)(yaml@2.8.2)
       typescript:
         specifier: ^5.5.3
         version: 5.6.2
@@ -1569,17 +1569,17 @@ importers:
         specifier: ^18.3.3
         version: 18.3.9
       docusaurus-plugin-typedoc:
-        specifier: ^1.0.5
-        version: 1.0.5(typedoc-plugin-markdown@4.2.10(typedoc@0.26.11(typescript@5.6.2)))
+        specifier: ^1.4.2
+        version: 1.4.2(typedoc-plugin-markdown@4.10.0(typedoc@0.28.17(typescript@5.6.2)))
       remark-code-import:
         specifier: ^1.2.0
         version: 1.2.0
       typedoc:
-        specifier: ^0.26.10
-        version: 0.26.11(typescript@5.6.2)
+        specifier: ^0.28.17
+        version: 0.28.17(typescript@5.6.2)
       typedoc-plugin-markdown:
-        specifier: ^4.2.9
-        version: 4.2.10(typedoc@0.26.11(typescript@5.6.2))
+        specifier: ^4.10.0
+        version: 4.10.0(typedoc@0.28.17(typescript@5.6.2))
       typescript:
         specifier: ^5.5.3
         version: 5.6.2
@@ -5428,6 +5428,9 @@ packages:
     peerDependencies:
       viem: '>=2.0.0'
 
+  '@gerrit0/mini-shiki@3.23.0':
+    resolution: {integrity: sha512-bEMORlG0cqdjVyCEuU0cDQbORWX+kYCeo0kV1lbxF5bt4r7SID2l9bqsxJEM0zndaxpOUT7riCyIVEuqq/Ynxg==}
+
   '@gql.tada/cli-utils@1.6.2':
     resolution: {integrity: sha512-P4bOOayf6zR/uRWHmVyRz8auiuOzNmq8C0YFQbhj5TGGgHr5kkVI2ZIrplWsJqCBTYzpZEYzaxa9iGP6vuKA9Q==}
     peerDependencies:
@@ -8373,20 +8376,20 @@ packages:
   '@servie/events@1.0.0':
     resolution: {integrity: sha512-sBSO19KzdrJCM3gdx6eIxV8M9Gxfgg6iDQmH5TIAGaUu+X9VDdsINXJOnoiZ1Kx3TrHdH4bt5UVglkjsEGBcvw==}
 
-  '@shikijs/core@1.22.2':
-    resolution: {integrity: sha512-bvIQcd8BEeR1yFvOYv6HDiyta2FFVePbzeowf5pPS1avczrPK+cjmaxxh0nx5QzbON7+Sv0sQfQVciO7bN72sg==}
+  '@shikijs/engine-oniguruma@3.23.0':
+    resolution: {integrity: sha512-1nWINwKXxKKLqPibT5f4pAFLej9oZzQTsby8942OTlsJzOBZ0MWKiwzMsd+jhzu8YPCHAswGnnN1YtQfirL35g==}
 
-  '@shikijs/engine-javascript@1.22.2':
-    resolution: {integrity: sha512-iOvql09ql6m+3d1vtvP8fLCVCK7BQD1pJFmHIECsujB0V32BJ0Ab6hxk1ewVSMFA58FI0pR2Had9BKZdyQrxTw==}
+  '@shikijs/langs@3.23.0':
+    resolution: {integrity: sha512-2Ep4W3Re5aB1/62RSYQInK9mM3HsLeB91cHqznAJMuylqjzNVAVCMnNWRHFtcNHXsoNRayP9z1qj4Sq3nMqYXg==}
 
-  '@shikijs/engine-oniguruma@1.22.2':
-    resolution: {integrity: sha512-GIZPAGzQOy56mGvWMoZRPggn0dTlBf1gutV5TdceLCZlFNqWmuc7u+CzD0Gd9vQUTgLbrt0KLzz6FNprqYAxlA==}
+  '@shikijs/themes@3.23.0':
+    resolution: {integrity: sha512-5qySYa1ZgAT18HR/ypENL9cUSGOeI2x+4IvYJu4JgVJdizn6kG4ia5Q1jDEOi7gTbN4RbuYtmHh0W3eccOrjMA==}
 
-  '@shikijs/types@1.22.2':
-    resolution: {integrity: sha512-NCWDa6LGZqTuzjsGfXOBWfjS/fDIbDdmVDug+7ykVe1IKT4c1gakrvlfFYp5NhAXH/lyqLM8wsAPo5wNy73Feg==}
+  '@shikijs/types@3.23.0':
+    resolution: {integrity: sha512-3JZ5HXOZfYjsYSk0yPwBrkupyYSLpAE26Qc0HLghhZNGTZg/SKxXIIgoxOpmmeQP0RRSDJTk1/vPfw9tbw+jSQ==}
 
-  '@shikijs/vscode-textmate@9.3.0':
-    resolution: {integrity: sha512-jn7/7ky30idSkd/O5yDBfAnVt+JJpepofP/POZ1iMOxK59cOfqIgg/Dj0eFsjOTMw+4ycJN0uhZH/Eb0bs/EUA==}
+  '@shikijs/vscode-textmate@10.0.2':
+    resolution: {integrity: sha512-83yeghZ2xxin3Nj8z1NMd/NCuca+gsYXswywDy5bHvwlWL8tpTQmzGeUuHd9FC3E/SBEMvzJRwWEOz5gGes9Qg==}
 
   '@sideway/address@4.1.5':
     resolution: {integrity: sha512-IqO/DUQHUkPeixNQ8n0JA6102hT9CmaljNTPmQ1u8MEhBo/R4Q8eKLN/vGZxuebwOroDB4cbpjheD4+/sKFK4Q==}
@@ -11303,9 +11306,6 @@ packages:
   brace-expansion@1.1.11:
     resolution: {integrity: sha512-iCuPHDFgrHX7H2vEI/5xpz07zSHB00TpugqhmYtVmMO6518mCuRMoOYFldEBl0g187ufozdaHgWKcYFb61qGiA==}
 
-  brace-expansion@2.0.1:
-    resolution: {integrity: sha512-XnAIvQ8eM+kC6aULx6wuQiwVsnzsi9d3WxzV3FpWTGA19F621kwdbsAcFKXgKUHZWsy+mY6iL1sHTxWEFCytDA==}
-
   brace-expansion@2.0.2:
     resolution: {integrity: sha512-Jt0vHyM+jmUBqojB7E1NIYadt0vI0Qxjxd2TErW94wDz+E2LAm5vKMXXwg6ZZBTHPuUlDgQHKXvjGBdfcF1ZDQ==}
 
@@ -12794,10 +12794,10 @@ packages:
       '@docusaurus/core': ^2.0.0-beta || ^3.0.0-alpha
       sass: ^1.30.0
 
-  docusaurus-plugin-typedoc@1.0.5:
-    resolution: {integrity: sha512-mv8LBJYilGOOPLqaIM3vbYc34m4qwOCpb4WfP24DOPFNj2uiTerw8sg9MGvN6Jx2+J8rq9/WMnjcyz3UMqoIIQ==}
+  docusaurus-plugin-typedoc@1.4.2:
+    resolution: {integrity: sha512-1qerRejLSYxEWdyVPLDMMeKFPLA/37yZAsdwJy9ThHFQR78+v3b5spSbk67VHGLr2mAn4FVHu0aGJ6p7iWotSg==}
     peerDependencies:
-      typedoc-plugin-markdown: '>=4.0.0'
+      typedoc-plugin-markdown: '>=4.8.0'
 
   docusaurus-theme-openapi-docs@4.3.7:
     resolution: {integrity: sha512-VRKA8gFVIlSBUu7EAYOY3JDF2WetCSVsYx5WeFo8g6/7LJWHhX7/A7Wo2fJ0B61VE/c53BSdbmvVWSJoUqnkoA==}
@@ -14270,9 +14270,6 @@ packages:
 
   hast-util-to-estree@3.1.0:
     resolution: {integrity: sha512-lfX5g6hqVh9kjS/B9E2gSkvHH4SZNiQFiqWS0x9fENzEl+8W12RqdRxX6d/Cwxi30tPQs3bIO+aolQJNp1bIyw==}
-
-  hast-util-to-html@9.0.3:
-    resolution: {integrity: sha512-M17uBDzMJ9RPCqLMO92gNNUDuBSq10a25SDBI08iCCxmorf4Yy6sYHK57n9WAbRAAaU+DuR4W6GN9K4DFZesYg==}
 
   hast-util-to-jsx-runtime@2.3.0:
     resolution: {integrity: sha512-H/y0+IWPdsLLS738P8tDnrQ8Z+dj12zQQ6WC11TIM21C8WFVoIxcqWXf2H3hiTVZjF1AWqoimGwrTWecWrnmRQ==}
@@ -16825,10 +16822,6 @@ packages:
     resolution: {integrity: sha512-VXJjc87FScF88uafS3JllDgvAm+c/Slfz06lorj2uAY34rlUu0Nt+v8wreiImcrgAjjIHp1rXpTDlLOGw29WwQ==}
     engines: {node: '>=18'}
 
-  oniguruma-to-js@0.4.3:
-    resolution: {integrity: sha512-X0jWUcAlxORhOqqBREgPMgnshB7ZGYszBNspP+tS9hPD3l13CdaXcHbgImoHUHlrvGx/7AvFEkTRhAGYh+jzjQ==}
-    deprecated: use oniguruma-to-es instead
-
   open@10.2.0:
     resolution: {integrity: sha512-YgBpdJHPyQ2UE5x+hlSXcnejzAvD0b22U2OuAP+8OnlJT+PjWPxtgmGqKKc+RgTM63U9gN0YzrYc71R2WT/hTA==}
     engines: {node: '>=18'}
@@ -18710,9 +18703,6 @@ packages:
   regenerator-transform@0.15.2:
     resolution: {integrity: sha512-hfMp2BoF0qOk3uc5V20ALGDS2ddjQaLrdl7xrGXvAIow7qeWRM2VA2HuCHkUKk9slq3VwEwLNK3DFBqDfPGYtg==}
 
-  regex@4.4.0:
-    resolution: {integrity: sha512-uCUSuobNVeqUupowbdZub6ggI5/JZkYyJdDogddJr60L764oxC2pMZov1fQ3wM9bdyzUILDG+Sqx6NAKAz9rKQ==}
-
   regexp.prototype.flags@1.5.2:
     resolution: {integrity: sha512-NcDiDkTLuPR+++OCKB0nWafEmhg/Da8aUPLPMQbK+bxKKCm1/S5he+AqYa4PlMCVBalb4/yxIRub6qkEx5yJbw==}
     engines: {node: '>= 0.4'}
@@ -19254,9 +19244,6 @@ packages:
 
   shellwords@0.1.1:
     resolution: {integrity: sha512-vFwSUfQvqybiICwZY5+DAWIPLKsWO31Q91JSKl3UYv+K5c2QRPzn0qzec6QPu1Qc9eHYItiP3NdJqNVqetYAww==}
-
-  shiki@1.22.2:
-    resolution: {integrity: sha512-3IZau0NdGKXhH2bBlUk4w1IHNxPh6A5B2sUpyY+8utLu2j/h1QpFkAaUA1bAMxOWWGtTWcAh531vnS4NJKS/lA==}
 
   should-equal@2.0.0:
     resolution: {integrity: sha512-ZP36TMrK9euEuWQYBig9W55WPC7uo37qzAEmbjHz4gfyuXrEUgF8cUvQVO+w+d3OMfPvSRQJ22lSm8MQJ43LTA==}
@@ -20322,18 +20309,23 @@ packages:
   typedarray@0.0.6:
     resolution: {integrity: sha512-/aCDEGatGvZ2BIk+HmLf4ifCJFwvKFNb9/JeZPMulfgFracn9QFcAf5GO8B/mweUjSoblS5In0cWhqpfs/5PQA==}
 
-  typedoc-plugin-markdown@4.2.10:
-    resolution: {integrity: sha512-PLX3pc1/7z13UJm4TDE9vo9jWGcClFUErXXtd5LdnoLjV6mynPpqZLU992DwMGFSRqJFZeKbVyqlNNeNHnk2tQ==}
+  typedoc-docusaurus-theme@1.4.2:
+    resolution: {integrity: sha512-i9YYDcScLD0WUiX8I+LXHX3ZVvRDlJsmRo9l/uWrFT37cHlMz4Ay0GOnWzHUBnnwAo1uzYOw9RjUXznbWozBEA==}
+    peerDependencies:
+      typedoc-plugin-markdown: '>=4.8.0'
+
+  typedoc-plugin-markdown@4.10.0:
+    resolution: {integrity: sha512-psrg8Rtnv4HPWCsoxId+MzEN8TVK5jeKCnTbnGAbTBqcDapR9hM41bJT/9eAyKn9C2MDG9Qjh3MkltAYuLDoXg==}
     engines: {node: '>= 18'}
     peerDependencies:
-      typedoc: 0.26.x
+      typedoc: 0.28.x
 
-  typedoc@0.26.11:
-    resolution: {integrity: sha512-sFEgRRtrcDl2FxVP58Ze++ZK2UQAEvtvvH8rRlig1Ja3o7dDaMHmaBfvJmdGnNEFaLTpQsN8dpvZaTqJSu/Ugw==}
-    engines: {node: '>= 18'}
+  typedoc@0.28.17:
+    resolution: {integrity: sha512-ZkJ2G7mZrbxrKxinTQMjFqsCoYY6a5Luwv2GKbTnBCEgV2ihYm5CflA9JnJAwH0pZWavqfYxmDkFHPt4yx2oDQ==}
+    engines: {node: '>= 18', pnpm: '>= 10'}
     hasBin: true
     peerDependencies:
-      typescript: 4.6.x || 4.7.x || 4.8.x || 4.9.x || 5.0.x || 5.1.x || 5.2.x || 5.3.x || 5.4.x || 5.5.x || 5.6.x
+      typescript: 5.0.x || 5.1.x || 5.2.x || 5.3.x || 5.4.x || 5.5.x || 5.6.x || 5.7.x || 5.8.x || 5.9.x
 
   typescript-eslint@7.18.0:
     resolution: {integrity: sha512-PonBkP603E3tt05lDkbOMyaxJjvKqQrXsnow72sVeOFINDE/qNmnnd+f9b4N+U7W6MXnnYyrhtmF2t08QWwUbA==}
@@ -21557,6 +21549,11 @@ packages:
   yaml@2.5.1:
     resolution: {integrity: sha512-bLQOjaX/ADgQ20isPJRvF0iRUHIxVhYvr53Of7wGcWlO2jvtUlH5m87DsmulFVxRpNLOnI4tB6p/oh8D7kpn9Q==}
     engines: {node: '>= 14'}
+    hasBin: true
+
+  yaml@2.8.2:
+    resolution: {integrity: sha512-mplynKqc1C2hTVYxd0PU2xQAc22TI1vShAYGksCCfxbn/dFwnHTNi1bvYsBTkhdUNtGIf5xNOg938rrSSYvS9A==}
+    engines: {node: '>= 14.6'}
     hasBin: true
 
   yargs-parser@18.1.3:
@@ -26772,6 +26769,14 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@gerrit0/mini-shiki@3.23.0':
+    dependencies:
+      '@shikijs/engine-oniguruma': 3.23.0
+      '@shikijs/langs': 3.23.0
+      '@shikijs/themes': 3.23.0
+      '@shikijs/types': 3.23.0
+      '@shikijs/vscode-textmate': 10.0.2
+
   '@gql.tada/cli-utils@1.6.2(@0no-co/graphqlsp@1.12.14(graphql@16.9.0)(typescript@5.6.2))(graphql@16.9.0)(typescript@5.6.2)':
     dependencies:
       '@0no-co/graphqlsp': 1.12.14(graphql@16.9.0)(typescript@5.6.2)
@@ -31013,32 +31018,25 @@ snapshots:
 
   '@servie/events@1.0.0': {}
 
-  '@shikijs/core@1.22.2':
+  '@shikijs/engine-oniguruma@3.23.0':
     dependencies:
-      '@shikijs/engine-javascript': 1.22.2
-      '@shikijs/engine-oniguruma': 1.22.2
-      '@shikijs/types': 1.22.2
-      '@shikijs/vscode-textmate': 9.3.0
-      '@types/hast': 3.0.4
-      hast-util-to-html: 9.0.3
+      '@shikijs/types': 3.23.0
+      '@shikijs/vscode-textmate': 10.0.2
 
-  '@shikijs/engine-javascript@1.22.2':
+  '@shikijs/langs@3.23.0':
     dependencies:
-      '@shikijs/types': 1.22.2
-      '@shikijs/vscode-textmate': 9.3.0
-      oniguruma-to-js: 0.4.3
+      '@shikijs/types': 3.23.0
 
-  '@shikijs/engine-oniguruma@1.22.2':
+  '@shikijs/themes@3.23.0':
     dependencies:
-      '@shikijs/types': 1.22.2
-      '@shikijs/vscode-textmate': 9.3.0
+      '@shikijs/types': 3.23.0
 
-  '@shikijs/types@1.22.2':
+  '@shikijs/types@3.23.0':
     dependencies:
-      '@shikijs/vscode-textmate': 9.3.0
+      '@shikijs/vscode-textmate': 10.0.2
       '@types/hast': 3.0.4
 
-  '@shikijs/vscode-textmate@9.3.0': {}
+  '@shikijs/vscode-textmate@10.0.2': {}
 
   '@sideway/address@4.1.5':
     dependencies:
@@ -35466,10 +35464,6 @@ snapshots:
       balanced-match: 1.0.2
       concat-map: 0.0.1
 
-  brace-expansion@2.0.1:
-    dependencies:
-      balanced-match: 1.0.2
-
   brace-expansion@2.0.2:
     dependencies:
       balanced-match: 1.0.2
@@ -37067,9 +37061,10 @@ snapshots:
       - sass-embedded
       - webpack
 
-  docusaurus-plugin-typedoc@1.0.5(typedoc-plugin-markdown@4.2.10(typedoc@0.26.11(typescript@5.6.2))):
+  docusaurus-plugin-typedoc@1.4.2(typedoc-plugin-markdown@4.10.0(typedoc@0.28.17(typescript@5.6.2))):
     dependencies:
-      typedoc-plugin-markdown: 4.2.10(typedoc@0.26.11(typescript@5.6.2))
+      typedoc-docusaurus-theme: 1.4.2(typedoc-plugin-markdown@4.10.0(typedoc@0.28.17(typescript@5.6.2)))
+      typedoc-plugin-markdown: 4.10.0(typedoc@0.28.17(typescript@5.6.2))
 
   docusaurus-theme-openapi-docs@4.3.7(rbygmppxtrepujpsvtt7ommdzy):
     dependencies:
@@ -39282,20 +39277,6 @@ snapshots:
       zwitch: 2.0.4
     transitivePeerDependencies:
       - supports-color
-
-  hast-util-to-html@9.0.3:
-    dependencies:
-      '@types/hast': 3.0.4
-      '@types/unist': 3.0.3
-      ccount: 2.0.1
-      comma-separated-tokens: 2.0.3
-      hast-util-whitespace: 3.0.0
-      html-void-elements: 3.0.0
-      mdast-util-to-hast: 13.2.0
-      property-information: 6.5.0
-      space-separated-tokens: 2.0.2
-      stringify-entities: 4.0.4
-      zwitch: 2.0.4
 
   hast-util-to-jsx-runtime@2.3.0:
     dependencies:
@@ -42174,7 +42155,7 @@ snapshots:
 
   minimatch@5.1.9:
     dependencies:
-      brace-expansion: 2.0.1
+      brace-expansion: 2.0.2
 
   minimatch@9.0.9:
     dependencies:
@@ -42662,10 +42643,6 @@ snapshots:
   onetime@7.0.0:
     dependencies:
       mimic-function: 5.0.1
-
-  oniguruma-to-js@0.4.3:
-    dependencies:
-      regex: 4.4.0
 
   open@10.2.0:
     dependencies:
@@ -43617,14 +43594,14 @@ snapshots:
       postcss: 8.4.47
       ts-node: 10.9.2(@types/node@24.10.12)(typescript@5.8.3)
 
-  postcss-load-config@6.0.1(jiti@1.21.6)(postcss@8.5.6)(tsx@3.14.0)(yaml@2.5.1):
+  postcss-load-config@6.0.1(jiti@1.21.6)(postcss@8.5.6)(tsx@3.14.0)(yaml@2.8.2):
     dependencies:
       lilconfig: 3.1.3
     optionalDependencies:
       jiti: 1.21.6
       postcss: 8.5.6
       tsx: 3.14.0
-      yaml: 2.5.1
+      yaml: 2.8.2
 
   postcss-loader@7.3.4(postcss@8.4.47)(typescript@5.6.2)(webpack@5.95.0):
     dependencies:
@@ -44803,8 +44780,6 @@ snapshots:
     dependencies:
       '@babel/runtime': 7.28.6
 
-  regex@4.4.0: {}
-
   regexp.prototype.flags@1.5.2:
     dependencies:
       call-bind: 1.0.8
@@ -45569,15 +45544,6 @@ snapshots:
       rechoir: 0.6.2
 
   shellwords@0.1.1: {}
-
-  shiki@1.22.2:
-    dependencies:
-      '@shikijs/core': 1.22.2
-      '@shikijs/engine-javascript': 1.22.2
-      '@shikijs/engine-oniguruma': 1.22.2
-      '@shikijs/types': 1.22.2
-      '@shikijs/vscode-textmate': 9.3.0
-      '@types/hast': 3.0.4
 
   should-equal@2.0.0:
     dependencies:
@@ -46671,7 +46637,7 @@ snapshots:
 
   tslib@2.8.1: {}
 
-  tsup@8.3.5(@microsoft/api-extractor@7.52.8)(@swc/core@1.15.11)(jiti@1.21.6)(postcss@8.5.6)(tsx@3.14.0)(typescript@5.6.2)(yaml@2.5.1):
+  tsup@8.3.5(@microsoft/api-extractor@7.52.8)(@swc/core@1.15.11)(jiti@1.21.6)(postcss@8.5.6)(tsx@3.14.0)(typescript@5.6.2)(yaml@2.8.2):
     dependencies:
       bundle-require: 5.1.0(esbuild@0.24.2)
       cac: 6.7.14
@@ -46681,7 +46647,7 @@ snapshots:
       esbuild: 0.24.2
       joycon: 3.1.1
       picocolors: 1.1.1
-      postcss-load-config: 6.0.1(jiti@1.21.6)(postcss@8.5.6)(tsx@3.14.0)(yaml@2.5.1)
+      postcss-load-config: 6.0.1(jiti@1.21.6)(postcss@8.5.6)(tsx@3.14.0)(yaml@2.8.2)
       resolve-from: 5.0.0
       rollup: 4.30.1
       source-map: 0.8.0-beta.0
@@ -46847,18 +46813,22 @@ snapshots:
 
   typedarray@0.0.6: {}
 
-  typedoc-plugin-markdown@4.2.10(typedoc@0.26.11(typescript@5.6.2)):
+  typedoc-docusaurus-theme@1.4.2(typedoc-plugin-markdown@4.10.0(typedoc@0.28.17(typescript@5.6.2))):
     dependencies:
-      typedoc: 0.26.11(typescript@5.6.2)
+      typedoc-plugin-markdown: 4.10.0(typedoc@0.28.17(typescript@5.6.2))
 
-  typedoc@0.26.11(typescript@5.6.2):
+  typedoc-plugin-markdown@4.10.0(typedoc@0.28.17(typescript@5.6.2)):
     dependencies:
+      typedoc: 0.28.17(typescript@5.6.2)
+
+  typedoc@0.28.17(typescript@5.6.2):
+    dependencies:
+      '@gerrit0/mini-shiki': 3.23.0
       lunr: 2.3.9
       markdown-it: 14.1.0
       minimatch: 9.0.9
-      shiki: 1.22.2
       typescript: 5.6.2
-      yaml: 2.5.1
+      yaml: 2.8.2
 
   typescript-eslint@7.18.0(eslint@8.57.1)(typescript@5.6.2):
     dependencies:
@@ -48647,6 +48617,8 @@ snapshots:
   yaml@1.10.2: {}
 
   yaml@2.5.1: {}
+
+  yaml@2.8.2: {}
 
   yargs-parser@18.1.3:
     dependencies:
