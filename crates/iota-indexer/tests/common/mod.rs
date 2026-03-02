@@ -132,11 +132,12 @@ impl SimulacrumTestSetup {
 /// Start a [`TestCluster`][`test_cluster::TestCluster`] with a `Read` &
 /// `Write` indexer. Set `epochs_to_keep` (> 0) to enable indexer pruning.
 pub async fn start_test_cluster_with_read_write_indexer(
-    database_name: Option<&str>,
+    database_name: impl Into<Option<&str>>,
     builder_modifier: Option<Box<dyn FnOnce(TestClusterBuilder) -> TestClusterBuilder>>,
     pruning_options: Option<PruningOptions>,
 ) -> (TestCluster, PgIndexerStore, HttpClient) {
-    let mut builder = TestClusterBuilder::new();
+    let database_name = database_name.into();
+    let mut builder = TestClusterBuilder::new().with_fullnode_enable_grpc_api(true);
 
     if let Some(builder_modifier) = builder_modifier {
         builder = builder_modifier(builder);
@@ -157,7 +158,7 @@ pub async fn start_test_cluster_with_read_write_indexer(
     .await;
 
     // start indexer in read mode
-    let indexer_port = start_indexer_reader(cluster.rpc_url().to_owned(), database_name);
+    let indexer_port = start_indexer_reader(cluster.grpc_url(), database_name);
 
     // create an RPC client by using the indexer url
     let rpc_client = HttpClientBuilder::default()

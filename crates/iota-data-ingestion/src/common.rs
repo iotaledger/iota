@@ -19,7 +19,7 @@ pub async fn epoch_info(
         .map_err(anyhow::Error::new)?;
 
     epoch
-        .epoch_number()
+        .epoch_id()
         .and_then(|epoch_id| {
             epoch
                 .first_checkpoint_sequence_number()

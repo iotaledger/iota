@@ -5,10 +5,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
+use iota_grpc_client::Client as GrpcClient;
 use iota_json_rpc::{IotaRpcModule, error::IotaRpcInputError};
-use iota_json_rpc_api::{
-    QUERY_MAX_RESULT_LIMIT, ReadApiClient, ReadApiServer, error_object_from_rpc, internal_error,
-};
+use iota_json_rpc_api::{QUERY_MAX_RESULT_LIMIT, ReadApiServer, internal_error};
 use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest, IotaObjectData,
     IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
@@ -23,21 +22,27 @@ use iota_types::{
     iota_serde::BigInt,
     object::{ObjectRead, PastObjectRead},
 };
-use jsonrpsee::{RpcModule, core::RpcResult, http_client::HttpClient};
+use jsonrpsee::{RpcModule, core::RpcResult};
 
-use crate::{errors::IndexerError, models::objects::StoredObject, read::IndexerReader};
+use crate::{
+    errors::{IndexerError, IndexerResult},
+    models::objects::StoredObject,
+    read::IndexerReader,
+};
 
 #[derive(Clone)]
 pub(crate) struct ReadApi {
     inner: IndexerReader,
-    fullnode_client: HttpClient,
+    fullnode_grpc_client: GrpcClient,
 }
 
 impl ReadApi {
-    pub fn new(inner: IndexerReader, fullnode_client: HttpClient) -> Self {
+    /// Creates a new instance of ReadApi with a fullnode RPC client which can
+    /// be either JSON-RPC or gRPC.
+    pub fn new(inner: IndexerReader, fullnode_grpc_client: GrpcClient) -> Self {
         Self {
             inner,
-            fullnode_client,
+            fullnode_grpc_client,
         }
     }
 
@@ -151,6 +156,33 @@ impl ReadApi {
             }),
         }
     }
+
+    /// Checks if the transaction is indexed on node through fullnode gRPC API.
+    async fn is_transaction_indexed_on_node(
+        &self,
+        digest: TransactionDigest,
+    ) -> IndexerResult<bool> {
+        match self
+            .fullnode_grpc_client
+            .get_transactions(&[digest.into()], Some("transaction.digest"))
+            .await
+        {
+            Ok(mut txns) => {
+                let executed_tx = txns.pop().ok_or_else(|| {
+                    IndexerError::Grpc("there should be one tx lookup response".into())
+                })?;
+
+                Ok(executed_tx.transaction()?.digest()? == digest.into())
+            }
+            Err(e) => {
+                if matches!(e, iota_grpc_client::Error::Server(ref e) if  tonic::Code::from_i32(e.code) == tonic::Code::NotFound)
+                {
+                    return Ok(false);
+                }
+                Err(IndexerError::from(e))
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -235,10 +267,9 @@ impl ReadApiServer for ReadApi {
     }
 
     async fn is_transaction_indexed_on_node(&self, digest: TransactionDigest) -> RpcResult<bool> {
-        self.fullnode_client
-            .is_transaction_indexed_on_node(digest)
+        self.is_transaction_indexed_on_node(digest)
             .await
-            .map_err(error_object_from_rpc)
+            .map_err(Into::into)
     }
 
     async fn get_transaction_block(

@@ -719,13 +719,13 @@ impl TryFrom<GrpcCheckpoint> for CheckpointData {
         let chk = value.0;
 
         let checkpoint_data = iota_sdk_types::checkpoint::CheckpointData {
-            checkpoint_contents: chk.contents()?.try_into()?,
+            checkpoint_contents: chk.contents()?.contents()?,
             checkpoint_summary: iota_sdk_types::SignedCheckpointSummary {
-                checkpoint: chk.summary()?.try_into()?,
-                signature: chk.signature()?.try_into()?,
+                checkpoint: chk.summary()?.summary()?,
+                signature: chk.signature()?.signature()?,
             },
             transactions: chk
-                .transactions()
+                .executed_transactions()
                 .iter()
                 .map(GrpcCheckpoint::checkpoint_transaction)
                 .collect::<std::result::Result<Vec<_>, _>>()?,

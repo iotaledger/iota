@@ -30,6 +30,7 @@ use axum_extra::{TypedHeader, headers::ContentLength};
 use chrono::Utc;
 use http::{HeaderValue, Method, Request};
 use iota_graphql_rpc_headers::LIMITS_HEADER;
+use iota_grpc_client::Client as GrpcClient;
 use iota_indexer::{
     apis::{OptimisticWriteApi, WriteApi},
     db::{get_pool_connection, setup_postgres::check_db_migration_consistency},
@@ -38,23 +39,18 @@ use iota_indexer::{
     read::IndexerReader,
     store::PgIndexerStore,
 };
-use iota_json_rpc_api::CLIENT_SDK_TYPE_HEADER;
 use iota_metrics::spawn_monitored_task;
 use iota_network_stack::callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler};
 use iota_package_resolver::{PackageStoreWithLruCache, Resolver};
-use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use tokio::{join, net::TcpListener, sync::OnceCell};
 use tokio_util::sync::CancellationToken;
 use tower::{Layer, Service};
 use tower_http::cors::{AllowOrigin, CorsLayer};
-use tracing::{info, warn};
+use tracing::info;
 use uuid::Uuid;
 
 use crate::{
-    config::{
-        ConnectionConfig, MAX_CONCURRENT_REQUESTS, RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD,
-        ServerConfig, ServiceConfig, Version,
-    },
+    config::{ConnectionConfig, ServerConfig, ServiceConfig, Version},
     context_data::db_data_provider::PgManager,
     data::{
         DataLoader, Db,
@@ -486,7 +482,7 @@ impl ServerBuilder {
 
         let graphql_streams =
             GraphQLStream::new(&config.connection.db_url, reader.clone(), &registry).await?;
-        let write_api = build_write_api(fullnode_url, reader, indexer_metrics)?;
+        let write_api = build_write_api(fullnode_url, reader, indexer_metrics).await?;
 
         builder = builder
             .context_data(config.service.clone())
@@ -594,38 +590,29 @@ pub(crate) fn get_write_api<'ctx>(
         .ok_or_else(|| Error::Internal("Unable to get node execution interface".to_string()))
 }
 
-fn build_write_api(
-    fullnode_url: &str,
+async fn build_write_api(
+    fullnode_grpc_url: &str,
     reader: IndexerReader,
     metrics: IndexerMetrics,
 ) -> Result<OptimisticWriteApi, Error> {
-    let json_rpc_client = build_json_rpc_client(fullnode_url)?;
+    let fullnode_gpc_client = GrpcClient::connect(fullnode_grpc_url)
+        .await
+        .map_err(|e| Error::ServerInit(e.to_string()))?;
+
     let indexer_store = PgIndexerStore::new(reader.get_pool(), metrics.clone());
-    let optimistic_tx_executor =
-        OptimisticTransactionExecutor::new(fullnode_url, reader.clone(), indexer_store, metrics);
+    let optimistic_tx_executor = OptimisticTransactionExecutor::new(
+        fullnode_gpc_client.clone(),
+        reader.clone(),
+        indexer_store,
+        metrics,
+    )
+    .await?;
     Ok(OptimisticWriteApi::new(
-        WriteApi::new(json_rpc_client, reader),
+        WriteApi::new(fullnode_gpc_client, reader),
         optimistic_tx_executor,
     ))
 }
 
-fn build_json_rpc_client(rpc_client_url: &str) -> Result<HttpClient, Error> {
-    let mut headers = HeaderMap::new();
-    headers.insert(CLIENT_SDK_TYPE_HEADER, HeaderValue::from_static("graphql"));
-
-    let builder = HttpClientBuilder::default()
-        .max_request_size(2 << 30)
-        .set_headers(headers.clone())
-        .request_timeout(RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD)
-        .max_concurrent_requests(MAX_CONCURRENT_REQUESTS);
-
-    builder.build(rpc_client_url).map_err(|e| {
-        warn!("Failed to get new Http client with error: {e:?}");
-        Error::Internal(format!(
-            "Failed to initialize fullnode RPC client with error: {e:?}"
-        ))
-    })
-}
 /// Entry point for graphql streaming requests.
 ///
 /// Each request is stamped with a unique ID, a `ShowUsage` flag if set in the
@@ -926,20 +913,22 @@ pub mod tests {
 
         let wallet = &cluster.validator_fullnode_handle.wallet;
         let store = &cluster.indexer_store;
-        let fn_rpc_url = &cluster.validator_fullnode_handle.fullnode_handle.rpc_url;
+        let fn_grpc_url = &cluster.validator_fullnode_handle.grpc_url();
         let indexer_metrics = store.get_metrics();
         let indexer_reader = iota_indexer::read::IndexerReader::new(store.blocking_cp());
-        let json_rpc_client = build_json_rpc_client(fn_rpc_url).unwrap();
+        let fullnode_gpc_client = GrpcClient::connect(fn_grpc_url).await.unwrap();
 
         let optimistic_tx_executor =
             iota_indexer::optimistic_indexing::OptimisticTransactionExecutor::new(
-                fn_rpc_url,
+                fullnode_gpc_client.clone(),
                 indexer_reader.clone(),
                 store.clone(),
                 indexer_metrics,
-            );
+            )
+            .await
+            .unwrap();
         let write_api = OptimisticWriteApi::new(
-            WriteApi::new(json_rpc_client, indexer_reader),
+            WriteApi::new(fullnode_gpc_client, indexer_reader),
             optimistic_tx_executor,
         );
 

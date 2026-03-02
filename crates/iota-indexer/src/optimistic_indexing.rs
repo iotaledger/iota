@@ -8,11 +8,15 @@ use std::{
 use diesel::{PgConnection, RunQueryDsl, result::DatabaseErrorKind, sql_query, sql_types};
 use downcast::Any;
 use fastcrypto::{encoding::Base64, error::FastCryptoError, traits::ToFromBytes};
+use iota_grpc_client::Client as GrpcClient;
+use iota_grpc_types::{
+    field::{FieldMask, FieldMaskUtil},
+    v0::transaction::ExecutedTransaction,
+};
 use iota_json_rpc_types::{IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions};
-use iota_rest_api::{ExecuteTransactionQueryParameters, client::TransactionExecutionResponse};
 use iota_types::{
     base_types::TransactionDigest,
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     full_checkpoint_content::CheckpointTransaction,
     signature::GenericSignature,
     transaction::{Transaction, TransactionData},
@@ -36,11 +40,20 @@ use crate::{
     store::{IndexerStore, PgIndexerStore},
     transactional_blocking_with_retry_with_conditional_abort,
     types::{
-        IndexedDeletedObject, IndexedObject, IndexerResult, IotaTransactionBlockResponseWithOptions,
+        IndexedDeletedObject, IndexedObject, IndexerResult,
+        IotaTransactionBlockResponseWithOptions, grpc_conversion,
     },
 };
 
 const WAIT_FOR_DEPS_MAX_ELAPSED_TIME: Duration = Duration::from_secs(3);
+
+// As an optimization, we're trying to request only the fields we actually need.
+const EXECUTE_TRANSACTION_READ_MASK: &[&str] = &[
+    "effects.bcs",
+    "events.events.bcs",
+    "input_objects.bcs",
+    "output_objects.bcs",
+];
 
 type TransactionDataToCommit = (
     OptimisticTransaction,
@@ -50,26 +63,25 @@ type TransactionDataToCommit = (
 
 #[derive(Clone)]
 pub struct OptimisticTransactionExecutor {
-    rpc_client: iota_rest_api::Client,
+    rpc_client: GrpcClient,
     pub(crate) read: IndexerReader,
     store: PgIndexerStore,
     metrics: IndexerMetrics,
 }
 
 impl OptimisticTransactionExecutor {
-    pub fn new(
-        rpc_client_url: &str,
+    pub async fn new(
+        fullnode_grpc_client: GrpcClient,
         read: IndexerReader,
         store: PgIndexerStore,
         metrics: IndexerMetrics,
-    ) -> Self {
-        let rpc_client = iota_rest_api::Client::new(rpc_client_url);
-        Self {
-            rpc_client,
+    ) -> IndexerResult<Self> {
+        Ok(Self {
+            rpc_client: fullnode_grpc_client,
             read,
             store,
             metrics,
-        }
+        })
     }
 
     /// Wait until all dependencies are indexed through the `tx_global_order`
@@ -121,23 +133,17 @@ impl OptimisticTransactionExecutor {
     pub(crate) async fn maybe_index_executed_transaction(
         &self,
         transaction: Transaction,
-        execution_response: TransactionExecutionResponse,
+        executed_transaction: ExecutedTransaction,
     ) -> Result<(), IndexerError> {
-        let TransactionExecutionResponse {
-            effects,
-            events,
-            input_objects,
-            output_objects,
-            ..
-        } = execution_response;
+        // The methods check for fields being Some. Based on the provided read mask,
+        // all fields should be Some, the only exception should be `checkpoint` &
+        // `timestamp` fields which are always None.
+        let effects = executed_transaction.effects()?.effects()?.try_into()?;
+        let events = TransactionEvents::try_from(executed_transaction.events()?.events()?)?;
+        let input_objects = grpc_conversion::objects(executed_transaction.input_objects()?)?;
+        let output_objects = grpc_conversion::objects(executed_transaction.output_objects()?)?;
+
         let tx_digest = transaction.digest();
-        let (Some(input_objects), Some(output_objects)) = (input_objects, output_objects) else {
-            tracing::warn!(
-                "cannot optimistically index because of missing in/out objs for tx: {tx_digest}"
-            );
-            self.metrics.optimistic_tx_with_missing_objects_counts.inc();
-            return Ok(());
-        };
 
         if input_objects.is_empty() || output_objects.is_empty() {
             tracing::warn!(
@@ -169,7 +175,7 @@ impl OptimisticTransactionExecutor {
         let full_tx_data = CheckpointTransaction {
             transaction,
             effects,
-            events,
+            events: Some(events),
             input_objects,
             output_objects,
         };
@@ -216,20 +222,17 @@ impl OptimisticTransactionExecutor {
             .metrics
             .optimistic_tx_node_response_wait_time
             .start_timer();
+
+        let readmask = FieldMask::from_paths(EXECUTE_TRANSACTION_READ_MASK)
+            .display()
+            .to_string();
+
         let response = self
             .rpc_client
-            .execute_transaction(
-                &ExecuteTransactionQueryParameters {
-                    events: true,
-                    balance_changes: false,
-                    input_objects: true,
-                    output_objects: true,
-                },
-                &transaction,
-            )
+            .execute_transaction(transaction.clone().try_into()?, Some(readmask.as_str()))
             .await;
 
-        let response = match response {
+        let executed_transaction = match response {
             Ok(response) => {
                 node_timer.stop_and_record();
                 response
@@ -237,12 +240,14 @@ impl OptimisticTransactionExecutor {
             Err(e) => {
                 node_timer.stop_and_discard();
                 self.metrics.optimistic_tx_failed_node_requests_count.inc();
-                return Err(IndexerError::Generic(e.to_string()));
+                return Err(IndexerError::from(e));
             }
         };
 
-        let tx_digest = *response.effects.transaction_digest();
-        self.maybe_index_executed_transaction(transaction, response)
+        let tx_digest = *TransactionEffects::try_from(executed_transaction.effects()?.effects()?)?
+            .transaction_digest();
+
+        self.maybe_index_executed_transaction(transaction, executed_transaction)
             .await?;
 
         let db_read_timer = self
