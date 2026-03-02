@@ -749,8 +749,15 @@ impl From<IotaTransactionBlockResponseWithOptions> for IotaTransactionBlockRespo
 
 /// Provides conversion methods from gRPC types to iota core types.
 pub(crate) mod grpc_conversion {
-    use iota_grpc_types::v0::object::Objects as GrpcObjects;
-    use iota_types::object::Object;
+
+    use iota_grpc_types::v0::{
+        command::{CommandOutputs as GrpcCommandOutputs, CommandResults as GrpcCommandResults},
+        object::Objects as GrpcObjects,
+    };
+    use iota_json_rpc_types::{IotaArgument, IotaExecutionResult, IotaTypeTag};
+    use iota_types::{
+        iota_sdk_types_conversions::type_tag_sdk_to_core, object::Object, transaction::Argument,
+    };
 
     use crate::types::IndexerResult;
 
@@ -760,6 +767,62 @@ pub(crate) mod grpc_conversion {
             .objects
             .iter()
             .map(|o| -> IndexerResult<_> { Ok(Object::try_from(o.object()?)?) })
+            .collect()
+    }
+
+    fn convert_command_outputs_into_mutated_by_ref(
+        command_outputs: GrpcCommandOutputs,
+    ) -> IndexerResult<Vec<(IotaArgument, Vec<u8>, IotaTypeTag)>> {
+        command_outputs
+            .outputs
+            .into_iter()
+            .map(|command_output| -> IndexerResult<_> {
+                Ok((
+                    IotaArgument::from(Argument::from(command_output.argument()?)),
+                    command_output.output_bcs()?.to_vec(),
+                    type_tag_sdk_to_core(&command_output.type_tag()?)?.into(),
+                ))
+            })
+            .collect()
+    }
+
+    fn convert_command_outputs_into_return_values(
+        command_outputs: GrpcCommandOutputs,
+    ) -> IndexerResult<Vec<(Vec<u8>, IotaTypeTag)>> {
+        command_outputs
+            .outputs
+            .into_iter()
+            .map(|command_output| -> IndexerResult<_> {
+                Ok((
+                    command_output.output_bcs()?.to_vec(),
+                    type_tag_sdk_to_core(&command_output.type_tag()?)?.into(),
+                ))
+            })
+            .collect()
+    }
+
+    /// Converts [`GrpcCommandResults`] into [`IotaExecutionResult`]
+    pub(crate) fn command_results(
+        command_results: GrpcCommandResults,
+    ) -> IndexerResult<Vec<IotaExecutionResult>> {
+        command_results
+            .results
+            .into_iter()
+            .map(|command_result| -> IndexerResult<_> {
+                let mutable_reference_outputs = command_result
+                    .mutated_by_ref()
+                    .map_err(Into::into)
+                    .and_then(|c| convert_command_outputs_into_mutated_by_ref(c.clone()))?;
+                let return_values = command_result
+                    .return_values()
+                    .map_err(Into::into)
+                    .and_then(|c| convert_command_outputs_into_return_values(c.clone()))?;
+
+                Ok(IotaExecutionResult {
+                    mutable_reference_outputs,
+                    return_values,
+                })
+            })
             .collect()
     }
 }
