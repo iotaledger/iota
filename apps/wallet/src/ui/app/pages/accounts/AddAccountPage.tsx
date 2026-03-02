@@ -27,8 +27,8 @@ import { Create, Ledger, Keystone, Wallet } from '@iota/apps-ui-icons';
 import { ExtensionViewType } from '../../redux/slices/app/appType';
 import Browser from 'webextension-polyfill';
 import clsx from 'clsx';
-import { ACCOUNT_FORM_TYPE_TO_AMPLI } from '_src/shared/analytics';
 import { isFirstAccount } from '../../helpers';
+import { ACCOUNT_FORM_TYPE_TO_AMPLI, AmpliSourceFlow } from '_src/shared/analytics';
 
 export interface ActionCardItem {
     title: string;
@@ -74,7 +74,7 @@ export function AddAccountPage() {
     const forceShowLedger =
         searchParams.has('showLedger') && searchParams.get('showLedger') !== 'false';
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(forceShowLedger);
-    const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';
+    const sourceFlow = searchParams.get('sourceFlow') || AmpliSourceFlow.Unknown;
     const isPopupOrSidePanel = useAppSelector(
         (state) =>
             state.app.extensionViewType === ExtensionViewType.Popup ||

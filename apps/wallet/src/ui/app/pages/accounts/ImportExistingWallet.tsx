@@ -14,8 +14,8 @@ import { openInNewTab } from '_src/shared/utils';
 import { type ActionCardItem, OnboardingCardIcon } from './AddAccountPage';
 import { Feature, Theme, useFeatureEnabledByNetwork, useTheme } from '@iota/core';
 import clsx from 'clsx';
-import { ACCOUNT_FORM_TYPE_TO_AMPLI } from '_src/shared/analytics';
 import { isFirstAccount } from '../../helpers';
+import { ACCOUNT_FORM_TYPE_TO_AMPLI, AmpliSourceFlow } from '_src/shared/analytics';
 
 export function ImportExistingWallet() {
     const { theme } = useTheme();
@@ -26,7 +26,7 @@ export function ImportExistingWallet() {
             state.app.extensionViewType === ExtensionViewType.Popup ||
             state.app.extensionViewType === ExtensionViewType.SidePanel,
     );
-    const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';
+    const sourceFlow = searchParams.get('sourceFlow') || AmpliSourceFlow.Unknown;
     const network = useAppSelector(({ app }) => app.network);
     const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
     const { data: accounts } = useAccounts();
@@ -160,7 +160,6 @@ export function ImportExistingWallet() {
                         <Card
                             key={card.title}
                             type={CardType.Filled}
-                            isDisabled={createAccountsMutation.isPending}
                             isHoverable
                             onClick={() => handleCardAction(card.actionType)}
                         >

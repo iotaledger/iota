@@ -13,6 +13,7 @@ import {
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
+import { AmpliSourceFlow } from '_src/shared/analytics';
 import {
     Button,
     ButtonSize,
@@ -50,7 +51,7 @@ const ACCOUNTS_WITH_ENABLED_BALANCE_FINDER: AccountType[] = [
     AccountType.LedgerDerived,
 ];
 
-const SOURCE_FLOW = 'Manage Accounts';
+const SOURCE_FLOW = AmpliSourceFlow.ManageAccounts;
 
 export function getGroupTitle(aGroupAccount: SerializedUIAccount) {
     return ACCOUNT_TYPE_TO_LABEL[aGroupAccount?.type] || '';

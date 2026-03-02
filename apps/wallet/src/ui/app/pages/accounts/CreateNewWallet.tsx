@@ -13,8 +13,8 @@ import { ImportPass, Passkey } from '@iota/apps-ui-icons';
 import { openInNewTab } from '_src/shared/utils';
 import { type ActionCardItem, OnboardingCardIcon } from './AddAccountPage';
 import { Feature, Theme, useFeatureEnabledByNetwork, useTheme } from '@iota/core';
-import { ACCOUNT_FORM_TYPE_TO_AMPLI } from '_src/shared/analytics';
 import { isFirstAccount } from '../../helpers';
+import { ACCOUNT_FORM_TYPE_TO_AMPLI, AmpliSourceFlow } from '_src/shared/analytics';
 
 export function CreateNewWallet() {
     const { theme } = useTheme();
@@ -27,7 +27,7 @@ export function CreateNewWallet() {
             state.app.extensionViewType === ExtensionViewType.SidePanel,
     );
     const [searchParams] = useSearchParams();
-    const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';
+    const sourceFlow = searchParams.get('sourceFlow') || AmpliSourceFlow.Unknown;
     const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
     const { data: accounts } = useAccounts();
 

@@ -10,6 +10,7 @@ import { IotaLogoWeb } from '@iota/apps-ui-icons';
 import GetStartedImage from '_assets/images/onboarding/get-started.png';
 import GetStartedImageDark from '_assets/images/onboarding/get-started-darkmode.png';
 import { useTheme, Theme } from '@iota/core';
+import { AmpliSourceFlow } from '_src/shared/analytics';
 
 export function WelcomePage() {
     const { theme } = useTheme();
@@ -41,7 +42,9 @@ export function WelcomePage() {
                         type={ButtonType.Primary}
                         text="Get Started"
                         onClick={() => {
-                            navigate('/accounts/add-account?sourceFlow=Onboarding');
+                            navigate(
+                                `/accounts/add-account?sourceFlow=${AmpliSourceFlow.Onboarding}`,
+                            );
                         }}
                     />
                 </div>

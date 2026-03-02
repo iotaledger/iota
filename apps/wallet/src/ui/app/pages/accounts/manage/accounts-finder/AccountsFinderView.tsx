@@ -42,7 +42,11 @@ import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAcco
 import { MigrationDialog } from '../../../home/tokens/MigrationDialog';
 import { SupplyIncreaseVestingStakingDialog } from '../../../home/tokens/SupplyIncreaseVestingStakingDialog';
 import { ampli } from '_src/shared/analytics/ampli';
-import { ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE, AmpliAccountOrigin } from '_src/shared/analytics';
+import {
+    ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE,
+    AmpliAccountOrigin,
+    AmpliSourceFlow,
+} from '_src/shared/analytics';
 import type { AccountsAddedProperties } from '_src/shared/analytics/ampli';
 
 function getAccountSourceType(
@@ -97,7 +101,7 @@ enum SearchPhase {
     Idle, // search has finished and is idle, ready to start again
 }
 
-const SOURCE_FLOW = 'Balance Finder';
+const SOURCE_FLOW = AmpliSourceFlow.BalanceFinder;
 
 export function AccountsFinderView(): JSX.Element {
     const navigate = useNavigate();

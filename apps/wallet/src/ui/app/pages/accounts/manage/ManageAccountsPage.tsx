@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { Overlay, useUnlockAccounts } from '_components';
 import { AccountGroup } from './AccountGroup';
 import { LockLocked } from '@iota/apps-ui-icons';
+import { AmpliSourceFlow } from '_src/shared/analytics';
 
 export function ManageAccountsPage() {
     const navigate = useNavigate();
@@ -18,7 +19,7 @@ export function ManageAccountsPage() {
     useInitializedGuard(true);
 
     function handleAdd() {
-        navigate('/accounts/add-account');
+        navigate(`/accounts/add-account?sourceFlow=${AmpliSourceFlow.ManageAccounts}`);
     }
 
     function handleLock() {
