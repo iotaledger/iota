@@ -45,7 +45,7 @@ use iota_types::{
     digests::{ChainIdentifier, TransactionEffectsDigest},
     effects::TransactionEffects,
     error::{IotaError, IotaResult},
-    executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
+    executable_transaction::VerifiedExecutableTransaction,
     iota_system_state::epoch_start_iota_system_state::{
         EpochStartSystemState, EpochStartSystemStateTrait,
     },
@@ -712,23 +712,8 @@ pub struct AuthorityEpochTables {
     /// Signatures of transaction certificates that are executed locally.
     transaction_cert_signatures: DBMap<TransactionDigest, AuthorityStrongQuorumSignInfo>,
 
-    /// Transactions that were executed in the current epoch.
-    #[allow(dead_code)]
-    #[deprecated]
-    executed_in_epoch: DBMap<TransactionDigest, ()>,
-
-    // TODO: delete the deprecated tables in the next release
-    #[allow(dead_code)]
-    #[deprecated]
-    assigned_shared_object_versions: DBMap<TransactionKey, Vec<(ObjectID, SequenceNumber)>>,
-
     /// Next available shared object versions for each shared object.
     next_shared_object_versions: DBMap<ObjectID, SequenceNumber>,
-
-    // TODO: delete the deprecated tables in the next release
-    #[allow(dead_code)]
-    #[deprecated]
-    pub(crate) pending_execution: DBMap<TransactionDigest, TrustedExecutableTransaction>,
 
     /// Track which transactions have been processed in
     /// handle_consensus_transaction. We must be sure to advance
@@ -746,12 +731,6 @@ pub struct AuthorityEpochTables {
     #[default_options_override_fn = "pending_consensus_transactions_table_default_config"]
     pending_consensus_transactions: DBMap<ConsensusTransactionKey, ConsensusTransaction>,
 
-    /// this table is not used
-    // TODO: delete the deprecated tables in the next release
-    #[allow(dead_code)]
-    #[deprecated]
-    last_consensus_index: DBMap<(), ()>,
-
     /// The following table is used to store a single value (the corresponding
     /// key is a constant). The value represents the index of the latest
     /// consensus message this authority processed, running hash of
@@ -766,11 +745,6 @@ pub struct AuthorityEpochTables {
     /// Validators that have sent EndOfPublish message in this epoch
     end_of_publish: DBMap<AuthorityName, ()>,
 
-    // TODO: delete the deprecated tables in the next release
-    #[allow(dead_code)]
-    #[deprecated]
-    pending_checkpoints: DBMap<CheckpointHeight, PendingCheckpoint>,
-
     /// Checkpoint builder maintains internal list of transactions it included
     /// in checkpoints here
     builder_digest_to_checkpoint: DBMap<TransactionDigest, CheckpointSequenceNumber>,
@@ -784,12 +758,6 @@ pub struct AuthorityEpochTables {
     /// integer
     pub(crate) pending_checkpoint_signatures:
         DBMap<(CheckpointSequenceNumber, u64), CheckpointSignatureMessage>,
-
-    /// Deprecated - pending signatures are now stored in memory.
-    // TODO: delete the deprecated tables in the next release
-    #[allow(dead_code)]
-    #[deprecated]
-    user_signatures_for_checkpoints: DBMap<TransactionDigest, Vec<GenericSignature>>,
 
     /// Maps sequence number to checkpoint summary, used by CheckpointBuilder to
     /// build checkpoint within epoch
