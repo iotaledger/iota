@@ -7,7 +7,9 @@ tags:
   - move-vm
 ---
 
-# Multisig Transactions
+import AccountAbstraction from '../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction /> 
 
 ## About account abstraction
 
@@ -37,7 +39,7 @@ The full module includes additional helpers, but this snippet highlights the ess
 
 ### Define transaction data structures
 
-```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/transactions.move#L20-L35
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/transactions.move#L20-L35
 ```
 
 **What this does**
@@ -49,7 +51,7 @@ The full module includes additional helpers, but this snippet highlights the ess
 
 ### Create the transactions store
 
-```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/transactions.move#L36-L42
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/transactions.move#L36-L42
 ```
 
 **What this does**
@@ -60,7 +62,7 @@ The full module includes additional helpers, but this snippet highlights the ess
 
 ### Check and access transactions
 
-```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/transactions.move#L45-L53
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/transactions.move#L49-L59
 ```
 
 **What this does**
@@ -71,7 +73,7 @@ The full module includes additional helpers, but this snippet highlights the ess
 
 ### Add a new transaction proposal
 
-```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/transactions.move#L60-L68
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/transactions.move#L60-L68
 ```
 
 **What this does**
@@ -82,7 +84,7 @@ The full module includes additional helpers, but this snippet highlights the ess
 
 ### Approve an existing transaction
 
-```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/transactions.move#L94-L100
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/transactions.move#L94-L100
 ```
 
 **What this does**
@@ -91,13 +93,19 @@ The full module includes additional helpers, but this snippet highlights the ess
 - Prevents the same member from approving twice.
 - Approval data is later used to compute approval weight.
 
-## Code Outcome
+## Verify the result:
+
 After using this transactions module:
 
 - Proposed transactions are represented on-chain by their digests.
 - Member approvals are tracked deterministically and transparently.
 - Duplicate proposals and approvals are rejected.
 - The multisig account can safely evaluate which transactions are eligible for execution.
+
+
+## Expected Behavior
+Transaction proposals and approvals are stored on-chain until execution or removal.
+The multisig authenticator relies on this data to decide whether a transaction is authorized.
 
 ## Full Example Code
 The complete members module is available here:
@@ -106,12 +114,8 @@ The complete members module is available here:
 
 <TabItem value="move" label="Move">
 
-```move file=<rootDir>/examples/move/dynamic_multisig_account/sources/transactions.move
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/transactions.move
 ```
 
 </TabItem>
 </Tabs>
-
-## Expected Behavior
-Transaction proposals and approvals are stored on-chain until execution or removal.
-The multisig authenticator relies on this data to decide whether a transaction is authorized.

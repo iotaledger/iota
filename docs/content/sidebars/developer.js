@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 const tsSDK = require('./ts-sdk');
-const iotaSDK = require('./iota-sdk');
 const notarization = require("./notarization");
 const hierarchies = require('./hierarchies');
 const identity = require('./identity');
@@ -443,7 +442,11 @@ const developer = [
                                 'developer/move/how-tos/account-abstraction/transactions',
                             ],
                             },
-                            'developer/move/how-tos/account-abstraction/create-function-keys-store-authenticator'
+                            'developer/move/how-tos/account-abstraction/function-call-keys',
+                            'developer/move/how-tos/account-abstraction/create-iotaccount',
+                            'developer/move/how-tos/account-abstraction/create-public-key-authentication',
+                            'developer/move/how-tos/account-abstraction/create-time-locked-account',
+                            'developer/move/how-tos/account-abstraction/create-onesig-account',
                         ],
                     },
                     {
@@ -607,11 +610,6 @@ const developer = [
                 type: 'category',
                 label: 'TS SDK',
                 items: tsSDK,
-            },
-            {
-                type: 'category',
-                label: 'IOTA SDK',
-                items: iotaSDK,
             },
             'developer/references/rust-sdk',
         ],

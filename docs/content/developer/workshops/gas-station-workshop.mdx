@@ -12,11 +12,11 @@ Spark Mini is a sleek, gas-free microblogging platform built on IOTA testnet. Th
 
 ![Full Page](./images/spark-homepage.png)
 
-<h3>Why IOTA Gas Station?</h3>
+### Why IOTA Gas Station?
 
 In traditional blockchains, users must buy tokens, fund wallets, and pay `gas fees` for every action, like posting a message. This creates massive friction, preventing adoption. IOTA Gas Station solves this by letting dApp operators cover fees, so users focus on creating content. Spark Mini demonstrates this with a Twitter-like platform: posts are immutable on IOTA testnet, but completely free.
 
-<h3>Spark Mini Sponsored Transaction Flow</h3>
+### Spark Mini Sponsored Transaction Flow
 
 ```mermaid
 sequenceDiagram
@@ -40,9 +40,9 @@ sequenceDiagram
     Frontend->>Wallet: reportTransactionEffects(effects)
     Wallet-->>User: Shows "Transaction successful"
     Frontend->>User: Toast "Spark posted!"<br/>+ adds post with explorer link
-    ```
+```
 
-<h3>Learning Objectives</h3>
+### Learning Objectives
 
 By the end of this workshop, you will:
 
@@ -53,7 +53,7 @@ By the end of this workshop, you will:
 - Integrate the full sponsored flow: reserve gas, user sign, Gas Station co-sign/submit.
 - Test and debug your dApp with real testnet transactions.
 
-<h3>Prerequisites</h3>
+### Prerequisites
 
 Before starting, ensure you have:
 
@@ -100,7 +100,7 @@ cd gas-station/docker
 ../utils/./gas-station-tool.sh generate-sample-config --config-path config.yaml --docker-compose -n testnet
 ```
 
-<h3>Expected Output:</h3>
+### Expected Output:
 
 ```bash
 Generated a new IOTA address. If you plan to use it, please make sure it has enough funds: '0xc30e6509054a6399d54703de6f028dc4dc6648bd0d389b153dd02275dc846be2'
@@ -124,7 +124,7 @@ GAS_STATION_AUTH=supersecret123 docker compose up
 Set Up Authentication: Define a bearer token for the Gas Station API using the `GAS_STATION_AUTH` environment variable. If set, this token must be provided in all requests to the Gas Station, except for the `/` and `/version` endpoints. It can also be omitted to disable default authentication, e.g. if one wants to add a custom authentication to the server. In this case, requests against the Gas Station can be made without an authentication token.
 :::
 
-<h3>Expected Output:</h3>
+### Expected Output:
 
 When the gas station starts, it will perform the initial coin-splitting procedure. You should see logs similar to the following:
 
@@ -137,7 +137,7 @@ When the gas station starts, it will perform the initial coin-splitting procedur
 2024-12-16T17:12:49.383373Z  INFO iota_gas_station::rpc::server: listening on 0.0.0.0:9527
 ```
 
-<h3>Explanation:</h3>
+### Explanation:
 
 We are deploying the official, production-ready Gas Station using Docker. The `generate-sample-config` tool creates a testnet-ready configuration. The environment variable sets the auth token to `supersecret123`.
 
@@ -146,12 +146,12 @@ We are deploying the official, production-ready Gas Station using Docker. The `g
 ```Bash
 curl http://localhost:9527
 ```
-<h3>Expected output:</h3>
+### Expected output:
 
 ```JSON
 {"OK"}
 ```
-<h3>Explanation:</h3>
+### Explanation:
 
 A successful response confirms the RPC server is listening on port 9527 and ready to sponsor transactions, but make sure the sponsored address is funded.
 
@@ -174,7 +174,7 @@ npm install
 npm install @iota/dapp-kit @iota/iota-sdk @tanstack/react-query axios
 ```
 
-<h3>Explanation:</h3>
+### Explanation:
 We scaffold a modern Vite + React + TypeScript project and install:
 
 - @iota/dapp-kit – wallet connection and hooks
@@ -186,7 +186,7 @@ We scaffold a modern Vite + React + TypeScript project and install:
 ```Bash
 npm run dev
 ```
-<h3>Explanation:</h3>
+### Explanation:
 Your frontend is now live at http://localhost:5173. You’ll see a blank page for now, that’s expected.
 
 ## Part 2 – Wallet Connection with dApp Kit
@@ -225,7 +225,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   </React.StrictMode>
 );
 ```
-<h3>Explanation:</h3>
+### Explanation:
 
 These providers are mandatory for any dApp Kit hook to work (`useWallets`, `useSignTransaction`, etc.). The CSS import gives us the beautiful default ConnectButton styling.
 
@@ -258,7 +258,7 @@ export default function App() {
 }
 ```
 
-<h3>Explanation:</h3>
+### Explanation:
 
 `useWallets` returns all detected wallets. When a user connects, `accounts.length > 0`. The `ConnectButton` automatically opens the official modal and handles all wallet standards.
 Test it: Click Connect → Choose IOTA Wallet → Success! You now see your address.
@@ -267,122 +267,124 @@ Test it: Click Connect → Choose IOTA Wallet → Success! You now see your addr
 
 ## Part 3 – Implement the Sponsored Post Flow
 
-### 3.1 Add Constants & Imports
+In this section, we will transform a static UI into a functional, gas-less dApp. Instead of writing everything from scratch, we will start with a Scaffold that handles the UI and state, allowing us to focus entirely on the Gas Station logic.
+
+## 1. Setup the Scaffold
+
+First, ensure you have the starter code. If you haven't already, replace the contents of your `src/App.tsx` with the Scaffold Code found in this [file](https://github.com/iota-community/workshops/blob/main/workshop-module-9.1/spark-mini-workshop/frontend/src/App.tsx):
+
+:::tip
+ou can find the completed version of this code in src/reference/FullApp.tsx if you get stuck, but we recommend following the steps below to understand the flow.
+:::
+
+## 2. Building the `handlePost` Function
+
+Locate the `handlePost` function in `App.tsx`. We will now implement the logic across 8 distinct steps.
+
+## Step 1: Build the Transaction
+
+We start by defining what we want to do on-chain. We create a `Transaction` object and add a `moveCall` to our deployed contract. Notice we don't worry about gas yet; we just define the action.
 
 ```tsx
-// Top of src/App.tsx (add these)
-import { useIotaClient, useSignTransaction } from '@iota/dapp-kit';
-import { Transaction } from '@iota/iota-sdk/transactions';
-import axios from 'axios';
-
-const GAS_STATION_URL = '/api/gas';
-const GAS_STATION_AUTH = 'supersecret123';
-const PACKAGE_ID = '0x2'; // Official demo package
+const tx = new Transaction();
+tx.setSender(address);
+tx.moveCall({
+  target: `${PACKAGE_ID}::media::post_message`,
+  arguments: [tx.pure.string(content)],
+});
 ```
 
-<h3>Explanation:</h3>
+## Step 2: Reserve Gas from the Gas Station
 
-- P`ACKAGE_ID` is the official demo media package that contains post_message(string).
-- The Gas Station URL and auth token match our Docker setup.
-
-### 3.2 Full Post Handler (copy-paste this function)
+Before we can sign, we need a sponsor. We call our Gas Station API to request a gas reservation. The station will return a `reservation_id` and specific `gas_coins` it intends to use.
 
 ```tsx
-const client = useIotaClient();
-const { mutateAsync: signTransaction } = useSignTransaction();
-const [content, setContent] = useState('');
-const [posts, setPosts] = useState<Array<{content: string, author: string, txid: string}>>([]);
+const gasBudget = 50_000_000;
+const reserveRes = await axios.post(
+  `${GAS_STATION_URL}/v1/reserve_gas`,
+  { gas_budget: gasBudget, reserve_duration_secs: 400 },
+  { headers: { Authorization: `Bearer ${GAS_STATION_AUTH}` } }
+);
 
-  const handlePost = async () => {
-  if (!isConnected || !address || !content.trim()) {
-    showToast('Connect your wallet and write a spark first!');
-    return;
-  }
+const { sponsor_address, reservation_id, gas_coins } = reserveRes.data.result;
+```
 
-  setLoading(true);
-  try {
-    // 1. Build the transaction (gas-less at this point)
-    const tx = new Transaction();
-    tx.setSender(address);
-    tx.moveCall({
-      target: `${PACKAGE_ID}::media::post_message`,
-      arguments: [tx.pure.string(content)],
-    });
+## Step 3: Attach Sponsor's Gas Data
 
-    // 2. Reserve gas from your Gas Station
-    const gasBudget = 50_000_000;
-    const reserveRes = await axios.post(
-      `${GAS_STATION_URL}/v1/reserve_gas`,
-      { gas_budget: gasBudget, reserve_duration_secs: 120 },
-      { headers: { Authorization: `Bearer ${GAS_STATION_AUTH}` } }
-    );
+Now we "glue" the sponsor's info to our transaction. This tells the network that while we are the sender, the `sponsor_address` is the gas owner.
 
-    const { sponsor_address, reservation_id, gas_coins } = reserveRes.data.result;
+```tsx
+tx.setGasOwner(sponsor_address);
+tx.setGasPayment(gas_coins);
+tx.setGasBudget(gasBudget);
+```
 
-    // 3. Attach sponsor's gas data
-    tx.setGasOwner(sponsor_address);
-    tx.setGasPayment(gas_coins);
-    tx.setGasBudget(gasBudget);
+## Step 4: Build Unsigned Transaction Bytes
 
-    // 4. Build unsigned transaction bytes (needed for Gas Station)
-    const unsignedTxBytes = await tx.build({ client });
+The Gas Station and the wallet cannot read the JavaScript `tx` object directly. We must "build" it into raw bytes using the IOTA SDK.
 
-    // 5. User signs via dApp Kit hook (wallet popup appears)
-    const { signature, reportTransactionEffects } = await signTransaction({
-      transaction: tx,
-    });
+```tsx
+const unsignedTxBytes = await tx.build({ client });
+```
 
-    // 6. Send unsigned bytes + user signature to Gas Station for co-sign & submit
-    const txBytesBase64 = btoa(String.fromCharCode(...new Uint8Array(unsignedTxBytes)));
-    const executeRes = await axios.post(
-      `${GAS_STATION_URL}/v1/execute_tx`,
-      {
-        reservation_id,
-        tx_bytes: txBytesBase64,
-        user_sig: signature,
-      },
-      { headers: { Authorization: `Bearer ${GAS_STATION_AUTH}` } }
-    );
+## Step 5: User Signs via dApp Kit
 
-    const txDigest = executeRes.data.effects.transactionDigest;
+This is the moment the user sees a popup. They are signing the content of the transaction, but since we attached a sponsor in Step 3, they will see that the gas cost is 0 IOTA.
 
-    // 7. Report effects back to the wallet (required by useSignTransaction)
-    reportTransactionEffects(executeRes.data.effects);
+```tsx
+const { signature, reportTransactionEffects } = await signTransaction({
+  transaction: tx,
+});
+```
 
-    // 8. Update the UI
-    setPosts(prev => [
-      {
-        content,
-        author: address.slice(0, 10) + '...',
-        txid: txDigest,
-        timestamp: Date.now(),
-      },
-      ...prev,
-    ]);
-    setContent('');
-    showToast('Spark posted on-chain!');
+## Step 6: Execute via Gas Station
 
-  } catch (err) {
-    console.error('Post failed:', err);
+Instead of the user submitting the transaction, we send the user's signature and the transaction bytes back to the Gas Station. The station adds its own signature (co-signing) and submits it to the network.
 
-    let errorMessage = 'Transaction failed';
-    if (err instanceof Error) {
-      errorMessage = err.message;
-    } else if (err && typeof err === 'object' && 'response' in err) {
-      const axiosErr = err as { response?: { data?: { error?: string } } };
-      errorMessage = axiosErr.response?.data?.error ?? 'Request failed';
-    }
+```tsx
+const txBytesBase64 = btoa(String.fromCharCode(...new Uint8Array(unsignedTxBytes)));
+const executeRes = await axios.post(
+  `${GAS_STATION_URL}/v1/execute_tx`,
+  {
+    reservation_id,
+    tx_bytes: txBytesBase64,
+    user_sig: signature,
+  },
+  { headers: { Authorization: `Bearer ${GAS_STATION_AUTH}` } }
+);
 
-    showToast('Failed: ' + errorMessage);
-  } finally {
-    setLoading(false);
-  }
-};
+const txDigest = executeRes.data.effects.transactionDigest;
+```
+
+## Step 7: Report Effects to Wallet
+
+To keep the user's wallet state synchronized (so it knows the transaction was successful), we must report the effects back to the   useSignTransaction` hook.
+
+```tsx
+reportTransactionEffects(executeRes.data.effects);
+```
+
+## Step 8: Update the UI
+
+Finally, we update our local React state to show the new "Spark" and clear the input field for the next post.
+
+```tsx
+setPosts(prev => [
+  {
+    content,
+    author: address.slice(0, 10) + '...',
+    txid: txDigest,
+    timestamp: Date.now(),
+  },
+  ...prev,
+]);
+setContent('');
+showToast('Spark posted on-chain!');
 ```
 
 ![Full Page](./images/post-spark.png)
 
-<h3>Explanation:</h3>
+### Explanation:
 
 This is the complete sponsored transaction flow:
 
@@ -450,7 +452,7 @@ return (
 );
 ```
 
-<h3>Explanation:</h3>
+### Explanation:
 
 Clean, responsive UI with live feed and explorer links. Every post is permanently stored on IOTA testnet.
 

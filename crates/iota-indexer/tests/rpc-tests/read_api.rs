@@ -1961,6 +1961,7 @@ async fn failed_stored_tx_into_transaction_block() {
 }
 
 #[test]
+#[ignore = "https://github.com/iotaledger/iota/issues/10291"]
 fn get_chain_identifier_with_pruning_enabled() {
     let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
 

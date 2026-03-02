@@ -22,7 +22,11 @@ export function ObjectChangeDisplay({
     if (!display) return null;
 
     return (
-        <ExplorerLink objectID={objectId?.toString() ?? ''} type={ExplorerLinkType.Object}>
+        <ExplorerLink
+            objectID={objectId?.toString() ?? ''}
+            type={ExplorerLinkType.Object}
+            eventType="object"
+        >
             <Card type={CardType.Default} isHoverable>
                 <CardImage>
                     <NFTMediaRenderer

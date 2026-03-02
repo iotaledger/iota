@@ -27,11 +27,16 @@ async fn assert_get_objects_request(
     expected_field_mask_paths: &[&str],
     scenario: &str,
 ) -> Vec<GetObjectsResponse> {
-    let request = GetObjectsRequest {
-        requests: Some(ObjectRequests { requests }),
-        read_mask,
-        max_message_size_bytes,
-    };
+    let mut request = GetObjectsRequest::default()
+        .with_requests(ObjectRequests::default().with_requests(requests));
+
+    if let Some(mask) = read_mask {
+        request = request.with_read_mask(mask);
+    }
+
+    if let Some(size) = max_message_size_bytes {
+        request = request.with_max_message_size_bytes(size);
+    }
 
     let mut stream = ledger_client
         .get_objects(request)
@@ -100,21 +105,24 @@ async fn get_objects_readmask_scenarios() {
     let object_id = ObjectID::from_hex_literal("0x5").unwrap().to_string();
 
     // Tests for single-object readmask scenarios
-    type TestCase<'a> = (&'a str, Option<FieldMask>, &'a [&'a str]);
+    type TestCase<'a> = (&'a str, Option<FieldMask>, Vec<&'a str>);
     let test_cases: Vec<TestCase> = vec![
         (
             "default readmask",
             None,
-            &[
+            // GET_OBJECTS_READ_MASK = "reference,bcs"
+            // "reference" is a wildcard that expands to all its sub-fields.
+            vec![
                 "reference.object_id",
                 "reference.version",
                 "reference.digest",
+                "bcs",
             ],
         ),
         (
             "empty readmask",
             Some(FieldMask::from_paths(&[] as &[&str])),
-            &[],
+            vec![],
         ),
         (
             "full readmask",
@@ -124,7 +132,7 @@ async fn get_objects_readmask_scenarios() {
                 "reference.digest",
                 "bcs",
             ])),
-            &[
+            vec![
                 "reference.object_id",
                 "reference.version", // comment out to check absence of nested field
                 "reference.digest",
@@ -139,28 +147,25 @@ async fn get_objects_readmask_scenarios() {
                 "reference.object_id",
                 "reference.version",
             ])),
-            &["reference.object_id", "reference.version"],
+            vec!["reference.object_id", "reference.version"],
         ),
         (
             "partial readmask (bcs only)",
             Some(FieldMask::from_paths(["bcs"])),
-            &["bcs"],
+            vec!["bcs"],
         ),
     ];
 
     for (scenario, mask, expected_paths) in test_cases {
         let responses = assert_get_objects_request(
             &mut ledger_client,
-            vec![ObjectRequest {
-                object_ref: Some(ObjectReference {
-                    object_id: Some(object_id.clone()),
-                    version: None,
-                    digest: None,
-                }),
-            }],
+            vec![
+                ObjectRequest::default()
+                    .with_object_ref(ObjectReference::default().with_object_id(object_id.clone())),
+            ],
             mask,
             None,
-            expected_paths,
+            &expected_paths,
             scenario,
         )
         .await;
@@ -180,34 +185,14 @@ async fn get_objects_batch() {
     let responses = assert_get_objects_request(
         &mut ledger_client,
         vec![
-            ObjectRequest {
-                object_ref: Some(ObjectReference {
-                    object_id: Some("0x1".to_string()),
-                    version: None,
-                    digest: None,
-                }),
-            },
-            ObjectRequest {
-                object_ref: Some(ObjectReference {
-                    object_id: Some("0x2".to_string()),
-                    version: None,
-                    digest: None,
-                }),
-            },
-            ObjectRequest {
-                object_ref: Some(ObjectReference {
-                    object_id: Some("0x3".to_string()),
-                    version: None,
-                    digest: None,
-                }),
-            },
-            ObjectRequest {
-                object_ref: Some(ObjectReference {
-                    object_id: Some("0x5".to_string()),
-                    version: None,
-                    digest: None,
-                }),
-            },
+            ObjectRequest::default()
+                .with_object_ref(ObjectReference::default().with_object_id("0x1".to_string())),
+            ObjectRequest::default()
+                .with_object_ref(ObjectReference::default().with_object_id("0x2".to_string())),
+            ObjectRequest::default()
+                .with_object_ref(ObjectReference::default().with_object_id("0x3".to_string())),
+            ObjectRequest::default()
+                .with_object_ref(ObjectReference::default().with_object_id("0x5".to_string())),
         ],
         Some(FieldMask::from_paths(["reference.object_id", "bcs"])),
         None,
@@ -231,13 +216,13 @@ async fn get_objects_with_version() {
     // Request specific version
     let responses = assert_get_objects_request(
         &mut ledger_client,
-        vec![ObjectRequest {
-            object_ref: Some(ObjectReference {
-                object_id: Some(object_id),
-                version: Some(1),
-                digest: None,
-            }),
-        }],
+        vec![
+            ObjectRequest::default().with_object_ref(
+                ObjectReference::default()
+                    .with_object_id(object_id)
+                    .with_version(1),
+            ),
+        ],
         Some(FieldMask::from_paths([
             "reference.object_id",
             "reference.version",
@@ -272,13 +257,10 @@ async fn get_objects_streaming() {
     // around 2-3 MB)
     for _ in 0..20 {
         for obj_id in &known_objects {
-            requests.push(ObjectRequest {
-                object_ref: Some(ObjectReference {
-                    object_id: Some(obj_id.to_string()),
-                    version: None,
-                    digest: None,
-                }),
-            });
+            requests
+                .push(ObjectRequest::default().with_object_ref(
+                    ObjectReference::default().with_object_id(obj_id.to_string()),
+                ));
         }
     }
 
@@ -348,20 +330,10 @@ async fn get_objects_nonexistent() {
     let responses = assert_get_objects_request(
         &mut ledger_client,
         vec![
-            ObjectRequest {
-                object_ref: Some(ObjectReference {
-                    object_id: Some("0xdead".to_string()),
-                    version: None,
-                    digest: None,
-                }),
-            },
-            ObjectRequest {
-                object_ref: Some(ObjectReference {
-                    object_id: Some("0xbeef".to_string()),
-                    version: None,
-                    digest: None,
-                }),
-            },
+            ObjectRequest::default()
+                .with_object_ref(ObjectReference::default().with_object_id("0xdead".to_string())),
+            ObjectRequest::default()
+                .with_object_ref(ObjectReference::default().with_object_id("0xbeef".to_string())),
         ],
         None,
         None,

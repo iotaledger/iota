@@ -1,11 +1,16 @@
 ---
-title: Create a Basic Account Authenticator
 description: 'How to attach a basic authenticator to an account in Move'
 tags:
   - how-to
   - move-sc
   - move-vm
 ---
+
+import AccountAbstraction from '../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction />
+
+# Create a Basic Account Authenticator
 
 This How-To demonstrates how to create and attach a basic authenticator to an account.
 If you want to learn more about the concepts of Account Abstraction, check out the [Account Abstraction Introduction](../../explanations/account-abstraction.mdx).
@@ -36,7 +41,12 @@ If you want to learn more about the concepts of Account Abstraction, check out t
 - A transaction authorized through this authenticator succeeds when the message argument is `"hello"`.
 - The same transaction fails when the message argument differs.
 
-### Full Example Code
+## Expected Behavior
+
+After publishing the package, anyone can call `link_auth` to attach the authenticator to the shared account. The
+example authenticator accepts a message string and succeeds only when the message equals `"hello"`.
+
+## Full Example Code
 
 ```move file=<rootDir>/examples/move/account/sources/account.move
 ```

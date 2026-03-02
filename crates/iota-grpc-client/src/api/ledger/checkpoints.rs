@@ -2,6 +2,83 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! High-level API for checkpoint queries.
+//!
+//! # Available Read Mask Fields
+//!
+//! All checkpoint query methods support the following `read_mask` fields to
+//! control which data is included in the response:
+//!
+//! ## Checkpoint Fields
+//! - `checkpoint` - includes all checkpoint fields
+//!   - `checkpoint.sequence_number` - the sequence number of the checkpoint
+//!   - `checkpoint.summary` - includes all checkpoint summary fields
+//!     - `checkpoint.summary.digest` - the digest of the checkpoint summary
+//!     - `checkpoint.summary.bcs` - the full BCS-encoded checkpoint summary
+//!   - `checkpoint.contents` - includes all checkpoint contents fields
+//!     - `checkpoint.contents.digest` - the digest of the checkpoint contents
+//!     - `checkpoint.contents.bcs` - the full BCS-encoded checkpoint contents
+//!   - `checkpoint.signature` - the validator aggregated signature for the
+//!     checkpoint
+//!
+//! ## Transaction Fields
+//! - `transactions` - includes all executed transaction fields
+//!   - `transactions.transaction` - includes all transaction fields
+//!     - `transactions.transaction.digest` - the transaction digest
+//!     - `transactions.transaction.bcs` - the full BCS-encoded transaction
+//!   - `transactions.signatures` - includes all signature fields
+//!     - `transactions.signatures.bcs` - the full BCS-encoded signature
+//!   - `transactions.effects` - includes all effects fields
+//!     - `transactions.effects.digest` - the effects digest
+//!     - `transactions.effects.bcs` - the full BCS-encoded effects
+//!   - `transactions.events` - includes all event fields (all events of the
+//!     transaction)
+//!     - `transactions.events.digest` - the events digest
+//!     - `transactions.events.events` - includes all event fields
+//!       - `transactions.events.events.bcs` - the full BCS-encoded event
+//!       - `transactions.events.events.package_id` - the ID of the package that
+//!         emitted the event
+//!       - `transactions.events.events.module` - the module that emitted the
+//!         event
+//!       - `transactions.events.events.sender` - the sender that triggered the
+//!         event
+//!       - `transactions.events.events.event_type` - the type of the event
+//!       - `transactions.events.events.bcs_contents` - the full BCS-encoded
+//!         contents of the event
+//!       - `transactions.events.events.json_contents` - the JSON-encoded
+//!         contents of the event
+//!   - `transactions.checkpoint` - the checkpoint that included the transaction
+//!   - `transactions.timestamp` - the timestamp of the checkpoint that included
+//!     the transaction
+//!   - `transactions.input_objects` - includes all input object fields
+//!     - `transactions.input_objects.reference` - includes all reference fields
+//!       - `transactions.input_objects.reference.object_id` - the ID of the
+//!         input object
+//!       - `transactions.input_objects.reference.version` - the version of the
+//!         input object
+//!       - `transactions.input_objects.reference.digest` - the digest of the
+//!         input object contents
+//!     - `transactions.input_objects.bcs` - the full BCS-encoded object
+//!   - `transactions.output_objects` - includes all output object fields
+//!     - `transactions.output_objects.reference` - includes all reference
+//!       fields
+//!       - `transactions.output_objects.reference.object_id` - the ID of the
+//!         output object
+//!       - `transactions.output_objects.reference.version` - the version of the
+//!         output object
+//!       - `transactions.output_objects.reference.digest` - the digest of the
+//!         output object contents
+//!     - `transactions.output_objects.bcs` - the full BCS-encoded object
+//!
+//! ## Event Fields
+//! - `events` - includes all event fields (all events of all transactions in
+//!   the checkpoint)
+//!   - `events.bcs` - the full BCS-encoded event
+//!   - `events.package_id` - the ID of the package that emitted the event
+//!   - `events.module` - the module that emitted the event
+//!   - `events.sender` - the sender that triggered the event
+//!   - `events.event_type` - the type of the event
+//!   - `events.bcs_contents` - the full BCS-encoded contents of the event
+//!   - `events.json_contents` - the JSON-encoded contents of the event
 
 use std::pin::Pin;
 
@@ -20,7 +97,7 @@ use iota_sdk_types::{CheckpointSequenceNumber, Digest};
 use crate::{
     Client, Error,
     api::{
-        CHECKPOINT_READ_MASK, CheckpointResponse, Result, TryFromProtoError,
+        CheckpointResponse, GET_CHECKPOINT_READ_MASK, Result, TryFromProtoError,
         field_mask_with_default,
     },
 };
@@ -34,7 +111,9 @@ impl Client {
     /// # Parameters
     ///
     /// * `read_mask` - Optional field mask specifying which fields to include.
-    ///   If `None`, uses [`crate::api::CHECKPOINT_READ_MASK`] as default.
+    ///   If `None`, uses [`crate::api::GET_CHECKPOINT_READ_MASK`] as default.
+    ///   See [module-level documentation](crate::api::ledger::checkpoints) for
+    ///   all available fields.
     /// * `transactions_filter` - Optional filter to apply to transactions
     /// * `events_filter` - Optional filter to apply to events
     ///
@@ -73,7 +152,9 @@ impl Client {
     ///
     /// * `sequence_number` - The checkpoint sequence number to fetch
     /// * `read_mask` - Optional field mask specifying which fields to include.
-    ///   If `None`, uses [`crate::api::CHECKPOINT_READ_MASK`] as default.
+    ///   If `None`, uses [`crate::api::GET_CHECKPOINT_READ_MASK`] as default.
+    ///   See [module-level documentation](crate::api::ledger::checkpoints) for
+    ///   all available fields.
     /// * `transactions_filter` - Optional filter to apply to transactions
     /// * `events_filter` - Optional filter to apply to events
     ///
@@ -115,7 +196,9 @@ impl Client {
     ///
     /// * `digest` - The checkpoint digest to fetch
     /// * `read_mask` - Optional field mask specifying which fields to include.
-    ///   If `None`, uses [`crate::api::CHECKPOINT_READ_MASK`] as default.
+    ///   If `None`, uses [`crate::api::GET_CHECKPOINT_READ_MASK`] as default.
+    ///   See [module-level documentation](crate::api::ledger::checkpoints) for
+    ///   all available fields.
     /// * `transactions_filter` - Optional filter to apply to transactions
     /// * `events_filter` - Optional filter to apply to events
     ///
@@ -158,13 +241,31 @@ impl Client {
         transactions_filter: Option<grpc_filter::TransactionFilter>,
         events_filter: Option<grpc_filter::EventFilter>,
     ) -> Result<CheckpointResponse> {
-        let request = GetCheckpointDataRequest {
-            checkpoint_id: Some(checkpoint_id),
-            read_mask: Some(field_mask_with_default(read_mask, CHECKPOINT_READ_MASK)),
-            transactions_filter,
-            events_filter,
-            max_message_size_bytes: self.max_decoding_message_size().map(|s| s as u32),
-        };
+        let mut request = match checkpoint_id {
+            get_checkpoint_data_request::CheckpointId::Latest(val) => {
+                GetCheckpointDataRequest::default().with_latest(val)
+            }
+            get_checkpoint_data_request::CheckpointId::SequenceNumber(val) => {
+                GetCheckpointDataRequest::default().with_sequence_number(val)
+            }
+            get_checkpoint_data_request::CheckpointId::Digest(val) => {
+                GetCheckpointDataRequest::default().with_digest(val)
+            }
+            _ => {
+                return Err(Error::Protocol("Invalid checkpoint ID type".into()));
+            }
+        }
+        .with_read_mask(field_mask_with_default(read_mask, GET_CHECKPOINT_READ_MASK));
+
+        if let Some(tf) = transactions_filter {
+            request = request.with_transactions_filter(tf);
+        }
+        if let Some(ef) = events_filter {
+            request = request.with_events_filter(ef);
+        }
+        if let Some(max_size) = self.max_decoding_message_size().map(|s| s as u32) {
+            request = request.with_max_message_size_bytes(max_size);
+        }
 
         let mut client = self.ledger_service_client();
         let stream = client.get_checkpoint_data(request).await?.into_inner();
@@ -191,7 +292,9 @@ impl Client {
     /// * `end_sequence_number` - Optional ending checkpoint. If `None`, streams
     ///   indefinitely.
     /// * `read_mask` - Optional field mask specifying which fields to include.
-    ///   If `None`, uses [`crate::api::CHECKPOINT_READ_MASK`] as default.
+    ///   If `None`, uses [`crate::api::GET_CHECKPOINT_READ_MASK`] as default.
+    ///   See [module-level documentation](crate::api::ledger::checkpoints) for
+    ///   all available fields.
     /// * `transactions_filter` - Optional filter to apply to transactions
     /// * `events_filter` - Optional filter to apply to events
     ///
@@ -221,14 +324,24 @@ impl Client {
         transactions_filter: Option<grpc_filter::TransactionFilter>,
         events_filter: Option<grpc_filter::EventFilter>,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<CheckpointResponse>> + Send>>> {
-        let request = CheckpointDataStreamRequest {
-            start_sequence_number,
-            end_sequence_number,
-            read_mask: Some(field_mask_with_default(read_mask, CHECKPOINT_READ_MASK)),
-            transactions_filter,
-            events_filter,
-            max_message_size_bytes: self.max_decoding_message_size().map(|s| s as u32),
-        };
+        let mut request = CheckpointDataStreamRequest::default()
+            .with_read_mask(field_mask_with_default(read_mask, GET_CHECKPOINT_READ_MASK));
+
+        if let Some(start) = start_sequence_number {
+            request = request.with_start_sequence_number(start);
+        }
+        if let Some(end) = end_sequence_number {
+            request = request.with_end_sequence_number(end);
+        }
+        if let Some(tf) = transactions_filter {
+            request = request.with_transactions_filter(tf);
+        }
+        if let Some(ef) = events_filter {
+            request = request.with_events_filter(ef);
+        }
+        if let Some(max_size) = self.max_decoding_message_size().map(|s| s as u32) {
+            request = request.with_max_message_size_bytes(max_size);
+        }
 
         let mut client = self.ledger_service_client();
         let stream = client.stream_checkpoint_data(request).await?.into_inner();
@@ -277,7 +390,7 @@ impl Client {
 
                         // Start of new checkpoint - throw error if previous checkpoint was incomplete
                         if current_sequence_number.is_some() {
-                            Err(Error::server("Received new chunked checkpoint header before completing previous checkpoint"))?;
+                            Err(Error::Protocol("Received new chunked checkpoint header before completing previous checkpoint".into()))?;
                         }
                         current_sequence_number = checkpoint.sequence_number;
 
@@ -296,18 +409,18 @@ impl Client {
                         current_events.clear();
                     }
 
-                    Some(checkpoint_data::Payload::Transactions(txs)) => {
+                    Some(checkpoint_data::Payload::ExecutedTransactions(txs)) => {
                         if current_sequence_number.is_none() {
-                            Err(Error::server("Received new chunked checkpoint transactions before receiving checkpoint header"))?;
+                            Err(Error::Protocol("Received new chunked checkpoint transactions before receiving checkpoint header".into()))?;
                         }
 
                         // Accumulate proto transactions (no deserialization)
-                        current_transactions.extend(txs.transactions.into_iter());
+                        current_transactions.extend(txs.executed_transactions.into_iter());
                     }
 
                     Some(checkpoint_data::Payload::Events(events)) => {
                         if current_sequence_number.is_none() {
-                            Err(Error::server("Received new chunked checkpoint events before receiving checkpoint header"))?;
+                            Err(Error::Protocol("Received new chunked checkpoint events before receiving checkpoint header".into()))?;
                         }
 
                         // Accumulate proto events (no deserialization)
@@ -318,13 +431,13 @@ impl Client {
                         // End of current checkpoint - assemble the result and yield it
                          let sequence_number = current_sequence_number
                         .take()
-                        .ok_or_else(|| -> Error { Error::server("Received checkpoint end marker before receiving checkpoint header") })?;
+                        .ok_or_else(|| -> Error { Error::Protocol("Received checkpoint end marker before receiving checkpoint header".into()) })?;
 
                         let marker_sequence_number = marker.sequence_number
                         .ok_or_else(|| -> Error { TryFromProtoError::missing("end_marker.sequence_number").into() })?;
 
                         if marker_sequence_number != sequence_number {
-                            Err(Error::server(format!(
+                            Err(Error::Protocol(format!(
                                 "EndMarker sequence_number {marker_sequence_number} does not match current checkpoint sequence_number {sequence_number:?}",
                             )))?;
                         }
@@ -334,7 +447,7 @@ impl Client {
                             summary: current_summary.take(),
                             signature: current_signature.take(),
                             contents: current_contents.take(),
-                            transactions: std::mem::take(&mut current_transactions),
+                            executed_transactions: std::mem::take(&mut current_transactions),
                             events: std::mem::take(&mut current_events),
                         };
 
@@ -345,12 +458,17 @@ impl Client {
                         // Empty payload - skip
                         continue;
                     }
+
+                    Some(_) => {
+                        // Unknown payload type
+                        Err(Error::Protocol("Received unknown checkpoint data payload type".into()))?;
+                    }
                 }
             }
 
             // Check if stream ended with incomplete checkpoint data
             if let Some(sequence_number) = current_sequence_number {
-                Err(Error::server(format!(
+                Err(Error::Protocol(format!(
                     "Stream ended with incomplete checkpoint data for sequence number {sequence_number}"
                 )))?;
             }

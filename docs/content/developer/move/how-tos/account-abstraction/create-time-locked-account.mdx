@@ -1,0 +1,315 @@
+---
+title: Time-Locked IOTAccount
+description: "How to create and manage time-locked accounts with unlock time restrictions"
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+---
+
+import AccountAbstraction from '../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction /> 
+
+## About Time-Locked Accounts
+
+Time-locked accounts combine public key authentication with time-based access control. An account remains locked until a specified unlock time (Unix timestamp in milliseconds) is reached. This enables delayed access scenarios like vesting schedules, future payments, or timed releases.
+
+The unlock time is stored as a dynamic field, and authenticators verify both the signature and whether the current time has passed the unlock threshold.
+
+## What this example shows
+
+- Create a time-locked IOTAccount with a public key and unlock time.
+- Authenticate using both signature verification and time checks.
+- Support two time sources: Clock object or epoch timestamp.
+- Manage (attach, rotate, remove) unlock times on accounts.
+
+## How it works
+
+### Step 1: Create time-locked account
+
+Create an IOTAccount that requires both a valid signature and a time check before allowing transactions.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/time_locked/sources/time_locked_iotaccount.move#L36-L63
+```
+
+**What this does**
+- Creates a new IOTAccount with both public key and unlock time protection.
+- The `unlock_time` is a Unix timestamp in milliseconds (e.g., `1234567890000`).
+- Optionally sets an admin address for account management.
+- The account cannot be used until the current time reaches or exceeds the unlock time.
+
+### Step 2: Attach unlock time to account builder
+
+Helper function to add unlock time when building an account through the builder pattern.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/time_locked/sources/time_locked_iotaccount.move#L65-L68
+```
+
+**What this does**
+- Adds unlock time as a dynamic field during account construction.
+- Enables flexible account setup with multiple configuration options.
+
+### Step 3: Manage unlock time (rotate, add, remove)
+
+Functions to update or remove time-based restrictions after account creation.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/time_locked/sources/time_locked_iotaccount.move#L73-L91
+```
+
+**What this does**
+- `rotate_unlock_time`: Updates the unlock time and optionally the public key and authenticator.
+- `add_unlock_time`: Adds time-lock protection to an existing account.
+- `remove_unlock_time`: Removes time-based restrictions entirely.
+
+### Step 4: Authenticate with Clock object
+
+Verifies both the signature and that the Clock's current time has passed the unlock time.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/time_locked/sources/time_locked_iotaccount.move#L111-L124
+```
+
+**What this does**
+- First verifies the Ed25519 signature against the stored public key.
+- Then checks if the Clock object's timestamp is greater than or equal to the unlock time.
+- Transactions fail if either check fails.
+
+
+
+### Step 5: Authenticate with epoch timestamp
+
+Alternative authentication using the transaction context's epoch timestamp instead of Clock.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/time_locked/sources/time_locked_iotaccount.move#L130-L142
+```
+
+**What this does**
+- Verifies the Ed25519 signature.
+- Uses epoch timestamp from transaction context (no Clock object needed).
+- Suitable when Clock object access is not available or desired.
+
+
+### Step 6: Core unlock time verification
+
+The underlying authentication logic that enforces the time lock.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/time_locked/sources/unlock_time_authentication.move#L71-L79
+```
+
+**What this does**
+- Retrieves the stored unlock time from the account's dynamic fields.
+- Compares current time against unlock time.
+- Rejects transactions if `current_time < unlock_time`.
+
+### Step 7: Attach and manage unlock time (low-level)
+
+Core functions for managing unlock time data as dynamic fields.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/time_locked/sources/unlock_time_authentication.move#L33-L53
+```
+
+
+**What this does**
+- `attach_unlock_time`: Adds unlock time to an account's UID.
+- `detach_unlock_time`: Removes unlock time and returns the value.
+- `rotate_unlock_time`: Updates the unlock time to a new value.
+- These are the underlying primitives used by higher-level account functions.
+
+### Step 8: View and query unlock time
+```move file=<rootDir>/examples/move/abstract_iota_accounts/time_locked/sources/time_locked_iotaccount.move#L147-L154
+```
+
+**What this does**
+- `has_unlock_time`: Checks if an account has a time lock configured.
+- `borrow_unlock_time`: Returns a reference to the unlock timestamp.
+- Useful for querying account status before attempting transactions.
+
+## Verify the result:
+
+**Create time-locked account**
+```bash
+# Set unlock time (Unix timestamp in milliseconds)
+export UNLOCK_TIME=1234
+export PTB_JSON=$(iota client ptb \
+--move-call 0x2::authenticator_function::create_auth_function_ref_v1 '<'$PACKAGE_ID'::'$ACCOUNT_MODULE_NAME'::'$ACCOUNT_TYPE_NAME'>' @$METADATA_ID '"'$AUTH_MODULE_NAME'"' '"'$AUTH_FUNCTION_NAME'"' \
+--assign ref \
+--move-call $PACKAGE_ID::$CREATE_MODULE_NAME::$CREATE_FUNCTION_NAME vector"$SIGN_PUB_KEY_BYTES" none $UNLOCK_TIME ref \
+--json)
+export ABSTRACTACCOUNT=$(echo $PTB_JSON | jq -r '.objectChanges[] | select(.type == "created" and (.objectType | endswith("::'$ACCOUNT_MODULE_NAME'::'$ACCOUNT_TYPE_NAME'"))) | .objectId')
+echo "Account Object ID: $ABSTRACTACCOUNT"
+```
+<details>
+<summary>Expected output</summary>
+```bash
+Account Object ID: 0xa63447d71fbf96c819b1.....
+```
+</details>
+
+
+**Execute transaction with time-lock authentication**
+```bash
+export CLOCK_ID="0x6"
+export SIGNED_TX_BYTES=$(iota client pay-iota --recipients 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 --amounts 1 --auth-call-args $CLOCK_ID 0x$SIGNATURE_HEX --serialize-signed-transaction)
+echo "Signed tx bytes: $SIGNED_TX_BYTES"
+iota client execute-combined-signed-tx --signed-tx-bytes $SIGNED_TX_BYTES
+```
+
+<details>
+<summary>Expected output</summary>
+```bash
+Signed tx bytes: AQAAAAAAAgAIAQAAAAAAAAAAIBEREREVBOk1DmNdZc04zNLAKUNMajpIDYlHqbpqFbIVAgIAAQEAAAEBAwAAAAABAQCmNEfXH7+WyBmx//4MgutDGNn65FAhF3ARTh+8o+iFdQHwltcOuLYztur66+EKvHyPEJgrPeKcmqn9CnYR7ioJ6QIAAAAAAAAAIPHF+5rOt1puD1K1KJE11MwTTR6Q16/WBiBsxnPHhlPfpjRH1x+/lsgZsf/+DILrQxjZ+uRQIRdwEU4fvKPohXXoAwAAAAAAAOBvPAAAAAAAAAGcAQcCAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABgEAAAAAAAAAAABBQGiC0ez3ym3NaPiqvIWrjzS/sIxqwtoIBxVv3nuXooRgaNVy2BaaKoVXhBgU5QT1jX5FSXqn0tz3eAqxJowUugcAAQGmNEfXH7+WyBmx//4MgutDGNn65FAhF3ARTh+8o+iFdQQAAAAAAAAAAA==
+Transaction Digest: FGj7R8qpmG94YrdpjLQe5VTAQbqEHobsEpruf87rEyCc
+╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Transaction Data                                                                                                                                                                                                    │
+├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Sender: 0xa63447d71fbf96c819b1fffe0c82eb4318d9fae450211770114e1fbca3e88575                                                                                                                                          │
+│ Gas Owner: 0xa63447d71fbf96c819b1fffe0c82eb4318d9fae450211770114e1fbca3e88575                                                                                                                                       │
+│ Gas Budget: 3960800 NANOS                                                                                                                                                                                           │
+│ Gas Price: 1000 NANOS                                                                                                                                                                                               │
+│ Gas Payment:                                                                                                                                                                                                        │
+│  ┌──                                                                                                                                                                                                                │
+│  │ ID: 0xf096d70eb8b633b6eafaebe10abc7c8f10982b3de29c9aa9fd0a7611ee2a09e9                                                                                                                                           │
+│  │ Version: 2                                                                                                                                                                                                       │
+│  │ Digest: HGnMRjW5iu5r46igzhAF5Dyh4jprs2u7ciFcXVRo8ZG2                                                                                                                                                             │
+│  └──                                                                                                                                                                                                                │
+│                                                                                                                                                                                                                     │
+│ Transaction Kind: Programmable                                                                                                                                                                                      │
+│ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────╮                                                                                                        │
+│ │ Input Objects                                                                                            │                                                                                                        │
+│ ├──────────────────────────────────────────────────────────────────────────────────────────────────────────┤                                                                                                        │
+│ │ 0   Pure Arg: Type: u64, Value: "1"                                                                      │                                                                                                        │
+│ │ 1   Pure Arg: Type: address, Value: "0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215" │                                                                                                        │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯                                                                                                        │
+│ ╭─────────────────────────╮                                                                                                                                                                                         │
+│ │ Commands                │                                                                                                                                                                                         │
+│ ├─────────────────────────┤                                                                                                                                                                                         │
+│ │ 0  SplitCoins:          │                                                                                                                                                                                         │
+│ │  ┌                      │                                                                                                                                                                                         │
+│ │  │ Coin: GasCoin        │                                                                                                                                                                                         │
+│ │  │ Amounts:             │                                                                                                                                                                                         │
+│ │  │   Input  0           │                                                                                                                                                                                         │
+│ │  └                      │                                                                                                                                                                                         │
+│ │                         │                                                                                                                                                                                         │
+│ │ 1  TransferObjects:     │                                                                                                                                                                                         │
+│ │  ┌                      │                                                                                                                                                                                         │
+│ │  │ Arguments:           │                                                                                                                                                                                         │
+│ │  │   Nested Result 0: 0 │                                                                                                                                                                                         │
+│ │  │ Address: Input  1    │                                                                                                                                                                                         │
+│ │  └                      │                                                                                                                                                                                         │
+│ ╰─────────────────────────╯                                                                                                                                                                                         │
+│                                                                                                                                                                                                                     │
+│ Signatures:                                                                                                                                                                                                         │
+│    BwIBAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGAQAAAAAAAAAAAEFAaILR7PfKbc1o+Kq8hauPNL+wjGrC2ggHFW/ee5eihGBo1XLYFpoqhVeEGBTlBPWNfkVJeqfS3Pd4CrEmjBS6BwABAaY0R9cfv5bIGbH//gyC60MY2frkUCEXcBFOH7yj6IV1BAAAAAAAAAAA │
+│                                                                                                                                                                                                                     │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Transaction Effects                                                                               │
+├───────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Digest: FGj7R8qpmG94YrdpjLQe5VTAQbqEHobsEpruf87rEyCc                                              │
+│ Status: Success                                                                                   │
+│ Executed Epoch: 4                                                                                 │
+│                                                                                                   │
+│ Created Objects:                                                                                  │
+│  ┌──                                                                                              │
+│  │ ID: 0x87b35e4a016d92a87bb941a6bfe8d1a1e6ea98bf5ee9acfd93601e3f2a04c5e8                         │
+│  │ Owner: Account Address ( 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 )  │
+│  │ Version: 1102                                                                                  │
+│  │ Digest: 6NxPxhKjLG5oj28A274EtwusWVc9aKcnic7SE12JEFD9                                           │
+│  └──                                                                                              │
+│ Mutated Objects:                                                                                  │
+│  ┌──                                                                                              │
+│  │ ID: 0xf096d70eb8b633b6eafaebe10abc7c8f10982b3de29c9aa9fd0a7611ee2a09e9                         │
+│  │ Owner: Account Address ( 0xa63447d71fbf96c819b1fffe0c82eb4318d9fae450211770114e1fbca3e88575 )  │
+│  │ Version: 1102                                                                                  │
+│  │ Digest: F8Bn8YK39cMob6xZfCEsrXNHRoYMF98wGxu8VrWo9Psn                                           │
+│  └──                                                                                              │
+│ Shared Objects:                                                                                   │
+│  ┌──                                                                                              │
+│  │ ID: 0x0000000000000000000000000000000000000000000000000000000000000006                         │
+│  │ Version: 1101                                                                                  │
+│  │ Digest: 5aEaGMun4uJepc8EMxhk3wX6xokWADwdGGRvBhWshKyf                                           │
+│  └──                                                                                              │
+│  ┌──                                                                                              │
+│  │ ID: 0xa63447d71fbf96c819b1fffe0c82eb4318d9fae450211770114e1fbca3e88575                         │
+│  │ Version: 4                                                                                     │
+│  │ Digest: DYfUR4UsR4TAvZXLd1UbiMS6sevayQD3oRSD4mtVuWah                                           │
+│  └──                                                                                              │
+│ Gas Object:                                                                                       │
+│  ┌──                                                                                              │
+│  │ ID: 0xf096d70eb8b633b6eafaebe10abc7c8f10982b3de29c9aa9fd0a7611ee2a09e9                         │
+│  │ Owner: Account Address ( 0xa63447d71fbf96c819b1fffe0c82eb4318d9fae450211770114e1fbca3e88575 )  │
+│  │ Version: 1102                                                                                  │
+│  │ Digest: F8Bn8YK39cMob6xZfCEsrXNHRoYMF98wGxu8VrWo9Psn                                           │
+│  └──                                                                                              │
+│ Gas Cost Summary:                                                                                 │
+│    Storage Cost: 1960800 NANOS                                                                    │
+│    Computation Cost: 1000000 NANOS                                                                │
+│    Computation Cost Burned: 1000000 NANOS                                                         │
+│    Storage Rebate: 980400 NANOS                                                                   │
+│    Non-refundable Storage Fee: 0 NANOS                                                            │
+│                                                                                                   │
+│ Transaction Dependencies:                                                                         │
+│    79nH2PFZGhXj6t6xTUm2jRtAwv8E8PDnj5Jht2Y2sszY                                                   │
+│    7bkhs9NwDT6jeUQPXKGsLYdpr6gjwhd28xLtTs6yDZpT                                                   │
+│    HsNsePpqMHX4fJguSksG3feJfEgQaN8TzDD5ctURYHmh                                                   │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────╮
+│ No transaction block events │
+╰─────────────────────────────╯
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Object Changes                                                                                   │
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Created Objects:                                                                                 │
+│  ┌──                                                                                             │
+│  │ ObjectID: 0x87b35e4a016d92a87bb941a6bfe8d1a1e6ea98bf5ee9acfd93601e3f2a04c5e8                  │
+│  │ Sender: 0xa63447d71fbf96c819b1fffe0c82eb4318d9fae450211770114e1fbca3e88575                    │
+│  │ Owner: Account Address ( 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 ) │
+│  │ ObjectType: 0x2::coin::Coin<0x2::iota::IOTA>                                                  │
+│  │ Version: 1102                                                                                 │
+│  │ Digest: 6NxPxhKjLG5oj28A274EtwusWVc9aKcnic7SE12JEFD9                                          │
+│  └──                                                                                             │
+│ Mutated Objects:                                                                                 │
+│  ┌──                                                                                             │
+│  │ ObjectID: 0xf096d70eb8b633b6eafaebe10abc7c8f10982b3de29c9aa9fd0a7611ee2a09e9                  │
+│  │ Sender: 0xa63447d71fbf96c819b1fffe0c82eb4318d9fae450211770114e1fbca3e88575                    │
+│  │ Owner: Account Address ( 0xa63447d71fbf96c819b1fffe0c82eb4318d9fae450211770114e1fbca3e88575 ) │
+│  │ ObjectType: 0x2::coin::Coin<0x2::iota::IOTA>                                                  │
+│  │ Version: 1102                                                                                 │
+│  │ Digest: F8Bn8YK39cMob6xZfCEsrXNHRoYMF98wGxu8VrWo9Psn                                          │
+│  └──                                                                                             │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Balance Changes                                                                                   │
+├───────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  ┌──                                                                                              │
+│  │ Owner: Account Address ( 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 )  │
+│  │ CoinType: 0x2::iota::IOTA                                                                      │
+│  │ Amount: 1                                                                                      │
+│  └──                                                                                              │
+│  ┌──                                                                                              │
+│  │ Owner: Account Address ( 0xa63447d71fbf96c819b1fffe0c82eb4318d9fae450211770114e1fbca3e88575 )  │
+│  │ CoinType: 0x2::iota::IOTA                                                                      │
+│  │ Amount: -1980401                                                                               │
+│  └──                                                                                              │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
+</details>
+
+## Expected Behavior
+- Transactions fail with `EAccountStillLocked` error if executed before the unlock time.
+- Once the unlock time is reached, transactions succeed with valid signatures.
+- Two authenticator options: Clock-based (requires Clock object) or epoch-based (uses transaction context).
+- The unlock time can be rotated to extend or shorten the lock period.
+
+## Full Example Code
+
+The complete Move package, including comments and setup logic, is available here:
+
+<Tabs groupId="language" queryString>
+
+<TabItem value="move" label="Move">
+
+**Time-locked IOTAccount module:**
+```move file=<rootDir>/examples/move/abstract_iota_accounts/time_locked/sources/time_locked_iotaccount.move
+```
+
+**Unlock time authentication helpers:**
+```move file=<rootDir>/examples/move/abstract_iota_accounts/time_locked/sources/unlock_time_authentication.move
+```
+
+</TabItem>
+</Tabs>

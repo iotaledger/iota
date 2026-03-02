@@ -26,6 +26,9 @@ export function ExportAccountPage() {
             if (!account || isLedgerAccount || isPasskeyAccount) {
                 return null;
             }
+            if (password) {
+                await backgroundClient.unlockAllAccountsAndSources({ password });
+            }
             return (
                 await backgroundClient.exportAccountKeyPair({
                     password,
@@ -59,6 +62,7 @@ export function ExportAccountPage() {
                                 value={publicKey ? publicKey.toIotaPublicKey() : ''}
                                 copiedMessage="Public Key copied"
                                 isContentVisible={true}
+                                eventType="public key"
                             />
                         </div>
 
@@ -79,6 +83,7 @@ export function ExportAccountPage() {
                                         <HideShowDisplayBox
                                             value={exportMutation.data}
                                             copiedMessage="Private Key copied"
+                                            eventType="private key"
                                         />
                                     </div>
                                 ) : (

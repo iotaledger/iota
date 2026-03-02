@@ -3,144 +3,47 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_config::node::ExpensiveSafetyCheckConfig;
-use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
-use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
-use iota_sdk::{IotaClient, IotaClientBuilder};
+use iota_macros::sim_test;
 use iota_types::{base_types::IotaAddress, digests::TransactionDigest};
+use test_cluster::TestClusterBuilder;
 
-use crate::{
-    LocalExec,
-    config::ReplayableNetworkConfigSet,
-    types::{MAX_CONCURRENT_REQUESTS, RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD, ReplayEngineError},
-};
+use crate::{LocalExec, types::ReplayEngineError};
 
-/// Keep searching for non-system TXs in the checkpoints for this long
-/// Very unlikely to take this long, but we want to be sure we find one
-const NUM_CHECKPOINTS_TO_ATTEMPT: usize = 10_000;
+/// Spawns a local network, submits a transfer transaction, then replays it
+/// using LocalExec and verifies the effects match.
+#[sim_test]
+async fn verify_tx_replay() {
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let rpc_url = test_cluster.rpc_url();
 
-/// Checks that replaying the latest tx on each testnet and mainnet does not
-/// fail
-#[tokio::test]
-#[ignore = "https://github.com/iotaledger/iota/issues/5031"]
-async fn verify_latest_tx_replay_testnet_mainnet() {
-    let _ = verify_latest_tx_replay_impl().await;
-}
+    // Advance past epoch 0 since the replay engine does not support it
+    test_cluster.force_new_epoch().await;
 
-async fn verify_latest_tx_replay_impl() {
-    let default_cfg = ReplayableNetworkConfigSet::default();
-    let urls: Vec<_> = default_cfg
-        .base_network_configs
-        .iter()
-        // TODO: enable this when mainnet is launched
-        .filter(|q| q.name != "devnet" && q.name != "mainnet") // Devnet is not always stable, mainnet is not ready
-        .map(|c| c.public_full_node.clone())
-        .collect();
-
-    let mut handles = vec![];
-    for url in urls {
-        handles.push(tokio::spawn(async move {
-            {
-                let mut num_checkpoint_trials_left = NUM_CHECKPOINTS_TO_ATTEMPT;
-                let rpc_client = IotaClientBuilder::default()
-                    .request_timeout(RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD)
-                    .max_concurrent_requests(MAX_CONCURRENT_REQUESTS)
-                    .build(&url)
-                    .await
-                    .unwrap();
-
-                let chain_id = rpc_client.read_api().get_chain_identifier().await.unwrap();
-
-                let mut subject_checkpoint = rpc_client
-                    .read_api()
-                    .get_latest_checkpoint_sequence_number()
-                    .await
-                    .unwrap();
-                let txs = rpc_client
-                    .read_api()
-                    .get_checkpoint(subject_checkpoint.into())
-                    .await
-                    .unwrap()
-                    .transactions;
-
-                let mut non_system_txs = extract_one_no_system_tx(&rpc_client, txs).await;
-                num_checkpoint_trials_left -= 1;
-                while non_system_txs.is_none() && num_checkpoint_trials_left > 0 {
-                    num_checkpoint_trials_left -= 1;
-                    subject_checkpoint -= 1;
-                    let txs = rpc_client
-                        .read_api()
-                        .get_checkpoint(subject_checkpoint.into())
-                        .await
-                        .unwrap()
-                        .transactions;
-                    non_system_txs = extract_one_no_system_tx(&rpc_client, txs).await;
-                }
-
-                if non_system_txs.is_none() {
-                    panic!(
-                        "No non-system txs found in the last {NUM_CHECKPOINTS_TO_ATTEMPT} checkpoints for network {chain_id} using rpc url {url}"
-                    );
-                }
-                let tx: TransactionDigest = non_system_txs.unwrap();
-                (url.clone(), execute_replay(&url, &tx)
-                    .await
-            )
-            }
-        }));
-    }
-
-    let rets = futures::future::join_all(handles)
+    // Build and execute a simple transfer transaction
+    let tx_data = test_cluster
+        .test_transaction_builder()
         .await
-        .into_iter()
-        .collect::<Result<Vec<_>, _>>()
-        .expect("Join all failed");
+        .transfer_iota(Some(1_000_000_000), IotaAddress::ZERO)
+        .build();
+    let response = test_cluster.sign_and_execute_transaction(&tx_data).await;
+    let tx_digest = response.digest;
 
-    for (url, ret) in rets {
-        if let Err(e) = ret {
-            panic!("Replay failed for network {url} with error {e:?}");
-        }
-    }
+    // Replay with authority certificate execution
+    execute_replay(rpc_url, &tx_digest, true)
+        .await
+        .expect("Replay with authority failed");
+
+    // Replay with execution engine
+    execute_replay(rpc_url, &tx_digest, false)
+        .await
+        .expect("Replay with execution engine failed");
 }
 
-async fn extract_one_no_system_tx(
-    rpc_client: &IotaClient,
-    mut txs: Vec<TransactionDigest>,
-) -> Option<TransactionDigest> {
-    let opts = IotaTransactionBlockResponseOptions::full_content();
-    txs.retain(|q| *q != TransactionDigest::genesis_marker());
-
-    for ch in txs.chunks(*QUERY_MAX_RESULT_LIMIT) {
-        match rpc_client
-            .read_api()
-            .multi_get_transactions_with_options(ch.to_vec(), opts.clone())
-            .await
-            .unwrap()
-            .into_iter()
-            .filter_map(|x| {
-                if match x.transaction.unwrap().data {
-                    iota_json_rpc_types::IotaTransactionBlockData::V1(tx) => tx.sender,
-                } != IotaAddress::ZERO
-                {
-                    Some(x.digest)
-                } else {
-                    None
-                }
-            })
-            .next()
-        {
-            Some(tx) => {
-                tokio::task::yield_now().await;
-                return Some(tx);
-            }
-            None => {
-                continue;
-            }
-        }
-    }
-    None
-}
-
-async fn execute_replay(url: &str, tx: &TransactionDigest) -> Result<(), ReplayEngineError> {
+async fn execute_replay(
+    url: &str,
+    tx: &TransactionDigest,
+    use_authority: bool,
+) -> Result<(), ReplayEngineError> {
     LocalExec::new_from_fn_url(url)
         .await?
         .init_for_execution()
@@ -148,7 +51,7 @@ async fn execute_replay(url: &str, tx: &TransactionDigest) -> Result<(), ReplayE
         .execute_transaction(
             tx,
             ExpensiveSafetyCheckConfig::default(),
-            true,
+            use_authority,
             None,
             None,
             None,
@@ -156,23 +59,5 @@ async fn execute_replay(url: &str, tx: &TransactionDigest) -> Result<(), ReplayE
         )
         .await?
         .check_effects()?;
-    tokio::task::yield_now().await;
-    LocalExec::new_from_fn_url(url)
-        .await?
-        .init_for_execution()
-        .await?
-        .execute_transaction(
-            tx,
-            ExpensiveSafetyCheckConfig::default(),
-            false,
-            None,
-            None,
-            None,
-            None,
-        )
-        .await?
-        .check_effects()?;
-    tokio::task::yield_now().await;
-
     Ok(())
 }

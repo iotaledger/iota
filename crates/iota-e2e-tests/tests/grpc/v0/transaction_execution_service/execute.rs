@@ -29,10 +29,14 @@ async fn assert_execute_transaction_request(
     scenario: &str,
 ) -> ExecuteTransactionResponse {
     let response = exec_client
-        .execute_transaction(ExecuteTransactionRequest {
-            transaction: Some(transaction),
-            signatures: Some(signatures),
-            read_mask,
+        .execute_transaction({
+            let mut req = ExecuteTransactionRequest::default()
+                .with_transaction(transaction)
+                .with_signatures(signatures);
+            if let Some(mask) = read_mask {
+                req = req.with_read_mask(mask);
+            }
+            req
         })
         .await
         .unwrap()
@@ -51,49 +55,61 @@ async fn execute_transaction_readmask_scenarios() {
     let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
     let amount = 9;
 
-    // Tests for readmask scenarios
-    type TestCase<'a> = (&'a str, Option<FieldMask>, &'a [&'a str]);
+    // ExecuteTransactionResponse is field_mask_transparent, so paths are relative
+    // to the inner ExecutedTransaction (e.g. "effects", not
+    // "executed_transaction.effects").
+    type TestCase<'a> = (&'a str, Option<FieldMask>, Vec<&'a str>);
     let test_cases: Vec<TestCase> = vec![
-        // Default mask is "transaction.effects", so only transaction.effects with all subfields is
-        // returned
         (
             "default readmask",
             None,
-            &["transaction.effects.digest", "transaction.effects.bcs"],
+            // EXECUTE_TRANSACTION_READ_MASK =
+            // "transaction.digest,effects,events,input_objects,output_objects"
+            // "effects" and "events" are wildcards that expand to all their sub-fields.
+            vec![
+                "transaction.digest",
+                "effects.digest",
+                "effects.bcs",
+                "events.digest",
+                "events.events",
+                "input_objects",
+                "output_objects",
+            ],
         ),
         (
             "empty readmask",
             Some(FieldMask::from_paths(&[] as &[&str])),
-            &[],
+            vec![],
         ),
-        // Full readmask "transaction" returns all nested fields that are available
-        // All requested fields are present even if empty (e.g., events for simple transfers)
+        // Request all ExecutedTransaction fields explicitly.
+        // All fields are present even if empty (e.g., events for simple transfers).
         (
             "full readmask",
-            Some(FieldMask::from_paths(["transaction"])),
-            &[
-                "transaction.transaction.digest",
-                "transaction.transaction.bcs",
-                "transaction.signatures",
-                "transaction.effects.digest",
-                "transaction.effects.bcs",
-                "transaction.events",
-                "transaction.input_objects",
-                "transaction.output_objects",
+            Some(FieldMask::from_paths([
+                "transaction",
+                "signatures",
+                "effects",
+                "events",
+                "input_objects",
+                "output_objects",
+            ])),
+            vec![
+                "transaction.digest",
+                "transaction.bcs",
+                "signatures",
+                "effects.digest",
+                "effects.bcs",
+                "events.digest",
+                "events.events",
+                "input_objects",
+                "output_objects",
             ],
         ),
-        // Specific nested field masks - only the specified nested fields are returned
+        // Specific nested field masks — only the specified nested fields are returned.
         (
             "nested readmask (multiple specific fields)",
-            Some(FieldMask::from_paths([
-                "transaction.transaction.digest",
-                "transaction.effects",
-            ])),
-            &[
-                "transaction.transaction.digest",
-                "transaction.effects.digest",
-                "transaction.effects.bcs",
-            ],
+            Some(FieldMask::from_paths(["transaction.digest", "effects"])),
+            vec!["transaction.digest", "effects.digest", "effects.bcs"],
         ),
     ];
 
@@ -104,31 +120,25 @@ async fn execute_transaction_readmask_scenarios() {
             make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount))
                 .await;
 
-        let transaction = ProtoTransaction {
-            bcs: Some(BcsData {
-                data: bcs::to_bytes(txn.transaction_data()).unwrap().into(),
-            }),
-            ..Default::default()
-        };
+        let transaction = ProtoTransaction::default()
+            .with_bcs(BcsData::default().with_data(bcs::to_bytes(txn.transaction_data()).unwrap()));
 
-        let signatures = UserSignatures {
-            signatures: txn
-                .tx_signatures()
+        let signatures = UserSignatures::default().with_signatures(
+            txn.tx_signatures()
                 .iter()
-                .map(|s| UserSignature {
-                    bcs: Some(BcsData {
-                        data: bcs::to_bytes(s).unwrap().into(),
-                    }),
+                .map(|s| {
+                    UserSignature::default()
+                        .with_bcs(BcsData::default().with_data(bcs::to_bytes(s).unwrap()))
                 })
                 .collect(),
-        };
+        );
 
         assert_execute_transaction_request(
             &mut exec_client,
             transaction,
             signatures,
             mask,
-            expected_paths,
+            &expected_paths,
             scenario,
         )
         .await;
@@ -149,33 +159,28 @@ async fn execute_transaction_invalid_bcs() {
         make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount)).await;
 
     // Create transaction with invalid BCS data
-    let transaction = ProtoTransaction {
-        bcs: Some(BcsData {
-            data: vec![0xff, 0xff, 0xff].into(), // Invalid BCS
-        }),
-        ..Default::default()
-    };
+    let transaction = ProtoTransaction::default().with_bcs(
+        BcsData::default().with_data(vec![0xff, 0xff, 0xff]), // Invalid BCS
+    );
 
     // Use valid signatures from the real transaction
-    let signatures = UserSignatures {
-        signatures: txn
-            .tx_signatures()
+    let signatures = UserSignatures::default().with_signatures(
+        txn.tx_signatures()
             .iter()
-            .map(|s| UserSignature {
-                bcs: Some(BcsData {
-                    data: bcs::to_bytes(s).unwrap().into(),
-                }),
+            .map(|s| {
+                UserSignature::default()
+                    .with_bcs(BcsData::default().with_data(bcs::to_bytes(s).unwrap()))
             })
             .collect(),
-    };
+    );
 
     // Request should fail with invalid BCS
     let result = exec_client
-        .execute_transaction(ExecuteTransactionRequest {
-            transaction: Some(transaction),
-            signatures: Some(signatures),
-            read_mask: None,
-        })
+        .execute_transaction(
+            ExecuteTransactionRequest::default()
+                .with_transaction(transaction)
+                .with_signatures(signatures),
+        )
         .await;
 
     assert!(
@@ -196,29 +201,22 @@ async fn execute_transaction_invalid_signatures() {
     let txn =
         make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount)).await;
 
-    let transaction = ProtoTransaction {
-        bcs: Some(BcsData {
-            data: bcs::to_bytes(txn.transaction_data()).unwrap().into(),
-        }),
-        ..Default::default()
-    };
+    let transaction = ProtoTransaction::default()
+        .with_bcs(BcsData::default().with_data(bcs::to_bytes(txn.transaction_data()).unwrap()));
 
     // Create invalid signatures (wrong signature data)
-    let signatures = UserSignatures {
-        signatures: vec![UserSignature {
-            bcs: Some(BcsData {
-                data: vec![0x00; 64].into(), // Invalid signature
-            }),
-        }],
-    };
+    let signatures =
+        UserSignatures::default().with_signatures(vec![UserSignature::default().with_bcs(
+            BcsData::default().with_data(vec![0x00; 64]), // Invalid signature
+        )]);
 
     // Request should fail with invalid signatures
     let result = exec_client
-        .execute_transaction(ExecuteTransactionRequest {
-            transaction: Some(transaction),
-            signatures: Some(signatures),
-            read_mask: None,
-        })
+        .execute_transaction(
+            ExecuteTransactionRequest::default()
+                .with_transaction(transaction)
+                .with_signatures(signatures),
+        )
         .await;
 
     assert!(
@@ -241,25 +239,19 @@ async fn execute_transaction_empty_request() {
         make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount)).await;
 
     // Use valid signatures from the real transaction
-    let signatures = UserSignatures {
-        signatures: txn
-            .tx_signatures()
+    let signatures = UserSignatures::default().with_signatures(
+        txn.tx_signatures()
             .iter()
-            .map(|s| UserSignature {
-                bcs: Some(BcsData {
-                    data: bcs::to_bytes(s).unwrap().into(),
-                }),
+            .map(|s| {
+                UserSignature::default()
+                    .with_bcs(BcsData::default().with_data(bcs::to_bytes(s).unwrap()))
             })
             .collect(),
-    };
+    );
 
     // Test missing transaction with valid signatures
     let result = exec_client
-        .execute_transaction(ExecuteTransactionRequest {
-            transaction: None,
-            signatures: Some(signatures),
-            read_mask: None,
-        })
+        .execute_transaction(ExecuteTransactionRequest::default().with_signatures(signatures))
         .await;
 
     assert!(
