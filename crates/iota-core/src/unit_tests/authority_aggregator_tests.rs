@@ -98,7 +98,7 @@ pub fn create_object_move_transaction(
     // which will own the object
     let arguments = vec![
         CallArg::Pure(value.to_le_bytes().to_vec()),
-        CallArg::Pure(bcs::to_bytes(&AccountAddress::new(dest.into_bytes())).unwrap()),
+        CallArg::pure(&AccountAddress::new(dest.into_bytes())),
     ];
 
     to_sender_signed_transaction(
@@ -134,7 +134,7 @@ pub fn delete_object_move_transaction(
             Identifier::from_static("delete"),
             Vec::new(),
             gas_object_ref,
-            vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(object_ref))],
+            vec![CallArg::ImmutableOrOwned(object_ref)],
             TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * gas_price,
             gas_price,
         )
@@ -152,10 +152,7 @@ pub fn set_object_move_transaction(
     gas_object_ref: ObjectRef,
     gas_price: u64,
 ) -> Transaction {
-    let args = vec![
-        CallArg::Object(ObjectArg::ImmOrOwnedObject(object_ref)),
-        CallArg::Pure(bcs::to_bytes(&value).unwrap()),
-    ];
+    let args = vec![CallArg::ImmutableOrOwned(object_ref), CallArg::pure(&value)];
 
     to_sender_signed_transaction(
         TransactionData::new_move_call(

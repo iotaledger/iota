@@ -12,7 +12,7 @@ use iota_types::{
     storage::{
         ObjectKey, transaction_non_shared_input_object_keys, transaction_receiving_object_keys,
     },
-    transaction::{SenderSignedData, SharedInputObject, TransactionKey},
+    transaction::{SenderSignedData, SharedObjectRef, TransactionKey},
 };
 use tracing::trace;
 
@@ -142,7 +142,7 @@ impl SharedObjVerManager {
             // For cancelled transaction due to congestion, assign special versions to all
             // shared objects. Note that new lamport version does not depend on
             // any shared objects.
-            for SharedInputObject { id, .. } in shared_input_objects.iter() {
+            for SharedObjectRef { object_id: id, .. } in shared_input_objects.iter() {
                 let assigned_version = match cancellation_info {
                     Some(CancelConsensusCertificateReason::CongestionOnObjects {
                         congested_objects: _,
@@ -185,10 +185,19 @@ impl SharedObjVerManager {
                 is_mutable_input.push(false);
             }
         } else {
-            for (SharedInputObject { id, mutable, .. }, assigned_version) in shared_input_objects
-                .iter()
-                .map(|obj| (obj, *shared_input_next_versions.get(&obj.id()).unwrap()))
-            {
+            for (
+                SharedObjectRef {
+                    object_id: id,
+                    mutable,
+                    ..
+                },
+                assigned_version,
+            ) in shared_input_objects.iter().map(|obj| {
+                (
+                    obj,
+                    *shared_input_next_versions.get(&obj.object_id).unwrap(),
+                )
+            }) {
                 assigned_versions.push((*id, assigned_version));
                 input_object_keys.push(ObjectKey(*id, assigned_version));
                 is_mutable_input.push(*mutable);
@@ -246,7 +255,7 @@ fn get_or_init_versions<'a>(
         .flat_map(|tx| {
             tx.shared_input_objects()
                 .into_iter()
-                .map(|so| so.into_id_and_version())
+                .map(|so| (so.object_id, so.initial_shared_version))
         })
         .collect();
 
@@ -271,7 +280,7 @@ mod tests {
         },
         object::Object,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{ObjectArg, SenderSignedData, VerifiedTransaction},
+        transaction::{CallArg, SenderSignedData, VerifiedTransaction},
     };
 
     use super::*;
@@ -655,11 +664,11 @@ mod tests {
         for (shared_object_id, shared_object_init_version, shared_object_mutable) in shared_objects
         {
             builder
-                .obj(ObjectArg::SharedObject {
-                    id: *shared_object_id,
+                .obj(CallArg::Shared(SharedObjectRef {
+                    object_id: *shared_object_id,
                     initial_shared_version: *shared_object_init_version,
                     mutable: *shared_object_mutable,
-                })
+                }))
                 .unwrap();
         }
         let tx_data = TestTransactionBuilder::new(

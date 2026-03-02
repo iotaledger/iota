@@ -20,7 +20,7 @@ use iota_sdk::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         stardust::output::AliasOutput,
-        transaction::{Argument, ObjectArg, Transaction, TransactionData},
+        transaction::{Argument, CallArg, Transaction, TransactionData},
     },
 };
 use iota_sdk_types::crypto::Intent;
@@ -115,7 +115,7 @@ async fn main() -> Result<(), anyhow::Error> {
         // IOTA token or the Gas type tag.
         let type_arguments = vec![GAS::type_tag()];
         // Then pass the AliasOutput object as an input.
-        let arguments = vec![builder.obj(ObjectArg::ImmOrOwnedObject(alias_output_object_ref))?];
+        let arguments = vec![builder.obj(CallArg::ImmutableOrOwned(alias_output_object_ref))?];
         // Finally call the alias_output::extract_assets function.
         if let Argument::Result(extracted_assets) = builder.programmable_move_call(
             ObjectID::STARDUST,

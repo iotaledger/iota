@@ -10,7 +10,7 @@ use iota_types::{
     base_types::{ObjectID, ObjectRef},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     object::Owner,
-    transaction::{CallArg, ObjectArg, Transaction},
+    transaction::{CallArg, Transaction},
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
 
@@ -170,10 +170,7 @@ impl TestEnvironment {
         parent: ObjectRef,
         child: ObjectRef,
     ) -> anyhow::Result<(ObjectRef, ObjectRef)> {
-        let arguments = vec![
-            CallArg::Object(ObjectArg::ImmOrOwnedObject(parent)),
-            CallArg::Object(ObjectArg::Receiving(child)),
-        ];
+        let arguments = vec![CallArg::ImmutableOrOwned(parent), CallArg::Receiving(child)];
         let fx = self.move_call("receiver", arguments).await?;
         assert!(fx.0.status().is_success());
         let new_child_ref =
@@ -190,10 +187,7 @@ impl TestEnvironment {
     }
 
     async fn delete(&self, parent: ObjectRef, child: ObjectRef) -> ObjectRef {
-        let arguments = vec![
-            CallArg::Object(ObjectArg::ImmOrOwnedObject(parent)),
-            CallArg::Object(ObjectArg::Receiving(child)),
-        ];
+        let arguments = vec![CallArg::ImmutableOrOwned(parent), CallArg::Receiving(child)];
         let fx = self.move_call("deleter", arguments).await.unwrap();
         assert!(fx.0.status().is_success());
         fx.0.mutated_excluding_gas()

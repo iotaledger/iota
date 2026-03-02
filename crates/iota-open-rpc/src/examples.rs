@@ -46,7 +46,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
-    transaction::{CallArg, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData},
     utils::to_sender_signed_transaction,
 };
 use move_core_types::{
@@ -169,8 +169,8 @@ impl RpcExampleProvider {
                     Identifier::from_static("split"),
                     vec![],
                     vec![
-                        CallArg::Object(ObjectArg::ImmOrOwnedObject(coin_ref)),
-                        CallArg::Pure(bcs::to_bytes(&random_amount).unwrap()),
+                        CallArg::ImmutableOrOwned(coin_ref),
+                        CallArg::pure(&random_amount),
                     ],
                 )
                 .unwrap();

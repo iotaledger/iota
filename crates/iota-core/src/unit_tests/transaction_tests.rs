@@ -290,7 +290,7 @@ pub fn init_move_call_transaction(
         Identifier::from_static("request_add_validator"),
         vec![],
         gas_object_ref,
-        vec![CallArg::IOTA_SYSTEM_MUT],
+        vec![CallArg::IOTA_SYSTEM_MUTABLE],
         gas_budget,
         gas_price,
     )
@@ -923,8 +923,8 @@ async fn test_handle_soft_bundle_certificates() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Object(ObjectArg::SharedObject {
-                        id: shared_object.id(),
+                    CallArg::Shared(SharedObjectRef {
+                        object_id: shared_object.id(),
                         initial_shared_version,
                         mutable: true,
                     }),
@@ -1198,8 +1198,8 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Object(ObjectArg::SharedObject {
-                        id: shared_object.id(),
+                    CallArg::Shared(SharedObjectRef {
+                        object_id: shared_object.id(),
                         initial_shared_version,
                         mutable: true,
                     }),
@@ -1228,8 +1228,8 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Object(ObjectArg::SharedObject {
-                        id: shared_object.id(),
+                    CallArg::Shared(SharedObjectRef {
+                        object_id: shared_object.id(),
                         initial_shared_version,
                         mutable: true,
                     }),
@@ -1284,8 +1284,8 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Object(ObjectArg::SharedObject {
-                        id: shared_object.id(),
+                    CallArg::Shared(SharedObjectRef {
+                        object_id: shared_object.id(),
                         initial_shared_version,
                         mutable: true,
                     }),
@@ -1314,8 +1314,8 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Object(ObjectArg::SharedObject {
-                        id: shared_object.id(),
+                    CallArg::Shared(SharedObjectRef {
+                        object_id: shared_object.id(),
                         initial_shared_version,
                         mutable: true,
                     }),

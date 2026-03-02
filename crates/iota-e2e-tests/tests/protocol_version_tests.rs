@@ -82,7 +82,7 @@ mod sim_only_tests {
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         supported_protocol_versions::SupportedProtocolVersions,
         transaction::{
-            CallArg, Command, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
+            CallArg, Command, ProgrammableMoveCall, ProgrammableTransaction,
             TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionData, TransactionKind,
         },
     };
@@ -516,7 +516,7 @@ mod sim_only_tests {
                     Identifier::from_static("wrap"),
                     // type_arguments
                     vec![],
-                    vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(obj))],
+                    vec![CallArg::ImmutableOrOwned(obj)],
                 )
                 .unwrap();
             builder.finish()

@@ -25,7 +25,7 @@ use iota_types::{
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::ObjectStore,
-    transaction::{Argument, ObjectArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
+    transaction::{Argument, CallArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
 };
 use move_core_types::ident_str;
 
@@ -143,9 +143,7 @@ pub fn build_upgrade_txn(
     let (digest, modules) = build_upgrade_test_modules(upgraded_pkg_name);
 
     // We take as input the upgrade cap
-    builder
-        .obj(ObjectArg::ImmOrOwnedObject(upgrade_cap))
-        .unwrap();
+    builder.obj(CallArg::ImmutableOrOwned(upgrade_cap)).unwrap();
 
     // Create the upgrade ticket
     let upgrade_arg = builder.pure(UpgradePolicy::COMPATIBLE).unwrap();
@@ -246,7 +244,7 @@ impl UpgradeStateRunner {
             let mut builder = ProgrammableTransactionBuilder::new();
 
             let cap = builder
-                .obj(ObjectArg::ImmOrOwnedObject(self.upgrade_cap))
+                .obj(CallArg::ImmutableOrOwned(self.upgrade_cap))
                 .unwrap();
             let policy = builder.pure(policy).unwrap();
             let digest = builder.pure(digest).unwrap();
@@ -441,7 +439,7 @@ async fn test_upgrade_introduces_type_then_uses_it() {
     let effects = runner
         .run({
             let mut builder = ProgrammableTransactionBuilder::new();
-            let b = builder.obj(ObjectArg::ImmOrOwnedObject(created)).unwrap();
+            let b = builder.obj(CallArg::ImmutableOrOwned(created)).unwrap();
             move_call! { builder, (package_v3)::base::destroys_b(b) };
             builder.finish()
         })
@@ -494,7 +492,7 @@ async fn test_upgrade_package_compatibility_too_permissive() {
         .run({
             let mut builder = ProgrammableTransactionBuilder::new();
             let cap = builder
-                .obj(ObjectArg::ImmOrOwnedObject(runner.upgrade_cap))
+                .obj(CallArg::ImmutableOrOwned(runner.upgrade_cap))
                 .unwrap();
             move_call! { builder, (ObjectID::FRAMEWORK)::package::only_dep_upgrades(cap) };
             builder.finish()
@@ -759,7 +757,7 @@ async fn test_upgrade_package_not_a_ticket() {
 
         // We take as input the upgrade runner.upgrade_cap
         let cap = builder
-            .obj(ObjectArg::ImmOrOwnedObject(runner.upgrade_cap))
+            .obj(CallArg::ImmutableOrOwned(runner.upgrade_cap))
             .unwrap();
         builder.upgrade(current_package_id, cap, vec![], modules);
         builder.finish()
@@ -783,7 +781,7 @@ async fn test_upgrade_ticket_doesnt_match() {
         let (digest, modules) = build_upgrade_test_modules("stage1_basic_compatibility_valid");
         // We take as input the upgrade runner.upgrade_cap
         builder
-            .obj(ObjectArg::ImmOrOwnedObject(runner.upgrade_cap))
+            .obj(CallArg::ImmutableOrOwned(runner.upgrade_cap))
             .unwrap();
         // Create the upgrade ticket
         let upgrade_arg = builder.pure(UpgradePolicy::COMPATIBLE).unwrap();
@@ -884,7 +882,7 @@ async fn test_interleaved_upgrades() {
 
         // We take as input the upgrade cap
         builder
-            .obj(ObjectArg::ImmOrOwnedObject(runner.upgrade_cap))
+            .obj(CallArg::ImmutableOrOwned(runner.upgrade_cap))
             .unwrap();
 
         // Create the upgrade ticket
@@ -924,7 +922,7 @@ async fn test_interleaved_upgrades() {
 
         // We take as input the upgrade cap
         builder
-            .obj(ObjectArg::ImmOrOwnedObject(depender_cap))
+            .obj(CallArg::ImmutableOrOwned(depender_cap))
             .unwrap();
 
         // Create the upgrade ticket
@@ -1253,9 +1251,9 @@ async fn test_upgraded_types_in_one_txn() {
     let effects = runner
         .run({
             let mut builder = ProgrammableTransactionBuilder::new();
-            let b = builder.obj(ObjectArg::ImmOrOwnedObject(created_b)).unwrap();
+            let b = builder.obj(CallArg::ImmutableOrOwned(created_b)).unwrap();
             move_call! { builder, (package_v3)::base::modifies_b(b) };
-            let c = builder.obj(ObjectArg::ImmOrOwnedObject(created_c)).unwrap();
+            let c = builder.obj(CallArg::ImmutableOrOwned(created_c)).unwrap();
             move_call! { builder, (package_v3)::base::modifies_c(c) };
             builder.finish()
         })
@@ -1359,7 +1357,7 @@ async fn test_conflicting_versions_across_calls() {
 
         // We take as input the upgrade cap
         builder
-            .obj(ObjectArg::ImmOrOwnedObject(depender_cap))
+            .obj(CallArg::ImmutableOrOwned(depender_cap))
             .unwrap();
 
         // Create the upgrade ticket

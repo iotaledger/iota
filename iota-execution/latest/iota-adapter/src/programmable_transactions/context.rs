@@ -33,7 +33,7 @@ mod checked {
         move_package::{MovePackage, MovePackageExt, derive_package_metadata_id},
         object::{Data, MoveObject, Object, ObjectInner, Owner},
         storage::{BackingPackageStore, DenyListResult, PackageObject},
-        transaction::{Argument, CallArg, ObjectArg},
+        transaction::{Argument, CallArg, SharedObjectRef},
     };
     use move_binary_format::{
         CompiledModule,
@@ -1507,30 +1507,30 @@ mod checked {
         call_arg: CallArg,
     ) -> Result<InputValue, ExecutionError> {
         Ok(match call_arg {
-            CallArg::Pure(bytes) => InputValue::new_raw(RawValueType::Any, bytes),
-            CallArg::Object(obj_arg) => load_object_arg(
+            CallArg::Pure(value) => InputValue::new_raw(RawValueType::Any, value),
+            other => load_object_arg(
                 vm,
                 state_view,
                 linkage_view,
                 new_packages,
                 input_object_map,
-                obj_arg,
+                other,
             )?,
         })
     }
 
-    /// Load an ObjectArg from state view, marking if it can be treated as
-    /// mutable or not
+    /// Load an object `CallArg` from state view, marking if it can be treated
+    /// as mutable or not
     fn load_object_arg(
         vm: &MoveVM,
         state_view: &dyn ExecutionState,
         linkage_view: &mut LinkageView,
         new_packages: &[MovePackage],
         input_object_map: &mut BTreeMap<ObjectID, object_runtime::InputObject>,
-        obj_arg: ObjectArg,
+        obj_arg: CallArg,
     ) -> Result<InputValue, ExecutionError> {
         match obj_arg {
-            ObjectArg::ImmOrOwnedObject(object_ref) => load_object(
+            CallArg::ImmutableOrOwned(object_ref) => load_object(
                 vm,
                 state_view,
                 linkage_view,
@@ -1540,7 +1540,11 @@ mod checked {
                 false,
                 object_ref.object_id,
             ),
-            ObjectArg::SharedObject { id, mutable, .. } => load_object(
+            CallArg::Shared(SharedObjectRef {
+                object_id: id,
+                mutable,
+                ..
+            }) => load_object(
                 vm,
                 state_view,
                 linkage_view,
@@ -1550,9 +1554,15 @@ mod checked {
                 !mutable,
                 id,
             ),
-            ObjectArg::Receiving(object_ref) => Ok(InputValue::new_receiving_object(
+            CallArg::Receiving(object_ref) => Ok(InputValue::new_receiving_object(
                 object_ref.object_id,
                 object_ref.version,
+            )),
+            CallArg::Pure(_) => Err(ExecutionError::invariant_violation(
+                "unexpected pure CallArg in load_object_arg",
+            )),
+            _ => Err(ExecutionError::invariant_violation(
+                "a new CallArg enum variant was added and needs to be handled",
             )),
         }
     }

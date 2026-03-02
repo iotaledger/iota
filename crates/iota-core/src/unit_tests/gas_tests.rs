@@ -393,10 +393,7 @@ async fn test_computation_ok_storage_oog_single_gas_coin() -> IotaResult {
         sender,
         sender_key,
         "storage_heavy",
-        vec![
-            CallArg::Pure(bcs::to_bytes(&(100_u64)).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
-        ],
+        vec![CallArg::pure(&(100_u64)), CallArg::pure(&sender)],
         BUDGET,
         GAS_PRICE,
         1,
@@ -425,10 +422,7 @@ async fn test_computation_ok_storage_oog_multi_gas_coins() -> IotaResult {
         sender,
         sender_key,
         "storage_heavy",
-        vec![
-            CallArg::Pure(bcs::to_bytes(&(100_u64)).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
-        ],
+        vec![CallArg::pure(&(100_u64)), CallArg::pure(&sender)],
         BUDGET,
         GAS_PRICE,
         5,
@@ -457,10 +451,7 @@ async fn test_computation_ok_storage_oog_computation_is_entire_budget() -> IotaR
         sender,
         sender_key,
         "storage_heavy",
-        vec![
-            CallArg::Pure(bcs::to_bytes(&(100_u64)).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
-        ],
+        vec![CallArg::pure(&(100_u64)), CallArg::pure(&sender)],
         BUDGET,
         GAS_PRICE,
         1,
@@ -854,7 +845,7 @@ async fn test_move_call_gas() -> IotaResult {
     let function = Identifier::from_static("create");
     let args = vec![
         CallArg::Pure(16u64.to_le_bytes().to_vec()),
-        CallArg::Pure(bcs::to_bytes(&AccountAddress::new(sender.into_bytes())).unwrap()),
+        CallArg::pure(&AccountAddress::new(sender.into_bytes())),
     ];
     let data = TransactionData::new_move_call(
         sender,
@@ -896,9 +887,7 @@ async fn test_move_call_gas() -> IotaResult {
         Identifier::from_static("delete"),
         vec![],
         gas_object.compute_object_reference(),
-        vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(
-            created_object_ref,
-        ))],
+        vec![CallArg::ImmutableOrOwned(created_object_ref)],
         *MAX_GAS_BUDGET,
         rgp,
     )
@@ -971,10 +960,10 @@ async fn test_tx_gas_coins_input_coins() {
         // build the programmale transaction
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
-            let coin_arg = builder.obj(ObjectArg::ImmOrOwnedObject(coin_ref)).unwrap();
+            let coin_arg = builder.obj(CallArg::ImmutableOrOwned(coin_ref)).unwrap();
             let coin_args = coin_refs
                 .iter()
-                .map(|obj_ref| builder.obj(ObjectArg::ImmOrOwnedObject(*obj_ref)).unwrap())
+                .map(|obj_ref| builder.obj(CallArg::ImmutableOrOwned(*obj_ref)).unwrap())
                 .collect::<Vec<_>>();
             builder.command(Command::MergeCoins(coin_arg, coin_args));
             builder.finish()

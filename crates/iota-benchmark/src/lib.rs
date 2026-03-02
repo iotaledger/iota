@@ -46,7 +46,7 @@ use iota_types::{
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::{QuorumDriverError, QuorumDriverResponse},
-    transaction::{Argument, CallArg, ObjectArg, Transaction},
+    transaction::{Argument, CallArg, SharedObjectRef, Transaction},
 };
 use prometheus::Registry;
 use rand::Rng;
@@ -639,18 +639,17 @@ impl From<ObjectRef> for BenchMoveCallArg {
 impl From<CallArg> for BenchMoveCallArg {
     fn from(ca: CallArg) -> Self {
         match ca {
-            CallArg::Pure(p) => BenchMoveCallArg::Pure(p),
-            CallArg::Object(obj) => match obj {
-                ObjectArg::ImmOrOwnedObject(imo) => BenchMoveCallArg::ImmOrOwnedObject(imo),
-                ObjectArg::SharedObject {
-                    id,
-                    initial_shared_version,
-                    mutable,
-                } => BenchMoveCallArg::Shared((id, initial_shared_version, mutable)),
-                ObjectArg::Receiving(_) => {
-                    unimplemented!("Receiving is not supported for benchmarks")
-                }
-            },
+            CallArg::Pure(value) => BenchMoveCallArg::Pure(value),
+            CallArg::ImmutableOrOwned(obj_ref) => BenchMoveCallArg::ImmOrOwnedObject(obj_ref),
+            CallArg::Shared(SharedObjectRef {
+                object_id,
+                initial_shared_version,
+                mutable,
+            }) => BenchMoveCallArg::Shared((object_id, initial_shared_version, mutable)),
+            CallArg::Receiving(_) => {
+                unimplemented!("Receiving is not supported for benchmarks")
+            }
+            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
     }
 }
@@ -662,33 +661,31 @@ pub fn convert_move_call_args(
 ) -> Vec<Argument> {
     args.iter()
         .map(|arg| match arg {
-            BenchMoveCallArg::Pure(bytes) => {
-                pt_builder.input(CallArg::Pure(bytes.clone())).unwrap()
-            }
+            BenchMoveCallArg::Pure(bytes) => pt_builder.pure(bytes.clone()).unwrap(),
             BenchMoveCallArg::Shared((id, initial_shared_version, mutable)) => pt_builder
-                .input(CallArg::Object(ObjectArg::SharedObject {
-                    id: *id,
+                .input(CallArg::Shared(SharedObjectRef {
+                    object_id: *id,
                     initial_shared_version: *initial_shared_version,
                     mutable: *mutable,
                 }))
                 .unwrap(),
-            BenchMoveCallArg::ImmOrOwnedObject(obj_ref) => {
-                pt_builder.input((*obj_ref).into()).unwrap()
-            }
+            BenchMoveCallArg::ImmOrOwnedObject(obj_ref) => pt_builder
+                .input(CallArg::ImmutableOrOwned(*obj_ref))
+                .unwrap(),
             BenchMoveCallArg::ImmOrOwnedObjectVec(obj_refs) => pt_builder
-                .make_obj_vec(obj_refs.iter().map(|q| ObjectArg::ImmOrOwnedObject(*q)))
+                .make_obj_vec(obj_refs.iter().map(|q| CallArg::ImmutableOrOwned(*q)))
                 .unwrap(),
             BenchMoveCallArg::SharedObjectVec(obj_refs) => pt_builder
                 .make_obj_vec(
                     obj_refs
                         .iter()
-                        .map(
-                            |(id, initial_shared_version, mutable)| ObjectArg::SharedObject {
-                                id: *id,
+                        .map(|(id, initial_shared_version, mutable)| {
+                            CallArg::Shared(SharedObjectRef {
+                                object_id: *id,
                                 initial_shared_version: *initial_shared_version,
                                 mutable: *mutable,
-                            },
-                        ),
+                            })
+                        }),
                 )
                 .unwrap(),
         })

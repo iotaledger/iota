@@ -39,8 +39,8 @@ use iota_types::{
     signature::GenericSignature,
     storage::DeleteKind,
     transaction::{
-        Argument, CallArg, Command, EndOfEpochTransactionKind, GenesisObject, ObjectArg,
-        SenderSignedData, TransactionData, TransactionExpiration, TransactionKind,
+        Argument, CallArg, Command, EndOfEpochTransactionKind, GenesisObject, SenderSignedData,
+        SharedObjectRef, TransactionData, TransactionExpiration, TransactionKind,
     },
     type_input::{StructInput, TypeInput},
 };
@@ -302,8 +302,41 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_type::<StructInput>(&samples).unwrap();
     tracer.trace_type::<TypeInput>(&samples).unwrap();
     tracer.trace_type::<Owner>(&samples).unwrap();
+    // Trace all CallArg (= iota_sdk_types::Input) variants
+    tracer
+        .trace_value(&mut samples, &CallArg::Pure(vec![0u8]))
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &CallArg::ImmutableOrOwned(iota_types::base_types::ObjectRef::new(
+                ObjectID::ZERO,
+                1u64.into(),
+                ObjectDigest::random(),
+            )),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &CallArg::Shared(SharedObjectRef {
+                object_id: ObjectID::ZERO,
+                initial_shared_version: 1u64.into(),
+                mutable: false,
+            }),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &CallArg::Receiving(iota_types::base_types::ObjectRef::new(
+                ObjectID::ZERO,
+                1u64.into(),
+                ObjectDigest::random(),
+            )),
+        )
+        .unwrap();
     tracer.trace_type::<CallArg>(&samples).unwrap();
-    tracer.trace_type::<ObjectArg>(&samples).unwrap();
     tracer.trace_type::<TypedStoreError>(&samples).unwrap();
     tracer
         .trace_type::<ObjectInfoRequestKind>(&samples)

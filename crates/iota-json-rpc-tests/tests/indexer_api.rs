@@ -27,7 +27,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     stardust::output::{Irc27Metadata, Nft},
-    transaction::{CallArg, Command, ObjectArg, TransactionData},
+    transaction::{CallArg, Command, TransactionData},
 };
 use move_core_types::annotated_value::MoveValue;
 use test_cluster::TestClusterBuilder;
@@ -651,7 +651,7 @@ async fn test_get_dynamic_field_object() -> Result<(), anyhow::Error> {
 
         let field_name_argument = builder.pure(0u64).expect("valid pure");
         let field_value_argument = builder
-            .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(*child_object)))
+            .input(CallArg::ImmutableOrOwned(*child_object))
             .unwrap();
 
         let _ = builder.programmable_move_call(

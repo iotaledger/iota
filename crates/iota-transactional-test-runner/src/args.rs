@@ -12,7 +12,7 @@ use iota_types::{
     move_package::UpgradePolicy,
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, CallArg, ObjectArg},
+    transaction::{Argument, CallArg, SharedObjectRef},
 };
 use move_compiler::editions::Flavor;
 use move_core_types::{
@@ -543,24 +543,24 @@ impl IotaValue {
         fake_id: FakeID,
         version: Option<SequenceNumber>,
         test_adapter: &IotaTestAdapter,
-    ) -> anyhow::Result<ObjectArg> {
+    ) -> anyhow::Result<CallArg> {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
-        Ok(ObjectArg::Receiving(obj.compute_object_reference()))
+        Ok(CallArg::Receiving(obj.compute_object_reference()))
     }
 
     fn read_shared_arg(
         fake_id: FakeID,
         version: Option<SequenceNumber>,
         test_adapter: &IotaTestAdapter,
-    ) -> anyhow::Result<ObjectArg> {
+    ) -> anyhow::Result<CallArg> {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
         let id = obj.id();
         if let Owner::Shared(initial_shared_version) = obj.owner {
-            Ok(ObjectArg::SharedObject {
-                id,
+            Ok(CallArg::Shared(SharedObjectRef {
+                object_id: id,
                 initial_shared_version,
                 mutable: false,
-            })
+            }))
         } else {
             bail!("{fake_id} is not a shared object.")
         }
@@ -570,18 +570,18 @@ impl IotaValue {
         fake_id: FakeID,
         version: Option<SequenceNumber>,
         test_adapter: &IotaTestAdapter,
-    ) -> anyhow::Result<ObjectArg> {
+    ) -> anyhow::Result<CallArg> {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
         let id = obj.id();
         match obj.owner {
-            Owner::Shared(initial_shared_version) => Ok(ObjectArg::SharedObject {
-                id,
+            Owner::Shared(initial_shared_version) => Ok(CallArg::Shared(SharedObjectRef {
+                object_id: id,
                 initial_shared_version,
                 mutable: true,
-            }),
+            })),
             Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
                 let obj_ref = obj.compute_object_reference();
-                Ok(ObjectArg::ImmOrOwnedObject(obj_ref))
+                Ok(CallArg::ImmutableOrOwned(obj_ref))
             }
             _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
         }
@@ -590,14 +590,14 @@ impl IotaValue {
     pub(crate) fn into_call_arg(self, test_adapter: &IotaTestAdapter) -> anyhow::Result<CallArg> {
         Ok(match self {
             IotaValue::Object(fake_id, version) => {
-                CallArg::Object(Self::object_arg(fake_id, version, test_adapter)?)
+                Self::object_arg(fake_id, version, test_adapter)?
             }
             IotaValue::MoveValue(v) => CallArg::Pure(v.simple_serialize().unwrap()),
             IotaValue::Receiving(fake_id, version) => {
-                CallArg::Object(Self::receiving_arg(fake_id, version, test_adapter)?)
+                Self::receiving_arg(fake_id, version, test_adapter)?
             }
             IotaValue::ImmShared(fake_id, version) => {
-                CallArg::Object(Self::read_shared_arg(fake_id, version, test_adapter)?)
+                Self::read_shared_arg(fake_id, version, test_adapter)?
             }
             IotaValue::ObjVec(_) => bail!("obj vec is not supported as an input"),
             IotaValue::Digest(pkg) => {
@@ -605,7 +605,7 @@ impl IotaValue {
                 let Some(staged) = test_adapter.staged_modules.get(&pkg) else {
                     bail!("Unbound staged package '{pkg}'")
                 };
-                CallArg::Pure(bcs::to_bytes(&staged.digest).unwrap())
+                CallArg::pure(&staged.digest)
             }
         })
     }
@@ -619,7 +619,7 @@ impl IotaValue {
             IotaValue::ObjVec(vec) => builder.make_obj_vec(
                 vec.iter()
                     .map(|(fake_id, version)| Self::object_arg(*fake_id, *version, test_adapter))
-                    .collect::<Result<Vec<ObjectArg>, _>>()?,
+                    .collect::<Result<Vec<CallArg>, _>>()?,
             ),
             value => {
                 let call_arg = value.into_call_arg(test_adapter)?;

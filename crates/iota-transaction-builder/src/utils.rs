@@ -23,7 +23,7 @@ use iota_types::{
     move_package::{MovePackage, MovePackageExt},
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, CallArg, ObjectArg},
+    transaction::{Argument, CallArg, SharedObjectRef},
 };
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
@@ -98,7 +98,7 @@ impl TransactionBuilder {
         Ok(obj_refs)
     }
 
-    /// Resolve a provided [`ObjectID`] to the required [`ObjectArg`] for a
+    /// Resolve a provided [`ObjectID`] to the required [`CallArg`] for a
     /// given move module.
     async fn get_object_arg(
         &self,
@@ -106,7 +106,7 @@ impl TransactionBuilder {
         is_mutable_ref: bool,
         view: &CompiledModule,
         arg_type: &SignatureToken,
-    ) -> Result<ObjectArg, anyhow::Error> {
+    ) -> Result<CallArg, anyhow::Error> {
         let response = self
             .0
             .get_object_with_options(id, IotaObjectDataOptions::bcs_lossless())
@@ -116,23 +116,23 @@ impl TransactionBuilder {
         let obj_ref = obj.compute_object_reference();
         let owner = obj.owner;
         if is_receiving_argument(view, arg_type) {
-            return Ok(ObjectArg::Receiving(obj_ref));
+            return Ok(CallArg::Receiving(obj_ref));
         }
         Ok(match owner {
-            Owner::Shared(initial_shared_version) => ObjectArg::SharedObject {
-                id,
+            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef {
+                object_id: id,
                 initial_shared_version,
                 mutable: is_mutable_ref,
-            },
+            }),
             Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
-                ObjectArg::ImmOrOwnedObject(obj_ref)
+                CallArg::ImmutableOrOwned(obj_ref)
             }
             _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
         })
     }
 
     /// Resolve a [`ResolvedCallArg`] to a [`CallArg`] or a list of
-    /// [`ObjectArg`] for object vectors.
+    /// [`CallArg`] for object vectors.
     async fn resolved_call_arg_to_call_arg(
         &self,
         resolved_arg: ResolvedCallArg,
@@ -147,7 +147,7 @@ impl TransactionBuilder {
                 let is_mutable =
                     matches!(param, SignatureToken::MutableReference(_)) || !param.is_reference();
                 let object_arg = self.get_object_arg(id, is_mutable, module, param).await?;
-                Ok(ResolvedCallArgResult::CallArg(CallArg::Object(object_arg)))
+                Ok(ResolvedCallArgResult::CallArg(object_arg))
             }
             ResolvedCallArg::ObjVec(vec_ids) => {
                 let mut object_args = Vec::with_capacity(vec_ids.len());
@@ -314,7 +314,7 @@ impl TransactionBuilder {
         for (arg, expected_type) in json_args_and_tokens {
             args.push(match arg {
                 // Move View Functions can accept pure arguments.
-                ResolvedCallArg::Pure(p) => builder.input(CallArg::Pure(p)),
+                ResolvedCallArg::Pure(p) => builder.pure(p),
                 // Move View Functions can accept only immutable object references.
                 ResolvedCallArg::Object(id) => {
                     fp_ensure!(
@@ -325,7 +325,7 @@ impl TransactionBuilder {
                             }
                             .into()
                         );
-                    builder.input(CallArg::Object(
+                    builder.input(
                         self.get_object_arg(
                             id,
                             // Setting false is safe because of fp_ensure! above
@@ -334,7 +334,7 @@ impl TransactionBuilder {
                             &expected_type,
                         )
                         .await?,
-                    ))
+                    )
                 }
                 // Move View Functions can not accept vector of object by value (this case).
                 ResolvedCallArg::ObjVec(_) => Err(UserInputError::InvalidMoveViewFunction {
@@ -379,9 +379,9 @@ impl TransactionBuilder {
             match resolved_arg {
                 ResolvedCallArgResult::CallArg(call_arg) => arguments.push(call_arg),
                 ResolvedCallArgResult::ObjVec(object_args) => {
-                    // For object vectors, add each object as a separate CallArg::Object entry
+                    // For object vectors, add each object as a separate CallArg entry
                     for obj_arg in object_args {
-                        arguments.push(CallArg::Object(obj_arg));
+                        arguments.push(obj_arg);
                     }
                 }
             }
@@ -469,7 +469,7 @@ fn check_function_has_a_return(
 /// [`CallArg`] and object vectors.
 enum ResolvedCallArgResult {
     CallArg(CallArg),
-    ObjVec(Vec<ObjectArg>),
+    ObjVec(Vec<CallArg>),
 }
 
 /// Get function parameters from a compiled module, excluding TxContext.

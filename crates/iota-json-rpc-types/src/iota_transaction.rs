@@ -34,9 +34,9 @@ use iota_types::{
     storage::{DeleteKind, WriteKind},
     transaction::{
         Argument, CallArg, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
-        EndOfEpochTransactionKind, GenesisObject, InputObjectKind, ObjectArg, ProgrammableMoveCall,
-        ProgrammableTransaction, SenderSignedData, TransactionData, TransactionDataAPI,
-        TransactionKind,
+        EndOfEpochTransactionKind, GenesisObject, InputObjectKind, ProgrammableMoveCall,
+        ProgrammableTransaction, SenderSignedData, SharedObjectRef, TransactionData,
+        TransactionDataAPI, TransactionKind,
     },
 };
 use move_binary_format::CompiledModule;
@@ -2509,15 +2509,15 @@ impl IotaCallArg {
                 value_type: layout.map(|l| type_tag_core_to_sdk(&l.into())),
                 value: IotaJsonValue::from_bcs_bytes(layout, &p)?,
             }),
-            CallArg::Object(ObjectArg::ImmOrOwnedObject(object_ref)) => {
+            CallArg::ImmutableOrOwned(object_ref) => {
                 IotaCallArg::Object(IotaObjectArg::ImmOrOwnedObject {
                     object_id: object_ref.object_id,
                     version: object_ref.version,
                     digest: object_ref.digest,
                 })
             }
-            CallArg::Object(ObjectArg::SharedObject {
-                id,
+            CallArg::Shared(SharedObjectRef {
+                object_id: id,
                 initial_shared_version,
                 mutable,
             }) => IotaCallArg::Object(IotaObjectArg::SharedObject {
@@ -2525,13 +2525,12 @@ impl IotaCallArg {
                 initial_shared_version,
                 mutable,
             }),
-            CallArg::Object(ObjectArg::Receiving(object_ref)) => {
-                IotaCallArg::Object(IotaObjectArg::Receiving {
-                    object_id: object_ref.object_id,
-                    version: object_ref.version,
-                    digest: object_ref.digest,
-                })
-            }
+            CallArg::Receiving(object_ref) => IotaCallArg::Object(IotaObjectArg::Receiving {
+                object_id: object_ref.object_id,
+                version: object_ref.version,
+                digest: object_ref.digest,
+            }),
+            _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         })
     }
 

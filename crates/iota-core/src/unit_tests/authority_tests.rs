@@ -79,11 +79,9 @@ impl TestCallArg {
         state: &AuthorityState,
     ) -> Argument {
         match self {
-            Self::Pure(value) => builder.input(CallArg::Pure(value)).unwrap(),
+            Self::Pure(value) => builder.pure_bytes(value, false),
             Self::Object(object_id) => builder
-                .input(CallArg::Object(
-                    Self::call_arg_from_id(object_id, state).await,
-                ))
+                .input(Self::call_arg_from_id(object_id, state).await)
                 .unwrap(),
             Self::ObjVec(vec) => {
                 let mut refs = vec![];
@@ -95,17 +93,17 @@ impl TestCallArg {
         }
     }
 
-    async fn call_arg_from_id(object_id: ObjectID, state: &AuthorityState) -> ObjectArg {
+    async fn call_arg_from_id(object_id: ObjectID, state: &AuthorityState) -> CallArg {
         let object = state.get_object(&object_id).await.unwrap();
         match &object.owner {
             Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
-                ObjectArg::ImmOrOwnedObject(object.compute_object_reference())
+                CallArg::ImmutableOrOwned(object.compute_object_reference())
             }
-            Owner::Shared(initial_shared_version) => ObjectArg::SharedObject {
-                id: object_id,
+            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef {
+                object_id,
                 initial_shared_version: *initial_shared_version,
                 mutable: true,
-            },
+            }),
             _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
         }
     }
@@ -178,8 +176,8 @@ async fn construct_shared_object_transaction_with_sequence_number(
         gas_object_ref,
         // args
         vec![
-            CallArg::Object(ObjectArg::SharedObject {
-                id: shared_object_id,
+            CallArg::Shared(SharedObjectRef {
+                object_id: shared_object_id,
                 initial_shared_version,
                 mutable: true,
             }),
@@ -893,9 +891,7 @@ async fn test_dev_inspect_uses_unbound_object() {
                 Identifier::from_static("object_basics"),
                 Identifier::from_static("freeze"),
                 vec![],
-                vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(
-                    random_object_ref(),
-                ))],
+                vec![CallArg::ImmutableOrOwned(random_object_ref())],
             )
             .unwrap();
         builder.finish()
@@ -1046,7 +1042,7 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
 
     // no child to delete since we are using the old version of the parent
     let pt = ProgrammableTransaction {
-        inputs: vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(parent))],
+        inputs: vec![CallArg::ImmutableOrOwned(parent)],
         commands: vec![Command::move_call(
             object_basics.object_id,
             Identifier::from_static("object_basics"),
@@ -1101,10 +1097,7 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
     fullnode.insert_genesis_object(gas_object).await;
     let rgp = fullnode.reference_gas_price_for_testing().unwrap();
     let pt = ProgrammableTransaction {
-        inputs: vec![
-            CallArg::Pure(bcs::to_bytes(&(32_u64)).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
-        ],
+        inputs: vec![CallArg::pure(&(32_u64)), CallArg::pure(&sender)],
         commands: vec![Command::move_call(
             object_basics.object_id,
             Identifier::from_static("object_basics"),
@@ -2930,7 +2923,7 @@ async fn test_invalid_mutable_clock_parameter() {
         // type_args
         vec![],
         gas_ref,
-        vec![CallArg::CLOCK_MUT],
+        vec![CallArg::CLOCK_MUTABLE],
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
         rgp,
     )
@@ -2968,8 +2961,8 @@ async fn test_invalid_randomness_parameter() {
     let init_random_version =
         get_randomness_state_obj_initial_shared_version(authority_state.get_object_store())
             .unwrap();
-    let random_mut = CallArg::Object(ObjectArg::SharedObject {
-        id: ObjectID::RANDOMNESS_STATE,
+    let random_mut = CallArg::Shared(SharedObjectRef {
+        object_id: ObjectID::RANDOMNESS_STATE,
         initial_shared_version: init_random_version,
         mutable: true,
     });
@@ -3078,7 +3071,7 @@ async fn test_valid_immutable_clock_parameter() {
         // type_args
         vec![],
         gas_ref,
-        vec![CallArg::CLOCK_IMM],
+        vec![CallArg::CLOCK_IMMUTABLE],
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
         rgp,
     )
@@ -3316,7 +3309,7 @@ async fn test_store_revert_wrap_move_call() {
             Identifier::from_static("wrap"),
             vec![],
             create_effects.gas_object().0,
-            vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(object_v0))],
+            vec![CallArg::ImmutableOrOwned(object_v0)],
             TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
             rgp,
         )
@@ -3415,7 +3408,7 @@ async fn test_store_revert_unwrap_move_call() {
             Identifier::from_static("unwrap"),
             vec![],
             wrap_effects.gas_object().0,
-            vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(wrapper_v0))],
+            vec![CallArg::ImmutableOrOwned(wrapper_v0)],
             TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
             rgp,
         )
@@ -3526,8 +3519,8 @@ async fn create_and_retrieve_df_info(
             vec![],
             create_inner_effects.gas_object().0,
             vec![
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(outer_v0)),
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(inner_v0)),
+                CallArg::ImmutableOrOwned(outer_v0),
+                CallArg::ImmutableOrOwned(inner_v0),
             ],
             TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
             rgp,
@@ -3693,8 +3686,8 @@ async fn test_store_revert_add_ofield() {
             vec![],
             create_inner_effects.gas_object().0,
             vec![
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(outer_v0)),
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(inner_v0)),
+                CallArg::ImmutableOrOwned(outer_v0),
+                CallArg::ImmutableOrOwned(inner_v0),
             ],
             TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
             rgp,
@@ -3821,7 +3814,7 @@ async fn test_store_revert_remove_ofield() {
             Identifier::from_static("remove_ofield"),
             vec![],
             add_effects.gas_object().0,
-            vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(outer_v1))],
+            vec![CallArg::ImmutableOrOwned(outer_v1)],
             TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
             rgp,
         )
@@ -4540,17 +4533,17 @@ async fn make_test_transaction(
         shared_objects
             .iter()
             .map(|(shared_object_id, initial_shared_version, mutable)| {
-                CallArg::Object(ObjectArg::SharedObject {
-                    id: *shared_object_id,
+                CallArg::Shared(SharedObjectRef {
+                    object_id: *shared_object_id,
                     initial_shared_version: *initial_shared_version,
                     mutable: *mutable,
                 })
             })
-            .chain(owned_objects.iter().map(|object| {
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(
-                    object.compute_object_reference(),
-                ))
-            }))
+            .chain(
+                owned_objects
+                    .iter()
+                    .map(|object| CallArg::ImmutableOrOwned(object.compute_object_reference())),
+            )
             .chain(vec![CallArg::Pure(arg_value.to_le_bytes().to_vec())])
             .collect(),
         gas_budget.unwrap_or(TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp),
@@ -4716,7 +4709,7 @@ async fn test_consensus_commit_prologue_generation() {
         // type_args
         vec![],
         gas_objects[0].compute_object_reference(),
-        vec![CallArg::CLOCK_IMM],
+        vec![CallArg::CLOCK_IMMUTABLE],
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
         rgp * 2, // User transaction that uses the clock has the highest gas price.
     )
@@ -6308,7 +6301,7 @@ async fn test_consensus_handler_per_object_congestion_control(
                 || cert
                     .shared_input_objects()
                     .into_iter()
-                    .any(|obj| { obj.id() == shared_objects[1].id() })
+                    .any(|obj| { obj.object_id == shared_objects[1].id() })
         );
     }
 
@@ -6366,7 +6359,7 @@ async fn test_consensus_handler_per_object_congestion_control(
                 || cert
                     .shared_input_objects()
                     .into_iter()
-                    .any(|obj| { obj.id() == shared_objects[1].id() })
+                    .any(|obj| { obj.object_id == shared_objects[1].id() })
         );
     }
 

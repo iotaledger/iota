@@ -19,7 +19,7 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     object::Owner,
     parse_iota_struct_tag,
-    transaction::{CallArg, ObjectArg},
+    transaction::CallArg,
 };
 use prost_types::FieldMask;
 
@@ -533,7 +533,7 @@ async fn list_owned_objects_tto_indexing() {
             package_id,
             "tto_coin",
             "start",
-            vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(coin_ref))],
+            vec![CallArg::ImmutableOrOwned(coin_ref)],
         )
         .build();
     let signed_start = test_cluster.sign_transaction(&start_tx);
@@ -582,8 +582,8 @@ async fn list_owned_objects_tto_indexing() {
             "tto_coin",
             "receive",
             vec![
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(parent_ref)),
-                CallArg::Object(ObjectArg::Receiving(coin_after_start)),
+                CallArg::ImmutableOrOwned(parent_ref),
+                CallArg::Receiving(coin_after_start),
             ],
         )
         .build();
@@ -738,7 +738,7 @@ async fn list_owned_objects_filter_by_type() {
             "trusted_coin",
             "mint",
             vec![
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(treasury_cap_ref)),
+                CallArg::ImmutableOrOwned(treasury_cap_ref),
                 CallArg::Pure(bcs::to_bytes(&100_000u64).unwrap()),
             ],
         )

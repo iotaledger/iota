@@ -30,10 +30,10 @@ use iota_sdk_types::{
     transaction::{
         CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
         ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
-        EndOfEpochTransactionKind, GasPayment, GenesisTransaction, Input, MakeMoveVector,
-        MergeCoins, MoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate,
-        SignedTransaction, SplitCoins, SystemPackage, Transaction, TransactionExpiration,
-        TransactionKind, TransactionV1, TransferObjects, Upgrade, VersionAssignment,
+        EndOfEpochTransactionKind, GasPayment, GenesisTransaction, MakeMoveVector, MergeCoins,
+        MoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate, SignedTransaction,
+        SplitCoins, SystemPackage, Transaction, TransactionExpiration, TransactionKind,
+        TransactionV1, TransferObjects, Upgrade, VersionAssignment,
     },
     validator::{ValidatorAggregatedSignature, ValidatorCommittee, ValidatorCommitteeMember},
 };
@@ -248,11 +248,7 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
         match value {
             InternalTxnKind::ProgrammableTransaction(programmable_transaction) => {
                 TransactionKind::ProgrammableTransaction(ProgrammableTransaction {
-                    inputs: programmable_transaction
-                        .inputs
-                        .into_iter()
-                        .map(Into::into)
-                        .collect(),
+                    inputs: programmable_transaction.inputs,
                     commands: programmable_transaction
                         .commands
                         .into_iter()
@@ -336,11 +332,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
         match value {
             TransactionKind::ProgrammableTransaction(programmable_transaction) => {
                 Self::ProgrammableTransaction(crate::transaction::ProgrammableTransaction {
-                    inputs: programmable_transaction
-                        .inputs
-                        .into_iter()
-                        .map(Into::into)
-                        .collect(),
+                    inputs: programmable_transaction.inputs,
                     commands: programmable_transaction
                         .commands
                         .into_iter()
@@ -590,54 +582,6 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                 })
             }
             _ => unreachable!("a new enum variant was added and needs to be handled"),
-        }
-    }
-}
-
-impl From<crate::transaction::CallArg> for Input {
-    fn from(value: crate::transaction::CallArg) -> Self {
-        match value {
-            crate::transaction::CallArg::Pure(vec) => Self::Pure { value: vec },
-            crate::transaction::CallArg::Object(object_arg) => match object_arg {
-                crate::transaction::ObjectArg::ImmOrOwnedObject(obj_ref) => {
-                    Self::ImmutableOrOwned(obj_ref)
-                }
-                crate::transaction::ObjectArg::SharedObject {
-                    id,
-                    initial_shared_version,
-                    mutable,
-                } => Self::Shared {
-                    object_id: id,
-                    initial_shared_version,
-                    mutable,
-                },
-                crate::transaction::ObjectArg::Receiving(obj_ref) => Self::Receiving(obj_ref),
-            },
-        }
-    }
-}
-
-impl From<Input> for crate::transaction::CallArg {
-    fn from(value: Input) -> Self {
-        use crate::transaction::ObjectArg;
-        match value {
-            Input::Pure { value } => Self::Pure(value),
-            Input::ImmutableOrOwned(object_reference) => {
-                Self::Object(ObjectArg::ImmOrOwnedObject(object_reference))
-            }
-            Input::Shared {
-                object_id,
-                initial_shared_version,
-                mutable,
-            } => Self::Object(ObjectArg::SharedObject {
-                id: object_id,
-                initial_shared_version,
-                mutable,
-            }),
-            Input::Receiving(object_reference) => {
-                Self::Object(ObjectArg::Receiving(object_reference))
-            }
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
     }
 }

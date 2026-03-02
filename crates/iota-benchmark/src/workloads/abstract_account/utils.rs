@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use iota_core::test_utils::make_pay_iota_transaction;
-use iota_sdk::types::transaction::{Argument, ObjectArg};
+use iota_sdk::types::transaction::Argument;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag},
@@ -13,7 +13,7 @@ use iota_types::{
     move_package::{PACKAGE_METADATA_MODULE_NAME, PACKAGE_METADATA_V1_STRUCT_NAME},
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Transaction, TransactionData},
+    transaction::{CallArg, Transaction, TransactionData},
 };
 use tracing::info;
 
@@ -174,7 +174,7 @@ pub async fn create_abstract_account(
         let mut builder = ProgrammableTransactionBuilder::new();
 
         let args = vec![
-            builder.obj(ObjectArg::ImmOrOwnedObject(aa_package_metadata_ref))?,
+            builder.obj(CallArg::ImmutableOrOwned(aa_package_metadata_ref))?,
             builder.pure(Identifier::from_static(AA_MODULE_NAME))?,
             builder.pure(authenticator.function_name())?,
             builder.pure(owner_pk.as_ref())?,

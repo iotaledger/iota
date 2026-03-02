@@ -50,7 +50,7 @@ use iota_types::{
     multisig::{MultiSig, MultiSigPublicKey, ThresholdUnit, WeightUnit},
     passkey_authenticator::PasskeyAuthenticator,
     signature::{GenericSignature, VerifyParams},
-    transaction::{CallArg, SenderSignedData, TransactionData, TransactionDataAPI},
+    transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
 };
 use json_to_table::{Orientation, json_to_table};
 use serde::Serialize;
@@ -549,10 +549,8 @@ impl KeyToolCommand {
                         let call_arguments: Vec<String> = move_auth
                             .call_args()
                             .iter()
-                            .map(|arg| match arg {
-                                CallArg::Pure(bytes) => format!("0x{}", Hex::encode(bytes)),
-                                CallArg::Object(obj) => serde_json::to_string(obj)
-                                    .unwrap_or_else(|_| format!("{obj:?}")),
+                            .map(|arg| {
+                                serde_json::to_string(&arg).unwrap_or_else(|_| format!("{arg:?}"))
                             })
                             .collect();
                         let type_arguments = serde_json::to_value(move_auth.type_arguments())

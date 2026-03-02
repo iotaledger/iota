@@ -1153,7 +1153,7 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
         // type_args
         vec![],
         gas_obj,
-        vec![CallArg::CLOCK_IMM],
+        vec![CallArg::CLOCK_IMMUTABLE],
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
         rgp,
     )

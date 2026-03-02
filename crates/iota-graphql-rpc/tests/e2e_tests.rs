@@ -22,7 +22,7 @@ mod tests {
         base_types::{IotaAddress, ObjectID},
         digests::{ChainIdentifier, TransactionDigest},
         gas_coin::GAS,
-        transaction::{CallArg, ObjectArg, Transaction, TransactionDataAPI},
+        transaction::{CallArg, Transaction, TransactionDataAPI},
     };
     use rand::{SeedableRng, rngs::StdRng};
     use serde_json::json;
@@ -845,10 +845,7 @@ mod tests {
                 ObjectID::FRAMEWORK,
                 "coin",
                 "split",
-                vec![
-                    CallArg::Object(ObjectArg::ImmOrOwnedObject(coin)),
-                    CallArg::Pure(bcs::to_bytes(&1000u64).unwrap()),
-                ],
+                vec![CallArg::ImmutableOrOwned(coin), CallArg::pure(&1000u64)],
             )
             .with_type_args(vec![GAS::type_tag()])
             .build();

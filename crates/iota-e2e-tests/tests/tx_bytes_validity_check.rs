@@ -30,7 +30,7 @@ use test_cluster::TestClusterBuilder;
 // iota::clock::timestamp_ms -> iota::_::timestamp_ms
 //
 fn build_faulty_transaction_byte_sequence() -> Base64 {
-    let inputs = vec![CallArg::CLOCK_IMM];
+    let inputs = vec![CallArg::CLOCK_IMMUTABLE];
     // In case the ProgrammableMoveCall API is fixed such that it does not
     // accept invalid inputs and there are no other easily accessible interfaces
     // for constructing invalid transaction byte sequences, then serialize one

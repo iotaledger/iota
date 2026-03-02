@@ -19,7 +19,7 @@ use iota_types::{
     move_package::MovePackageExt,
     object::{Object, Owner},
     storage::WriteKind,
-    transaction::{CallArg, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionData},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionData},
 };
 use move_binary_format::{file_format::Visibility, normalized};
 use move_core_types::identifier::IdentStr;
@@ -162,9 +162,7 @@ impl SurferState {
         args: Vec<CallArg>,
     ) {
         let rgp = self.cluster.get_reference_gas_price().await;
-        let use_shared_object = args
-            .iter()
-            .any(|arg| matches!(arg, CallArg::Object(ObjectArg::SharedObject { .. })));
+        let use_shared_object = args.iter().any(CallArg::is_shared);
         let tx_data = TransactionData::new_move_call(
             self.address,
             package,

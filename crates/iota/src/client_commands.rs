@@ -74,7 +74,7 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     transaction::{
-        CallArg, InputObjectKind, SenderSignedData, Transaction, TransactionData,
+        CallArg, InputObjectKind, SenderSignedData, SharedObjectRef, Transaction, TransactionData,
         TransactionDataAPI, TransactionKind,
     },
     type_input::TypeInput,
@@ -3869,8 +3869,8 @@ async fn create_move_authenticator_signature(
         MoveAuthenticator::new_v1(
             call_args,
             type_args.into_iter().map(TypeInput::from).collect(),
-            CallArg::Object(iota_types::transaction::ObjectArg::SharedObject {
-                id: ObjectID::from(address),
+            CallArg::Shared(SharedObjectRef {
+                object_id: ObjectID::from(address),
                 initial_shared_version,
                 mutable: false,
             }),
