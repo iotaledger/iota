@@ -1177,7 +1177,7 @@ impl Display for ProgrammableTransaction {
 /// Merges `other` into `this` shared input object.
 /// If there is a conflict in mutability, the resulting object will be
 /// mutable. Errors if the id or initial_shared_version do not match.
-pub fn left_union_shared_input_objects(
+fn left_union_shared_input_objects(
     this: &mut SharedObjectRef,
     other: &SharedObjectRef,
 ) -> UserInputResult<()> {
