@@ -850,11 +850,15 @@ impl ConsensusAdapter {
 
         let is_user_tx = is_soft_bundle
             || if epoch_store.protocol_config().enable_white_flag_flow() {
+                // In the certificate-less mode, `UserTransactionV1` kind corresponds
+                // to user transactions.
                 matches!(
                     transactions[0].kind,
                     ConsensusTransactionKind::UserTransactionV1(_)
                 )
             } else {
+                // In the certificate mode, `CertifiedTransaction` kind corresponds
+                // to user transactions.
                 matches!(
                     transactions[0].kind,
                     ConsensusTransactionKind::CertifiedTransaction(_)
@@ -881,12 +885,12 @@ impl ConsensusAdapter {
 
                     true
                 } else {
-                    // In the certificate mode, we have to check if the list of pending
-                    // consensus certificates is drained; only then issue `EndOfPublish`.
+                    // In certificate mode, `EndOfPublish` is sent only once the list
+                    // of pending consensus certificates is drained.
                     let pending_count = epoch_store.pending_consensus_certificates_count();
                     debug!(epoch=?epoch_store.epoch(), ?pending_count, "Deciding whether to send EndOfPublish");
 
-                    pending_count == 0 // send end of epoch if empty
+                    pending_count == 0 // send end of epoch if no pending certificates
                 }
             } else {
                 false
@@ -1116,10 +1120,11 @@ pub fn get_position_in_list(
 }
 
 impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
-    /// This method is called externally to begin reconfiguration
-    /// It transition reconfig state to reject new certificates from user
-    /// ConsensusAdapter will send EndOfPublish message once pending certificate
-    /// queue is drained.
+    /// This method is called externally to begin reconfiguration.
+    /// It transitions the reconfig state to reject new user transactions.
+    /// `ConsensusAdapter` will send `EndOfPublish` once all pending
+    /// transactions are drained (in the certificate mode) or immediately
+    /// (in the certificate-less mode).
     fn close_epoch(&self, epoch_store: &Arc<AuthorityPerEpochStore>) {
         let send_end_of_publish = {
             let reconfig_guard = epoch_store.get_reconfig_state_write_lock_guard();
@@ -1127,17 +1132,28 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
                 // Allow caller to call this method multiple times
                 return;
             }
-            // NOTE: In the certificate-less case, `pending_consensus_certificates_count`
-            // is always zero because we do not insert anything into the set of pending
-            // consensus certificates, so there might be room for minor optimization: avoid
-            // reading `pending_consensus_certificates` in the certificate-less scenario.
-            let pending_count = epoch_store.pending_consensus_certificates_count();
-            debug!(epoch=?epoch_store.epoch(), ?pending_count, "Trying to close epoch");
-            let send_end_of_publish = pending_count == 0;
+
+            let send_end_of_publish = if epoch_store.protocol_config().enable_white_flag_flow() {
+                // In certificate-less mode, there are no pending consensus
+                // certificates, so `EndOfPublish` is always sent immediately.
+                debug!(epoch=?epoch_store.epoch(), "Closing epoch in certificate-less mode");
+
+                true
+            } else {
+                // In certificate mode, `EndOfPublish` is sent only once the list
+                // of pending consensus certificates is drained.
+                let pending_count = epoch_store.pending_consensus_certificates_count();
+                debug!(epoch=?epoch_store.epoch(), ?pending_count, "Trying to close epoch");
+
+                pending_count == 0 // send end of epoch if no pending certificates
+            };
+
             epoch_store.close_user_certs(reconfig_guard);
+
             send_end_of_publish
             // reconfig_guard lock is dropped here.
         };
+
         if send_end_of_publish {
             info!(epoch=?epoch_store.epoch(), "Sending EndOfPublish message to consensus");
             if let Err(err) = self.submit(
