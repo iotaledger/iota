@@ -111,17 +111,20 @@ impl CommitObserver {
         observer
     }
 
-    /// Reinitialize the CommitObserver at a new commit index after fast sync.
+    /// Reinitialize the CommitObserver at a new commit index.
+    /// Uses the existing `recover_and_send_commits` method which handles:
+    /// - Recovering linearizer state (transaction ack tracker, traversed
+    ///   headers)
+    /// - Only re-sends commits that are > last_commit_index (none in this case)
     pub(crate) fn reinitialize(&mut self, last_commit_index: CommitIndex) {
         let now = Instant::now();
 
-        // Clear linearizer state for clean recovery
+        // Clear linearizer state
         self.linearizer.clear_state();
         self.last_sent_commit_index = last_commit_index;
 
-        // Recover linearizer and solidifier state via the standard path.
-        // The fast_sync_ongoing flag will have been flushed to false by now,
-        // so recover_and_send_commits will correctly run Phase 2.
+        // Reuse existing recovery logic - it won't resend commits since
+        // they're all <= last_commit_index
         self.recover_and_send_commits(last_commit_index, CommittedSubDagSource::FastCommitSyncer);
 
         info!(
