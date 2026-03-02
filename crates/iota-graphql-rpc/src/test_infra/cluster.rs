@@ -5,6 +5,7 @@
 use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use iota_graphql_rpc_client::simple_client::SimpleClient;
+use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 pub use iota_indexer::config::SnapshotLagConfig;
 use iota_indexer::{
     config::PruningOptions,
@@ -36,7 +37,7 @@ const GAS_OBJECT_COUNT: usize = 3;
 pub const DEFAULT_INTERNAL_DATA_SOURCE_PORT: u16 = 3000;
 
 pub struct ExecutorCluster {
-    pub executor_server_handle: JoinHandle<()>,
+    pub executor_server_handle: GrpcServerHandle,
     pub indexer_store: PgIndexerStore,
     pub indexer_join_handle: JoinHandle<Result<(), IndexerError>>,
     pub graphql_server_join_handle: JoinHandle<()>,
@@ -65,7 +66,7 @@ pub async fn start_cluster(
     let db_url = graphql_connection_config.db_url.clone();
     let cancellation_token = CancellationToken::new();
     // Starts validator+fullnode
-    let val_fn =
+    let test_cluster =
         start_validator_with_fullnode(internal_data_source_rpc_port, data_ingestion_path.clone())
             .await;
 
@@ -75,7 +76,7 @@ pub async fn start_cluster(
         // reset the existing db
         true,
         None,
-        val_fn.rpc_url().to_string(),
+        test_cluster.rpc_url().to_string(),
         IndexerTypeConfig::writer_mode(None, None),
         Some(data_ingestion_path),
         cancellation_token.clone(),
@@ -83,10 +84,10 @@ pub async fn start_cluster(
     .await;
 
     // Starts graphql server
-    let fn_rpc_url = val_fn.rpc_url().to_string();
+    let grpc_url = test_cluster.grpc_url();
     let graphql_server_handle = start_graphql_server_with_fn_rpc(
         graphql_connection_config.clone(),
-        Some(fn_rpc_url),
+        Some(grpc_url),
         Some(cancellation_token.clone()),
         Some(service_config),
     )
@@ -102,7 +103,7 @@ pub async fn start_cluster(
     wait_for_graphql_server(&client).await;
 
     Cluster {
-        validator_fullnode_handle: val_fn,
+        validator_fullnode_handle: test_cluster,
         indexer_store: pg_store,
         indexer_join_handle: pg_handle,
         graphql_server_join_handle: graphql_server_handle,
@@ -136,11 +137,26 @@ pub async fn serve_executor(
 
     info!("Starting executor server on {}", executor_server_url);
 
-    let executor_server_handle = tokio::spawn(async move {
-        iota_rest_api::RestService::new_without_version(executor)
-            .start_service(executor_server_url)
-            .await;
-    });
+    let config = iota_config::node::GrpcApiConfig {
+        address: executor_server_url,
+        ..Default::default()
+    };
+
+    let chain_id = executor.get_chain_identifier().unwrap();
+    let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(
+        executor,
+        Some("graphql_grpc_test".into()),
+    ));
+
+    let executor_server_handle = start_grpc_server(
+        grpc_reader,
+        None,
+        config,
+        cancellation_token.clone(),
+        chain_id,
+    )
+    .await
+    .unwrap();
 
     info!("spawned executor server");
 
@@ -273,7 +289,8 @@ async fn start_validator_with_fullnode(
                 gas_amounts: vec![DEFAULT_GAS_AMOUNT; GAS_OBJECT_COUNT],
             };
             ACCOUNT_NUM
-        ]);
+        ])
+        .with_fullnode_enable_grpc_api(true);
 
     if let Some(internal_data_source_rpc_port) = internal_data_source_rpc_port {
         test_cluster_builder =

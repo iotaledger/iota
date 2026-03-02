@@ -32,7 +32,7 @@ use http::{HeaderValue, Method, Request};
 use iota_graphql_rpc_headers::LIMITS_HEADER;
 use iota_grpc_client::Client as GrpcClient;
 use iota_indexer::{
-    apis::{OptimisticWriteApi, WriteApi},
+    apis::{OptimisticWriteApi, ReadApi, WriteApi},
     db::{get_pool_connection, setup_postgres::check_db_migration_consistency},
     metrics::IndexerMetrics,
     optimistic_indexing::OptimisticTransactionExecutor,
@@ -482,7 +482,13 @@ impl ServerBuilder {
 
         let graphql_streams =
             GraphQLStream::new(&config.connection.db_url, reader.clone(), &registry).await?;
-        let write_api = build_write_api(fullnode_url, reader, indexer_metrics).await?;
+
+        let fullnode_grpc_client = GrpcClient::connect(fullnode_url)
+            .await
+            .map_err(|e| Error::ServerInit(e.to_string()))?;
+
+        let read_api = ReadApi::new(reader.clone(), fullnode_grpc_client.clone());
+        let write_api = build_write_api(fullnode_grpc_client, reader, indexer_metrics).await?;
 
         builder = builder
             .context_data(config.service.clone())
@@ -491,6 +497,7 @@ impl ServerBuilder {
             .context_data(pg_conn_pool)
             .context_data(resolver)
             .context_data(write_api)
+            .context_data(read_api)
             .context_data(iota_names_config)
             .context_data(zklogin_config)
             .context_data(metrics.clone())
@@ -591,24 +598,20 @@ pub(crate) fn get_write_api<'ctx>(
 }
 
 async fn build_write_api(
-    fullnode_grpc_url: &str,
+    fullnode_grpc_client: GrpcClient,
     reader: IndexerReader,
     metrics: IndexerMetrics,
 ) -> Result<OptimisticWriteApi, Error> {
-    let fullnode_gpc_client = GrpcClient::connect(fullnode_grpc_url)
-        .await
-        .map_err(|e| Error::ServerInit(e.to_string()))?;
-
     let indexer_store = PgIndexerStore::new(reader.get_pool(), metrics.clone());
     let optimistic_tx_executor = OptimisticTransactionExecutor::new(
-        fullnode_gpc_client.clone(),
+        fullnode_grpc_client.clone(),
         reader.clone(),
         indexer_store,
         metrics,
     )
     .await?;
     Ok(OptimisticWriteApi::new(
-        WriteApi::new(fullnode_gpc_client, reader),
+        WriteApi::new(fullnode_grpc_client, reader),
         optimistic_tx_executor,
     ))
 }
