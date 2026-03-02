@@ -11,6 +11,7 @@ import {
     type MutableRefObject,
     type ReactNode,
 } from 'react';
+import { AmpliSourceFlow } from '_src/shared/analytics';
 
 export enum AccountsFormType {
     NewMnemonic = 'new-mnemonic',
@@ -59,6 +60,8 @@ export type AccountsFormValues =
 type AccountsFormContextType = [
     MutableRefObject<AccountsFormValues>,
     (values: AccountsFormValues) => void,
+    MutableRefObject<string>,
+    (sourceFlow: string) => void,
 ];
 
 const AccountsFormContext = createContext<AccountsFormContextType | null>(null);
@@ -72,7 +75,14 @@ export function AccountsFormProvider({ children }: AccountsFormProviderProps) {
     const setter = useCallback((values: AccountsFormValues) => {
         valuesRef.current = values;
     }, []);
-    const value = useMemo(() => [valuesRef, setter] as AccountsFormContextType, [setter]);
+    const sourceFlowRef = useRef<string>(AmpliSourceFlow.Unknown);
+    const sourceFlowSetter = useCallback((sourceFlow: string) => {
+        sourceFlowRef.current = sourceFlow;
+    }, []);
+    const value = useMemo(
+        () => [valuesRef, setter, sourceFlowRef, sourceFlowSetter] as AccountsFormContextType,
+        [setter, sourceFlowSetter],
+    );
     return <AccountsFormContext.Provider value={value}>{children}</AccountsFormContext.Provider>;
 }
 
@@ -84,4 +94,17 @@ export function useAccountsFormContext() {
         throw new Error('useAccountsFormContext must be used within the AccountsFormProvider');
     }
     return context;
+}
+
+/**
+ * Hook to get and set the sourceFlow analytics value for the current account creation flow.
+ * Set once at the start of the flow (WelcomePage / AddAccountPage), read wherever needed.
+ */
+export function useSourceFlow() {
+    const context = useContext(AccountsFormContext);
+    if (!context) {
+        throw new Error('useSourceFlow must be used within the AccountsFormProvider');
+    }
+    const [, , sourceFlowRef, setSourceFlow] = context;
+    return { sourceFlowRef, setSourceFlow };
 }
