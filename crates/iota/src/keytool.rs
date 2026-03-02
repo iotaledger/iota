@@ -52,7 +52,7 @@ use iota_types::{
     passkey_authenticator::PasskeyAuthenticator,
     signature::{GenericSignature, VerifyParams},
     signature_verification::VerifiedDigestCache,
-    transaction::{CallArg, SenderSignedData, TransactionData, TransactionDataAPI},
+    transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
     zk_login_authenticator::ZkLoginAuthenticator,
 };
 use json_to_table::{Orientation, json_to_table};
@@ -659,10 +659,7 @@ impl KeyToolCommand {
                     GenericSignature::PasskeyAuthenticator(passkey) => DecodedSigOutput::Passkey(passkey),
                     GenericSignature::MoveAuthenticator(move_auth) => {
                         let call_arguments: Vec<String> = move_auth.call_args().iter().map(|arg| {
-                            match arg {
-                                CallArg::Pure(bytes) => format!("0x{}", Hex::encode(bytes)),
-                                CallArg::Object(obj) => serde_json::to_string(obj).unwrap_or_else(|_| format!("{obj:?}")),
-                            }
+                            serde_json::to_string(&arg).unwrap_or_else(|_| format!("{arg:?}"))
                         }).collect();
                         let type_arguments = serde_json::to_value(move_auth.type_arguments())
                             .map_err(|e| anyhow!("Failed to serialize type_arguments: {e}"))?;

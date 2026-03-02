@@ -41,13 +41,6 @@ export interface BalanceChange {
     /** Owner of the balance change */
     owner: ObjectOwner;
 }
-export type CallArg =
-    | {
-          Pure: number[];
-      }
-    | {
-          Object: ObjectArg;
-      };
 export interface Checkpoint {
     /** Commitments to checkpoint state */
     checkpointCommitments: CheckpointCommitment[];
@@ -83,11 +76,6 @@ export type CheckpointCommitment = {
     ECMHLiveObjectSetDigest: ECMHLiveObjectSetDigest;
 };
 export type CheckpointId = string | string;
-/** A claim consists of value and index_mod_4. */
-export interface Claim {
-    indexMod4: number;
-    value: string;
-}
 export interface CoinStruct {
     balance: string;
     coinObjectId: string;
@@ -101,26 +89,6 @@ export interface CommitteeInfo {
     epoch: string;
     validators: [string, string][];
 }
-/** Unlike [enum Signature], [enum CompressedSignature] does not contain public key. */
-export type CompressedSignature =
-    | {
-          Ed25519: string;
-      }
-    | {
-          Secp256k1: string;
-      }
-    | {
-          Secp256r1: string;
-      }
-    | {
-          ZkLogin: string;
-      }
-    | {
-          Passkey: string;
-      }
-    | {
-          Move: string;
-      };
 /** Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments. */
 export type ConsensusDeterminedVersionAssignments = {
     CancelledTransactions: [string, [string, string][]][];
@@ -1189,28 +1157,6 @@ export interface MoveVariant {
     type: string;
     variant: string;
 }
-/** The struct that contains signatures and public keys necessary for authenticating a MultiSig. */
-export interface MultiSig {
-    /** A bitmap that indicates the position of which public key the signature should be authenticated with. */
-    bitmap: number;
-    /**
-     * The public key encoded with each public key with its signature scheme used along with the
-     * corresponding weight.
-     */
-    multisig_pk: MultiSigPublicKey;
-    /** The plain signature encoded with signature scheme. */
-    sigs: CompressedSignature[];
-}
-/** The struct that contains the public key used for authenticating a MultiSig. */
-export interface MultiSigPublicKey {
-    /** A list of public key and its corresponding weight. */
-    pk_map: [PublicKey, number][];
-    /**
-     * If the total weight of the public keys corresponding to verified signatures is larger than
-     * threshold, the MultiSig is verified.
-     */
-    threshold: number;
-}
 export interface NetworkMetrics {
     /** Current checkpoint number */
     currentCheckpoint: string;
@@ -1227,20 +1173,6 @@ export interface NetworkMetrics {
     /** Peak TPS in the past 30 days */
     tps30Days: number;
 }
-export type ObjectArg =
-    | {
-          ImmOrOwnedObject: [string, string, string];
-      }
-    | {
-          SharedObject: {
-              id: string;
-              initial_shared_version: string;
-              mutable: boolean;
-          };
-      }
-    | {
-          Receiving: [string, string, string];
-      };
 /**
  * ObjectChange are derived from the object mutations in the TransactionEffect to provide richer object
  * information.
@@ -1533,24 +1465,6 @@ export interface ParticipationMetrics {
     /** The count of distinct addresses with delegated stake. */
     totalAddresses: string;
 }
-/**
- * An passkey authenticator with parsed fields. See field definition below. Can be initialized from
- * [struct RawPasskeyAuthenticator].
- */
-export interface PasskeyAuthenticator {
-    /**
-     * `authenticatorData` is a bytearray that encodes
-     * [Authenticator Data](https://www.w3.org/TR/webauthn-2/#sctn-authenticator-data) structure returned
-     * by the authenticator attestation response as is.
-     */
-    authenticator_data: number[];
-    /**
-     * `clientDataJSON` contains a JSON-compatible UTF-8 encoded string of the client data which is passed
-     * to the authenticator by the client during the authentication request (see
-     * [CollectedClientData](https://www.w3.org/TR/webauthn-2/#dictdef-collectedclientdata))
-     */
-    client_data_json: string;
-}
 export interface ProtocolConfig {
     attributes: {
         [key: string]: ProtocolConfigValue | null;
@@ -1579,22 +1493,6 @@ export type ProtocolConfigValue =
           bool: string;
       };
 export type PtbInput = IotaArgument | unknown;
-export type PublicKey =
-    | {
-          Ed25519: string;
-      }
-    | {
-          Secp256k1: string;
-      }
-    | {
-          Secp256r1: string;
-      }
-    | {
-          ZkLogin: string;
-      }
-    | {
-          Passkey: string;
-      };
 export type RPCTransactionRequestParams =
     | {
           transferObjectRequestParams: TransferObjectParams;
@@ -1620,16 +1518,6 @@ export type RawData =
           };
           typeOriginTable: TypeOrigin[];
           version: string;
-      };
-export type Signature =
-    | {
-          Ed25519IotaSignature: string;
-      }
-    | {
-          Secp256k1IotaSignature: string;
-      }
-    | {
-          Secp256r1IotaSignature: string;
       };
 export type StakeObject =
     | {
@@ -1979,23 +1867,4 @@ export interface ValidatorApy {
 export interface ValidatorsApy {
     apys: ValidatorApy[];
     epoch: string;
-}
-/** An zk login authenticator with all the necessary fields. */
-export interface ZkLoginAuthenticator {
-    inputs: ZkLoginInputs;
-    maxEpoch: string;
-    userSignature: Signature;
-}
-/** All inputs required for the zk login proof verification and other public inputs. */
-export interface ZkLoginInputs {
-    addressSeed: string;
-    headerBase64: string;
-    issBase64Details: Claim;
-    proofPoints: ZkLoginProof;
-}
-/** The struct for zk login proof. */
-export interface ZkLoginProof {
-    a: string[];
-    b: string[][];
-    c: string[];
 }

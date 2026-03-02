@@ -47,7 +47,7 @@ use iota_types::{
     },
     multiaddr::Multiaddr,
     object::Owner,
-    transaction::{CallArg, ObjectArg, Transaction, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
 };
 use serde::Serialize;
 use tabled::{
@@ -274,39 +274,21 @@ impl IotaValidatorCommand {
                 let validator = validator_info.info;
 
                 let args = vec![
-                    CallArg::Pure(
-                        bcs::to_bytes(&AuthorityPublicKeyBytes::from_bytes(
-                            validator.authority_key().as_bytes(),
-                        )?)
-                        .unwrap(),
-                    ),
-                    CallArg::Pure(
-                        bcs::to_bytes(&validator.network_key().as_bytes().to_vec()).unwrap(),
-                    ),
-                    CallArg::Pure(
-                        bcs::to_bytes(&validator.protocol_key().as_bytes().to_vec()).unwrap(),
-                    ),
-                    CallArg::Pure(
-                        bcs::to_bytes(&validator_info.proof_of_possession.as_ref().to_vec())
-                            .unwrap(),
-                    ),
-                    CallArg::Pure(
-                        bcs::to_bytes(&validator.name().to_owned().into_bytes()).unwrap(),
-                    ),
-                    CallArg::Pure(
-                        bcs::to_bytes(&validator.description.clone().into_bytes()).unwrap(),
-                    ),
-                    CallArg::Pure(
-                        bcs::to_bytes(&validator.image_url.clone().into_bytes()).unwrap(),
-                    ),
-                    CallArg::Pure(
-                        bcs::to_bytes(&validator.project_url.clone().into_bytes()).unwrap(),
-                    ),
-                    CallArg::Pure(bcs::to_bytes(validator.network_address()).unwrap()),
-                    CallArg::Pure(bcs::to_bytes(validator.p2p_address()).unwrap()),
-                    CallArg::Pure(bcs::to_bytes(validator.primary_address()).unwrap()),
-                    CallArg::Pure(bcs::to_bytes(&validator.gas_price()).unwrap()),
-                    CallArg::Pure(bcs::to_bytes(&validator.commission_rate()).unwrap()),
+                    CallArg::pure(&AuthorityPublicKeyBytes::from_bytes(
+                        validator.authority_key().as_bytes(),
+                    )?),
+                    CallArg::pure(&validator.network_key().as_bytes().to_vec()),
+                    CallArg::pure(&validator.protocol_key().as_bytes().to_vec()),
+                    CallArg::pure(&validator_info.proof_of_possession.as_ref().to_vec()),
+                    CallArg::pure(&validator.name().to_owned().into_bytes()),
+                    CallArg::pure(&validator.description.clone().into_bytes()),
+                    CallArg::pure(&validator.image_url.clone().into_bytes()),
+                    CallArg::pure(&validator.project_url.clone().into_bytes()),
+                    CallArg::pure(validator.network_address()),
+                    CallArg::pure(validator.p2p_address()),
+                    CallArg::pure(validator.primary_address()),
+                    CallArg::pure(&validator.gas_price()),
+                    CallArg::pure(&validator.commission_rate()),
                 ];
                 let response =
                     call_0x5(context, "request_add_validator_candidate", args, gas_budget).await?;
@@ -533,8 +515,8 @@ async fn report_validator(
         );
     }
     let args = vec![
-        CallArg::Object(ObjectArg::ImmOrOwnedObject(cap_obj_ref)),
-        CallArg::Pure(bcs::to_bytes(&reportee_address).unwrap()),
+        CallArg::ImmutableOrOwned(cap_obj_ref),
+        CallArg::pure(&reportee_address),
     ];
     let function_name = if undo_report {
         "undo_report_validator"
@@ -590,7 +572,7 @@ async fn construct_unsigned_0x5_txn(
     gas_budget: u64,
 ) -> anyhow::Result<TransactionData> {
     let iota_client = context.get_client().await?;
-    let mut args = vec![CallArg::IOTA_SYSTEM_MUT];
+    let mut args = vec![CallArg::IOTA_SYSTEM_MUTABLE];
     args.extend(call_args);
     let rgp = iota_client
         .governance_api()
@@ -973,25 +955,19 @@ async fn update_metadata(
 ) -> anyhow::Result<IotaTransactionBlockResponse> {
     match metadata {
         MetadataUpdate::Name { name } => {
-            let args = vec![CallArg::Pure(bcs::to_bytes(&name.into_bytes()).unwrap())];
+            let args = vec![CallArg::pure(&name.into_bytes())];
             call_0x5(context, "update_validator_name", args, gas_budget).await
         }
         MetadataUpdate::Description { description } => {
-            let args = vec![CallArg::Pure(
-                bcs::to_bytes(&description.into_bytes()).unwrap(),
-            )];
+            let args = vec![CallArg::pure(&description.into_bytes())];
             call_0x5(context, "update_validator_description", args, gas_budget).await
         }
         MetadataUpdate::ImageUrl { image_url } => {
-            let args = vec![CallArg::Pure(
-                bcs::to_bytes(&image_url.into_bytes()).unwrap(),
-            )];
+            let args = vec![CallArg::pure(&image_url.into_bytes())];
             call_0x5(context, "update_validator_image_url", args, gas_budget).await
         }
         MetadataUpdate::ProjectUrl { project_url } => {
-            let args = vec![CallArg::Pure(
-                bcs::to_bytes(&project_url.into_bytes()).unwrap(),
-            )];
+            let args = vec![CallArg::pure(&project_url.into_bytes())];
             call_0x5(context, "update_validator_project_url", args, gas_budget).await
         }
         MetadataUpdate::NetworkAddress { network_address } => {
@@ -1000,7 +976,7 @@ async fn update_metadata(
                 bail!("Network address must be a TCP address");
             }
             can_validator_mutate_all_data(context).await?;
-            let args = vec![CallArg::Pure(bcs::to_bytes(&network_address).unwrap())];
+            let args = vec![CallArg::pure(&network_address)];
             call_0x5(
                 context,
                 "update_validator_next_epoch_network_address",
@@ -1014,7 +990,7 @@ async fn update_metadata(
                 anyhow!("Invalid primary address, it must look like `/[ip4,ip6,dns]/.../udp/port`")
             })?;
             can_validator_mutate_all_data(context).await?;
-            let args = vec![CallArg::Pure(bcs::to_bytes(&primary_address).unwrap())];
+            let args = vec![CallArg::pure(&primary_address)];
             call_0x5(
                 context,
                 "update_validator_next_epoch_primary_address",
@@ -1028,7 +1004,7 @@ async fn update_metadata(
                 anyhow!("Invalid p2p address, it must look like `/[ip4,ip6,dns]/.../udp/port`")
             })?;
             can_validator_mutate_all_data(context).await?;
-            let args = vec![CallArg::Pure(bcs::to_bytes(&p2p_address).unwrap())];
+            let args = vec![CallArg::pure(&p2p_address)];
             call_0x5(
                 context,
                 "update_validator_next_epoch_p2p_address",
@@ -1041,9 +1017,7 @@ async fn update_metadata(
             can_validator_mutate_all_data(context).await?;
             let network_pub_key: NetworkPublicKey =
                 read_network_keypair_from_file(file)?.public().clone();
-            let args = vec![CallArg::Pure(
-                bcs::to_bytes(&network_pub_key.as_bytes().to_vec()).unwrap(),
-            )];
+            let args = vec![CallArg::pure(&network_pub_key.as_bytes().to_vec())];
             call_0x5(
                 context,
                 "update_validator_next_epoch_network_pubkey",
@@ -1056,9 +1030,7 @@ async fn update_metadata(
             can_validator_mutate_all_data(context).await?;
             let protocol_pub_key: NetworkPublicKey =
                 read_network_keypair_from_file(file)?.public().clone();
-            let args = vec![CallArg::Pure(
-                bcs::to_bytes(&protocol_pub_key.as_bytes().to_vec()).unwrap(),
-            )];
+            let args = vec![CallArg::pure(&protocol_pub_key.as_bytes().to_vec())];
             call_0x5(
                 context,
                 "update_validator_next_epoch_protocol_pubkey",
@@ -1074,13 +1046,10 @@ async fn update_metadata(
             let authority_pub_key: AuthorityPublicKey = authority_key_pair.public().clone();
             let pop = generate_proof_of_possession(&authority_key_pair, iota_address);
             let args = vec![
-                CallArg::Pure(
-                    bcs::to_bytes(&AuthorityPublicKeyBytes::from_bytes(
-                        authority_pub_key.as_bytes(),
-                    )?)
-                    .unwrap(),
-                ),
-                CallArg::Pure(bcs::to_bytes(&pop.as_ref().to_vec()).unwrap()),
+                CallArg::pure(&AuthorityPublicKeyBytes::from_bytes(
+                    authority_pub_key.as_bytes(),
+                )?),
+                CallArg::pure(&pop.as_ref().to_vec()),
             ];
             call_0x5(
                 context,

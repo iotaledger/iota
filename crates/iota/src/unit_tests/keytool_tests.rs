@@ -902,13 +902,13 @@ async fn test_decode_sig() -> Result<(), anyhow::Error> {
             assert_eq!(
                 call_arguments,
                 vec![
-                    "0x80016463353733613538633764613031366166633630326432616535356162646161366464633365373963326634633038353339346336633234623438333965633465303132306462363930326230393737373231313861373861626136323038393838323030353130396631666133613563303738643931363434343536363063"
+                    "{\"pure\":{\"value\":\"gAFkYzU3M2E1OGM3ZGEwMTZhZmM2MDJkMmFlNTVhYmRhYTZkZGMzZTc5YzJmNGMwODUzOTRjNmMyNGI0ODM5ZWM0ZTAxMjBkYjY5MDJiMDk3NzcyMTE4YTc4YWJhNjIwODk4ODIwMDUxMDlmMWZhM2E1YzA3OGQ5MTY0NDQ1NjYwYw==\"}}"
                 ]
             );
             assert_eq!(type_arguments, serde_json::json!([]));
             assert_eq!(
                 object_to_authenticate,
-                serde_json::json!({"Object": {"SharedObject": {"id": "0xc8ba35bef74c7ffdba36d50a07d923d0fbb7e7843f213951b19e636229a8091e", "initial_shared_version": 4, "mutable": false}}})
+                serde_json::json!({"shared": {"objectId": "0xc8ba35bef74c7ffdba36d50a07d923d0fbb7e7843f213951b19e636229a8091e", "initialSharedVersion": "4", "mutable": false}})
             );
         }
         _ => panic!("Expected MoveAuthenticator variant"),

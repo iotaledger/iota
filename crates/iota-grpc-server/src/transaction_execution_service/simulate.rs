@@ -347,7 +347,7 @@ async fn simulate_single_transaction(
                     // Set the command index if available
                     if error_mask.contains(ExecutionError::COMMAND_INDEX_FIELD.name) {
                         if let Some(command_idx) = execution_error.command() {
-                            exec_error.command_index = Some(command_idx as u64);
+                            exec_error.command_index = Some(command_idx);
                         }
                     }
 

@@ -13,8 +13,7 @@ use iota_types::{
     execution::ExecutionResult,
     object::bounded_visitor::BoundedVisitor,
     transaction::{
-        Argument, CallArg, CallArg::Pure, Command, ObjectArg, ProgrammableMoveCall,
-        ProgrammableTransaction, write_sep,
+        Argument, CallArg, Command, ProgrammableMoveCall, ProgrammableTransaction, write_sep,
     },
 };
 use move_core_types::annotated_value::{MoveTypeLayout, MoveValue};
@@ -50,7 +49,7 @@ impl Display for Pretty<'_, FullPTB> {
             let mut builder = TableBuilder::default();
             for (i, input) in inputs.iter().enumerate() {
                 match input {
-                    Pure(v) => {
+                    CallArg::Pure(v) => {
                         if v.len() <= 16 {
                             builder.push_record(vec![format!("{i:<3} Pure Arg          {:?}", v)]);
                         } else {
@@ -75,21 +74,27 @@ impl Display for Pretty<'_, FullPTB> {
                         }
                     }
 
-                    CallArg::Object(ObjectArg::ImmOrOwnedObject(o)) => {
+                    CallArg::ImmutableOrOwned(o) => {
                         builder.push_record(vec![format!(
                             "{i:<3} Imm/Owned Object  ID: {}",
                             o.object_id
                         )]);
                     }
-                    CallArg::Object(ObjectArg::SharedObject { id, .. }) => {
-                        builder.push_record(vec![format!("{i:<3} Shared Object     ID: {}", id)]);
+                    CallArg::Shared(obj_ref) => {
+                        builder.push_record(vec![format!(
+                            "{i:<3} Shared Object     ID: {}",
+                            obj_ref.object_id
+                        )]);
                     }
-                    CallArg::Object(ObjectArg::Receiving(o)) => {
+                    CallArg::Receiving(o) => {
                         builder.push_record(vec![format!(
                             "{i:<3} Receiving Object  ID: {}",
                             o.object_id
                         )]);
                     }
+                    _ => unimplemented!(
+                        "a new CallArg enum variant was added and needs to be handled"
+                    ),
                 };
             }
 

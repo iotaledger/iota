@@ -6183,47 +6183,6 @@
       "BigInt_for_uint64": {
         "type": "string"
       },
-      "Bn254FqElement": {
-        "description": "A struct that stores a Bn254 Fq field element as 32 bytes.",
-        "type": "string"
-      },
-      "Bn254FrElement": {
-        "description": "A struct that stores a Bn254 Fr field element as 32 bytes.",
-        "type": "string"
-      },
-      "CallArg": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "Pure"
-            ],
-            "properties": {
-              "Pure": {
-                "type": "array",
-                "items": {
-                  "type": "integer",
-                  "format": "uint8",
-                  "minimum": 0.0
-                }
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Object"
-            ],
-            "properties": {
-              "Object": {
-                "$ref": "#/components/schemas/ObjectArg"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
-      },
       "Checkpoint": {
         "type": "object",
         "required": [
@@ -6358,24 +6317,6 @@
           }
         ]
       },
-      "Claim": {
-        "description": "A claim consists of value and index_mod_4.",
-        "type": "object",
-        "required": [
-          "indexMod4",
-          "value"
-        ],
-        "properties": {
-          "indexMod4": {
-            "type": "integer",
-            "format": "uint8",
-            "minimum": 0.0
-          },
-          "value": {
-            "type": "string"
-          }
-        }
-      },
       "Coin": {
         "type": "object",
         "required": [
@@ -6435,83 +6376,6 @@
             }
           }
         }
-      },
-      "CompressedSignature": {
-        "description": "Unlike [enum Signature], [enum CompressedSignature] does not contain public key.",
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "Ed25519"
-            ],
-            "properties": {
-              "Ed25519": {
-                "$ref": "#/components/schemas/Base64"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Secp256k1"
-            ],
-            "properties": {
-              "Secp256k1": {
-                "$ref": "#/components/schemas/Base64"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Secp256r1"
-            ],
-            "properties": {
-              "Secp256r1": {
-                "$ref": "#/components/schemas/Base64"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "ZkLogin"
-            ],
-            "properties": {
-              "ZkLogin": {
-                "$ref": "#/components/schemas/ZkLoginAuthenticatorAsBytes"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Passkey"
-            ],
-            "properties": {
-              "Passkey": {
-                "$ref": "#/components/schemas/PasskeyAuthenticatorAsBytes"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Move"
-            ],
-            "properties": {
-              "Move": {
-                "$ref": "#/components/schemas/MoveAuthenticatorAsBytes"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
       },
       "ConsensusDeterminedVersionAssignments": {
         "description": "Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments.",
@@ -6960,9 +6824,6 @@
             "minItems": 32
           }
         }
-      },
-      "Ed25519IotaSignature": {
-        "$ref": "#/components/schemas/Base64"
       },
       "EndOfEpochData": {
         "type": "object",
@@ -7687,69 +7548,8 @@
         }
       },
       "GenericSignature": {
-        "description": "Due to the incompatibility of [enum Signature] (which dispatches a trait that assumes signature and pubkey bytes for verification), here we add a wrapper enum where member can just implement a lightweight [trait AuthenticatorTrait]. This way MultiSig (and future Authenticators) can implement its own `verify`.",
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "MultiSig"
-            ],
-            "properties": {
-              "MultiSig": {
-                "$ref": "#/components/schemas/MultiSig"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Signature"
-            ],
-            "properties": {
-              "Signature": {
-                "$ref": "#/components/schemas/Signature"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "ZkLoginAuthenticator"
-            ],
-            "properties": {
-              "ZkLoginAuthenticator": {
-                "$ref": "#/components/schemas/ZkLoginAuthenticator"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "PasskeyAuthenticator"
-            ],
-            "properties": {
-              "PasskeyAuthenticator": {
-                "$ref": "#/components/schemas/PasskeyAuthenticator"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "MoveAuthenticator"
-            ],
-            "properties": {
-              "MoveAuthenticator": {
-                "$ref": "#/components/schemas/MoveAuthenticator"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
+        "description": "Base64 encoded signature. One of: Ed25519, Secp256k1, Secp256r1, MultiSig, ZkLogin, Passkey, or MoveAuthenticator.",
+        "type": "string"
       },
       "GetPastObjectRequest": {
         "type": "object",
@@ -10164,60 +9964,6 @@
           }
         }
       },
-      "MoveAuthenticator": {
-        "description": "MoveAuthenticator is a GenericSignature variant that enables a new method of authentication through Move code. This function represents the data received by the Move authenticate function during the Account Abstraction authentication flow.",
-        "type": "object",
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "V1"
-            ],
-            "properties": {
-              "V1": {
-                "$ref": "#/components/schemas/MoveAuthenticatorV1"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
-      },
-      "MoveAuthenticatorAsBytes": {
-        "$ref": "#/components/schemas/Base64"
-      },
-      "MoveAuthenticatorV1": {
-        "description": "MoveAuthenticatorV1 is the first version of MoveAuthenticator.",
-        "type": "object",
-        "required": [
-          "call_args",
-          "object_to_authenticate",
-          "type_arguments"
-        ],
-        "properties": {
-          "call_args": {
-            "description": "Input objects or primitive values",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CallArg"
-            }
-          },
-          "object_to_authenticate": {
-            "description": "The object that is authenticated. Represents the account being the sender of the transaction.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/CallArg"
-              }
-            ]
-          },
-          "type_arguments": {
-            "description": "Type arguments for the Move authenticate function",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        }
-      },
       "MoveCallMetrics": {
         "type": "object",
         "required": [
@@ -10468,73 +10214,6 @@
           }
         }
       },
-      "MultiSig": {
-        "description": "The struct that contains signatures and public keys necessary for authenticating a MultiSig.",
-        "type": "object",
-        "required": [
-          "bitmap",
-          "multisig_pk",
-          "sigs"
-        ],
-        "properties": {
-          "bitmap": {
-            "description": "A bitmap that indicates the position of which public key the signature should be authenticated with.",
-            "type": "integer",
-            "format": "uint16",
-            "minimum": 0.0
-          },
-          "multisig_pk": {
-            "description": "The public key encoded with each public key with its signature scheme used along with the corresponding weight.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/MultiSigPublicKey"
-              }
-            ]
-          },
-          "sigs": {
-            "description": "The plain signature encoded with signature scheme.",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CompressedSignature"
-            }
-          }
-        }
-      },
-      "MultiSigPublicKey": {
-        "description": "The struct that contains the public key used for authenticating a MultiSig.",
-        "type": "object",
-        "required": [
-          "pk_map",
-          "threshold"
-        ],
-        "properties": {
-          "pk_map": {
-            "description": "A list of public key and its corresponding weight.",
-            "type": "array",
-            "items": {
-              "type": "array",
-              "items": [
-                {
-                  "$ref": "#/components/schemas/PublicKey"
-                },
-                {
-                  "type": "integer",
-                  "format": "uint8",
-                  "minimum": 0.0
-                }
-              ],
-              "maxItems": 2,
-              "minItems": 2
-            }
-          },
-          "threshold": {
-            "description": "If the total weight of the public keys corresponding to verified signatures is larger than threshold, the MultiSig is verified.",
-            "type": "integer",
-            "format": "uint16",
-            "minimum": 0.0
-          }
-        }
-      },
       "NetworkMetrics": {
         "type": "object",
         "required": [
@@ -10598,64 +10277,6 @@
             "format": "double"
           }
         }
-      },
-      "ObjectArg": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "ImmOrOwnedObject"
-            ],
-            "properties": {
-              "ImmOrOwnedObject": {
-                "$ref": "#/components/schemas/ObjectReference"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "SharedObject"
-            ],
-            "properties": {
-              "SharedObject": {
-                "type": "object",
-                "required": [
-                  "id",
-                  "initial_shared_version",
-                  "mutable"
-                ],
-                "properties": {
-                  "id": {
-                    "$ref": "#/components/schemas/ObjectId"
-                  },
-                  "initial_shared_version": {
-                    "type": "integer",
-                    "format": "uint64",
-                    "minimum": 0.0
-                  },
-                  "mutable": {
-                    "type": "boolean"
-                  }
-                }
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Receiving"
-            ],
-            "properties": {
-              "Receiving": {
-                "$ref": "#/components/schemas/ObjectReference"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
       },
       "ObjectChange": {
         "description": "ObjectChange are derived from the object mutations in the TransactionEffect to provide richer object information.",
@@ -11715,32 +11336,6 @@
           }
         }
       },
-      "PasskeyAuthenticator": {
-        "description": "An passkey authenticator with parsed fields. See field definition below. Can be initialized from [struct RawPasskeyAuthenticator].",
-        "type": "object",
-        "required": [
-          "authenticator_data",
-          "client_data_json"
-        ],
-        "properties": {
-          "authenticator_data": {
-            "description": "`authenticatorData` is a bytearray that encodes [Authenticator Data](https://www.w3.org/TR/webauthn-2/#sctn-authenticator-data) structure returned by the authenticator attestation response as is.",
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "minimum": 0.0
-            }
-          },
-          "client_data_json": {
-            "description": "`clientDataJSON` contains a JSON-compatible UTF-8 encoded string of the client data which is passed to the authenticator by the client during the authentication request (see [CollectedClientData](https://www.w3.org/TR/webauthn-2/#dictdef-collectedclientdata))",
-            "type": "string"
-          }
-        }
-      },
-      "PasskeyAuthenticatorAsBytes": {
-        "$ref": "#/components/schemas/Base64"
-      },
       "ProtocolConfig": {
         "type": "object",
         "required": [
@@ -11858,70 +11453,6 @@
           }
         ]
       },
-      "PublicKey": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "Ed25519"
-            ],
-            "properties": {
-              "Ed25519": {
-                "$ref": "#/components/schemas/Base64"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Secp256k1"
-            ],
-            "properties": {
-              "Secp256k1": {
-                "$ref": "#/components/schemas/Base64"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Secp256r1"
-            ],
-            "properties": {
-              "Secp256r1": {
-                "$ref": "#/components/schemas/Base64"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "ZkLogin"
-            ],
-            "properties": {
-              "ZkLogin": {
-                "$ref": "#/components/schemas/ZkLoginPublicIdentifier"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Passkey"
-            ],
-            "properties": {
-              "Passkey": {
-                "$ref": "#/components/schemas/Base64"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
-      },
       "RPCTransactionRequestParams": {
         "oneOf": [
           {
@@ -12027,54 +11558,8 @@
           }
         ]
       },
-      "Secp256k1IotaSignature": {
-        "$ref": "#/components/schemas/Base64"
-      },
-      "Secp256r1IotaSignature": {
-        "$ref": "#/components/schemas/Base64"
-      },
       "SequenceNumber": {
         "$ref": "#/components/schemas/BigInt_for_uint64"
-      },
-      "Signature": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "Ed25519IotaSignature"
-            ],
-            "properties": {
-              "Ed25519IotaSignature": {
-                "$ref": "#/components/schemas/Ed25519IotaSignature"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Secp256k1IotaSignature"
-            ],
-            "properties": {
-              "Secp256k1IotaSignature": {
-                "$ref": "#/components/schemas/Secp256k1IotaSignature"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "Secp256r1IotaSignature"
-            ],
-            "properties": {
-              "Secp256r1IotaSignature": {
-                "$ref": "#/components/schemas/Secp256r1IotaSignature"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
       },
       "Stake": {
         "type": "object",
@@ -13320,95 +12805,6 @@
             "$ref": "#/components/schemas/BigInt_for_uint64"
           }
         }
-      },
-      "ZkLoginAuthenticator": {
-        "description": "An zk login authenticator with all the necessary fields.",
-        "type": "object",
-        "required": [
-          "inputs",
-          "maxEpoch",
-          "userSignature"
-        ],
-        "properties": {
-          "inputs": {
-            "$ref": "#/components/schemas/ZkLoginInputs"
-          },
-          "maxEpoch": {
-            "type": "integer",
-            "format": "uint64",
-            "minimum": 0.0
-          },
-          "userSignature": {
-            "$ref": "#/components/schemas/Signature"
-          }
-        }
-      },
-      "ZkLoginAuthenticatorAsBytes": {
-        "$ref": "#/components/schemas/Base64"
-      },
-      "ZkLoginInputs": {
-        "description": "All inputs required for the zk login proof verification and other public inputs.",
-        "type": "object",
-        "required": [
-          "addressSeed",
-          "headerBase64",
-          "issBase64Details",
-          "proofPoints"
-        ],
-        "properties": {
-          "addressSeed": {
-            "$ref": "#/components/schemas/Bn254FrElement"
-          },
-          "headerBase64": {
-            "type": "string"
-          },
-          "issBase64Details": {
-            "$ref": "#/components/schemas/Claim"
-          },
-          "proofPoints": {
-            "$ref": "#/components/schemas/ZkLoginProof"
-          }
-        }
-      },
-      "ZkLoginProof": {
-        "description": "The struct for zk login proof.",
-        "type": "object",
-        "required": [
-          "a",
-          "b",
-          "c"
-        ],
-        "properties": {
-          "a": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Bn254FqElement"
-            }
-          },
-          "b": {
-            "type": "array",
-            "items": {
-              "type": "array",
-              "items": {
-                "$ref": "#/components/schemas/Bn254FqElement"
-              }
-            }
-          },
-          "c": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Bn254FqElement"
-            }
-          }
-        }
-      },
-      "ZkLoginPublicIdentifier": {
-        "description": "A wrapper struct to retrofit in [enum PublicKey] for zkLogin. Useful to construct [struct MultiSigPublicKey].",
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Base64"
-          }
-        ]
       }
     }
   }

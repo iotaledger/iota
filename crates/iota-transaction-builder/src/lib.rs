@@ -21,7 +21,7 @@ use iota_types::{
     fp_ensure,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, Command, InputObjectKind, ObjectArg, TransactionData, TransactionKind},
+    transaction::{CallArg, Command, InputObjectKind, TransactionData, TransactionKind},
 };
 
 #[async_trait]
@@ -590,16 +590,16 @@ impl TransactionBuilder {
         let (arguments, function) = if let Some(split_amounts) = split_amounts {
             (
                 vec![
-                    CallArg::Object(ObjectArg::ImmOrOwnedObject(coin_object_ref)),
-                    CallArg::Pure(bcs::to_bytes(&split_amounts)?),
+                    CallArg::ImmutableOrOwned(coin_object_ref),
+                    CallArg::pure(&split_amounts),
                 ],
                 coin::PAY_SPLIT_VEC_FUNC_NAME,
             )
         } else {
             (
                 vec![
-                    CallArg::Object(ObjectArg::ImmOrOwnedObject(coin_object_ref)),
-                    CallArg::Pure(bcs::to_bytes(&split_count.unwrap())?),
+                    CallArg::ImmutableOrOwned(coin_object_ref),
+                    CallArg::pure(&split_count.unwrap()),
                 ],
                 coin::PAY_SPLIT_N_FUNC_NAME,
             )
@@ -641,8 +641,8 @@ impl TransactionBuilder {
             type_args,
             gas,
             vec![
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(coin_object_ref)),
-                CallArg::Pure(bcs::to_bytes(&split_amounts)?),
+                CallArg::ImmutableOrOwned(coin_object_ref),
+                CallArg::pure(&split_amounts),
             ],
             gas_budget,
             gas_price,
@@ -679,8 +679,8 @@ impl TransactionBuilder {
             type_args,
             gas,
             vec![
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(coin_object_ref)),
-                CallArg::Pure(bcs::to_bytes(&split_count)?),
+                CallArg::ImmutableOrOwned(coin_object_ref),
+                CallArg::pure(&split_count),
             ],
             gas_budget,
             gas_price,
@@ -707,8 +707,8 @@ impl TransactionBuilder {
         let module = Identifier::COIN_MODULE;
         let function = coin::COIN_JOIN_FUNC_NAME;
         let arguments = vec![
-            CallArg::Object(ObjectArg::ImmOrOwnedObject(primary_coin_ref)),
-            CallArg::Object(ObjectArg::ImmOrOwnedObject(coin_to_merge_ref)),
+            CallArg::ImmutableOrOwned(primary_coin_ref),
+            CallArg::ImmutableOrOwned(coin_to_merge_ref),
         ];
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -756,8 +756,8 @@ impl TransactionBuilder {
             type_args,
             gas,
             vec![
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(primary_coin_ref)),
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(coin_to_merge_ref)),
+                CallArg::ImmutableOrOwned(primary_coin_ref),
+                CallArg::ImmutableOrOwned(coin_to_merge_ref),
             ],
             gas_budget,
             gas_price,

@@ -77,7 +77,7 @@ async fn test_transaction_filter_scenarios() {
             basics_package_id,
             CLOCK_MODULE,
             CLOCK_ACCESS_FUNCTION,
-            vec![CallArg::CLOCK_IMM],
+            vec![CallArg::CLOCK_IMMUTABLE],
         )
         .build();
     let signed_tx = cluster.sign_transaction(&clock_tx);

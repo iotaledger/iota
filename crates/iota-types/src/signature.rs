@@ -94,13 +94,39 @@ pub trait AuthenticatorTrait {
 /// AuthenticatorTrait]. This way MultiSig (and future Authenticators) can
 /// implement its own `verify`.
 #[enum_dispatch(AuthenticatorTrait)]
-#[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GenericSignature {
     MultiSig,
     Signature,
     ZkLoginAuthenticator,
     PasskeyAuthenticator,
     MoveAuthenticator,
+}
+
+// GenericSignature is always serialized as a base64 string over JSON-RPC,
+// so its schema should reflect that rather than expanding internal variants.
+impl JsonSchema for GenericSignature {
+    fn schema_name() -> String {
+        "GenericSignature".to_owned()
+    }
+
+    fn json_schema(_generator: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+        schemars::schema::SchemaObject {
+            metadata: Some(Box::new(schemars::schema::Metadata {
+                description: Some(
+                    "Base64 encoded signature. One of: Ed25519, Secp256k1, \
+                     Secp256r1, MultiSig, ZkLogin, Passkey, or MoveAuthenticator."
+                        .to_owned(),
+                ),
+                ..Default::default()
+            })),
+            instance_type: Some(schemars::schema::SingleOrVec::Single(Box::new(
+                schemars::schema::InstanceType::String,
+            ))),
+            ..Default::default()
+        }
+        .into()
+    }
 }
 
 impl GenericSignature {

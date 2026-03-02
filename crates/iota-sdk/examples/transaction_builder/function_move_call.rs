@@ -52,7 +52,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Create an Argument::Input for Pure 6 value of type u64
     let input_value = 10u64;
-    let input_argument = CallArg::Pure(bcs::to_bytes(&input_value).unwrap());
+    let input_argument = CallArg::pure(&input_value);
 
     // Add this input to the builder
     ptb.input(input_argument)?;
