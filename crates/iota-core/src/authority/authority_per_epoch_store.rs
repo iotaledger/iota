@@ -4119,132 +4119,15 @@ impl AuthorityPerEpochStore {
                     shared_object_congestion_tracker,
                 );
 
-                match scheduling_result {
-                    SchedulingResult::Defer(deferral_key, deferral_reason) => {
-                        debug!(
-                            "Deferring consensus certificate for transaction {:?} until {:?}",
-                            certificate.digest(),
-                            deferral_key
-                        );
-
-                        let deferral_result = match deferral_reason {
-                            DeferralReason::RandomnessNotReady => {
-                                // Always defer transaction due to randomness not ready.
-                                ConsensusCertificateResult::Deferred {
-                                    deferral_key,
-                                    suggested_gas_price: None,
-                                }
-                            }
-                            DeferralReason::SharedObjectCongestion(congested_objects) => {
-                                authority_metrics
-                                    .consensus_handler_congested_transactions
-                                    .inc();
-
-                                let suggested_gas_price = if self
-                                    .protocol_config
-                                    .congestion_control_gas_price_feedback_mechanism()
-                                {
-                                    let current_commit_suggested_gas_price =
-                                        suggested_gas_price_calculator
-                                            .calculate_suggested_gas_price(&certificate);
-
-                                    let suggested_gas_price = previously_deferred_tx_digests
-                                        .get(certificate.digest())
-                                        .map_or_else(
-                                            || current_commit_suggested_gas_price,
-                                            |deferral_key_suggested_gas_price_pair| {
-                                                deferral_key_suggested_gas_price_pair
-                                                    .1
-                                                    // If None, this could mean the certificate was
-                                                    // deferred due to randomness unavailable in
-                                                    // the previous round, but in the current
-                                                    // round, it gets deferred due to congestion.
-                                                    // Since this is the first round the
-                                                    // certificate is deferred due to congestion,
-                                                    // we return the suggested gas price from the
-                                                    // current round.
-                                                    .unwrap_or(current_commit_suggested_gas_price)
-                                                    .min(current_commit_suggested_gas_price)
-                                            },
-                                        );
-
-                                    Some(suggested_gas_price)
-                                } else {
-                                    None
-                                };
-
-                                if transaction_deferral_within_limit(
-                                    &deferral_key,
-                                    self.protocol_config()
-                                        .max_deferral_rounds_for_congestion_control(),
-                                ) {
-                                    ConsensusCertificateResult::Deferred {
-                                        deferral_key,
-                                        suggested_gas_price,
-                                    }
-                                } else {
-                                    // Cancel the transaction that has been deferred for too long.
-
-                                    debug!(
-                                        "Cancelling consensus certificate for transaction {:?} \
-                                            with deferral key {deferral_key:?} due to congestion \
-                                            on objects {congested_objects:?}: actual gas price: \
-                                            {}, suggested gas price: {suggested_gas_price:?}",
-                                        certificate.digest(),
-                                        certificate.transaction_data().gas_price(),
-                                    );
-
-                                    ConsensusCertificateResult::Cancelled((
-                                        certificate,
-                                        CancelConsensusCertificateReason::CongestionOnObjects {
-                                            congested_objects,
-                                            suggested_gas_price,
-                                        },
-                                    ))
-                                }
-                            }
-                        };
-
-                        Ok(deferral_result)
-                    }
-                    SchedulingResult::Schedule(start_time) => {
-                        if dkg_failed && certificate.uses_randomness() {
-                            debug!(
-                                "Canceling randomness-using certificate for transaction {:?} because DKG failed",
-                                certificate.digest(),
-                            );
-
-                            return Ok(ConsensusCertificateResult::Cancelled((
-                                certificate,
-                                CancelConsensusCertificateReason::DkgFailed,
-                            )));
-                        }
-
-                        // This certificate will be scheduled. If it contains shared object(s),
-                        // we have to update the following:
-                        // - shared object execution slots (for congestion tracker);
-                        // - shared object congestion info (for suggested gas price calculator).
-                        if certificate.contains_shared_object()
-                            && shared_object_congestion_tracker
-                                .congestion_control_parameters()
-                                .is_congestion_control_enabled()
-                        {
-                            // We only need to do this if shared-object congestion control is
-                            // enabled, since otherwise this bumping will panic as object
-                            // execution slots are only initialized if
-                            // `max_execution_duration_per_commit` is not `None`.
-                            let bump_result = shared_object_congestion_tracker
-                                .bump_object_execution_slots(&certificate, start_time);
-
-                            suggested_gas_price_calculator.update_congestion_info(bump_result);
-                        }
-
-                        Ok(ConsensusCertificateResult::Scheduled {
-                            transaction: certificate,
-                            start_time,
-                        })
-                    }
-                }
+                self.handle_scheduling_result(
+                    scheduling_result,
+                    certificate,
+                    previously_deferred_tx_digests,
+                    dkg_failed,
+                    shared_object_congestion_tracker,
+                    suggested_gas_price_calculator,
+                    authority_metrics,
+                )
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::CheckpointSignature(info),
@@ -4462,8 +4345,10 @@ impl AuthorityPerEpochStore {
                 // Certificate. Possibly extract common code to a separate
                 // function to avoid code duplication.
 
-                // Create VerifiedExecutableTransaction with ConsensusOrdered proof
-                // Similar to how new_from_quorum_execution works, but using ConsensusOrdered
+                // Create `VerifiedExecutableTransaction` with `ConsensusOrdered` proof.
+                // In contrast to `new_from_certificate` (the proof was authorized by 2f+1
+                // pre-consensus signatures), the `ConsensusOrdered` certificate proof
+                // is authorized by consensus ordering post owned-object conflict resolution.
                 let executable_tx = VerifiedExecutableTransaction::new_unchecked(
                     ExecutableTransaction::new_from_data_and_sig(
                         transaction.data().clone(),
@@ -4480,34 +4365,157 @@ impl AuthorityPerEpochStore {
                     shared_object_congestion_tracker,
                 );
 
-                // Handle scheduling result
-                match scheduling_result {
-                    SchedulingResult::Defer(deferral_key, _deferral_reason) => {
-                        // TODO: Simplified: defer without gas price feedback for PoC
-                        Ok(ConsensusCertificateResult::Deferred {
-                            deferral_key,
-                            suggested_gas_price: None,
-                        })
-                    }
-                    SchedulingResult::Schedule(start_time) => {
-                        if executable_tx.contains_shared_object()
-                            && shared_object_congestion_tracker
-                                .congestion_control_parameters()
-                                .is_congestion_control_enabled()
-                        {
-                            let bump_result = shared_object_congestion_tracker
-                                .bump_object_execution_slots(&executable_tx, start_time);
-                            suggested_gas_price_calculator.update_congestion_info(bump_result);
-                        }
-                        Ok(ConsensusCertificateResult::Scheduled {
-                            transaction: executable_tx,
-                            start_time,
-                        })
-                    }
-                }
+                self.handle_scheduling_result(
+                    scheduling_result,
+                    executable_tx,
+                    previously_deferred_tx_digests,
+                    dkg_failed,
+                    shared_object_congestion_tracker,
+                    suggested_gas_price_calculator,
+                    authority_metrics,
+                )
             }
             SequencedConsensusTransactionKind::System(system_transaction) => {
                 Ok(self.process_consensus_system_transaction(system_transaction))
+            }
+        }
+    }
+
+    /// Handles `SchedulingResult`, i.e., the output of the
+    /// `self.try_schedule() function, for the given
+    /// `VerifiedExecutableTransaction`.
+    fn handle_scheduling_result(
+        &self,
+        scheduling_result: SchedulingResult,
+        verified_executable_tx: VerifiedExecutableTransaction,
+        previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
+        dkg_failed: bool,
+        shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
+        suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
+        authority_metrics: &Arc<AuthorityMetrics>,
+    ) -> IotaResult<ConsensusCertificateResult> {
+        match scheduling_result {
+            SchedulingResult::Defer(deferral_key, deferral_reason) => {
+                debug!(
+                    "Deferring verified executable transaction {:?} until {deferral_key:?}",
+                    verified_executable_tx.digest(),
+                );
+
+                let deferral_result = match deferral_reason {
+                    DeferralReason::RandomnessNotReady => {
+                        // Always defer transaction due to randomness not ready.
+                        ConsensusCertificateResult::Deferred {
+                            deferral_key,
+                            suggested_gas_price: None,
+                        }
+                    }
+                    DeferralReason::SharedObjectCongestion(congested_objects) => {
+                        authority_metrics
+                            .consensus_handler_congested_transactions
+                            .inc();
+
+                        let suggested_gas_price = if self
+                            .protocol_config
+                            .congestion_control_gas_price_feedback_mechanism()
+                        {
+                            let current_commit_suggested_gas_price = suggested_gas_price_calculator
+                                .calculate_suggested_gas_price(&verified_executable_tx);
+
+                            let suggested_gas_price = previously_deferred_tx_digests
+                                .get(verified_executable_tx.digest())
+                                .map_or_else(
+                                    || current_commit_suggested_gas_price,
+                                    |deferral_key_suggested_gas_price_pair| {
+                                        deferral_key_suggested_gas_price_pair
+                                            .1
+                                            // If None, this could mean the transaction was
+                                            // deferred due to randomness unavailable in
+                                            // the previous round, but in the current
+                                            // round, it gets deferred due to congestion.
+                                            // Since this is the first round the
+                                            // transaction is deferred due to congestion,
+                                            // we return the suggested gas price from the
+                                            // current round.
+                                            .unwrap_or(current_commit_suggested_gas_price)
+                                            .min(current_commit_suggested_gas_price)
+                                    },
+                                );
+
+                            Some(suggested_gas_price)
+                        } else {
+                            None
+                        };
+
+                        if transaction_deferral_within_limit(
+                            &deferral_key,
+                            self.protocol_config()
+                                .max_deferral_rounds_for_congestion_control(),
+                        ) {
+                            ConsensusCertificateResult::Deferred {
+                                deferral_key,
+                                suggested_gas_price,
+                            }
+                        } else {
+                            // Cancel the transaction that has been deferred for too long.
+                            debug!(
+                                "Cancelling verified executable transaction {:?} with deferral \
+                                    key {deferral_key:?} due to congestion on objects \
+                                    {congested_objects:?}: actual gas price: {}, suggested gas \
+                                    price: {suggested_gas_price:?}",
+                                verified_executable_tx.digest(),
+                                verified_executable_tx.transaction_data().gas_price(),
+                            );
+
+                            ConsensusCertificateResult::Cancelled((
+                                verified_executable_tx,
+                                CancelConsensusCertificateReason::CongestionOnObjects {
+                                    congested_objects,
+                                    suggested_gas_price,
+                                },
+                            ))
+                        }
+                    }
+                };
+
+                Ok(deferral_result)
+            }
+            SchedulingResult::Schedule(start_time) => {
+                if dkg_failed && verified_executable_tx.uses_randomness() {
+                    debug!(
+                        "Canceling randomness-using verified executable transaction {:?} because \
+                            DKG failed",
+                        verified_executable_tx.digest(),
+                    );
+
+                    return Ok(ConsensusCertificateResult::Cancelled((
+                        verified_executable_tx,
+                        CancelConsensusCertificateReason::DkgFailed,
+                    )));
+                }
+
+                // This transaction will be scheduled. If it contains shared object(s),
+                // we have to update the following:
+                // - shared object execution slots (for congestion tracker);
+                // - shared object congestion info (for suggested gas price calculator).
+                if verified_executable_tx.contains_shared_object()
+                    && shared_object_congestion_tracker
+                        .congestion_control_parameters()
+                        .is_congestion_control_enabled()
+                {
+                    // We only need to do this if shared-object congestion control is
+                    // enabled, since otherwise this bumping will panic as object
+                    // execution slots are only initialized if
+                    // `max_execution_duration_per_commit` is not `None`.
+                    let bump_result = shared_object_congestion_tracker
+                        .bump_object_execution_slots(&verified_executable_tx, start_time);
+
+                    suggested_gas_price_calculator.update_congestion_info(bump_result);
+                }
+
+                Ok(ConsensusCertificateResult::Scheduled {
+                    transaction: verified_executable_tx,
+                    start_time,
+                })
             }
         }
     }
