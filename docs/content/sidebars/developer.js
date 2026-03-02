@@ -445,6 +445,8 @@ const developer = [
                             'developer/move/how-tos/account-abstraction/function-call-keys',
                             'developer/move/how-tos/account-abstraction/create-iotaccount',
                             'developer/move/how-tos/account-abstraction/create-public-key-authentication',
+                            'developer/move/how-tos/account-abstraction/create-time-locked-account',
+                            'developer/move/how-tos/account-abstraction/create-onesig-account',
                         ],
                     },
                     {

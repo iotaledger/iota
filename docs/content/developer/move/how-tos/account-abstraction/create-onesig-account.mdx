@@ -1,0 +1,204 @@
+---
+title: OneSig Multi-Transaction Authentication
+description: "How to execute multiple transactions with a single signature using Merkle tree-based authentication"
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+---
+
+import AccountAbstraction from '../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction /> 
+
+## About OneSig
+
+OneSig enables executing multiple transactions with a single signature by using a Merkle tree structure for transaction authorization. The account verifies signatures against a Merkle root representing authorized transactions and validates each transaction using Merkle proofs.
+
+This implementation is based on the [OneSig protocol](https://github.com/LayerZero-Labs/OneSig) and demonstrates how to batch-authorize transactions efficiently.
+
+## What this example shows
+
+- Create a OneSigAccount with public key authentication.
+- Build a Merkle tree from multiple transaction digests.
+- Authenticate transactions using Merkle root signatures and proofs.
+- Execute pre-authorized transactions with single-signature verification.
+
+## How it works
+
+### Step 1: Create the account
+
+First, create a OneSigAccount with a public key that will be used to sign the Merkle root of authorized transactions.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/onesig/sources/account.move#L40-L55
+```
+
+**What this does**
+- Creates a new OneSigAccount as a shared object.
+- Attaches the public key for signature verification.
+- Sets up the authenticator function for Merkle-based authentication.
+
+### Step 2: Build Merkle tree from transaction digests
+
+Generate multiple unsigned transactions and build a Merkle tree from their digests. This creates a single root hash and individual proofs for each transaction.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/onesig/sources/merkle.move#L106-L165
+```
+
+**What this does**
+- Takes multiple transaction digests (leaves) as input.
+- Builds a Merkle tree using Keccak256 hashing with sorted pairs.
+- Returns the Merkle root and a proof for each transaction.
+- Each proof allows verifying that a specific transaction is part of the authorized set.
+
+### Step 3: Verify Merkle root with signature
+
+The authenticator verifies that the provided signature matches the Merkle root, confirming the signer authorized this batch of transactions.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/onesig/sources/account.move#L90-L97
+```
+
+**What this does**
+- Verifies the Ed25519 signature against the Merkle root using the account's public key.
+- Ensures only the account owner can authorize transaction batches.
+
+### Step 4: Verify individual transaction with Merkle proof
+For each transaction execution, verify that the transaction digest is part of the authorized Merkle tree.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/onesig/sources/account.move#L100-L111
+```
+
+**What this does**
+- Extracts the transaction digest from the transaction context.
+- Verifies the Merkle proof against the root to confirm this transaction was authorized.
+- Rejects transactions not included in the original Merkle tree.
+
+### Step 5: OneSig authenticator (combines verification)
+```move file=<rootDir>/examples/move/abstract_iota_accounts/onesig/sources/account.move#L63-L74
+```
+
+**What this does**
+- Combines both verification steps: signature check and Merkle proof validation.
+- Ensures transactions are both signed by the owner and part of the authorized batch.
+
+### Step 6: Merkle proof verification functions
+```move file=<rootDir>/examples/move/abstract_iota_accounts/onesig/sources/merkle.move#L21-L43
+```
+
+**What this does**
+- Verifies a Merkle proof using Keccak256 hashing with lexicographically sorted pairs.
+- Supports both pre-hashed leaves and raw byte inputs.
+
+## Verify the result
+
+**Create OneSigAccount**
+```bash
+# Create a new account through a PTB which firstly builds an authenticator function ref for the ed25519 authenticator
+export PTB_JSON=$(iota client ptb \
+--move-call 0x2::authenticator_function::create_auth_function_ref_v1 '<'$PACKAGE_ID'::'$ACCOUNT_MODULE_NAME'::'$ACCOUNT_TYPE_NAME'>' @$METADATA_ID '"'$AUTH_MODULE_NAME'"' '"'$AUTH_FUNCTION_NAME'"' \
+--assign ref \
+--move-call $PACKAGE_ID::$CREATE_MODULE_NAME::$CREATE_FUNCTION_NAME vector"$SIGN_PUB_KEY_BYTES" ref \
+--json)
+export ABSTRACTACCOUNT=$(echo $PTB_JSON | jq -r '.objectChanges[] | select(.type == "created" and (.objectType | endswith("::'$ACCOUNT_MODULE_NAME'::'$ACCOUNT_TYPE_NAME'"))) | .objectId')
+echo "Account Object ID: $ABSTRACTACCOUNT"
+```
+<details>
+
+<summary>Expected output</summary>
+```bash
+Account Object ID: 0xc21b2646cd066......
+```
+</details>
+
+**Build Merkle tree and execute transaction**
+
+```bash
+# Build a Merkle tree from multiple transaction digests and execute one of the transactions with the
+# corresponding proof and signature
+export TX_DIGEST_BYTES_1=$(python3 -c "import sys; print([int('$TX_DIGEST_HEX_1'[i:i+2],16) for i in range(0,len('$TX_DIGEST_HEX_1'),2)])")
+export TX_DIGEST_BYTES_2=$(python3 -c "import sys; print([int('$TX_DIGEST_HEX_2'[i:i+2],16) for i in range(0,len('$TX_DIGEST_HEX_2'),2)])")
+export TX_DIGEST_BYTES_3=$(python3 -c "import sys; print([int('$TX_DIGEST_HEX_3'[i:i+2],16) for i in range(0,len('$TX_DIGEST_HEX_3'),2)])")
+export VIEW_RESULT=$(curl -s http://127.0.0.1:9000 -X POST -H 'Content-Type: application/json' \
+-d "{
+  \"jsonrpc\": \"2.0\",
+  \"id\": 1,
+  \"method\": \"iota_view\",
+  \"params\": [
+    \"${PACKAGE_ID}::merkle::build_merkle_tree_with_proofs\",
+    [],
+    [[$TX_DIGEST_BYTES_1,$TX_DIGEST_BYTES_2,$TX_DIGEST_BYTES_3]]
+  ]
+}" | jq .)
+```
+
+
+**Sign the Merkle root**
+
+```bash
+export IOTA_SIGNATURE_HEX=$(iota keytool sign-raw --address $SIGN_ADDRESS --data $TX_DIGEST_HEX_1 --json | jq -r '.iotaSignature' | base64 -d | od -An -tx1 | tr -d ' \n')
+echo "IOTA signature hex: $IOTA_SIGNATURE_HEX"
+```
+
+```bash
+export SIGNATURE_HEX=$(echo $IOTA_SIGNATURE_HEX | cut -c 3-130)
+echo "Signature hex: $SIGNATURE_HEX"
+```
+
+<details>
+
+<summary>Expected output</summary>
+```bash
+IOTA signature hex: 00ec1986f10741751235d025254bf6b945f33.....
+Signature hex: ec1986f10741751235d025254bf6b945f338776a5e.....
+```
+</details>
+
+**Execute transaction with Merkle proof** 
+```bash
+export SIGNED_TX_BYTES=$(iota client ptb \
+--move-call 0x2::clock::timestamp_ms @0x6 \
+--sender @$ABSTRACTACCOUNT \
+--gas-coins @$COIN_1 \
+--auth-call-args 0x$MERKLE_ROOT '["'0x$PROOF_1_0'","'0x$PROOF_1_1'"]' 0x$SIGNATURE_HEX \
+--serialize-signed-transaction)
+echo "Signed tx bytes: $SIGNED_TX_BYTES"
+iota client execute-combined-signed-tx --signed-tx-bytes $SIGNED_TX_BYTES
+```
+
+:::note
+--auth-call-args currently has limitations with `vector<vector<u8>>`
+This example is currently limited by the CLI: `iota client ptb --auth-call-args` does not yet support `vector<vector<u8>>`. 
+The Move implementation and Merkle verification logic are correct, but final execution
+will fail until nested vector arguments are supported by the CLI.
+:::
+
+<details>
+
+<summary>Expected output for now:</summary>
+```bash
+Signed tx bytes: Could not serialize argument of type Vector(Vector(U8)) at 0 into vector<vector<u8>>. Got error: Cannot convert string arg ["0x44ca0d5045d7f78b6ffe5fd4ffe2aad4b0800f452ce909d6411e24d35fe5b20a","0x293e967f064b5e0b4698cb2f8b219d25549629e6c6a4e654f96e54774eba3e86"] to vector<vector<u8>>
+Invalid Base64 encoding
+```
+</details>
+
+
+## Expected Behavior
+- A single signature on the Merkle root authorizes multiple transactions.
+- Each transaction must provide a valid Merkle proof to execute.
+- Transactions not in the original Merkle tree are rejected.
+- This enables efficient batch authorization without signing each transaction individually.
+
+## Full Example Code
+
+The complete Move package, including comments and setup logic, is available here:
+
+<Tabs groupId="language" queryString>
+
+<TabItem value="move" label="Move">
+
+**OneSig account module:**
+```move file=<rootDir>/examples/move/abstract_iota_accounts/onesig/sources/account.move
+```
+
+**Merkle tree verification module:**
+```move file=<rootDir>/examples/move/abstract_iota_accounts/onesig/sources/merkle.move
+```
+
+</TabItem>
+</Tabs>
