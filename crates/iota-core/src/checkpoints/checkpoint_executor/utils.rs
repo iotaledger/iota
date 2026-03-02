@@ -345,7 +345,6 @@ impl SequenceWatch {
     strum_macros::EnumCount,
 )]
 
-/// Names of the pipeline stages for CheckpointExecutor.
 pub(crate) enum PipelineStage {
     ExecuteTransactions = 0,
     WaitForTransactions = 1,
