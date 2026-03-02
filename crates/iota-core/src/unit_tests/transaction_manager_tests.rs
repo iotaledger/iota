@@ -11,7 +11,7 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     object::{Object, Owner},
     storage::InputKey,
-    transaction::{CallArg, ObjectArg, VerifiedTransaction},
+    transaction::{CallArg, SharedObjectRef, VerifiedTransaction},
 };
 use tokio::{
     sync::mpsc::{UnboundedReceiver, error::TryRecvError, unbounded_channel},
@@ -225,19 +225,14 @@ async fn transaction_manager_object_dependency() {
 
     // Enqueue two transactions with the same shared object input in read-only mode.
     let shared_version = 1000.into();
-    let shared_object_arg_read = ObjectArg::SharedObject {
-        id: shared_object.id(),
+    let shared_object_arg_read = CallArg::Shared(SharedObjectRef {
+        object_id: shared_object.id(),
         initial_shared_version: 0.into(),
         mutable: false,
-    };
-    let transaction_read_0 = make_transaction(
-        gas_objects[0].clone(),
-        vec![CallArg::Object(shared_object_arg_read)],
-    );
-    let transaction_read_1 = make_transaction(
-        gas_objects[1].clone(),
-        vec![CallArg::Object(shared_object_arg_read)],
-    );
+    });
+    let transaction_read_0 =
+        make_transaction(gas_objects[0].clone(), vec![shared_object_arg_read.clone()]);
+    let transaction_read_1 = make_transaction(gas_objects[1].clone(), vec![shared_object_arg_read]);
     state
         .epoch_store_for_testing()
         .set_shared_object_versions_for_testing(
@@ -254,14 +249,14 @@ async fn transaction_manager_object_dependency() {
         .unwrap();
 
     // Enqueue one transaction with the same shared object in mutable mode.
-    let shared_object_arg_default = ObjectArg::SharedObject {
-        id: shared_object.id(),
+    let shared_object_arg_default = CallArg::Shared(SharedObjectRef {
+        object_id: shared_object.id(),
         initial_shared_version: 0.into(),
         mutable: true,
-    };
+    });
     let transaction_default = make_transaction(
         gas_objects[2].clone(),
-        vec![CallArg::Object(shared_object_arg_default)],
+        vec![shared_object_arg_default.clone()],
     );
     state
         .epoch_store_for_testing()
@@ -274,17 +269,14 @@ async fn transaction_manager_object_dependency() {
     // Enqueue one transaction with two readonly shared object inputs,
     // `shared_object` and `shared_object_2`.
     let shared_version_2 = 1000.into();
-    let shared_object_arg_read_2 = ObjectArg::SharedObject {
-        id: shared_object_2.id(),
+    let shared_object_arg_read_2 = CallArg::Shared(SharedObjectRef {
+        object_id: shared_object_2.id(),
         initial_shared_version: 0.into(),
         mutable: false,
-    };
+    });
     let transaction_read_2 = make_transaction(
         gas_objects[3].clone(),
-        vec![
-            CallArg::Object(shared_object_arg_default),
-            CallArg::Object(shared_object_arg_read_2),
-        ],
+        vec![shared_object_arg_default, shared_object_arg_read_2],
     );
     state
         .epoch_store_for_testing()
@@ -408,11 +400,11 @@ async fn transaction_manager_receiving_notify_commit() {
             // ImmOrOwnedObject => ImmOrOwnedObject is already tested as the default case on
             // mainnet.
             let object_arg = if i % 2 == 0 || i == 3 {
-                ObjectArg::Receiving(object.compute_object_reference())
+                CallArg::Receiving(object.compute_object_reference())
             } else {
-                ObjectArg::ImmOrOwnedObject(object.compute_object_reference())
+                CallArg::ImmutableOrOwned(object.compute_object_reference())
             };
-            let txn = make_transaction(gas_objects[0].clone(), vec![CallArg::Object(object_arg)]);
+            let txn = make_transaction(gas_objects[0].clone(), vec![object_arg]);
             (object, txn)
         })
         .collect();
@@ -494,18 +486,14 @@ async fn transaction_manager_receiving_object_ready_notifications() {
     let receiving_object_new1 =
         Object::with_id_owner_version_for_testing(obj_id, 1.into(), Owner::Address(owner));
     let receiving_object_arg0 =
-        ObjectArg::Receiving(receiving_object_new0.compute_object_reference());
-    let receive_object_transaction0 = make_transaction(
-        gas_objects[0].clone(),
-        vec![CallArg::Object(receiving_object_arg0)],
-    );
+        CallArg::Receiving(receiving_object_new0.compute_object_reference());
+    let receive_object_transaction0 =
+        make_transaction(gas_objects[0].clone(), vec![receiving_object_arg0.clone()]);
 
     let receiving_object_arg1 =
-        ObjectArg::Receiving(receiving_object_new1.compute_object_reference());
-    let receive_object_transaction1 = make_transaction(
-        gas_objects[0].clone(),
-        vec![CallArg::Object(receiving_object_arg1)],
-    );
+        CallArg::Receiving(receiving_object_new1.compute_object_reference());
+    let receive_object_transaction1 =
+        make_transaction(gas_objects[0].clone(), vec![receiving_object_arg1]);
 
     // TM should output no transaction yet since waiting on receiving object.
     transaction_manager.enqueue(
@@ -582,31 +570,22 @@ async fn transaction_manager_receiving_object_ready_notifications_multiple_of_sa
     let receiving_object_new1 =
         Object::with_id_owner_version_for_testing(obj_id, 1.into(), Owner::Address(owner));
     let receiving_object_arg0 =
-        ObjectArg::Receiving(receiving_object_new0.compute_object_reference());
-    let receive_object_transaction0 = make_transaction(
-        gas_objects[0].clone(),
-        vec![CallArg::Object(receiving_object_arg0)],
-    );
+        CallArg::Receiving(receiving_object_new0.compute_object_reference());
+    let receive_object_transaction0 =
+        make_transaction(gas_objects[0].clone(), vec![receiving_object_arg0.clone()]);
 
-    let receive_object_transaction01 = make_transaction(
-        gas_objects[1].clone(),
-        vec![CallArg::Object(receiving_object_arg0)],
-    );
+    let receive_object_transaction01 =
+        make_transaction(gas_objects[1].clone(), vec![receiving_object_arg0]);
 
     let receiving_object_arg1 =
-        ObjectArg::Receiving(receiving_object_new1.compute_object_reference());
-    let receive_object_transaction1 = make_transaction(
-        gas_objects[0].clone(),
-        vec![CallArg::Object(receiving_object_arg1)],
-    );
+        CallArg::Receiving(receiving_object_new1.compute_object_reference());
+    let receive_object_transaction1 =
+        make_transaction(gas_objects[0].clone(), vec![receiving_object_arg1]);
 
     // Enqueuing a transaction with a receiving object that is available at the time
     // it is enqueued should become immediately available.
-    let gas_receiving_arg = ObjectArg::Receiving(gas_objects[3].compute_object_reference());
-    let tx1 = make_transaction(
-        gas_objects[0].clone(),
-        vec![CallArg::Object(gas_receiving_arg)],
-    );
+    let gas_receiving_arg = CallArg::Receiving(gas_objects[3].compute_object_reference());
+    let tx1 = make_transaction(gas_objects[0].clone(), vec![gas_receiving_arg]);
 
     // TM should output no transaction yet since waiting on receiving object.
     transaction_manager.enqueue(
@@ -707,23 +686,17 @@ async fn transaction_manager_receiving_object_ready_if_current_version_greater()
         Owner::Address(owner),
     );
     let receiving_object_arg0 =
-        ObjectArg::Receiving(receiving_object_new0.compute_object_reference());
-    let receive_object_transaction0 = make_transaction(
-        gas_objects[0].clone(),
-        vec![CallArg::Object(receiving_object_arg0)],
-    );
+        CallArg::Receiving(receiving_object_new0.compute_object_reference());
+    let receive_object_transaction0 =
+        make_transaction(gas_objects[0].clone(), vec![receiving_object_arg0.clone()]);
 
-    let receive_object_transaction01 = make_transaction(
-        gas_objects[1].clone(),
-        vec![CallArg::Object(receiving_object_arg0)],
-    );
+    let receive_object_transaction01 =
+        make_transaction(gas_objects[1].clone(), vec![receiving_object_arg0]);
 
     let receiving_object_arg1 =
-        ObjectArg::Receiving(receiving_object_new1.compute_object_reference());
-    let receive_object_transaction1 = make_transaction(
-        gas_objects[0].clone(),
-        vec![CallArg::Object(receiving_object_arg1)],
-    );
+        CallArg::Receiving(receiving_object_new1.compute_object_reference());
+    let receive_object_transaction1 =
+        make_transaction(gas_objects[0].clone(), vec![receiving_object_arg1]);
 
     // TM should output no transaction yet since waiting on receiving object.
     transaction_manager.enqueue(
@@ -772,31 +745,27 @@ async fn transaction_manager_with_cancelled_transactions() {
     assert!(rx_ready_certificates.try_recv().is_err());
 
     // Enqueue one transaction with 2 shared object inputs and 1 owned input.
-    let shared_object_arg_1 = ObjectArg::SharedObject {
-        id: shared_object_1.id(),
+    let shared_object_arg_1 = CallArg::Shared(SharedObjectRef {
+        object_id: shared_object_1.id(),
         initial_shared_version: 0.into(),
         mutable: true,
-    };
-    let shared_object_arg_2 = ObjectArg::SharedObject {
-        id: shared_object_2.id(),
+    });
+    let shared_object_arg_2 = CallArg::Shared(SharedObjectRef {
+        object_id: shared_object_2.id(),
         initial_shared_version: 0.into(),
         mutable: true,
-    };
+    });
 
     // Changes the desired owned object version to a higher version. We will make it
     // available later.
     let owned_version = 2000.into();
     let mut owned_ref = owned_object.compute_object_reference();
     owned_ref.version = owned_version;
-    let owned_object_arg = ObjectArg::ImmOrOwnedObject(owned_ref);
+    let owned_object_arg = CallArg::ImmutableOrOwned(owned_ref);
 
     let cancelled_transaction = make_transaction(
         gas_object.clone(),
-        vec![
-            CallArg::Object(shared_object_arg_1),
-            CallArg::Object(shared_object_arg_2),
-            CallArg::Object(owned_object_arg),
-        ],
+        vec![shared_object_arg_1, shared_object_arg_2, owned_object_arg],
     );
     state
         .epoch_store_for_testing()

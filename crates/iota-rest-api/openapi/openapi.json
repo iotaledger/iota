@@ -1185,50 +1185,52 @@
         "pattern": "0x[a-z0-9]{1,64}"
       },
       "Argument": {
-        "anyOf": [
+        "oneOf": [
           {
             "title": "Gas",
             "type": "string",
             "enum": [
-              "gas"
+              "Gas"
             ]
           },
           {
             "title": "Input",
             "type": "object",
             "required": [
-              "input"
+              "Input"
             ],
             "properties": {
-              "input": {
+              "Input": {
                 "type": "integer",
                 "format": "uint16",
                 "minimum": 0.0
               }
-            }
+            },
+            "additionalProperties": false
           },
           {
             "title": "Result",
             "type": "object",
             "required": [
-              "result"
+              "Result"
             ],
             "properties": {
-              "result": {
+              "Result": {
                 "type": "integer",
                 "format": "uint16",
                 "minimum": 0.0
               }
-            }
+            },
+            "additionalProperties": false
           },
           {
             "title": "NestedResult",
             "type": "object",
             "required": [
-              "result"
+              "NestedResult"
             ],
             "properties": {
-              "result": {
+              "NestedResult": {
                 "type": "array",
                 "items": [
                   {
@@ -1245,7 +1247,8 @@
                 "maxItems": 2,
                 "minItems": 2
               }
-            }
+            },
+            "additionalProperties": false
           }
         ]
       },
@@ -1294,6 +1297,80 @@
         "description": "A point on the BN254 elliptic curve.\n\nThis is a 32-byte, or 256-bit, value that is generally represented as radix10 when a human-readable display format is needed, and is represented as a 32-byte big-endian value while in memory.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text bn254-field-element = *DIGIT ; which is then interpreted as a radix10 encoded 32-byte value ```",
         "type": "string",
         "format": "u256"
+      },
+      "CallArg": {
+        "oneOf": [
+          {
+            "description": "A move value serialized as BCS.\n\nFor normal operations this is required to be a move primitive type and not contain structs or objects.",
+            "type": "object",
+            "required": [
+              "pure"
+            ],
+            "properties": {
+              "pure": {
+                "$ref": "#/components/schemas/PureInput"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "A move object that is either immutable or address owned",
+            "type": "object",
+            "required": [
+              "immutable_or_owned"
+            ],
+            "properties": {
+              "immutable_or_owned": {
+                "$ref": "#/components/schemas/ObjectReference"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "A move object whose owner is \"Shared\"",
+            "type": "object",
+            "required": [
+              "shared"
+            ],
+            "properties": {
+              "shared": {
+                "type": "object",
+                "required": [
+                  "initialSharedVersion",
+                  "mutable",
+                  "objectId"
+                ],
+                "properties": {
+                  "initialSharedVersion": {
+                    "description": "Radix-10 encoded 64-bit unsigned integer",
+                    "type": "string",
+                    "format": "u64"
+                  },
+                  "mutable": {
+                    "type": "boolean"
+                  },
+                  "objectId": {
+                    "$ref": "#/components/schemas/ObjectId"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "A move object that is attempted to be received in this transaction.",
+            "type": "object",
+            "required": [
+              "receiving"
+            ],
+            "properties": {
+              "receiving": {
+                "$ref": "#/components/schemas/ObjectReference"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
       },
       "CancelledTransaction": {
         "description": "A transaction that was cancelled\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text cancelled-transaction = digest (vector version-assignment) ```",
@@ -2749,7 +2826,7 @@
             }
           },
           {
-            "description": "Attempted to used feature that is not supported yet",
+            "description": "Attempted to use feature that is not supported yet",
             "type": "object",
             "required": [
               "error"
@@ -3330,34 +3407,6 @@
             }
           },
           {
-            "description": "Certificate is cancelled due to congestion on shared objects; suggested gas price can be used to give this certificate more priority.",
-            "type": "object",
-            "required": [
-              "congested_objects",
-              "error",
-              "suggested_gas_price"
-            ],
-            "properties": {
-              "congested_objects": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/ObjectId"
-                }
-              },
-              "error": {
-                "type": "string",
-                "enum": [
-                  "execution_cancelled_due_to_shared_object_congestion_v2"
-                ]
-              },
-              "suggested_gas_price": {
-                "type": "integer",
-                "format": "uint64",
-                "minimum": 0.0
-              }
-            }
-          },
-          {
             "description": "Address is denied for this coin type",
             "type": "object",
             "required": [
@@ -3411,6 +3460,34 @@
                 "enum": [
                   "execution_cancelled_due_to_randomness_unavailable"
                 ]
+              }
+            }
+          },
+          {
+            "description": "Certificate is cancelled due to congestion on shared objects; suggested gas price can be used to give this certificate more priority.",
+            "type": "object",
+            "required": [
+              "congested_objects",
+              "error",
+              "suggested_gas_price"
+            ],
+            "properties": {
+              "congested_objects": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ObjectId"
+                }
+              },
+              "error": {
+                "type": "string",
+                "enum": [
+                  "execution_cancelled_due_to_shared_object_congestion_v2"
+                ]
+              },
+              "suggested_gas_price": {
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0.0
               }
             }
           },
@@ -3584,92 +3661,6 @@
         ],
         "type": "string",
         "pattern": "(?:[a-zA-Z][a-zA-Z0-9_]{0,127})|(?:_[a-zA-Z0-9_]{0,127})"
-      },
-      "Input": {
-        "description": "An input to a user transaction\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text input = input-pure / input-immutable-or-owned / input-shared / input-receiving\n\ninput-pure                  = %x00 bytes input-immutable-or-owned    = %x01 object-ref input-shared                = %x02 object-id u64 bool input-receiving             = %x04 object-ref ```",
-        "oneOf": [
-          {
-            "description": "A move value serialized as BCS.\n\nFor normal operations this is required to be a move primitive type and not contain structs or objects.",
-            "type": "object",
-            "required": [
-              "pure"
-            ],
-            "properties": {
-              "pure": {
-                "type": "object",
-                "required": [
-                  "value"
-                ],
-                "properties": {
-                  "value": {
-                    "description": "Base64 encoded data",
-                    "type": "string",
-                    "format": "base64"
-                  }
-                }
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "A move object that is either immutable or address owned",
-            "type": "object",
-            "required": [
-              "immutable_or_owned"
-            ],
-            "properties": {
-              "immutable_or_owned": {
-                "$ref": "#/components/schemas/ObjectReference"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "A move object whose owner is \"Shared\"",
-            "type": "object",
-            "required": [
-              "shared"
-            ],
-            "properties": {
-              "shared": {
-                "type": "object",
-                "required": [
-                  "initialSharedVersion",
-                  "mutable",
-                  "objectId"
-                ],
-                "properties": {
-                  "initialSharedVersion": {
-                    "description": "Radix-10 encoded 64-bit unsigned integer",
-                    "type": "string",
-                    "format": "u64"
-                  },
-                  "mutable": {
-                    "description": "Controls whether the caller asks for a mutable reference to the shared object.",
-                    "type": "boolean"
-                  },
-                  "objectId": {
-                    "$ref": "#/components/schemas/ObjectId"
-                  }
-                }
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "A move object that is attempted to be received in this transaction.",
-            "type": "object",
-            "required": [
-              "receiving"
-            ],
-            "properties": {
-              "receiving": {
-                "$ref": "#/components/schemas/ObjectReference"
-              }
-            },
-            "additionalProperties": false
-          }
-        ]
       },
       "Jwk": {
         "description": "A JSON Web Key\n\nStruct that contains info for a JWK. A list of them for different kids can be retrieved from the JWK endpoint (e.g. <https://www.googleapis.com/oauth2/v3/certs>). The JWK is used to verify the JWT token.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text jwk = string string string string ```",
@@ -4237,30 +4228,29 @@
         "minItems": 3
       },
       "Owner": {
-        "description": "Enum of different types of ownership for an object.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text owner = owner-address / owner-object / owner-shared / owner-immutable\n\nowner-address   = %x00 address owner-object    = %x01 object-id owner-shared    = %x02 u64 owner-immutable = %x03 ```",
         "oneOf": [
           {
             "description": "Object is exclusively owned by a single address, and is mutable.",
             "type": "object",
             "required": [
-              "address"
+              "AddressOwner"
             ],
             "properties": {
-              "address": {
+              "AddressOwner": {
                 "$ref": "#/components/schemas/Address"
               }
             },
             "additionalProperties": false
           },
           {
-            "description": "Object is exclusively owned by a single object, and is mutable.",
+            "description": "Object is exclusively owned by a single object, and is mutable. The object ID is converted to IotaAddress as IotaAddress is universal.",
             "type": "object",
             "required": [
-              "object"
+              "ObjectOwner"
             ],
             "properties": {
-              "object": {
-                "$ref": "#/components/schemas/ObjectId"
+              "ObjectOwner": {
+                "$ref": "#/components/schemas/Address"
               }
             },
             "additionalProperties": false
@@ -4269,13 +4259,22 @@
             "description": "Object is shared, can be used by any address, and is mutable.",
             "type": "object",
             "required": [
-              "shared"
+              "Shared"
             ],
             "properties": {
-              "shared": {
-                "description": "Radix-10 encoded 64-bit unsigned integer",
-                "type": "string",
-                "format": "u64"
+              "Shared": {
+                "type": "object",
+                "required": [
+                  "initial_shared_version"
+                ],
+                "properties": {
+                  "initial_shared_version": {
+                    "description": "The version at which the object became shared",
+                    "type": "integer",
+                    "format": "uint64",
+                    "minimum": 0.0
+                  }
+                }
               }
             },
             "additionalProperties": false
@@ -4284,7 +4283,7 @@
             "description": "Object is immutable, and hence ownership doesn't matter.",
             "type": "string",
             "enum": [
-              "immutable"
+              "Immutable"
             ]
           }
         ]
@@ -4416,7 +4415,7 @@
             }
           },
           {
-            "description": "PackageId does not matach PackageId in upgrade ticket",
+            "description": "PackageId does not match PackageId in upgrade ticket",
             "type": "object",
             "required": [
               "kind",
@@ -4464,6 +4463,19 @@
             "description": "Radix-10 encoded 64-bit unsigned integer",
             "type": "string",
             "format": "u64"
+          }
+        }
+      },
+      "PureInput": {
+        "type": "object",
+        "required": [
+          "value"
+        ],
+        "properties": {
+          "value": {
+            "description": "Base64 encoded data",
+            "type": "string",
+            "format": "base64"
           }
         }
       },
@@ -5109,7 +5121,7 @@
                 "description": "Input objects or primitive values",
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/Input"
+                  "$ref": "#/components/schemas/CallArg"
                 }
               },
               "kind": {
@@ -5788,11 +5800,11 @@
               "call_args": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/Input"
+                  "$ref": "#/components/schemas/CallArg"
                 }
               },
               "object_to_authenticate": {
-                "$ref": "#/components/schemas/Input"
+                "$ref": "#/components/schemas/CallArg"
               },
               "scheme": {
                 "type": "string",

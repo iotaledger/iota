@@ -14,7 +14,7 @@ use iota_types::{
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        CallArg, ObjectArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        CallArg, ProgrammableTransaction, SharedObjectRef, TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         VerifiedCertificate,
     },
 };
@@ -300,8 +300,8 @@ async fn test_tto_transfer() {
         let effects = runner
             .run({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
-                let child = builder.obj(ObjectArg::Receiving(child.0)).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
+                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M1::receiver(parent, child)
@@ -351,15 +351,15 @@ async fn test_tto_intersection_input_and_receiving_objects() {
             .await;
 
         let (parent, child) = get_parent_and_child(effects.created());
-        let parent_receiving_arg = CallArg::Object(ObjectArg::Receiving(parent.0));
-        let child_receiving_arg = CallArg::Object(ObjectArg::Receiving(child.0));
+        let parent_receiving_arg = CallArg::Receiving(parent.0);
+        let child_receiving_arg = CallArg::Receiving(child.0);
 
         // Duplicate object reference between receiving and input object arguments.
         let IotaError::UserInput { error } = runner
             .signing_error({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
-                let child = builder.obj(ObjectArg::Receiving(child.0)).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
+                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M1::receiver(parent, child)
@@ -377,8 +377,8 @@ async fn test_tto_intersection_input_and_receiving_objects() {
         let IotaError::UserInput { error } = runner
             .signing_error({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
-                let child = builder.obj(ObjectArg::Receiving(child.0)).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
+                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M1::receiver(parent, child)
@@ -483,8 +483,8 @@ async fn test_tto_invalid_receiving_arguments() {
         for (i, (mutate, expect)) in mutations.into_iter().enumerate() {
             let IotaError::UserInput { error } = runner.signing_error({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
-                let child = builder.obj(ObjectArg::Receiving(mutate(child.0))).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
+                let child = builder.obj(CallArg::Receiving(mutate(child.0))).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M1::receiver(parent, child)
@@ -522,8 +522,8 @@ async fn test_tto_unused_receiver() {
         let effects = runner
             .run({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
-                builder.obj(ObjectArg::Receiving(child.0)).unwrap();
+                builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
+                builder.obj(CallArg::Receiving(child.0)).unwrap();
                 builder.finish()
             })
             .await;
@@ -578,8 +578,8 @@ async fn test_tto_pass_receiving_by_refs() {
         let effects = runner
             .run({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
-                let child = builder.obj(ObjectArg::Receiving(child.0)).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
+                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M1::call_immut_ref(parent, child)
@@ -642,8 +642,8 @@ async fn test_tto_delete() {
         let effects = runner
             .run({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
-                let child = builder.obj(ObjectArg::Receiving(child.0)).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
+                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M1::deleter(parent, child)
@@ -694,8 +694,8 @@ async fn test_tto_wrap() {
         let effects = runner
             .run({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
-                let child = builder.obj(ObjectArg::Receiving(child.0)).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
+                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M1::wrapper(parent, child)
@@ -748,8 +748,8 @@ async fn test_tto_unwrap_transfer() {
         let effects = runner
             .run({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
-                let child = builder.obj(ObjectArg::Receiving(child.0)).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
+                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M2::unwrap_receiver(parent, child)
@@ -810,8 +810,8 @@ async fn test_tto_unwrap_delete() {
         let effects = runner
             .run({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
-                let child = builder.obj(ObjectArg::Receiving(child.0)).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
+                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M2::unwrap_deleter(parent, child)
@@ -866,8 +866,8 @@ async fn test_tto_unwrap_add_as_dynamic_field() {
         let effects = runner
             .run({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
-                let child = builder.obj(ObjectArg::Receiving(child.0)).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
+                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M2::unwrap_add_dyn(parent, child)
@@ -948,9 +948,9 @@ async fn verify_tto_not_locked(
             {
                 let mut builder = ProgrammableTransactionBuilder::new();
                 let parent = builder
-                    .obj(ObjectArg::ImmOrOwnedObject(fake_parent.0))
+                    .obj(CallArg::ImmutableOrOwned(fake_parent.0))
                     .unwrap();
-                let child = builder.obj(ObjectArg::Receiving(child.0)).unwrap();
+                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
                 if should_delete {
                     move_call!(builder, (runner.package.object_id)::M3::deleter(parent, child));
                 } else {
@@ -969,8 +969,8 @@ async fn verify_tto_not_locked(
         .lock_and_verify_transaction(
             {
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
-                let child = builder.obj(ObjectArg::Receiving(child.0)).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
+                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
                 if should_delete {
                     move_call!(builder, (runner.package.object_id)::M3::deleter(parent, child));
                 } else {
@@ -1109,8 +1109,8 @@ async fn test_tto_valid_dependencies() {
             .run_with_gas_object(
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
-                    let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
-                    let child = builder.obj(ObjectArg::Receiving(child.0)).unwrap();
+                    let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
+                    let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
                     move_call! {
                         builder,
                         (runner.package.object_id)::M4::receiver(parent, child)
@@ -1208,8 +1208,8 @@ async fn test_tto_valid_dependencies_delete_on_receive() {
             .run_with_gas_object(
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
-                    let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
-                    let child = builder.obj(ObjectArg::Receiving(child.0)).unwrap();
+                    let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
+                    let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
                     move_call! {
                         builder,
                         (runner.package.object_id)::M4::deleter(parent, child)
@@ -1307,8 +1307,8 @@ async fn test_tto_dependencies_dont_receive() {
             .run_with_gas_object(
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
-                    let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
-                    let child = builder.obj(ObjectArg::Receiving(child.0)).unwrap();
+                    let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
+                    let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
                     move_call! {
                         builder,
                         (runner.package.object_id)::M4::nop(parent, child)
@@ -1401,8 +1401,8 @@ async fn test_tto_dependencies_dont_receive_but_abort() {
             .run_with_gas_object(
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
-                    let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
-                    let child = builder.obj(ObjectArg::Receiving(child.0)).unwrap();
+                    let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
+                    let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
                     move_call! {
                         builder,
                         (runner.package.object_id)::M4::aborter(parent, child)
@@ -1496,8 +1496,8 @@ async fn test_tto_dependencies_receive_and_abort() {
             .run_with_gas_object(
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
-                    let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
-                    let child = builder.obj(ObjectArg::Receiving(child.0)).unwrap();
+                    let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
+                    let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
                     move_call! {
                         builder,
                         (runner.package.object_id)::M4::receive_abort(parent, child)
@@ -1590,8 +1590,8 @@ async fn test_tto_dependencies_receive_and_type_mismatch() {
             .run_with_gas_object(
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
-                    let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
-                    let child = builder.obj(ObjectArg::Receiving(child.0)).unwrap();
+                    let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
+                    let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
                     move_call! {
                         builder,
                         (runner.package.object_id)::M4::receive_type_mismatch(parent, child)
@@ -1670,13 +1670,13 @@ async fn receive_and_dof_interleave() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     let parent = builder
-                        .obj(ObjectArg::SharedObject {
-                            id: shared.0.object_id,
+                        .obj(CallArg::Shared(SharedObjectRef {
+                            object_id: shared.0.object_id,
                             initial_shared_version,
                             mutable: true,
-                        })
+                        }))
                         .unwrap();
-                    let child = builder.obj(ObjectArg::Receiving(owned.0)).unwrap();
+                    let child = builder.obj(CallArg::Receiving(owned.0)).unwrap();
                     move_call! {
                         builder,
                         (runner.package.object_id)::M5::deleter(parent, child)
@@ -1692,13 +1692,13 @@ async fn receive_and_dof_interleave() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     let parent = builder
-                        .obj(ObjectArg::SharedObject {
-                            id: shared.0.object_id,
+                        .obj(CallArg::Shared(SharedObjectRef {
+                            object_id: shared.0.object_id,
                             initial_shared_version,
                             mutable: true,
-                        })
+                        }))
                         .unwrap();
-                    let child = builder.obj(ObjectArg::ImmOrOwnedObject(owned.0)).unwrap();
+                    let child = builder.obj(CallArg::ImmutableOrOwned(owned.0)).unwrap();
                     move_call! {
                         builder,
                         (runner.package.object_id)::M5::add_dof(parent, child)
@@ -1739,8 +1739,8 @@ async fn test_have_deleted_owned_object() {
         let effects = runner
             .run({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
-                let child = builder.obj(ObjectArg::Receiving(child.0)).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
+                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M1::send_back(parent, child)
@@ -1761,8 +1761,8 @@ async fn test_have_deleted_owned_object() {
         let effects = runner
             .run({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(ObjectArg::ImmOrOwnedObject(new_parent.0)).unwrap();
-                let child = builder.obj(ObjectArg::Receiving(new_child.0)).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(new_parent.0)).unwrap();
+                let child = builder.obj(CallArg::Receiving(new_child.0)).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M1::deleter(parent, child)

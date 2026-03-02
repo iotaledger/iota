@@ -530,9 +530,9 @@ fn create_input_calls(
             Identifier::from_static("mint_vec"),
             vec![],
             vec![
-                CallArg::from(cap),
-                CallArg::from(coin_value),
-                CallArg::from(input_size),
+                CallArg::ImmutableOrOwned(cap),
+                CallArg::pure(&coin_value),
+                CallArg::pure(&input_size),
             ],
         )
         .unwrap();

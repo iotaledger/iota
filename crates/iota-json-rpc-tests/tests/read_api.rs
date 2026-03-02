@@ -1570,7 +1570,10 @@ async fn try_get_past_object_deleted() {
                     package_id,
                     "object_basics",
                     "create",
-                    vec![1u64.into(), CallArg::Pure(address.as_bytes().to_vec())],
+                    vec![
+                        CallArg::pure(&1u64),
+                        CallArg::Pure(address.as_bytes().to_vec()),
+                    ],
                 )
                 .build(),
         )
@@ -1606,12 +1609,10 @@ async fn try_get_past_object_deleted() {
         .data
         .unwrap();
 
-    let arg = CallArg::Object(iota_types::transaction::ObjectArg::ImmOrOwnedObject(
-        ObjectRef::new(
-            created_object.object_id,
-            created_object.version,
-            created_object.digest,
-        ),
+    let arg = CallArg::ImmutableOrOwned(iota_types::base_types::ObjectRef::new(
+        created_object.object_id,
+        created_object.version,
+        created_object.digest,
     ));
 
     let tx_block_response = cluster

@@ -23,7 +23,7 @@ use iota_types::{
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::ObjectStore,
-    transaction::{Argument, Command, ObjectArg, ProgrammableTransaction},
+    transaction::{Argument, CallArg, Command, ProgrammableTransaction},
 };
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -310,7 +310,7 @@ mod add_stake {
         async fn run(&mut self, runner: &mut StressTestRunner) -> Result<TransactionEffects> {
             let pt = {
                 let mut builder = ProgrammableTransactionBuilder::new();
-                builder.obj(ObjectArg::IOTA_SYSTEM_MUT).unwrap();
+                builder.obj(CallArg::IOTA_SYSTEM_MUTABLE).unwrap();
                 builder.pure(self.staked_with).unwrap();
                 let coin = StressTestRunner::split_off(&mut builder, self.stake_amount);
                 move_call! {
