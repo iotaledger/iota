@@ -26,6 +26,7 @@ export * from './useConnectedApps';
 export * from './useCreateAccountsMutation';
 export * from './useExportPassphraseMutation';
 export * from './useExportSeedMutation';
+export * from './useInitialPageView';
 export * from './usePinnedCoinTypes';
 export * from './useResetPasswordMutation';
 export * from './useRestrictedGuard';
