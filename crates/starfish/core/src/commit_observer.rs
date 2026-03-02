@@ -119,15 +119,10 @@ impl CommitObserver {
         self.linearizer.clear_state();
         self.last_sent_commit_index = last_commit_index;
 
-        // Recover linearizer and solidifier state directly.
-        // Don't go through recover_and_send_commits which skips Phase 2
-        // when store.read_fast_sync_ongoing() returns true (stale read).
-        // Phase 1 (resend unprocessed commits) is a no-op since
-        // last_sent == last_commit after fast sync.
-        self.recover_linearizer_and_solidifier_state(
-            last_commit_index,
-            CommittedSubDagSource::FastCommitSyncer,
-        );
+        // Recover linearizer and solidifier state via the standard path.
+        // The fast_sync_ongoing flag will have been flushed to false by now,
+        // so recover_and_send_commits will correctly run Phase 2.
+        self.recover_and_send_commits(last_commit_index, CommittedSubDagSource::FastCommitSyncer);
 
         info!(
             "CommitObserver reinitialized at commit index {}, took {:?}",
