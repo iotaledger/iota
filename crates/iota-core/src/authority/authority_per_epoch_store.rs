@@ -2287,6 +2287,7 @@ impl AuthorityPerEpochStore {
     pub fn insert_pending_consensus_transactions(
         &self,
         transactions: &[ConsensusTransaction],
+        lock: Option<&RwLockReadGuard<ReconfigState>>,
     ) -> IotaResult {
         let key_value_pairs = transactions.iter().map(|tx| (tx.key(), tx));
         self.tables()?
@@ -2315,6 +2316,8 @@ impl AuthorityPerEpochStore {
                 }
             }
         }
+
+        Ok(())
     }
 
     /// Remove processed by consensus transactions from the persistent
@@ -2343,6 +2346,8 @@ impl AuthorityPerEpochStore {
                 }
             }
         }
+
+        Ok(())
     }
 
     pub fn pending_consensus_certificates_count(&self) -> usize {
