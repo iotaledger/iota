@@ -5,7 +5,6 @@
 import {
     useAutoLockMinutes,
     useBackgroundClient,
-    useInitialPageView,
     useStorageMigrationStatus,
     useAccounts,
     useAppDispatch,
@@ -85,7 +84,6 @@ export function App() {
         dispatch(setNavVisibility(menuVisible));
     }, [location, dispatch]);
 
-    useInitialPageView();
     const { data: accounts } = useAccounts();
     const allLedgerWithoutPublicKey = useMemo(
         () =>
