@@ -887,7 +887,7 @@ impl From<IotaSystemStateSummary> for StoredSystemState {
         match native {
             IotaSystemStateSummary::V1(inner) => StoredSystemState::V1(inner.into()),
             IotaSystemStateSummary::V2(inner) => StoredSystemState::V2(inner.into()),
-            _ => unimplemented!(),
+            _ => panic!("unsupported native system state"),
         }
     }
 }
