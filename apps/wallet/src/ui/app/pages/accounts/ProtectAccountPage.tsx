@@ -54,7 +54,7 @@ function isAllowedAccountType(accountType: string): accountType is AllowedAccoun
 
 export function ProtectAccountPage() {
     const [searchParams] = useSearchParams();
-    const accountsFormType = searchParams.get('accountsFormType') as AccountsFormType || '';
+    const accountsFormType = (searchParams.get('accountsFormType') as AccountsFormType) || '';
     const successRedirect = searchParams.get('successRedirect') || '/tokens';
     const navigate = useNavigate();
     const backgroundClient = useBackgroundClient();
@@ -77,10 +77,7 @@ export function ProtectAccountPage() {
     const featureAccountFinderEnabled = useFeature<boolean>(Feature.AccountFinder).value;
 
     const createAccountCallback = useCallback(
-        async (
-            password: string,
-            autoLockToTrack?: ProtectAccountFormValues['autoLock'],
-        ) => {
+        async (password: string, autoLockToTrack?: ProtectAccountFormValues['autoLock']) => {
             try {
                 const createdAccounts = await createMutation.mutateAsync({
                     type: accountsFormType,
@@ -161,10 +158,7 @@ export function ProtectAccountPage() {
                 await autoLockMutation.mutateAsync({ minutes });
             }
 
-            await createAccountCallback(
-                password.input,
-                hasAutoLock ? autoLock : undefined,
-            );
+            await createAccountCallback(password.input, hasAutoLock ? autoLock : undefined);
         } catch (e) {
             toast.error((e as Error)?.message || 'Something went wrong');
         }
@@ -186,9 +180,7 @@ export function ProtectAccountPage() {
                             const unlockAllPromise = backgroundClient.unlockAllAccountsAndSources({
                                 password,
                             });
-                            await createAccountCallback(
-                                password,
-                            );
+                            await createAccountCallback(password);
                             await unlockAllPromise;
                         }}
                     />
