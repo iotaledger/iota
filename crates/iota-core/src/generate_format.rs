@@ -42,7 +42,7 @@ use iota_types::{
     storage::DeleteKind,
     transaction::{
         Argument, CallArg, Command, EndOfEpochTransactionKind, GenesisObject, SenderSignedData,
-        TransactionData, TransactionExpiration, TransactionKind,
+        SharedObjectRef, TransactionData, TransactionExpiration, TransactionKind,
     },
     type_input::{StructInput, TypeInput},
     utils::DEFAULT_ADDRESS_SEED,
@@ -53,26 +53,6 @@ use rand::{SeedableRng, rngs::StdRng};
 use roaring::RoaringBitmap;
 use serde_reflection::{ContainerFormat, Registry, Result, Samples, Tracer, TracerConfig};
 use typed_store::TypedStoreError;
-
-/// Proxy for the `ObjectArg` helper enum defined in the `iota-sdk-types`
-/// serialization module. `CallArg` (= `iota_sdk_types::Input`) has a custom
-/// binary `Serialize`/`Deserialize` that maps through this local `ObjectArg`
-/// type. serde_reflection's `trace_type` loop only iterates until the
-/// **top-level** type (`CallArg`) is complete, so `ObjectArg` ends up in
-/// `incomplete_enums`. By tracing this proxy (which calls
-/// `deserialize_enum("ObjectArg", ...)`) we drive all of ObjectArg's variants
-/// to completion before tracing `CallArg`.
-#[derive(serde::Serialize, serde::Deserialize)]
-#[serde(rename = "ObjectArg")]
-enum ObjectArgProxy {
-    ImmutableOrOwned(iota_types::base_types::ObjectRef),
-    Shared {
-        object_id: iota_types::base_types::ObjectID,
-        initial_shared_version: iota_types::base_types::SequenceNumber,
-        mutable: bool,
-    },
-    Receiving(iota_types::base_types::ObjectRef),
-}
 
 /// Generate a type format registry for IOTA types
 ///
@@ -338,6 +318,40 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_type::<StructInput>(&samples).unwrap();
     tracer.trace_type::<TypeInput>(&samples).unwrap();
     tracer.trace_type::<Owner>(&samples).unwrap();
+    // Trace all CallArg (= iota_sdk_types::Input) variants
+    tracer
+        .trace_value(&mut samples, &CallArg::Pure(vec![0u8]))
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &CallArg::ImmutableOrOwned(iota_types::base_types::ObjectRef::new(
+                ObjectID::ZERO,
+                1u64.into(),
+                ObjectDigest::random(),
+            )),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &CallArg::Shared(SharedObjectRef {
+                object_id: ObjectID::ZERO,
+                initial_shared_version: 1u64.into(),
+                mutable: false,
+            }),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &CallArg::Receiving(iota_types::base_types::ObjectRef::new(
+                ObjectID::ZERO,
+                1u64.into(),
+                ObjectDigest::random(),
+            )),
+        )
+        .unwrap();
     tracer.trace_type::<CallArg>(&samples).unwrap();
     tracer.trace_type::<TypedStoreError>(&samples).unwrap();
     tracer
@@ -407,10 +421,6 @@ fn get_registry() -> Result<Registry> {
         .unwrap();
 
     tracer.trace_type::<CheckpointData>(&samples).unwrap();
-
-    // Trace last to clear any residual `incomplete_enums["ObjectArg"]` entry
-    // before calling `registry()` (see `ObjectArgProxy` for details).
-    tracer.trace_type::<ObjectArgProxy>(&samples).unwrap();
 
     // Use registry_unchecked() because trace_type::<TransactionEffects>
     // re-encounters ExecutionStatus during deserialization and marks it as
